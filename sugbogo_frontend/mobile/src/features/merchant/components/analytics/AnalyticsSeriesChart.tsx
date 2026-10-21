@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, {
   Circle,
   Defs,
@@ -65,6 +66,21 @@ export default function AnalyticsSeriesChart({
 
   const [measuredWidth, setMeasuredWidth] = useState(0);
   const [showValues, setShowValues] = useState(false);
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const [selection, setSelection] = useState<{
+    index: number;
+    points: AnalyticsPlotPoint[];
+    interval: AnalyticsInterval;
+    label: string;
+    range?: AnalyticsChartRange;
+  } | null>(null);
+  const selectedIndex =
+    selection?.points === points &&
+    selection.interval === interval &&
+    selection.label === label &&
+    selection.range === range
+      ? selection.index
+      : null;
 
   const slots = buildAnalyticsCalendar(points, interval, range);
 
@@ -139,6 +155,45 @@ export default function AnalyticsSeriesChart({
   const y = (value: number) => bottom - (value / maximum) * plotHeight;
 
   const canScroll = plotWidth > chartWidth - axisWidth + 1;
+  const viewportWidth = chartWidth - axisWidth;
+  const selectedSlot =
+    selectedIndex === null ? undefined : slots[selectedIndex];
+  const selectedX = ((selectedIndex ?? 0) + 0.5) * stepWidth;
+  const bubbleWidth = Math.min(viewportWidth, 132 * scale);
+  const bubbleX = Math.max(
+    0,
+    Math.min(
+      selectedX - scrollOffset - bubbleWidth / 2,
+      viewportWidth - bubbleWidth,
+    ),
+  );
+
+  const selectAtPosition = (position: number) => {
+    const index = Math.floor((position + scrollOffset) / stepWidth);
+
+    setSelection({
+      index: Math.max(0, Math.min(slots.length - 1, index)),
+      points,
+      interval,
+      label,
+      range,
+    });
+  };
+
+  // Scrolling never waits for inspection. Movement before the hold fails this
+  // gesture; only an intentional stationary hold pauses horizontal scrolling.
+  const nativeScroll = Gesture.Native();
+  const inspection = Gesture.Pan()
+    .withTestId("analytics-chart-inspect-gesture")
+    .activateAfterLongPress(450)
+    .failOffsetX([-8, 8])
+    .failOffsetY([-8, 8])
+    .maxPointers(1)
+    .simultaneousWithExternalGesture(nativeScroll)
+    .runOnJS(true)
+    .onStart((event) => selectAtPosition(event.x))
+    .onUpdate((event) => selectAtPosition(event.x))
+    .onFinalize(() => setSelection(null));
 
   const renderValue = (slot: AnalyticsCalendarSlot) => {
     const dates = analyticsCalendarLabel(slot, interval);
@@ -293,186 +348,255 @@ export default function AnalyticsSeriesChart({
           ))}
         </Svg>
 
-        <ScrollView
-          testID="analytics-chart-viewport"
-          horizontal
-          style={{
-            height,
-            flex: 1,
-          }}
-          contentContainerStyle={{ height }}
-          showsHorizontalScrollIndicator={canScroll}
-        >
-          <Svg
-            width={plotWidth}
-            height={height}
-            accessible={false}
-            fontFamily="NunitoSans_400Regular"
-          >
-            {variant === "line" && (
-              <Defs>
-                <LinearGradient
-                  id="analytics-line-fill"
-                  x1={0}
-                  y1={top}
-                  x2={0}
-                  y2={bottom}
-                  gradientUnits="userSpaceOnUse"
+        <GestureDetector gesture={inspection}>
+          <View style={{ flex: 1 }} collapsable={false}>
+            <GestureDetector gesture={nativeScroll}>
+              <ScrollView
+                testID="analytics-chart-viewport"
+                horizontal
+                directionalLockEnabled
+                nestedScrollEnabled
+                scrollEnabled={selectedIndex === null}
+                style={{
+                  height,
+                  flex: 1,
+                }}
+                contentContainerStyle={{ height }}
+                showsHorizontalScrollIndicator={canScroll}
+                scrollEventThrottle={16}
+                onScroll={(event) => {
+                  setScrollOffset(event.nativeEvent.contentOffset.x);
+                }}
+              >
+                <Svg
+                  width={plotWidth}
+                  height={height}
+                  accessible={false}
+                  fontFamily="NunitoSans_400Regular"
                 >
-                  <Stop offset="0" stopColor={color} stopOpacity={0.2} />
-                  <Stop offset="1" stopColor={color} stopOpacity={0} />
-                </LinearGradient>
-              </Defs>
-            )}
-
-            {/* Full-period count grid */}
-            {ticks.map((tick) => (
-              <Line
-                key={tick}
-                x1={0}
-                x2={plotWidth}
-                y1={y(tick)}
-                y2={y(tick)}
-                stroke={theme.extends.colors.border.primary}
-                strokeOpacity={tick === 0 ? 0.8 : 0.5}
-                strokeDasharray="3 4"
-              />
-            ))}
-
-            {/* Join only adjacent observed intervals; a missing bucket always breaks the line. */}
-            {variant === "line" &&
-              slots.map((slot, index) => {
-                const previous = slots[index - 1];
-                const value = slot.observation?.value;
-                const previousValue = previous?.observation?.value;
-                if (value === undefined || previousValue === undefined) {
-                  return null;
-                }
-
-                const startX = (index - 0.5) * stepWidth;
-                const endX = (index + 0.5) * stepWidth;
-
-                return (
-                  <G key={`${previous.date}-${slot.date}`}>
-                    <Path
-                      testID={`analytics-area-${previous.date}-${slot.date}`}
-                      d={`M ${startX} ${bottom} L ${startX} ${y(previousValue)} L ${endX} ${y(value)} L ${endX} ${bottom} Z`}
-                      fill="url(#analytics-line-fill)"
-                    />
-                    <Line
-                      testID={`analytics-line-${previous.date}-${slot.date}`}
-                      x1={startX}
-                      y1={y(previousValue)}
-                      x2={endX}
-                      y2={y(value)}
-                      stroke={color}
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                    />
-                  </G>
-                );
-              })}
-
-            {/* Columns, reported zeros, and missing-data marks */}
-            {slots.map((slot, index) => {
-              const center = (index + 0.5) * stepWidth;
-
-              const value = slot.observation?.value;
-
-              const showDate =
-                index === slots.length - 1 ||
-                (index % labelEvery === 0 &&
-                  slots.length - 1 - index >= labelEvery);
-
-              const labelX =
-                index === 0
-                  ? 2
-                  : index === slots.length - 1
-                    ? plotWidth - 2
-                    : center;
-
-              const textAnchor =
-                index === 0
-                  ? "start"
-                  : index === slots.length - 1
-                    ? "end"
-                    : "middle";
-
-              return (
-                <G key={slot.date}>
-                  {value === undefined ? (
-                    <Line
-                      testID={`analytics-missing-${slot.date}`}
-                      x1={center - 4}
-                      x2={center + 4}
-                      y1={bottom}
-                      y2={bottom}
-                      stroke={theme.extends.colors.text.secondary}
-                      strokeWidth={2}
-                    />
-                  ) : value === 0 ? (
-                    <Circle
-                      testID={`analytics-zero-${slot.date}`}
-                      cx={center}
-                      cy={bottom}
-                      r={3}
-                      fill={theme.extends.colors.surface}
-                      stroke={theme.extends.colors.text.secondary}
-                      strokeWidth={1.5}
-                    />
-                  ) : variant === "line" ? (
-                    <Circle
-                      testID={`analytics-point-${slot.date}`}
-                      cx={center}
-                      cy={y(value)}
-                      r={3.5}
-                      fill={color}
-                    />
-                  ) : (
-                    <Rect
-                      testID={`analytics-column-${slot.date}`}
-                      x={center - barWidth / 2}
-                      y={y(value)}
-                      width={barWidth}
-                      height={bottom - y(value)}
-                      rx={4}
-                      fill={color}
-                      fillOpacity={value === maximumObserved ? 1 : 0.5}
-                    />
-                  )}
-
-                  {/* Calendar ticks and partial-interval markers */}
-                  {showDate && (
-                    <>
-                      <SvgText
-                        x={labelX}
-                        y={bottom + fontSize * 1.7}
-                        textAnchor={textAnchor}
-                        fontSize={fontSize}
-                        fill={theme.extends.colors.text.secondary}
+                  {variant === "line" && (
+                    <Defs>
+                      <LinearGradient
+                        id="analytics-line-fill"
+                        x1={0}
+                        y1={top}
+                        x2={0}
+                        y2={bottom}
+                        gradientUnits="userSpaceOnUse"
                       >
-                        {shortAnalyticsDate(`${slot.date}T00:00:00+08:00`)}
-                      </SvgText>
-
-                      {slot.partial && (
-                        <SvgText
-                          x={labelX}
-                          y={bottom + fontSize * 2.9}
-                          textAnchor={textAnchor}
-                          fontSize={fontSize}
-                          fill={theme.extends.colors.text.secondary}
-                        >
-                          Partial
-                        </SvgText>
-                      )}
-                    </>
+                        <Stop offset="0" stopColor={color} stopOpacity={0.2} />
+                        <Stop offset="1" stopColor={color} stopOpacity={0} />
+                      </LinearGradient>
+                    </Defs>
                   )}
-                </G>
-              );
-            })}
-          </Svg>
-        </ScrollView>
+
+                  {/* Full-period count grid */}
+                  {ticks.map((tick) => (
+                    <Line
+                      key={tick}
+                      x1={0}
+                      x2={plotWidth}
+                      y1={y(tick)}
+                      y2={y(tick)}
+                      stroke={theme.extends.colors.border.primary}
+                      strokeOpacity={tick === 0 ? 0.8 : 0.5}
+                      strokeDasharray="3 4"
+                    />
+                  ))}
+
+                  {/* Join only adjacent observed intervals; a missing bucket always breaks the line. */}
+                  {variant === "line" &&
+                    slots.map((slot, index) => {
+                      const previous = slots[index - 1];
+                      const value = slot.observation?.value;
+                      const previousValue = previous?.observation?.value;
+                      if (value === undefined || previousValue === undefined) {
+                        return null;
+                      }
+
+                      const startX = (index - 0.5) * stepWidth;
+                      const endX = (index + 0.5) * stepWidth;
+
+                      return (
+                        <G key={`${previous.date}-${slot.date}`}>
+                          <Path
+                            testID={`analytics-area-${previous.date}-${slot.date}`}
+                            d={`M ${startX} ${bottom} L ${startX} ${y(previousValue)} L ${endX} ${y(value)} L ${endX} ${bottom} Z`}
+                            fill="url(#analytics-line-fill)"
+                          />
+                          <Line
+                            testID={`analytics-line-${previous.date}-${slot.date}`}
+                            x1={startX}
+                            y1={y(previousValue)}
+                            x2={endX}
+                            y2={y(value)}
+                            stroke={color}
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                          />
+                        </G>
+                      );
+                    })}
+
+                  {/* Columns, reported zeros, and missing-data marks */}
+                  {slots.map((slot, index) => {
+                    const center = (index + 0.5) * stepWidth;
+
+                    const value = slot.observation?.value;
+
+                    const showDate =
+                      index === slots.length - 1 ||
+                      (index % labelEvery === 0 &&
+                        slots.length - 1 - index >= labelEvery);
+
+                    const labelX =
+                      index === 0
+                        ? 2
+                        : index === slots.length - 1
+                          ? plotWidth - 2
+                          : center;
+
+                    const textAnchor =
+                      index === 0
+                        ? "start"
+                        : index === slots.length - 1
+                          ? "end"
+                          : "middle";
+
+                    return (
+                      <G key={slot.date}>
+                        {value === undefined ? (
+                          <Line
+                            testID={`analytics-missing-${slot.date}`}
+                            x1={center - 4}
+                            x2={center + 4}
+                            y1={bottom}
+                            y2={bottom}
+                            stroke={theme.extends.colors.text.secondary}
+                            strokeWidth={2}
+                          />
+                        ) : value === 0 ? (
+                          <Circle
+                            testID={`analytics-zero-${slot.date}`}
+                            cx={center}
+                            cy={bottom}
+                            r={3}
+                            fill={theme.extends.colors.surface}
+                            stroke={theme.extends.colors.text.secondary}
+                            strokeWidth={1.5}
+                          />
+                        ) : variant === "line" ? (
+                          <Circle
+                            testID={`analytics-point-${slot.date}`}
+                            cx={center}
+                            cy={y(value)}
+                            r={3.5}
+                            fill={color}
+                          />
+                        ) : (
+                          <Rect
+                            testID={`analytics-column-${slot.date}`}
+                            x={center - barWidth / 2}
+                            y={y(value)}
+                            width={barWidth}
+                            height={bottom - y(value)}
+                            rx={4}
+                            fill={color}
+                            fillOpacity={value === maximumObserved ? 1 : 0.5}
+                          />
+                        )}
+
+                        {/* Calendar ticks and partial-interval markers */}
+                        {showDate && (
+                          <>
+                            <SvgText
+                              x={labelX}
+                              y={bottom + fontSize * 1.7}
+                              textAnchor={textAnchor}
+                              fontSize={fontSize}
+                              fill={theme.extends.colors.text.secondary}
+                            >
+                              {shortAnalyticsDate(
+                                `${slot.date}T00:00:00+08:00`,
+                              )}
+                            </SvgText>
+
+                            {slot.partial && (
+                              <SvgText
+                                x={labelX}
+                                y={bottom + fontSize * 2.9}
+                                textAnchor={textAnchor}
+                                fontSize={fontSize}
+                                fill={theme.extends.colors.text.secondary}
+                              >
+                                Partial
+                              </SvgText>
+                            )}
+                          </>
+                        )}
+                      </G>
+                    );
+                  })}
+                  {/* Inspection guide and exact count stay inside the visible plot. */}
+                  {selectedSlot && (
+                    <G testID="analytics-chart-inspection">
+                      <Line
+                        testID="analytics-inspection-guide"
+                        x1={selectedX}
+                        x2={selectedX}
+                        y1={top - 8}
+                        y2={bottom}
+                        stroke={theme.extends.colors.text.secondary}
+                        strokeDasharray="4 4"
+                      />
+                      {selectedSlot.observation && (
+                        <Circle
+                          cx={selectedX}
+                          cy={y(selectedSlot.observation.value)}
+                          r={6}
+                          fill={color}
+                          stroke={theme.extends.colors.surface}
+                          strokeWidth={2}
+                        />
+                      )}
+                    </G>
+                  )}
+                </Svg>
+              </ScrollView>
+            </GestureDetector>
+            {/* Tooltip overlays the plot without reserving layout space. */}
+            {selectedSlot && (
+              <View
+                testID="analytics-inspection-bubble"
+                pointerEvents="none"
+                className="absolute z-10 items-center rounded-xl border border-border-primary bg-surface px-2 py-1.5"
+                style={{
+                  left: bubbleX,
+                  top: 0,
+                  width: bubbleWidth,
+                }}
+              >
+                <AppText weight="bold" className="text-sm text-text-primary">
+                  {selectedSlot.observation?.value.toLocaleString("en-PH") ??
+                    "No data"}
+                </AppText>
+                <AppText className="text-center text-xs text-text-secondary">
+                  {analyticsCalendarLabel(selectedSlot, interval)}
+                </AppText>
+                {selectedSlot.partial && (
+                  <AppText className="text-xs text-text-secondary">
+                    Partial interval
+                  </AppText>
+                )}
+              </View>
+            )}
+          </View>
+        </GestureDetector>
       </View>
+
+      <AppText className="text-xs text-text-secondary">
+        Hold the chart, then slide to explore values.
+      </AppText>
 
       {/* Essential chart legend and horizontal navigation cue */}
       {(hasMissing || hasZero || canScroll) && (
