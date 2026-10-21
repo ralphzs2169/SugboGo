@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { getExploreBusinessDetail } from "@/features/explore/api/exploreBusiness.service";
 import { getBusinessPocketMemberships } from "@/features/pockets/api/pockets.service";
+import { parsePocketMemberships } from "@/features/pockets/validation/pocketMemberships";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 
@@ -16,14 +17,6 @@ import {
   publishOfflineBusinessSnapshot,
   startOfflinePocketWork,
 } from "./offlinePockets.service";
-
-const membershipSchema = z
-  .object({
-    business_id: z.number().int().positive(),
-    pocket_ids: z.array(z.number().int().positive()),
-    is_pocketed: z.boolean(),
-  })
-  .refine((value) => value.is_pocketed === value.pocket_ids.length > 0);
 
 const TRANSIENT_CODES = new Set([
   "NETWORK_ERROR",
@@ -103,10 +96,10 @@ export async function cacheOfflinePocketBusiness(
       signal,
     );
     await checkpoint();
-    const membership = membershipSchema.parse(responseData(response));
-    if (membership.business_id !== operation.businessId) {
-      throw new Error("INVALID_MEMBERSHIP_ID");
-    }
+    const membership = parsePocketMemberships(
+      responseData(response),
+      operation.businessId,
+    );
     if (!membership.is_pocketed) {
       await invalidateOfflinePocketWork(operation);
       return false;

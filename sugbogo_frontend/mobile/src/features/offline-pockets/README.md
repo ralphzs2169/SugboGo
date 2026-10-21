@@ -3,8 +3,9 @@
 This module stores policy, work metadata, and validated business snapshots. A
 foreground worker fetches eligible business information using the existing API
 services. It does not store local images, mutate backend Pocket memberships,
-grant offline authentication, or render UI. Pocket mutation hooks are not yet
-connected. A completed work row is not proof of snapshot availability. Remote
+grant offline authentication, or render UI. Confirmed Pocket mutations enqueue or
+invalidate local work independently of their backend result. A completed work row
+is not proof of snapshot availability. Remote
 photo URLs are metadata, never offline-ready images.
 
 ## Database and migrations
@@ -180,12 +181,70 @@ Failed refreshes retain previous valid snapshots. Local storage failures get at
 most five delayed recovery attempts; later lifecycle/explicit wakeups can try again.
 Timers stop while inactive/offline/unmounted and due work is reconsidered on wake.
 
-Task 5 can call `enqueueConfirmedPocketSave()` after a confirmed genuinely new save,
-or `requestOfflinePocketRestore()` after explicit restoration, then call
-`requestOfflinePocketSync()` once those writes succeed. Existing membership removal
-flows must invalidate local work when the last membership disappears. They are
-intentionally not wired here. Account clear, snapshot reads and scoped removal are
-also available. Future image work must separately coordinate file cleanup.
+## Pocket mutation integration
+
+`pockets/services/pocketOfflineMemberships.service.ts` connects the existing
+replacement, individual removal, and collection deletion hooks. The picker and
+React Query flag/invalidation helpers retain their existing behavior; neither
+performs a second offline integration. Creation and renaming do not affect caching.
+
+The hooks call `preparePocketOfflineChange()` at submission, before asynchronous
+query cancellation. It captures the original API scope, owner, session and a
+promise for the original durable clear generation. Local capture failures disable
+that action's offline effect without rejecting the backend mutation. No delayed
+callback reacquires a fresh clear context to bypass suppression.
+
+For replacement, a fresh complete membership read precedes the PUT. A validated
+false -> true aggregate transition authorizes automatic caching. True -> true
+changes, collection additions, reordering and unknown previous state do not create
+work. A genuinely new save invalidates the previous business revision and payload
+before creating its new automatic intention in one transaction, using the existing
+enqueue/removal helpers. This also rejects callbacks from an older tracked save.
+
+The backend result is acknowledged before local reconciliation, enqueue or worker
+execution finishes. Local errors cannot turn committed saves into mutation errors.
+`requestOfflinePocketSync()` is called only after an automatic intention is
+persisted. The existing singleton deduplicates wakeups and owns all downloads.
+
+A validated final empty membership suppresses work, advances the revision and
+deletes its snapshot atomically. Remaining memberships preserve cache state.
+`applyOfflinePocketMembershipChange()` checks the original clear generation and
+expected business revision in the same transaction. When a negative result races
+with worker retry/recovery, cleanup can pin the newer revision and re-read backend
+membership once; it never applies the older response to that revision. A stale
+positive callback cannot override later suppression or manual restoration.
+
+Collection deletion snapshots all eligible SQLite controls, including businesses
+outside loaded collection pages. After the backend result, at most two membership
+reads run concurrently. Each cleanup requires a complete authoritative empty
+selection; other memberships and unknown/failed responses retain local state.
+Suppressed records are skipped. Generation/ownership checks stop obsolete batches.
+No collection-page scan or broad business-detail request is used.
+
+Ambiguous `NETWORK_ERROR`, `REQUEST_TIMEOUT` and `UNKNOWN_ERROR` mutation outcomes
+trigger authoritative membership reads. The original API failure is still returned
+to preserve existing UI handling. No complete membership selection is replayed.
+Without a complete successful membership read, nothing is invalidated or enqueued.
+Malformed success selections also require a fresh validated read.
+
+Membership-changing operations share a queue scoped by API, owner and session.
+Acknowledgement is independent, but later backend writes wait for the preceding
+action's local reconciliation, preventing old deletion callbacks from undoing a
+later save. Collection reconciliation can therefore delay a subsequent membership
+write; it never waits for business downloads or snapshot publication. A new session
+has a separate queue, and old-session checks prevent any local effect.
+
+Manual `requestOfflinePocketRestore()` eligibility remains unchanged. Account clear,
+snapshot reads and scoped removal are also available. Image storage, offline
+browsing and Offline Storage UI remain outside this task.
+
+If initial local capture/enqueue fails, or the previous aggregate state cannot be
+verified, the backend save survives but automatic offline availability is not
+guaranteed. Failed reconciliation is conservative and is not a durable retry job.
+App termination after backend acknowledgement can interrupt local reconciliation;
+the existing APIs provide no atomic backend/local commit. Explicit restoration or
+later reconciliation is required for such gaps. No catch-all rescan is introduced
+because it would violate persistent suppression.
 
 There is no OS worker, cross-process lease or heartbeat. The singleton coordinates
 this JS runtime only; independently executing app processes would need a lease

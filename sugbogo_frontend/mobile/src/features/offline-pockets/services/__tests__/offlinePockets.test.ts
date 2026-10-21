@@ -28,12 +28,24 @@ let mockFailMigration = false;
 let mockFailSnapshotMigration = false;
 const mockGetDetail = jest.fn();
 const mockGetMemberships = jest.fn();
+const mockReplaceMemberships = jest.fn();
+const mockRemoveMembership = jest.fn();
+const mockDeleteCollection = jest.fn();
+const mockSync = jest.fn();
+jest.mock("../offlinePocketSync.service", () => ({
+  requestOfflinePocketSync: () => mockSync(),
+}));
 jest.mock("@/features/explore/api/exploreBusiness.service", () => ({
   getExploreBusinessDetail: (...args: unknown[]) => mockGetDetail(...args),
 }));
 jest.mock("@/features/pockets/api/pockets.service", () => ({
   getBusinessPocketMemberships: (...args: unknown[]) =>
     mockGetMemberships(...args),
+  replaceBusinessPocketMemberships: (...args: unknown[]) =>
+    mockReplaceMemberships(...args),
+  removePocketCollectionBusiness: (...args: unknown[]) =>
+    mockRemoveMembership(...args),
+  deletePocketCollection: (...args: unknown[]) => mockDeleteCollection(...args),
 }));
 const mockConnections = new Set<DatabaseSync>();
 const mockOpenedNames: string[] = [];
@@ -178,6 +190,18 @@ describe("Offline Pocket SQLite control foundation", () => {
       success: true,
       data: { business_id: 21, pocket_ids: [1, 2], is_pocketed: true },
     });
+    mockReplaceMemberships.mockReset().mockResolvedValue({
+      success: true,
+      data: { business_id: 21, pocket_ids: [1], is_pocketed: true },
+    });
+    mockRemoveMembership.mockReset().mockResolvedValue({
+      success: true,
+      data: { business_id: 21, pocket_ids: [], is_pocketed: false },
+    });
+    mockDeleteCollection
+      .mockReset()
+      .mockResolvedValue({ success: true, data: { id: 30 } });
+    mockSync.mockReset();
   });
 
   afterEach(() => {
@@ -1344,6 +1368,523 @@ describe("Offline Pocket SQLite control foundation", () => {
       expect(mockGetDetail).not.toHaveBeenCalled();
     },
   );
+
+  function integration() {
+    return jest.requireActual<
+      typeof import("@/features/pockets/services/pocketOfflineMemberships.service")
+    >("@/features/pockets/services/pocketOfflineMemberships.service");
+  }
+
+  async function settleLocal() {
+    for (let step = 0; step < 200; step += 1) {
+      await Promise.resolve();
+    }
+  }
+
+  function saved(ids: number[], businessId = 21) {
+    return {
+      success: true,
+      data: {
+        business_id: businessId,
+        pocket_ids: ids,
+        is_pocketed: ids.length > 0,
+      },
+    };
+  }
+
+  it("enqueues a confirmed first aggregate save and wakes the worker without fetching details", async () => {
+    const service = integration();
+    const change = service.preparePocketOfflineChange(7);
+    mockGetMemberships.mockResolvedValue(saved([]));
+    expect(
+      (await service.replacePocketMembershipsWithOffline(change, 21, [1]))
+        .success,
+    ).toBe(true);
+    await settleLocal();
+    const context = await api.captureOfflinePocketContext();
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      intent: "automatic",
+      workStatus: "pending",
+    });
+    expect(mockSync).toHaveBeenCalledTimes(1);
+    expect(mockGetDetail).not.toHaveBeenCalled();
+  });
+
+  it.each(["capture", "enqueue"])(
+    "keeps backend success successful when local %s fails",
+    async (failure) => {
+      const service = integration();
+      if (failure === "capture") {
+        mockFailSql = "INSERT OR IGNORE INTO offline_pocket_accounts";
+      }
+      const change = service.preparePocketOfflineChange(7);
+      mockGetMemberships.mockResolvedValue(saved([]));
+      if (failure === "enqueue") {
+        mockFailSql = "INSERT INTO offline_pocket_controls";
+      }
+      expect(
+        (await service.replacePocketMembershipsWithOffline(change, 21, [1]))
+          .success,
+      ).toBe(true);
+      await settleLocal();
+      expect(mockReplaceMemberships).toHaveBeenCalledTimes(1);
+      expect(mockSync).not.toHaveBeenCalled();
+      const current = await api.captureOfflinePocketContext();
+      expect(await api.listOfflinePocketControls(current)).toEqual([]);
+    },
+  );
+
+  it.each([[1], [1, 2], [2, 1]].map((selection) => [selection]))(
+    "preserves suppression for already saved selection %j",
+    async (selection) => {
+      const context = await api.captureOfflinePocketContext();
+      await api.enqueueConfirmedPocketSave(context, 21);
+      const cleared = await api.clearOfflinePocketControlState(context);
+      const service = integration();
+      mockGetMemberships.mockResolvedValue(saved([1]));
+      mockReplaceMemberships.mockResolvedValue(saved(selection));
+      await service.replacePocketMembershipsWithOffline(
+        service.preparePocketOfflineChange(7),
+        21,
+        selection,
+      );
+      await settleLocal();
+      expect(await api.getOfflinePocketControl(cleared, 21)).toMatchObject({
+        intent: "suppressed",
+        workStatus: "invalidated",
+      });
+      expect(mockSync).not.toHaveBeenCalled();
+      expect(
+        (await api.requestOfflinePocketRestore(cleared, 21)).operationVersion,
+      ).toBeGreaterThan(1);
+    },
+  );
+
+  it("preserves cache when another membership remains and deletes it after final removal", async () => {
+    const { context, operation } = await runningSnapshot();
+    const service = integration();
+    mockRemoveMembership.mockResolvedValueOnce(saved([2]));
+    await service.removePocketBusinessWithOffline(
+      service.preparePocketOfflineChange(7),
+      1,
+      21,
+    );
+    await settleLocal();
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+    await service.removePocketBusinessWithOffline(
+      service.preparePocketOfflineChange(7),
+      2,
+      21,
+    );
+    await settleLocal();
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "missing",
+    });
+    await expect(
+      api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
+    ).rejects.toThrow();
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      intent: "suppressed",
+    });
+    expect(mockSync).not.toHaveBeenCalled();
+  });
+
+  it("allows a genuinely new save after confirmed removal of a suppressed business", async () => {
+    const context = await api.captureOfflinePocketContext();
+    await api.enqueueConfirmedPocketSave(context, 21);
+    const cleared = await api.clearOfflinePocketControlState(context);
+    const service = integration();
+    await service.removePocketBusinessWithOffline(
+      service.preparePocketOfflineChange(7),
+      1,
+      21,
+    );
+    await settleLocal();
+    mockGetMemberships.mockResolvedValue(saved([]));
+    await service.replacePocketMembershipsWithOffline(
+      service.preparePocketOfflineChange(7),
+      21,
+      [2],
+    );
+    await settleLocal();
+    expect(await api.getOfflinePocketControl(cleared, 21)).toMatchObject({
+      intent: "automatic",
+      workStatus: "pending",
+    });
+    expect(mockSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not auto-cache when previous aggregate status is unknown", async () => {
+    const service = integration();
+    mockGetMemberships.mockResolvedValue({
+      success: false,
+      code: "NETWORK_ERROR",
+    });
+    expect(
+      (
+        await service.replacePocketMembershipsWithOffline(
+          service.preparePocketOfflineChange(7),
+          21,
+          [1],
+        )
+      ).success,
+    ).toBe(true);
+    await settleLocal();
+    const context = await api.captureOfflinePocketContext();
+    expect(await api.listOfflinePocketControls(context)).toEqual([]);
+    expect(mockSync).not.toHaveBeenCalled();
+  });
+
+  it.each(["NETWORK_ERROR", "REQUEST_TIMEOUT"])(
+    "reconciles %s without replaying a complete selection",
+    async (code) => {
+      const service = integration();
+      mockGetMemberships
+        .mockResolvedValueOnce(saved([]))
+        .mockResolvedValueOnce(saved([9]));
+      mockReplaceMemberships.mockResolvedValue({ success: false, code });
+      const response = await service.replacePocketMembershipsWithOffline(
+        service.preparePocketOfflineChange(7),
+        21,
+        [1],
+      );
+      expect(response).toMatchObject({ success: false, code });
+      await settleLocal();
+      expect(mockReplaceMemberships).toHaveBeenCalledTimes(1);
+      expect(mockReplaceMemberships).toHaveBeenCalledWith(21, [1]);
+      expect(mockGetMemberships).toHaveBeenCalledTimes(2);
+      const context = await api.captureOfflinePocketContext();
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        intent: "automatic",
+      });
+    },
+  );
+
+  it("preserves cache when both a removal outcome and its authoritative read are unknown", async () => {
+    const { context } = await runningSnapshot();
+    const service = integration();
+    mockRemoveMembership.mockResolvedValue({
+      success: false,
+      code: "REQUEST_TIMEOUT",
+    });
+    mockGetMemberships.mockResolvedValue({
+      success: false,
+      code: "NETWORK_ERROR",
+    });
+    expect(
+      (
+        await service.removePocketBusinessWithOffline(
+          service.preparePocketOfflineChange(7),
+          1,
+          21,
+        )
+      ).success,
+    ).toBe(false);
+    await settleLocal();
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+    expect(mockRemoveMembership).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not infer final removal from an incomplete success response", async () => {
+    const { context } = await runningSnapshot();
+    const service = integration();
+    mockRemoveMembership.mockResolvedValue({
+      success: true,
+      data: { business_id: 21, is_pocketed: false },
+    });
+    mockGetMemberships.mockResolvedValue({
+      success: false,
+      code: "NETWORK_ERROR",
+    });
+    await service.removePocketBusinessWithOffline(
+      service.preparePocketOfflineChange(7),
+      1,
+      21,
+    );
+    await settleLocal();
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it.each([true, false])(
+    "reconciles every local identity after collection deletion, including unloaded pages (confirmed response: %s)",
+    async (confirmedDelete) => {
+      const { context } = await runningSnapshot();
+      await api.enqueueConfirmedPocketSave(context, 22);
+      await api.enqueueConfirmedPocketSave(context, 23);
+      await api.enqueueConfirmedPocketSave(context, 24);
+      await api.removeOfflineBusinessSnapshot(context, 24);
+      mockGetMemberships.mockImplementation(async (id) =>
+        id === 23
+          ? { success: false, code: "NETWORK_ERROR" }
+          : saved(id === 22 ? [99] : [], id),
+      );
+      const service = integration();
+      if (!confirmedDelete) {
+        mockDeleteCollection.mockResolvedValue({
+          success: false,
+          code: "REQUEST_TIMEOUT",
+        });
+      }
+      expect(
+        (
+          await service.deletePocketCollectionWithOffline(
+            service.preparePocketOfflineChange(7),
+            30,
+          )
+        ).success,
+      ).toBe(confirmedDelete);
+      await settleLocal();
+      expect(mockGetMemberships.mock.calls.map(([id]) => id).sort()).toEqual([
+        21, 22, 23,
+      ]);
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        intent: "suppressed",
+      });
+      expect(await api.getOfflinePocketControl(context, 22)).toMatchObject({
+        intent: "automatic",
+      });
+      expect(await api.getOfflinePocketControl(context, 23)).toMatchObject({
+        intent: "automatic",
+      });
+      expect(mockSync).not.toHaveBeenCalled();
+    },
+  );
+
+  it("acknowledges deletion before reconciliation and orders a subsequent save afterward", async () => {
+    const { context } = await runningSnapshot();
+    const released = deferred();
+    const reading = deferred();
+    mockGetMemberships
+      .mockImplementationOnce(async () => {
+        reading.resolve();
+        await released.promise;
+        return saved([]);
+      })
+      .mockResolvedValue(saved([]));
+    const service = integration();
+    expect(
+      (
+        await service.deletePocketCollectionWithOffline(
+          service.preparePocketOfflineChange(7),
+          30,
+        )
+      ).success,
+    ).toBe(true);
+    await reading.promise;
+    const saving = service.replacePocketMembershipsWithOffline(
+      service.preparePocketOfflineChange(7),
+      21,
+      [1],
+    );
+    await settleLocal();
+    expect(mockReplaceMemberships).not.toHaveBeenCalled();
+    released.resolve();
+    expect((await saving).success).toBe(true);
+    await settleLocal();
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      intent: "automatic",
+      workStatus: "pending",
+    });
+  });
+
+  it.each(["clear", "logout", "switch", "same-user", "api-scope"])(
+    "rejects delayed offline save callbacks after %s",
+    async (changeKind) => {
+      const service = integration();
+      const change = service.preparePocketOfflineChange(7);
+      const context = await change.context;
+      const started = deferred();
+      const released = deferred();
+      mockGetMemberships.mockResolvedValue(saved([]));
+      mockReplaceMemberships.mockImplementationOnce(async () => {
+        started.resolve();
+        await released.promise;
+        return saved([1]);
+      });
+      const saving = service.replacePocketMembershipsWithOffline(
+        change,
+        21,
+        [1],
+      );
+      await started.promise;
+      if (changeKind === "clear") {
+        await api.clearOfflinePocketControlState(context!);
+      } else if (changeKind === "api-scope") {
+        mockApiScope = "https://api-b.example";
+      } else {
+        session.invalidateAuthSession();
+        auth.getState().clearUser();
+        if (changeKind !== "logout") {
+          signIn(changeKind === "switch" ? 8 : 7);
+        }
+      }
+      released.resolve();
+      expect((await saving).success).toBe(true);
+      await settleLocal();
+      expect(
+        nativeDatabase()
+          .prepare("SELECT COUNT(*) AS count FROM offline_pocket_controls")
+          .get(),
+      ).toEqual({ count: 0 });
+      expect(mockSync).not.toHaveBeenCalled();
+    },
+  );
+
+  it("protects newer business revisions against delayed membership changes", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    await api.removeOfflineBusinessSnapshot(context, 21);
+    const restored = await api.requestOfflinePocketRestore(context, 21);
+    await expect(
+      api.applyOfflinePocketMembershipChange(
+        context,
+        21,
+        operation.operationVersion,
+        false,
+        true,
+      ),
+    ).rejects.toThrow();
+    expect(await api.getOfflinePocketOperation(context, 21)).toEqual(restored);
+  });
+
+  it("deduplicates repeated aggregate saves through fresh membership truth and one synchronization wakeup", async () => {
+    const service = integration();
+    mockGetMemberships
+      .mockResolvedValueOnce(saved([]))
+      .mockResolvedValue(saved([1]));
+    const first = service.replacePocketMembershipsWithOffline(
+      service.preparePocketOfflineChange(7),
+      21,
+      [1],
+    );
+    const second = service.replacePocketMembershipsWithOffline(
+      service.preparePocketOfflineChange(7),
+      21,
+      [1, 2],
+    );
+    await Promise.all([first, second]);
+    await settleLocal();
+    const context = await api.captureOfflinePocketContext();
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      operationVersion: 1,
+    });
+    expect(mockSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconciles ambiguous final removal only after a complete authoritative empty selection", async () => {
+    const { context } = await runningSnapshot();
+    const service = integration();
+    mockRemoveMembership.mockResolvedValue({
+      success: false,
+      code: "REQUEST_TIMEOUT",
+    });
+    mockGetMemberships.mockResolvedValue(saved([]));
+    expect(
+      (
+        await service.removePocketBusinessWithOffline(
+          service.preparePocketOfflineChange(7),
+          1,
+          21,
+        )
+      ).success,
+    ).toBe(false);
+    await settleLocal();
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "missing",
+    });
+  });
+
+  it("does not let a late confirmed save override newer individual suppression", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const original = await api.enqueueConfirmedPocketSave(context, 21);
+    await api.removeOfflineBusinessSnapshot(context, 21);
+    await expect(
+      api.applyOfflinePocketMembershipChange(
+        context,
+        21,
+        original.operationVersion,
+        false,
+        true,
+      ),
+    ).rejects.toThrow();
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      intent: "suppressed",
+    });
+  });
+
+  it.each([true, false])(
+    "rechecks removal against a newer job revision (still saved: %s)",
+    async (stillSaved) => {
+      const { context, operation } = await runningSnapshot();
+      const started = deferred();
+      const released = deferred();
+      mockRemoveMembership.mockImplementationOnce(async () => {
+        started.resolve();
+        await released.promise;
+        return saved([]);
+      });
+      mockGetMemberships.mockResolvedValue(saved(stillSaved ? [2] : []));
+      const service = integration();
+      const removing = service.removePocketBusinessWithOffline(
+        service.preparePocketOfflineChange(7),
+        1,
+        21,
+      );
+      await started.promise;
+      await api.completeOfflinePocketWork(operation);
+      await api.requestOfflinePocketRestore(context, 21);
+      released.resolve();
+      expect((await removing).success).toBe(true);
+      await settleLocal();
+      expect(mockGetMemberships).toHaveBeenCalledTimes(1);
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        intent: stillSaved ? "restore" : "suppressed",
+      });
+      expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+        status: stillSaved ? "available" : "missing",
+      });
+    },
+  );
+
+  it("does not let delayed removal delete a replacement account's cache", async () => {
+    const { context } = await runningSnapshot();
+    const started = deferred();
+    const released = deferred();
+    mockRemoveMembership.mockImplementationOnce(async () => {
+      started.resolve();
+      await released.promise;
+      return saved([]);
+    });
+    const service = integration();
+    const removing = service.removePocketBusinessWithOffline(
+      service.preparePocketOfflineChange(7),
+      1,
+      21,
+    );
+    await started.promise;
+    signIn(8);
+    const other = await api.captureOfflinePocketContext();
+    await api.enqueueConfirmedPocketSave(other, 21);
+    released.resolve();
+    await removing;
+    await settleLocal();
+    expect(await api.getOfflinePocketControl(other, 21)).toMatchObject({
+      intent: "automatic",
+    });
+    expect(
+      nativeDatabase()
+        .prepare(
+          "SELECT COUNT(*) AS count FROM offline_business_snapshots WHERE owner_id = ?",
+        )
+        .get(context.ownerId),
+    ).toEqual({ count: 1 });
+  });
 
   it("rejects web before opening a native database", async () => {
     const { Platform } =

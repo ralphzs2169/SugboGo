@@ -10,6 +10,7 @@ import { router } from "expo-router";
 import type { PropsWithChildren } from "react";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
 import {
   getPocketCollections,
   createPocketCollection,
@@ -189,6 +190,7 @@ describe("MyPocketsScreen", () => {
   let client: QueryClient;
 
   beforeEach(() => {
+    beginAuthSession();
     jest.mocked(getPocketCollections).mockReset().mockResolvedValue(page());
     jest.mocked(createPocketCollection).mockReset();
     jest.mocked(renamePocketCollection).mockReset();

@@ -198,21 +198,31 @@ async function enqueue(
   intent: Exclude<OfflinePocketIntent, "suppressed">,
 ): Promise<OfflinePocketOperation> {
   assertInteger(businessId, 1);
-  return withOwnedPolicy(context, async (tx, pinned) => {
-    const current = await readControl(tx, pinned, businessId);
-    if (
-      current &&
-      current.intent !== "suppressed" &&
-      (intent === "automatic" ||
-        current.workStatus === "pending" ||
-        current.workStatus === "running")
-    ) {
-      return operationFor(pinned, current);
-    }
-    const version = (current?.operationVersion ?? 0) + 1;
-    assertInteger(version, 1);
-    await tx.runAsync(
-      `INSERT INTO offline_pocket_controls (
+  return withOwnedPolicy(context, (tx, pinned) =>
+    enqueueInTransaction(tx, pinned, businessId, intent),
+  );
+}
+
+async function enqueueInTransaction(
+  tx: SQLiteDatabase,
+  pinned: OfflinePocketContext,
+  businessId: number,
+  intent: Exclude<OfflinePocketIntent, "suppressed">,
+): Promise<OfflinePocketOperation> {
+  const current = await readControl(tx, pinned, businessId);
+  if (
+    current &&
+    current.intent !== "suppressed" &&
+    (intent === "automatic" ||
+      current.workStatus === "pending" ||
+      current.workStatus === "running")
+  ) {
+    return operationFor(pinned, current);
+  }
+  const version = (current?.operationVersion ?? 0) + 1;
+  assertInteger(version, 1);
+  await tx.runAsync(
+    `INSERT INTO offline_pocket_controls (
         api_scope, owner_id, business_id, cache_intent, clear_generation,
         operation_version, work_status
       ) VALUES (?, ?, ?, ?, ?, ?, 'pending')
@@ -222,14 +232,43 @@ async function enqueue(
         operation_version = excluded.operation_version,
         work_status = 'pending', attempts = 0,
         next_retry_at = NULL, last_error_code = NULL`,
-      pinned.apiScope,
-      pinned.ownerId,
-      businessId,
-      intent,
-      pinned.clearGeneration,
-      version,
-    );
-    return Object.freeze({ ...pinned, businessId, operationVersion: version });
+    pinned.apiScope,
+    pinned.ownerId,
+    businessId,
+    intent,
+    pinned.clearGeneration,
+    version,
+  );
+  return Object.freeze({ ...pinned, businessId, operationVersion: version });
+}
+
+/** Applies authoritative aggregate changes only to the revision captured before the mutation. */
+export async function applyOfflinePocketMembershipChange(
+  context: OfflinePocketContext,
+  businessId: number,
+  expectedOperationVersion: number | null,
+  wasSaved: boolean | null,
+  isSaved: boolean,
+): Promise<boolean> {
+  assertInteger(businessId, 1);
+  if (expectedOperationVersion !== null) {
+    assertInteger(expectedOperationVersion, 1);
+  }
+  return withOwnedPolicy(context, async (tx, pinned) => {
+    const current = await readControl(tx, pinned, businessId);
+    if ((current?.operationVersion ?? null) !== expectedOperationVersion) {
+      throw new StaleOfflinePocketOperationError();
+    }
+    if (isSaved && wasSaved !== false) {
+      return false;
+    }
+    // A new aggregate save also revokes callbacks from any previously tracked save.
+    await removeSnapshot(tx, pinned, businessId);
+    if (isSaved) {
+      await enqueueInTransaction(tx, pinned, businessId, "automatic");
+      return true;
+    }
+    return false;
   });
 }
 

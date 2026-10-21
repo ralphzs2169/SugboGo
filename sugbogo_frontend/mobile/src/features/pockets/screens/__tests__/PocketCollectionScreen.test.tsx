@@ -10,6 +10,7 @@ import { router } from "expo-router";
 import type { PropsWithChildren } from "react";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
 import type {
   ExploreBusiness,
   ExploreBusinessListResponse,
@@ -227,6 +228,7 @@ function pendingResponse<T>() {
 describe("PocketCollectionScreen", () => {
   let client: QueryClient;
   beforeEach(() => {
+    beginAuthSession();
     jest.mocked(getPocketCollection).mockReset().mockResolvedValue(metadata());
     jest
       .mocked(getPocketCollectionBusinesses)
