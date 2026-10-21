@@ -5,7 +5,7 @@ import type { PropsWithChildren } from "react";
 import { useAuthStore } from "../../store/auth.store";
 import { clearSessionTokens } from "@/shared/api/storage.service";
 import { clearOfflineAccess } from "@/features/offline-routes/services/offlineAccess.service";
-import { clearSavedJourneys } from "@/features/offline-routes/services/savedJourneys.service";
+import { clearSavedJourneysForLogout } from "@/features/offline-routes/services/savedJourneys.service";
 import { useLogout } from "../useLogout";
 
 jest.mock("@/shared/api/storage.service", () => ({
@@ -17,7 +17,7 @@ jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
   clearOfflineAccess: jest.fn(),
 }));
 jest.mock("@/features/offline-routes/services/savedJourneys.service", () => ({
-  clearSavedJourneys: jest.fn(),
+  clearSavedJourneysForLogout: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock("@/features/merchant/stores/merchantRegistrationStore", () => ({
   useMerchantRegistrationStore: { getState: () => ({ reset: jest.fn() }) },
@@ -33,14 +33,14 @@ describe("logout device cleanup", () => {
       return true;
     });
     (clearOfflineAccess as jest.Mock).mockResolvedValue(undefined);
-    (clearSavedJourneys as jest.Mock).mockResolvedValue(undefined);
+    (clearSavedJourneysForLogout as jest.Mock).mockResolvedValue(undefined);
   });
 
   it.each([false, true])(
     "revokes access and signs out even when cleanup fails: %s",
     async (fails) => {
       if (fails)
-        (clearSavedJourneys as jest.Mock).mockRejectedValue(
+        (clearSavedJourneysForLogout as jest.Mock).mockRejectedValue(
           new Error("device unavailable"),
         );
       const client = new QueryClient();
@@ -53,7 +53,7 @@ describe("logout device cleanup", () => {
         expect(await hook.result.current.logout()).toBe(!fails);
       });
       expect(clearOfflineAccess).toHaveBeenCalled();
-      expect(clearSavedJourneys).toHaveBeenCalledWith(7);
+      expect(clearSavedJourneysForLogout).toHaveBeenCalledWith();
       expect(clearSessionTokens).toHaveBeenCalled();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
       expect(client.getQueryData(["private"])).toBeUndefined();

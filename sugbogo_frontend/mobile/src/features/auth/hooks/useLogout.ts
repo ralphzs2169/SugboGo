@@ -9,7 +9,7 @@ import {
 import { revokeRefreshToken } from "../api/token.service";
 import { useAuthStore } from "../store/auth.store";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
-import { clearSavedJourneys } from "@/features/offline-routes/services/savedJourneys.service";
+import { clearSavedJourneysForLogout } from "@/features/offline-routes/services/savedJourneys.service";
 import Toast from "react-native-toast-message";
 
 /**
@@ -23,9 +23,19 @@ export function useLogout() {
   const queryClient = useQueryClient();
 
   async function logout() {
-    const ownerId = useAuthStore.getState().user?.id;
     const refreshToken = getRefreshToken();
-    let removedSavedGuidance = true;
+    const guidanceCleanup = clearSavedJourneysForLogout().then(
+      () => true,
+      () => {
+        Toast.show({
+          type: "error",
+          text1: "Saved guidance could not be removed",
+          text2:
+            "Local access is revoked. Sign in again to remove the device copies.",
+        });
+        return false;
+      },
+    );
     const cleanupGeneration = invalidateAuthSession();
 
     clearUser();
@@ -39,23 +49,9 @@ export function useLogout() {
       .catch(() => undefined);
 
     try {
-      await Promise.all([
+      const [, removedSavedGuidance] = await Promise.all([
         clearSessionTokens(cleanupGeneration),
-        (async () => {
-          if (ownerId) {
-            try {
-              await clearSavedJourneys(ownerId);
-            } catch {
-              removedSavedGuidance = false;
-              Toast.show({
-                type: "error",
-                text1: "Saved guidance could not be removed",
-                text2:
-                  "Local access is revoked. Sign in again to remove the device copies.",
-              });
-            }
-          }
-        })(),
+        guidanceCleanup,
       ]);
 
       return removedSavedGuidance;

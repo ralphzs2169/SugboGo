@@ -1,6 +1,10 @@
 import * as SecureStore from "expo-secure-store";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import {
+  getAuthSessionGeneration,
+  isAuthSessionGenerationCurrent,
+} from "@/shared/api/authSessionGeneration.service";
 
 import {
   OFFLINE_API_SCOPE,
@@ -18,12 +22,16 @@ function serializeAccess<T>(action: () => Promise<T>): Promise<T> {
 }
 
 /** Records local-only ownership after an authenticated user explicitly saves guidance. */
-export function rememberOfflineOwner(ownerId: number): Promise<void> {
+export function rememberOfflineOwner(
+  ownerId: number,
+  generation = getAuthSessionGeneration(),
+): Promise<void> {
   return serializeAccess(async () => {
     const auth = useAuthStore.getState();
     if (
       !auth.isAuthenticated ||
       auth.user?.id !== ownerId ||
+      !isAuthSessionGenerationCurrent(generation) ||
       useOfflineAccessStore.getState().isRevoking
     ) {
       throw new Error("Sign in again before saving guidance.");

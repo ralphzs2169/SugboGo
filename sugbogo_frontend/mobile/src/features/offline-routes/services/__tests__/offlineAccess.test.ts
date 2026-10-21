@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
 import {
   OFFLINE_API_SCOPE,
   OFFLINE_OWNER_KEY,
@@ -21,6 +22,7 @@ jest.mock("expo-secure-store", () => ({
 describe("device-only owner access", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    beginAuthSession();
     useAuthStore.setState({ user: { id: 7 } as never, isAuthenticated: true });
     useOfflineAccessStore.setState({ ownerId: null, isRevoking: false });
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
@@ -83,5 +85,32 @@ describe("device-only owner access", () => {
     await Promise.all([saving, revoking]);
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(OFFLINE_OWNER_KEY);
     await expect(rememberOfflineOwner(7)).rejects.toThrow("Sign in");
+  });
+
+  it("rejects a queued marker from the previous session after the same user signs in", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const deleting = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    jest.mocked(SecureStore.deleteItemAsync).mockImplementationOnce(() => {
+      started();
+      return new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
+    const clearing = clearOfflineAccess();
+    await deleting;
+    const staleMarker = rememberOfflineOwner(7).catch(
+      (error: unknown) => error,
+    );
+    beginAuthSession();
+    useOfflineAccessStore.setState({ isRevoking: false });
+    const newMarker = rememberOfflineOwner(7);
+    release();
+    await clearing;
+    expect(await staleMarker).toEqual(expect.any(Error));
+    await newMarker;
+    expect(SecureStore.setItemAsync).toHaveBeenCalledTimes(1);
   });
 });
