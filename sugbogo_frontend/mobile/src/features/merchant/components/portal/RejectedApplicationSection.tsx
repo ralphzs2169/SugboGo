@@ -46,7 +46,7 @@ export default function RejectionApplicationSection({
             weight="bold"
             className="text-xs uppercase tracking-wide text-text-error"
           >
-            {duplicateDisposition ? "Duplicate Review" : "Changes Required"}
+            {duplicateDisposition ? "Rejected" : "Changes Required"}
           </AppText>
         </View>
 
@@ -54,14 +54,12 @@ export default function RejectionApplicationSection({
           weight="bold"
           className="mt-3 text-center text-2xl text-text-primary"
         >
-          {duplicateDisposition
-            ? "Your registration needs duplicate review"
-            : "Your application needs some changes"}
+          {duplicateDisposition ? "Application Rejected" : "Changes Required"}
         </AppText>
 
         <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
           {duplicateDisposition
-            ? "Review the duplicate decision below. Accurate details do not need to change."
+            ? "Review the reason below before resubmitting your application."
             : "Review the feedback, make the required changes, and resubmit."}
         </AppText>
       </View>
@@ -90,13 +88,15 @@ export default function RejectionApplicationSection({
 
       <DuplicateRejectionNotice disposition={duplicateDisposition} />
       {/* Administrator feedback */}
-      <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 pt-5">
-        <AppText weight="bold" className="mb-1 text-sm text-text-primary">
-          Administrator Feedback
-        </AppText>
+      {feedback.length > 0 && (
+        <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 pt-5">
+          <AppText weight="bold" className="mb-1 text-sm text-text-primary">
+            Administrator Feedback
+          </AppText>
 
-        <ResubmissionChecklist feedback={feedback} isInMerchantPortal />
-      </View>
+          <ResubmissionChecklist feedback={feedback} isInMerchantPortal />
+        </View>
+      )}
     </View>
   );
 }

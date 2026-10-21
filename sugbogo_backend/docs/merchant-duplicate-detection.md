@@ -41,8 +41,8 @@ All paths below are relative to `/api/`; responses retain the standard envelope.
   a current confirmed duplicate assessment. Ordinary rejection still requires
   nonempty section feedback. No automatic duplicate rejection occurs.
 - `POST .../{id}/duplicates/` with `action: "reconsider"`, `review_id`, and a
-  required explanation clears only the current duplicate rejection for a new
-  merchant submission. It neither approves the application nor edits history.
+  required explanation is a deprecated compatibility operation. It records legacy
+  reconsideration history only; resubmission no longer depends on this action.
 - Merchant application detail adds privacy-safe `duplicate_disposition` separately
   from section feedback. It includes the rejection explanation and administrative
   reconsideration status/explanation.
@@ -64,9 +64,13 @@ assessments. Removed candidates retain historical assessment records.
 
 Duplicate rejection remains the existing `rejected` application status. Ordinary
 feedback still needs actual saved corrections under the existing fingerprints.
-A duplicate-only rejection can be reconsidered without fabricated content edits;
-resubmission creates a new submission, never reuses the already-reviewed one,
-and does not inherit approval clearance. Ownership conflicts remain blocking.
+Duplicate-only rejection permits immediate resubmission without fabricated edits.
+Combined rejection still requires genuine changes to all ordinary feedback sections.
+Every resubmission creates a new submission with fresh candidate evidence and no
+inherited assessment clearance. Repeated unchanged duplicate-only resubmissions
+are intentionally allowed; no cooldown or extra restriction is imposed. Ownership
+conflicts remain blocking for approval. Historical reconsideration records, model,
+response fields, and migration 0018 remain intact; no new migration is needed.
 
 ## Locking and protection scope
 
@@ -130,3 +134,30 @@ dependency warning. Manual device/browser interaction was not verified.
 Deploy the migration before the updated backend, and coordinate the admin web
 release so reviewers can resolve matches that now block approval. No migration
 was applied to the primary application database during implementation.
+
+## Simplified MVP decision contracts and rollout
+
+The admin approval button and confirmation modal remain. The existing rejection
+drawer handles corrections, confirmed duplicate rejection, and optional combined
+ordinary feedback. Possible Duplicates only investigates and saves assessments;
+it has no final rejection or Allow Resubmission action.
+
+Application detail responses now include `latest_submission_id`. Updated clients
+send `expected_submission_id` on POST approve, POST reject, and PATCH review.
+The shared service validates it against the latest submission after existing locks
+are acquired. A stale ID returns HTTP 409 `STALE_APPLICATION_SUBMISSION` and asks
+for refresh. Legacy requests omitting it remain accepted only for the first
+submission; after resubmission they fail closed with the same conflict. Update
+admin clients before reviewing resubmissions. Internal service callers must also
+supply the expected ID for subsequent submissions. No lock ordering changed.
+
+Mobile clients must update their local eligibility check: reconsideration fields
+are historical data, not an eligibility flag. Do not fabricate reconsideration
+records or set legacy `reconsidered` fields to true to bypass an outdated client.
+Coordinate mobile rollout; older apps can still disable resubmission locally.
+
+The deprecated admin-only `action: "reconsider"` write is temporarily retained
+because deployed-client usage is uncertain. It is not called by the current UI
+or ordinary resubmission and can be retired after client compatibility is verified.
+No schema/history deletion is planned. Merchant explanations must not contain
+other applicants' private information or internal assessment notes.

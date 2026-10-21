@@ -298,16 +298,6 @@ class ApplicationService:
             )
 
             if latest_review:
-                if (
-                    latest_review.MAREV_DUPLICATE_REJECTION
-                    and not hasattr(latest_review, "duplicate_reconsideration")
-                ):
-                    raise ValidationError({
-                        "duplicates": (
-                            "This duplicate rejection requires administrator reconsideration "
-                            "before resubmission. Accurate business details do not need to change."
-                        ),
-                    })
                 changed_sections = ApplicationService.get_changed_sections(latest_review)
                 incomplete_feedback = [
                     feedback

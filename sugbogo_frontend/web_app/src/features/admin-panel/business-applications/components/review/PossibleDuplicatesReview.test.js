@@ -11,7 +11,7 @@ let Review;
 before(async () => {
   server = await createServer({
     appType: "custom",
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, hmr: false },
   });
   ({ default: Review } = await server.ssrLoadModule(
     "/src/features/admin-panel/business-applications/components/review/PossibleDuplicatesReview.jsx",
@@ -102,34 +102,36 @@ test("ownership conflict remains blocked and cannot trigger confirmed-duplicate 
   assert.doesNotMatch(html, /Reject Confirmed Duplicate/);
 });
 
-test("explicit rejection is available only for a current confirmed duplicate", () => {
-  const confirmed = candidate({
-    assessment: {
-      decision: "confirmed_duplicate",
-      explanation: "Same establishment",
-    },
+test("confirmed assessments never expose a competing final rejection", () => {
+  const html = render({
+    candidates: [
+      candidate({
+        assessment: {
+          decision: "confirmed_duplicate",
+          explanation: "Same establishment",
+        },
+      }),
+    ],
   });
-  assert.match(
-    render({ candidates: [confirmed] }),
-    /Reject Confirmed Duplicate/,
-  );
-  assert.doesNotMatch(
-    render({ candidates: [{ ...confirmed, stale: true }] }),
-    /Reject Confirmed Duplicate/,
-  );
+  assert.doesNotMatch(html, /Reject Confirmed Duplicate|Reject Duplicate/);
+  assert.match(html, /Save Assessment/);
 });
 
-test("duplicate rejection offers reconsideration separately from content corrections", () => {
+test("rejected applications retain historical reconsideration without active controls", () => {
   const html = render({
     status: "rejected",
     disposition: {
       review_id: 9,
       explanation: "Same business",
-      reconsidered: false,
+      reconsidered: true,
+      reconsideration_explanation: "Legacy clearance",
     },
   });
-  assert.match(html, /Clear Duplicate Rejection for Resubmission/);
-  assert.doesNotMatch(html, /Save Assessment/);
+  assert.match(html, /Legacy clearance/);
+  assert.doesNotMatch(
+    html,
+    /Clear Duplicate Rejection for Resubmission|Save Assessment|Reconsideration explanation/,
+  );
 });
 
 test("failed detection exposes recovery without claiming a clean result", () => {

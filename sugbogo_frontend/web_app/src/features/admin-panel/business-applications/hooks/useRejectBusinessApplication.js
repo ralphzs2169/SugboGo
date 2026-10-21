@@ -12,12 +12,12 @@ export default function useRejectBusinessApplication() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  async function rejectApplication(applicationId, feedback) {
+  async function rejectApplication(applicationId, payload) {
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const response = await rejectBusinessApplication(applicationId, feedback);
+      const response = await rejectBusinessApplication(applicationId, payload);
 
       return response;
     } catch (error) {

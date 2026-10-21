@@ -142,6 +142,17 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    latest_submission_id = serializers.SerializerMethodField()
+
+    def get_latest_submission_id(
+        self,
+        application,
+    ):
+        """Identify the submission reviewed by final-decision callers."""
+        return application.submissions.order_by(
+            "-MASUB_SUBMISSION_NUMBER",
+        ).values_list("pk", flat=True).first()
+
     submission_count = serializers.IntegerField(
         source="MAPP_SUBMISSION_COUNT",
         read_only=True,
@@ -204,6 +215,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "highest_completed_step",
             "submitted_at",
             "reviewed_at",
+            "latest_submission_id",
             "submission_count",
             "latest_review",
             "duplicate_disposition",

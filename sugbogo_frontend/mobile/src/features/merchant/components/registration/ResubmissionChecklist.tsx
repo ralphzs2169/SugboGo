@@ -98,6 +98,11 @@ export default function ResubmissionChecklist({
                     {SECTION_LABELS[item.section]}
                   </AppText>
 
+                  {isInMerchantPortal && (
+                    <AppText className="mt-1 text-sm leading-5 text-text-primary">
+                      {item.message}
+                    </AppText>
+                  )}
                   <AppText className="mt-0.5 text-xs text-text-secondary">
                     {isChanged ? "Changes made" : "Changes still required"}
                   </AppText>

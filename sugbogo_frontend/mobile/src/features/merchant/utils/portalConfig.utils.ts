@@ -113,11 +113,11 @@ export const portalConfig: Record<MerchantRegistrationStatus, PortalConfig> = {
       title: "Action Required",
       description:
         "Your application needs revisions before it can be reviewed again.",
-      buttonTitle: "Review Feedback",
+      buttonTitle: "Review & Resubmit",
     },
 
     primaryAction: {
-      buttonTitle: "Continue Editing",
+      buttonTitle: "Review & Resubmit",
     },
 
     sections: {

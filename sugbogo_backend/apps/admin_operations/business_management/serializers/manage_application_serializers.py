@@ -257,6 +257,17 @@ class AdminMerchantApplicationDetailSerializer(
         read_only=True,
     )
 
+    latest_submission_id = serializers.SerializerMethodField()
+
+    def get_latest_submission_id(
+        self,
+        application,
+    ):
+        """Identify the submission reviewed by final-decision callers."""
+        return application.submissions.order_by(
+            "-MASUB_SUBMISSION_NUMBER",
+        ).values_list("pk", flat=True).first()
+
     submission_count = serializers.IntegerField(
         source="MAPP_SUBMISSION_COUNT",
         read_only=True,
@@ -326,6 +337,7 @@ class AdminMerchantApplicationDetailSerializer(
             "highest_completed_step",
             "submitted_at",
             "reviewed_at",
+            "latest_submission_id",
             "submission_count",
             "time_in_queue_business_days",
             "queue_status",
@@ -354,7 +366,16 @@ class AdminMerchantApplicationFeedbackInputSerializer(serializers.Serializer):
     )
 
 
-class AdminMerchantApplicationRejectSerializer(serializers.Serializer):
+class AdminMerchantApplicationDecisionSerializer(serializers.Serializer):
+    """Validate the submission identity included in final review decisions."""
+
+    expected_submission_id = serializers.IntegerField(
+        required=False,
+        min_value=1,
+    )
+
+
+class AdminMerchantApplicationRejectSerializer(AdminMerchantApplicationDecisionSerializer):
     """Validates administrator feedback submitted when rejecting an application."""
 
     feedback = AdminMerchantApplicationFeedbackInputSerializer(

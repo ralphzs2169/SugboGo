@@ -17,6 +17,7 @@ export default function RejectApplicationConfirmationModal({
   onConfirm,
   loading = false,
   businessName,
+  duplicateExplanation = null,
 }) {
   return (
     <Modal
@@ -29,6 +30,20 @@ export default function RejectApplicationConfirmationModal({
         {/* Feedback summary */}
         <div className="min-h-0 flex-1 overflow-y-auto pr-1 themed-scrollbar">
           <div className="space-y-4">
+            {duplicateExplanation && (
+              <section className="rounded-lg border border-stroke bg-surface p-4">
+                <h3 className="text-sm font-semibold">
+                  Duplicate Registration � explanation shown to merchant
+                </h3>
+                <p className="mt-2 whitespace-pre-wrap text-sm">
+                  {duplicateExplanation}
+                </p>
+                <p className="mt-2 text-xs text-text-secondary">
+                  The merchant may resubmit. Any section corrections below
+                  remain required.
+                </p>
+              </section>
+            )}
             {selectedSections.map((sectionValue) => {
               const section = sections.find(
                 (item) => item.value === sectionValue,

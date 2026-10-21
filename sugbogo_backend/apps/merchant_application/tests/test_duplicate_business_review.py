@@ -247,7 +247,7 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
         with self.assertRaises(ValidationError):
             AdminApplicationService.approve_application(self.application.pk, self.admin)
 
-    def test_duplicate_rejection_reconsideration_and_new_submission_without_fake_edits(self):
+    def test_duplicate_rejection_allows_new_submission_without_fake_edits(self):
         self.assess("confirmed_duplicate")
         self.client.force_authenticate(self.admin)
         response = self.client.post(
@@ -259,21 +259,13 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
         review = self.application.reviews.first()
         baseline = review.MAREV_SECTION_FINGERPRINTS.copy()
         self.assertFalse(review.feedback.exists())
-        with self.assertRaises(ValidationError):
-            ApplicationService.submit_application(self.application)
-        response = self.client.post(
-            reverse("merchant-application-duplicates", args=[self.application.pk]),
-            {"action": "reconsider", "review_id": review.pk, "explanation": "Branch evidence confirms a separate establishment."},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200, response.data)
         ApplicationService.submit_application(self.application)
         review.refresh_from_db()
         self.assertEqual(review.MAREV_SECTION_FINGERPRINTS, baseline)
         self.assertEqual(self.application.submissions.count(), 2)
         self.assertTrue(DuplicateReviewService.review_state(self.application)["approval_blocked"])
 
-    def test_reconsideration_does_not_waive_ordinary_section_corrections(self):
+    def test_duplicate_rejection_does_not_waive_ordinary_section_corrections(self):
         self.assess("confirmed_duplicate")
         AdminApplicationService.reject_application(
             self.application.pk,
@@ -282,18 +274,135 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
             duplicate=True,
             explanation="Duplicate establishment.",
         )
-        review = self.application.reviews.first()
-        DuplicateReviewService.reconsider(
-            self.application.pk,
-            self.admin,
-            review.pk,
-            "The duplicate classification was incorrect.",
-        )
         with self.assertRaises(ValidationError):
             ApplicationService.submit_application(self.application)
         IdentityService.save_identity(self.user, {"MIDN_CONTACT_NUMBER": "09999999999"})
         ApplicationService.submit_application(self.application)
         self.assertEqual(self.application.submissions.count(), 2)
+
+    def test_repeated_unchanged_resubmissions_keep_history_and_need_fresh_assessments(self):
+        for submission_number in range(1, 4):
+            self.assess("confirmed_duplicate")
+            submission = DuplicateReviewService.current_submission(self.application)
+            AdminApplicationService.reject_application(
+                self.application.pk,
+                [],
+                self.admin,
+                duplicate=True,
+                explanation="Same establishment.",
+                expected_submission_id=submission.pk,
+            )
+            self.client.force_authenticate(self.user)
+            response = self.client.post(reverse("application-submit"), {}, format="json")
+            self.assertEqual(response.status_code, 200, response.data)
+            self.application.refresh_from_db()
+            state = DuplicateReviewService.review_state(self.application)
+            self.assertEqual(self.application.MAPP_STATUS, "submitted")
+            self.assertEqual(self.application.submissions.count(), submission_number + 1)
+            self.assertEqual(self.application.reviews.count(), submission_number)
+            self.assertTrue(state["approval_blocked"])
+            self.assertIsNone(state["candidates"][0]["assessment"])
+            self.assertTrue(self.application.submissions.last().MASUB_DUPLICATE_EVIDENCE)
+            self.assertFalse(self.application.reviews.filter(
+                duplicate_reconsideration__isnull=False,
+            ).exists())
+
+    def test_prior_legitimate_assessment_does_not_clear_resubmission(self):
+        self.assess("legitimate")
+        previous = DuplicateReviewService.current_submission(self.application)
+        AdminApplicationService.reject_application(
+            self.application.pk,
+            [{"section": "identity", "message": "Correct contact information."}],
+            self.admin,
+            expected_submission_id=previous.pk,
+        )
+        IdentityService.save_identity(
+            self.user,
+            {"MIDN_CONTACT_NUMBER": "09999999999"},
+        )
+        ApplicationService.submit_application(self.application)
+        current = DuplicateReviewService.current_submission(self.application)
+        state = DuplicateReviewService.review_state(self.application)
+        self.assertTrue(state["approval_blocked"])
+        self.assertIsNone(state["candidates"][0]["assessment"])
+        with self.assertRaises(ValidationError):
+            AdminApplicationService.approve_application(
+                self.application.pk,
+                self.admin,
+                expected_submission_id=current.pk,
+            )
+
+    def test_final_decisions_reject_stale_submission_on_both_routes(self):
+        previous = DuplicateReviewService.current_submission(self.application)
+        self.assess("confirmed_duplicate")
+        AdminApplicationService.reject_application(
+            self.application.pk,
+            [],
+            self.admin,
+            duplicate=True,
+            explanation="Same establishment.",
+        )
+        ApplicationService.submit_application(self.application)
+        self.assess("legitimate")
+        self.client.force_authenticate(self.admin)
+        for route, method, payload in (
+            ("merchant-application-approve", self.client.post, {}),
+            ("merchant-application-reject", self.client.post, {
+                "feedback": [{"section": "identity", "message": "Correct contact details."}],
+            }),
+            ("merchant-application-reject", self.client.post, {
+                "disposition": "duplicate",
+                "explanation": "Stale duplicate decision.",
+            }),
+            ("application-review", self.client.patch, {"action": "approve"}),
+            ("application-review", self.client.patch, {
+                "action": "reject",
+                "rejection_reason": "Contact details",
+                "feedback": [{"section": "identity", "message": "Correct contact details."}],
+            }),
+        ):
+            for expected in (None, previous.pk):
+                data = dict(payload)
+                if expected is not None:
+                    data["expected_submission_id"] = expected
+                response = method(reverse(route, args=[self.application.pk]), data, format="json")
+                self.assertEqual(response.status_code, 409, response.data)
+                self.assertEqual(response.data["code"], "STALE_APPLICATION_SUBMISSION")
+        current = DuplicateReviewService.current_submission(self.application)
+        response = self.client.post(
+            reverse("merchant-application-approve", args=[self.application.pk]),
+            {"expected_submission_id": current.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+    def test_legacy_reconsideration_remains_readable_but_is_not_needed(self):
+        self.assess("confirmed_duplicate")
+        AdminApplicationService.reject_application(
+            self.application.pk,
+            [],
+            self.admin,
+            duplicate=True,
+            explanation="Same establishment.",
+        )
+        review = self.application.reviews.first()
+        DuplicateReviewService.reconsider(
+            self.application.pk,
+            self.admin,
+            review.pk,
+            "Legacy clearance.",
+        )
+        self.assertTrue(DuplicateReviewService.disposition(self.application)["reconsidered"])
+        self.client.force_authenticate(self.user)
+        response = self.client.get(reverse("application-detail"))
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            response.data["data"]["duplicate_disposition"]["reconsideration_explanation"],
+            "Legacy clearance.",
+        )
+        ApplicationService.submit_application(self.application)
+        self.assertTrue(DuplicateReviewService.review_state(self.application)["approval_blocked"])
+        self.assertTrue(review.duplicate_reconsideration.pk)
 
     def test_clearance_cannot_override_account_eligibility(self):
         self.assess()

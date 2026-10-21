@@ -68,7 +68,7 @@ class AdminDuplicateReviewView(APIView):
         request,
         application_id,
     ):
-        """Save an assessment or clear the current duplicate rejection for resubmission."""
+        """Save an assessment or handle the deprecated reconsideration compatibility command."""
         serializer = DuplicateReviewCommandSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data

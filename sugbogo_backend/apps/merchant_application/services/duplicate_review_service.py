@@ -153,7 +153,7 @@ class DuplicateReviewService:
         review_id,
         explanation,
     ):
-        """Clear only the current duplicate rejection while preserving all section requirements."""
+        """Support deprecated admin clients; resubmission no longer requires this record."""
         from apps.admin_operations.business_management.services.manage_application_service import (
             ApplicationService,
         )

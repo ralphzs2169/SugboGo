@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
-import toast from "react-hot-toast";
 import Button from "@/shared/components/Button";
 import TextArea from "@/shared/components/forms/TextArea";
-import Modal from "@/shared/components/modals/Modal";
 import ApplicationReviewSection from "./ApplicationReviewSection";
-import { rejectDuplicateApplication } from "../../services/businessApplicationService";
 
 const DECISIONS = [
   ["unresolved", "Unresolved"],
@@ -71,6 +68,22 @@ function CandidateAssessment({ candidate, submissionId, mutation, editable }) {
           Resolved as a legitimate separate business.
         </p>
       )}
+      {candidate.assessment && (
+        <p className="text-xs text-text-secondary">
+          Saved assessment:{" "}
+          {
+            DECISIONS.find(
+              ([value]) => value === candidate.assessment.decision,
+            )?.[1]
+          }
+          .
+          {candidate.assessment.reviewed_at &&
+            ` Reviewed ${new Date(candidate.assessment.reviewed_at).toLocaleString()}.`}
+          {(decision !== candidate.assessment.decision ||
+            explanation !== candidate.assessment.explanation) &&
+            " Unsaved changes — save to update this assessment."}
+        </p>
+      )}
       {/* Individual administrator decision */}
       <fieldset
         disabled={!editable || mutation.isPending}
@@ -97,7 +110,7 @@ function CandidateAssessment({ candidate, submissionId, mutation, editable }) {
       </fieldset>
       <TextArea
         id={`${id}-explanation`}
-        label="Admin explanation"
+        label="Internal assessment explanation"
         value={explanation}
         onChange={(event) => setExplanation(event.target.value)}
         disabled={!editable || mutation.isPending}
@@ -126,39 +139,14 @@ function CandidateAssessment({ candidate, submissionId, mutation, editable }) {
   );
 }
 
-/** Displays live matches, explicit duplicate rejection, and audited reconsideration. */
+/** Displays live matches and records assessments independently of final rejection. */
 export default function PossibleDuplicatesReview({
   application,
   query,
   mutation,
-  onRejected,
 }) {
-  const [explanation, setExplanation] = useState("");
-  const [confirming, setConfirming] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
   const state = query.data;
   const disposition = state?.disposition;
-  const confirmed = state?.candidates.some(
-    (item) =>
-      !item.stale && item.assessment?.decision === "confirmed_duplicate",
-  );
-
-  async function reject() {
-    setRejecting(true);
-    try {
-      await rejectDuplicateApplication(application.id, explanation);
-      onRejected?.();
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message ||
-          "Unable to reject. Review current evidence.",
-      );
-      void query.refetch();
-    } finally {
-      setRejecting(false);
-      setConfirming(false);
-    }
-  }
 
   return (
     <ApplicationReviewSection
@@ -179,7 +167,7 @@ export default function PossibleDuplicatesReview({
           </Button>
         </div>
       )}
-      {state && (
+      {state && !query.isError && !query.isFetching && (
         <div className="space-y-5">
           <p
             role="status"
@@ -201,86 +189,21 @@ export default function PossibleDuplicatesReview({
           {/* Duplicate dispositions remain separate from section feedback */}
           {disposition && (
             <div className="space-y-3 rounded-lg border border-stroke p-4">
-              <h3 className="font-bold">Duplicate rejection</h3>
+              <h3 className="font-bold">Recorded duplicate rejection</h3>
               <p className="whitespace-pre-wrap text-sm">
                 {disposition.explanation}
               </p>
               {disposition.reconsidered && (
                 <p className="text-sm">
-                  Reconsidered: {disposition.reconsideration_explanation}. The
-                  merchant may resubmit; ordinary content corrections still
-                  apply.
+                  Historical reconsideration:{" "}
+                  {disposition.reconsideration_explanation}. Resubmission no
+                  longer requires administrator clearance.
                 </p>
-              )}
-            </div>
-          )}
-          {((confirmed && application.status === "submitted") ||
-            (disposition &&
-              !disposition.reconsidered &&
-              application.status === "rejected")) && (
-            <div className="space-y-3">
-              <TextArea
-                id="duplicate-disposition-explanation"
-                label={
-                  application.status === "rejected"
-                    ? "Reconsideration explanation"
-                    : "Duplicate rejection explanation for the merchant"
-                }
-                value={explanation}
-                onChange={(event) => setExplanation(event.target.value)}
-                required
-                maxLength={4000}
-                disabled={mutation.isPending || rejecting}
-              />
-              {application.status === "rejected" ? (
-                <Button
-                  disabled={!explanation.trim()}
-                  loading={mutation.isPending}
-                  onClick={() =>
-                    mutation.mutate({
-                      action: "reconsider",
-                      review_id: disposition.review_id,
-                      explanation,
-                    })
-                  }
-                >
-                  Clear Duplicate Rejection for Resubmission
-                </Button>
-              ) : (
-                <Button
-                  variant="danger"
-                  disabled={!explanation.trim()}
-                  onClick={() => setConfirming(true)}
-                >
-                  Reject Confirmed Duplicate
-                </Button>
               )}
             </div>
           )}
         </div>
       )}
-      <Modal
-        isOpen={confirming}
-        onClose={() => {
-          if (!rejecting) setConfirming(false);
-        }}
-        title="Reject confirmed duplicate?"
-        description="This records a duplicate rejection. An administrator can reconsider it without requiring fabricated content changes."
-      >
-        <p className="mb-5 whitespace-pre-wrap text-sm">{explanation}</p>
-        <div className="flex justify-end gap-3">
-          <Button
-            variant="secondary"
-            disabled={rejecting}
-            onClick={() => setConfirming(false)}
-          >
-            Cancel
-          </Button>
-          <Button variant="danger" loading={rejecting} onClick={reject}>
-            Reject Duplicate
-          </Button>
-        </div>
-      </Modal>
     </ApplicationReviewSection>
   );
 }

@@ -36,6 +36,9 @@ from apps.notifications.services.notification_event_service import (
     NotificationEventService,
 )
 from apps.users.models import User
+from apps.merchant_application.services.review_submission_service import (
+    validate_review_submission,
+)
 from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
 from apps.merchant_application.services.duplicate_review_service import (
     DuplicateReviewService,
@@ -258,6 +261,7 @@ class ApplicationService:
         *,
         duplicate=False,
         explanation="",
+        expected_submission_id=None,
     ):
         """
         Reject a submitted merchant application.
@@ -279,11 +283,6 @@ class ApplicationService:
                 "Only submitted applications can be rejected.",
             )
 
-        if duplicate:
-            if not explanation.strip():
-                raise ValidationError("A duplicate rejection explanation is required.")
-            DuplicateReviewService.validate_duplicate_rejection(application)
-
         # Get the most recent submission for the application
         submission = (
             MerchantApplicationSubmission.objects
@@ -296,6 +295,17 @@ class ApplicationService:
             raise ValidationError(
                 "The application's submission history could not be found.",
             )
+
+        validate_review_submission(
+            application,
+            submission,
+            expected_submission_id,
+        )
+
+        if duplicate:
+            if not explanation.strip():
+                raise ValidationError("A duplicate rejection explanation is required.")
+            DuplicateReviewService.validate_duplicate_rejection(application)
 
         reviewed_at = timezone.now()
 
@@ -347,7 +357,12 @@ class ApplicationService:
 
     @staticmethod
     @transaction.atomic
-    def approve_application(application_id, reviewer):
+    def approve_application(
+        application_id,
+        reviewer,
+        *,
+        expected_submission_id=None,
+    ):
         """
         Approve a submitted merchant application.
 
@@ -387,6 +402,12 @@ class ApplicationService:
             raise ValidationError(
                 "The application's submission history could not be found.",
             )
+
+        validate_review_submission(
+            application,
+            submission,
+            expected_submission_id,
+        )
 
         try:
             identity = application.identity

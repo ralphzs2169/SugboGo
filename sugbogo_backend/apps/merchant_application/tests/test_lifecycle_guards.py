@@ -48,6 +48,9 @@ class MerchantLifecycleGuardTests(MerchantApplicationServiceMixin, APITestCase):
             feedback=[{"section": section, "message": "Please correct this section."}
                       for section in sections],
             reviewer=self.admin,
+            expected_submission_id=self.application.submissions.order_by(
+                "-MASUB_SUBMISSION_NUMBER",
+            ).first().pk,
         )
         return self.application.reviews.first()
 

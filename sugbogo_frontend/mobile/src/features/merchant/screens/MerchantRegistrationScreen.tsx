@@ -60,7 +60,6 @@ import { buildPhotoUploadFormData } from "../utils/merchant-application/builders
 import { getUnsavedSections } from "../utils/merchant-application/comparisons/getUnsavedSections.utils";
 import DiscardChangesMessage from "../utils/merchant-application/discardChangesMessage.utils";
 
-import ResubmissionConfirmationMessage from "../components/registration/ResubmissionConfirmationMessage";
 import {
   NormalizedIdentity,
   normalizeIdentity,
@@ -75,7 +74,6 @@ import {
 } from "../utils/merchant-application/normalizers/normalizeOperatingHours.utils";
 import useRegistrationErrorScroll from "../hooks/registration/useRegistrationErrorScroll";
 import Toast from "react-native-toast-message";
-import DuplicateRejectionNotice from "../components/registration/DuplicateRejectionNotice";
 import useRegistrationUnsavedChanges from "../hooks/registration/useRegistrationUnsavedChanges";
 
 /**
@@ -153,10 +151,7 @@ export default function MerchantRegistrationScreen() {
 
   const isResubmission = application?.status === "rejected";
   const canResubmit =
-    !isResubmission ||
-    (feedback.every((item) => item.is_changed) &&
-      (!application?.duplicate_disposition ||
-        application.duplicate_disposition.reconsidered));
+    !isResubmission || feedback.every((item) => item.is_changed);
 
   // Mutations
   const { saveIdentity, isSaving: isSavingIdentity } = useSaveIdentity();
@@ -177,9 +172,6 @@ export default function MerchantRegistrationScreen() {
   const [showDiscardChangesModal, setShowDiscardChangesModal] = useState(false);
 
   const [showReviewCelebration, setShowReviewCelebration] = useState(false);
-
-  const [showResubmissionReminderModal, setShowResubmissionReminderModal] =
-    useState(false);
 
   const [restoreError, setRestoreError] = useState(false);
 
@@ -628,11 +620,6 @@ export default function MerchantRegistrationScreen() {
     }
 
     if (currentStep === REVIEW_STEP) {
-      if (isResubmission && feedback.length > 0) {
-        setShowResubmissionReminderModal(true);
-        return;
-      }
-
       await handleSubmitApplication();
       return;
     }
@@ -828,11 +815,6 @@ export default function MerchantRegistrationScreen() {
             feedback={feedback}
             registerErrorScrollTarget={registerErrorScrollTarget}
           />
-          {isResubmission && (
-            <DuplicateRejectionNotice
-              disposition={application?.duplicate_disposition}
-            />
-          )}
         </RegistrationLayout>
       </FormProvider>
 
@@ -847,21 +829,6 @@ export default function MerchantRegistrationScreen() {
         onCancel={() => {
           setShowDiscardChangesModal(false);
           pendingExitAction.current = null;
-        }}
-      />
-
-      <ConfirmModal
-        visible={showResubmissionReminderModal}
-        title="Ready to resubmit?"
-        message={<ResubmissionConfirmationMessage />}
-        confirmText="Submit Application"
-        cancelText="Review"
-        onConfirm={async () => {
-          setShowResubmissionReminderModal(false);
-          await handleSubmitApplication();
-        }}
-        onCancel={() => {
-          setShowResubmissionReminderModal(false);
         }}
       />
     </>

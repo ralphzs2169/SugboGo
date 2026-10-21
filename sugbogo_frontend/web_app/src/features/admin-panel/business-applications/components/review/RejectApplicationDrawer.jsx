@@ -6,6 +6,12 @@ import RejectApplicationSection from "./RejectApplicationSection";
 import RejectApplicationConfirmationModal from "./RejectApplicationConfirmationModal";
 
 import Button from "@/shared/components/Button";
+import TextArea from "@/shared/components/forms/TextArea";
+import {
+  validateRejection,
+  buildRejectionPayload,
+  hasConfirmedDuplicate,
+} from "../../utils/applicationDecision.utils";
 import rejectionFeedbackSections, {
   MIN_FEEDBACK_LENGTH,
 } from "../../config/rejectionFeedback.config";
@@ -26,7 +32,18 @@ export default function RejectApplicationDrawer({
   onClose,
   onSuccess,
   businessName,
+  expectedSubmissionId,
+  duplicateQuery,
 }) {
+  const [rejectionType, setRejectionType] = useState("corrections");
+  const [explanation, setExplanation] = useState("");
+  const [includeCorrections, setIncludeCorrections] = useState(false);
+  const reviewedSubmissionId = expectedSubmissionId;
+  const showCorrections = rejectionType === "corrections" || includeCorrections;
+  const confirmedDuplicate = hasConfirmedDuplicate(
+    duplicateQuery,
+    reviewedSubmissionId,
+  );
   const [selectedSections, setSelectedSections] = useState([]);
   const [feedback, setFeedback] = useState({});
   const [errors, setErrors] = useState({});
@@ -58,7 +75,7 @@ export default function RejectApplicationDrawer({
     return () => {
       document.body.style.overflow = originalOverflow;
     };
-  }, [isOpen]);
+  }, [isOpen, expectedSubmissionId]);
 
   // Close on Escape
   useEffect(() => {
@@ -80,24 +97,26 @@ export default function RejectApplicationDrawer({
   // Keep the drawer mounted long enough for the close animation to finish.
   useEffect(() => {
     if (isOpen) {
-      setIsMounted(true);
-
-      requestAnimationFrame(() => {
+      const openingFrame = requestAnimationFrame(() => {
+        setIsMounted(true);
         requestAnimationFrame(() => {
           setIsVisible(true);
         });
       });
 
-      return undefined;
+      return () => cancelAnimationFrame(openingFrame);
     }
 
-    setIsVisible(false);
+    const closingFrame = requestAnimationFrame(() => setIsVisible(false));
 
     const timeout = setTimeout(() => {
       setIsMounted(false);
     }, 300);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      cancelAnimationFrame(closingFrame);
+      clearTimeout(timeout);
+    };
   }, [isOpen]);
 
   function handleSectionToggle(section) {
@@ -156,23 +175,19 @@ export default function RejectApplicationDrawer({
   // instead of reading `errors` state, which won't reflect this update
   // until the next render.
   function validate() {
-    const validationErrors = {};
-
-    if (selectedSections.length === 0) {
-      validationErrors.general =
-        "Select at least one section that requires changes.";
-    }
-
-    selectedSections.forEach((section) => {
-      const trimmed = feedback[section]?.trim() ?? "";
-
-      if (!trimmed) {
-        validationErrors[section] = "Please describe what needs to be changed.";
-      } else if (trimmed.length < MIN_FEEDBACK_LENGTH) {
-        validationErrors[section] =
-          `Please provide at least ${MIN_FEEDBACK_LENGTH} characters so the applicant has enough detail.`;
-      }
+    const validationErrors = validateRejection({
+      rejectionType,
+      explanation,
+      showCorrections,
+      selectedSections,
+      feedback,
+      confirmedDuplicate,
+      minFeedbackLength: MIN_FEEDBACK_LENGTH,
     });
+    if (!reviewedSubmissionId) {
+      validationErrors.general =
+        "Submission changed. Refresh the application before deciding.";
+    }
 
     setErrors(validationErrors);
 
@@ -202,13 +217,21 @@ export default function RejectApplicationDrawer({
   }
 
   async function handleConfirmRejection() {
-    const rejectionFeedback = selectedSections.map((section) => ({
-      section,
-      message: feedback[section].trim(),
-    }));
+    if (Object.keys(validate()).length > 0) {
+      setIsConfirmationOpen(false);
+      return;
+    }
+    const payload = buildRejectionPayload({
+      rejectionType,
+      explanation,
+      showCorrections,
+      selectedSections,
+      feedback,
+      expectedSubmissionId: reviewedSubmissionId,
+    });
 
     try {
-      await rejectApplication(applicationId, rejectionFeedback);
+      await rejectApplication(applicationId, payload);
 
       toast.success("Application rejected successfully.");
 
@@ -216,6 +239,8 @@ export default function RejectApplicationDrawer({
       onSuccess?.();
       handleClose();
     } catch (error) {
+      void duplicateQuery?.refetch();
+      setIsConfirmationOpen(false);
       console.error("Failed to reject application:", error);
 
       toast.error(
@@ -271,8 +296,8 @@ export default function RejectApplicationDrawer({
                 Reject Application
               </h2>
               <p className="mt-1 text-sm text-text-secondary">
-                Select the sections that need changes and provide specific
-                feedback for the applicant.
+                Choose a rejection type and provide the explanation or section
+                feedback the applicant needs.
               </p>
             </div>
 
@@ -291,8 +316,76 @@ export default function RejectApplicationDrawer({
             onSubmit={handleSubmit}
             className="flex flex-1 flex-col overflow-hidden"
           >
+            <fieldset disabled={isSubmitting} className="space-y-3 px-6 pt-4">
+              <legend className="pt-4 text-sm font-semibold">
+                Rejection Type
+              </legend>
+              {[
+                ["corrections", "Corrections Required"],
+                ["duplicate", "Confirmed Duplicate"],
+              ].map(([value, label]) => (
+                <label
+                  key={value}
+                  className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"
+                >
+                  <input
+                    type="radio"
+                    name="rejection-type"
+                    value={value}
+                    checked={rejectionType === value}
+                    onChange={() => {
+                      setRejectionType(value);
+                      setErrors({});
+                    }}
+                  />
+                  {label}
+                </label>
+              ))}
+              {rejectionType === "duplicate" && (
+                <>
+                  <p
+                    role="status"
+                    className={
+                      confirmedDuplicate
+                        ? "text-sm text-success"
+                        : "text-sm text-danger"
+                    }
+                  >
+                    {confirmedDuplicate
+                      ? "Verified duplicate assessment: Confirmed"
+                      : "Save a current confirmed-duplicate assessment before rejecting. Refresh if the check is unavailable."}
+                  </p>
+                  <TextArea
+                    id="merchant-duplicate-explanation"
+                    label="Explanation shown to merchant"
+                    value={explanation}
+                    onChange={(event) => setExplanation(event.target.value)}
+                    required
+                    maxLength={4000}
+                    disabled={isSubmitting}
+                  />
+                  {errors.explanation && (
+                    <p role="alert" className="text-sm text-danger">
+                      {errors.explanation}
+                    </p>
+                  )}
+                  <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={includeCorrections}
+                      onChange={(event) =>
+                        setIncludeCorrections(event.target.checked)
+                      }
+                    />
+                    Also require section corrections
+                  </label>
+                </>
+              )}
+            </fieldset>
             {/* Select all control */}
-            <div className="flex shrink-0 items-center justify-between px-6 pt-4">
+            <div
+              className={`${showCorrections ? "flex" : "hidden"} shrink-0 items-center justify-between px-6 pt-4`}
+            >
               <button
                 type="button"
                 onClick={handleSelectAllToggle}
@@ -312,19 +405,20 @@ export default function RejectApplicationDrawer({
             {/* Scrollable rejection fields */}
             <div className="themed-scrollbar mt-4 flex-1 overflow-y-auto px-6">
               <div className="space-y-4 pb-4">
-                {rejectionFeedbackSections.map((section) => (
-                  <RejectApplicationSection
-                    key={section.value}
-                    section={section}
-                    isSelected={selectedSections.includes(section.value)}
-                    fieldError={errors[section.value]}
-                    fieldValue={feedback[section.value] ?? ""}
-                    minFeedbackLength={MIN_FEEDBACK_LENGTH}
-                    onSectionToggle={handleSectionToggle}
-                    onFeedbackChange={handleFeedbackChange}
-                    onTemplateClick={handleTemplateClick}
-                  />
-                ))}
+                {showCorrections &&
+                  rejectionFeedbackSections.map((section) => (
+                    <RejectApplicationSection
+                      key={section.value}
+                      section={section}
+                      isSelected={selectedSections.includes(section.value)}
+                      fieldError={errors[section.value]}
+                      fieldValue={feedback[section.value] ?? ""}
+                      minFeedbackLength={MIN_FEEDBACK_LENGTH}
+                      onSectionToggle={handleSectionToggle}
+                      onFeedbackChange={handleFeedbackChange}
+                      onTemplateClick={handleTemplateClick}
+                    />
+                  ))}
               </div>
 
               {/* General validation message */}
@@ -336,7 +430,8 @@ export default function RejectApplicationDrawer({
             {/* Fixed footer actions */}
             <div className="flex shrink-0 flex-col gap-3 border-t border-stroke px-6 py-5">
               <span className="text-xs text-text-secondary">
-                {selectedSections.length > 0 &&
+                {showCorrections &&
+                  selectedSections.length > 0 &&
                   (incompleteCount > 0
                     ? `${incompleteCount} of ${selectedSections.length} sections still need feedback`
                     : "All selected sections have feedback")}
@@ -356,8 +451,15 @@ export default function RejectApplicationDrawer({
                   type="submit"
                   variant="primary"
                   loading={isSubmitting}
-                  disabled={selectedSections.length === 0}
-                  disabledTooltip="Select at least one section that requires changes."
+                  disabled={
+                    (showCorrections && selectedSections.length === 0) ||
+                    (rejectionType === "duplicate" && !confirmedDuplicate)
+                  }
+                  disabledTooltip={
+                    rejectionType === "duplicate" && !confirmedDuplicate
+                      ? "Save a current confirmed-duplicate assessment first."
+                      : "Select at least one section that requires changes."
+                  }
                 >
                   Review & Reject
                 </Button>
@@ -366,16 +468,19 @@ export default function RejectApplicationDrawer({
           </form>
         </div>
       </div>
-      ,{/* Rejection confirmation */}
+      {/* Rejection confirmation */}
       <RejectApplicationConfirmationModal
         isOpen={isConfirmationOpen}
-        selectedSections={selectedSections}
+        selectedSections={showCorrections ? selectedSections : []}
         feedback={feedback}
         sections={rejectionFeedbackSections}
         onClose={() => setIsConfirmationOpen(false)}
         onConfirm={handleConfirmRejection}
         loading={isSubmitting}
         businessName={businessName}
+        duplicateExplanation={
+          rejectionType === "duplicate" ? explanation.trim() : null
+        }
       />
     </>,
     document.body,

@@ -36,11 +36,25 @@ export default function BusinessApplicationReview({
     duplicates.query.isFetching ||
     duplicates.query.isError ||
     duplicates.mutation.isPending ||
-    duplicates.query.data.approval_blocked;
+    duplicates.query.data.approval_blocked ||
+    duplicates.query.data.submission_id !== application.latest_submission_id;
+  const duplicateBlockReason = duplicates.query.isError
+    ? "Duplicate check unavailable. Retry before approval."
+    : !duplicates.query.data || duplicates.query.isFetching
+      ? "Checking current duplicate evidence�"
+      : duplicates.query.data.submission_id !== application.latest_submission_id
+        ? "Submission changed. Refresh the application before deciding."
+        : duplicates.mutation.isPending
+          ? "Saving assessment�"
+          : duplicates.query.data.approval_blocked
+            ? "Approval blocked: resolve unresolved, stale, confirmed duplicate, or ownership conflict assessments."
+            : null;
+  const [approvalSubmissionId, setApprovalSubmissionId] = useState(null);
   const [showContextBar, setShowContextBar] = useState(false);
 
   const [documentPreviewUrls, setDocumentPreviewUrls] = useState({});
 
+  const [rejectionSubmissionId, setRejectionSubmissionId] = useState(null);
   const [isRejectDrawerOpen, setIsRejectDrawerOpen] = useState(false);
   const [isApproveConfirmationOpen, setIsApproveConfirmationOpen] =
     useState(false);
@@ -136,7 +150,7 @@ export default function BusinessApplicationReview({
   // Handle approval confirmation
   async function handleConfirmApproval() {
     try {
-      await approveApplication(application.id);
+      await approveApplication(application.id, approvalSubmissionId);
 
       toast.success("Application approved successfully.");
 
@@ -212,7 +226,6 @@ export default function BusinessApplicationReview({
         application={application}
         query={duplicates.query}
         mutation={duplicates.mutation}
-        onRejected={onApplicationRejected}
       />
 
       {!isResolved && (
@@ -231,6 +244,11 @@ export default function BusinessApplicationReview({
             lg:left-[var(--admin-sidebar-width)]
           "
           >
+            {duplicateBlockReason && (
+              <p role="status" className="mb-3 text-sm text-danger">
+                {duplicateBlockReason}
+              </p>
+            )}
             <div className="flex items-center justify-between gap-4">
               <div className="hidden min-w-0 sm:block">
                 <h2 className="text-sm font-semibold text-text-primary">
@@ -246,16 +264,22 @@ export default function BusinessApplicationReview({
                 <Button
                   type="button"
                   variant="danger"
-                  onClick={() => setIsRejectDrawerOpen(true)}
+                  onClick={() => {
+                    setRejectionSubmissionId(application.latest_submission_id);
+                    setIsRejectDrawerOpen(true);
+                  }}
                 >
-                  Request Changes
+                  Reject Application
                 </Button>
 
                 <Button
                   type="button"
                   variant="success"
                   disabled={duplicateApprovalBlocked}
-                  onClick={() => setIsApproveConfirmationOpen(true)}
+                  onClick={() => {
+                    setApprovalSubmissionId(application.latest_submission_id);
+                    setIsApproveConfirmationOpen(true);
+                  }}
                 >
                   Approve Application
                 </Button>
@@ -272,6 +296,8 @@ export default function BusinessApplicationReview({
         onClose={() => setIsRejectDrawerOpen(false)}
         onSuccess={onApplicationRejected}
         businessName={businessName}
+        expectedSubmissionId={rejectionSubmissionId}
+        duplicateQuery={duplicates.query}
       />
 
       {/* Approval Confirmation */}
@@ -283,6 +309,12 @@ export default function BusinessApplicationReview({
         onClose={() => setIsApproveConfirmationOpen(false)}
         onConfirm={handleConfirmApproval}
         loading={isApproving}
+        blockedReason={
+          duplicateBlockReason ||
+          (approvalSubmissionId !== application.latest_submission_id
+            ? "Submission changed. Refresh the application."
+            : null)
+        }
       />
     </div>
   );
