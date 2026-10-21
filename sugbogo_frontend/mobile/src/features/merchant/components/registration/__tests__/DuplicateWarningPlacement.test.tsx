@@ -153,9 +153,6 @@ it("checks on first entering Review and offers the existing location edit naviga
     expect(screen.getByText("Possible existing business")).toBeTruthy(),
   );
   const tree = JSON.stringify(screen.toJSON());
-  expect(tree.indexOf("Check your information before submitting")).toBeLessThan(
-    tree.indexOf("Possible existing business"),
-  );
   expect(tree.indexOf("Possible existing business")).toBeLessThan(
     tree.indexOf("application-summary"),
   );

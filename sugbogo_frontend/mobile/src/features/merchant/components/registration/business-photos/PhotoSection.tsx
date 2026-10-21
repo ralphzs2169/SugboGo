@@ -1,5 +1,4 @@
 import { Text, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import PhotoGrid from "./PhotoGrid";
 import type { BusinessPhoto } from "@/features/merchant/types/registration/registrationOption.types";
@@ -38,16 +37,6 @@ export default function PhotoSection({
           onPhotosChange={onPhotosChange}
           required={required}
         />
-        <View className="mt-2 flex-row items-center">
-          <MaterialCommunityIcons
-            name="information-outline"
-            size={14}
-            color="#6B7280"
-          />
-          <Text className="ml-1 text-xs text-text-secondary">
-            Supported: JPG, JPEG, PNG
-          </Text>
-        </View>
         {error && <Text className="mt-2 text-sm text-text-error">{error}</Text>}
       </View>
     </View>

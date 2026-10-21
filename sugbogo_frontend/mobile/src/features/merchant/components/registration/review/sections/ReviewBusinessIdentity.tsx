@@ -80,8 +80,46 @@ export default function ReviewBusinessIdentity({
         <ReviewRow
           label="Business Name"
           value={form.businessName}
-          valueClassName="text-2xl font-bold text-brand"
+          valueClassName="text-2xl font-bold text-text-primary"
         />
+      </View>
+
+      <View className="mb-4 w-full">
+        {isLoadingSpecialtyTags && !hasSpecialtyTagsData ? (
+          <View className="flex-row items-center gap-2">
+            <ActivityIndicator
+              size="small"
+              color={theme.extends.colors.brand}
+            />
+            <AppText className="text-sm text-text-secondary">
+              Loading specialty tags...
+            </AppText>
+          </View>
+        ) : specialtyTagsError && !hasSpecialtyTagsData ? (
+          <FormFieldApiError
+            message="Unable to load specialty tags."
+            onRetry={() => {
+              void refetchSpecialtyTags();
+            }}
+          />
+        ) : selectedSpecialtyTags.length > 0 ? (
+          <View className="flex-row flex-wrap">
+            {selectedSpecialtyTags.map((tag) => (
+              <SpecialtyTagChip key={tag.id} tag={tag} showIcon size="small" />
+            ))}
+          </View>
+        ) : (
+          <AppText className="text-sm text-text-primary">Not provided</AppText>
+        )}
+
+        {specialtyTagsError && hasSpecialtyTagsData && (
+          <FormFieldApiError
+            message="Specialty tags could not be refreshed."
+            onRetry={() => {
+              void refetchSpecialtyTags();
+            }}
+          />
+        )}
       </View>
 
       <View className="flex-row flex-wrap">
@@ -147,55 +185,6 @@ export default function ReviewBusinessIdentity({
 
         <View className="w-1/2 pr-2">
           <ReviewRow label="Website" value={form.website} />
-        </View>
-
-        <View className="w-full">
-          <AppText className="mb-2 text-sm font-medium text-text-secondary">
-            Specialty Tags
-          </AppText>
-
-          {isLoadingSpecialtyTags && !hasSpecialtyTagsData ? (
-            <View className="flex-row items-center gap-2">
-              <ActivityIndicator
-                size="small"
-                color={theme.extends.colors.brand}
-              />
-              <AppText className="text-sm text-text-secondary">
-                Loading specialty tags...
-              </AppText>
-            </View>
-          ) : specialtyTagsError && !hasSpecialtyTagsData ? (
-            <FormFieldApiError
-              message="Unable to load specialty tags."
-              onRetry={() => {
-                void refetchSpecialtyTags();
-              }}
-            />
-          ) : selectedSpecialtyTags.length > 0 ? (
-            <View className="flex-row flex-wrap">
-              {selectedSpecialtyTags.map((tag) => (
-                <SpecialtyTagChip
-                  key={tag.id}
-                  tag={tag}
-                  showIcon
-                  size="medium"
-                />
-              ))}
-            </View>
-          ) : (
-            <AppText className="text-sm text-text-primary">
-              Not provided
-            </AppText>
-          )}
-
-          {specialtyTagsError && hasSpecialtyTagsData && (
-            <FormFieldApiError
-              message="Specialty tags could not be refreshed."
-              onRetry={() => {
-                void refetchSpecialtyTags();
-              }}
-            />
-          )}
         </View>
       </View>
     </ReviewSection>

@@ -12,7 +12,6 @@ import type {
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import { useFormContext } from "react-hook-form";
 
-import ReviewSection from "../review/ReviewSection";
 import ReviewBusinessIdentity from "../review/sections/ReviewBusinessIdentity";
 import ReviewBusinessLocation from "../review/sections/ReviewBusinessLocation";
 import ReviewBusinessPhotos from "../review/sections/ReviewBusinessPhotos";
@@ -40,7 +39,6 @@ export default function ReviewSubmitStep({
 }: ReviewSubmitStepProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
   const form = watch();
-
   const getSectionFeedback = (section: ApplicationFeedbackSection) => {
     if (!isResubmission) {
       return undefined;
@@ -52,21 +50,7 @@ export default function ReviewSubmitStep({
   return (
     <>
       <View className="">
-        <ReviewSection
-          icon="check-circle-outline"
-          title={
-            isResubmission ? "Review Your Changes" : "Review Your Application"
-          }
-          description={
-            isResubmission
-              ? "Review your updates before resubmitting your application."
-              : "Check your information before submitting your application."
-          }
-          isPageHeader
-          showBorder={false}
-        />
-
-        <View className="px-6">
+        <View className="w-full">
           <DuplicateBusinessWarning
             application={application}
             onReviewLocation={() => onEditSection(2)}

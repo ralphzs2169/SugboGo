@@ -95,7 +95,7 @@ export default function FormInput({
         {...props}
         editable={editable}
         value={value}
-        className={`flex-1 py-[14px] text-body ${
+        className={`flex-1 py-[14px] font-nunito text-body ${
           editable ? "text-text-primary" : "text-text-secondary"
         }`}
         placeholderTextColor={

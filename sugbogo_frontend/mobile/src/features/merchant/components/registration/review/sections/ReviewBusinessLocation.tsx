@@ -71,7 +71,7 @@ export default function ReviewBusinessLocation({
         showLocationPreviewOverlay={false}
       />
 
-      <View className="mt-4 flex-row flex-wrap">
+      <View className="mt-4 flex-row flex-wrap rounded-xl bg-surface-muted p-4">
         {/* Address */}
         <View className="w-full">
           <ReviewRow label="Address" value={address} />
@@ -81,44 +81,42 @@ export default function ReviewBusinessLocation({
         <View className="w-full">
           <ReviewRow label="Unit / Building" value={form.unit} />
         </View>
-        <View className="w-full">
-          <AppText className="mb-2 text-xs font-medium text-text-secondary">
-            Landmarks
-          </AppText>
+      </View>
+      <View className="mt-4 w-full">
+        <AppText className="mb-2 text-xs font-medium text-text-secondary">
+          Landmarks
+        </AppText>
 
-          {form.landmarks.length > 0 ? (
-            <Pressable onPress={handleViewLandmarks}>
-              {({ pressed }) => (
-                <View
-                  className={`flex-row items-center justify-between rounded-lg border border-border-primary px-3 py-3 ${
-                    pressed ? "bg-background" : "bg-surface"
-                  }`}
-                >
-                  <View className="flex-1">
-                    <AppText className="text-sm font-medium text-text-primary">
-                      View landmarks
-                    </AppText>
+        {form.landmarks.length > 0 ? (
+          <Pressable onPress={handleViewLandmarks}>
+            {({ pressed }) => (
+              <View
+                className={`flex-row items-center justify-between rounded-lg border border-border-primary px-3 py-3 ${
+                  pressed ? "bg-background" : "bg-surface"
+                }`}
+              >
+                <View className="flex-1">
+                  <AppText className="text-sm font-medium text-text-primary">
+                    View landmarks
+                  </AppText>
 
-                    <AppText className="mt-0.5 text-xs text-text-secondary">
-                      {form.landmarks.length} landmark
-                      {form.landmarks.length !== 1 ? "s" : ""} selected
-                    </AppText>
-                  </View>
-
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={20}
-                    color={theme.extends.colors.text.secondary}
-                  />
+                  <AppText className="mt-0.5 text-xs text-text-secondary">
+                    {form.landmarks.length} landmark
+                    {form.landmarks.length !== 1 ? "s" : ""} selected
+                  </AppText>
                 </View>
-              )}
-            </Pressable>
-          ) : (
-            <AppText className="text-sm text-text-primary">
-              Not provided
-            </AppText>
-          )}
-        </View>
+
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={20}
+                  color={theme.extends.colors.text.secondary}
+                />
+              </View>
+            )}
+          </Pressable>
+        ) : (
+          <AppText className="text-sm text-text-primary">Not provided</AppText>
+        )}
       </View>
     </ReviewSection>
   );

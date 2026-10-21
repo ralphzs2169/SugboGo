@@ -1,4 +1,6 @@
 import { View } from "react-native";
+import AppText from "@/shared/components/AppText";
+import InfoBanner from "@/shared/components/InfoBanner";
 import { useFormContext } from "react-hook-form";
 
 import type { MerchantRegistrationForm } from "../../../validation/merchantRegistration.schema";
@@ -34,6 +36,12 @@ export default function BusinessPhotosStep({
 
   return (
     <View className="bg-background">
+      {/* Shared upload guidance for every photo section */}
+      <InfoBanner title="Supported photo formats">
+        <AppText className="text-sm leading-5 text-text-secondary">
+          Upload JPG, JPEG, or PNG images in any photo section below.
+        </AppText>
+      </InfoBanner>
       <RegistrationSection
         icon="store-outline"
         title="Storefront Photos"

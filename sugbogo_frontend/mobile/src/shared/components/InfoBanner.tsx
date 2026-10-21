@@ -61,7 +61,7 @@ export default function InfoBanner({
           >
             <AppText
               weight="semibold"
-              className={`text-sm ${isWarning ? "text-text-primary" : "text-text-info"}`}
+              className={`text-sm ${isWarning ? "text-brand" : "text-text-info"}`}
             >
               {actionTitle}
             </AppText>

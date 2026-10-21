@@ -58,7 +58,7 @@ type PhotoGroupProps = {
 
 function PhotoGroup({ title, photos }: PhotoGroupProps) {
   return (
-    <View className="mb-5">
+    <View className="mb-3 rounded-xl bg-surface-muted p-4">
       <View className="flex-row items-center justify-between">
         <AppText weight="semibold" className="text-sm  text-text-primary">
           {title}
@@ -70,8 +70,6 @@ function PhotoGroup({ title, photos }: PhotoGroupProps) {
           </AppText>
         )}
       </View>
-
-      <View className="mt-1 border-t border-border-primary" />
 
       <View className="mt-3">
         {photos.length > 0 ? (
