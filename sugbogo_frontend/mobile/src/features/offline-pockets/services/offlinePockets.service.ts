@@ -4,7 +4,14 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import {
   getAuthSessionGeneration,
   isAuthSessionCurrent,
+  isAuthSessionGenerationCurrent,
 } from "@/shared/api/authSessionGeneration.service";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
+import {
+  assertOfflineResourceOwner,
+  releaseOfflineAccessIfEmpty,
+  rememberOfflineOwner,
+} from "@/features/offline-routes/services/offlineAccess.service";
 
 import {
   OFFLINE_BUSINESS_SNAPSHOT_VERSION,
@@ -16,6 +23,7 @@ import type {
   OfflinePocketIntent,
   OfflinePocketOperation,
   OfflinePocketWorkStatus,
+  OfflinePocketReadContext,
 } from "../types/offlinePockets.types";
 import {
   parseOfflineBusinessSnapshot,
@@ -24,6 +32,7 @@ import {
   type OfflineBusinessSnapshotRead,
 } from "../validation/offlineBusinessSnapshot";
 import { withOfflinePocketsTransaction } from "./offlinePocketsDatabase";
+import { notifyOfflineSnapshotsChanged } from "./offlinePocketSnapshots.events";
 
 const CONTROL_COLUMNS = `
   business_id AS businessId, cache_intent AS intent,
@@ -151,6 +160,85 @@ export async function captureOfflinePocketContext(): Promise<OfflinePocketContex
   });
 }
 
+/** Resolves UI-only access from authenticated ownership or the restored local grant. */
+export function currentOfflineBusinessOwner(): number | null {
+  const auth = useAuthStore.getState();
+  if (auth.isLoading || useOfflineAccessStore.getState().isRevoking)
+    return null;
+  return auth.isAuthenticated
+    ? (auth.user?.id ?? null)
+    : useOfflineAccessStore.getState().ownerId;
+}
+
+function assertLocalRead(context: OfflinePocketReadContext): void {
+  assertInteger(context.ownerId, 1);
+  assertInteger(context.clearGeneration);
+  if (
+    context.access !== "local" ||
+    useAuthStore.getState().isAuthenticated ||
+    context.apiScope !== OFFLINE_POCKETS_API_SCOPE ||
+    currentOfflineBusinessOwner() !== context.ownerId ||
+    !isAuthSessionGenerationCurrent(context.sessionGeneration)
+  ) {
+    throw new Error("Offline businesses are unavailable for this session.");
+  }
+}
+
+/** Captures a read context without creating policy rows for local-only accounts. */
+export async function captureOfflinePocketReadContext(): Promise<OfflinePocketReadContext> {
+  if (useAuthStore.getState().isAuthenticated) {
+    return Object.freeze({
+      ...(await captureOfflinePocketContext()),
+      access: "authenticated",
+    });
+  }
+  const context: OfflinePocketReadContext = Object.freeze({
+    apiScope: OFFLINE_POCKETS_API_SCOPE,
+    ownerId: currentOfflineBusinessOwner() ?? 0,
+    sessionGeneration: getAuthSessionGeneration(),
+    clearGeneration: 0,
+    access: "local",
+  });
+  assertLocalRead(context);
+  return withOfflinePocketsTransaction(async (tx) => {
+    assertLocalRead(context);
+    const account = await tx.getFirstAsync<{ clear_generation: number }>(
+      "SELECT clear_generation FROM offline_pocket_accounts WHERE api_scope = ? AND owner_id = ?",
+      context.apiScope,
+      context.ownerId,
+    );
+    assertLocalRead(context);
+    return Object.freeze({
+      ...context,
+      clearGeneration: account?.clear_generation ?? 0,
+    });
+  });
+}
+
+function withSnapshotRead<T>(
+  input: OfflinePocketContext | OfflinePocketReadContext,
+  action: (tx: SQLiteDatabase, context: OfflinePocketContext) => Promise<T>,
+): Promise<T> {
+  if (!("access" in input) || input.access !== "local") {
+    return withOwnedPolicy(input, action);
+  }
+  const context = Object.freeze({ ...input });
+  assertLocalRead(context);
+  return withOfflinePocketsTransaction(async (tx) => {
+    assertLocalRead(context);
+    const row = await tx.getFirstAsync<{ clear_generation: number }>(
+      "SELECT clear_generation FROM offline_pocket_accounts WHERE api_scope = ? AND owner_id = ?",
+      context.apiScope,
+      context.ownerId,
+    );
+    if ((row?.clear_generation ?? 0) !== context.clearGeneration)
+      throw new StaleOfflinePocketOperationError();
+    const result = await action(tx, context);
+    assertLocalRead(context);
+    return result;
+  });
+}
+
 /** Returns metadata without making a discovered or missing business eligible for caching. */
 export async function getOfflinePocketControl(
   context: OfflinePocketContext,
@@ -254,7 +342,7 @@ export async function applyOfflinePocketMembershipChange(
   if (expectedOperationVersion !== null) {
     assertInteger(expectedOperationVersion, 1);
   }
-  return withOwnedPolicy(context, async (tx, pinned) => {
+  const enqueued = await withOwnedPolicy(context, async (tx, pinned) => {
     const current = await readControl(tx, pinned, businessId);
     if ((current?.operationVersion ?? null) !== expectedOperationVersion) {
       throw new StaleOfflinePocketOperationError();
@@ -270,6 +358,12 @@ export async function applyOfflinePocketMembershipChange(
     }
     return false;
   });
+  notifyOfflineSnapshotsChanged();
+  await releaseOfflineAccessIfEmpty(
+    context.ownerId,
+    context.sessionGeneration,
+  ).catch(() => undefined);
+  return enqueued;
 }
 
 /** Enqueues a genuinely new confirmed save; never call this from a Pocket list scan. */
@@ -292,7 +386,7 @@ export function requestOfflinePocketRestore(
 export async function clearOfflinePocketControlState(
   context: OfflinePocketContext,
 ): Promise<OfflinePocketContext> {
-  return withOwnedPolicy(context, async (tx, pinned) => {
+  const cleared = await withOwnedPolicy(context, async (tx, pinned) => {
     const generation = pinned.clearGeneration + 1;
     assertInteger(generation);
     await tx.runAsync(
@@ -318,6 +412,12 @@ export async function clearOfflinePocketControlState(
     );
     return Object.freeze({ ...pinned, clearGeneration: generation });
   });
+  notifyOfflineSnapshotsChanged();
+  await releaseOfflineAccessIfEmpty(
+    context.ownerId,
+    context.sessionGeneration,
+  ).catch(() => undefined);
+  return cleared;
 }
 
 /** Validates a work token against its persisted revision, not just its captured session. */
@@ -565,15 +665,17 @@ export async function publishOfflineBusinessSnapshot(
       operation.businessId,
     );
   });
+  notifyOfflineSnapshotsChanged();
+  await rememberOfflineOwner(operation.ownerId, operation.sessionGeneration);
 }
 
 /** Reads and validates one snapshot locally, including explicit corruption and unsupported states. */
 export async function getOfflineBusinessSnapshot(
-  context: OfflinePocketContext,
+  context: OfflinePocketContext | OfflinePocketReadContext,
   businessId: number,
 ): Promise<OfflineBusinessSnapshotRead> {
   assertInteger(businessId, 1);
-  return withOwnedPolicy(context, async (tx, pinned) => {
+  return withSnapshotRead(context, async (tx, pinned) => {
     const row = await tx.getFirstAsync<SnapshotRow>(
       `SELECT ${SNAPSHOT_COLUMNS} ${AVAILABLE_SNAPSHOTS} AND s.business_id = ?`,
       pinned.apiScope,
@@ -590,9 +692,9 @@ export async function getOfflineBusinessSnapshot(
 
 /** Lists valid and damaged local entries without treating failed or absent rows as cached data. */
 export async function listOfflineBusinessSnapshots(
-  context: OfflinePocketContext,
+  context: OfflinePocketContext | OfflinePocketReadContext,
 ): Promise<OfflineBusinessSnapshotEntry[]> {
-  return withOwnedPolicy(context, async (tx, pinned) => {
+  return withSnapshotRead(context, async (tx, pinned) => {
     const rows = await tx.getAllAsync<SnapshotRow>(
       `SELECT ${SNAPSHOT_COLUMNS} ${AVAILABLE_SNAPSHOTS}
         ORDER BY s.fetched_at DESC, s.business_id`,
@@ -613,6 +715,37 @@ export async function removeOfflineBusinessSnapshot(
   await withOwnedPolicy(context, async (tx, pinned) => {
     await removeSnapshot(tx, pinned, businessId);
   });
+  notifyOfflineSnapshotsChanged();
+  await releaseOfflineAccessIfEmpty(
+    context.ownerId,
+    context.sessionGeneration,
+  ).catch(() => undefined);
+}
+
+/** Allows a local reader to discard only an unreadable copy, never create cache work. */
+export async function removeUnreadableOfflineBusinessSnapshot(
+  context: OfflinePocketReadContext,
+  businessId: number,
+): Promise<void> {
+  assertInteger(businessId, 1);
+  await withSnapshotRead(context, async (tx, pinned) => {
+    const row = await tx.getFirstAsync<SnapshotRow>(
+      `SELECT ${SNAPSHOT_COLUMNS} ${AVAILABLE_SNAPSHOTS} AND s.business_id = ?`,
+      pinned.apiScope,
+      pinned.ownerId,
+      pinned.clearGeneration,
+      businessId,
+    );
+    if (!row || snapshotEntry(row).status === "available") {
+      throw new Error("Only an unreadable device copy can be removed here.");
+    }
+    await removeSnapshot(tx, pinned, businessId);
+  });
+  notifyOfflineSnapshotsChanged();
+  await releaseOfflineAccessIfEmpty(
+    context.ownerId,
+    context.sessionGeneration,
+  ).catch(() => undefined);
 }
 
 /** Invalidates confirmed removed membership only if the checking job is still current. */
@@ -624,6 +757,40 @@ export async function invalidateOfflinePocketWork(
     await currentOperation(tx, operation);
     await removeSnapshot(tx, pinned, operation.businessId);
   });
+  notifyOfflineSnapshotsChanged();
+  await releaseOfflineAccessIfEmpty(
+    operation.ownerId,
+    operation.sessionGeneration,
+  ).catch(() => undefined);
+}
+
+/** Returns only existence, after marker authorization; never grants arbitrary account reads. */
+export async function hasBusinessSnapshotsForOfflineAccess(
+  ownerId: number,
+  generation: number,
+): Promise<boolean> {
+  await assertOfflineResourceOwner(ownerId, generation);
+  const available = await withOfflinePocketsTransaction(async (tx) => {
+    await assertOfflineResourceOwner(ownerId, generation);
+    const row = await tx.getFirstAsync<{ clear_generation: number }>(
+      "SELECT clear_generation FROM offline_pocket_accounts WHERE api_scope = ? AND owner_id = ?",
+      OFFLINE_POCKETS_API_SCOPE,
+      ownerId,
+    );
+    if (!row) return false;
+    const rows = await tx.getAllAsync<SnapshotRow>(
+      `SELECT ${SNAPSHOT_COLUMNS} ${AVAILABLE_SNAPSHOTS}`,
+      OFFLINE_POCKETS_API_SCOPE,
+      ownerId,
+      row.clear_generation,
+    );
+    await assertOfflineResourceOwner(ownerId, generation);
+    return rows.some(
+      (snapshot) => snapshotEntry(snapshot).status === "available",
+    );
+  });
+  await assertOfflineResourceOwner(ownerId, generation);
+  return available;
 }
 
 async function removeSnapshot(

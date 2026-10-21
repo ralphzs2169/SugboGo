@@ -16,7 +16,8 @@ import { useAuthStore } from "../store/auth.store";
 import { isTransportError } from "@/shared/utils/isTransportError";
 import {
   clearOfflineAccess,
-  getOfflineOwner,
+  getRestorableOfflineOwner,
+  rememberOfflineResources,
 } from "@/features/offline-routes/services/offlineAccess.service";
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 
@@ -64,6 +65,9 @@ export function useRestoreSession() {
           setUser(user);
           useOfflineAccessStore.getState().setOwnerId(null);
           useOfflineAccessStore.getState().setRevoking(false);
+          void rememberOfflineResources(user.id, restoreGeneration).catch(
+            () => undefined,
+          );
         }
       } catch (error) {
         if (!isAuthSessionCurrent(restoreGeneration)) {
@@ -75,8 +79,10 @@ export function useRestoreSession() {
         useAppModeStore.getState().resetActiveMode();
 
         if (isTransportError(error)) {
-          // Local guidance access never authenticates protected routes.
-          const ownerId = await getOfflineOwner().catch(() => null);
+          // A validated local resource grants browsing only, never protected routes.
+          const ownerId = await getRestorableOfflineOwner(
+            cleanupGeneration,
+          ).catch(() => null);
 
           if (isAuthSessionGenerationCurrent(cleanupGeneration)) {
             useOfflineAccessStore.getState().setOwnerId(ownerId);

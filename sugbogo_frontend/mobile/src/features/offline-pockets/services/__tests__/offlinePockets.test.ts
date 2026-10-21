@@ -32,6 +32,19 @@ const mockReplaceMemberships = jest.fn();
 const mockRemoveMembership = jest.fn();
 const mockDeleteCollection = jest.fn();
 const mockSync = jest.fn();
+const mockSecureValues = new Map<string, string>();
+jest.mock("expo-secure-store", () => ({
+  setItemAsync: async (key: string, value: string) => {
+    mockSecureValues.set(key, value);
+  },
+  getItemAsync: async (key: string) => mockSecureValues.get(key) ?? null,
+  deleteItemAsync: async (key: string) => {
+    mockSecureValues.delete(key);
+  },
+}));
+jest.mock("@/features/offline-routes/services/savedJourneys.service", () => ({
+  hasSavedJourneysForOfflineAccess: async () => false,
+}));
 jest.mock("../offlinePocketSync.service", () => ({
   requestOfflinePocketSync: () => mockSync(),
 }));
@@ -174,6 +187,7 @@ function deferred() {
 
 describe("Offline Pocket SQLite control foundation", () => {
   beforeEach(() => {
+    mockSecureValues.clear();
     directory = mkdtempSync(join(tmpdir(), "sugbogo-pocket-control-"));
     databasePath = join(directory, "pockets.sqlite");
     mockApiScope = "https://api-a.example";
@@ -1894,5 +1908,129 @@ describe("Offline Pocket SQLite control foundation", () => {
       "Android and iOS",
     );
     expect(mockOpenedNames).toEqual([]);
+  });
+
+  it("reads real SQLite snapshots with business-only local authorization after reopening", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    await api.startOfflinePocketWork(operation);
+    await api.publishOfflineBusinessSnapshot(operation, snapshotFixture());
+    reopenRepository();
+    const access = jest.requireActual<
+      typeof import("@/features/offline-routes/services/offlineAccess.service")
+    >("@/features/offline-routes/services/offlineAccess.service");
+    const store = jest.requireActual<
+      typeof import("@/features/offline-routes/stores/offlineAccess.store")
+    >(
+      "@/features/offline-routes/stores/offlineAccess.store",
+    ).useOfflineAccessStore;
+    session.invalidateAuthSession();
+    auth.setState({ user: null, isAuthenticated: false, isLoading: false });
+    expect(
+      await access.getRestorableOfflineOwner(
+        session.getAuthSessionGeneration(),
+      ),
+    ).toBe(7);
+    store.setState({ ownerId: 7, isRevoking: false });
+    const local = await api.captureOfflinePocketReadContext();
+    expect(local.access).toBe("local");
+    await expect(
+      api.listOfflineBusinessSnapshots({ ...local, apiScope: "another-api" }),
+    ).rejects.toThrow();
+    await expect(
+      api.listOfflineBusinessSnapshots({ ...local, ownerId: 8 }),
+    ).rejects.toThrow();
+    expect(await api.listOfflineBusinessSnapshots(local)).toHaveLength(1);
+    expect(await api.getOfflineBusinessSnapshot(local, 21)).toMatchObject({
+      status: "available",
+    });
+    await expect(api.enqueueConfirmedPocketSave(local, 22)).rejects.toThrow(
+      "Sign in",
+    );
+    await expect(
+      api.removeUnreadableOfflineBusinessSnapshot(local, 21),
+    ).rejects.toThrow("Only an unreadable");
+    expect(mockGetDetail).not.toHaveBeenCalled();
+    expect(mockGetMemberships).not.toHaveBeenCalled();
+    await access.clearOfflineAccess();
+    await expect(api.listOfflineBusinessSnapshots(local)).rejects.toThrow();
+  });
+
+  it("denies local contexts after account switching, same-user session replacement, and clearing", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    await api.startOfflinePocketWork(operation);
+    await api.publishOfflineBusinessSnapshot(operation, snapshotFixture());
+    const read = await api.captureOfflinePocketReadContext();
+    signIn(8);
+    await expect(api.getOfflineBusinessSnapshot(read, 21)).rejects.toThrow();
+    signIn(7);
+    await expect(api.listOfflineBusinessSnapshots(read)).rejects.toThrow();
+    const current = await api.captureOfflinePocketContext();
+    const currentRead = await api.captureOfflinePocketReadContext();
+    await api.clearOfflinePocketControlState(current);
+    expect(mockSecureValues.size).toBe(0);
+    await expect(
+      api.listOfflineBusinessSnapshots(currentRead),
+    ).rejects.toThrow();
+    expect(
+      await api.listOfflineBusinessSnapshots(
+        await api.captureOfflinePocketReadContext(),
+      ),
+    ).toEqual([]);
+  });
+
+  it.each(["{broken", JSON.stringify({ formatVersion: 99 })])(
+    "safely cleans unreadable local copies without backend requests: %s",
+    async (json) => {
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      await api.startOfflinePocketWork(operation);
+      await api.publishOfflineBusinessSnapshot(operation, snapshotFixture());
+      nativeDatabase()
+        .prepare("UPDATE offline_business_snapshots SET snapshot = ?")
+        .run(json);
+      const read = await api.captureOfflinePocketReadContext();
+      await api.removeUnreadableOfflineBusinessSnapshot(read, 21);
+      expect(await api.getOfflineBusinessSnapshot(read, 21)).toMatchObject({
+        status: "missing",
+      });
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        intent: "suppressed",
+        workStatus: "invalidated",
+      });
+      expect(mockGetMemberships).not.toHaveBeenCalled();
+    },
+  );
+
+  it("allows local-only unreadable-copy cleanup and revokes access when no usable resource remains", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    await api.startOfflinePocketWork(operation);
+    await api.publishOfflineBusinessSnapshot(operation, snapshotFixture());
+    const store = jest.requireActual<
+      typeof import("@/features/offline-routes/stores/offlineAccess.store")
+    >(
+      "@/features/offline-routes/stores/offlineAccess.store",
+    ).useOfflineAccessStore;
+    session.invalidateAuthSession();
+    auth.setState({ user: null, isAuthenticated: false, isLoading: false });
+    store.setState({ ownerId: 7, isRevoking: false });
+    nativeDatabase()
+      .prepare("UPDATE offline_business_snapshots SET snapshot = '{'")
+      .run();
+    const local = await api.captureOfflinePocketReadContext();
+    expect(await api.getOfflineBusinessSnapshot(local, 21)).toMatchObject({
+      status: "corrupt",
+    });
+    await api.removeUnreadableOfflineBusinessSnapshot(local, 21);
+    expect(store.getState().ownerId).toBeNull();
+    expect(mockSecureValues.size).toBe(0);
+    expect(
+      nativeDatabase()
+        .prepare("SELECT COUNT(*) AS count FROM offline_business_snapshots")
+        .get(),
+    ).toEqual({ count: 0 });
+    await expect(api.listOfflineBusinessSnapshots(local)).rejects.toThrow();
   });
 });

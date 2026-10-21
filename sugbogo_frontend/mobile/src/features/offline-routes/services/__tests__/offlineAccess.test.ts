@@ -1,7 +1,10 @@
 import * as SecureStore from "expo-secure-store";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
+import {
+  beginAuthSession,
+  getAuthSessionGeneration,
+} from "@/shared/api/authSessionGeneration.service";
 import {
   OFFLINE_API_SCOPE,
   OFFLINE_OWNER_KEY,
@@ -11,7 +14,21 @@ import {
   clearOfflineAccess,
   getOfflineOwner,
   rememberOfflineOwner,
+  getRestorableOfflineOwner,
+  releaseOfflineAccessIfEmpty,
+  rememberOfflineResources,
 } from "../offlineAccess.service";
+
+const mockHasJourneys = jest.fn();
+const mockHasBusinesses = jest.fn();
+jest.mock("../savedJourneys.service", () => ({
+  hasSavedJourneysForOfflineAccess: (...args: unknown[]) =>
+    mockHasJourneys(...args),
+}));
+jest.mock("@/features/offline-pockets/services/offlinePockets.service", () => ({
+  hasBusinessSnapshotsForOfflineAccess: (...args: unknown[]) =>
+    mockHasBusinesses(...args),
+}));
 
 jest.mock("expo-secure-store", () => ({
   setItemAsync: jest.fn(),
@@ -22,6 +39,8 @@ jest.mock("expo-secure-store", () => ({
 describe("device-only owner access", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockHasJourneys.mockReset().mockResolvedValue(false);
+    mockHasBusinesses.mockReset().mockResolvedValue(false);
     beginAuthSession();
     useAuthStore.setState({ user: { id: 7 } as never, isAuthenticated: true });
     useOfflineAccessStore.setState({ ownerId: null, isRevoking: false });
@@ -35,6 +54,81 @@ describe("device-only owner access", () => {
       OFFLINE_OWNER_KEY,
       JSON.stringify({ version: 1, ownerId: 7, apiScope: OFFLINE_API_SCOPE }),
     );
+  });
+
+  it("restores business-only local access after an offline restart, without authentication", async () => {
+    useAuthStore.setState({ user: null, isAuthenticated: false });
+    jest
+      .mocked(SecureStore.getItemAsync)
+      .mockResolvedValue(
+        JSON.stringify({ version: 1, ownerId: 7, apiScope: OFFLINE_API_SCOPE }),
+      );
+    mockHasBusinesses.mockResolvedValue(true);
+    await expect(
+      getRestorableOfflineOwner(getAuthSessionGeneration()),
+    ).resolves.toBe(7);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(mockHasBusinesses).toHaveBeenCalledWith(
+      7,
+      getAuthSessionGeneration(),
+    );
+  });
+
+  it("does not restore a marker when neither resource is usable", async () => {
+    jest
+      .mocked(SecureStore.getItemAsync)
+      .mockResolvedValue(
+        JSON.stringify({ version: 1, ownerId: 7, apiScope: OFFLINE_API_SCOPE }),
+      );
+    await expect(
+      getRestorableOfflineOwner(getAuthSessionGeneration()),
+    ).resolves.toBeNull();
+  });
+
+  it("preserves access to journeys when businesses are cleared, then revokes the final empty grant", async () => {
+    useOfflineAccessStore.setState({ ownerId: 7 });
+    mockHasJourneys.mockResolvedValueOnce(true);
+    await releaseOfflineAccessIfEmpty(7, getAuthSessionGeneration());
+    expect(useOfflineAccessStore.getState().ownerId).toBe(7);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+    await releaseOfflineAccessIfEmpty(7, getAuthSessionGeneration());
+    expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(OFFLINE_OWNER_KEY);
+    expect(useOfflineAccessStore.getState().isRevoking).toBe(false);
+  });
+
+  it("keeps a usable resource if the other database fails, and fails closed when availability is unknown", async () => {
+    jest
+      .mocked(SecureStore.getItemAsync)
+      .mockResolvedValue(
+        JSON.stringify({ version: 1, ownerId: 7, apiScope: OFFLINE_API_SCOPE }),
+      );
+    mockHasJourneys.mockRejectedValue(new Error("database unavailable"));
+    mockHasBusinesses.mockResolvedValueOnce(true);
+    await expect(
+      getRestorableOfflineOwner(getAuthSessionGeneration()),
+    ).resolves.toBe(7);
+    await expect(
+      getRestorableOfflineOwner(getAuthSessionGeneration()),
+    ).rejects.toThrow("Unable to verify");
+    await expect(
+      releaseOfflineAccessIfEmpty(7, getAuthSessionGeneration()),
+    ).rejects.toThrow();
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+  });
+
+  it("cannot restore a previous account or ended session and re-registers retained data only after sign-in", async () => {
+    mockHasBusinesses.mockResolvedValue(true);
+    const generation = getAuthSessionGeneration();
+    await rememberOfflineResources(7, generation);
+    useAuthStore.setState({ user: { id: 8 } as never });
+    await expect(releaseOfflineAccessIfEmpty(7, generation)).rejects.toThrow();
+    beginAuthSession();
+    await expect(rememberOfflineResources(8, generation)).rejects.toThrow();
+    await clearOfflineAccess();
+    await expect(
+      getRestorableOfflineOwner(getAuthSessionGeneration()),
+    ).rejects.toThrow();
   });
 
   it("rejects another owner and unauthenticated saves", async () => {

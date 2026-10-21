@@ -6,6 +6,12 @@ export type OfflinePocketContext = Readonly<{
   clearGeneration: number;
 }>;
 
+/** Adds local read authority; cache work still requires an authenticated session. */
+export type OfflinePocketReadContext = OfflinePocketContext &
+  Readonly<{
+    access: "authenticated" | "local";
+  }>;
+
 export type OfflinePocketIntent = "automatic" | "restore" | "suppressed";
 export type OfflinePocketWorkStatus =
   "pending" | "running" | "completed" | "failed" | "invalidated";

@@ -20,7 +20,11 @@ import {
   type SavedJourneyListItem,
   type SavedJourneySnapshot,
 } from "../utils/savedJourney.utils";
-import { rememberOfflineOwner } from "./offlineAccess.service";
+import {
+  assertOfflineResourceOwner,
+  releaseOfflineAccessIfEmpty,
+  rememberOfflineOwner,
+} from "./offlineAccess.service";
 import { openDatabaseAsync } from "./sqliteDriver";
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
@@ -110,7 +114,7 @@ export async function saveJourney(
   if (json.length > MAX_SNAPSHOT_CHARACTERS)
     throw new Error("This journey is too large to save.");
   const key = savedJourneyKey(snapshot);
-  return serializeJourneyWrite(async () => {
+  await serializeJourneyWrite(async () => {
     assertCanSave(ownerId, generation);
     const db = await getDatabase();
     await db.withExclusiveTransactionAsync(async (tx) => {
@@ -145,10 +149,11 @@ export async function saveJourney(
       // Roll back if logout or account replacement happened while SQLite yielded.
       assertCanSave(ownerId, generation);
     });
-    await rememberOfflineOwner(ownerId, generation);
-    assertCanSave(ownerId, generation);
-    return key;
   });
+  // Marker cleanup may inspect this write queue; never wait for the marker inside it.
+  await rememberOfflineOwner(ownerId, generation);
+  assertCanSave(ownerId, generation);
+  return key;
 }
 
 /** Lists only the current owner's local rows and preserves corrupt entries for deletion. */
@@ -178,6 +183,26 @@ export async function listSavedJourneys(
   });
 }
 
+/** Validates stored guidance for cold-start eligibility without temporarily granting local access. */
+export async function hasSavedJourneysForOfflineAccess(
+  ownerId: number,
+  generation: number,
+): Promise<boolean> {
+  await assertOfflineResourceOwner(ownerId, generation);
+  await writeQueue;
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<{ journey_key: string; snapshot: string }>(
+    "SELECT journey_key, snapshot FROM saved_journeys_v1 WHERE api_scope = ? AND owner_id = ?",
+    OFFLINE_API_SCOPE,
+    ownerId,
+  );
+  await assertOfflineResourceOwner(ownerId, generation);
+  return rows.some((row) => {
+    const snapshot = parseSavedJourney(row.snapshot);
+    return snapshot !== null && savedJourneyKey(snapshot) === row.journey_key;
+  });
+}
+
 /** Removes one saved row, including a corrupt row, using account-scoped bound parameters. */
 export async function deleteSavedJourney(
   ownerId: number,
@@ -199,6 +224,7 @@ export async function deleteSavedJourney(
       assertOwner(ownerId, generation);
     });
   });
+  await releaseOfflineAccessIfEmpty(ownerId, generation).catch(() => undefined);
 }
 
 /** Deletes all snapshots only while their owner retains normal local access. */
@@ -218,6 +244,7 @@ export async function clearSavedJourneys(ownerId: number): Promise<void> {
       assertOwner(ownerId, generation);
     });
   });
+  await releaseOfflineAccessIfEmpty(ownerId, generation).catch(() => undefined);
 }
 
 /** Captures deletion-only authority before logout, without accepting an arbitrary owner. */

@@ -89,8 +89,22 @@ export default function OfflineRoutesScreen({
           />
         </View>
         <AppText className="text-sm text-text-secondary">
-          Saved jeepney guidance. No live routing or service updates.
+          {journeyKey
+            ? "Saved jeepney guidance. No live routing or service updates."
+            : "Business information and jeepney guidance saved on this device."}
         </AppText>
+        {!journeyKey && saved.ownerId && (
+          <View className="gap-4 pt-2">
+            <Button
+              title="Browse saved businesses"
+              variant="outline"
+              onPress={() => router.push("/offline-pockets")}
+            />
+            <AppText weight="bold" className="text-base text-text-primary">
+              Saved journeys
+            </AppText>
+          </View>
+        )}
       </View>
 
       {/* Local loading, failure, and access states */}

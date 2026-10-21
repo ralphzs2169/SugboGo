@@ -12,7 +12,10 @@ import {
 } from "@/shared/api/storage.service";
 import { queryClient } from "@/shared/query/queryClient";
 import { useAuthStore } from "../store/auth.store";
-import { clearOfflineAccess } from "@/features/offline-routes/services/offlineAccess.service";
+import {
+  clearOfflineAccess,
+  rememberOfflineResources,
+} from "@/features/offline-routes/services/offlineAccess.service";
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 
 /**
@@ -43,6 +46,9 @@ export async function establishSession(response: AuthResponse): Promise<void> {
 
     useAuthStore.getState().setUser(response.user);
     useOfflineAccessStore.getState().setRevoking(false);
+    void rememberOfflineResources(response.user.id, generation).catch(
+      () => undefined,
+    );
   } catch (error) {
     if (isAuthSessionCurrent(generation)) {
       const cleanupGeneration = invalidateAuthSession();

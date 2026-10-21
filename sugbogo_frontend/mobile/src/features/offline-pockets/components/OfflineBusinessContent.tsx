@@ -1,0 +1,158 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { View } from "react-native";
+
+import { theme } from "@/constants/theme";
+import BusinessProfileSection from "@/features/explore/components/business-profile/BusinessProfileSection";
+import { formatTime } from "@/features/explore/utils/businessHours.utils";
+import AppText from "@/shared/components/AppText";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import type { OfflineBusinessSnapshot } from "../validation/offlineBusinessSnapshot";
+
+const DAYS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
+
+/** Pure profile presentation: no images, links, mutations, live opening status, or API hooks. */
+export default function OfflineBusinessContent({
+  snapshot,
+}: {
+  snapshot: OfflineBusinessSnapshot;
+}) {
+  const business = snapshot.business;
+  const contacts = [
+    { label: "Phone", value: business.contact_number },
+    { label: "Email", value: business.email },
+    { label: "Website", value: business.website },
+  ].filter((contact) => Boolean(contact.value));
+  return (
+    <View className="pb-6">
+      {/* Familiar business identity, with an honest device-only photo placeholder. */}
+      <View
+        className="items-center justify-center bg-surface-muted py-10"
+        accessibilityLabel="Business photos are not available offline"
+      >
+        <MaterialCommunityIcons
+          name="storefront-outline"
+          size={48}
+          color={theme.extends.colors.text.tertiary}
+          accessible={false}
+        />
+        <AppText className="mt-2 text-xs text-text-tertiary">
+          Photos unavailable offline
+        </AppText>
+      </View>
+      <View className="gap-2 bg-surface px-screen-x py-5">
+        <AppText
+          accessibilityRole="header"
+          weight="bold"
+          className="text-2xl text-text-primary"
+        >
+          {business.business_name}
+        </AppText>
+        <AppText className="text-sm text-text-secondary">
+          {business.cluster.name} · {business.category.name}
+        </AppText>
+        <View className="flex-row flex-wrap gap-2">
+          {business.specialty_tags.map((tag) => (
+            <SpecialtyTagChip key={tag.id} tag={tag} size="small" showIcon />
+          ))}
+        </View>
+        <AppText className="mt-1 text-xs leading-5 text-text-secondary">
+          Device copy · Updated {new Date(snapshot.fetchedAt).toLocaleString()}.
+          Information may have changed.
+        </AppText>
+      </View>
+      {/* Reuses the online profile's section hierarchy, without its data-fetching children. */}
+      <BusinessProfileSection title="About">
+        <AppText className="text-sm leading-6 text-text-secondary">
+          {business.description?.trim() || "No description was provided."}
+        </AppText>
+      </BusinessProfileSection>
+      <BusinessProfileSection title="Location">
+        <View className="flex-row items-start gap-3">
+          <MaterialCommunityIcons
+            name="map-marker-outline"
+            size={22}
+            color={theme.extends.colors.text.secondary}
+            accessible={false}
+          />
+          <AppText
+            selectable
+            className="min-w-0 flex-1 text-sm leading-6 text-text-secondary"
+          >
+            {[
+              business.location.address,
+              business.location.city,
+              business.location.province,
+            ]
+              .filter(Boolean)
+              .join(", ") || "No address was provided."}
+          </AppText>
+        </View>
+      </BusinessProfileSection>
+      <BusinessProfileSection title="Operating hours">
+        <View className="gap-3">
+          {DAYS.map((day) => {
+            const hours = business.operating_hours.find(
+              (row) => row.day === day,
+            );
+            const label = !hours
+              ? "Not provided"
+              : !hours.is_open
+                ? "Closed"
+                : hours.is_24_hours
+                  ? "24 hours"
+                  : hours.open_time && hours.close_time
+                    ? `${formatTime(hours.open_time)} – ${formatTime(hours.close_time)}`
+                    : "Hours not provided";
+            return (
+              <View
+                key={day}
+                className="flex-row flex-wrap justify-between gap-x-4 gap-y-1"
+              >
+                <AppText className="text-sm capitalize text-text-primary">
+                  {day}
+                </AppText>
+                <AppText className="shrink text-sm text-text-secondary">
+                  {label}
+                </AppText>
+              </View>
+            );
+          })}
+        </View>
+      </BusinessProfileSection>
+      <BusinessProfileSection title="Contact information">
+        <View className="gap-4">
+          {contacts.length ? (
+            contacts.map((contact) => (
+              <View key={contact.label} className="gap-1">
+                <AppText
+                  weight="semibold"
+                  className="text-xs text-text-secondary"
+                >
+                  {contact.label}
+                </AppText>
+                <AppText
+                  selectable
+                  className="text-sm leading-5 text-text-primary"
+                >
+                  {contact.value}
+                </AppText>
+              </View>
+            ))
+          ) : (
+            <AppText className="text-sm text-text-secondary">
+              No contact information was provided.
+            </AppText>
+          )}
+        </View>
+      </BusinessProfileSection>
+    </View>
+  );
+}

@@ -25,6 +25,7 @@ jest.mock("expo-sqlite", () => ({
 }));
 jest.mock("../offlineAccess.service", () => ({
   rememberOfflineOwner: jest.fn(),
+  releaseOfflineAccessIfEmpty: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe("saved journey device repository", () => {

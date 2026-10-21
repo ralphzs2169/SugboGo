@@ -235,8 +235,8 @@ write; it never waits for business downloads or snapshot publication. A new sess
 has a separate queue, and old-session checks prevent any local effect.
 
 Manual `requestOfflinePocketRestore()` eligibility remains unchanged. Account clear,
-snapshot reads and scoped removal are also available. Image storage, offline
-browsing and Offline Storage UI remain outside this task.
+snapshot reads and scoped removal are also available. Image storage and the full
+Offline Storage management UI remain outside this task.
 
 If initial local capture/enqueue fails, or the previous aggregate state cannot be
 verified, the backend save survives but automatic offline availability is not
@@ -261,9 +261,75 @@ Existing API error envelopes omit HTTP status; retry classification uses their
 verified error codes. Native-device transport/lifecycle verification is still
 needed in addition to controlled tests.
 
-This module does not register logout deletion or grant cold-start offline access.
-Authentication revocation denies access; the same account can read retained
-policies and snapshots after authenticating again. Old session tokens stay
-invalid. Data is not encrypted, and storage quotas, staleness policy, server
-reconciliation, file lifecycle and offline authentication need later design.
-Existing journey authorization and schemas are unchanged.
+## Local browsing (Task 6)
+
+`/offline-routes` remains the Offline Data entry point, with saved jeepney guidance
+and a link to `/offline-pockets`. The flat library opens
+`/offline-business/[businessId]`. Routes carry business IDs only, never owner IDs.
+`useOfflineBusinessSnapshots` reads SQLite using React Query `networkMode: always`,
+no automatic retry and no inactive cache retention. Keys include API scope, owner
+and session generation. Committed changes advance a shared local query revision, and focus reloads
+them. Browsing never calls Pocket or business APIs, schedules downloads, or loads
+remote images. Profile sections and specialty chips are presentation-only; contacts
+are selectable text and hours describe saved information rather than live status.
+
+`captureOfflinePocketReadContext` pins either authenticated ownership or the
+existing local-only grant. Local reads check owner, API scope, session generation,
+revocation and persisted clear generation inside the SQLite transaction. All cache
+work and normal mutation operations still require authenticated ownership.
+`removeUnreadableOfflineBusinessSnapshot` is the sole deletion-only exception:
+an authorized local reader can suppress and remove a corrupt/unsupported copy,
+but cannot use it to delete healthy data or enqueue work.
+
+Successful publication remembers the owner through the serialized SecureStore
+marker lifecycle. On a transport failure during session restoration, the marker
+must match this API scope and at least one validated business or journey must
+exist before local access is granted. Authentication remains false. A successful
+sign-in re-registers retained valid resources for that account; old session
+contexts remain invalid. Explicit logout revokes local access immediately.
+
+Removing or clearing resources checks both stores after their transactions finish.
+The final usable resource revokes the local grant and deletes the marker. If one
+database fails, a verified usable resource in the other can still grant access;
+unknown availability fails closed at startup and does not delete a potentially
+valid marker during cleanup. Journey marker registration occurs after its write
+queue finishes, avoiding a dependency cycle with marker cleanup's resource probe.
+Journey tables and schemas are unchanged.
+
+Missing, corrupt and unsupported snapshots have separate recovery states. Raw
+corrupt data is never rendered. Old valid snapshots remain readable with a saved
+timestamp. Web retains the native SQLite unsupported-platform adapter.
+
+This module does not physically delete Pocket snapshots at logout: revoked sessions
+cannot read them, and the same account can read retained data after authenticating
+again. Data is not encrypted. Storage quotas, server reconciliation, managed local
+photos and full storage management remain later work. Physical-device airplane
+mode, font scaling, safe-area and native navigation QA remain necessary alongside
+the controlled SQLite and React Native tests.
+
+### Task 6 file inventory
+
+New files (paths relative to mobile `src/`):
+
+- `app/offline-pockets.tsx`, `app/offline-business/[businessId].tsx`.
+- `features/offline-pockets/components/OfflineBusinessHeader.tsx`,
+  `OfflineBusinessCard.tsx`, `OfflineBusinessContent.tsx`.
+- `features/offline-pockets/screens/OfflinePocketLibraryScreen.tsx`,
+  `OfflineBusinessDetailScreen.tsx`, `__tests__/OfflineBusinessBrowsing.test.tsx`.
+- `features/offline-pockets/hooks/useOfflineBusinessSnapshots.ts`,
+  `__tests__/useOfflineBusinessSnapshots.test.tsx`.
+- `features/offline-pockets/services/offlinePocketSnapshots.events.ts`.
+
+Modified files (paths relative to mobile `src/`):
+
+- `app/_layout.tsx`.
+- `features/auth/hooks/useRestoreSession.ts`,
+  `__tests__/useRestoreSessionOffline.test.tsx`.
+- `features/auth/utils/authSession.ts`, `__tests__/authSession.test.ts`.
+- `features/offline-pockets/services/offlinePockets.service.ts`,
+  `__tests__/offlinePockets.test.ts`, `types/offlinePockets.types.ts`, `README.md`.
+- `features/offline-routes/screens/OfflineRoutesScreen.tsx`,
+  `__tests__/OfflineRoutesScreen.test.tsx`.
+- `features/offline-routes/services/offlineAccess.service.ts`,
+  `savedJourneys.service.ts`, `__tests__/offlineAccess.test.ts`,
+  `__tests__/savedJourneys.test.ts`, `__tests__/savedJourneysSqlite.test.ts`.
