@@ -90,6 +90,15 @@ export default function ProfileLayout() {
             title: "Change Email",
           }}
         />
+
+        <Stack.Screen
+          name="pockets/[collectionId]"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Pocket",
+          }}
+        />
       </Stack>
     </>
   );

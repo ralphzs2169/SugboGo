@@ -5,6 +5,9 @@ import {
 } from "@tanstack/react-query";
 import { ACTIVITY_TIMELINE_QUERY_KEY } from "@/features/profile/hooks/activityTimelineQueryKeys";
 
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import { pocketCollectionsQueryKey } from "@/features/pockets/hooks/pocketQueryKeys";
+
 import {
   pocketBusiness,
   removeBusinessFromPocket,
@@ -50,6 +53,8 @@ export default function useBusinessPocket({ businessId }: Props) {
     },
 
     onMutate: async ({ isPocketed }) => {
+      // Pin the initiating owner before cache cancellation can yield to an account change.
+      const ownerId = useAuthStore.getState().user?.id ?? null;
       const detailQueryKey = ["explore-business-detail", businessId];
       const newBusinessesQueryKey = ["explore-new-businesses"];
 
@@ -174,8 +179,8 @@ export default function useBusinessPocket({ businessId }: Props) {
 
           return {
             ...currentResults,
-            pages: currentResults.pages.map((page) =>
-              updatePocketState(page) ?? page,
+            pages: currentResults.pages.map(
+              (page) => updatePocketState(page) ?? page,
             ),
           };
         },
@@ -207,14 +212,15 @@ export default function useBusinessPocket({ businessId }: Props) {
 
           return {
             ...currentResults,
-            pages: currentResults.pages.map((page) =>
-              updatePocketState(page) ?? page,
+            pages: currentResults.pages.map(
+              (page) => updatePocketState(page) ?? page,
             ),
           };
         },
       );
 
       return {
+        ownerId,
         previousBusiness,
         previousNewBusinesses,
         previousDiscoveryFeed,
@@ -255,29 +261,21 @@ export default function useBusinessPocket({ businessId }: Props) {
       }
 
       for (const [queryKey, data] of context?.previousDiscoveryResults ?? []) {
-        queryClient.setQueryData(
-          queryKey,
-          data,
-        );
+        queryClient.setQueryData(queryKey, data);
       }
 
       for (const [queryKey, data] of context?.previousSimilarBusinesses ?? []) {
-        queryClient.setQueryData(
-          queryKey,
-          data,
-        );
+        queryClient.setQueryData(queryKey, data);
       }
 
-      for (const [queryKey, data] of context?.previousExploreCollections ?? []) {
-        queryClient.setQueryData(
-          queryKey,
-          data,
-        );
+      for (const [queryKey, data] of context?.previousExploreCollections ??
+        []) {
+        queryClient.setQueryData(queryKey, data);
       }
     },
 
-    onSettled: async () => {
-      await Promise.all([
+    onSettled: async (_data, _error, _variables, context) => {
+      const invalidations = [
         queryClient.invalidateQueries({
           queryKey: ACTIVITY_TIMELINE_QUERY_KEY,
         }),
@@ -290,7 +288,25 @@ export default function useBusinessPocket({ businessId }: Props) {
         queryClient.invalidateQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
-      ]);
+      ];
+
+      const ownerId = context?.ownerId ?? null;
+      if (ownerId !== null) {
+        const session = useAuthStore.getState();
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: pocketCollectionsQueryKey(ownerId),
+            refetchType:
+              session.isAuthenticated &&
+              !session.isLoading &&
+              session.user?.id === ownerId
+                ? "active"
+                : "none",
+          }),
+        );
+      }
+
+      await Promise.all(invalidations);
     },
   });
 

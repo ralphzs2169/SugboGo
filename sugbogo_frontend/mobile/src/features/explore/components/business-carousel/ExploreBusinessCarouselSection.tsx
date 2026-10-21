@@ -10,7 +10,7 @@ import AppText from "@/shared/components/AppText";
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 import ExploreSectionHeader from "../ExploreSectionHeader";
-import BusinessCard from "../new-businesses/BusinessCard";
+import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
 
 type Props = {
   title: string;
