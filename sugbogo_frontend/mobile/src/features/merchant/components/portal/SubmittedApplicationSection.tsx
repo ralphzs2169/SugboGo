@@ -78,7 +78,7 @@ export default function SubmittedApplicationSection({
       </View>
 
       {/* Review SLA */}
-      <View className="mt-4 flex-row items-center rounded-md border border-border-primary bg-surface px-4 py-4">
+      <View className="mt-4 flex-row items-center rounded-card border border-border-primary bg-surface px-4 py-4">
         <MaterialCommunityIcons
           name="clock-fast"
           size={25}
@@ -100,7 +100,7 @@ export default function SubmittedApplicationSection({
       </View>
 
       {/* Application timeline */}
-      <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 py-5">
+      <View className="mt-4 rounded-card border border-border-primary bg-surface px-5 py-5">
         <AppText weight="bold" className="mb-5 text-sm text-text-primary">
           Application Progress
         </AppText>

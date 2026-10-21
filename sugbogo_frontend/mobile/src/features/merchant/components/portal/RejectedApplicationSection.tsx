@@ -4,6 +4,7 @@ import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import DuplicateResubmissionWarning from "../registration/DuplicateResubmissionWarning";
 
 import rejectedApplicationAnimation from "../../assets/animations/changes-required.json";
 import type {
@@ -33,7 +34,9 @@ export default function RejectionApplicationSection({
   return (
     <View className="bg-surface px-6 pb-6">
       {/* Status hero */}
-      <View className="items-center rounded-3xl bg-surface px-6 py-7">
+      <View
+        className={`items-center rounded-3xl bg-surface px-6 ${duplicateDisposition ? "py-4" : "py-7"}`}
+      >
         <LottieView
           source={rejectedApplicationAnimation}
           autoPlay
@@ -59,37 +62,40 @@ export default function RejectionApplicationSection({
 
         <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
           {duplicateDisposition
-            ? "Review the reason below before resubmitting your application."
+            ? `Reviewed ${reviewedAt}`
             : "Review the feedback, make the required changes, and resubmit."}
         </AppText>
       </View>
 
       {/* Review information */}
-      <View className="mt-4 flex-row items-center rounded-md border border-border-primary bg-surface px-4 py-4">
-        <MaterialCommunityIcons
-          name="calendar-check-outline"
-          size={25}
-          color={theme.extends.colors.text.secondary}
-        />
+      {!duplicateDisposition && (
+        <View className="mt-4 flex-row items-center rounded-card border border-border-primary bg-surface px-4 py-4">
+          <MaterialCommunityIcons
+            name="calendar-check-outline"
+            size={25}
+            color={theme.extends.colors.text.secondary}
+          />
 
-        <View className="ml-3 flex-1">
-          <AppText
-            weight="semibold"
-            className="text-xs uppercase tracking-wide text-text-secondary"
-          >
-            Reviewed
-          </AppText>
+          <View className="ml-3 flex-1">
+            <AppText
+              weight="semibold"
+              className="text-xs uppercase tracking-wide text-text-secondary"
+            >
+              Reviewed
+            </AppText>
 
-          <AppText weight="bold" className="mt-0.5 text-base text-text-primary">
-            {reviewedAt}
-          </AppText>
+            <AppText weight="bold" className="mt-0.5 text-base text-text-primary">
+              {reviewedAt}
+            </AppText>
+          </View>
         </View>
-      </View>
+      )}
 
       <DuplicateRejectionNotice disposition={duplicateDisposition} />
+      {duplicateDisposition && <DuplicateResubmissionWarning />}
       {/* Administrator feedback */}
       {feedback.length > 0 && (
-        <View className="mt-4 rounded-md border border-border-primary bg-surface px-5 pt-5">
+        <View className="mt-4 rounded-card border border-border-primary bg-surface px-5 pt-5">
           <AppText weight="bold" className="mb-1 text-sm text-text-primary">
             Administrator Feedback
           </AppText>

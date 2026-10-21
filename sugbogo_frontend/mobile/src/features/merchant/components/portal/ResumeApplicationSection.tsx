@@ -73,7 +73,7 @@ export default function ResumeApplicationSection({
       </View>
 
       {/* Registration progress */}
-      <View className="mt-4 rounded-2xl border border-border-primary bg-surface px-5 py-5">
+      <View className="mt-4 rounded-card border border-border-primary bg-surface px-5 py-5">
         <View className="flex-row items-center gap-3">
           <View className="h-10 w-10 items-center justify-center rounded-xl bg-brand/90">
             <MaterialCommunityIcons
@@ -118,7 +118,7 @@ export default function ResumeApplicationSection({
       </View>
 
       {/* Last updated */}
-      <View className="mt-4 flex-row items-center rounded-2xl border border-border-primary bg-surface px-4 py-4">
+      <View className="mt-4 flex-row items-center rounded-card border border-border-primary bg-surface px-4 py-4">
         <View className="h-10 w-10 items-center justify-center rounded-xl bg-background">
           <MaterialCommunityIcons
             name="history"

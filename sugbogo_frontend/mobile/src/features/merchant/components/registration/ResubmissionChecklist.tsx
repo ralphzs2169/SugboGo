@@ -38,7 +38,7 @@ export default function ResubmissionChecklist({
   return (
     <View className={`bg-surface py-6 ${!isInMerchantPortal && "mb-4 px-6"}`}>
       <View
-        className={`relative rounded-md p-4 ${
+        className={`relative rounded-card p-4 ${
           allChangesMade
             ? "border border-border-success bg-green-50"
             : "border border-border-error bg-red-50"

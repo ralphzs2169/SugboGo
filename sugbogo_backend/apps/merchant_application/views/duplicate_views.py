@@ -16,6 +16,9 @@ from apps.merchant_application.services.duplicate_review_service import (
     DuplicateReviewService,
 )
 from apps.users.models import User
+from apps.merchant_application.services.duplicate_review_presentation import (
+    add_duplicate_display_context,
+)
 
 
 class MerchantDuplicateWarningView(APIView):
@@ -61,7 +64,9 @@ class AdminDuplicateReviewView(APIView):
         )
 
         application = AdminApplicationService.get_application_for_review(application_id)
-        return success_response(data=DuplicateReviewService.review_state(application))
+        return success_response(data=add_duplicate_display_context(
+            DuplicateReviewService.review_state(application),
+        ))
 
     def post(
         self,
@@ -85,4 +90,7 @@ class AdminDuplicateReviewView(APIView):
                 request.user,
                 data,
             )
-        return success_response(data=state, message="Duplicate review saved.")
+        return success_response(
+            data=add_duplicate_display_context(state),
+            message="Duplicate review saved.",
+        )

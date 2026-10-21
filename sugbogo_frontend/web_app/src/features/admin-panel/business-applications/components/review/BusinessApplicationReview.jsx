@@ -8,7 +8,8 @@ import BusinessPhotosReview from "./BusinessPhotosReview";
 import ApplicationReviewContextBar from "./ReviewContextBar";
 import RejectApplicationDrawer from "./RejectApplicationDrawer";
 import ApproveApplicationConfirmationModal from "./ApproveApplicationConfirmationModal";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import { fetchBusinessApplicationDocumentPreview } from "../../services/businessApplicationService";
 
@@ -16,6 +17,7 @@ import Button from "@/shared/components/Button";
 import useApproveBusinessApplication from "../../hooks/useApproveBusinessApplication";
 import useApplicationDuplicates from "../../hooks/useApplicationDuplicates";
 import PossibleDuplicatesReview from "./PossibleDuplicatesReview";
+import { getDuplicateReviewStatus } from "../../utils/applicationDecision.utils";
 
 /**
  * Composes the submitted merchant application into the complete
@@ -30,31 +32,38 @@ export default function BusinessApplicationReview({
   onApplicationApproved,
 }) {
   const reviewHeaderRef = useRef(null);
+  const reviewContentRef = useRef(null);
+  const decisionFooterRef = useRef(null);
+  const duplicateReviewRef = useRef(null);
   const duplicates = useApplicationDuplicates(application.id);
+  const duplicateSummary = getDuplicateReviewStatus(
+    duplicates.query,
+    application.latest_submission_id,
+  );
   const duplicateApprovalBlocked =
+    !["empty", "matches"].includes(duplicateSummary.state) ||
     !duplicates.query.data ||
     duplicates.query.isFetching ||
     duplicates.query.isError ||
     duplicates.mutation.isPending ||
     duplicates.query.data.approval_blocked ||
     duplicates.query.data.submission_id !== application.latest_submission_id;
-  const duplicateBlockReason = duplicates.query.isError
-    ? "Duplicate check unavailable. Retry before approval."
-    : !duplicates.query.data || duplicates.query.isFetching
-      ? "Checking current duplicate evidence�"
-      : duplicates.query.data.submission_id !== application.latest_submission_id
-        ? "Submission changed. Refresh the application before deciding."
-        : duplicates.mutation.isPending
-          ? "Saving assessment�"
-          : duplicates.query.data.approval_blocked
-            ? "Approval blocked: resolve unresolved, stale, confirmed duplicate, or ownership conflict assessments."
-            : null;
+  const duplicateBlockReason = duplicates.mutation.isPending
+    ? "Saving assessment�"
+    : duplicateSummary.state === "matches"
+      ? duplicates.query.data.approval_blocked
+        ? `Approval blocked: ${duplicateSummary.message}`
+        : null
+      : duplicateSummary.state === "empty"
+        ? null
+        : duplicateSummary.message;
   const [approvalSubmissionId, setApprovalSubmissionId] = useState(null);
   const [showContextBar, setShowContextBar] = useState(false);
 
   const [documentPreviewUrls, setDocumentPreviewUrls] = useState({});
 
   const [rejectionSubmissionId, setRejectionSubmissionId] = useState(null);
+  const [rejectionSession, setRejectionSession] = useState(0);
   const [isRejectDrawerOpen, setIsRejectDrawerOpen] = useState(false);
   const [isApproveConfirmationOpen, setIsApproveConfirmationOpen] =
     useState(false);
@@ -67,6 +76,43 @@ export default function BusinessApplicationReview({
 
   const isResolved = ["approved", "rejected"].includes(application.status);
   const isResubmission = application.status === "submitted";
+
+  // Reserve the actual fixed-footer height, including wrapped messages and stacked actions.
+  useLayoutEffect(() => {
+    const footer = decisionFooterRef.current;
+    const content = reviewContentRef.current;
+    if (isResolved || !footer || !content) return;
+    function measureFooter() {
+      content.style.setProperty(
+        "--review-footer-height",
+        `${footer.getBoundingClientRect().height}px`,
+      );
+    }
+    measureFooter();
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measureFooter)
+        : null;
+    observer?.observe(footer);
+    window.addEventListener("resize", measureFooter);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measureFooter);
+    };
+  }, [isResolved]);
+
+  function scrollToDuplicateReview(event) {
+    event.preventDefault();
+    const section = duplicateReviewRef.current;
+    if (!section) return;
+    section.focus({ preventScroll: true });
+    section.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
+  }
 
   // Show the compact context bar when the header is scrolled out of view
   useEffect(() => {
@@ -169,7 +215,15 @@ export default function BusinessApplicationReview({
   }
 
   return (
-    <div className="space-y-6 ">
+    <div
+      ref={reviewContentRef}
+      className="space-y-6"
+      style={{
+        paddingBottom: isResolved
+          ? undefined
+          : "calc(var(--review-footer-height, 180px) + 16px)",
+      }}
+    >
       {/* Compact context bar */}
       {showContextBar && (
         <ApplicationReviewContextBar application={application} />
@@ -222,17 +276,25 @@ export default function BusinessApplicationReview({
         isResubmission={isResubmission}
       />
 
-      <PossibleDuplicatesReview
-        application={application}
-        query={duplicates.query}
-        mutation={duplicates.mutation}
-      />
+      <div
+        id="duplicate-review"
+        ref={duplicateReviewRef}
+        tabIndex={-1}
+        aria-label="Duplicate review"
+        className="scroll-mt-24 space-y-4 focus:outline-none"
+      >
+        <PossibleDuplicatesReview
+          application={application}
+          query={duplicates.query}
+          mutation={duplicates.mutation}
+        />
+      </div>
 
       {!isResolved && (
         <>
           {/* Fixed decision area */}
-          <div className="h-2" />
           <section
+            ref={decisionFooterRef}
             className="
             fixed bottom-0 right-0 z-30
             left-0
@@ -244,11 +306,29 @@ export default function BusinessApplicationReview({
             lg:left-[var(--admin-sidebar-width)]
           "
           >
-            {duplicateBlockReason && (
-              <p role="status" className="mb-3 text-sm text-danger">
-                {duplicateBlockReason}
-              </p>
-            )}
+            <p
+              role="status"
+              className={`mb-3 text-sm ${duplicateApprovalBlocked ? "text-danger" : "text-success"}`}
+            >
+              {duplicateApprovalBlocked ? (
+                <a
+                  href="#duplicate-review"
+                  onClick={scrollToDuplicateReview}
+                  className="inline-flex min-h-8 cursor-pointer items-center gap-2 rounded-sm underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  <AlertTriangle
+                    size={17}
+                    className="shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {duplicateBlockReason || duplicateSummary.message}
+                  </span>
+                </a>
+              ) : (
+                duplicateSummary.message
+              )}
+            </p>
             <div className="flex items-center justify-between gap-4">
               <div className="hidden min-w-0 sm:block">
                 <h2 className="text-sm font-semibold text-text-primary">
@@ -266,6 +346,7 @@ export default function BusinessApplicationReview({
                   variant="danger"
                   onClick={() => {
                     setRejectionSubmissionId(application.latest_submission_id);
+                    setRejectionSession((session) => session + 1);
                     setIsRejectDrawerOpen(true);
                   }}
                 >
@@ -291,6 +372,7 @@ export default function BusinessApplicationReview({
 
       {/* Rejection Drawer */}
       <RejectApplicationDrawer
+        key={rejectionSession}
         isOpen={isRejectDrawerOpen}
         applicationId={application.id}
         onClose={() => setIsRejectDrawerOpen(false)}

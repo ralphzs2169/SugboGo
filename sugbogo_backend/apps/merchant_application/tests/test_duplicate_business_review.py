@@ -18,6 +18,7 @@ from apps.merchant_application.models import (
     MerchantApplicationIdentity,
     MerchantApplicationLocation,
     MerchantApplicationSubmission,
+    MerchantApplicationPhotos,
 )
 from apps.merchant_application.services.application_service import ApplicationService
 from apps.merchant_application.services.duplicate_detection_service import DuplicateDetectionService
@@ -182,6 +183,38 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
         self.assertEqual(get_section_fingerprints(self.application.pk), before)
         ApplicationService.submit_application(self.application)
         self.assertTrue(self.application.submissions.last().MASUB_DUPLICATE_EVIDENCE)
+
+    def test_admin_candidate_context_has_cover_and_classification_without_changing_evidence(self):
+        MerchantApplicationPhotos.objects.create(
+            MAPP_ID=self.target,
+            MPHT_CATEGORY="storefront",
+            MPHT_PHOTO_URL="https://example.com/storefront.jpg",
+            MPHT_PHOTO_PUBLIC_ID="duplicate-display-cover",
+        )
+        before = DuplicateReviewService.review_state(self.application)["candidates"][0]
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(reverse(
+            "merchant-application-duplicates",
+            args=[self.application.pk],
+        ))
+        self.assertEqual(response.status_code, 200, response.data)
+        candidate = response.data["data"]["candidates"][0]
+        self.assertEqual(candidate["cover_photo_url"], "https://example.com/storefront.jpg")
+        self.assertEqual(candidate["category_name"], self.target.identity.CTGRY_ID.CTGRY_NAME)
+        self.assertEqual(candidate["cluster_name"], self.target.identity.CLUS_ID.CLUS_NAME)
+        self.assertEqual(candidate["fingerprint"], before["fingerprint"])
+        self.assertEqual(candidate["evidence"], before["evidence"])
+        self.assess(application=self.target)
+        AdminApplicationService.approve_application(self.target.pk, self.admin)
+        response = self.client.get(reverse(
+            "merchant-application-duplicates",
+            args=[self.application.pk],
+        ))
+        business_candidate = response.data["data"]["candidates"][0]
+        self.assertEqual(business_candidate["record_type"], "business")
+        self.assertEqual(business_candidate["cover_photo_url"], candidate["cover_photo_url"])
+        self.assertEqual(business_candidate["category_name"], candidate["category_name"])
+        self.assertEqual(business_candidate["fingerprint"], before["fingerprint"])
 
     def test_admin_endpoint_requires_role_and_explanation(self):
         url = reverse("merchant-application-duplicates", args=[self.application.pk])

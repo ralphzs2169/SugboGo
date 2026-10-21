@@ -18,6 +18,7 @@ export default function RejectApplicationConfirmationModal({
   loading = false,
   businessName,
   duplicateExplanation = null,
+  blockedReason = null,
 }) {
   return (
     <Modal
@@ -33,7 +34,7 @@ export default function RejectApplicationConfirmationModal({
             {duplicateExplanation && (
               <section className="rounded-lg border border-stroke bg-surface p-4">
                 <h3 className="text-sm font-semibold">
-                  Duplicate Registration � explanation shown to merchant
+                  Duplicate Registration: explanation shown to merchant
                 </h3>
                 <p className="mt-2 whitespace-pre-wrap text-sm">
                   {duplicateExplanation}
@@ -71,6 +72,11 @@ export default function RejectApplicationConfirmationModal({
           </div>
         </div>
 
+        {blockedReason && (
+          <p role="alert" className="mt-4 text-sm text-danger">
+            {blockedReason}
+          </p>
+        )}
         {/* Confirmation actions */}
         <div className="mt-6 flex shrink-0 justify-end gap-3 border-t border-stroke pt-4">
           <Button
@@ -87,6 +93,7 @@ export default function RejectApplicationConfirmationModal({
             variant="danger"
             onClick={onConfirm}
             loading={loading}
+            disabled={!!blockedReason}
           >
             Reject Application
           </Button>

@@ -203,13 +203,13 @@ export default function MerchantPortalScreen() {
         {(config.sections.benefits || config.sections.requirements) && (
           <View className="gap-2 bg-background py-2">
             {config.sections.benefits && (
-              <View className="overflow-hidden rounded-md bg-surface">
+              <View className="overflow-hidden rounded-card bg-surface">
                 <MerchantBenefits />
               </View>
             )}
 
             {config.sections.requirements && (
-              <View className="overflow-hidden rounded-md bg-surface">
+              <View className="overflow-hidden rounded-card bg-surface">
                 <MerchantRequirements />
               </View>
             )}

@@ -50,3 +50,21 @@ test("one rejection confirmation displays duplicate explanation and ordinary fee
   assert.match(html, /Correct phone/);
   assert.match(html, /Reject Application/);
 });
+
+test("duplicate rejection confirmation blocks a decision whose assessment became unavailable", () => {
+  const html = renderToString(
+    React.createElement(Rejection, {
+      isOpen: true,
+      businessName: "Cafe",
+      duplicateExplanation: "Same establishment",
+      selectedSections: [],
+      feedback: {},
+      sections: [],
+      blockedReason: "Confirmed Duplicate is no longer available",
+      onClose() {},
+      onConfirm() {},
+    }),
+  );
+  assert.match(html, /Confirmed Duplicate is no longer available/);
+  assert.match(html, /disabled/);
+});

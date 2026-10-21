@@ -18,7 +18,7 @@ import ReviewBusinessPhotos from "../review/sections/ReviewBusinessPhotos";
 import ReviewOperatingHours from "../review/sections/ReviewOperatingHours";
 import ReviewVerificationDocuments from "../review/sections/ReviewVerificationDocuments";
 import ResubmissionChecklist from "../ResubmissionChecklist";
-import DuplicateRejectionNotice from "../DuplicateRejectionNotice";
+import DuplicateResubmissionWarning from "../DuplicateResubmissionWarning";
 import DuplicateBusinessWarning from "../DuplicateBusinessWarning";
 
 type ReviewSubmitStepProps = {
@@ -52,10 +52,8 @@ export default function ReviewSubmitStep({
     <>
       <View className="">
         {isResubmission && application?.duplicate_disposition ? (
-          <View className="px-6">
-            <DuplicateRejectionNotice
-              disposition={application.duplicate_disposition}
-            />
+          <View className="mb-4 w-full">
+            <DuplicateResubmissionWarning />
           </View>
         ) : (
           <View className="w-full">
