@@ -5,14 +5,17 @@ import InfoBanner from "@/shared/components/InfoBanner";
 import useDuplicateWarning from "../../hooks/registration/useDuplicateWarning";
 import type { ApplicationDetailResponse } from "../../types/registration/registrationApi.types";
 import type { MerchantRegistrationForm } from "../../validation/merchantRegistration.schema";
+import DuplicateResubmissionWarning from "./DuplicateResubmissionWarning";
 
 /** Shows an advisory check only for the saved name and location currently visible in the form. */
 export default function DuplicateBusinessWarning({
   application,
   onReviewLocation,
+  duplicateRejected = false,
 }: {
   application: ApplicationDetailResponse | null;
   onReviewLocation?: () => void;
+  duplicateRejected?: boolean;
 }) {
   const { control } = useFormContext<MerchantRegistrationForm>();
   const values = useWatch({
@@ -43,14 +46,28 @@ export default function DuplicateBusinessWarning({
           location.longitude,
         ]
       : null;
-  const savedEvidence = savedValues ? JSON.stringify(savedValues) : null;
-  const matchesSaved = JSON.stringify(values) === savedEvidence;
-  if (!savedEvidence || !matchesSaved) return null;
+  // DRF trims saved text; compare the same representation without treating
+  // substantive unsaved name or location edits as saved evidence.
+  const comparableValues = (items: unknown[]) =>
+    items.map((value) => (typeof value === "string" ? value.trim() : value));
+  const savedEvidence = savedValues
+    ? JSON.stringify(comparableValues(savedValues))
+    : null;
+  const matchesSaved =
+    JSON.stringify(comparableValues(values)) === savedEvidence;
+  if (!savedEvidence || !matchesSaved) {
+    return duplicateRejected ? (
+      <View className="mb-4">
+        <DuplicateResubmissionWarning />
+      </View>
+    ) : null;
+  }
   return (
     <SavedDuplicateWarning
       key={savedEvidence}
       savedEvidence={savedEvidence}
       onReviewLocation={onReviewLocation}
+      duplicateRejected={duplicateRejected}
     />
   );
 }
@@ -59,9 +76,11 @@ export default function DuplicateBusinessWarning({
 function SavedDuplicateWarning({
   savedEvidence,
   onReviewLocation,
+  duplicateRejected,
 }: {
   savedEvidence: string;
   onReviewLocation?: () => void;
+  duplicateRejected: boolean;
 }) {
   const query = useDuplicateWarning(savedEvidence, true);
   if (query.isError) {
@@ -92,21 +111,31 @@ function SavedDuplicateWarning({
       </AppText>
     );
   }
-  if (!query.data?.evaluated || !query.data.possible_duplicate) return null;
+  if (!query.data?.evaluated || !query.data.possible_duplicate) {
+    return duplicateRejected ? (
+      <View className="mb-4">
+        <DuplicateResubmissionWarning />
+      </View>
+    ) : null;
+  }
   return (
     <View accessibilityLiveRegion="polite" className="mb-4">
       {/* Non-blocking saved-location warning */}
       <InfoBanner
-        title="Possible existing business"
+        title={
+          duplicateRejected
+            ? "Before you resubmit"
+            : "Possible existing business"
+        }
         variant="warning"
         icon="alert-outline"
         actionTitle={onReviewLocation ? "Review location" : undefined}
         onAction={onReviewLocation}
       >
         <AppText className="text-sm leading-5 text-text-secondary">
-          A business with a matching name and location may already be registered
-          on SugboGo. Please verify your details. You can still continue if this
-          is a separate business or branch.
+          {duplicateRejected
+            ? "Your application was previously rejected as a possible duplicate. Your saved details still match a possible existing business. Please verify your business or branch details."
+            : "A business with a matching name and location may already be registered on SugboGo. Please verify your details. You can still continue if this is a separate business or branch."}
         </AppText>
       </InfoBanner>
     </View>

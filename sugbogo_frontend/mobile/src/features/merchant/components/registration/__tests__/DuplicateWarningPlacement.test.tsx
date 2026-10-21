@@ -64,7 +64,12 @@ const application = {
   },
 } as ApplicationDetailResponse;
 
-function WizardStep({ step }: { step: number }) {
+type HarnessProps = {
+  step: number;
+  savedApplication?: ApplicationDetailResponse;
+};
+
+function WizardStep({ step, savedApplication = application }: HarnessProps) {
   const form = useForm({
     defaultValues: {
       businessName: "Sugbo Bistro",
@@ -84,7 +89,7 @@ function WizardStep({ step }: { step: number }) {
         onChangeText={(value) => form.setValue("businessName", value)}
       />
       <RegistrationStepContent
-        application={application}
+        application={savedApplication}
         currentStep={step}
         clusters={[]}
         categories={[]}
@@ -95,7 +100,7 @@ function WizardStep({ step }: { step: number }) {
         refetchClusters={() => {}}
         refetchCategories={() => {}}
         onEditSection={mockEditSection}
-        isResubmission={false}
+        isResubmission={savedApplication.status === "rejected"}
         feedback={[]}
         registerErrorScrollTarget={() => ({})}
       />
@@ -107,14 +112,101 @@ function setup() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
-  return function Harness({ step }: { step: number }) {
+  return function Harness(props: HarnessProps) {
     return (
       <QueryClientProvider client={client}>
-        <WizardStep step={step} />
+        <WizardStep {...props} />
       </QueryClientProvider>
     );
   };
 }
+
+it.each(["draft", "rejected"] as const)(
+  "rechecks the saved name after identity editing on a %s application",
+  async (status) => {
+    const savedApplication = {
+      ...application,
+      status,
+      duplicate_disposition:
+        status === "rejected"
+          ? {
+              review_id: 1,
+              explanation: "This business is already registered.",
+              reconsidered: false,
+              reconsideration_explanation: null,
+            }
+          : null,
+    };
+    (getDuplicateWarning as jest.Mock)
+      .mockResolvedValueOnce({
+        success: true,
+        data: { evaluated: true, possible_duplicate: false },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { evaluated: true, possible_duplicate: true },
+      });
+    const Harness = setup();
+    const screen = await render(
+      <Harness step={6} savedApplication={savedApplication} />,
+    );
+    await waitFor(() => expect(getDuplicateWarning).toHaveBeenCalledTimes(1));
+    await screen.rerender(
+      <Harness step={1} savedApplication={savedApplication} />,
+    );
+    await fireEvent.changeText(
+      screen.getByTestId("edit-name"),
+      "  Matching Business  ",
+    );
+    const updated = {
+      ...savedApplication,
+      identity: {
+        ...application.identity!,
+        business_name: "Matching Business",
+      },
+    };
+    await screen.rerender(<Harness step={6} savedApplication={updated} />);
+    await waitFor(() => expect(getDuplicateWarning).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          status === "rejected"
+            ? /Your saved details still match/
+            : "Possible existing business",
+        ),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByTestId("application-summary")).toBeTruthy();
+    if (status === "rejected") {
+      expect(screen.getAllByText("Before you resubmit")).toHaveLength(1);
+    }
+  },
+);
+
+it("shows uncertainty rather than an old match during duplicate-rejected resubmission", async () => {
+  (getDuplicateWarning as jest.Mock).mockRejectedValue(new Error("Offline"));
+  const Harness = setup();
+  const screen = await render(
+    <Harness
+      step={6}
+      savedApplication={{
+        ...application,
+        status: "rejected",
+        duplicate_disposition: {
+          review_id: 1,
+          explanation: "Duplicate registration.",
+          reconsidered: false,
+          reconsideration_explanation: null,
+        },
+      }}
+    />,
+  );
+  await waitFor(() =>
+    expect(screen.getByText("Duplicate check unavailable")).toBeTruthy(),
+  );
+  expect(screen.getByTestId("application-summary")).toBeTruthy();
+  expect(screen.queryByText(/Your saved details still match/)).toBeNull();
+});
 
 it("places the warning below the location description and above the form, not on unrelated steps", async () => {
   (getDuplicateWarning as jest.Mock).mockResolvedValue({

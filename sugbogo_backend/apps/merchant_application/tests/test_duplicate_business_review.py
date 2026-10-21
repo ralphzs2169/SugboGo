@@ -112,6 +112,56 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
         self.assertEqual(len(candidates), 1)
         self.assertIn("exact_name_and_address", candidates[0]["reasons"])
 
+    def test_saved_name_edits_refresh_warning_admin_candidates_and_resubmission_evidence(self):
+        for name, reason in (
+            ("Sugbo Bistro", "exact_name_and_address"),
+            ("Sugbo Bistrot", "similar_business_name"),
+        ):
+            with self.subTest(name=name):
+                self.assess("confirmed_duplicate")
+                submission = DuplicateReviewService.current_submission(self.application)
+                AdminApplicationService.reject_application(
+                    self.application.pk,
+                    [],
+                    self.admin,
+                    duplicate=True,
+                    explanation="This establishment is already registered.",
+                    expected_submission_id=submission.pk,
+                )
+                self.client.force_authenticate(self.user)
+                response = self.client.patch(
+                    reverse("application-identity"),
+                    {"business_name": "Unrelated New Establishment"},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, 200, response.data)
+                warning = self.client.get(reverse("merchant-duplicate-warning"))
+                self.assertFalse(warning.data["data"]["possible_duplicate"])
+
+                response = self.client.patch(
+                    reverse("application-identity"),
+                    {"business_name": f"  {name}  "},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertEqual(response.data["data"]["business_name"], name)
+                warning = self.client.get(reverse("merchant-duplicate-warning"))
+                self.assertTrue(warning.data["data"]["possible_duplicate"])
+                self.client.force_authenticate(self.admin)
+                response = self.client.get(
+                    reverse("merchant-application-duplicates", args=[self.application.pk]),
+                )
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertIn(reason, response.data["data"]["candidates"][0]["reasons"])
+
+                ApplicationService.submit_application(self.application)
+                current = DuplicateReviewService.current_submission(self.application)
+                self.assertNotEqual(current.pk, submission.pk)
+                self.assertIn(reason, current.MASUB_DUPLICATE_EVIDENCE[0]["reasons"])
+                state = DuplicateReviewService.review_state(self.application)
+                self.assertIsNone(state["candidates"][0]["assessment"])
+                self.assertTrue(state["approval_blocked"])
+
     def test_metric_proximity_matches_when_addresses_differ(self):
         location = self.target.location
         location.MLOC_STREET_ADDRESS = "Another street"

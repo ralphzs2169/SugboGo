@@ -18,7 +18,6 @@ import ReviewBusinessPhotos from "../review/sections/ReviewBusinessPhotos";
 import ReviewOperatingHours from "../review/sections/ReviewOperatingHours";
 import ReviewVerificationDocuments from "../review/sections/ReviewVerificationDocuments";
 import ResubmissionChecklist from "../ResubmissionChecklist";
-import DuplicateResubmissionWarning from "../DuplicateResubmissionWarning";
 import DuplicateBusinessWarning from "../DuplicateBusinessWarning";
 
 type ReviewSubmitStepProps = {
@@ -53,18 +52,13 @@ export default function ReviewSubmitStep({
   return (
     <>
       <View className="">
-        {duplicateRejected ? (
-          <View className="mb-4 w-full">
-            <DuplicateResubmissionWarning />
-          </View>
-        ) : (
-          <View className="w-full">
-            <DuplicateBusinessWarning
-              application={application}
-              onReviewLocation={() => onEditSection(2)}
-            />
-          </View>
-        )}
+        <View className="w-full">
+          <DuplicateBusinessWarning
+            application={application}
+            duplicateRejected={duplicateRejected}
+            onReviewLocation={() => onEditSection(2)}
+          />
+        </View>
 
         {isResubmission && (
           <ResubmissionChecklist feedback={feedback} isReviewStep />
