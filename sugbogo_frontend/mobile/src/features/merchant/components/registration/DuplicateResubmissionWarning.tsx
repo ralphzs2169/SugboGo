@@ -9,8 +9,8 @@ export default function DuplicateResubmissionWarning() {
       icon="alert-outline"
     >
       <AppText className="text-sm leading-5 text-text-secondary">
-        Submitting the same information without additional clarification may
-        result in another rejection.
+        Your application was rejected as a possible duplicate. Before resubmitting,
+        check that your details clearly identify your business or branch.
       </AppText>
     </InfoBanner>
   );

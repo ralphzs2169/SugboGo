@@ -40,6 +40,8 @@ export default function ReviewSubmitStep({
 }: ReviewSubmitStepProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
   const form = watch();
+  const duplicateRejected =
+    isResubmission && !!application?.duplicate_disposition;
   const getSectionFeedback = (section: ApplicationFeedbackSection) => {
     if (!isResubmission) {
       return undefined;
@@ -51,7 +53,7 @@ export default function ReviewSubmitStep({
   return (
     <>
       <View className="">
-        {isResubmission && application?.duplicate_disposition ? (
+        {duplicateRejected ? (
           <View className="mb-4 w-full">
             <DuplicateResubmissionWarning />
           </View>
@@ -64,7 +66,9 @@ export default function ReviewSubmitStep({
           </View>
         )}
 
-        {isResubmission && <ResubmissionChecklist feedback={feedback} />}
+        {isResubmission && (
+          <ResubmissionChecklist feedback={feedback} isReviewStep />
+        )}
 
         <ReviewBusinessIdentity
           form={form}

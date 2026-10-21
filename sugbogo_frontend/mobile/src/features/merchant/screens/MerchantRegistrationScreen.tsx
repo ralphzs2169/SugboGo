@@ -170,7 +170,7 @@ export default function MerchantRegistrationScreen() {
     useSubmitApplication();
 
   const [showDiscardChangesModal, setShowDiscardChangesModal] = useState(false);
-
+  const [showLeaveReviewModal, setShowLeaveReviewModal] = useState(false);
   const [showReviewCelebration, setShowReviewCelebration] = useState(false);
 
   const [restoreError, setRestoreError] = useState(false);
@@ -255,7 +255,7 @@ export default function MerchantRegistrationScreen() {
   // Helper Functions
 
   const requestExit = useCallback(
-    (action: () => void) => {
+    (action: () => void, confirmReview = false) => {
       const sections = getUnsavedSections({
         values: form.getValues(),
         lastSavedIdentity,
@@ -266,7 +266,11 @@ export default function MerchantRegistrationScreen() {
       });
 
       if (sections.length === 0) {
-        action();
+        if (confirmReview) {
+          setShowLeaveReviewModal(true);
+        } else {
+          action();
+        }
         return;
       }
 
@@ -292,6 +296,28 @@ export default function MerchantRegistrationScreen() {
     pendingExitAction.current?.();
     pendingExitAction.current = null;
   };
+
+  /** Routes review exits through saved-data confirmation or the existing unsaved-change guard. */
+  const requestReviewExit = useCallback(() => {
+    if (isSavingCurrentStep) {
+      return;
+    }
+    requestExit(
+      () => router.dismissTo("/(explorer)/profile/merchant-portal"),
+      true,
+    );
+  }, [isSavingCurrentStep, requestExit]);
+
+  /** Leaves review without deleting saved application details, rechecking local edits first. */
+  const exitReviewToPortal = () => {
+    if (isSavingCurrentStep) {
+      return;
+    }
+    setShowLeaveReviewModal(false);
+    requestExit(() => {
+      router.dismissTo("/(explorer)/profile/merchant-portal");
+    });
+  };
   // Persist the current address in the registration store when leaving Step 2.
   const persistCurrentAddress = () => {
     const values = form.getValues();
@@ -312,12 +338,15 @@ export default function MerchantRegistrationScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          disabled={isSavingCurrentStep}
           className="min-h-12 min-w-12 cursor-pointer items-center justify-center active:opacity-70"
-          onPress={() =>
-            requestExit(() => {
-              router.back();
-            })
-          }
+          onPress={() => {
+            if (currentStep === REVIEW_STEP) {
+              requestReviewExit();
+              return;
+            }
+            requestExit(() => router.back());
+          }}
         >
           <MaterialCommunityIcons
             name="chevron-left"
@@ -327,7 +356,14 @@ export default function MerchantRegistrationScreen() {
         </Pressable>
       ),
     });
-  }, [navigation, requestExit]);
+  }, [
+    navigation,
+    requestExit,
+    requestReviewExit,
+    currentStep,
+    REVIEW_STEP,
+    isSavingCurrentStep,
+  ]);
 
   /**
    * Restores a previously saved merchant application.
@@ -674,13 +710,14 @@ export default function MerchantRegistrationScreen() {
             return true;
           }
 
-          // While editing a section, Android Back is disabled.
-          if (editingStep !== null) {
+          // Leave review through the same confirmation as the visible header.
+          if (currentStep === REVIEW_STEP) {
+            requestReviewExit();
             return true;
           }
 
-          // Review is the final checkpoint.
-          if (currentStep === REVIEW_STEP) {
+          // While editing a section, Android Back is disabled.
+          if (editingStep !== null) {
             return true;
           }
 
@@ -703,6 +740,7 @@ export default function MerchantRegistrationScreen() {
       currentStep,
       handleBack,
       requestExit,
+      requestReviewExit,
       isSavingCurrentStep,
       REVIEW_STEP,
     ]),
@@ -817,6 +855,16 @@ export default function MerchantRegistrationScreen() {
           />
         </RegistrationLayout>
       </FormProvider>
+
+      <ConfirmModal
+        visible={showLeaveReviewModal}
+        title="Leave application review?"
+        message="Your saved application details will be kept. You can return and submit later."
+        confirmText="Exit to Portal"
+        cancelText="Stay Here"
+        onConfirm={exitReviewToPortal}
+        onCancel={() => setShowLeaveReviewModal(false)}
+      />
 
       <ConfirmModal
         visible={showDiscardChangesModal}

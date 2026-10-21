@@ -27,7 +27,7 @@ export default function InterestSpecialtiesSection({
             key={tag.id}
             tag={tag}
             mode="filter"
-            size="medium"
+            size="small"
             isSelected={selectedSpecialtyTagIds.includes(tag.id)}
             showSelectionIndicator
             onPress={() => onToggleSpecialty(tag.id)}

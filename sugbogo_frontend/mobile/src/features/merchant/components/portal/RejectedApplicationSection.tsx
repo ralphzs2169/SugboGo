@@ -1,8 +1,6 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import { View } from "react-native";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import DuplicateResubmissionWarning from "../registration/DuplicateResubmissionWarning";
 
@@ -13,6 +11,7 @@ import type {
 } from "../../types/registration/registrationApi.types";
 import ResubmissionChecklist from "../registration/ResubmissionChecklist";
 import DuplicateRejectionNotice from "../registration/DuplicateRejectionNotice";
+import RejectionCardIndicator from "../registration/RejectionCardIndicator";
 
 type RejectionApplicationSectionProps = {
   feedback: ApplicationFeedbackResponse[];
@@ -31,12 +30,13 @@ export default function RejectionApplicationSection({
   reviewedAt,
   duplicateDisposition,
 }: RejectionApplicationSectionProps) {
+  const combinedRejection = !!duplicateDisposition && feedback.length > 0;
+  const correctionsComplete =
+    feedback.length > 0 && feedback.every((item) => item.is_changed);
   return (
     <View className="bg-surface px-6 pb-6">
       {/* Status hero */}
-      <View
-        className={`items-center rounded-3xl bg-surface px-6 ${duplicateDisposition ? "py-4" : "py-7"}`}
-      >
+      <View className="items-center rounded-3xl bg-surface px-6 py-4">
         <LottieView
           source={rejectedApplicationAnimation}
           autoPlay
@@ -61,41 +61,27 @@ export default function RejectionApplicationSection({
         </AppText>
 
         <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
-          {duplicateDisposition
-            ? `Reviewed ${reviewedAt}`
-            : "Review the feedback, make the required changes, and resubmit."}
+          Reviewed {reviewedAt}
         </AppText>
       </View>
 
-      {/* Review information */}
-      {!duplicateDisposition && (
-        <View className="mt-4 flex-row items-center rounded-card border border-border-primary bg-surface px-4 py-4">
-          <MaterialCommunityIcons
-            name="calendar-check-outline"
-            size={25}
-            color={theme.extends.colors.text.secondary}
+      <DuplicateRejectionNotice
+        disposition={duplicateDisposition}
+        showIndicator={!correctionsComplete}
+      >
+        {combinedRejection && (
+          <ResubmissionChecklist
+            feedback={feedback}
+            isInMerchantPortal
+            embedded
           />
-
-          <View className="ml-3 flex-1">
-            <AppText
-              weight="semibold"
-              className="text-xs uppercase tracking-wide text-text-secondary"
-            >
-              Reviewed
-            </AppText>
-
-            <AppText weight="bold" className="mt-0.5 text-base text-text-primary">
-              {reviewedAt}
-            </AppText>
-          </View>
-        </View>
-      )}
-
-      <DuplicateRejectionNotice disposition={duplicateDisposition} />
+        )}
+      </DuplicateRejectionNotice>
       {duplicateDisposition && <DuplicateResubmissionWarning />}
       {/* Administrator feedback */}
-      {feedback.length > 0 && (
-        <View className="mt-4 rounded-card border border-border-primary bg-surface px-5 pt-5">
+      {feedback.length > 0 && !duplicateDisposition && (
+        <View className="relative rounded-card border border-border-primary bg-surface px-4 pt-4">
+          {!correctionsComplete && <RejectionCardIndicator />}
           <AppText weight="bold" className="mb-1 text-sm text-text-primary">
             Administrator Feedback
           </AppText>
