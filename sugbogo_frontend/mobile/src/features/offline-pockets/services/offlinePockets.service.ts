@@ -300,6 +300,19 @@ async function currentOperation(
   return row;
 }
 
+/** Checks a claimed revision before another asynchronous network step. */
+export async function assertOfflinePocketWorkCurrent(
+  operationInput: OfflinePocketOperation,
+): Promise<void> {
+  const operation = Object.freeze({ ...operationInput });
+  await withOwnedPolicy(operation, async (tx) => {
+    const row = await currentOperation(tx, operation);
+    if (row.workStatus !== "running") {
+      throw new StaleOfflinePocketOperationError();
+    }
+  });
+}
+
 /** Changes work metadata atomically without changing cache freshness. */
 async function transitionWork(
   operationInput: OfflinePocketOperation,
@@ -559,20 +572,39 @@ export async function removeOfflineBusinessSnapshot(
 ): Promise<void> {
   assertInteger(businessId, 1);
   await withOwnedPolicy(context, async (tx, pinned) => {
-    await tx.runAsync(
-      `UPDATE offline_pocket_controls SET cache_intent = 'suppressed',
+    await removeSnapshot(tx, pinned, businessId);
+  });
+}
+
+/** Invalidates confirmed removed membership only if the checking job is still current. */
+export async function invalidateOfflinePocketWork(
+  operationInput: OfflinePocketOperation,
+): Promise<void> {
+  const operation = Object.freeze({ ...operationInput });
+  await withOwnedPolicy(operation, async (tx, pinned) => {
+    await currentOperation(tx, operation);
+    await removeSnapshot(tx, pinned, operation.businessId);
+  });
+}
+
+async function removeSnapshot(
+  tx: SQLiteDatabase,
+  context: OfflinePocketContext,
+  businessId: number,
+): Promise<void> {
+  await tx.runAsync(
+    `UPDATE offline_pocket_controls SET cache_intent = 'suppressed',
         work_status = 'invalidated', operation_version = operation_version + 1,
         cached_at = NULL, next_retry_at = NULL, last_error_code = NULL
         WHERE api_scope = ? AND owner_id = ? AND business_id = ?`,
-      pinned.apiScope,
-      pinned.ownerId,
-      businessId,
-    );
-    await tx.runAsync(
-      "DELETE FROM offline_business_snapshots WHERE api_scope = ? AND owner_id = ? AND business_id = ?",
-      pinned.apiScope,
-      pinned.ownerId,
-      businessId,
-    );
-  });
+    context.apiScope,
+    context.ownerId,
+    businessId,
+  );
+  await tx.runAsync(
+    "DELETE FROM offline_business_snapshots WHERE api_scope = ? AND owner_id = ? AND business_id = ?",
+    context.apiScope,
+    context.ownerId,
+    businessId,
+  );
 }

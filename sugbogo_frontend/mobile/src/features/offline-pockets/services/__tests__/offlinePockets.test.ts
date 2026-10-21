@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { SQLiteDatabase } from "expo-sqlite";
-import { snapshotFixture } from "../../validation/__tests__/snapshotFixture";
+import {
+  businessFixture,
+  snapshotFixture,
+} from "../../validation/__tests__/snapshotFixture";
 
 const sqlite = jest.requireActual(
   "node:sqlite",
@@ -23,6 +26,15 @@ let mockApiScope = "https://api-a.example";
 let mockFailSql: string | null = null;
 let mockFailMigration = false;
 let mockFailSnapshotMigration = false;
+const mockGetDetail = jest.fn();
+const mockGetMemberships = jest.fn();
+jest.mock("@/features/explore/api/exploreBusiness.service", () => ({
+  getExploreBusinessDetail: (...args: unknown[]) => mockGetDetail(...args),
+}));
+jest.mock("@/features/pockets/api/pockets.service", () => ({
+  getBusinessPocketMemberships: (...args: unknown[]) =>
+    mockGetMemberships(...args),
+}));
 const mockConnections = new Set<DatabaseSync>();
 const mockOpenedNames: string[] = [];
 let mockPause: {
@@ -159,6 +171,13 @@ describe("Offline Pocket SQLite control foundation", () => {
     mockPause = null;
     mockOpenedNames.length = 0;
     loadRepository();
+    mockGetDetail
+      .mockReset()
+      .mockResolvedValue({ success: true, data: businessFixture() });
+    mockGetMemberships.mockReset().mockResolvedValue({
+      success: true,
+      data: { business_id: 21, pocket_ids: [1, 2], is_pocketed: true },
+    });
   });
 
   afterEach(() => {
@@ -1004,6 +1023,327 @@ describe("Offline Pocket SQLite control foundation", () => {
       api.publishOfflineBusinessSnapshot(operation, snapshotFixture()),
     ).rejects.toThrow("Sign in");
   });
+
+  function cacheBusiness() {
+    return jest.requireActual<typeof import("../offlinePocketWorker.service")>(
+      "../offlinePocketWorker.service",
+    ).cacheOfflinePocketBusiness;
+  }
+
+  it("caches a pending business with fresh membership checks and completion", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    await cacheBusiness()(operation, () => true);
+    expect(mockGetMemberships).toHaveBeenCalledTimes(2);
+    expect(mockGetDetail).toHaveBeenCalledTimes(1);
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      workStatus: "completed",
+      attempts: 1,
+    });
+  });
+
+  it.each([
+    "NETWORK_ERROR",
+    "REQUEST_TIMEOUT",
+    "UNKNOWN_ERROR",
+    "RATE_LIMIT_EXCEEDED",
+  ])(
+    "retries transient %s with a new revision and bounded backoff",
+    async (code) => {
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      mockGetDetail.mockResolvedValueOnce({ success: false, code });
+      await cacheBusiness()(operation, () => true);
+      const control = await api.getOfflinePocketControl(context, 21);
+      expect(control).toMatchObject({
+        workStatus: "failed",
+        lastErrorCode: code,
+      });
+      expect(control?.nextRetryAt).toBeGreaterThan(Date.now());
+      jest.spyOn(Date, "now").mockReturnValue(control!.nextRetryAt!);
+      const retry = await api.retryOfflinePocketWork(operation);
+      expect(retry.operationVersion).toBeGreaterThan(
+        operation.operationVersion,
+      );
+      await cacheBusiness()(retry, () => true);
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        workStatus: "completed",
+        attempts: 2,
+      });
+      const { offlinePocketRetryAt } = jest.requireActual<
+        typeof import("../offlinePocketWorker.service")
+      >("../offlinePocketWorker.service");
+      expect(offlinePocketRetryAt(1, 0)).toBe(5000);
+      expect(offlinePocketRetryAt(4, 0)).toBe(40000);
+      expect(offlinePocketRetryAt(5, 0)).toBeNull();
+    },
+  );
+
+  it.each(["NOT_FOUND", "PERMISSION_DENIED", "VALIDATION_ERROR"])(
+    "does not infer removal or retry permanently failed detail requests (%s)",
+    async (code) => {
+      const { context, operation } = await runningSnapshot();
+      await api.completeOfflinePocketWork(operation);
+      const refresh = await api.requestOfflinePocketRestore(context, 21);
+      mockGetDetail.mockResolvedValue({ success: false, code });
+      await cacheBusiness()(refresh, () => true);
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        workStatus: "failed",
+        intent: "restore",
+        nextRetryAt: null,
+      });
+      expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+        status: "available",
+      });
+    },
+  );
+
+  it("preserves valid data and permanently fails invalid business responses", async () => {
+    const { context, operation } = await runningSnapshot();
+    await api.completeOfflinePocketWork(operation);
+    const refresh = await api.requestOfflinePocketRestore(context, 21);
+    mockGetDetail.mockResolvedValue({ success: true, data: { id: 21 } });
+    await cacheBusiness()(refresh, () => true);
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      workStatus: "failed",
+      lastErrorCode: "INVALID_RESPONSE",
+      nextRetryAt: null,
+    });
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      snapshot: snapshotFixture(),
+    });
+  });
+
+  it.each([1, 2])(
+    "invalidates only a current job when membership is absent at check %s",
+    async (check) => {
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      if (check === 2) {
+        mockGetMemberships.mockResolvedValueOnce({
+          success: true,
+          data: { business_id: 21, pocket_ids: [1], is_pocketed: true },
+        });
+      }
+      mockGetMemberships.mockResolvedValue({
+        success: true,
+        data: { business_id: 21, pocket_ids: [], is_pocketed: false },
+      });
+      await cacheBusiness()(operation, () => true);
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        intent: "suppressed",
+        workStatus: "invalidated",
+      });
+      expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+        status: "missing",
+      });
+      expect(mockGetDetail).toHaveBeenCalledTimes(check - 1);
+    },
+  );
+
+  it("does not treat ambiguous membership failures as removal", async () => {
+    const { context, operation } = await runningSnapshot();
+    await api.completeOfflinePocketWork(operation);
+    const refresh = await api.requestOfflinePocketRestore(context, 21);
+    mockGetMemberships.mockResolvedValue({
+      success: false,
+      code: "NETWORK_ERROR",
+    });
+    await cacheBusiness()(refresh, () => true);
+    expect(mockGetDetail).not.toHaveBeenCalled();
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      intent: "restore",
+      workStatus: "failed",
+    });
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it.each(["logout", "switch", "same-user", "clear", "revision"])(
+    "rejects active-request publication after %s",
+    async (change) => {
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      const started = deferred();
+      const release = deferred();
+      mockGetDetail.mockImplementationOnce(async () => {
+        started.resolve();
+        await release.promise;
+        return { success: true, data: businessFixture() };
+      });
+      const caching = cacheBusiness()(operation, () => true).catch(
+        (error: unknown) => error,
+      );
+      await started.promise;
+      if (change === "clear") {
+        await api.clearOfflinePocketControlState(context);
+      } else if (change === "revision") {
+        await api.recoverOfflinePocketWork(context);
+      } else {
+        session.invalidateAuthSession();
+        auth.getState().clearUser();
+        if (change !== "logout") {
+          signIn(change === "switch" ? 8 : 7);
+        }
+      }
+      release.resolve();
+      expect(await caching).toEqual(expect.any(Error));
+      expect(
+        nativeDatabase()
+          .prepare("SELECT COUNT(*) AS count FROM offline_business_snapshots")
+          .get(),
+      ).toEqual({ count: 0 });
+      expect(mockGetMemberships).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("recovers interrupted running work after restart and rejects its old token", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const previous = await api.enqueueConfirmedPocketSave(context, 21);
+    await api.startOfflinePocketWork(previous);
+    reopenRepository();
+    const current = await api.captureOfflinePocketContext();
+    await api.recoverOfflinePocketWork(current);
+    const recovered = await api.getOfflinePocketOperation(current, 21);
+    expect(recovered!.operationVersion).toBeGreaterThan(
+      previous.operationVersion,
+    );
+    await expect(
+      api.assertOfflinePocketWorkCurrent(previous),
+    ).rejects.toThrow();
+    await cacheBusiness()(recovered!, () => true);
+    expect(await api.getOfflineBusinessSnapshot(current, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it("rejects stale membership invalidation after a newer restoration revision", async () => {
+    const { context, operation } = await runningSnapshot();
+    await api.completeOfflinePocketWork(operation);
+    const next = await api.requestOfflinePocketRestore(context, 21);
+    await expect(api.invalidateOfflinePocketWork(operation)).rejects.toThrow();
+    expect(await api.getOfflinePocketOperation(context, 21)).toEqual(next);
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it("claims once across duplicate worker invocations and refuses suppressed jobs", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    const results = await Promise.allSettled([
+      cacheBusiness()(operation, () => true),
+      cacheBusiness()(operation, () => true),
+    ]);
+    expect(results.map((result) => result.status).sort()).toEqual([
+      "fulfilled",
+      "rejected",
+    ]);
+    expect(mockGetDetail).toHaveBeenCalledTimes(1);
+    await api.removeOfflineBusinessSnapshot(context, 21);
+    await expect(cacheBusiness()(operation, () => true)).rejects.toThrow();
+    expect(mockGetDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops network steps and publication when foreground execution is interrupted", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    let active = true;
+    mockGetDetail.mockImplementationOnce(async () => {
+      active = false;
+      return { success: true, data: businessFixture() };
+    });
+    await cacheBusiness()(operation, () => active);
+    expect(mockGetMemberships).toHaveBeenCalledTimes(1);
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "missing",
+    });
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      workStatus: "failed",
+      lastErrorCode: "INTERRUPTED",
+    });
+  });
+
+  it("retries ambiguous non-envelope server failures without invalidating membership", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    mockGetDetail.mockResolvedValue("<html>502 Bad Gateway</html>");
+    await cacheBusiness()(operation, () => true);
+    const row = await api.getOfflinePocketControl(context, 21);
+    expect(row).toMatchObject({
+      workStatus: "failed",
+      intent: "automatic",
+      lastErrorCode: "UNKNOWN_ERROR",
+    });
+    expect(row?.nextRetryAt).not.toBeNull();
+  });
+
+  it("keeps foreground interruptions retryable beyond the API-failure attempt limit", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    nativeDatabase().exec("UPDATE offline_pocket_controls SET attempts = 5");
+    await cacheBusiness()(operation, () => false);
+    const row = await api.getOfflinePocketControl(context, 21);
+    expect(row).toMatchObject({
+      workStatus: "failed",
+      lastErrorCode: "INTERRUPTED",
+    });
+    expect(row?.nextRetryAt).not.toBeNull();
+    expect(mockGetDetail).not.toHaveBeenCalled();
+  });
+
+  it("cancels an in-flight API request and prevents publication", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    const controller = new AbortController();
+    const started = deferred();
+    mockGetDetail.mockImplementationOnce(async (_id, signal: AbortSignal) => {
+      started.resolve();
+      return new Promise((resolve) => {
+        signal.addEventListener("abort", () =>
+          resolve({ success: false, code: "NETWORK_ERROR" }),
+        );
+      });
+    });
+    const caching = cacheBusiness()(
+      operation,
+      () => !controller.signal.aborted,
+      controller.signal,
+    );
+    await started.promise;
+    controller.abort();
+    await caching;
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "missing",
+    });
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      workStatus: "failed",
+      lastErrorCode: "INTERRUPTED",
+    });
+  });
+
+  it.each([
+    { business_id: 22, pocket_ids: [], is_pocketed: false },
+    { business_id: 21, pocket_ids: [1], is_pocketed: false },
+  ])(
+    "does not invalidate data for malformed membership responses %j",
+    async (data) => {
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      mockGetMemberships.mockResolvedValue({ success: true, data });
+      await cacheBusiness()(operation, () => true);
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        workStatus: "failed",
+        intent: "automatic",
+        nextRetryAt: null,
+      });
+      expect(mockGetDetail).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects web before opening a native database", async () => {
     const { Platform } =

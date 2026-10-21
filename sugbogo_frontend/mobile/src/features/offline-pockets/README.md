@@ -1,9 +1,11 @@
 # Offline Pocket storage
 
-This module stores policy, work metadata, and validated business snapshots. It
-does not download anything, store local images, call Pocket APIs, grant offline
-authentication, or mount a worker or UI. A completed work row is not proof of
-snapshot availability. Remote photo URLs are metadata, never offline-ready images.
+This module stores policy, work metadata, and validated business snapshots. A
+foreground worker fetches eligible business information using the existing API
+services. It does not store local images, mutate backend Pocket memberships,
+grant offline authentication, or render UI. Pocket mutation hooks are not yet
+connected. A completed work row is not proof of snapshot availability. Remote
+photo URLs are metadata, never offline-ready images.
 
 ## Database and migrations
 
@@ -75,13 +77,15 @@ are bound parameters; dynamic assignment fragments are internal constants.
 | `getOfflineBusinessSnapshot(context, businessId)`    | Local-only read returning `available`, `missing`, `corrupt`, or `unsupported`.                                                                          |
 | `listOfflineBusinessSnapshots(context)`              | Local-only entries, including explicit corrupt/unsupported results; missing businesses have no row.                                                     |
 | `removeOfflineBusinessSnapshot(context, businessId)` | Atomically suppresses the business, invalidates its revision, and deletes even corrupted snapshot data.                                                 |
+| `assertOfflinePocketWorkCurrent(operation)`          | Verifies the authorized current running revision before another network step.                                                                           |
+| `invalidateOfflinePocketWork(operation)`             | Token-bound suppression/deletion after confirmed absent membership; cannot invalidate a newer revision.                                                 |
 
 Reads never create intentions. In particular, finding a remotely saved business
 without a local snapshot is **not** an enqueue event. An initial Pocket scan does
 not automatically cache historical entries. The caller must distinguish a new
 confirmed save from ordinary discovery, repeated reads, or collection edits.
-Manual restoration requires the caller to establish current Pocket membership;
-this local foundation cannot verify backend membership itself.
+Manual restoration requires the caller to establish current Pocket membership.
+The worker independently verifies membership again before caching.
 
 Clearing changes local control state and deletes account snapshots in the same
 exclusive transaction. It persists suppression for tracked
@@ -116,8 +120,13 @@ version and running state in the same transaction as the snapshot upsert and
 freshness update. Session is checked again before commit. There is no separate
 check-then-write window. Eligibility comes from Task 2's confirmed-save/explicit
 restore intentions; this module cannot independently verify server membership.
-The future caller must establish membership before creating those intentions,
-and invalidate local work when membership is removed.
+The caller must establish membership before creating those intentions, and
+invalidate local work when membership is removed. The worker checks the real
+`getBusinessPocketMemberships()` response before fetching details and again
+immediately before publication. It validates business identity, positive Pocket
+IDs and consistency between `is_pocketed` and the complete selection. Only a
+successful valid empty selection triggers token-bound invalidation. A failed
+membership request or unavailable detail response never implies removal.
 
 An older fetch cannot replace a newer valid snapshot. Validation/write failures
 roll back and preserve previous valid data. A pending, failed, retried or recovered
@@ -134,17 +143,64 @@ Reads perform no API calls and never enqueue work.
 
 ## Extension boundary and limitations
 
-Task 4 can reuse context capture, scoped reads, enqueue/restore, revision/retry/
-recovery, snapshot construction/publication/read/list/removal, and account clear.
-Future image work must separately coordinate file cleanup and must not interpret
-remote URLs or `completed` work as proof of offline image availability.
+`OfflinePocketSync` is mounted once in the root layout beside notification sync.
+Its feature-owned service shares listeners and one promise drain across duplicate
+mounts. It subscribes to AppState, NetInfo, and authentication, with an initial
+connectivity read. Work runs only while mounted, active, connected and authorized.
+It wakes on eligible startup, foreground, reconnect, explicit
+`requestOfflinePocketSync()`, and one timer for the earliest persisted retry.
+Unchanged connectivity events do not wake it. There is no idle network polling.
 
-There is no worker lease/heartbeat or scheduler. Call recovery only after the
-previous worker is known to have stopped; otherwise recovery intentionally makes
-its token stale. The queue orders this JS runtime only. SQLite transactions protect
-database atomicity, but multiple app processes/workers require a future lease
-protocol. A rolled-back clear is a failure, not a successful clear; callers must
-report it and allow retry. Process termination before commit also rolls back.
+The drain processes one job at a time. It captures a scoped context, recovers
+interrupted running revisions, selects pending/due failed controls, obtains their
+tokens, versions due retries, and atomically claims pending work with the existing
+`startOfflinePocketWork()`. Recovery only occurs after the preceding worker has
+settled: the shared drain is retained even across unmounts/account changes.
+Recovery increments versions, and duplicate claims cannot both succeed.
+
+The worker uses fresh existing API reads rather than React Query cached membership.
+It constructs Task 3 snapshots, publishes through the existing transaction, then
+records completion. It changes no query defaults, query cache or notification
+behavior, and shows no toasts over unrelated successful Pocket mutations.
+
+Network loss, backgrounding, unmount and session changes abort the current request
+using an optional AbortSignal on the two existing API read services. Epoch and
+repository checkpoints stop subsequent steps even if transport cancellation is
+delayed. Tokens retain API scope, owner, session, clear generation and revision.
+Old operations cannot publish or invalidate newer intentions. Clearing rejects old
+tokens and suppression survives recovery; the worker never discovers/enqueues new
+businesses from backend list scans.
+
+`NETWORK_ERROR`, `REQUEST_TIMEOUT`, `UNKNOWN_ERROR` (including non-envelope server
+errors) and `RATE_LIMIT_EXCEEDED` use persisted exponential delays: 5, 10, 20 and
+40 seconds, with automatic retries stopped once claim attempts reach five.
+Validation and other permanent contract errors have no retry time. Foreground
+interruptions remain retryable after five seconds regardless of attempt count.
+Failed refreshes retain previous valid snapshots. Local storage failures get at
+most five delayed recovery attempts; later lifecycle/explicit wakeups can try again.
+Timers stop while inactive/offline/unmounted and due work is reconsidered on wake.
+
+Task 5 can call `enqueueConfirmedPocketSave()` after a confirmed genuinely new save,
+or `requestOfflinePocketRestore()` after explicit restoration, then call
+`requestOfflinePocketSync()` once those writes succeed. Existing membership removal
+flows must invalidate local work when the last membership disappears. They are
+intentionally not wired here. Account clear, snapshot reads and scoped removal are
+also available. Future image work must separately coordinate file cleanup.
+
+There is no OS worker, cross-process lease or heartbeat. The singleton coordinates
+this JS runtime only; independently executing app processes would need a lease
+protocol. Do not call repository recovery from another active scheduler. SQLite
+transactions preserve atomicity across termination. A rolled-back clear is a
+failure; callers must report it and allow retry.
+
+Backend membership checks and local publication cannot be one distributed
+transaction. A remote change after the final check cannot be detected atomically
+with the existing API (which supplies no membership revision). The worker neither
+polls completed entries nor reconciles arbitrary remote changes to already cached
+businesses. Later mutation integration/reconciliation must handle these events.
+Existing API error envelopes omit HTTP status; retry classification uses their
+verified error codes. Native-device transport/lifecycle verification is still
+needed in addition to controlled tests.
 
 This module does not register logout deletion or grant cold-start offline access.
 Authentication revocation denies access; the same account can read retained

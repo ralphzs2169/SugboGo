@@ -27,6 +27,7 @@ import {
 import Toast from "react-native-toast-message";
 import NotificationRealtimeSync from "@/features/notifications/components/NotificationRealtimeSync";
 import PocketPickerProvider from "@/features/pockets/providers/PocketPickerProvider";
+import OfflinePocketSync from "@/features/offline-pockets/providers/OfflinePocketSync";
 
 import "../../global.css";
 
@@ -61,6 +62,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <NotificationRealtimeSync />
+      <OfflinePocketSync />
       <GestureHandlerRootView style={{ flex: 1 }}>
         <StatusBar style="dark" />
 
