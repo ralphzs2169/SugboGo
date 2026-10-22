@@ -15,6 +15,7 @@ export default function Index() {
 
   const { user, isAuthenticated } = useAuthStore();
   const offlineOwnerId = useOfflineAccessStore((state) => state.ownerId);
+  const recentExplore = useOfflineAccessStore((state) => state.recentExplore);
 
   const activeMode = useAppModeStore((state) => state.activeMode);
 
@@ -40,6 +41,7 @@ export default function Index() {
 
   if (!isAuthenticated) {
     if (offlineOwnerId) return <Redirect href="/offline-storage" />;
+    if (recentExplore) return <Redirect href="/recent-explore" />;
     if (pendingEmail) {
       return (
         <Redirect

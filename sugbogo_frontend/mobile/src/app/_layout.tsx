@@ -1,6 +1,7 @@
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import QueryPersistenceProvider from "@/shared/query/QueryPersistenceProvider";
 import QueryLifecycle from "@/shared/query/QueryLifecycle";
+import RecentExploreReconnect from "@/features/explore/components/RecentExploreReconnect";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import AppSplash from "@/shared/components/AppSplash";
 import { toastConfig } from "@/shared/components/ToastConfig";
@@ -62,6 +63,7 @@ export default function RootLayout() {
   return (
     <QueryPersistenceProvider>
       <QueryLifecycle />
+      <RecentExploreReconnect />
       <NotificationRealtimeSync />
       <OfflinePocketSync />
       <GestureHandlerRootView style={{ flex: 1 }}>

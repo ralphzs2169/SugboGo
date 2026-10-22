@@ -17,6 +17,11 @@ import {
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import { createApiError } from "@/shared/utils/apiErrors";
 import { useRestoreSession } from "../useRestoreSession";
+jest.mock("@react-native-async-storage/async-storage", () =>
+  jest.requireActual(
+    "@react-native-async-storage/async-storage/jest/async-storage-mock",
+  ),
+);
 
 jest.mock("../../api/auth.service", () => ({ getCurrentUser: jest.fn() }));
 jest.mock("@/shared/api/storage.service", () => ({

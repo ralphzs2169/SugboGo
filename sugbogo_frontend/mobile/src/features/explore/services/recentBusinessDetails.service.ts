@@ -58,7 +58,7 @@ function warn() {
 /** One serialized coordinator owns only its dedicated, owner/API-scoped key. */
 export function createRecentBusinessDetails({
   storage = AsyncStorage,
-  now = Date.now,
+  now = () => Date.now(),
   getApiScope = getQueryPersistenceApiScope,
 }: {
   storage?: Pick<typeof AsyncStorage, "getItem" | "setItem" | "removeItem">;
@@ -92,19 +92,32 @@ export function createRecentBusinessDetails({
   const unsubscribe = subscribeAuthSessionChanges((change) => {
     // Cold restoration may read an owner's last validated copy. All explicit
     // replacements, failures and revocations start a new temporary lifetime.
-    if (change === "restore") epoch += 1;
+    if (change === "restore" || change === "offline") epoch += 1;
     else void revoke();
   });
 
-  function capture() {
+  function capture(local?: {
+    ownerId: number;
+    apiScope: string;
+    generation: number;
+    current: () => boolean;
+  }) {
     const auth = useAuthStore.getState();
     const ownerId =
-      auth.isAuthenticated && !auth.isLoading ? auth.user?.id : null;
-    const apiScope = getApiScope();
-    const generation = getAuthSessionGeneration();
+      local?.ownerId ??
+      (auth.isAuthenticated && !auth.isLoading ? auth.user?.id : null);
+    const apiScope = local?.apiScope ?? getApiScope();
+    const generation = local?.generation ?? getAuthSessionGeneration();
     const capturedEpoch = epoch;
 
     function isAuthorized() {
+      if (local)
+        return (
+          !disposed &&
+          capturedEpoch === epoch &&
+          local.current() &&
+          getApiScope() === apiScope
+        );
       const current = useAuthStore.getState();
       return (
         !disposed &&
@@ -263,7 +276,18 @@ export function createRecentBusinessDetails({
   }
 
   return {
-    capture,
+    capture: () => capture(),
+    readLocal(
+      businessId: number,
+      local: {
+        ownerId: number;
+        apiScope: string;
+        generation: number;
+        current: () => boolean;
+      },
+    ) {
+      return capture(local).get(businessId);
+    },
     revoke,
     flush: () => queue,
     dispose() {

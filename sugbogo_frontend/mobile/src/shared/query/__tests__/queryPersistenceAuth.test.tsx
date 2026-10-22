@@ -154,7 +154,7 @@ it("uses the existing logout boundary to revoke temporary disk and memory state"
   await hook.unmount();
 });
 
-it("discards temporary content after a transport-failed cold-start restoration", async () => {
+it("preserves temporary disk content without granting authentication after transport-failed startup", async () => {
   // Model a new process: disk survives, but no authenticated query state does.
   stop();
   runtime.dispose();
@@ -172,8 +172,8 @@ it("discards temporary content after a transport-failed cold-start restoration",
   await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
   await runtime.flush();
   await details.flush();
-  expect(values.has(QUERY_PERSISTENCE_STORAGE_KEY)).toBe(false);
-  expect(values.has(RECENT_BUSINESS_STORAGE_KEY)).toBe(false);
+  expect(values.has(QUERY_PERSISTENCE_STORAGE_KEY)).toBe(true);
+  expect(values.has(RECENT_BUSINESS_STORAGE_KEY)).toBe(true);
   expect(useAuthStore.getState().isAuthenticated).toBe(false);
   expect(queryClient.getQueryData(key)).toBeUndefined();
   await hook.unmount();

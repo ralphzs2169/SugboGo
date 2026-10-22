@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import Toast from "react-native-toast-message";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import useSavedJourneys from "@/features/offline-routes/hooks/useSavedJourneys";
 import {
   beginAuthSession,
@@ -111,6 +112,22 @@ function summary(overrides = {}) {
 }
 
 describe("Offline Storage management", () => {
+  it("exposes Recent Explore alongside durable resources for local-only access", async () => {
+    useAuthStore.setState({ user: null, isAuthenticated: false });
+    useOfflineAccessStore.setState({
+      ownerId: 7,
+      recentExplore: {
+        ownerId: 7,
+        apiScope: "",
+        generation: getAuthSessionGeneration(),
+      },
+    });
+    const view = await render(<OfflineStorageScreen />);
+    await fireEvent.press(view.getByRole("button", { name: "Recent Explore" }));
+    expect(router.push).toHaveBeenCalledWith("/recent-explore");
+    expect(view.getByRole("button", { name: "Saved businesses" })).toBeTruthy();
+    expect(view.getByRole("button", { name: "Saved journeys" })).toBeTruthy();
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     mockOnline = true;

@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -77,6 +78,11 @@ export default function BusinessCard({
   variant = "default",
   recommendationReason = null,
 }: Props) {
+  const [failedCover, setFailedCover] = useState<string | null>(null);
+  const cover =
+    business.display_cover_photo_url !== failedCover
+      ? business.display_cover_photo_url
+      : null;
   const { width: screenWidth } = useWindowDimensions();
   const compactImageWidth = Math.min(
     176,
@@ -168,9 +174,10 @@ export default function BusinessCard({
             }}
             className="relative min-h-40 shrink-0 self-stretch overflow-hidden bg-surface-muted"
           >
-            {business.display_cover_photo_url ? (
+            {cover ? (
               <Image
-                source={{ uri: business.display_cover_photo_url }}
+                source={{ uri: cover }}
+                onError={() => setFailedCover(cover)}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 transition={150}
@@ -320,9 +327,10 @@ export default function BusinessCard({
           }}
           className="relative w-full bg-surface-secondary"
         >
-          {business.display_cover_photo_url ? (
+          {cover ? (
             <Image
-              source={{ uri: business.display_cover_photo_url }}
+              source={{ uri: cover }}
+              onError={() => setFailedCover(cover)}
               style={{
                 width: "100%",
                 height: "100%",

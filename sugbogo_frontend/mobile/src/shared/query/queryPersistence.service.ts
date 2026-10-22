@@ -82,7 +82,7 @@ export function createQueryPersistence({
   policies = QUERY_PERSISTENCE_POLICIES,
   limits = QUERY_PERSISTENCE_LIMITS,
   getApiScope = getQueryPersistenceApiScope,
-  now = Date.now,
+  now = () => Date.now(),
   throttleTimeMs = 1000,
 }: {
   storage?: Storage;
@@ -121,18 +121,23 @@ export function createQueryPersistence({
   const stopSessionChanges = subscribeAuthSessionChanges((change) => {
     // A cold-start restore may read the last validated owner's cache. Explicit
     // sign-in, replacement and revocation always start a new cache lifetime.
-    if (change !== "restore" || active) {
+    if (change === "restore" || change === "offline") {
+      active?.revoke();
+      active = null;
+    } else {
       void revoke();
     }
   });
 
-  function createSession(client: QueryClient) {
+  function createSession(
+    client: QueryClient | null,
+    local?: { scope: QueryPersistenceScope; current: () => boolean },
+  ) {
     const auth = useAuthStore.getState();
     const ownerId =
       auth.isAuthenticated && !auth.isLoading ? auth.user?.id : null;
-    const scope: QueryPersistenceScope | null = ownerId
-      ? { ownerId, apiScope: getApiScope() }
-      : null;
+    const scope: QueryPersistenceScope | null =
+      local?.scope ?? (ownerId ? { ownerId, apiScope: getApiScope() } : null);
     const generation = getAuthSessionGeneration();
     const entries = new Map<string, Entry>();
     let revoked = false;
@@ -140,6 +145,7 @@ export function createQueryPersistence({
     let hasStoredData = false;
 
     function authorized() {
+      if (local) return !disposed && !blocked && local.current();
       const current = useAuthStore.getState();
       return (
         !disposed &&
@@ -417,7 +423,7 @@ export function createQueryPersistence({
 
     /** Capture only actual fetch successes, never setQueryData or hydration writes. */
     function track() {
-      return client.getQueryCache().subscribe((event) => {
+      return client!.getQueryCache().subscribe((event) => {
         if (!authorized() || policies.length === 0) {
           return;
         }
@@ -436,7 +442,7 @@ export function createQueryPersistence({
           event.type !== "updated" ||
           event.action.type !== "success" ||
           event.action.manual ||
-          client.getQueryCache().get(event.query.queryHash) !== event.query
+          client!.getQueryCache().get(event.query.queryHash) !== event.query
         ) {
           return;
         }
@@ -488,6 +494,7 @@ export function createQueryPersistence({
       generation,
       persistOptions,
       track,
+      parseLocal: restore,
       revoke: () => {
         revoked = true;
         entries.clear();
@@ -496,6 +503,27 @@ export function createQueryPersistence({
   }
 
   return {
+    /** Validates stored policies for local presentation; never hydrates the shared QueryClient. */
+    readLocal(scope: QueryPersistenceScope, current: () => boolean) {
+      return enqueue(async () => {
+        if (disposed || blocked || !current()) return [];
+        try {
+          const json = await storage.getItem(QUERY_PERSISTENCE_STORAGE_KEY);
+          if (!json || !current()) return [];
+          const parsed = createSession(null, { scope, current }).parseLocal(
+            json,
+          );
+          if (!current()) return [];
+          return parsed.clientState.queries.map((query) => ({
+            queryKey: query.queryKey,
+            data: query.state.data,
+            fetchedAt: query.state.dataUpdatedAt,
+          }));
+        } catch {
+          return [];
+        }
+      });
+    },
     /** Resolves ownership only from the validated runtime authentication state. */
     openSession(client: QueryClient) {
       const auth = useAuthStore.getState();
@@ -511,7 +539,11 @@ export function createQueryPersistence({
         return active;
       }
       if (active) {
-        void revoke();
+        if (active.scope) void revoke();
+        else {
+          active.revoke();
+          active = null;
+        }
       }
       active = createSession(client);
       return active;

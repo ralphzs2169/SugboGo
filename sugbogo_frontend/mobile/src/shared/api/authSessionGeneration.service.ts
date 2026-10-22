@@ -1,7 +1,8 @@
 let authSessionGeneration = 0;
 let hasActiveAuthSession = false;
+let offlineTransportSession = false;
 
-type SessionChange = "replace" | "restore" | "revoke";
+type SessionChange = "replace" | "restore" | "revoke" | "offline";
 const sessionListeners = new Set<(change: SessionChange) => void>();
 
 /** Observes synchronous session boundaries without granting authentication. */
@@ -46,6 +47,7 @@ export function getAuthSessionGeneration() {
 export function beginAuthSession(change: "replace" | "restore" = "replace") {
   authSessionGeneration += 1;
   hasActiveAuthSession = true;
+  offlineTransportSession = false;
   notifySessionChange(change);
   return authSessionGeneration;
 }
@@ -54,8 +56,23 @@ export function beginAuthSession(change: "replace" | "restore" = "replace") {
 export function invalidateAuthSession() {
   authSessionGeneration += 1;
   hasActiveAuthSession = false;
+  offlineTransportSession = false;
   notifySessionChange("revoke");
   return authSessionGeneration;
+}
+
+/** Withdraws API authority after startup transport failure, preserving temporary disk data. */
+export function suspendAuthSession() {
+  authSessionGeneration += 1;
+  hasActiveAuthSession = false;
+  offlineTransportSession = true;
+  notifySessionChange("offline");
+  return authSessionGeneration;
+}
+
+/** Eligibility probes are allowed only after the current startup transport failure. */
+export function isOfflineTransportSession(generation: number) {
+  return offlineTransportSession && isAuthSessionGenerationCurrent(generation);
 }
 
 /** Checks whether asynchronous work still belongs to the active session. */

@@ -8,6 +8,7 @@ import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import useSavedJourneys from "@/features/offline-routes/hooks/useSavedJourneys";
 import MerchantMetricCard from "@/features/merchant/components/MerchantMetricCard";
 import MerchantContentSection from "@/features/merchant/layout/MerchantContentSection";
@@ -89,6 +90,7 @@ function storageSize(bytes: number): string {
 
 /** Manages device copies separately from cloud Pockets, retaining local browsing without internet. */
 export default function OfflineStorageScreen() {
+  const recentExplore = useOfflineAccessStore((state) => state.recentExplore);
   const saved = useOfflineStorageSummary();
   const { width, fontScale } = useWindowDimensions();
   const stacked = width < 340 || fontScale >= 1.5;
@@ -215,6 +217,16 @@ export default function OfflineStorageScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pb-8"
       >
+        {recentExplore && !authenticated && (
+          <View className="px-screen-x pb-4">
+            <StorageLink
+              icon="storefront-outline"
+              title="Recent Explore"
+              description="Browse previously loaded places. Read-only and temporary."
+              onPress={() => router.push("/recent-explore")}
+            />
+          </View>
+        )}
         {Platform.OS === "web" ? (
           <View className="bg-surface px-5 py-5">
             <ErrorState

@@ -18,12 +18,14 @@ export default function ReadOnlyBusinessProfile({
   localCoverUri,
   onRefresh,
   refreshing,
+  onGoBack,
 }: {
   snapshot: OfflineBusinessSnapshot;
   source: "offline-pocket" | "recent";
   localCoverUri?: string;
   onRefresh: () => void;
   refreshing: boolean;
+  onGoBack?: () => void;
 }) {
   const { top, bottom } = useSafeAreaInsets();
   return (
@@ -49,7 +51,7 @@ export default function ReadOnlyBusinessProfile({
       {/* Keep navigation reachable after scrolling long descriptions/schedules. */}
       <View className="absolute left-4 z-10" style={{ top: top + 16 }}>
         <SafePressable
-          onPress={() => router.back()}
+          onPress={onGoBack ?? (() => router.back())}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           className="min-h-12 min-w-12 items-center justify-center rounded-full bg-surface active:opacity-80"

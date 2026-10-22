@@ -93,7 +93,9 @@ available offline.
 Root provider module initialization registers cleanup before startup auth runs.
 The existing `beginAuthSession`/`invalidateAuthSession` events revoke handles
 synchronously and enqueue deletion on explicit session replacement, logout,
-expiry or startup failure. Cold restoration preserves disk content until the
+expiry or definitive startup failure. Task 5 transport suspension revokes runtime
+write handles while preserving disk for the separate Recent Explore local grant.
+Cold restoration preserves disk content until the
 existing authentication process validates identity. The store does not grant
 authentication or trust a local Offline Pocket access grant.
 
@@ -130,5 +132,6 @@ Physical-device verification remains pending:
    logout/account switching removes temporary content, and covers/long names/hours
    remain usable on a small device and with large system text.
 
-No auth guard, cold-start route, SQLite schema, backend, search/collection
-persistence or Community behavior is changed by this task.
+Task 5 adds a separate local reader guarded by the Recent Explore grant; it uses
+the same validated projection/limits without authenticated writes. Normal profile
+source resolution and auth guards remain unchanged. See `recentExplore.md`.

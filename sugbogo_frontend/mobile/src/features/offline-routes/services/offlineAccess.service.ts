@@ -123,9 +123,9 @@ export async function rememberOfflineResources(
   generation: number,
 ): Promise<void> {
   await assertOfflineResourceOwner(ownerId, generation);
-  if (await hasOfflineResources(ownerId, generation)) {
-    await rememberOfflineOwner(ownerId, generation);
-  }
+  // A known-owner marker grants nothing by itself. Durable and recent access
+  // independently require validated local content after a transport failure.
+  await rememberOfflineOwner(ownerId, generation);
 }
 
 /** Removes an empty grant without blocking future authenticated saves, unlike explicit logout. */
@@ -140,12 +140,14 @@ export function releaseOfflineAccessIfEmpty(
     if (useOfflineAccessStore.getState().ownerId === ownerId) {
       useOfflineAccessStore.getState().setOwnerId(null);
     }
-    await SecureStore.deleteItemAsync(OFFLINE_OWNER_KEY);
+    // Retain known identity for temporary Recent Explore eligibility. Empty
+    // durable storage still loses its runtime grant above.
   });
 }
 
 /** Revokes local access immediately and removes its persisted marker in operation order. */
 export function clearOfflineAccess(): Promise<void> {
+  useOfflineAccessStore.getState().setRecentExplore(null);
   useOfflineAccessStore.getState().setOwnerId(null);
   useOfflineAccessStore.getState().setRevoking(true);
   return serializeAccess(() => SecureStore.deleteItemAsync(OFFLINE_OWNER_KEY));

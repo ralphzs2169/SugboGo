@@ -61,7 +61,9 @@ Existing `beginAuthSession` and `invalidateAuthSession` boundaries synchronously
 notify the persistence coordinator. Explicit sign-in/replacement and revocation
 invalidate the old handle and enqueue removal. Startup uses the `restore` reason:
 it preserves disk data until identity validation succeeds, but any failed startup
-revokes and discards temporary content. Logout, HTTP refresh rejection, socket
+revokes and discards temporary content for definitive failures. Task 5 startup
+transport suspension preserves validated disk entries for a separate read-only
+Recent Explore grant; it never hydrates the authenticated client. Logout, HTTP refresh rejection, socket
 expiry and session-establishment failure already use these boundaries.
 
 All reads, writes and removals share one queue. A write that finishes after
@@ -131,6 +133,7 @@ require their own security, moderation, invalidation, pagination and UX tests.
    switch accounts; verify the previous owner's temporary content is unavailable.
 
 Offline cold-start access remains governed by `useRestoreSession`/`useAuthGuard`.
-This task does not grant local authentication, add Recent Explore, or expose a
-new local-only route. Tests simulate process recreation with an already validated
-authenticated shell to prove the data boundary independently of route access.
+Task 5 adds a separate local-only Recent Explore route after transport failure,
+without changing `useAuthGuard` or granting authentication. Its eligibility reader
+reuses these policies and never renews fetch age or hydrates the shared client.
+See `features/explore/services/recentExplore.md` for the current access contract.
