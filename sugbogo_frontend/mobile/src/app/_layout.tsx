@@ -27,6 +27,7 @@ import {
 import Toast from "react-native-toast-message";
 import NotificationRealtimeSync from "@/features/notifications/components/NotificationRealtimeSync";
 import PocketPickerProvider from "@/features/pockets/providers/PocketPickerProvider";
+import OfflinePocketSync from "@/features/offline-pockets/providers/OfflinePocketSync";
 
 import "../../global.css";
 
@@ -61,6 +62,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <NotificationRealtimeSync />
+      <OfflinePocketSync />
       <GestureHandlerRootView style={{ flex: 1 }}>
         <StatusBar style="dark" />
 
@@ -76,6 +78,9 @@ export default function RootLayout() {
                       options={{ animation: "none" }}
                     />
                     <Stack.Screen name="offline-routes" />
+                    <Stack.Screen name="offline-storage" />
+                    <Stack.Screen name="offline-pockets" />
+                    <Stack.Screen name="offline-business/[businessId]" />
 
                     <Stack.Screen
                       name="(auth)"

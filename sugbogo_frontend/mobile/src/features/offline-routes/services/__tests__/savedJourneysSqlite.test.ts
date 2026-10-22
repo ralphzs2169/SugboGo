@@ -6,6 +6,8 @@ import { join } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
+import { rememberOfflineOwner } from "../offlineAccess.service";
 import { OFFLINE_API_SCOPE } from "../../constants/offlineRoutes.constants";
 import { useOfflineAccessStore } from "../../stores/offlineAccess.store";
 import { snapshot } from "../../utils/__tests__/savedJourney.fixture";
@@ -14,6 +16,7 @@ import {
   deleteSavedJourney,
   listSavedJourneys,
   saveJourney,
+  hasSavedJourneysForOfflineAccess,
 } from "../savedJourneys.service";
 
 const sqlite = jest.requireActual(
@@ -76,6 +79,8 @@ jest.mock("../sqliteDriver", () => ({
 }));
 jest.mock("../offlineAccess.service", () => ({
   rememberOfflineOwner: jest.fn(),
+  releaseOfflineAccessIfEmpty: jest.fn().mockResolvedValue(undefined),
+  assertOfflineResourceOwner: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe("saved journey repository on real desktop SQLite", () => {
@@ -86,6 +91,7 @@ describe("saved journey repository on real desktop SQLite", () => {
   });
 
   beforeEach(() => {
+    jest.mocked(rememberOfflineOwner).mockReset().mockResolvedValue(undefined);
     useAuthStore.setState({ user: { id: 7 } as never, isAuthenticated: true });
     useOfflineAccessStore.setState({ ownerId: null, isRevoking: false });
     if (
@@ -107,6 +113,30 @@ describe("saved journey repository on real desktop SQLite", () => {
       if (existsSync(file)) unlinkSync(file);
     }
     rmdirSync(directory);
+  });
+
+  it("lets resource cleanup inspect committed journeys while marker registration is pending", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const markerStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    jest.mocked(rememberOfflineOwner).mockImplementationOnce(async () => {
+      started();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
+    const saving = saveJourney(snapshot);
+    await markerStarted;
+    try {
+      expect(
+        await hasSavedJourneysForOfflineAccess(7, getAuthSessionGeneration()),
+      ).toBe(true);
+    } finally {
+      release();
+    }
+    await saving;
   });
 
   it("persists actual repository writes across connection closure and a fresh Node process", async () => {

@@ -5,7 +5,11 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
-import { replaceBusinessPocketMemberships } from "../api/pockets.service";
+import {
+  preparePocketOfflineChange,
+  replacePocketMembershipsWithOffline,
+  type PocketOfflineChange,
+} from "../services/pocketOfflineMemberships.service";
 import {
   cancelPocketBusinessReads,
   invalidatePocketBusinessCaches,
@@ -21,6 +25,7 @@ type Submission = {
   ownerId: number;
   generation: number;
   pocketIds: number[];
+  offline: PocketOfflineChange;
 };
 
 function ownsSubmission(submission: Submission) {
@@ -56,7 +61,8 @@ export default function useReplacePocketMemberships(businessId: number | null) {
       if (!ownsSubmission(submission))
         throw new Error("Your Pocket session changed.");
       return throwOnApiError(
-        await replaceBusinessPocketMemberships(
+        await replacePocketMembershipsWithOffline(
+          submission.offline,
           submission.businessId,
           submission.pocketIds,
         ),
@@ -136,6 +142,7 @@ export default function useReplacePocketMemberships(businessId: number | null) {
       ownerId: userId,
       generation: getAuthSessionGeneration(),
       pocketIds: [...pocketIds],
+      offline: preparePocketOfflineChange(userId, getAuthSessionGeneration()),
     };
     pending.current = true;
     try {

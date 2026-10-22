@@ -18,7 +18,14 @@ import { DISCOVERY_RESULTS_QUERY_KEY } from "@/features/explore/hooks/useDiscove
 import { EXPLORE_COLLECTIONS_QUERY_KEY } from "@/features/explore/hooks/useExploreCollection";
 import { SIMILAR_BUSINESSES_QUERY_KEY } from "@/features/explore/hooks/useSimilarBusinesses";
 import type { User } from "@/features/users/types/user.types";
-import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
+import {
+  beginAuthSession,
+  getAuthSessionGeneration,
+} from "@/shared/api/authSessionGeneration.service";
+import {
+  applyOfflinePocketMembershipChange,
+  captureOfflinePocketContext,
+} from "@/features/offline-pockets/services/offlinePockets.service";
 import type {
   ApiResponse,
   ApiSuccessWithData,
@@ -40,6 +47,15 @@ jest.mock("../../api/pockets.service", () => ({
   getBusinessPocketMemberships: jest.fn(),
   replaceBusinessPocketMemberships: jest.fn(),
 }));
+jest.mock("@/features/offline-pockets/services/offlinePockets.service", () => ({
+  captureOfflinePocketContext: jest.fn(),
+  getOfflinePocketControl: jest.fn().mockResolvedValue(null),
+  applyOfflinePocketMembershipChange: jest.fn(),
+}));
+jest.mock(
+  "@/features/offline-pockets/services/offlinePocketSync.service",
+  () => ({ requestOfflinePocketSync: jest.fn() }),
+);
 const initialAuth = useAuthStore.getState();
 const response = (
   ids: number[],
@@ -79,6 +95,11 @@ describe("Pocket membership queries and replacements", () => {
   let client: QueryClient;
   let unsubscribeReads: (() => void)[];
   beforeEach(() => {
+    jest
+      .mocked(captureOfflinePocketContext)
+      .mockReset()
+      .mockRejectedValue(new Error("Local database unavailable"));
+    jest.mocked(applyOfflinePocketMembershipChange).mockReset();
     unsubscribeReads = [];
     beginAuthSession();
     useAuthStore.setState({
@@ -112,6 +133,39 @@ describe("Pocket membership queries and replacements", () => {
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
   }
+
+  it("captures offline policy before query cancellation and keeps local enqueue failure out of mutation errors", async () => {
+    const generation = getAuthSessionGeneration();
+    jest.mocked(captureOfflinePocketContext).mockResolvedValue({
+      apiScope: process.env.EXPO_PUBLIC_API_URL ?? "",
+      ownerId: 1,
+      sessionGeneration: generation,
+      clearGeneration: 0,
+    });
+    jest.mocked(getBusinessPocketMemberships).mockResolvedValue(response([]));
+    jest
+      .mocked(applyOfflinePocketMembershipChange)
+      .mockRejectedValue(new Error("Disk full"));
+    const cancel = jest.spyOn(client, "cancelQueries");
+    const { result } = await renderHook(() => useReplacePocketMemberships(42), {
+      wrapper: Wrapper,
+    });
+    await act(async () => {
+      expect((await result.current.replaceMemberships([20])).is_pocketed).toBe(
+        true,
+      );
+    });
+    await waitFor(() =>
+      expect(applyOfflinePocketMembershipChange).toHaveBeenCalled(),
+    );
+    expect(result.current.error).toBeNull();
+    expect(
+      client.getQueryData(businessPocketMembershipsQueryKey(1, 42)),
+    ).toEqual(response([20]).data);
+    expect(
+      jest.mocked(captureOfflinePocketContext).mock.invocationCallOrder[0],
+    ).toBeLessThan(cancel.mock.invocationCallOrder[0]);
+  });
 
   it("reads the full authoritative selection with an isolated key", async () => {
     const { result } = await renderHook(

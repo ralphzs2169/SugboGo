@@ -7,7 +7,7 @@ describe("notification presentation", () => {
   it("uses a vouch icon for new specialty endorsements", () => {
     expect(getNotificationPresentation("business_vouch_received")).toEqual({
       category: "vouch",
-      icon: "thumb-up-outline",
+      icon: "heart-outline",
     });
   });
   it("maps every current backend family to a stable semantic icon", () => {

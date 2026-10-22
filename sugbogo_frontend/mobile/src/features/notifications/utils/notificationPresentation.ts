@@ -32,7 +32,7 @@ const ICON_BY_CATEGORY: Record<
   ComponentProps<typeof MaterialCommunityIcons>["name"]
 > = {
   business: "storefront-outline",
-  vouch: "thumb-up-outline",
+  vouch: "heart-outline",
   review: "message-text-outline",
   "review-moderation": "message-text-outline",
   "review-dispute": "shield-check-outline",

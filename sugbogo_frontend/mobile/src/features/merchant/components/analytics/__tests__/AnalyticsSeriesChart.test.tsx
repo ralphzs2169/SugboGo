@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
+import { getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import AnalyticsSeriesChart from "../AnalyticsSeriesChart";
 import { bucket } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
@@ -10,6 +11,61 @@ const point = (date: string, value: number, days = 1) => ({
 });
 
 describe("AnalyticsSeriesChart calendar columns", () => {
+  it("shows inspection while holding, follows the finger, and clears on release", async () => {
+    const screen = await render(
+      <AnalyticsSeriesChart
+        points={[
+          point("2026-10-01", 2),
+          point("2026-10-02", 0),
+          point("2026-10-04", 4),
+        ]}
+        interval="daily"
+        label="Visits"
+      />,
+    );
+    const gesture = getByGestureTestId("analytics-chart-inspect-gesture");
+
+    expect(screen.queryByTestId("analytics-chart-inspection")).toBeNull();
+    expect(
+      screen.getByTestId("analytics-chart-viewport").props.scrollEnabled,
+    ).toBe(true);
+    expect(gesture.config.blocksHandlers ?? []).toHaveLength(0);
+    expect(gesture.config.failOffsetXStart).toBe(-8);
+    expect(gesture.config.failOffsetXEnd).toBe(8);
+    expect(gesture.config.failOffsetYStart).toBe(-8);
+    expect(gesture.config.failOffsetYEnd).toBe(8);
+
+    await act(() => {
+      gesture.handlers.onStart?.({ x: 1 } as never);
+    });
+    expect(screen.getByTestId("analytics-chart-inspection")).toBeTruthy();
+    expect(
+      screen.getByTestId("analytics-chart-viewport").props.scrollEnabled,
+    ).toBe(false);
+    const firstPosition = screen.getByTestId("analytics-inspection-guide").props
+      .x1;
+
+    await act(() => {
+      gesture.handlers.onUpdate?.({ x: 100000 } as never);
+    });
+    expect(screen.getByTestId("analytics-chart-inspection")).toBeTruthy();
+    expect(
+      screen.getByTestId("analytics-inspection-guide").props.x1,
+    ).toBeGreaterThan(firstPosition);
+
+    await act(() => {
+      gesture.handlers.onFinalize?.({} as never, true);
+    });
+
+    expect(screen.queryByTestId("analytics-chart-inspection")).toBeNull();
+    expect(
+      screen.getByTestId("analytics-chart-viewport").props.scrollEnabled,
+    ).toBe(true);
+    expect(
+      screen.getByText("Hold the chart, then slide to explore values."),
+    ).toBeTruthy();
+  });
+
   it.each([1, 2])(
     "preserves %i exact observations below the insufficient-data card",
     async (count) => {

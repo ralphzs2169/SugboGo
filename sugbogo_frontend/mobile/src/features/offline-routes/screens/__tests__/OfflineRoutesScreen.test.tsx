@@ -1,6 +1,7 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { router } from "expo-router";
 import useSavedJourneys from "../../hooks/useSavedJourneys";
 import { deleteSavedJourney } from "../../services/savedJourneys.service";
 import { snapshot } from "../../utils/__tests__/savedJourney.fixture";
@@ -11,12 +12,18 @@ jest.mock("../../services/savedJourneys.service", () => ({
   deleteSavedJourney: jest.fn(),
 }));
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn(), replace: jest.fn(), canGoBack: () => false },
+  router: {
+    push: jest.fn(),
+    replace: jest.fn(),
+    dismissTo: jest.fn(),
+    canGoBack: () => false,
+  },
+  useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 jest.mock("@/shared/components/modals/ConfirmModal", () => {
   const { Pressable, Text } = jest.requireActual("react-native");
-  return ({
+  const MockConfirmModal = ({
     visible,
     onConfirm,
   }: {
@@ -28,6 +35,7 @@ jest.mock("@/shared/components/modals/ConfirmModal", () => {
         <Text>Confirm removal</Text>
       </Pressable>
     ) : null;
+  return MockConfirmModal;
 });
 
 describe("saved guidance reader", () => {
@@ -52,6 +60,20 @@ describe("saved guidance reader", () => {
     expect(screen.getByText("Saved starting point: Saved start")).toBeTruthy();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     screen.unmount();
+  });
+
+  it("returns to Offline Storage without requiring a saved journey", async () => {
+    (useSavedJourneys as jest.Mock).mockReturnValue({
+      ownerId: 7,
+      items: [],
+      isLoading: false,
+      error: null,
+      reload,
+    });
+    const screen = await render(<OfflineRoutesScreen />);
+    await fireEvent.press(screen.getByRole("button", { name: "Go back" }));
+    expect(router.dismissTo).toHaveBeenCalledWith("/offline-storage");
+    expect(screen.getByText("Saved journeys")).toBeTruthy();
   });
 
   it("requires confirmation before deleting a corrupt entry", async () => {

@@ -24,6 +24,7 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 import PocketCollectionCard from "../components/PocketCollectionCard";
 import PocketCollectionActions from "../components/PocketCollectionActions";
 import PocketBusinessRemovalConfirmation from "../components/PocketBusinessRemovalConfirmation";
+import PocketBusinessActions from "../components/PocketBusinessActions";
 import usePocketCollection from "../hooks/usePocketCollection";
 import usePocketCollectionBusinesses from "../hooks/usePocketCollectionBusinesses";
 import type { PocketCollection } from "../types/pockets.types";
@@ -50,6 +51,7 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
     ownerId: number;
     generation: number;
   } | null>(null);
+  const [businessAction, setBusinessAction] = useState<typeof removing>(null);
   const isValidId =
     typeof collectionId === "number" &&
     Number.isSafeInteger(collectionId) &&
@@ -278,7 +280,7 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
               compactTrailingAction={
                 <SafePressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove ${item.business_name} from ${metadata.collection?.name}`}
+                  accessibilityLabel={`Options for ${item.business_name}`}
                   className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-muted"
                   onPress={() => {
                     if (
@@ -287,7 +289,7 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
                       !isValidId
                     )
                       return;
-                    setRemoving({
+                    setBusinessAction({
                       collectionId,
                       business: item,
                       ownerId: metadata.userId,
@@ -296,7 +298,7 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
                   }}
                 >
                   <MaterialCommunityIcons
-                    name="trash-can-outline"
+                    name="dots-vertical"
                     size={22}
                     color={theme.extends.colors.text.secondary}
                     accessibilityElementsHidden
@@ -374,6 +376,17 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
             collection={managing.collection}
             onClose={() => setManaging(null)}
             onDeleted={() => router.replace("/(explorer)/profile/my-pockets")}
+          />
+        )}
+      {canShowContents &&
+        businessAction &&
+        businessAction.collectionId === collectionId &&
+        businessAction.ownerId === metadata.userId &&
+        businessAction.generation === getAuthSessionGeneration() && (
+          <PocketBusinessActions
+            {...businessAction}
+            onRemove={() => setRemoving(businessAction)}
+            onClose={() => setBusinessAction(null)}
           />
         )}
       {canShowContents &&

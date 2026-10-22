@@ -18,6 +18,12 @@ import {
 } from "../api/pockets.service";
 import type { PocketCollection } from "../types/pockets.types";
 import {
+  deletePocketCollectionWithOffline,
+  preparePocketOfflineChange,
+  removePocketBusinessWithOffline,
+  type PocketOfflineChange,
+} from "../services/pocketOfflineMemberships.service";
+import {
   cancelPocketBusinessReads,
   invalidatePocketBusinessCaches,
   refreshPocketBusinessCaches,
@@ -30,7 +36,12 @@ import {
   pocketCollectionsQueryKey,
 } from "./pocketQueryKeys";
 
-type Submission<T> = { input: T; ownerId: number; generation: number };
+type Submission<T> = {
+  input: T;
+  ownerId: number;
+  generation: number;
+  offline: PocketOfflineChange | null;
+};
 type CollectionTarget = Pick<PocketCollection, "id" | "is_default">;
 
 function isCurrent<T>({ ownerId, generation }: Submission<T>) {
@@ -61,12 +72,17 @@ function useOwnedPocketMutation<TInput, TData>({
   apply,
   changesMemberships = false,
   deletedId,
+  offlineRequest,
 }: {
   request: (input: TInput) => Promise<ApiResponse<TData>>;
   validate?: (input: TInput) => void;
   apply?: (client: QueryClient, data: TData, ownerId: number) => void;
   changesMemberships?: boolean;
   deletedId?: (input: TInput) => number;
+  offlineRequest?: (
+    input: TInput,
+    change: PocketOfflineChange,
+  ) => Promise<ApiResponse<TData>>;
 }) {
   const client = useQueryClient();
   const userId = useAuthStore((state) => state.user?.id ?? null);
@@ -87,7 +103,11 @@ function useOwnedPocketMutation<TInput, TData>({
     mutationFn: async (submission: Submission<TInput>) => {
       if (!isCurrent(submission))
         throw new Error("Your Pocket session changed.");
-      return throwOnApiError(await request(submission.input));
+      return throwOnApiError(
+        submission.offline && offlineRequest
+          ? await offlineRequest(submission.input, submission.offline)
+          : await request(submission.input),
+      );
     },
     onSuccess: async (data, submission) => {
       if (!isCurrent(submission)) return;
@@ -152,6 +172,9 @@ function useOwnedPocketMutation<TInput, TData>({
       input,
       ownerId: userId,
       generation: getAuthSessionGeneration(),
+      offline: changesMemberships
+        ? preparePocketOfflineChange(userId, getAuthSessionGeneration())
+        : null,
     };
     pending.current = true;
     try {
@@ -202,6 +225,8 @@ export function useDeletePocketCollection() {
     validate: customCollection,
     changesMemberships: true,
     deletedId: (collection) => collection.id,
+    offlineRequest: (collection, change) =>
+      deletePocketCollectionWithOffline(change, collection.id),
   });
   return { ...mutation, deleteCollection: mutation.submit };
 }
@@ -216,6 +241,12 @@ export function useRemovePocketBusiness() {
       validId(businessId);
     },
     changesMemberships: true,
+    offlineRequest: (input, change) =>
+      removePocketBusinessWithOffline(
+        change,
+        input.collectionId,
+        input.businessId,
+      ),
     apply: (client, memberships, ownerId) => {
       updatePocketBusinessCaches(
         client,

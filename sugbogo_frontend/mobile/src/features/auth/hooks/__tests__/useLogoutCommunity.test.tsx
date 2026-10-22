@@ -23,7 +23,7 @@ jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
   clearOfflineAccess: jest.fn(),
 }));
 jest.mock("@/features/offline-routes/services/savedJourneys.service", () => ({
-  clearSavedJourneys: jest.fn(),
+  clearSavedJourneysForLogout: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock("@/features/merchant/stores/merchantRegistrationStore", () => ({
   useMerchantRegistrationStore: {
