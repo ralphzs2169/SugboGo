@@ -1,9 +1,16 @@
-import { render, within } from "@testing-library/react-native";
+import { fireEvent, render, within } from "@testing-library/react-native";
+import { ScrollView } from "react-native";
 
 import PrivacyPolicyScreen from "../PrivacyPolicyScreen";
 
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: jest.requireActual("react-native").View,
+}));
+
+const mockScrollTo = jest.spyOn(ScrollView.prototype, "scrollTo");
+
+jest.mock("@expo/vector-icons", () => ({
+  MaterialCommunityIcons: () => null,
 }));
 
 const expectedHeadings = [
@@ -73,6 +80,7 @@ function setDevelopmentMode(value: boolean) {
 describe("Privacy Policy draft", () => {
   beforeEach(() => {
     setDevelopmentMode(true);
+    mockScrollTo.mockClear();
   });
 
   afterEach(() => {
@@ -117,15 +125,107 @@ describe("Privacy Policy draft", () => {
     ).toBeTruthy();
   });
 
-  it("keeps the draft notice outside the scrolling document", async () => {
+  it("starts closed at Introduction, without the draft banner", async () => {
     const screen = await render(<PrivacyPolicyScreen />);
     const document = within(screen.getByTestId("privacy-policy-scroll"));
 
-    expect(screen.getByText(draftLabel)).toBeTruthy();
-    expect(document.queryByText(draftLabel)).toBeNull();
+    const trigger = screen.getByRole("button", {
+      name: "Choose a Privacy Policy section",
+    });
+    expect(trigger.props.accessibilityState).toEqual({ expanded: false });
+    expect(trigger.props.accessibilityValue.text).toBe(expectedHeadings[0]);
+    expect(
+      within(trigger).getByText(expectedHeadings[0]).props.className,
+    ).toContain("text-brand");
+    expect(screen.queryByTestId("privacy-policy-sections")).toBeNull();
+    expect(screen.queryByText(draftLabel)).toBeNull();
     expect(
       document.getByRole("header", { name: "12. Contact Information" }),
     ).toBeTruthy();
+  });
+
+  it("toggles the twelve ordered navigation choices without resetting the document", async () => {
+    const screen = await render(<PrivacyPolicyScreen />);
+    const trigger = screen.getByRole("button", {
+      name: "Choose a Privacy Policy section",
+    });
+
+    await fireEvent.press(trigger);
+    const menu = within(screen.getByTestId("privacy-policy-sections"));
+    expect(
+      menu.getAllByRole("button").map((item) => item.props.accessibilityLabel),
+    ).toEqual(expectedHeadings);
+    expect(
+      menu.getByRole("button", { name: expectedHeadings[0] }).props.accessibilityState,
+    ).toEqual({ selected: true });
+    expect(
+      within(screen.getByTestId("privacy-policy-scroll")).getAllByRole("header", {
+        name: /^\d+\. /,
+      }),
+    ).toHaveLength(12);
+    await fireEvent.press(trigger);
+    expect(screen.queryByTestId("privacy-policy-sections")).toBeNull();
+    expect(mockScrollTo).not.toHaveBeenCalled();
+    // No scrollEnabled=false or responder handler intercepts ordinary document gestures.
+    expect(
+      screen.getByTestId("privacy-policy-scroll").props.scrollEnabled,
+    ).not.toBe(false);
+  });
+
+  it.each([
+    ["introduction", "1. Introduction", 24],
+    ["data-retention", "7. Data Retention", 2400],
+    ["contact-information", "12. Contact Information", 4800],
+  ])("jumps to measured %s, closes the menu and updates its label", async (id, heading, y) => {
+    const screen = await render(<PrivacyPolicyScreen />);
+    await fireEvent(screen.getByTestId(`privacy-policy-section-${id}`), "layout", {
+      nativeEvent: { layout: { x: 0, y, width: 320, height: 200 } },
+    });
+    const trigger = screen.getByRole("button", {
+      name: "Choose a Privacy Policy section",
+    });
+    await fireEvent.press(trigger);
+    await fireEvent.press(screen.getByRole("button", { name: heading }));
+
+    expect(mockScrollTo).toHaveBeenLastCalledWith({ y, animated: true });
+    expect(screen.queryByTestId("privacy-policy-sections")).toBeNull();
+    expect(trigger.props.accessibilityValue.text).toBe(heading);
+    expect(within(trigger).getByText(heading).props.className).toContain(
+      "text-brand",
+    );
+    expect(
+      within(screen.getByTestId("privacy-policy-scroll"))
+        .getAllByRole("header", { name: /^\d+\. / })
+        .map((item) => item.props.children),
+    ).toEqual(expectedHeadings);
+    await fireEvent.press(trigger);
+    const selectedItem = screen.getByRole("button", { name: heading });
+    expect(selectedItem.props.accessibilityState).toEqual({ selected: true });
+    expect(within(selectedItem).getByText(heading).props.className).toContain(
+      "text-brand",
+    );
+  });
+
+  it("defers a jump until layout and uses updated positions after text reflows", async () => {
+    const screen = await render(<PrivacyPolicyScreen />);
+    const trigger = screen.getByRole("button", {
+      name: "Choose a Privacy Policy section",
+    });
+    await fireEvent.press(trigger);
+    await fireEvent.press(screen.getByRole("button", { name: "7. Data Retention" }));
+    expect(mockScrollTo).not.toHaveBeenCalled();
+
+    const section = screen.getByTestId("privacy-policy-section-data-retention");
+    await fireEvent(section, "layout", {
+      nativeEvent: { layout: { x: 0, y: 2600, width: 320, height: 300 } },
+    });
+    expect(mockScrollTo).toHaveBeenLastCalledWith({ y: 2600, animated: true });
+    await fireEvent(section, "layout", {
+      nativeEvent: { layout: { x: 0, y: 3400, width: 280, height: 400 } },
+    });
+    await fireEvent.press(trigger);
+    await fireEvent.press(screen.getByRole("button", { name: "7. Data Retention" }));
+    expect(mockScrollTo).toHaveBeenLastCalledWith({ y: 3400, animated: true });
   });
 
   it("does not render implementation instructions or duplicate the route title", async () => {
@@ -147,6 +247,7 @@ describe("Privacy Policy draft", () => {
 
     expect(screen.getByText(placeholder)).toBeTruthy();
     expect(screen.queryByText(draftLabel)).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryAllByRole("header")).toHaveLength(0);
     for (const text of [
       ...expectedHeadings,
@@ -159,7 +260,7 @@ describe("Privacy Policy draft", () => {
 
   it("removes the draft when rendering switches to production mode", async () => {
     const screen = await render(<PrivacyPolicyScreen />);
-    expect(screen.getByText(draftLabel)).toBeTruthy();
+    expect(screen.getByRole("header", { name: expectedHeadings[0] })).toBeTruthy();
 
     setDevelopmentMode(false);
     await screen.rerender(<PrivacyPolicyScreen />);
