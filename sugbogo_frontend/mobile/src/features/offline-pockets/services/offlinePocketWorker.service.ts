@@ -8,6 +8,8 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 
 import type { OfflinePocketOperation } from "../types/offlinePockets.types";
 import { createOfflineBusinessSnapshot } from "../validation/offlineBusinessSnapshot";
+import { cacheOfflinePocketCover } from "./offlinePocketCover.service";
+import { OfflineCoverError } from "./offlinePocketCoverFiles";
 import {
   assertOfflinePocketWorkCurrent,
   completeOfflinePocketWork,
@@ -129,6 +131,31 @@ export async function cacheOfflinePocketBusiness(
     }
     await checkpoint();
     await publishOfflineBusinessSnapshot(operation, snapshot);
+    await checkpoint();
+    try {
+      await cacheOfflinePocketCover(
+        operation,
+        snapshot,
+        checkpoint,
+        hasMembership,
+        signal,
+      );
+    } catch (error) {
+      // Snapshot publication has already succeeded. Only optional image work may be retried.
+      await checkpoint();
+      if (!(error instanceof OfflineCoverError) || error.retryable) {
+        const control = await getOfflinePocketControl(
+          operation,
+          operation.businessId,
+        );
+        await failOfflinePocketWork(
+          operation,
+          "COVER_DOWNLOAD_FAILED",
+          offlinePocketRetryAt(control?.attempts ?? 5),
+        );
+        return;
+      }
+    }
     await checkpoint();
     await completeOfflinePocketWork(operation);
   } catch (error) {

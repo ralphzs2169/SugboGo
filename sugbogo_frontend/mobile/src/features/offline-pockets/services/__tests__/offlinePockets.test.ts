@@ -6,6 +6,14 @@ import { join } from "node:path";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { SQLiteDatabase } from "expo-sqlite";
 import {
+  mockDownload,
+  mockFiles,
+  mockDelete,
+  resetCoverFileMock,
+  MockFile as mockFileClass,
+  MockDirectory as mockDirectoryClass,
+} from "./coverFileSystem.mock";
+import {
   businessFixture,
   snapshotFixture,
 } from "../../validation/__tests__/snapshotFixture";
@@ -26,6 +34,27 @@ let mockApiScope = "https://api-a.example";
 let mockFailSql: string | null = null;
 let mockFailMigration = false;
 let mockFailSnapshotMigration = false;
+let mockFailCoverMigration = false;
+let mockCoverId = 0;
+jest.mock("expo-crypto", () => ({
+  CryptoDigestAlgorithm: { SHA256: "sha256" },
+  digestStringAsync: async (_algorithm: string, value: string) =>
+    jest
+      .requireActual("node:crypto")
+      .createHash("sha256")
+      .update(value)
+      .digest("hex"),
+  randomUUID: () =>
+    `00000000-0000-4000-8000-${String(++mockCoverId).padStart(12, "0")}`,
+}));
+jest.mock("expo-file-system", () => {
+  const driver = jest.requireActual("./coverFileSystem.mock");
+  return {
+    File: driver.MockFile,
+    Directory: driver.MockDirectory,
+    Paths: { document: "file:///documents" },
+  };
+});
 const mockGetDetail = jest.fn();
 const mockGetMemberships = jest.fn();
 const mockReplaceMemberships = jest.fn();
@@ -75,6 +104,10 @@ function mockOpenDatabase(name: string): SQLiteDatabase {
   mockConnections.add(native);
   const adapter = {
     execAsync: async (sql: string) => {
+      if (mockFailCoverMigration && sql.includes("PRAGMA user_version = 3")) {
+        mockFailCoverMigration = false;
+        throw new Error("Cover migration failed");
+      }
       if (
         mockFailSnapshotMigration &&
         sql.includes("PRAGMA user_version = 2")
@@ -158,6 +191,11 @@ function loadRepository() {
     "@/shared/api/authSessionGeneration.service",
   );
   api = jest.requireActual<Repository>("../offlinePockets.service");
+  const { Image } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  jest.spyOn(Image, "getSize").mockImplementation((_uri, success) => {
+    success?.(400, 300);
+  });
   signIn();
 }
 
@@ -187,6 +225,15 @@ function deferred() {
 
 describe("Offline Pocket SQLite control foundation", () => {
   beforeEach(() => {
+    resetCoverFileMock();
+    // File driver mocks must retain the same backing store across resetModules/reopening.
+    jest.doMock("expo-file-system", () => {
+      return {
+        File: mockFileClass,
+        Directory: mockDirectoryClass,
+        Paths: { document: "file:///documents" },
+      };
+    });
     mockSecureValues.clear();
     directory = mkdtempSync(join(tmpdir(), "sugbogo-pocket-control-"));
     databasePath = join(directory, "pockets.sqlite");
@@ -194,6 +241,7 @@ describe("Offline Pocket SQLite control foundation", () => {
     mockFailSql = null;
     mockFailMigration = false;
     mockFailSnapshotMigration = false;
+    mockFailCoverMigration = false;
     mockPause = null;
     mockOpenedNames.length = 0;
     loadRepository();
@@ -242,7 +290,7 @@ describe("Offline Pocket SQLite control foundation", () => {
     expect(first.clearGeneration).toBe(0);
     expect(mockOpenedNames).toEqual(["sugbogo_offline_pockets.db"]);
     expect(nativeDatabase().prepare("PRAGMA user_version").get()).toEqual({
-      user_version: 2,
+      user_version: 3,
     });
     expect(nativeDatabase().prepare("PRAGMA journal_mode").get()).toEqual({
       journal_mode: "wal",
@@ -661,7 +709,7 @@ describe("Offline Pocket SQLite control foundation", () => {
     await api.enqueueConfirmedPocketSave(context, 21);
     await api.clearOfflinePocketControlState(context);
     nativeDatabase().exec(
-      "DROP TABLE offline_business_snapshots; PRAGMA user_version = 1",
+      "DROP TABLE offline_pocket_cover_files; DROP TABLE offline_business_snapshots; PRAGMA user_version = 1",
     );
     reopenRepository();
     const current = await api.captureOfflinePocketContext();
@@ -671,7 +719,7 @@ describe("Offline Pocket SQLite control foundation", () => {
     });
     expect(await api.listOfflineBusinessSnapshots(current)).toEqual([]);
     expect(nativeDatabase().prepare("PRAGMA user_version").get()).toEqual({
-      user_version: 2,
+      user_version: 3,
     });
   });
 
@@ -679,7 +727,7 @@ describe("Offline Pocket SQLite control foundation", () => {
     const context = await api.captureOfflinePocketContext();
     await api.enqueueConfirmedPocketSave(context, 21);
     nativeDatabase().exec(
-      "DROP TABLE offline_business_snapshots; PRAGMA user_version = 1",
+      "DROP TABLE offline_pocket_cover_files; DROP TABLE offline_business_snapshots; PRAGMA user_version = 1",
     );
     reopenRepository();
     mockFailSnapshotMigration = true;
@@ -1067,6 +1115,542 @@ describe("Offline Pocket SQLite control foundation", () => {
       "../offlinePocketWorker.service",
     ).cacheOfflinePocketBusiness;
   }
+
+  function withCover(
+    source: string | null = "https://example.com/display.jpg",
+  ) {
+    const business = businessFixture();
+    business.display_cover_photo_url = source;
+    mockGetDetail.mockResolvedValue({ success: true, data: business });
+    return business;
+  }
+
+  async function cacheCover() {
+    withCover();
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    await cacheBusiness()(operation, () => true);
+    return { context, operation };
+  }
+
+  it("caches only the resolved display cover and reopens its managed reference", async () => {
+    const { context } = await cacheCover();
+    expect(mockDownload).toHaveBeenCalledTimes(1);
+    expect(mockDownload.mock.calls[0][0]).toBe(
+      "https://example.com/display.jpg",
+    );
+    expect(mockFiles.size).toBe(1);
+    const covers = await api.listOfflineBusinessCovers(context);
+    expect(covers).toHaveLength(1);
+    const files = jest.requireActual<
+      typeof import("../offlinePocketCoverFiles")
+    >("../offlinePocketCoverFiles");
+    expect(
+      await files.offlineCoverFileUri(context, covers[0].fileName),
+    ).toMatch(
+      /^file:\/\/\/documents\/offline-pocket-covers\/[a-f0-9]{64}\/7\/b21-/,
+    );
+    reopenRepository();
+    expect(
+      await api.listOfflineBusinessCovers(
+        await api.captureOfflinePocketContext(),
+      ),
+    ).toEqual(covers);
+    expect(mockFiles.size).toBe(1);
+    expect(mockGetMemberships).toHaveBeenCalledTimes(3);
+    session.invalidateAuthSession();
+    auth.setState({ user: null, isAuthenticated: false, isLoading: false });
+    const store = jest.requireActual<
+      typeof import("@/features/offline-routes/stores/offlineAccess.store")
+    >(
+      "@/features/offline-routes/stores/offlineAccess.store",
+    ).useOfflineAccessStore;
+    store.setState({ ownerId: 7, isRevoking: false });
+    const local = await api.captureOfflinePocketReadContext();
+    expect(await api.listOfflineBusinessCovers(local)).toEqual(covers);
+    expect(await files.offlineCoverFileUri(local, covers[0].fileName)).toMatch(
+      /^file:\/\//,
+    );
+    expect(mockGetMemberships).toHaveBeenCalledTimes(3);
+    expect(mockGetDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not download a raw cover or galleries when display cover is absent", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const operation = await api.enqueueConfirmedPocketSave(context, 21);
+    await cacheBusiness()(operation, () => true);
+    expect(mockDownload).not.toHaveBeenCalled();
+    expect(await api.listOfflineBusinessCovers(context)).toEqual([]);
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      workStatus: "completed",
+    });
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it("reuses matching existing images, but replaces a missing local file", async () => {
+    const { context } = await cacheCover();
+    const refresh = await api.requestOfflinePocketRestore(context, 21);
+    await cacheBusiness()(refresh, () => true);
+    expect(mockDownload).toHaveBeenCalledTimes(1);
+    mockFiles.clear();
+    const again = await api.requestOfflinePocketRestore(context, 21);
+    await cacheBusiness()(again, () => true);
+    expect(mockDownload).toHaveBeenCalledTimes(2);
+    expect(await api.listOfflineBusinessCovers(context)).toHaveLength(1);
+    expect(mockFiles.size).toBe(1);
+  });
+
+  it("preserves healthy images and readable new text when a transient image refresh fails", async () => {
+    const { context } = await cacheCover();
+    const previous = await api.listOfflineBusinessCovers(context);
+    withCover("https://example.com/new-display.jpg").description =
+      "Updated business text";
+    mockDownload.mockRejectedValueOnce(new Error("Network disconnected"));
+    const refresh = await api.requestOfflinePocketRestore(context, 21);
+    await cacheBusiness()(refresh, () => true);
+    expect(await api.listOfflineBusinessCovers(context)).toEqual(previous);
+    expect(mockFiles.size).toBe(1);
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+      snapshot: { business: { description: "Updated business text" } },
+    });
+    const failed = await api.getOfflinePocketControl(context, 21);
+    expect(failed).toMatchObject({
+      workStatus: "failed",
+      lastErrorCode: "COVER_DOWNLOAD_FAILED",
+    });
+    expect(failed?.nextRetryAt).not.toBeNull();
+    jest.spyOn(Date, "now").mockReturnValue(failed!.nextRetryAt!);
+    await cacheBusiness()(
+      await api.retryOfflinePocketWork(refresh),
+      () => true,
+    );
+    expect(mockFiles.size).toBe(1);
+    expect((await api.listOfflineBusinessCovers(context))[0].remoteSource).toBe(
+      "https://example.com/new-display.jpg",
+    );
+  });
+
+  it.each([404, 403, 410])(
+    "does not repeatedly retry permanent cover HTTP %s failures",
+    async (status) => {
+      withCover();
+      mockDownload.mockRejectedValueOnce(
+        new Error(`UnableToDownload: response has status: ${status}`),
+      );
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      await cacheBusiness()(operation, () => true);
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        workStatus: "completed",
+        nextRetryAt: null,
+      });
+      expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+        status: "available",
+      });
+      expect(mockFiles.size).toBe(0);
+    },
+  );
+
+  it("deletes an old cover only after a valid replacement is ready and clears it on no-cover refresh", async () => {
+    const { context } = await cacheCover();
+    const oldUri = [...mockFiles.keys()][0];
+    const started = deferred();
+    const release = deferred();
+    mockDownload.mockImplementationOnce(async (_source, destination) => {
+      started.resolve();
+      await release.promise;
+      mockFiles.set(destination.uri, 2048);
+    });
+    withCover("https://example.com/replacement.jpg");
+    const refresh = await api.requestOfflinePocketRestore(context, 21);
+    const caching = cacheBusiness()(refresh, () => true);
+    await started.promise;
+    expect(mockFiles.has(oldUri)).toBe(true);
+    release.resolve();
+    await caching;
+    expect(mockFiles.has(oldUri)).toBe(false);
+    expect(mockFiles.size).toBe(1);
+    withCover(null);
+    await cacheBusiness()(
+      await api.requestOfflinePocketRestore(context, 21),
+      () => true,
+    );
+    expect(mockFiles.size).toBe(0);
+    expect(await api.listOfflineBusinessCovers(context)).toEqual([]);
+  });
+
+  it.each(["clear", "remove", "logout", "switch", "replace-session"])(
+    "rejects publication after %s during a download",
+    async (action) => {
+      withCover();
+      const started = deferred();
+      const release = deferred();
+      mockDownload.mockImplementationOnce(async (_source, file) => {
+        mockFiles.set(file.uri, 128);
+        started.resolve();
+        // Simulate native cancellation arriving late: JS guards must still reject publication.
+        await release.promise;
+        mockFiles.set(file.uri, 1024);
+      });
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      const caching = cacheBusiness()(operation, () => true).catch(
+        (error: unknown) => error,
+      );
+      await started.promise;
+      if (action === "clear") await api.clearOfflinePocketControlState(context);
+      else if (action === "remove")
+        await api.removeOfflineBusinessSnapshot(context, 21);
+      else if (action === "logout") {
+        session.invalidateAuthSession();
+        auth.getState().clearUser();
+      } else signIn(action === "switch" ? 8 : 7);
+      release.resolve();
+      await caching;
+      expect(mockFiles.size).toBe(0);
+      expect(
+        nativeDatabase()
+          .prepare(
+            "SELECT COUNT(*) AS count FROM offline_pocket_cover_files WHERE file_state = 'ready'",
+          )
+          .get(),
+      ).toEqual({ count: 0 });
+    },
+  );
+
+  it("preserves images with another membership and cleans them after confirmed final removal", async () => {
+    const { context } = await cacheCover();
+    const version = (await api.getOfflinePocketControl(context, 21))!
+      .operationVersion;
+    await api.applyOfflinePocketMembershipChange(
+      context,
+      21,
+      version,
+      true,
+      true,
+    );
+    expect(mockFiles.size).toBe(1);
+    expect(await api.listOfflineBusinessCovers(context)).toHaveLength(1);
+    await api.applyOfflinePocketMembershipChange(
+      context,
+      21,
+      version,
+      true,
+      false,
+    );
+    expect(mockFiles.size).toBe(0);
+    expect(await api.listOfflineBusinessCovers(context)).toEqual([]);
+  });
+
+  it("persists failed deletion for recovery without exposing cleared references", async () => {
+    const { context } = await cacheCover();
+    mockDelete.mockImplementation(() => {
+      throw new Error("Filesystem busy");
+    });
+    await api.clearOfflinePocketControlState(context);
+    const current = await api.captureOfflinePocketContext();
+    expect(await api.listOfflineBusinessCovers(current)).toEqual([]);
+    expect(mockFiles.size).toBe(1);
+    reopenRepository();
+    mockDelete.mockReset();
+    await api.recoverOfflinePocketWork(await api.captureOfflinePocketContext());
+    expect(mockFiles.size).toBe(0);
+  });
+
+  it("recovers orphan staging files after restart without damaging an existing ready cover", async () => {
+    const { context } = await cacheCover();
+    const operation = await api.requestOfflinePocketRestore(context, 21);
+    await api.startOfflinePocketWork(operation);
+    withCover("https://example.com/new.jpg");
+    const snapshot = snapshotFixture(21, new Date().toISOString());
+    snapshot.business.display_cover_photo_url = "https://example.com/new.jpg";
+    await api.publishOfflineBusinessSnapshot(operation, snapshot);
+    const files = jest.requireActual<
+      typeof import("../offlinePocketCoverFiles")
+    >("../offlinePocketCoverFiles");
+    const name = files.newOfflineCoverName(21);
+    await api.registerOfflinePocketCover(
+      operation,
+      name,
+      "https://example.com/new.jpg",
+    );
+    const oldUri = [...mockFiles.keys()][0];
+    mockFiles.set(oldUri.replace(/b21-[^/]+$/, `${name}.part`), 128);
+    reopenRepository();
+    const reopened = await api.captureOfflinePocketContext();
+    await api.recoverOfflinePocketWork(reopened);
+    expect(mockFiles.size).toBe(1);
+    expect(mockFiles.has(oldUri)).toBe(true);
+    expect(await api.listOfflineBusinessCovers(reopened)).toHaveLength(1);
+    await expect(
+      api.publishOfflinePocketCover(
+        operation,
+        name,
+        "https://example.com/new.jpg",
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("upgrades schema two atomically and retries a failed cover migration", async () => {
+    await runningSnapshot();
+    nativeDatabase().exec(
+      "DROP TABLE offline_pocket_cover_files; PRAGMA user_version = 2",
+    );
+    reopenRepository();
+    mockFailCoverMigration = true;
+    await expect(api.captureOfflinePocketContext()).rejects.toThrow(
+      "Cover migration failed",
+    );
+    const probe = new sqlite.DatabaseSync(databasePath);
+    expect(probe.prepare("PRAGMA user_version").get()).toEqual({
+      user_version: 2,
+    });
+    probe.close();
+    const context = await api.captureOfflinePocketContext();
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+    expect(await api.listOfflineBusinessCovers(context)).toEqual([]);
+  });
+
+  it.each(["removed", "unknown"])(
+    "rechecks backend membership before image publication (%s)",
+    async (membership) => {
+      withCover();
+      mockGetMemberships.mockResolvedValueOnce({
+        success: true,
+        data: { business_id: 21, pocket_ids: [1], is_pocketed: true },
+      });
+      mockGetMemberships.mockResolvedValueOnce({
+        success: true,
+        data: { business_id: 21, pocket_ids: [1], is_pocketed: true },
+      });
+      mockGetMemberships.mockResolvedValueOnce(
+        membership === "removed"
+          ? {
+              success: true,
+              data: { business_id: 21, pocket_ids: [], is_pocketed: false },
+            }
+          : { success: false, code: "NETWORK_ERROR" },
+      );
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      await cacheBusiness()(operation, () => true).catch(() => undefined);
+      expect(await api.listOfflineBusinessCovers(context)).toEqual([]);
+      expect(mockFiles.size).toBe(0);
+      expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+        status: membership === "removed" ? "missing" : "available",
+      });
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        intent: membership === "removed" ? "suppressed" : "automatic",
+      });
+    },
+  );
+
+  it("rejects an old image operation version without replacing a ready cover", async () => {
+    const { context, operation } = await cacheCover();
+    const previous = await api.listOfflineBusinessCovers(context);
+    await api.requestOfflinePocketRestore(context, 21);
+    await expect(
+      api.publishOfflinePocketCover(
+        operation,
+        previous[0].fileName,
+        previous[0].remoteSource,
+      ),
+    ).rejects.toThrow();
+    expect(await api.listOfflineBusinessCovers(context)).toEqual(previous);
+  });
+
+  it("keeps a valid cover when replacement publication rolls back", async () => {
+    const { context } = await cacheCover();
+    const previous = await api.listOfflineBusinessCovers(context);
+    withCover("https://example.com/new.jpg");
+    mockFailSql = "SET file_state = 'ready'";
+    await cacheBusiness()(
+      await api.requestOfflinePocketRestore(context, 21),
+      () => true,
+    );
+    expect(await api.listOfflineBusinessCovers(context)).toEqual(previous);
+    expect(mockFiles.size).toBe(1);
+    expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+      status: "available",
+    });
+  });
+
+  it.each(["decode", "oversize", "empty"])(
+    "discards %s image data while preserving text",
+    async (failure) => {
+      withCover();
+      const { Image } =
+        jest.requireActual<typeof import("react-native")>("react-native");
+      if (failure === "decode")
+        jest
+          .mocked(Image.getSize)
+          .mockImplementationOnce((_uri, _success, fail) => {
+            fail?.(new Error("not an image"));
+          });
+      else
+        mockDownload.mockImplementationOnce(async (_source, file) => {
+          mockFiles.set(file.uri, failure === "empty" ? 0 : 11 * 1024 * 1024);
+        });
+      const context = await api.captureOfflinePocketContext();
+      const operation = await api.enqueueConfirmedPocketSave(context, 21);
+      await cacheBusiness()(operation, () => true);
+      expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject({
+        status: "available",
+      });
+      expect(await api.listOfflineBusinessCovers(context)).toEqual([]);
+      expect(mockFiles.size).toBe(0);
+      expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+        workStatus: "completed",
+        nextRetryAt: null,
+      });
+    },
+  );
+
+  it("isolates image references and physical cleanup across API scopes and accounts", async () => {
+    const { context } = await cacheCover();
+    const firstFiles = [...mockFiles.keys()];
+    signIn(8);
+    let other = await api.captureOfflinePocketContext();
+    await cacheBusiness()(
+      await api.enqueueConfirmedPocketSave(other, 21),
+      () => true,
+    );
+    expect(mockFiles.size).toBe(2);
+    await expect(api.listOfflineBusinessCovers(context)).rejects.toThrow();
+    mockApiScope = "https://api-b.example";
+    other = await api.captureOfflinePocketContext();
+    expect(await api.listOfflineBusinessCovers(other)).toEqual([]);
+    await cacheBusiness()(
+      await api.enqueueConfirmedPocketSave(other, 21),
+      () => true,
+    );
+    expect(mockFiles.size).toBe(3);
+    await api.clearOfflinePocketControlState(other);
+    expect(mockFiles.size).toBe(2);
+    expect(mockFiles.has(firstFiles[0])).toBe(true);
+  });
+
+  it.each([true, false])(
+    "orders clearing and image publication atomically (clear first: %s)",
+    async (clearFirst) => {
+      const { context } = await cacheCover();
+      const operation = await api.requestOfflinePocketRestore(context, 21);
+      await api.startOfflinePocketWork(operation);
+      const snapshot = snapshotFixture(21, new Date().toISOString());
+      snapshot.business.display_cover_photo_url = "https://example.com/new.jpg";
+      await api.publishOfflineBusinessSnapshot(operation, snapshot);
+      const files = jest.requireActual<
+        typeof import("../offlinePocketCoverFiles")
+      >("../offlinePocketCoverFiles");
+      const name = files.newOfflineCoverName(21);
+      await api.registerOfflinePocketCover(
+        operation,
+        name,
+        "https://example.com/new.jpg",
+      );
+      const release = await files.downloadOfflineCover(
+        operation,
+        name,
+        "https://example.com/new.jpg",
+        new AbortController().signal,
+      );
+      release();
+      const first = clearFirst
+        ? api.clearOfflinePocketControlState(context)
+        : api.publishOfflinePocketCover(
+            operation,
+            name,
+            "https://example.com/new.jpg",
+          );
+      const second = clearFirst
+        ? api.publishOfflinePocketCover(
+            operation,
+            name,
+            "https://example.com/new.jpg",
+          )
+        : api.clearOfflinePocketControlState(context);
+      const results = await Promise.allSettled([first, second]);
+      expect(results[0].status).toBe("fulfilled");
+      expect(results[1].status).toBe(clearFirst ? "rejected" : "fulfilled");
+      expect(
+        await api.listOfflineBusinessCovers(
+          await api.captureOfflinePocketContext(),
+        ),
+      ).toEqual([]);
+      expect(mockFiles.size).toBe(0);
+    },
+  );
+
+  it("rejects arbitrary file paths before storage access", async () => {
+    const { context, operation } = await runningSnapshot();
+    await expect(
+      api.registerOfflinePocketCover(
+        operation,
+        "../other-account/photo.jpg",
+        "https://example.com/x.jpg",
+      ),
+    ).rejects.toThrow();
+    const files = jest.requireActual<
+      typeof import("../offlinePocketCoverFiles")
+    >("../offlinePocketCoverFiles");
+    expect(
+      await files.offlineCoverFileUri(context, "https://example.com/photo.jpg"),
+    ).toBeNull();
+    await expect(
+      files.deleteOfflineCoverFile(context, "../../journeys.db"),
+    ).rejects.toThrow();
+    expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  it.each(["timeout", "background"])(
+    "cancels %s transfers without losing text or blocking future retries",
+    async (reason) => {
+      jest.useFakeTimers();
+      try {
+        withCover();
+        const started = deferred();
+        mockDownload.mockImplementationOnce(async (_source, file, options) => {
+          mockFiles.set(file.uri, 128);
+          started.resolve();
+          await new Promise<void>((_resolve, reject) =>
+            options.signal.addEventListener(
+              "abort",
+              () => reject(new Error("Aborted")),
+              { once: true },
+            ),
+          );
+        });
+        const controller = new AbortController();
+        const context = await api.captureOfflinePocketContext();
+        const operation = await api.enqueueConfirmedPocketSave(context, 21);
+        const caching = cacheBusiness()(
+          operation,
+          () => true,
+          controller.signal,
+        );
+        await started.promise;
+        if (reason === "timeout") await jest.advanceTimersByTimeAsync(30_000);
+        else controller.abort();
+        await caching;
+        expect(mockFiles.size).toBe(0);
+        expect(await api.getOfflineBusinessSnapshot(context, 21)).toMatchObject(
+          { status: "available" },
+        );
+        expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+          workStatus: "failed",
+          lastErrorCode:
+            reason === "timeout" ? "COVER_DOWNLOAD_FAILED" : "INTERRUPTED",
+        });
+      } finally {
+        jest.useRealTimers();
+      }
+    },
+  );
 
   it("caches a pending business with fresh membership checks and completion", async () => {
     const context = await api.captureOfflinePocketContext();

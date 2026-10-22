@@ -82,6 +82,7 @@ export default function OfflinePocketLibraryScreen() {
           renderItem={({ item }) => (
             <OfflineBusinessCard
               entry={item}
+              localCoverUri={saved.data?.covers?.[item.businessId]}
               onPress={() =>
                 router.push({
                   pathname: "/offline-business/[businessId]",

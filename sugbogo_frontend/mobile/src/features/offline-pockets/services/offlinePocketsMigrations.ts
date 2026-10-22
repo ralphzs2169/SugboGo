@@ -59,6 +59,25 @@ const SNAPSHOT_SCHEMA = `
     ON offline_business_snapshots (api_scope, owner_id, fetched_at DESC, business_id);
 `;
 
+const COVER_SCHEMA = `
+  CREATE TABLE offline_pocket_cover_files (
+    api_scope TEXT NOT NULL,
+    owner_id INTEGER NOT NULL,
+    business_id INTEGER NOT NULL,
+    file_name TEXT NOT NULL,
+    remote_source TEXT NOT NULL,
+    clear_generation INTEGER NOT NULL CHECK (clear_generation >= 0),
+    operation_version INTEGER NOT NULL CHECK (operation_version > 0),
+    file_state TEXT NOT NULL CHECK (file_state IN ('staging', 'ready', 'garbage')),
+    PRIMARY KEY (api_scope, owner_id, file_name),
+    FOREIGN KEY (api_scope, owner_id, business_id)
+      REFERENCES offline_pocket_controls (api_scope, owner_id, business_id)
+  );
+  CREATE UNIQUE INDEX offline_pocket_one_ready_cover
+    ON offline_pocket_cover_files (api_scope, owner_id, business_id)
+    WHERE file_state = 'ready';
+`;
+
 /** Commits schema changes and their version together, rejecting unsupported future databases. */
 export async function migrateOfflinePocketsDatabase(
   db: SQLiteDatabase,
@@ -81,6 +100,10 @@ export async function migrateOfflinePocketsDatabase(
     if (version < 2) {
       await tx.execAsync(SNAPSHOT_SCHEMA);
       await tx.execAsync("PRAGMA user_version = 2");
+    }
+    if (version < 3) {
+      await tx.execAsync(COVER_SCHEMA);
+      await tx.execAsync("PRAGMA user_version = 3");
     }
   });
 }

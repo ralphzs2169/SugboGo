@@ -16,8 +16,23 @@ jest.mock("expo-router", () => ({
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("expo-image", () => ({
-  Image: function ForbiddenOfflineImage() {
-    throw new Error("Offline browsing must never mount remote images");
+  Image: function LocalOnlyImage({
+    source,
+    onError,
+  }: {
+    source: { uri: string };
+    onError: () => void;
+  }) {
+    if (!source.uri.startsWith("file://"))
+      throw new Error("Remote image in offline browsing");
+    const { View } = jest.requireActual("react-native");
+    return (
+      <View
+        testID="offline-cover-image"
+        accessibilityLabel={source.uri}
+        onError={onError}
+      />
+    );
   },
 }));
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
@@ -111,7 +126,6 @@ describe("local business browsing", () => {
     ])
       expect(view.getByText(text)).toBeTruthy();
     expect(view.getByText(/2020/)).toBeTruthy();
-    expect(view.getByText("Photos unavailable offline")).toBeTruthy();
     expect(containsImage(view.toJSON())).toBe(false);
     expect(view.queryByText("Vouch")).toBeNull();
     expect(view.queryByText("Write a review")).toBeNull();
@@ -120,6 +134,41 @@ describe("local business browsing", () => {
       view.getByRole("button", { name: "Back to saved businesses" }),
     );
     expect(router.dismissTo).toHaveBeenCalledWith("/offline-pockets");
+  });
+
+  it("uses managed local cover URIs in cards and details, and falls back after image failure", async () => {
+    const uri = "file:///documents/offline-pocket-covers/scope/7/cover.img";
+    jest.mocked(useOfflineBusinessSnapshots).mockReturnValue(
+      state({
+        data: { context, entries: [available], covers: { 21: uri } },
+      }) as never,
+    );
+    const view = await render(<OfflinePocketLibraryScreen />);
+    expect(
+      view.getByTestId("offline-cover-image").props.accessibilityLabel,
+    ).toBe(uri);
+    await view.rerender(<OfflineBusinessDetailScreen businessId={21} />);
+    expect(
+      view.getByTestId("offline-cover-image").props.accessibilityLabel,
+    ).toBe(uri);
+    await fireEvent(view.getByTestId("offline-cover-image"), "error");
+    expect(view.queryByTestId("offline-cover-image")).toBeNull();
+    expect(view.getByText("Sugbo Cafe")).toBeTruthy();
+  });
+
+  it("rejects a remote URI supplied as a local cover without falling back to snapshot photos", async () => {
+    jest.mocked(useOfflineBusinessSnapshots).mockReturnValue(
+      state({
+        data: {
+          context,
+          entries: [available],
+          covers: { 21: "https://example.com/untrusted.jpg" },
+        },
+      }) as never,
+    );
+    const view = await render(<OfflineBusinessDetailScreen businessId={21} />);
+    expect(view.queryByTestId("offline-cover-image")).toBeNull();
+    expect(view.getByText("Sugbo Cafe")).toBeTruthy();
   });
 
   it("keeps long business names and descriptions readable in details", async () => {

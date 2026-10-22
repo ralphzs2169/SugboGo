@@ -33,6 +33,11 @@ import {
 } from "../validation/offlineBusinessSnapshot";
 import { withOfflinePocketsTransaction } from "./offlinePocketsDatabase";
 import { notifyOfflineSnapshotsChanged } from "./offlinePocketSnapshots.events";
+import {
+  assertOfflineCoverName,
+  deleteOfflineCoverFile,
+  offlineCoverFileUri,
+} from "./offlinePocketCoverFiles";
 
 const CONTROL_COLUMNS = `
   business_id AS businessId, cache_intent AS intent,
@@ -359,6 +364,7 @@ export async function applyOfflinePocketMembershipChange(
     return false;
   });
   notifyOfflineSnapshotsChanged();
+  await cleanupOfflinePocketCoverFiles(context).catch(() => undefined);
   await releaseOfflineAccessIfEmpty(
     context.ownerId,
     context.sessionGeneration,
@@ -390,6 +396,11 @@ export async function clearOfflinePocketControlState(
     const generation = pinned.clearGeneration + 1;
     assertInteger(generation);
     await tx.runAsync(
+      "UPDATE offline_pocket_cover_files SET file_state = 'garbage' WHERE api_scope = ? AND owner_id = ?",
+      pinned.apiScope,
+      pinned.ownerId,
+    );
+    await tx.runAsync(
       "UPDATE offline_pocket_accounts SET clear_generation = ? WHERE api_scope = ? AND owner_id = ?",
       generation,
       pinned.apiScope,
@@ -413,6 +424,7 @@ export async function clearOfflinePocketControlState(
     return Object.freeze({ ...pinned, clearGeneration: generation });
   });
   notifyOfflineSnapshotsChanged();
+  await cleanupOfflinePocketCoverFiles(cleared).catch(() => undefined);
   await releaseOfflineAccessIfEmpty(
     context.ownerId,
     context.sessionGeneration,
@@ -554,6 +566,11 @@ export async function recoverOfflinePocketWork(
 ): Promise<void> {
   await withOwnedPolicy(context, async (tx, pinned) => {
     await tx.runAsync(
+      "UPDATE offline_pocket_cover_files SET file_state = 'garbage' WHERE api_scope = ? AND owner_id = ? AND file_state = 'staging'",
+      pinned.apiScope,
+      pinned.ownerId,
+    );
+    await tx.runAsync(
       `UPDATE offline_pocket_controls SET work_status = 'pending',
         operation_version = operation_version + 1, last_error_code = 'INTERRUPTED'
         WHERE api_scope = ? AND owner_id = ? AND work_status = 'running'`,
@@ -561,6 +578,7 @@ export async function recoverOfflinePocketWork(
       pinned.ownerId,
     );
   });
+  await cleanupOfflinePocketCoverFiles(context);
 }
 
 type SnapshotRow = {
@@ -716,6 +734,7 @@ export async function removeOfflineBusinessSnapshot(
     await removeSnapshot(tx, pinned, businessId);
   });
   notifyOfflineSnapshotsChanged();
+  await cleanupOfflinePocketCoverFiles(context).catch(() => undefined);
   await releaseOfflineAccessIfEmpty(
     context.ownerId,
     context.sessionGeneration,
@@ -742,6 +761,7 @@ export async function removeUnreadableOfflineBusinessSnapshot(
     await removeSnapshot(tx, pinned, businessId);
   });
   notifyOfflineSnapshotsChanged();
+  await cleanupOfflinePocketCoverFiles(context).catch(() => undefined);
   await releaseOfflineAccessIfEmpty(
     context.ownerId,
     context.sessionGeneration,
@@ -758,6 +778,7 @@ export async function invalidateOfflinePocketWork(
     await removeSnapshot(tx, pinned, operation.businessId);
   });
   notifyOfflineSnapshotsChanged();
+  await cleanupOfflinePocketCoverFiles(operation).catch(() => undefined);
   await releaseOfflineAccessIfEmpty(
     operation.ownerId,
     operation.sessionGeneration,
@@ -799,6 +820,12 @@ async function removeSnapshot(
   businessId: number,
 ): Promise<void> {
   await tx.runAsync(
+    "UPDATE offline_pocket_cover_files SET file_state = 'garbage' WHERE api_scope = ? AND owner_id = ? AND business_id = ?",
+    context.apiScope,
+    context.ownerId,
+    businessId,
+  );
+  await tx.runAsync(
     `UPDATE offline_pocket_controls SET cache_intent = 'suppressed',
         work_status = 'invalidated', operation_version = operation_version + 1,
         cached_at = NULL, next_retry_at = NULL, last_error_code = NULL
@@ -813,4 +840,181 @@ async function removeSnapshot(
     context.ownerId,
     businessId,
   );
+}
+
+type CoverRow = {
+  businessId: number;
+  fileName: string;
+  remoteSource: string;
+};
+
+/** Reads image availability independently of snapshot availability, under the same local authority. */
+export async function listOfflineBusinessCovers(
+  context: OfflinePocketContext | OfflinePocketReadContext,
+): Promise<CoverRow[]> {
+  return withSnapshotRead(context, async (tx, pinned) =>
+    tx.getAllAsync<CoverRow>(
+      `SELECT f.business_id AS businessId, f.file_name AS fileName, f.remote_source AS remoteSource
+      FROM offline_pocket_cover_files f
+      JOIN offline_pocket_controls c USING (api_scope, owner_id, business_id)
+      JOIN offline_business_snapshots s USING (api_scope, owner_id, business_id)
+      WHERE f.api_scope = ? AND f.owner_id = ? AND f.clear_generation = ?
+        AND f.file_state = 'ready' AND c.clear_generation = f.clear_generation
+        AND s.clear_generation = f.clear_generation AND c.cache_intent != 'suppressed'
+        AND c.work_status != 'invalidated'`,
+      pinned.apiScope,
+      pinned.ownerId,
+      pinned.clearGeneration,
+    ),
+  );
+}
+
+/** Pins each unique staging file to the running revision and the actual validated display cover. */
+export async function registerOfflinePocketCover(
+  operationInput: OfflinePocketOperation,
+  fileName: string,
+  source: string,
+): Promise<void> {
+  const operation = Object.freeze({ ...operationInput });
+  assertOfflineCoverName(fileName, operation.businessId);
+  await withOwnedPolicy(operation, async (tx) => {
+    await assertCoverPublication(tx, operation, source);
+    await tx.runAsync(
+      `INSERT INTO offline_pocket_cover_files
+        (api_scope, owner_id, business_id, file_name, remote_source, clear_generation, operation_version, file_state)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'staging')`,
+      operation.apiScope,
+      operation.ownerId,
+      operation.businessId,
+      fileName,
+      source,
+      operation.clearGeneration,
+      operation.operationVersion,
+    );
+  });
+}
+
+async function assertCoverPublication(
+  tx: SQLiteDatabase,
+  operation: OfflinePocketOperation,
+  source: string | null,
+): Promise<void> {
+  const control = await currentOperation(tx, operation);
+  const row = await tx.getFirstAsync<SnapshotRow>(
+    `SELECT ${SNAPSHOT_COLUMNS} ${AVAILABLE_SNAPSHOTS} AND s.business_id = ?`,
+    operation.apiScope,
+    operation.ownerId,
+    operation.clearGeneration,
+    operation.businessId,
+  );
+  const entry = row ? snapshotEntry(row) : null;
+  if (
+    control.workStatus !== "running" ||
+    entry?.status !== "available" ||
+    (entry.snapshot.business.display_cover_photo_url || null) !== source
+  ) {
+    throw new StaleOfflinePocketOperationError();
+  }
+}
+
+/** Publishes only a completed managed file; previous covers become garbage in the same transaction. */
+export async function publishOfflinePocketCover(
+  operationInput: OfflinePocketOperation,
+  fileName: string,
+  source: string,
+): Promise<void> {
+  const operation = Object.freeze({ ...operationInput });
+  assertOfflineCoverName(fileName, operation.businessId);
+  await withOwnedPolicy(operation, async (tx) => {
+    await assertCoverPublication(tx, operation, source);
+    const staged = await tx.getFirstAsync<{ file_name: string }>(
+      `SELECT file_name FROM offline_pocket_cover_files WHERE api_scope = ? AND owner_id = ?
+        AND business_id = ? AND file_name = ? AND remote_source = ? AND clear_generation = ?
+        AND operation_version = ? AND file_state = 'staging'`,
+      operation.apiScope,
+      operation.ownerId,
+      operation.businessId,
+      fileName,
+      source,
+      operation.clearGeneration,
+      operation.operationVersion,
+    );
+    if (!staged || !(await offlineCoverFileUri(operation, fileName)))
+      throw new StaleOfflinePocketOperationError();
+    await markBusinessCoversGarbage(tx, operation, "ready");
+    await tx.runAsync(
+      "UPDATE offline_pocket_cover_files SET file_state = 'ready' WHERE api_scope = ? AND owner_id = ? AND file_name = ?",
+      operation.apiScope,
+      operation.ownerId,
+      fileName,
+    );
+  });
+  notifyOfflineSnapshotsChanged();
+}
+
+/** An authoritative no-cover response removes old images without affecting cached text. */
+export async function removeOfflinePocketCover(
+  operationInput: OfflinePocketOperation,
+): Promise<void> {
+  const operation = Object.freeze({ ...operationInput });
+  await withOwnedPolicy(operation, async (tx) => {
+    await assertCoverPublication(tx, operation, null);
+    await markBusinessCoversGarbage(tx, operation, "ready");
+  });
+  notifyOfflineSnapshotsChanged();
+  await cleanupOfflinePocketCoverFiles(operation).catch(() => undefined);
+}
+
+function markBusinessCoversGarbage(
+  tx: SQLiteDatabase,
+  operation: OfflinePocketOperation,
+  state: "ready" | "staging",
+): Promise<unknown> {
+  return tx.runAsync(
+    "UPDATE offline_pocket_cover_files SET file_state = 'garbage' WHERE api_scope = ? AND owner_id = ? AND business_id = ? AND file_state = ?",
+    operation.apiScope,
+    operation.ownerId,
+    operation.businessId,
+    state,
+  );
+}
+
+/** Records failed staging for durable cleanup without touching the previous ready cover. */
+export async function discardOfflinePocketCover(
+  operationInput: OfflinePocketOperation,
+  fileName: string,
+): Promise<void> {
+  const operation = Object.freeze({ ...operationInput });
+  await withOwnedPolicy(operation, async (tx) => {
+    await tx.runAsync(
+      "UPDATE offline_pocket_cover_files SET file_state = 'garbage' WHERE api_scope = ? AND owner_id = ? AND file_name = ? AND file_state = 'staging'",
+      operation.apiScope,
+      operation.ownerId,
+      fileName,
+    );
+  });
+  await cleanupOfflinePocketCoverFiles(operation);
+}
+
+/** Retries exact-name cleanup after a crash or deletion failure; never scans unrelated account files. */
+export async function cleanupOfflinePocketCoverFiles(
+  context: OfflinePocketContext | OfflinePocketReadContext,
+): Promise<void> {
+  await withSnapshotRead(context, async (tx, pinned) => {
+    const rows = await tx.getAllAsync<{ fileName: string }>(
+      "SELECT file_name AS fileName FROM offline_pocket_cover_files WHERE api_scope = ? AND owner_id = ? AND file_state = 'garbage'",
+      pinned.apiScope,
+      pinned.ownerId,
+    );
+    for (const row of rows) {
+      if (await deleteOfflineCoverFile(pinned, row.fileName)) {
+        await tx.runAsync(
+          "DELETE FROM offline_pocket_cover_files WHERE api_scope = ? AND owner_id = ? AND file_name = ? AND file_state = 'garbage'",
+          pinned.apiScope,
+          pinned.ownerId,
+          row.fileName,
+        );
+      }
+    }
+  });
 }

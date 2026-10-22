@@ -17,7 +17,9 @@ import {
   captureOfflinePocketReadContext,
   getOfflineBusinessSnapshot,
   listOfflineBusinessSnapshots,
+  listOfflineBusinessCovers,
 } from "../../services/offlinePockets.service";
+import { offlineCoverFileUri } from "../../services/offlinePocketCoverFiles";
 import useOfflineBusinessSnapshots from "../useOfflineBusinessSnapshots";
 
 jest.mock("expo-router", () => ({ useFocusEffect: () => undefined }));
@@ -38,6 +40,10 @@ jest.mock("../../services/offlinePockets.service", () => ({
   captureOfflinePocketReadContext: jest.fn(),
   getOfflineBusinessSnapshot: jest.fn(),
   listOfflineBusinessSnapshots: jest.fn(),
+  listOfflineBusinessCovers: jest.fn(),
+}));
+jest.mock("../../services/offlinePocketCoverFiles", () => ({
+  offlineCoverFileUri: jest.fn(),
 }));
 
 describe("network-independent local snapshot queries", () => {
@@ -67,6 +73,8 @@ describe("network-independent local snapshot queries", () => {
         access: "local",
       }));
     jest.mocked(listOfflineBusinessSnapshots).mockResolvedValue([]);
+    jest.mocked(listOfflineBusinessCovers).mockResolvedValue([]);
+    jest.mocked(offlineCoverFileUri).mockResolvedValue(null);
     jest
       .mocked(getOfflineBusinessSnapshot)
       .mockResolvedValue({ businessId: 21, status: "missing", snapshot: null });
@@ -111,6 +119,37 @@ describe("network-independent local snapshot queries", () => {
     );
     expect(hook.result.current.ownerId).toBeNull();
     expect(hook.result.current.data).toBeUndefined();
+    hook.unmount();
+  });
+
+  it("keeps business text available when the local file is missing or image metadata fails", async () => {
+    const snapshot = jest
+      .requireActual("../../validation/__tests__/snapshotFixture")
+      .snapshotFixture();
+    jest
+      .mocked(getOfflineBusinessSnapshot)
+      .mockResolvedValue({ businessId: 21, status: "available", snapshot });
+    jest.mocked(listOfflineBusinessCovers).mockResolvedValue([
+      {
+        businessId: 21,
+        fileName: "cover.img",
+        remoteSource: "https://example.com/remote.jpg",
+      },
+    ]);
+    const hook = await renderHook(() => useOfflineBusinessSnapshots(21), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+    expect(hook.result.current.data?.covers).toEqual({});
+    expect(hook.result.current.data?.entries[0].status).toBe("available");
+    jest
+      .mocked(listOfflineBusinessCovers)
+      .mockRejectedValueOnce(new Error("image metadata unavailable"));
+    await act(async () => {
+      await hook.result.current.refetch();
+    });
+    await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+    expect(hook.result.current.data?.entries[0].status).toBe("available");
     hook.unmount();
   });
 });

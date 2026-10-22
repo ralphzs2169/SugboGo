@@ -16,7 +16,9 @@ import {
   currentOfflineBusinessOwner,
   getOfflineBusinessSnapshot,
   listOfflineBusinessSnapshots,
+  listOfflineBusinessCovers,
 } from "../services/offlinePockets.service";
+import { offlineCoverFileUri } from "../services/offlinePocketCoverFiles";
 
 /** Always reads SQLite, including when React Query's network manager is offline. */
 export default function useOfflineBusinessSnapshots(businessId?: number) {
@@ -51,17 +53,35 @@ export default function useOfflineBusinessSnapshots(businessId?: number) {
       ) {
         throw new Error("Offline access changed while reading device storage.");
       }
-      return {
-        context,
-        entries:
-          businessId === undefined
-            ? await listOfflineBusinessSnapshots(context)
-            : [
-                businessId > 0
-                  ? await getOfflineBusinessSnapshot(context, businessId)
-                  : { businessId, status: "missing" as const, snapshot: null },
-              ],
-      };
+      const entries =
+        businessId === undefined
+          ? await listOfflineBusinessSnapshots(context)
+          : [
+              businessId > 0
+                ? await getOfflineBusinessSnapshot(context, businessId)
+                : { businessId, status: "missing" as const, snapshot: null },
+            ];
+      const covers: Record<number, string> = {};
+      try {
+        const images = await listOfflineBusinessCovers(context);
+        await Promise.all(
+          images
+            .filter((image) =>
+              entries.some(
+                (entry) =>
+                  entry.businessId === image.businessId &&
+                  entry.status === "available",
+              ),
+            )
+            .map(async (image) => {
+              const uri = await offlineCoverFileUri(context, image.fileName);
+              if (uri) covers[image.businessId] = uri;
+            }),
+        );
+      } catch {
+        // Optional image metadata/files must never hide readable business information.
+      }
+      return { context, entries, covers };
     },
   });
   const { refetch } = query;

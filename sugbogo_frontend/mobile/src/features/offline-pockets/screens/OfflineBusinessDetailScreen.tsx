@@ -92,7 +92,10 @@ export default function OfflineBusinessDetailScreen({
         />
       ) : entry?.status === "available" ? (
         <ScrollView>
-          <OfflineBusinessContent snapshot={entry.snapshot} />
+          <OfflineBusinessContent
+            snapshot={entry.snapshot}
+            localCoverUri={saved.data?.covers?.[businessId]}
+          />
         </ScrollView>
       ) : (
         <ErrorState

@@ -7,6 +7,7 @@ import { formatTime } from "@/features/explore/utils/businessHours.utils";
 import AppText from "@/shared/components/AppText";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import type { OfflineBusinessSnapshot } from "../validation/offlineBusinessSnapshot";
+import OfflineBusinessCover from "./OfflineBusinessCover";
 
 const DAYS = [
   "monday",
@@ -18,11 +19,13 @@ const DAYS = [
   "sunday",
 ] as const;
 
-/** Pure profile presentation: no images, links, mutations, live opening status, or API hooks. */
+/** Read-only profile presentation with a local-only cover and no online actions or API hooks. */
 export default function OfflineBusinessContent({
   snapshot,
+  localCoverUri,
 }: {
   snapshot: OfflineBusinessSnapshot;
+  localCoverUri?: string;
 }) {
   const business = snapshot.business;
   const contacts = [
@@ -32,20 +35,13 @@ export default function OfflineBusinessContent({
   ].filter((contact) => Boolean(contact.value));
   return (
     <View className="pb-6">
-      {/* Familiar business identity, with an honest device-only photo placeholder. */}
-      <View
-        className="items-center justify-center bg-surface-muted py-10"
-        accessibilityLabel="Business photos are not available offline"
-      >
-        <MaterialCommunityIcons
-          name="storefront-outline"
-          size={48}
-          color={theme.extends.colors.text.tertiary}
-          accessible={false}
+      {/* Hero uses the online profile's cover proportions and placeholder, without overlays/actions. */}
+      <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-muted">
+        <OfflineBusinessCover
+          uri={localCoverUri}
+          clusterIcon={business.cluster.icon}
+          hero
         />
-        <AppText className="mt-2 text-xs text-text-tertiary">
-          Photos unavailable offline
-        </AppText>
       </View>
       <View className="gap-2 bg-surface px-screen-x py-5">
         <AppText

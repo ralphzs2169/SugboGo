@@ -1,18 +1,18 @@
 # Offline Pocket storage
 
-This module stores policy, work metadata, and validated business snapshots. A
-foreground worker fetches eligible business information using the existing API
-services. It does not store local images, mutate backend Pocket memberships,
-grant offline authentication, or render UI. Confirmed Pocket mutations enqueue or
-invalidate local work independently of their backend result. A completed work row
-is not proof of snapshot availability. Remote
-photo URLs are metadata, never offline-ready images.
+This module stores policy, work metadata, validated business snapshots, and one
+optional managed cover per business. The foreground worker uses existing APIs;
+local browsing uses SQLite and app-owned files only. Confirmed Pocket mutations
+enqueue or invalidate work independently of their backend result. The module
+never grants authenticated backend access. A completed work row is not proof of
+snapshot or image availability. Remote photo metadata is never used directly by
+offline image components.
 
 ## Database and migrations
 
 Native database: `sugbogo_offline_pockets.db`, separate from saved journey storage.
 Initialization is lazy, shared, and retryable. WAL and foreign keys are enabled.
-An exclusive transaction migrates `PRAGMA user_version` from 0 through 1 to 2.
+An exclusive transaction migrates `PRAGMA user_version` from 0 through 1, 2 and 3.
 The original version 1 schema is unchanged. Migration 2 adds snapshots and their
 freshness index without resetting existing policies or work. Version 2 reopens
 without resetting records. Unsupported future versions are rejected, never
@@ -33,7 +33,7 @@ authoritative backend Pocket membership.
 
 Snapshots reference the composite control key. Their index orders fetched time
 within an API scope and owner. Snapshot format version 1 is independent of SQLite
-schema version 2. `cached_at` is snapshot freshness, set atomically on publication
+schema version 3. `cached_at` is snapshot freshness, set atomically on publication
 to the snapshot's fetched time. Work transitions never populate it.
 `last_completed_at` is work history,
 not freshness, and survives failed replacement attempts.
@@ -235,8 +235,8 @@ write; it never waits for business downloads or snapshot publication. A new sess
 has a separate queue, and old-session checks prevent any local effect.
 
 Manual `requestOfflinePocketRestore()` eligibility remains unchanged. Account clear,
-snapshot reads and scoped removal are also available. Image storage and the full
-Offline Storage management UI remain outside this task.
+snapshot reads and scoped removal are also available. The full Offline Storage
+management UI remains outside this task.
 
 If initial local capture/enqueue fails, or the previous aggregate state cannot be
 verified, the backend save survives but automatic offline availability is not
@@ -303,7 +303,7 @@ timestamp. Web retains the native SQLite unsupported-platform adapter.
 This module does not physically delete Pocket snapshots at logout: revoked sessions
 cannot read them, and the same account can read retained data after authenticating
 again. Data is not encrypted. Storage quotas, server reconciliation, managed local
-photos and full storage management remain later work. Physical-device airplane
+photo galleries and full storage management remain later work. Physical-device airplane
 mode, font scaling, safe-area and native navigation QA remain necessary alongside
 the controlled SQLite and React Native tests.
 
@@ -333,3 +333,122 @@ Modified files (paths relative to mobile `src/`):
 - `features/offline-routes/services/offlineAccess.service.ts`,
   `savedJourneys.service.ts`, `__tests__/offlineAccess.test.ts`,
   `__tests__/savedJourneys.test.ts`, `__tests__/savedJourneysSqlite.test.ts`.
+
+## Managed offline covers (Task 7)
+
+Migration 3 adds `offline_pocket_cover_files`. Versions 1 and 2 are unchanged.
+Each row contains `api_scope`, `owner_id`, `business_id`, `file_name`,
+`remote_source`, `clear_generation`, `operation_version`, and `file_state`.
+The primary key is `(api_scope, owner_id, file_name)`; the row references its
+business control. A partial unique index permits at most one `ready` cover per
+business/account/API. `staging` and `garbage` rows track crash recovery and pending
+physical deletion; they are never rendered. Image state is independent of snapshot
+freshness and readability.
+
+Files live under:
+
+```text
+Paths.document/offline-pocket-covers/<SHA-256 of exact API scope>/<owner ID>/
+  b<business ID>-<random UUID>.img.part  # transfer staging
+  b<business ID>-<random UUID>.img       # immutable completed file
+```
+
+SQLite stores generated basenames, not device-container absolute paths. File URIs
+are rebuilt from the current persistent document directory after restart. Strict
+basename validation prevents path traversal. Remote URLs never supply path
+segments. Only `display_cover_photo_url`, used by the online card and profile, is
+downloaded. Raw covers and photo galleries are not fallback sources.
+
+The existing worker publishes validated text first. It reuses a ready cover only
+when its exact source URL matches and the managed file still exists. Otherwise it
+registers a unique staging record under the current running operation, downloads
+with Expo FileSystem, checks nonempty size and native image dimensions, then moves
+the file to its immutable name. A 10 MiB per-image cap and 30-second deadline bound
+optional image work. Cancellation follows foreground/connectivity/session signals
+and committed clearing/removal events.
+
+After downloading, the worker rechecks ownership and backend Pocket membership.
+Publication validates the running operation, clear generation, business revision,
+staging identity and current validated snapshot's resolved source in one SQLite
+transaction. It changes the old ready reference to garbage and the replacement to
+ready atomically. Only afterward is the old file deleted. Transient image failures
+use the existing bounded retry/backoff metadata (`COVER_DOWNLOAD_FAILED`), while
+text remains readable. Permanent HTTP 4xx errors (except 408/429), empty, oversized
+or unreadable images complete text-only work without automatic image retries.
+An explicit later restore can retry them. No second scheduler is introduced.
+
+Clearing marks every scoped image record as garbage in the same transaction that
+suppresses controls and removes snapshots. Final membership removal does the same
+for that business; remaining membership preserves its cover. Ready metadata is
+inaccessible immediately. Exact-name deletion follows commit and failed deletion
+records persist for retry. Active transfers are cancelled, then their unique files
+are discarded on settlement. Cleanup can reacquire the newer clear generation
+solely to delete garbage within the same still-authenticated session, never to
+publish or enqueue work. Recovery, called by the existing singleton only after
+old work settles, invalidates abandoned staging rows and retries garbage deletion.
+No directory sweeps, cross-account cleanup or saved-journey changes are made.
+
+Logout/account switching follows Task 6's retained-data policy: authorization is
+revoked, in-flight publication is rejected and unpublished transfer files are
+discarded. Previously committed files stay scoped to their account and are
+accessible again only under that account's authorized session/local grant.
+
+The local query adds optional cover URIs without making image errors fail text
+reads. `OfflineBusinessCover` renders only `file://` URIs with `expo-image`,
+`contentFit="cover"`, no automatic disk cache, and an on-error placeholder. The
+placeholder reuses Explore's cluster/store icon, brand tint and opacity. Card
+media bounds remain stable, and the hero matches the online profile's height and
+rounded lower edge without adding gradients or online actions.
+
+### Task 7 file inventory
+
+New files under `features/offline-pockets/`:
+
+- `components/OfflineBusinessCover.tsx`.
+- `services/offlinePocketCoverFiles.ts`, `services/offlinePocketCover.service.ts`.
+- `services/__tests__/coverFileSystem.mock.ts` (deterministic file adapter).
+
+Modified files under the same feature:
+
+- `constants/offlinePockets.constants.ts`, `services/offlinePocketsMigrations.ts`.
+- `services/offlinePockets.service.ts`, `services/offlinePocketWorker.service.ts`.
+- `hooks/useOfflineBusinessSnapshots.ts`.
+- `components/OfflineBusinessCard.tsx`, `components/OfflineBusinessContent.tsx`.
+- `screens/OfflinePocketLibraryScreen.tsx`, `screens/OfflineBusinessDetailScreen.tsx`.
+- `services/__tests__/offlinePockets.test.ts`,
+  `hooks/__tests__/useOfflineBusinessSnapshots.test.tsx`,
+  `screens/__tests__/OfflineBusinessBrowsing.test.tsx`, and this README.
+
+### Native device verification (pending)
+
+1. Save a business with a resolved cover image while online.
+2. Let foreground offline caching complete.
+3. Force-close SugboGo.
+4. Enable airplane mode.
+5. Reopen SugboGo.
+6. Open Offline Data, then saved businesses.
+7. Confirm the cover displays from a managed local file.
+8. Open its offline detail and confirm the cover and text remain available.
+9. Inspect network traffic to confirm browsing makes no remote image requests.
+10. Clear Offline Pocket data through the repository/test harness until Task 8
+    supplies its management screen; confirm images disappear and journeys remain.
+11. Reconnect and confirm intentionally cleared content is not re-enqueued.
+
+On physical Android also inspect short/long names, narrow screens, large text,
+safe areas, card cropping and the hero. Repeat with no cover, a deleted local file,
+a failed refresh, logout/account switch, and clearing during a transfer. Automated
+tests use actual SQLite and a deterministic filesystem/native-dimensions adapter;
+they do not replace device filesystem/decoder or visual verification.
+
+### Remaining boundaries
+
+Already completed text-only entries are not mass-requeued on upgrade. Images arrive
+with a new eligible cache job or explicit restore; suppression stays respected.
+Exact URL matching cannot detect changed bytes behind an unchanged URL without a
+new server identity/validator. Image retries currently repeat the existing full
+business job, including detail/membership checks. Filesystem deletion failures
+can leave inaccessible garbage until the next authorized cleanup/recovery. Empty
+account directories are harmless and retained. Snapshot data and cover files are
+not encrypted; full quotas and storage management remain outside Task 7. Backend
+membership checks and SQLite publication remain separate systems, with the same
+unavoidable remote-change window documented above.
