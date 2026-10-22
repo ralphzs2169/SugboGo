@@ -108,8 +108,9 @@ it("does not hide successful live data when temporary-cache cleanup fails", asyn
   expect(hook.result.current.source).toBe("live");
 });
 
-it("prefers a readable Pocket snapshot and removes the duplicate recent entry", async () => {
-  await recentBusinessDetails.capture().save(businessFixture(), Date.now());
+it("prefers a readable Pocket snapshot without deleting or renewing recent detail", async () => {
+  const fetchedAt = Date.now() - 60 * 60 * 1000;
+  await recentBusinessDetails.capture().save(businessFixture(), fetchedAt);
   const snapshot = snapshotFixture();
   jest.mocked(useOfflineBusinessSnapshots).mockReturnValue({
     ...missingPocket(),
@@ -125,8 +126,81 @@ it("prefers a readable Pocket snapshot and removes the duplicate recent entry", 
   const hook = await renderHook(() => useBusinessDetailSource(21));
   expect(hook.result.current.source).toBe("offline-pocket");
   expect(hook.result.current.localCoverUri).toBe("file:///cover.jpg");
-  await recentBusinessDetails.flush();
-  expect(await recentBusinessDetails.capture().get(21)).toBeNull();
+  await act(async () => {
+    await recentBusinessDetails.flush();
+  });
+  const json = await AsyncStorage.getItem(RECENT_BUSINESS_STORAGE_KEY);
+  expect(JSON.parse(json!).entries).toEqual([
+    expect.objectContaining({
+      fetchedAt: new Date(fetchedAt).toISOString(),
+      business: expect.objectContaining({ id: 21 }),
+    }),
+  ]);
+});
+
+it.each(["missing", "corrupt", "unsupported"])(
+  "falls back to preserved recent detail when a selected Pocket becomes %s",
+  async (status) => {
+    const fetchedAt = Date.now() - 60 * 60 * 1000;
+    await recentBusinessDetails.capture().save(businessFixture(), fetchedAt);
+    jest.mocked(useOfflineBusinessSnapshots).mockReturnValue({
+      ...missingPocket(),
+      data: {
+        context: {
+          sessionGeneration: getAuthSessionGeneration(),
+          apiScope: process.env.EXPO_PUBLIC_API_URL ?? "",
+        },
+        entries: [
+          { businessId: 21, status: "available", snapshot: snapshotFixture() },
+        ],
+        covers: { 21: "file:///cover.jpg" },
+      },
+    } as never);
+    const hook = await renderHook(() => useBusinessDetailSource(21));
+    expect(hook.result.current.source).toBe("offline-pocket");
+    await act(async () => {
+      await recentBusinessDetails.flush();
+    });
+    jest
+      .mocked(useOfflineBusinessSnapshots)
+      .mockReturnValue(missingPocket(status) as never);
+    await hook.rerender({});
+    await waitFor(() => expect(hook.result.current.source).toBe("recent"));
+    expect(hook.result.current.snapshot?.fetchedAt).toBe(
+      new Date(fetchedAt).toISOString(),
+    );
+    expect(hook.result.current.localCoverUri).toBeUndefined();
+    expect(hook.result.current.isLoading).toBe(false);
+    await hook.unmount();
+  },
+);
+
+it("preserves recent detail across Pocket selection on a later resolver mount", async () => {
+  await recentBusinessDetails.capture().save(businessFixture(), Date.now());
+  jest.mocked(useOfflineBusinessSnapshots).mockReturnValue({
+    ...missingPocket(),
+    data: {
+      context: {
+        sessionGeneration: getAuthSessionGeneration(),
+        apiScope: process.env.EXPO_PUBLIC_API_URL ?? "",
+      },
+      entries: [
+        { businessId: 21, status: "available", snapshot: snapshotFixture() },
+      ],
+    },
+  } as never);
+  const first = await renderHook(() => useBusinessDetailSource(21));
+  expect(first.result.current.source).toBe("offline-pocket");
+  await act(async () => {
+    await recentBusinessDetails.flush();
+  });
+  await first.unmount();
+  jest
+    .mocked(useOfflineBusinessSnapshots)
+    .mockReturnValue(missingPocket() as never);
+  const next = await renderHook(() => useBusinessDetailSource(21));
+  await waitFor(() => expect(next.result.current.source).toBe("recent"));
+  await next.unmount();
 });
 
 it.each(["missing", "corrupt", "unsupported"])(
@@ -338,6 +412,37 @@ describe("mounted recent-detail retention", () => {
     expect(refetch).not.toHaveBeenCalled();
     const after = await AsyncStorage.getItem(RECENT_BUSINESS_STORAGE_KEY);
     expect(JSON.parse(after!).entries[0].fetchedAt).toBe(fetchedAt);
+    await hook.unmount();
+  });
+
+  it("does not revive expired recent detail when the selected Pocket disappears", async () => {
+    const { expiresAt } = await saveNearExpiry();
+    jest.mocked(useOfflineBusinessSnapshots).mockReturnValue({
+      ...missingPocket(),
+      data: {
+        context: {
+          sessionGeneration: getAuthSessionGeneration(),
+          apiScope: process.env.EXPO_PUBLIC_API_URL ?? "",
+        },
+        entries: [
+          { businessId: 21, status: "available", snapshot: snapshotFixture() },
+        ],
+      },
+    } as never);
+    const hook = await renderHook(() => useBusinessDetailSource(21));
+    expect(hook.result.current.source).toBe("offline-pocket");
+    await act(async () => {
+      await recentBusinessDetails.flush();
+      await jest.advanceTimersByTimeAsync(expiresAt - Date.now() + 1);
+    });
+    expect(hook.result.current.source).toBe("offline-pocket");
+    jest
+      .mocked(useOfflineBusinessSnapshots)
+      .mockReturnValue(missingPocket() as never);
+    await hook.rerender({});
+    expect(hook.result.current.source).toBe("unavailable");
+    expect(hook.result.current.snapshot).toBeNull();
+    expect(hook.result.current.isLoading).toBe(false);
     await hook.unmount();
   });
 });

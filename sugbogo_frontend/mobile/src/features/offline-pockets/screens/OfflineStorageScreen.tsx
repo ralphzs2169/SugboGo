@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
+import type { ComponentProps } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import useSavedJourneys from "@/features/offline-routes/hooks/useSavedJourneys";
@@ -32,8 +33,7 @@ import { retryOfflineBusinessDownloads } from "../services/offlineStorageActions
 import type { OfflinePocketReadContext } from "../types/offlinePockets.types";
 import InfoBanner from "@/shared/components/InfoBanner";
 
-type StorageIcon =
-  "storefront-outline" | "bus" | "plus-circle-outline" | "trash-can-outline";
+type StorageIcon = ComponentProps<typeof MaterialCommunityIcons>["name"];
 
 type StorageLinkProps = {
   icon: StorageIcon;
@@ -423,10 +423,11 @@ export default function OfflineStorageScreen() {
                 />
 
                 <StorageLink
-                  icon="plus-circle-outline"
-                  title="Download more businesses"
+                  icon="download-outline"
+                  title="Manage offline downloads"
+                  description="Choose businesses from My Pockets to download."
                   onPress={() => router.push("/(explorer)/profile/my-pockets")}
-                  disabled={!canDownload || isBusy}
+                  disabled={!authenticated || isBusy}
                   divided
                 />
               </View>

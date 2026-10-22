@@ -105,10 +105,6 @@ export default function useBusinessDetailSource(businessId: number) {
       ? entry.snapshot
       : null;
 
-  useEffect(() => {
-    if (readablePocket && session) void session.remove(businessId);
-  }, [readablePocket, session, businessId]);
-
   const recentReady = recent?.identity === readIdentity;
   const detail = recentReady ? recent.detail : null;
   const [now, setNow] = useState(() => Date.now());
