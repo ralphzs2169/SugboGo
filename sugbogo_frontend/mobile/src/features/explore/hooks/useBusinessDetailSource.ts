@@ -1,4 +1,4 @@
-import { onlineManager } from "@tanstack/react-query";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -11,6 +11,7 @@ import {
 import { getQueryPersistenceApiScope } from "@/shared/query/queryPersistencePolicies";
 import {
   recentBusinessDetails,
+  RECENT_BUSINESS_LIMITS,
   type RecentBusinessDetail,
 } from "../services/recentBusinessDetails.service";
 import {
@@ -110,6 +111,29 @@ export default function useBusinessDetailSource(businessId: number) {
 
   const recentReady = recent?.identity === readIdentity;
   const detail = recentReady ? recent.detail : null;
+  const [now, setNow] = useState(() => Date.now());
+  const recentExpiresAt = detail
+    ? Date.parse(detail.fetchedAt) + RECENT_BUSINESS_LIMITS.maxAgeMs
+    : 0;
+
+  useEffect(() => {
+    if (!detail) return;
+    const recheckExpiry = () => setNow(Date.now());
+    // Recheck after the asynchronous read, then once at the original deadline.
+    recheckExpiry();
+    const timer = setTimeout(
+      recheckExpiry,
+      Math.max(0, recentExpiresAt - Date.now()),
+    );
+    const stopFocus = focusManager.subscribe((focused) => {
+      if (focused) recheckExpiry();
+    });
+    return () => {
+      clearTimeout(timer);
+      stopFocus();
+    };
+  }, [detail, recentExpiresAt]);
+
   const pocketPending =
     mayFallback &&
     pocket.ownerId === ownerId &&
@@ -117,7 +141,7 @@ export default function useBusinessDetailSource(businessId: number) {
     !pocket.isError;
   const snapshot =
     readablePocket ??
-    (mayFallback && detail
+    (mayFallback && detail && now < recentExpiresAt
       ? {
           formatVersion: OFFLINE_BUSINESS_SNAPSHOT_VERSION,
           fetchedAt: detail.fetchedAt,

@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react-native";
-import { onlineManager } from "@tanstack/react-query";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -16,6 +16,7 @@ import {
 import {
   recentBusinessDetails,
   RECENT_BUSINESS_LIMITS,
+  RECENT_BUSINESS_STORAGE_KEY,
 } from "../../services/recentBusinessDetails.service";
 import useBusinessDetailSource from "../useBusinessDetailSource";
 import useExploreBusinessProfile from "../useExploreBusinessProfile";
@@ -243,4 +244,100 @@ it("drops selected recent data synchronously when the session is revoked", async
   });
   expect(hook.result.current.source).toBe("unavailable");
   expect(hook.result.current.snapshot).toBeNull();
+});
+
+describe("mounted recent-detail retention", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-10-22T01:00:00Z"));
+    focusManager.setFocused(true);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    focusManager.setFocused(undefined);
+  });
+
+  async function saveNearExpiry() {
+    const expiresAt = Date.now() + 1000;
+    const fetchedAt = expiresAt - RECENT_BUSINESS_LIMITS.maxAgeMs;
+    await recentBusinessDetails.capture().save(businessFixture(), fetchedAt);
+    return { fetchedAt: new Date(fetchedAt).toISOString(), expiresAt };
+  }
+
+  it("stops selecting mounted recent detail at its original expiration deadline", async () => {
+    const { fetchedAt, expiresAt } = await saveNearExpiry();
+    const hook = await renderHook(() => useBusinessDetailSource(21));
+    await waitFor(() => expect(hook.result.current.source).toBe("recent"));
+    expect(hook.result.current.snapshot?.fetchedAt).toBe(fetchedAt);
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(expiresAt - Date.now() - 1);
+    });
+    expect(hook.result.current.source).toBe("recent");
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1);
+    });
+    expect(hook.result.current.source).toBe("unavailable");
+    expect(hook.result.current.snapshot).toBeNull();
+    expect(hook.result.current.isLoading).toBe(false);
+    expect(refetch).not.toHaveBeenCalled();
+    await hook.unmount();
+  });
+
+  it("keeps a readable Pocket snapshot selected across the recent deadline", async () => {
+    const { expiresAt } = await saveNearExpiry();
+    const hook = await renderHook(() => useBusinessDetailSource(21));
+    await waitFor(() => expect(hook.result.current.source).toBe("recent"));
+    const snapshot = snapshotFixture();
+    jest.mocked(useOfflineBusinessSnapshots).mockReturnValue({
+      ...missingPocket(),
+      data: {
+        context: {
+          sessionGeneration: getAuthSessionGeneration(),
+          apiScope: process.env.EXPO_PUBLIC_API_URL ?? "",
+        },
+        entries: [{ businessId: 21, status: "available", snapshot }],
+        covers: { 21: "file:///cover.jpg" },
+      },
+    } as never);
+    await hook.rerender({});
+    expect(hook.result.current.source).toBe("offline-pocket");
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(expiresAt - Date.now() + 1);
+    });
+    expect(hook.result.current.source).toBe("offline-pocket");
+    expect(hook.result.current.snapshot).toBe(snapshot);
+    expect(hook.result.current.localCoverUri).toBe("file:///cover.jpg");
+    expect(hook.result.current.isLoading).toBe(false);
+    await hook.unmount();
+  });
+
+  it("rechecks foreground expiry without background timers or lifetime renewal", async () => {
+    const { fetchedAt, expiresAt } = await saveNearExpiry();
+    const hook = await renderHook(() => useBusinessDetailSource(21));
+    await waitFor(() => expect(hook.result.current.source).toBe("recent"));
+    await act(async () => {
+      focusManager.setFocused(false);
+      jest.setSystemTime(expiresAt - 500);
+      focusManager.setFocused(true);
+    });
+    expect(hook.result.current.source).toBe("recent");
+    expect(hook.result.current.snapshot?.fetchedAt).toBe(fetchedAt);
+    const json = await AsyncStorage.getItem(RECENT_BUSINESS_STORAGE_KEY);
+    expect(JSON.parse(json!).entries[0].fetchedAt).toBe(fetchedAt);
+    await act(async () => {
+      focusManager.setFocused(false);
+      // Move wall-clock time without allowing the deadline timer to execute.
+      jest.setSystemTime(expiresAt + 1);
+    });
+    expect(hook.result.current.source).toBe("recent");
+    await act(async () => focusManager.setFocused(true));
+    expect(hook.result.current.source).toBe("unavailable");
+    expect(hook.result.current.snapshot).toBeNull();
+    expect(hook.result.current.isLoading).toBe(false);
+    expect(refetch).not.toHaveBeenCalled();
+    const after = await AsyncStorage.getItem(RECENT_BUSINESS_STORAGE_KEY);
+    expect(JSON.parse(after!).entries[0].fetchedAt).toBe(fetchedAt);
+    await hook.unmount();
+  });
 });
