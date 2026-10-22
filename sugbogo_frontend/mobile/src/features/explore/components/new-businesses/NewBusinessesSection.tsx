@@ -33,7 +33,8 @@ export default function NewBusinessesSection({
   userLocation,
   onSeeAll,
 }: Props) {
-  const { businesses, isLoading, error, refetch } = useNewBusinesses();
+  const { businesses, isLoading, isPaused, error, refetch } =
+    useNewBusinesses();
   const [isRetrying, setIsRetrying] = useState(false);
 
   const handleRetry = async () => {
@@ -46,7 +47,7 @@ export default function NewBusinessesSection({
     }
   };
 
-  if (isLoading || isRetrying) {
+  if ((isLoading || isRetrying) && !isPaused && businesses.length === 0) {
     return (
       <View className="py-6">
         {/* Section heading */}
@@ -61,7 +62,7 @@ export default function NewBusinessesSection({
     );
   }
 
-  if (error) {
+  if ((error || isPaused) && businesses.length === 0) {
     return (
       <View className="py-6">
         {/* Section heading */}

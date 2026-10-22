@@ -9,6 +9,7 @@ import Toast from "react-native-toast-message";
 import { theme } from "@/constants/theme";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import ErrorState from "@/shared/components/ErrorState";
+import Button from "@/shared/components/Button";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -266,11 +267,13 @@ export default function ExploreCollectionScreen() {
     );
   };
 
-  const loadNextPage = () => {
+  const loadNextPage = (retryFailedPage = false) => {
     if (
       isEndReachedRef.current ||
+      (!retryFailedPage && collection.isFetchNextPageError) ||
       !collection.hasNextPage ||
-      collection.isFetchingNextPage
+      collection.isFetchingNextPage ||
+      collection.isFetching
     ) {
       return;
     }
@@ -303,13 +306,12 @@ export default function ExploreCollectionScreen() {
       {/* Paginated collection results */}
       <FlatList
         testID="explore-collection-list"
-        data={
-          collection.isLoading || collection.error ? [] : collection.businesses
-        }
+        data={collection.businesses}
         keyExtractor={(business) => String(business.id)}
         renderItem={renderBusiness}
         ListHeaderComponent={
-          collection.error ? null : (
+          (collection.error || collection.isPaused) &&
+          collection.businesses.length === 0 ? null : (
             <>
               <ExploreClusterFilters
                 clusters={taxonomy.options.clusters}
@@ -339,7 +341,7 @@ export default function ExploreCollectionScreen() {
         ListEmptyComponent={
           <ExploreCollectionEmptyState
             isLoading={collection.isLoading}
-            hasError={Boolean(collection.error)}
+            hasError={Boolean(collection.error || collection.isPaused)}
             onRetry={() => void collection.refetch()}
             onGoBack={() => router.back()}
             emptyTitle={emptyTitle}
@@ -359,6 +361,17 @@ export default function ExploreCollectionScreen() {
                 }}
               />
             </View>
+          ) : collection.isFetchNextPageError &&
+            collection.businesses.length > 0 ? (
+            <View className="items-center py-5">
+              <Button
+                title="Retry loading more places"
+                onPress={() => loadNextPage(true)}
+                variant="soft"
+                rounded="full"
+                size="sm"
+              />
+            </View>
           ) : shouldShowEndMessage ? (
             <EndOfListMessage />
           ) : null
@@ -366,7 +379,7 @@ export default function ExploreCollectionScreen() {
         contentContainerStyle={{
           paddingBottom: insets.bottom,
         }}
-        onEndReached={loadNextPage}
+        onEndReached={() => loadNextPage()}
         onEndReachedThreshold={0.35}
         onViewableItemsChanged={impressions.onViewableItemsChanged}
         viewabilityConfig={impressions.viewabilityConfig}

@@ -18,8 +18,9 @@ export default function useNewBusinesses() {
     businesses: query.data?.items ?? [],
     pagination: query.data?.pagination ?? null,
     isLoading: query.isLoading,
+    isPaused: query.isPaused,
     error: query.error,
     refetch: query.refetch,
-    isRefetching: query.isRefetching,
+    isRefetching: query.isRefetching && !query.isPaused,
   };
 }

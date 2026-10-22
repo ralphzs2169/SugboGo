@@ -19,8 +19,9 @@ export default function useDiscoveryShortcuts() {
   return {
     shortcuts: query.data ?? [],
     isLoading: query.isLoading,
+    isPaused: query.isPaused,
     error: query.error,
     refetch: query.refetch,
-    isRefetching: query.isRefetching,
+    isRefetching: query.isRefetching && !query.isPaused,
   };
 }

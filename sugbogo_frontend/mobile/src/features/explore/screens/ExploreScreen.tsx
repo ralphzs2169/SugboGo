@@ -174,6 +174,7 @@ export default function ExploreScreen() {
         <HiddenGemsSection
           businesses={discoveryFeed.businesses}
           isLoading={discoveryFeed.isLoading}
+          isPaused={discoveryFeed.isPaused}
           error={discoveryFeed.error}
           refetch={discoveryFeed.refetch}
           impressions={discoveryImpressions}
@@ -216,6 +217,7 @@ export default function ExploreScreen() {
         <ExploreMapSection
           businesses={mapPreview.businesses}
           isLoading={mapPreview.isLoading}
+          isPaused={mapPreview.isPaused}
           error={mapPreview.error}
           refetch={mapPreview.refetch}
           userLocation={userLocation}

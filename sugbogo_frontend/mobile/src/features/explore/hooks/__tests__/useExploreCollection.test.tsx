@@ -37,6 +37,59 @@ const criteria = {
 };
 
 describe("useExploreCollection", () => {
+  it.each(["refresh", "next-page"])(
+    "preserves loaded pages after %s failure",
+    async (operation) => {
+      const loadedPage = {
+        items: [{ id: 20 }],
+        pagination: { page: 1, total_items: 2, has_next: true },
+      };
+      (getExploreCollection as jest.Mock)
+        .mockResolvedValueOnce({ success: true, data: loadedPage })
+        .mockResolvedValueOnce({
+          success: false,
+          code: "NETWORK_ERROR",
+          message: "Offline",
+        });
+      const { result, unmount } = await renderHook(
+        () => useExploreCollection("hidden-gems", criteria),
+        {
+          wrapper: setupClient(),
+        },
+      );
+      await waitFor(() =>
+        expect(result.current.businesses).toEqual([{ id: 20 }]),
+      );
+      await act(async () => {
+        if (operation === "refresh") {
+          await result.current.refetch();
+        } else {
+          await result.current.fetchNextPage();
+        }
+      });
+      await waitFor(() => expect(result.current.error).toBeTruthy());
+      expect(result.current.businesses).toEqual([{ id: 20 }]);
+      expect(result.current.hasNextPage).toBe(true);
+      expect(result.current.isFetchNextPageError).toBe(
+        operation === "next-page",
+      );
+
+      (getExploreCollection as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: {
+          items: [{ id: 21 }],
+          pagination: { page: 2, total_items: 2, has_next: false },
+        },
+      });
+      await act(async () => {
+        await result.current.fetchNextPage();
+      });
+      await waitFor(() =>
+        expect(result.current.businesses).toEqual([{ id: 20 }, { id: 21 }]),
+      );
+      unmount();
+    },
+  );
   it("keys by collection and normalized filters while preserving page order", async () => {
     (getExploreCollection as jest.Mock)
       .mockResolvedValueOnce({

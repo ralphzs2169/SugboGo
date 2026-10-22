@@ -26,6 +26,10 @@ jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
   useTabBarSpacing: () => 80,
 }));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
+jest.mock(
+  "@/features/notifications/components/NotificationBellButton",
+  () => () => null,
+);
 jest.mock("@/features/explore/hooks/useExploreFilterOptions");
 jest.mock("../../hooks/useCommunityReviews");
 jest.mock("../../components/CommunityFilterBottomSheet", () => ({
@@ -118,18 +122,14 @@ describe("CommunityScreen", () => {
 
     const screen = await render(<CommunityScreen />);
 
-    expect(screen.getByTestId("community-loading")).toBeTruthy();
+    expect(screen.getByLabelText("Loading Community reviews")).toBeTruthy();
     expect(screen.queryByTestId("community-empty")).toBeNull();
   });
 
   it("shows the compact Community heading and filter control", async () => {
     const screen = await render(<CommunityScreen />);
     expect(screen.getByText("Community")).toBeTruthy();
-    expect(
-      screen.getByText("Real experiences from Cebu explorers."),
-    ).toBeTruthy();
-    expect(screen.getByText("Explorer reviews")).toBeTruthy();
-    expect(screen.getByText("Filter & sort")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Filters" })).toBeTruthy();
   });
 
   it("shows a persistent error and retries only the Community query", async () => {
@@ -143,7 +143,7 @@ describe("CommunityScreen", () => {
     );
 
     const screen = await render(<CommunityScreen />);
-    fireEvent.press(screen.getByText("Retry"));
+    await fireEvent.press(screen.getByText("Retry"));
 
     expect(screen.getByTestId("community-error")).toBeTruthy();
     expect(mockRefetch).toHaveBeenCalledTimes(1);
@@ -154,8 +154,8 @@ describe("CommunityScreen", () => {
 
   it("applies the sheet selection as one query change", async () => {
     const screen = await render(<CommunityScreen />);
-    fireEvent.press(screen.getByLabelText("Filter and sort Community reviews"));
-    fireEvent.press(screen.getByTestId("mock-apply-filters"));
+    await fireEvent.press(screen.getByRole("button", { name: "Filters" }));
+    await fireEvent.press(screen.getByTestId("mock-apply-filters"));
 
     await waitFor(() => {
       expect(useCommunityReviews).toHaveBeenLastCalledWith({
@@ -166,8 +166,35 @@ describe("CommunityScreen", () => {
         hasPhotos: true,
       });
       expect(
-        screen.getByLabelText("Filter and sort Community reviews, 5 active"),
+        screen.getByRole("button", { name: "Filters, 3 active" }),
       ).toBeTruthy();
     });
+  });
+
+  it("preserves reviews when background refresh fails", async () => {
+    const screen = await render(<CommunityScreen />);
+    (useCommunityReviews as jest.Mock).mockReturnValue(
+      communityState({ error: new Error("Offline") }),
+    );
+    await screen.rerender(<CommunityScreen />);
+    expect(screen.getByTestId("rendered-review-7")).toBeTruthy();
+    expect(screen.queryByTestId("community-error")).toBeNull();
+  });
+
+  it("preserves reviews and retries a failed continuation", async () => {
+    (useCommunityReviews as jest.Mock).mockReturnValue(
+      communityState({
+        error: new Error("Page failed"),
+        isFetchNextPageError: true,
+        hasNextPage: true,
+      }),
+    );
+    const screen = await render(<CommunityScreen />);
+    expect(screen.getByTestId("rendered-review-7")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Retry loading reviews" }),
+    );
+    expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
+    expect(mockRefetch).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/shared/query/queryClient";
+import QueryLifecycle from "@/shared/query/QueryLifecycle";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import AppSplash from "@/shared/components/AppSplash";
 import { toastConfig } from "@/shared/components/ToastConfig";
@@ -61,6 +62,7 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <QueryLifecycle />
       <NotificationRealtimeSync />
       <OfflinePocketSync />
       <GestureHandlerRootView style={{ flex: 1 }}>

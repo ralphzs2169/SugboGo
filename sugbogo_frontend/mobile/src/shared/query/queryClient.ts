@@ -5,5 +5,9 @@ export const queryClient = new QueryClient({
     queries: {
       retry: 1,
     },
+    mutations: {
+      // Let the API reject offline actions immediately instead of pausing them.
+      networkMode: "always",
+    },
   },
 });

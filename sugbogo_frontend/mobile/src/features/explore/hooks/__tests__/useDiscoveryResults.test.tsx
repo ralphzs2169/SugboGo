@@ -38,6 +38,59 @@ const criteria = {
 };
 
 describe("useDiscoveryResults", () => {
+  it.each(["refresh", "next-page"])(
+    "preserves loaded pages after %s failure",
+    async (operation) => {
+      const loadedPage = {
+        items: [{ id: 20 }],
+        pagination: { page: 1, total_items: 2, has_next: true },
+      };
+      (getDiscoveryResults as jest.Mock)
+        .mockResolvedValueOnce({ success: true, data: loadedPage })
+        .mockResolvedValueOnce({
+          success: false,
+          code: "NETWORK_ERROR",
+          message: "Offline",
+        });
+      const { result, unmount } = await renderHook(
+        () => useDiscoveryResults(criteria),
+        {
+          wrapper: setupClient(),
+        },
+      );
+      await waitFor(() =>
+        expect(result.current.businesses).toEqual([{ id: 20 }]),
+      );
+      await act(async () => {
+        if (operation === "refresh") {
+          await result.current.refetch();
+        } else {
+          await result.current.fetchNextPage();
+        }
+      });
+      await waitFor(() => expect(result.current.error).toBeTruthy());
+      expect(result.current.businesses).toEqual([{ id: 20 }]);
+      expect(result.current.hasNextPage).toBe(true);
+      expect(result.current.isFetchNextPageError).toBe(
+        operation === "next-page",
+      );
+
+      (getDiscoveryResults as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: {
+          items: [{ id: 21 }],
+          pagination: { page: 2, total_items: 2, has_next: false },
+        },
+      });
+      await act(async () => {
+        await result.current.fetchNextPage();
+      });
+      await waitFor(() =>
+        expect(result.current.businesses).toEqual([{ id: 20 }, { id: 21 }]),
+      );
+      unmount();
+    },
+  );
   it("normalizes ID keys and preserves backend page ordering", async () => {
     (getDiscoveryResults as jest.Mock)
       .mockResolvedValueOnce({
@@ -83,8 +136,7 @@ describe("useDiscoveryResults", () => {
       1,
     );
     expect(result.current.businesses.map((business) => business.id)).toEqual([
-      20,
-      10,
+      20, 10,
     ]);
     expect(result.current.totalItems).toBe(3);
 
@@ -92,9 +144,7 @@ describe("useDiscoveryResults", () => {
 
     await waitFor(() => {
       expect(result.current.businesses.map((business) => business.id)).toEqual([
-        20,
-        10,
-        5,
+        20, 10, 5,
       ]);
     });
     expect(result.current.hasNextPage).toBe(false);

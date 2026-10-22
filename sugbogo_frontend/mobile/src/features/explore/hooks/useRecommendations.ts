@@ -22,8 +22,9 @@ export default function useRecommendations() {
     businesses: query.data?.items ?? [],
     pagination: query.data?.pagination ?? null,
     isLoading: query.isLoading,
+    isPaused: query.isPaused,
     isFetching: query.isFetching,
-    isRefetching: query.isRefetching,
+    isRefetching: query.isRefetching && !query.isPaused,
     error: query.error,
     refetch: query.refetch,
   };
