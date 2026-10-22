@@ -7,6 +7,8 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import { router } from "expo-router";
+import Toast from "react-native-toast-message";
+import { useNetInfo } from "@react-native-community/netinfo";
 import type { PropsWithChildren } from "react";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -30,6 +32,18 @@ import {
 } from "../../api/pockets.service";
 import type { PocketCollection } from "../../types/pockets.types";
 import PocketCollectionScreen from "../PocketCollectionScreen";
+import { makeBusinessAvailableOffline } from "@/features/offline-pockets/services/offlineStorageActions.service";
+
+jest.mock("@react-native-community/netinfo", () => ({
+  useNetInfo: jest.fn(() => ({ isConnected: true, isInternetReachable: true })),
+}));
+jest.mock(
+  "@/features/offline-pockets/services/offlineStorageActions.service",
+  () => ({
+    makeBusinessAvailableOffline: jest.fn().mockResolvedValue(undefined),
+    OfflineStorageActionError: class extends Error {},
+  }),
+);
 
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),
@@ -81,7 +95,11 @@ jest.mock("@/shared/components/modals/ConfirmModal", () => {
     return (
       <View>
         <Text>{props.title}</Text>
-        {props.message}
+        {typeof props.message === "string" ? (
+          <Text>{props.message}</Text>
+        ) : (
+          props.message
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -228,6 +246,10 @@ function pendingResponse<T>() {
 describe("PocketCollectionScreen", () => {
   let client: QueryClient;
   beforeEach(() => {
+    jest.mocked(useNetInfo).mockReturnValue({
+      isConnected: true,
+      isInternetReachable: true,
+    } as ReturnType<typeof useNetInfo>);
     beginAuthSession();
     jest.mocked(getPocketCollection).mockReset().mockResolvedValue(metadata());
     jest
@@ -688,6 +710,73 @@ describe("PocketCollectionScreen", () => {
     expect(getPocketCollection).toHaveBeenCalledTimes(1);
   });
 
+  it("requests explicit offline preparation without changing Pocket memberships", async () => {
+    const screen = await loaded();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Options for Business 81" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Make available offline" }),
+    );
+    await waitFor(() =>
+      expect(makeBusinessAvailableOffline).toHaveBeenCalledWith(81),
+    );
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({ text1: "Offline download requested" }),
+    );
+    expect(removePocketCollectionBusiness).not.toHaveBeenCalled();
+    expect(screen.getByText("Business 81")).toBeTruthy();
+  });
+
+  it("explains offline restoration without issuing a request", async () => {
+    jest.mocked(useNetInfo).mockReturnValueOnce({
+      isConnected: false,
+      isInternetReachable: false,
+    } as ReturnType<typeof useNetInfo>);
+    const screen = await loaded();
+    // The menu mounts after the Pocket screen has finished its own local renders.
+    jest.mocked(useNetInfo).mockReturnValue({
+      isConnected: false,
+      isInternetReachable: false,
+    } as ReturnType<typeof useNetInfo>);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Options for Business 81" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Make available offline" }),
+    );
+    expect(
+      screen.getByText(
+        "Connect to the internet to make this business available offline.",
+      ),
+    ).toBeTruthy();
+    expect(makeBusinessAvailableOffline).not.toHaveBeenCalled();
+    jest.mocked(useNetInfo).mockReturnValue({
+      isConnected: true,
+      isInternetReachable: true,
+    } as ReturnType<typeof useNetInfo>);
+  });
+
+  it("keeps restoration failures actionable without changing saved businesses", async () => {
+    jest
+      .mocked(makeBusinessAvailableOffline)
+      .mockRejectedValueOnce(new Error("temporary failure"));
+    const screen = await loaded();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Options for Business 81" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Make available offline" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText("Unable to prepare this business. Please try again."),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByText("Business 81")).toBeTruthy();
+    expect(removePocketCollectionBusiness).not.toHaveBeenCalled();
+  });
+
   it("removes one business from Favorites and refreshes its server count and contents", async () => {
     jest
       .mocked(removePocketCollectionBusiness)
@@ -702,7 +791,10 @@ describe("PocketCollectionScreen", () => {
       });
     const screen = await loaded();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Remove Business 81 from Favorites" }),
+      screen.getByRole("button", { name: "Options for Business 81" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Remove from this Pocket" }),
     );
     expect(screen.queryByText("Remove from Pocket")).toBeNull();
     expect(router.push).not.toHaveBeenCalled();
@@ -728,7 +820,10 @@ describe("PocketCollectionScreen", () => {
     jest.mocked(removePocketCollectionBusiness).mockResolvedValueOnce(apiError);
     const screen = await loaded();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Remove Business 81 from Favorites" }),
+      screen.getByRole("button", { name: "Options for Business 81" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Remove from this Pocket" }),
     );
     await fireEvent.press(
       screen.getByRole("button", { name: "Confirm removal" }),
@@ -761,12 +856,16 @@ describe("PocketCollectionScreen", () => {
       wrapper: Wrapper,
     });
     await waitFor(() => expect(screen.getByText("Business 81")).toBeTruthy());
-    const openRemoval = async () =>
-      fireEvent.press(
+    const openRemoval = async () => {
+      await fireEvent.press(
         screen.getByRole("button", {
-          name: "Remove Business 81 from Pocket 30",
+          name: "Options for Business 81",
         }),
       );
+      await fireEvent.press(
+        screen.getByRole("button", { name: "Remove from this Pocket" }),
+      );
+    };
     await openRemoval();
     expect(router.push).not.toHaveBeenCalled();
     await fireEvent.press(

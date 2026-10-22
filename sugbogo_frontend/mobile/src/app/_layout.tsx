@@ -78,6 +78,7 @@ export default function RootLayout() {
                       options={{ animation: "none" }}
                     />
                     <Stack.Screen name="offline-routes" />
+                    <Stack.Screen name="offline-storage" />
                     <Stack.Screen name="offline-pockets" />
                     <Stack.Screen name="offline-business/[businessId]" />
 

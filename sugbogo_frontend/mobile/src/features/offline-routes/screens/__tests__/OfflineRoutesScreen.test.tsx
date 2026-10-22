@@ -12,7 +12,13 @@ jest.mock("../../services/savedJourneys.service", () => ({
   deleteSavedJourney: jest.fn(),
 }));
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn(), replace: jest.fn(), canGoBack: () => false },
+  router: {
+    push: jest.fn(),
+    replace: jest.fn(),
+    dismissTo: jest.fn(),
+    canGoBack: () => false,
+  },
+  useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 jest.mock("@/shared/components/modals/ConfirmModal", () => {
@@ -56,7 +62,7 @@ describe("saved guidance reader", () => {
     screen.unmount();
   });
 
-  it("links to the local business library without requiring a saved journey", async () => {
+  it("returns to Offline Storage without requiring a saved journey", async () => {
     (useSavedJourneys as jest.Mock).mockReturnValue({
       ownerId: 7,
       items: [],
@@ -65,10 +71,8 @@ describe("saved guidance reader", () => {
       reload,
     });
     const screen = await render(<OfflineRoutesScreen />);
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Browse saved businesses" }),
-    );
-    expect(router.push).toHaveBeenCalledWith("/offline-pockets");
+    await fireEvent.press(screen.getByRole("button", { name: "Go back" }));
+    expect(router.dismissTo).toHaveBeenCalledWith("/offline-storage");
     expect(screen.getByText("Saved journeys")).toBeTruthy();
   });
 

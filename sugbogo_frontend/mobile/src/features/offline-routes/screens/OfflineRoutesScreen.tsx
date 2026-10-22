@@ -4,7 +4,13 @@ import { FlatList, Platform, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
-import { useAuthStore } from "@/features/auth/store/auth.store";
+import OfflineStorageHeader from "@/features/offline-pockets/components/OfflineStorageHeader";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { theme } from "@/constants/theme";
+import {
+  getAuthSessionGeneration,
+  isAuthSessionGenerationCurrent,
+} from "@/shared/api/authSessionGeneration.service";
 import JeepneyStopGuidanceCard from "@/features/explore/components/getting-there/jeepney-guidance/jeep-guide-map/JeepneyStopGuidanceCard";
 import { formatJourneyDistance } from "@/features/explore/utils/directJourney.utils";
 import AppText from "@/shared/components/AppText";
@@ -28,9 +34,9 @@ export default function OfflineRoutesScreen({
   journeyKey?: string;
 }) {
   const saved = useSavedJourneys();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [toDelete, setToDelete] = useState<{
     ownerId: number;
+    generation: number;
     item: SavedJourneyListItem;
   } | null>(null);
   const [isDeleting, setDeleting] = useState(false);
@@ -39,12 +45,20 @@ export default function OfflineRoutesScreen({
   const snapshot = selected?.snapshot;
 
   function requestDeletion(item: SavedJourneyListItem) {
-    if (saved.ownerId) setToDelete({ ownerId: saved.ownerId, item });
+    if (saved.ownerId)
+      setToDelete({
+        ownerId: saved.ownerId,
+        generation: getAuthSessionGeneration(),
+        item,
+      });
   }
 
   async function handleDelete() {
     if (!toDelete || !saved.ownerId || deletionPending.current) return;
-    if (toDelete.ownerId !== saved.ownerId) {
+    if (
+      toDelete.ownerId !== saved.ownerId ||
+      !isAuthSessionGenerationCurrent(toDelete.generation)
+    ) {
       setToDelete(null);
       return;
     }
@@ -52,10 +66,12 @@ export default function OfflineRoutesScreen({
     setDeleting(true);
     try {
       await deleteSavedJourney(toDelete.ownerId, toDelete.item.key);
+      if (!isAuthSessionGenerationCurrent(toDelete.generation)) return;
       setToDelete(null);
       await saved.reload();
       if (journeyKey) router.replace("/offline-routes");
     } catch {
+      if (!isAuthSessionGenerationCurrent(toDelete.generation)) return;
       Toast.show({
         type: "error",
         text1: "Unable to remove saved guidance",
@@ -68,45 +84,19 @@ export default function OfflineRoutesScreen({
   }
 
   function handleBack() {
-    if (journeyKey) router.replace("/offline-routes");
-    else if (isAuthenticated && router.canGoBack()) router.back();
-    else router.replace("/(auth)/login");
+    if (journeyKey) router.dismissTo("/offline-routes");
+    else router.dismissTo("/offline-storage");
   }
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* Local guidance header */}
-      <View className="gap-3 px-screen-x pb-3 pt-3">
-        <View className="flex-row items-center justify-between gap-3">
-          <AppText weight="bold" className="flex-1 text-xl text-text-primary">
-            Offline Data
-          </AppText>
-          <Button
-            title={journeyKey || isAuthenticated ? "Back" : "Sign in"}
-            size="sm"
-            variant="outline"
-            onPress={handleBack}
-          />
-        </View>
-        <AppText className="text-sm text-text-secondary">
-          {journeyKey
-            ? "Saved jeepney guidance. No live routing or service updates."
-            : "Business information and jeepney guidance saved on this device."}
-        </AppText>
-        {!journeyKey && saved.ownerId && (
-          <View className="gap-4 pt-2">
-            <Button
-              title="Browse saved businesses"
-              variant="outline"
-              onPress={() => router.push("/offline-pockets")}
-            />
-            <AppText weight="bold" className="text-base text-text-primary">
-              Saved journeys
-            </AppText>
-          </View>
-        )}
-      </View>
-
+      <OfflineStorageHeader
+        title={journeyKey ? "Saved journey" : "Saved journeys"}
+        onBack={handleBack}
+      />
+      <AppText className="px-screen-x py-4 text-sm leading-5 text-text-secondary">
+        Saved jeepney guidance. No live routing or service updates.
+      </AppText>
       {/* Local loading, failure, and access states */}
       {!saved.ownerId ? (
         <View className="px-screen-x py-6">
@@ -215,10 +205,24 @@ export default function OfflineRoutesScreen({
           keyExtractor={(item) => item.key}
           contentContainerClassName="px-screen-x pb-6"
           ListEmptyComponent={
-            <AppText className="py-6 text-text-secondary">
-              No saved journeys yet. Open a jeepney journey while online and
-              choose Save offline.
-            </AppText>
+            <View className="items-center px-4 py-12">
+              <MaterialCommunityIcons
+                name="bus"
+                size={44}
+                color={theme.extends.colors.brand}
+                accessible={false}
+              />
+              <AppText
+                weight="bold"
+                className="mt-4 text-center text-lg text-text-primary"
+              >
+                No saved journeys
+              </AppText>
+              <AppText className="mt-2 text-center text-sm leading-6 text-text-secondary">
+                Open jeepney guidance while online and choose Save offline to
+                keep it for your next trip.
+              </AppText>
+            </View>
           }
           renderItem={({ item }) => (
             <View className="gap-3 border-b border-border-primary py-4">
@@ -261,7 +265,11 @@ export default function OfflineRoutesScreen({
 
       {/* Confirm local deletion */}
       <ConfirmModal
-        visible={!!toDelete && toDelete.ownerId === saved.ownerId}
+        visible={
+          !!toDelete &&
+          toDelete.ownerId === saved.ownerId &&
+          isAuthSessionGenerationCurrent(toDelete.generation)
+        }
         title="Remove saved journey?"
         message="This removes guidance from this device. You can save it again while online."
         confirmText="Remove"

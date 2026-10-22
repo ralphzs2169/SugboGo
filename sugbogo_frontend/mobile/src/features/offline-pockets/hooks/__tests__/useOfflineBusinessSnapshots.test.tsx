@@ -18,9 +18,11 @@ import {
   getOfflineBusinessSnapshot,
   listOfflineBusinessSnapshots,
   listOfflineBusinessCovers,
+  readOfflinePocketStorageSummary,
 } from "../../services/offlinePockets.service";
 import { offlineCoverFileUri } from "../../services/offlinePocketCoverFiles";
 import useOfflineBusinessSnapshots from "../useOfflineBusinessSnapshots";
+import useOfflineStorageSummary from "../useOfflineStorageSummary";
 
 jest.mock("expo-router", () => ({ useFocusEffect: () => undefined }));
 jest.mock("../../services/offlinePockets.service", () => ({
@@ -41,6 +43,7 @@ jest.mock("../../services/offlinePockets.service", () => ({
   getOfflineBusinessSnapshot: jest.fn(),
   listOfflineBusinessSnapshots: jest.fn(),
   listOfflineBusinessCovers: jest.fn(),
+  readOfflinePocketStorageSummary: jest.fn(),
 }));
 jest.mock("../../services/offlinePocketCoverFiles", () => ({
   offlineCoverFileUri: jest.fn(),
@@ -55,6 +58,7 @@ describe("network-independent local snapshot queries", () => {
   }
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
     beginAuthSession();
     useAuthStore.setState({
       user: null,
@@ -81,18 +85,24 @@ describe("network-independent local snapshot queries", () => {
     onlineManager.setOnline(false);
   });
   afterEach(() => {
+    jest.restoreAllMocks();
     onlineManager.setOnline(true);
     client.clear();
   });
 
   it("reads and retries SQLite while the network manager is offline", async () => {
+    const storageFailure = new Error("storage failure");
     jest
       .mocked(listOfflineBusinessSnapshots)
-      .mockRejectedValueOnce(new Error("storage failure"));
+      .mockRejectedValueOnce(storageFailure);
     const hook = await renderHook(() => useOfflineBusinessSnapshots(), {
       wrapper: Wrapper,
     });
     await waitFor(() => expect(hook.result.current.isError).toBe(true));
+    expect(console.warn).toHaveBeenCalledWith(
+      "[Offline Pockets] Business snapshot read failed:",
+      storageFailure,
+    );
     await act(async () => {
       await hook.result.current.refetch();
     });
@@ -102,6 +112,42 @@ describe("network-independent local snapshot queries", () => {
     await waitFor(() =>
       expect(listOfflineBusinessSnapshots).toHaveBeenCalledTimes(3),
     );
+    hook.unmount();
+  });
+
+  it("reads storage summaries offline, retries only local failures, and hides revoked data", async () => {
+    const storageFailure = new Error("storage unavailable");
+    jest
+      .mocked(readOfflinePocketStorageSummary)
+      .mockRejectedValueOnce(storageFailure)
+      .mockResolvedValue({
+        businessCount: 2,
+        lastUpdated: 1000,
+        storageBytes: 1200,
+        hasBusinessData: true,
+        cleanupPending: false,
+        retries: [],
+      });
+    const hook = await renderHook(() => useOfflineStorageSummary(), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(hook.result.current.isError).toBe(true));
+    expect(console.warn).toHaveBeenCalledWith(
+      "[Offline Storage] Business summary read failed:",
+      storageFailure,
+    );
+    await act(async () => {
+      await hook.result.current.refetch();
+    });
+    await waitFor(() =>
+      expect(hook.result.current.data?.businessCount).toBe(2),
+    );
+    expect(readOfflinePocketStorageSummary).toHaveBeenCalledTimes(2);
+    await act(async () =>
+      useOfflineAccessStore.setState({ ownerId: null, isRevoking: true }),
+    );
+    expect(hook.result.current.ownerId).toBeNull();
+    expect(hook.result.current.data).toBeUndefined();
     hook.unmount();
   });
 

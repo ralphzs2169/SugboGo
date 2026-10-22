@@ -4,6 +4,10 @@ import { Platform } from "react-native";
 import { OFFLINE_POCKETS_DATABASE } from "../constants/offlinePockets.constants";
 import { migrateOfflinePocketsDatabase } from "./offlinePocketsMigrations";
 import { openDatabaseAsync } from "./sqliteDriver";
+import {
+  OfflinePocketsRollbackError,
+  runOfflinePocketsTransaction,
+} from "./offlinePocketsTransaction";
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 let operationQueue: Promise<unknown> = Promise.resolve();
@@ -17,15 +21,17 @@ async function getDatabase(): Promise<SQLiteDatabase> {
   }
   if (!databasePromise) {
     databasePromise = (async () => {
-      const db = await openDatabaseAsync(OFFLINE_POCKETS_DATABASE);
+      const db = await openDatabaseAsync(OFFLINE_POCKETS_DATABASE, {
+        useNewConnection: true,
+      });
       try {
         await db.execAsync(
-          "PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;",
+          "PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;",
         );
         await migrateOfflinePocketsDatabase(db);
         return db;
       } catch (error) {
-        await db.closeAsync();
+        await db.closeAsync().catch(() => undefined);
         throw error;
       }
     })().catch((error) => {
@@ -42,11 +48,15 @@ export function withOfflinePocketsTransaction<T>(
 ): Promise<T> {
   const result = operationQueue.then(async () => {
     const db = await getDatabase();
-    let value!: T;
-    await db.withExclusiveTransactionAsync(async (tx) => {
-      value = await action(tx);
-    });
-    return value;
+    try {
+      return await runOfflinePocketsTransaction(db, action);
+    } catch (error) {
+      if (error instanceof OfflinePocketsRollbackError) {
+        databasePromise = null;
+        await db.closeAsync().catch(() => undefined);
+      }
+      throw error;
+    }
   });
   operationQueue = result.catch(() => undefined);
   return result;

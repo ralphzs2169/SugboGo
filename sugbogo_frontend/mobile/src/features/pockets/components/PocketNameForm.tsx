@@ -16,6 +16,8 @@ import {
 } from "../hooks/usePocketCollectionMutations";
 import type { PocketCollection } from "../types/pockets.types";
 
+const MIN_POCKET_NAME_LENGTH = 3;
+
 export type PocketNameFormProps = {
   collection?: PocketCollection;
   onSuccess: (collection: PocketCollection) => void;
@@ -65,6 +67,10 @@ export default function PocketNameForm({
       setError("Pocket name is required.");
       return;
     }
+    if (name.trim().length < MIN_POCKET_NAME_LENGTH) {
+      setError("Pocket name must be at least 3 characters.");
+      return;
+    }
     busy.current = true;
     onBusyChange?.(true);
     setError(undefined);
@@ -102,6 +108,8 @@ export default function PocketNameForm({
       <FormInput
         label="Pocket name"
         accessibilityLabel="Pocket name"
+        minLength={MIN_POCKET_NAME_LENGTH}
+        showCharacterCount
         required
         value={name}
         onChangeText={(value) => {
@@ -124,6 +132,7 @@ export default function PocketNameForm({
         <Button
           title="Cancel"
           variant="outline"
+          rounded="full"
           className="flex-1"
           disabled={pending}
           onPress={() => {
@@ -132,9 +141,11 @@ export default function PocketNameForm({
         />
         <Button
           title={collection ? "Save name" : "Create Pocket"}
+          rounded="full"
           className="flex-1"
           loading={pending}
           disabled={
+            name.trim().length < MIN_POCKET_NAME_LENGTH ||
             collection?.is_default ||
             (collection !== undefined && name === collection.name)
           }

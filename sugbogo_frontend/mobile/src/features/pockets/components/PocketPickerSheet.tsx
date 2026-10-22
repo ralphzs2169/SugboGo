@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   BottomSheetBackdrop,
   BottomSheetFlatList,
+  BottomSheetFooter,
   BottomSheetModal,
   BottomSheetScrollView,
   BottomSheetTextInput,
@@ -240,12 +241,75 @@ export default function PocketPickerSheet({
       onChange={(index) => setIsOpen(index >= 0)}
       onDismiss={onDismiss}
       backgroundStyle={{
-        backgroundColor: theme.extends.colors.background,
+        backgroundColor: theme.extends.colors.surface,
         borderRadius: 24,
       }}
       handleIndicatorStyle={{
         backgroundColor: theme.extends.colors.text.tertiary,
       }}
+      footerComponent={
+        creating
+          ? undefined
+          : (props) => (
+              <BottomSheetFooter {...props}>
+                {/* Sticky confirmation footer */}
+                <View
+                  className="border-t border-border-primary bg-surface px-5 pt-4"
+                  style={{
+                    paddingBottom: Math.max(insets.bottom, 24),
+                  }}
+                >
+                  {saveError && (
+                    <AppText
+                      accessibilityRole="alert"
+                      className="mb-3 text-body text-text-error"
+                    >
+                      {saveError}
+                    </AppText>
+                  )}
+
+                  {draft !== null &&
+                    draft.length === 0 &&
+                    memberships.memberships?.is_pocketed && (
+                      <View className="mb-3 flex-row items-center gap-2">
+                        <MaterialCommunityIcons
+                          name="information-outline"
+                          size={17}
+                          color={theme.extends.colors.text.secondary}
+                        />
+
+                        <AppText className="flex-1 text-small text-text-secondary">
+                          Saving will remove this business from all your
+                          Pockets.
+                        </AppText>
+                      </View>
+                    )}
+
+                  <View className="flex-row gap-3">
+                    <Button
+                      title="Cancel"
+                      variant="outline"
+                      rounded="full"
+                      className="flex-1"
+                      disabled={mutation.isPending}
+                      onPress={dismiss}
+                    />
+
+                    <Button
+                      title="Save changes"
+                      rounded="full"
+                      className="flex-1"
+                      loading={mutation.isPending}
+                      disabled={!canSave}
+                      onPress={() => {
+                        void save();
+                      }}
+                    />
+                  </View>
+                </View>
+              </BottomSheetFooter>
+            )
+      }
       backdropComponent={(props) => (
         <BottomSheetBackdrop
           {...props}
@@ -301,6 +365,7 @@ export default function PocketPickerSheet({
 
             <BottomSheetFlatList
               testID="pocket-picker-list"
+              enableFooterMarginAdjustment
               data={ready ? choices : []}
               keyExtractor={(collection) => String(collection.id)}
               contentContainerStyle={{
@@ -418,15 +483,11 @@ export default function PocketPickerSheet({
                       }}
                       disabled={mutation.isPending}
                       onPress={() => toggle(item.id)}
-                      className={`min-h-16 flex-row items-center gap-3 px-3.5 py-3 active:opacity-80 ${
-                        selected ? "bg-brand/5" : "bg-surface"
-                      }`}
+                      className="min-h-16 cursor-pointer flex-row items-center gap-3 bg-surface px-3.5 py-3 active:opacity-80"
                     >
                       {/* Collection icon */}
                       <View
-                        className={`h-10 w-10 items-center justify-center rounded-card ${
-                          selected ? "bg-brand/10" : "bg-surface"
-                        }`}
+                        className="h-10 w-10 items-center justify-center"
                         accessibilityElementsHidden
                         importantForAccessibility="no-hide-descendants"
                       >
@@ -435,11 +496,7 @@ export default function PocketPickerSheet({
                             item.is_default ? "heart-outline" : "folder-outline"
                           }
                           size={21}
-                          color={
-                            selected
-                              ? theme.extends.colors.brand
-                              : theme.extends.colors.text.secondary
-                          }
+                          color={theme.extends.colors.text.secondary}
                         />
                       </View>
 
@@ -578,6 +635,7 @@ export default function PocketPickerSheet({
                     <View className="mt-4">
                       <Button
                         title="Load more Pockets"
+                        rounded="full"
                         variant="outline"
                         size="sm"
                         onPress={() => loadMore(true)}
@@ -592,59 +650,6 @@ export default function PocketPickerSheet({
               onEndReached={() => loadMore()}
               onEndReachedThreshold={0.35}
             />
-
-            {/* Sticky confirmation footer */}
-            <View
-              className="border-t border-border-primary bg-surface px-5 pt-4"
-              style={{
-                paddingBottom: Math.max(insets.bottom, 24),
-              }}
-            >
-              {saveError && (
-                <AppText
-                  accessibilityRole="alert"
-                  className="mb-3 text-body text-text-error"
-                >
-                  {saveError}
-                </AppText>
-              )}
-
-              {draft !== null &&
-                draft.length === 0 &&
-                memberships.memberships?.is_pocketed && (
-                  <View className="mb-3 flex-row items-center gap-2">
-                    <MaterialCommunityIcons
-                      name="information-outline"
-                      size={17}
-                      color={theme.extends.colors.text.secondary}
-                    />
-
-                    <AppText className="flex-1 text-small text-text-secondary">
-                      Saving will remove this business from all your Pockets.
-                    </AppText>
-                  </View>
-                )}
-
-              <View className="flex-row gap-3">
-                <Button
-                  title="Cancel"
-                  variant="outline"
-                  className="flex-1"
-                  disabled={mutation.isPending}
-                  onPress={dismiss}
-                />
-
-                <Button
-                  title="Save changes"
-                  className="flex-1"
-                  loading={mutation.isPending}
-                  disabled={!canSave}
-                  onPress={() => {
-                    void save();
-                  }}
-                />
-              </View>
-            </View>
           </>
         )}
       </View>

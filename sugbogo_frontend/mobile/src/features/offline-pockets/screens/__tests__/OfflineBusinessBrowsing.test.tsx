@@ -108,9 +108,9 @@ describe("local business browsing", () => {
     });
     expect(containsImage(view.toJSON())).toBe(false);
     await fireEvent.press(
-      view.getByRole("button", { name: "Back to Offline Data" }),
+      view.getByRole("button", { name: "Back to Offline Storage" }),
     );
-    expect(router.dismissTo).toHaveBeenCalledWith("/offline-routes");
+    expect(router.dismissTo).toHaveBeenCalledWith("/offline-storage");
   });
 
   it("renders stale but valid profile data without live actions or images", async () => {

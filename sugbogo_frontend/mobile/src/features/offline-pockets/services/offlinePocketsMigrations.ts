@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import { OFFLINE_POCKETS_SCHEMA_VERSION } from "../constants/offlinePockets.constants";
+import { runOfflinePocketsTransaction } from "./offlinePocketsTransaction";
 
 const INITIAL_SCHEMA = `
   CREATE TABLE offline_pocket_accounts (
@@ -82,7 +83,7 @@ const COVER_SCHEMA = `
 export async function migrateOfflinePocketsDatabase(
   db: SQLiteDatabase,
 ): Promise<void> {
-  await db.withExclusiveTransactionAsync(async (tx) => {
+  await runOfflinePocketsTransaction(db, async (tx) => {
     const row = await tx.getFirstAsync<{ user_version: number }>(
       "PRAGMA user_version",
     );

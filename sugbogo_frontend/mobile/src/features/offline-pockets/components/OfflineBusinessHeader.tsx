@@ -17,10 +17,10 @@ export default function OfflineBusinessHeader({
       <SafePressable
         accessibilityRole="button"
         accessibilityLabel={
-          detail ? "Back to saved businesses" : "Back to Offline Data"
+          detail ? "Back to saved businesses" : "Back to Offline Storage"
         }
         onPress={() =>
-          router.dismissTo(detail ? "/offline-pockets" : "/offline-routes")
+          router.dismissTo(detail ? "/offline-pockets" : "/offline-storage")
         }
         className="min-h-12 min-w-12 items-center justify-center rounded-full active:bg-surface-muted"
       >

@@ -36,6 +36,16 @@ let mockFailMigration = false;
 let mockFailSnapshotMigration = false;
 let mockFailCoverMigration = false;
 let mockCoverId = 0;
+let mockConnected = true;
+jest.mock("@react-native-community/netinfo", () => ({
+  __esModule: true,
+  default: {
+    fetch: async () => ({
+      isConnected: mockConnected,
+      isInternetReachable: mockConnected,
+    }),
+  },
+}));
 jest.mock("expo-crypto", () => ({
   CryptoDigestAlgorithm: { SHA256: "sha256" },
   digestStringAsync: async (_algorithm: string, value: string) =>
@@ -100,7 +110,11 @@ let mockPause: {
 /** Adapts only native SQLite; repository queries and transactions execute on real SQLite. */
 function mockOpenDatabase(name: string): SQLiteDatabase {
   mockOpenedNames.push(name);
-  const native = new sqlite.DatabaseSync(databasePath);
+  const native = new sqlite.DatabaseSync(
+    name === "sugbogo_offline_guidance.db"
+      ? join(directory, "journeys.sqlite")
+      : databasePath,
+  );
   mockConnections.add(native);
   const adapter = {
     execAsync: async (sql: string) => {
@@ -159,6 +173,9 @@ function mockOpenDatabase(name: string): SQLiteDatabase {
 }
 
 jest.mock("../sqliteDriver", () => ({
+  openDatabaseAsync: jest.fn(async (name: string) => mockOpenDatabase(name)),
+}));
+jest.mock("@/features/offline-routes/services/sqliteDriver", () => ({
   openDatabaseAsync: jest.fn(async (name: string) => mockOpenDatabase(name)),
 }));
 jest.mock("../../constants/offlinePockets.constants", () => {
@@ -225,6 +242,7 @@ function deferred() {
 
 describe("Offline Pocket SQLite control foundation", () => {
   beforeEach(() => {
+    mockConnected = true;
     resetCoverFileMock();
     // File driver mocks must retain the same backing store across resetModules/reopening.
     jest.doMock("expo-file-system", () => {
@@ -272,10 +290,12 @@ describe("Offline Pocket SQLite control foundation", () => {
       native.close();
     }
     mockConnections.clear();
-    for (const suffix of ["", "-wal", "-shm"]) {
-      const file = databasePath + suffix;
-      if (existsSync(file)) {
-        unlinkSync(file);
+    for (const path of [databasePath, join(directory, "journeys.sqlite")]) {
+      for (const suffix of ["", "-wal", "-shm"]) {
+        const file = path + suffix;
+        if (existsSync(file)) {
+          unlinkSync(file);
+        }
       }
     }
     rmdirSync(directory);
@@ -1132,6 +1152,289 @@ describe("Offline Pocket SQLite control foundation", () => {
     await cacheBusiness()(operation, () => true);
     return { context, operation };
   }
+
+  function storageActions() {
+    return jest.requireActual<
+      typeof import("../offlineStorageActions.service")
+    >("../offlineStorageActions.service");
+  }
+
+  it("summarizes validated businesses, true UTF-8 payload bytes and managed image bytes", async () => {
+    const { context } = await cacheCover();
+    await runningSnapshot(22);
+    nativeDatabase().exec(
+      "UPDATE offline_business_snapshots SET snapshot = '{' WHERE business_id = 22",
+    );
+    const summary = await api.readOfflinePocketStorageSummary(
+      await api.captureOfflinePocketReadContext(),
+    );
+    const payload = nativeDatabase()
+      .prepare(
+        "SELECT SUM(length(CAST(snapshot AS BLOB))) AS bytes FROM offline_business_snapshots",
+      )
+      .get() as { bytes: number };
+    expect(summary).toMatchObject({
+      businessCount: 1,
+      storageBytes: payload.bytes + 1024,
+      hasBusinessData: true,
+      cleanupPending: false,
+      retries: [],
+    });
+    expect(summary.lastUpdated).toBe(
+      Date.parse(
+        (await api.getOfflineBusinessSnapshot(context, 21)).snapshot!.fetchedAt,
+      ),
+    );
+  });
+
+  it("clears business information and photos without touching the separate saved-journey database", async () => {
+    await cacheCover();
+    const journeys = jest.requireActual<
+      typeof import("@/features/offline-routes/services/savedJourneys.service")
+    >("@/features/offline-routes/services/savedJourneys.service");
+    const fixture = jest.requireActual<
+      typeof import("@/features/offline-routes/utils/__tests__/savedJourney.fixture")
+    >(
+      "@/features/offline-routes/utils/__tests__/savedJourney.fixture",
+    ).snapshot;
+    await journeys.saveJourney(fixture);
+    const before = await journeys.listSavedJourneys(7);
+    expect(before).toHaveLength(1);
+    await api.clearOfflineBusinessData(
+      await api.captureOfflinePocketReadContext(),
+    );
+    expect(await journeys.listSavedJourneys(7)).toEqual(before);
+    expect(mockFiles.size).toBe(0);
+    expect(mockRemoveMembership).not.toHaveBeenCalled();
+    expect(mockReplaceMemberships).not.toHaveBeenCalled();
+    expect(mockDeleteCollection).not.toHaveBeenCalled();
+  });
+
+  it("isolates storage counts and bytes by account and API scope", async () => {
+    await cacheCover();
+    const original = await api.captureOfflinePocketReadContext();
+    signIn(8);
+    expect(
+      await api.readOfflinePocketStorageSummary(
+        await api.captureOfflinePocketReadContext(),
+      ),
+    ).toMatchObject({
+      businessCount: 0,
+      storageBytes: 0,
+      hasBusinessData: false,
+    });
+    await expect(
+      api.readOfflinePocketStorageSummary(original),
+    ).rejects.toThrow();
+    signIn(7);
+    mockApiScope = "https://api-b.example";
+    expect(
+      await api.readOfflinePocketStorageSummary(
+        await api.captureOfflinePocketReadContext(),
+      ),
+    ).toMatchObject({ businessCount: 0, storageBytes: 0 });
+    mockApiScope = "https://api-a.example";
+    expect(
+      await api.readOfflinePocketStorageSummary(
+        await api.captureOfflinePocketReadContext(),
+      ),
+    ).toMatchObject({ businessCount: 1, hasBusinessData: true });
+  });
+
+  it("clears from local-only access, removes images, and persists suppression after reopening", async () => {
+    await cacheCover();
+    session.invalidateAuthSession();
+    auth.setState({ user: null, isAuthenticated: false, isLoading: false });
+    const store = jest.requireActual<
+      typeof import("@/features/offline-routes/stores/offlineAccess.store")
+    >(
+      "@/features/offline-routes/stores/offlineAccess.store",
+    ).useOfflineAccessStore;
+    store.setState({ ownerId: 7, isRevoking: false });
+    const local = await api.captureOfflinePocketReadContext();
+    const result = await api.clearOfflineBusinessData(local);
+    expect(result.cleanupPending).toBe(false);
+    expect(mockFiles.size).toBe(0);
+    expect(store.getState().ownerId).toBeNull();
+    expect(mockReplaceMemberships).not.toHaveBeenCalled();
+    expect(mockRemoveMembership).not.toHaveBeenCalled();
+    expect(mockDeleteCollection).not.toHaveBeenCalled();
+    reopenRepository();
+    const context = await api.captureOfflinePocketContext();
+    expect(
+      await api.readOfflinePocketStorageSummary(
+        await api.captureOfflinePocketReadContext(),
+      ),
+    ).toMatchObject({
+      businessCount: 0,
+      storageBytes: 0,
+      retries: [],
+      hasBusinessData: false,
+    });
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      intent: "suppressed",
+    });
+    await api.recoverOfflinePocketWork(context);
+    expect(await api.getOfflinePocketOperation(context, 21)).toBeNull();
+    expect(mockSync).not.toHaveBeenCalled();
+  });
+
+  it("keeps snapshots usable if management clearing fails and exposes physical cleanup failures", async () => {
+    await cacheCover();
+    const context = await api.captureOfflinePocketReadContext();
+    mockFailSql = "DELETE FROM offline_business_snapshots";
+    await expect(api.clearOfflineBusinessData(context)).rejects.toThrow(
+      "Write failed",
+    );
+    expect(await api.readOfflinePocketStorageSummary(context)).toMatchObject({
+      businessCount: 1,
+    });
+    expect(mockFiles.size).toBe(1);
+    mockDelete.mockImplementation(() => {
+      throw new Error("File busy");
+    });
+    const result = await api.clearOfflineBusinessData(context);
+    expect(result.cleanupPending).toBe(true);
+    expect(
+      await api.readOfflinePocketStorageSummary(result.context),
+    ).toMatchObject({
+      businessCount: 0,
+      cleanupPending: true,
+      storageBytes: 1024,
+    });
+    mockDelete.mockReset();
+    await api.cleanupOfflinePocketCoverFiles(result.context);
+    expect(
+      await api.readOfflinePocketStorageSummary(result.context),
+    ).toMatchObject({ cleanupPending: false, storageBytes: 0 });
+  });
+
+  it("explicitly restores one authoritatively saved business after clearing, without waiting for downloads", async () => {
+    const { context } = await cacheCover();
+    await api.clearOfflinePocketControlState(context);
+    mockDownload.mockClear();
+    await storageActions().makeBusinessAvailableOffline(21);
+    expect(
+      await api.getOfflinePocketControl(
+        await api.captureOfflinePocketContext(),
+        21,
+      ),
+    ).toMatchObject({ intent: "restore", workStatus: "pending" });
+    expect(mockDownload).not.toHaveBeenCalled();
+    expect(mockSync).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["offline", "removed", "unknown"])(
+    "does not restore on %s membership verification",
+    async (reason) => {
+      const { context } = await cacheCover();
+      await api.clearOfflinePocketControlState(context);
+      mockGetMemberships.mockClear();
+      if (reason === "offline") mockConnected = false;
+      else
+        mockGetMemberships.mockResolvedValueOnce(
+          reason === "removed"
+            ? {
+                success: true,
+                data: { business_id: 21, pocket_ids: [], is_pocketed: false },
+              }
+            : { success: false, code: "NETWORK_ERROR" },
+        );
+      await expect(
+        storageActions().makeBusinessAvailableOffline(21),
+      ).rejects.toBeDefined();
+      expect(
+        await api.getOfflinePocketControl(
+          await api.captureOfflinePocketContext(),
+          21,
+        ),
+      ).toMatchObject({ intent: "suppressed" });
+      expect(mockSync).not.toHaveBeenCalled();
+      if (reason === "offline")
+        expect(mockGetMemberships).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["clear", "remove", "logout", "same-user", "switch"])(
+    "rejects a restore response made stale by %s",
+    async (reason) => {
+      const { context } = await cacheCover();
+      const cleared = await api.clearOfflinePocketControlState(context);
+      const started = deferred();
+      const release = deferred();
+      mockGetMemberships.mockImplementationOnce(async () => {
+        started.resolve();
+        await release.promise;
+        return {
+          success: true,
+          data: { business_id: 21, pocket_ids: [1], is_pocketed: true },
+        };
+      });
+      const restoring = storageActions()
+        .makeBusinessAvailableOffline(21)
+        .catch((failure: unknown) => failure);
+      await started.promise;
+      if (reason === "clear") await api.clearOfflinePocketControlState(cleared);
+      else if (reason === "remove")
+        await api.removeOfflineBusinessSnapshot(cleared, 21);
+      else if (reason === "logout") {
+        session.invalidateAuthSession();
+        auth.getState().clearUser();
+      } else signIn(reason === "switch" ? 8 : 7);
+      release.resolve();
+      expect(await restoring).toBeInstanceOf(Error);
+      expect(mockSync).not.toHaveBeenCalled();
+      expect(
+        nativeDatabase()
+          .prepare(
+            "SELECT work_status AS status FROM offline_pocket_controls WHERE owner_id = 7 AND business_id = 21",
+          )
+          .get(),
+      ).toEqual({ status: "invalidated" });
+    },
+  );
+
+  it("retries only due, non-suppressed failure revisions after authoritative membership confirmation", async () => {
+    const context = await api.captureOfflinePocketContext();
+    const eligible = await api.enqueueConfirmedPocketSave(context, 21);
+    const permanent = await api.enqueueConfirmedPocketSave(context, 22);
+    const future = await api.enqueueConfirmedPocketSave(context, 23);
+    for (const operation of [eligible, permanent, future])
+      await api.startOfflinePocketWork(operation);
+    await api.failOfflinePocketWork(eligible, "NETWORK_ERROR", 0);
+    await api.failOfflinePocketWork(permanent, "INVALID_RESPONSE", null);
+    await api.failOfflinePocketWork(
+      future,
+      "NETWORK_ERROR",
+      Date.now() + 100_000,
+    );
+    const summary = await api.readOfflinePocketStorageSummary(
+      await api.captureOfflinePocketReadContext(),
+    );
+    expect(
+      summary.retries.map((row) => row.operation.businessId).sort(),
+    ).toEqual([21, 23]);
+    expect(
+      await storageActions().retryOfflineBusinessDownloads([
+        eligible,
+        permanent,
+        future,
+      ]),
+    ).toBe(1);
+    expect(await api.getOfflinePocketControl(context, 21)).toMatchObject({
+      workStatus: "pending",
+      operationVersion: eligible.operationVersion + 1,
+    });
+    expect(await api.getOfflinePocketControl(context, 22)).toMatchObject({
+      workStatus: "failed",
+      nextRetryAt: null,
+    });
+    expect(await api.getOfflinePocketControl(context, 23)).toMatchObject({
+      workStatus: "failed",
+    });
+    expect(mockSync).toHaveBeenCalledTimes(1);
+    expect(mockGetMemberships).toHaveBeenCalledTimes(1);
+  });
 
   it("caches only the resolved display cover and reopens its managed reference", async () => {
     const { context } = await cacheCover();

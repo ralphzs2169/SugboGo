@@ -74,6 +74,16 @@ export async function offlineCoverFileUri(
   }
 }
 
+/** Measures only exact managed files, including partial transfers awaiting cleanup. */
+export async function offlineCoverFileBytes(
+  owner: FileOwner,
+  name: string,
+): Promise<number> {
+  const file = await managedFile(owner, name);
+  const part = new File(`${file.uri}.part`);
+  return (file.exists ? file.size : 0) + (part.exists ? part.size : 0);
+}
+
 /** Deletes exact generated files only. Active downloads finish cancellation before garbage collection. */
 export async function deleteOfflineCoverFile(
   owner: FileOwner,

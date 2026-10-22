@@ -39,7 +39,7 @@ export default function Index() {
   }
 
   if (!isAuthenticated) {
-    if (offlineOwnerId) return <Redirect href="/offline-routes" />;
+    if (offlineOwnerId) return <Redirect href="/offline-storage" />;
     if (pendingEmail) {
       return (
         <Redirect

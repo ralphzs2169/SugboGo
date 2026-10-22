@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
@@ -84,6 +84,14 @@ export default function useOfflineBusinessSnapshots(businessId?: number) {
       return { context, entries, covers };
     },
   });
+  useEffect(() => {
+    if (__DEV__ && query.error) {
+      console.warn(
+        "[Offline Pockets] Business snapshot read failed:",
+        query.error,
+      );
+    }
+  }, [query.error]);
   const { refetch } = query;
   useFocusEffect(
     useCallback(() => {

@@ -263,8 +263,8 @@ needed in addition to controlled tests.
 
 ## Local browsing (Task 6)
 
-`/offline-routes` remains the Offline Data entry point, with saved jeepney guidance
-and a link to `/offline-pockets`. The flat library opens
+Task 8 makes `/offline-storage` the management entry point. `/offline-routes`
+retains saved jeepney guidance and `/offline-pockets` retains the flat library, which opens
 `/offline-business/[businessId]`. Routes carry business IDs only, never owner IDs.
 `useOfflineBusinessSnapshots` reads SQLite using React Query `networkMode: always`,
 no automatic retry and no inactive cache retention. Keys include API scope, owner
@@ -277,7 +277,7 @@ are selectable text and hours describe saved information rather than live status
 existing local-only grant. Local reads check owner, API scope, session generation,
 revocation and persisted clear generation inside the SQLite transaction. All cache
 work and normal mutation operations still require authenticated ownership.
-`removeUnreadableOfflineBusinessSnapshot` is the sole deletion-only exception:
+`removeUnreadableOfflineBusinessSnapshot` is a deletion-only exception:
 an authorized local reader can suppress and remove a corrupt/unsupported copy,
 but cannot use it to delete healthy data or enqueue work.
 
@@ -426,12 +426,11 @@ Modified files under the same feature:
 3. Force-close SugboGo.
 4. Enable airplane mode.
 5. Reopen SugboGo.
-6. Open Offline Data, then saved businesses.
+6. Open Offline Storage, then saved businesses.
 7. Confirm the cover displays from a managed local file.
 8. Open its offline detail and confirm the cover and text remain available.
 9. Inspect network traffic to confirm browsing makes no remote image requests.
-10. Clear Offline Pocket data through the repository/test harness until Task 8
-    supplies its management screen; confirm images disappear and journeys remain.
+10. Clear offline business data from Offline Storage; confirm images disappear and journeys remain.
 11. Reconnect and confirm intentionally cleared content is not re-enqueued.
 
 On physical Android also inspect short/long names, narrow screens, large text,
@@ -452,3 +451,151 @@ account directories are harmless and retained. Snapshot data and cover files are
 not encrypted; full quotas and storage management remain outside Task 7. Backend
 membership checks and SQLite publication remain separate systems, with the same
 unavoidable remote-change window documented above.
+
+## Offline Storage management (Task 8)
+
+### Native connection locking correction
+
+The native development build exposed `NativeStatement.finalizeAsync: database is
+locked`. Pocket operations now use one private connection (`useNewConnection`),
+configured with WAL, foreign keys and a 5-second `busy_timeout`. The existing
+serialized queue reserves the writer using `BEGIN IMMEDIATE` before any policy
+read, rather than promoting a deferred read transaction to a write. Migrations use
+the same connection and immediate-transaction helper. No repository callback is
+automatically replayed after a lock failure. Failed reservations do not issue a
+rollback; failed rollback connections are closed and reopened for subsequent work.
+Account/session/clear checks and atomic publication remain inside transactions.
+
+Expo's exclusive-transaction API creates separate native connections, which the
+original test adapter did not simulate. The private-connection path now matches the
+actual SQLite adapter's single-connection transactions. Additional controlled tests
+cover overlapping operations, lock failure without action replay, rollback and
+connection recovery. Fully close and reopen the development app after updating to
+release any connections held by the previous JS runtime. Native confirmation is
+still required; no data reset, reinstall or schema change is necessary for this fix.
+
+Profile and the local-only cold-start redirect open `/offline-storage`. The overview
+directly reuses the merchant dashboard/analytics `MerchantContentSection` and
+`MerchantMetricCard` presentation components. Full-width white sections use the
+same 20-point gutters, heading hierarchy and narrow background separators. Muted
+metric cards have left-aligned counts, right-aligned neutral icons and built-in
+skeletons; the grid stacks below 340 points or at font scale 1.5, matching analytics.
+An aligned compact back header replaces the centered heading. The banner and
+separately outlined navigation cards are removed. Analytics-style destination rows
+use muted icon containers and a dividing line. Sections group “On this device”,
+“Browse offline”, “Download businesses” and “Free up storage”. File estimates and
+freshness stay secondary; restoration, retry and the quiet destructive action keep
+their existing authorization and confirmation behavior. These reused components
+are presentation-only and do not mount merchant data hooks or network requests.
+
+`useOfflineStorageSummary` uses React Query `networkMode: always`, scoped keys,
+no automatic retry and the existing local revision notifications. Business counts
+include only validated readable snapshots. Journey counts independently use the
+existing `useSavedJourneys` hook and include readable journeys only. Failure in one
+resource does not disable the other navigation entry. Unknown counts display a
+dash rather than zero. The latest update is the newest available snapshot fetch
+time; older usable copies remain included.
+
+`readOfflinePocketStorageSummary` estimates business storage from actual UTF-8 JSON
+payload bytes and sizes of precisely referenced managed image/staging files,
+including garbage awaiting deletion. Missing files contribute zero; failed file
+inspection makes the estimate unavailable. The estimate excludes SQLite allocation,
+indexes/WAL, empty directories, journeys and unrelated app files. It is explicitly
+labeled “About” and is not a total device-storage measurement.
+
+`clearOfflineBusinessData` permits the existing authenticated owner or established
+local-only grant to clear only that account/API's business copies. It reuses the
+same serialized transaction as authenticated control clearing: advance the clear
+generation, invalidate/suppress controls, delete snapshots and mark cover files
+as garbage. Physical deletion follows commit. Failures leave inaccessible garbage
+and a persistent “Finish removing photos” action; retry never restores content.
+Deleting the final eligible offline resource revokes local access. If that prevents
+immediate cleanup, the user must sign in as the same account to finish. No Pocket
+API or saved-journey database is changed. A failed transaction preserves previous
+usable data. Shared revision notifications update the overview/library immediately.
+The schema remains version 3; no migration is required.
+
+Restoration is deliberately per-business in the existing Pocket collection card
+options, through `PocketBusinessActions`, rather than a duplicate Pocket browser.
+`makeBusinessAvailableOffline` pins the authenticated context and current control
+revision before connectivity/backend waits, verifies authoritative memberships,
+then calls `requestOfflinePocketRestore` with an optional expected-revision CAS.
+Clear, removal, another business revision, logout and session replacement reject
+delayed responses. Only explicit restoration overrides suppression. The worker is
+woken after enqueue; the UI never awaits business/image downloads. A network
+failure is unknown membership, not removal. Confirmed absent membership invalidates
+only the pinned revision and reports that the business is no longer saved.
+
+`retryOfflineBusinessDownloads` accepts pinned operations from the local summary.
+It checks current ownership/revision, due retry eligibility and fresh backend
+membership before using the existing retry operation. Permanent failures,
+suppressed entries and future retries are skipped. A bounded timer reveals retry
+actions as work becomes due; the existing coordinator remains the only scheduler.
+Readable older snapshots remain browsable throughout failed refreshes. Offline
+users can browse and clear; online verification actions explain or disable their
+internet requirement. No reconnect handler restores suppressed entries.
+
+### Task 8 file inventory
+
+Added:
+
+- `src/app/offline-storage.tsx`.
+- `features/offline-pockets/components/OfflineStorageHeader.tsx`.
+- `features/offline-pockets/hooks/useOfflineStorageSummary.ts`.
+- `features/offline-pockets/screens/OfflineStorageScreen.tsx` and its screen tests.
+- `features/offline-pockets/services/offlineStorageActions.service.ts`.
+- `features/pockets/components/PocketBusinessActions.tsx`.
+
+Modified:
+
+- `src/app/_layout.tsx`, `src/app/index.tsx`, `features/profile/screens/ProfileScreen.tsx`.
+- `features/offline-pockets/services/offlinePockets.service.ts`, `offlinePocketCoverFiles.ts`.
+- `features/offline-pockets/components/OfflineBusinessHeader.tsx`.
+- Existing offline repository, local query, business browsing and journey screen tests.
+- `features/offline-routes/screens/OfflineRoutesScreen.tsx`.
+- `features/pockets/screens/PocketCollectionScreen.tsx` and its tests; this README.
+
+### Task 8 Android acceptance checklist (pending physical-device verification)
+
+1. Save several businesses in different Pocket collections and let preparation finish.
+2. Open Offline Storage; verify counts, file estimate, update time and narrow-screen wrapping.
+3. Browse a business and open saved journeys; confirm familiar headers and back navigation.
+4. Clear offline business data using the confirmation; verify online Pocket memberships
+   and saved journeys remain, and managed images disappear.
+5. Force-close/reopen and confirm cleared businesses remain unavailable.
+6. Reconnect and confirm no automatic restoration occurs.
+7. Open one saved business's Pocket options and choose Make available offline.
+8. Let preparation finish, force-close, enable airplane mode and verify its local text/image.
+9. Repeat with a failed download, offline restoration attempt, interrupted clear,
+   logout/account switch, large text and a long business name.
+
+Automated tests use actual SQLite with deterministic file/network adapters and
+React Native rendering. Physical image deletion, Android lifecycle/decoder behavior,
+layout and interaction still require the device checklist. Summary reads enumerate
+this account's referenced images; very large libraries may eventually benefit from
+incremental measurements. There is no general storage quota or broad backend
+restoration-list endpoint, and none is introduced here.
+
+### Task 8 validation
+
+- Final focused real SQLite repository and Pocket collection UI run: 2 suites,
+  168 tests passed. Coverage includes storage isolation, local-only clearing,
+  separate saved-journey preservation, durable suppression, image cleanup failure,
+  restore membership verification, delayed clear/logout/session responses and retry eligibility.
+- Broader auth, Pocket and offline regression run: 41 suites passed; failures were
+  one Pocket screen timeout (passed on focused rerun), an unchanged Profile test
+  expecting a removed summary label (also reproduced against the committed screen),
+  and a Pocket name-form assertion affected by separate working-tree changes.
+  The previously known Pocket picker “Done”/“Save changes” mismatch was excluded.
+  New storage overview tests and existing browsing, worker, logout, restoration,
+  saved-journey SQLite and offline-access suites passed in this run.
+- ESLint on Task 8 files and `git diff --check` passed. Prettier checks passed
+  after formatting the new/updated files.
+- Normal `tsc --noEmit` is blocked by malformed installed
+  `tailwindcss/types/generated/colors.d.ts:145`. A supplemental compiler host fixed
+  that token in memory only and reported 45 unrelated diagnostics, zero in the
+  affected offline, Pocket screen/action and Profile screen areas. No dependency
+  files were modified.
+- Physical Android verification remains pending: ADB initialization was denied
+  access to its configuration directory. No native visual or airplane-mode check
+  is claimed by these automated results.

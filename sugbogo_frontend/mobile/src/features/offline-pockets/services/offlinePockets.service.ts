@@ -37,6 +37,7 @@ import {
   assertOfflineCoverName,
   deleteOfflineCoverFile,
   offlineCoverFileUri,
+  offlineCoverFileBytes,
 } from "./offlinePocketCoverFiles";
 
 const CONTROL_COLUMNS = `
@@ -381,11 +382,26 @@ export function enqueueConfirmedPocketSave(
 }
 
 /** Records explicit restoration consent; the caller must establish Pocket membership first. */
-export function requestOfflinePocketRestore(
+export async function requestOfflinePocketRestore(
   context: OfflinePocketContext,
   businessId: number,
+  expectedVersion?: number | null,
 ): Promise<OfflinePocketOperation> {
-  return enqueue(context, businessId, "restore");
+  let result: OfflinePocketOperation;
+  if (expectedVersion === undefined)
+    result = await enqueue(context, businessId, "restore");
+  else {
+    assertInteger(businessId, 1);
+    if (expectedVersion !== null) assertInteger(expectedVersion, 1);
+    result = await withOwnedPolicy(context, async (tx, pinned) => {
+      const control = await readControl(tx, pinned, businessId);
+      if ((control?.operationVersion ?? null) !== expectedVersion)
+        throw new StaleOfflinePocketOperationError();
+      return enqueueInTransaction(tx, pinned, businessId, "restore");
+    });
+  }
+  notifyOfflineSnapshotsChanged();
+  return result;
 }
 
 /** Atomically suppresses previous intentions and removes this account's business snapshots. */
@@ -393,35 +409,7 @@ export async function clearOfflinePocketControlState(
   context: OfflinePocketContext,
 ): Promise<OfflinePocketContext> {
   const cleared = await withOwnedPolicy(context, async (tx, pinned) => {
-    const generation = pinned.clearGeneration + 1;
-    assertInteger(generation);
-    await tx.runAsync(
-      "UPDATE offline_pocket_cover_files SET file_state = 'garbage' WHERE api_scope = ? AND owner_id = ?",
-      pinned.apiScope,
-      pinned.ownerId,
-    );
-    await tx.runAsync(
-      "UPDATE offline_pocket_accounts SET clear_generation = ? WHERE api_scope = ? AND owner_id = ?",
-      generation,
-      pinned.apiScope,
-      pinned.ownerId,
-    );
-    await tx.runAsync(
-      `UPDATE offline_pocket_controls SET
-        cache_intent = 'suppressed', work_status = 'invalidated',
-        clear_generation = ?, operation_version = operation_version + 1,
-        next_retry_at = NULL, last_error_code = NULL, cached_at = NULL
-        WHERE api_scope = ? AND owner_id = ?`,
-      generation,
-      pinned.apiScope,
-      pinned.ownerId,
-    );
-    await tx.runAsync(
-      "DELETE FROM offline_business_snapshots WHERE api_scope = ? AND owner_id = ?",
-      pinned.apiScope,
-      pinned.ownerId,
-    );
-    return Object.freeze({ ...pinned, clearGeneration: generation });
+    return clearOfflinePocketStateInTransaction(tx, pinned);
   });
   notifyOfflineSnapshotsChanged();
   await cleanupOfflinePocketCoverFiles(cleared).catch(() => undefined);
@@ -486,6 +474,7 @@ async function transitionWork(
       operation.businessId,
     );
   });
+  notifyOfflineSnapshotsChanged();
 }
 
 /** Marks a pending revision as running; no download is started here. */
@@ -1017,4 +1006,142 @@ export async function cleanupOfflinePocketCoverFiles(
       }
     }
   });
+}
+
+/** Shared deletion transaction: local management never gains enqueue/publication authority. */
+async function clearOfflinePocketStateInTransaction(
+  tx: SQLiteDatabase,
+  pinned: OfflinePocketContext,
+): Promise<OfflinePocketContext> {
+  await tx.runAsync(
+    "INSERT OR IGNORE INTO offline_pocket_accounts (api_scope, owner_id) VALUES (?, ?)",
+    pinned.apiScope,
+    pinned.ownerId,
+  );
+  const generation = pinned.clearGeneration + 1;
+  assertInteger(generation);
+  await tx.runAsync(
+    "UPDATE offline_pocket_cover_files SET file_state = 'garbage' WHERE api_scope = ? AND owner_id = ?",
+    pinned.apiScope,
+    pinned.ownerId,
+  );
+  await tx.runAsync(
+    "UPDATE offline_pocket_accounts SET clear_generation = ? WHERE api_scope = ? AND owner_id = ?",
+    generation,
+    pinned.apiScope,
+    pinned.ownerId,
+  );
+  await tx.runAsync(
+    `UPDATE offline_pocket_controls SET
+        cache_intent = 'suppressed', work_status = 'invalidated',
+        clear_generation = ?, operation_version = operation_version + 1,
+        next_retry_at = NULL, last_error_code = NULL, cached_at = NULL
+        WHERE api_scope = ? AND owner_id = ?`,
+    generation,
+    pinned.apiScope,
+    pinned.ownerId,
+  );
+  await tx.runAsync(
+    "DELETE FROM offline_business_snapshots WHERE api_scope = ? AND owner_id = ?",
+    pinned.apiScope,
+    pinned.ownerId,
+  );
+  return Object.freeze({ ...pinned, clearGeneration: generation });
+}
+
+/** Exposes only local counts, payload/image estimates and authenticated retry candidates. */
+export async function readOfflinePocketStorageSummary(
+  context: OfflinePocketReadContext,
+) {
+  const readContext = Object.freeze({ ...context });
+  return withSnapshotRead(readContext, async (tx, pinned) => {
+    const snapshots = await tx.getAllAsync<SnapshotRow>(
+      `SELECT ${SNAPSHOT_COLUMNS} ${AVAILABLE_SNAPSHOTS}`,
+      pinned.apiScope,
+      pinned.ownerId,
+      pinned.clearGeneration,
+    );
+    const available = snapshots.filter(
+      (row) => snapshotEntry(row).status === "available",
+    );
+    const payload = await tx.getFirstAsync<{ bytes: number; count: number }>(
+      "SELECT COALESCE(SUM(length(CAST(snapshot AS BLOB))), 0) AS bytes, COUNT(*) AS count FROM offline_business_snapshots WHERE api_scope = ? AND owner_id = ?",
+      pinned.apiScope,
+      pinned.ownerId,
+    );
+    const files = await tx.getAllAsync<{ fileName: string; state: string }>(
+      "SELECT file_name AS fileName, file_state AS state FROM offline_pocket_cover_files WHERE api_scope = ? AND owner_id = ?",
+      pinned.apiScope,
+      pinned.ownerId,
+    );
+    const sizes = await Promise.allSettled(
+      files.map((file) => offlineCoverFileBytes(pinned, file.fileName)),
+    );
+    const storageBytes = sizes.every((size) => size.status === "fulfilled")
+      ? (payload?.bytes ?? 0) +
+        sizes.reduce(
+          (sum, size) => sum + (size.status === "fulfilled" ? size.value : 0),
+          0,
+        )
+      : null;
+    const failed =
+      readContext.access === "authenticated"
+        ? await tx.getAllAsync<OfflinePocketControl>(
+            `SELECT ${CONTROL_COLUMNS} FROM offline_pocket_controls WHERE api_scope = ? AND owner_id = ?
+        AND clear_generation = ? AND cache_intent != 'suppressed' AND work_status = 'failed' AND next_retry_at IS NOT NULL`,
+            pinned.apiScope,
+            pinned.ownerId,
+            pinned.clearGeneration,
+          )
+        : [];
+    const tracked = await tx.getFirstAsync<{ total: number }>(
+      "SELECT COUNT(*) AS total FROM offline_pocket_controls WHERE api_scope = ? AND owner_id = ? AND cache_intent != 'suppressed'",
+      pinned.apiScope,
+      pinned.ownerId,
+    );
+    return {
+      businessCount: available.length,
+      lastUpdated: available.length
+        ? available.reduce((latest, row) => Math.max(latest, row.fetchedAt), 0)
+        : null,
+      storageBytes,
+      hasBusinessData:
+        (payload?.count ?? 0) > 0 ||
+        files.length > 0 ||
+        (tracked?.total ?? 0) > 0,
+      cleanupPending: files.some((file) => file.state === "garbage"),
+      retries: failed.map((control) => ({
+        operation: operationFor(pinned, control),
+        retryAt: control.nextRetryAt!,
+      })),
+    };
+  });
+}
+
+/** Clears only this local grant's business data, using the exact existing suppression transaction. */
+export async function clearOfflineBusinessData(
+  context: OfflinePocketReadContext,
+) {
+  const readContext = Object.freeze({ ...context });
+  const cleared = await withSnapshotRead(
+    readContext,
+    clearOfflinePocketStateInTransaction,
+  );
+  const next: OfflinePocketReadContext = Object.freeze({
+    ...cleared,
+    access: readContext.access,
+  });
+  notifyOfflineSnapshotsChanged();
+  let cleanupPending = false;
+  try {
+    await cleanupOfflinePocketCoverFiles(next);
+    cleanupPending = (await readOfflinePocketStorageSummary(next))
+      .cleanupPending;
+  } catch {
+    cleanupPending = true;
+  }
+  await releaseOfflineAccessIfEmpty(next.ownerId, next.sessionGeneration).catch(
+    () => undefined,
+  );
+  return { context: next, cleanupPending };
 }
