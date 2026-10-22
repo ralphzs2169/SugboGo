@@ -1,13 +1,12 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNetInfo } from "@react-native-community/netinfo";
 import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Platform, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
-import type { ComponentProps } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import useSavedJourneys from "@/features/offline-routes/hooks/useSavedJourneys";
@@ -20,6 +19,7 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import SafePressable from "@/shared/components/SafePressable";
+import Skeleton from "@/shared/components/Skeleton";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 
 import OfflineStorageHeader from "../components/OfflineStorageHeader";
@@ -39,6 +39,7 @@ type StorageLinkProps = {
   icon: StorageIcon;
   title: string;
   description?: string;
+  loading?: boolean;
   onPress: () => void;
   divided?: boolean;
   destructive?: boolean;
@@ -51,6 +52,7 @@ function StorageLink({
   icon,
   title,
   description,
+  loading = false,
   onPress,
   divided = false,
   destructive = false,
@@ -96,7 +98,9 @@ function StorageLink({
           {title}
         </AppText>
 
-        {description ? (
+        {loading ? (
+          <Skeleton className="h-3 w-2/3 rounded-md" />
+        ) : description ? (
           <AppText className="text-xs leading-5 text-text-secondary">
             {description}
           </AppText>
@@ -225,10 +229,17 @@ export default function OfflineStorageScreen() {
 
   const ready = saved.ownerId !== null && !!data && !saved.isError;
 
+  const journeysMatchOwner = journeys.ownerId === saved.ownerId;
+  // Keep existing items visible on same-owner refreshes.
+  // The current journey hook does not distinguish a loaded empty list from its first read.
   const journeyCount =
-    journeys.ownerId === saved.ownerId && !journeys.isLoading && !journeys.error
+    journeysMatchOwner &&
+    !journeys.error &&
+    (!journeys.isLoading || journeys.items.length > 0)
       ? journeys.items.filter((item) => !!item.snapshot).length
       : null;
+  const journeyInitialLoading =
+    journeysMatchOwner && journeys.isLoading && journeys.items.length === 0;
 
   const hasDownloadedContent =
     (ready && data.businessCount > 0) ||
@@ -394,14 +405,13 @@ export default function OfflineStorageScreen() {
                 <StorageLink
                   icon="storefront-outline"
                   title="Saved businesses"
+                  loading={saved.isPending && !saved.isError}
                   description={
                     ready
                       ? `${data.businessCount} ${
                           data.businessCount === 1 ? "business" : "businesses"
                         } downloaded`
-                      : saved.isPending
-                        ? "Loading saved businesses..."
-                        : "View businesses stored on this device."
+                      : "View businesses stored on this device."
                   }
                   onPress={() => router.push("/offline-pockets")}
                 />
@@ -409,11 +419,10 @@ export default function OfflineStorageScreen() {
                 <StorageLink
                   icon="bus"
                   title="Saved journeys"
+                  loading={journeyInitialLoading}
                   description={
                     journeyCount === null
-                      ? journeys.isLoading
-                        ? "Loading saved journeys..."
-                        : "View saved jeepney guidance."
+                      ? "View saved jeepney guidance."
                       : `${journeyCount} ${
                           journeyCount === 1 ? "journey" : "journeys"
                         } available offline`
@@ -434,7 +443,9 @@ export default function OfflineStorageScreen() {
 
               {!canDownload && (
                 <AppText className="mt-2 text-xs leading-5 text-text-secondary">
-                  Connect to the internet and sign in to download businesses.
+                  {authenticated
+                    ? "Connect to the internet to download businesses."
+                    : "Sign in online to download businesses."}
                 </AppText>
               )}
 
@@ -492,9 +503,20 @@ export default function OfflineStorageScreen() {
             {/* Storage details */}
             <MerchantContentSection title="Storage details">
               {saved.isPending ? (
-                <AppText className="text-sm text-text-secondary">
-                  Calculating storage details...
-                </AppText>
+                <View className="gap-4">
+                  <View className="flex-row items-center justify-between gap-4">
+                    <AppText className="text-sm text-text-secondary">
+                      Business storage used
+                    </AppText>
+                    <Skeleton className="h-3.5 w-20 rounded-md" />
+                  </View>
+                  <View className="flex-row items-center justify-between gap-4">
+                    <AppText className="text-sm text-text-secondary">
+                      Last updated
+                    </AppText>
+                    <Skeleton className="h-3.5 w-24 rounded-md" />
+                  </View>
+                </View>
               ) : ready ? (
                 <View className="gap-4">
                   <StorageDetailRow
@@ -589,8 +611,6 @@ export default function OfflineStorageScreen() {
             variant="warning"
             icon="image-off-outline"
             title="Photo cleanup incomplete"
-            actionTitle="Finish removing photos"
-            onAction={() => void perform("cleanup")}
           >
             <AppText className="text-sm leading-5 text-text-secondary">
               Some downloaded photos still need to be removed from this device.

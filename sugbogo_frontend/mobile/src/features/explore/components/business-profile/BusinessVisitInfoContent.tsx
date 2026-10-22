@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Animated, LayoutAnimation, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -18,17 +18,21 @@ import {
   getBusinessHoursSummary,
 } from "../../utils/businessHours.utils";
 import { getBusinessAddressDisplay } from "../../utils/businessLocation.utils";
+import BusinessVisitMapPreview from "./BusinessVisitMapPreview";
 
 type Props = {
-  location: ExploreBusinessLocation;
+  businessId?: number;
+  location: ExploreBusinessLocation | null;
   operatingHours: ExploreOperatingHours[];
   contactNumber: string;
   email: string | null;
   website: string | null;
-  onViewRoute: () => void;
-  onJeepneyGuide: () => void;
-  onRide: () => void;
+  onViewRoute?: () => void;
+  onJeepneyGuide?: () => void;
+  onRide?: () => void;
   isOwnBusiness: boolean;
+  readOnly?: boolean;
+  transportActions?: ReactNode;
 };
 /**
  * Displays practical visit information, transportation shortcuts, business
@@ -38,6 +42,7 @@ type Props = {
  * operating schedule can be expanded inline.
  */
 export default function BusinessVisitInfoContent({
+  businessId,
   location,
   operatingHours,
   contactNumber,
@@ -47,14 +52,17 @@ export default function BusinessVisitInfoContent({
   onJeepneyGuide,
   onRide,
   isOwnBusiness,
+  readOnly = false,
+  transportActions,
 }: Props) {
-  const summary = getBusinessHoursSummary(operatingHours);
+  const summary = readOnly ? null : getBusinessHoursSummary(operatingHours);
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [rotation] = useState(() => new Animated.Value(0));
 
-  const { addressLine: address, cityLine } =
-    getBusinessAddressDisplay(location);
+  const { addressLine: address, cityLine } = location
+    ? getBusinessAddressDisplay(location)
+    : { addressLine: "", cityLine: "" };
 
   const currentDay = new Date()
     .toLocaleDateString("en-US", {
@@ -111,37 +119,50 @@ export default function BusinessVisitInfoContent({
           </View>
         </View>
 
+        {location && (
+          <BusinessVisitMapPreview
+            businessId={businessId}
+            location={location}
+            readOnly={readOnly}
+          />
+        )}
+
         {!isOwnBusiness && (
           <View className="mt-4">
-            {/* <AppText
+            <AppText
               weight="semibold"
-              className="mb-2 text-xs text-text-secondary text-center"
+              className="mb-2 text-base text-text-primary"
             >
-              Ways to get there
-            </AppText> */}
+              How to get there
+            </AppText>
 
-            <View className="flex-row gap-2  rounded-lg">
-              <TransportAction
-                SvgIcon={MapRouteOptionIcon}
-                label="Road Route"
-                accessibilityLabel="View road route"
-                onPress={onViewRoute}
-              />
+            {transportActions ?? (
+              <View className="flex-row gap-2  rounded-lg">
+                <TransportAction
+                  SvgIcon={MapRouteOptionIcon}
+                  label="Road Route"
+                  accessibilityLabel="View road route"
+                  onPress={onViewRoute}
+                  disabled={readOnly || !onViewRoute}
+                />
 
-              <TransportAction
-                SvgIcon={JeepneyOptionIcon}
-                label="Jeepney"
-                accessibilityLabel="Open jeepney guide"
-                onPress={onJeepneyGuide}
-              />
+                <TransportAction
+                  SvgIcon={JeepneyOptionIcon}
+                  label="Jeepney"
+                  accessibilityLabel="Open jeepney guide"
+                  onPress={onJeepneyGuide}
+                  disabled={readOnly || !onJeepneyGuide}
+                />
 
-              <TransportAction
-                SvgIcon={BookRideOptionIcon}
-                label="Book a ride"
-                accessibilityLabel="Choose a ride provider"
-                onPress={onRide}
-              />
-            </View>
+                <TransportAction
+                  SvgIcon={BookRideOptionIcon}
+                  label="Book a ride"
+                  accessibilityLabel="Choose a ride provider"
+                  onPress={onRide}
+                  disabled={readOnly || !onRide}
+                />
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -156,28 +177,35 @@ export default function BusinessVisitInfoContent({
           />
 
           <View className="ml-3 flex-1 flex-row flex-wrap items-center">
-            <AppText
-              weight="semibold"
-              className={`text-sm ${
-                summary.isOpen ? "text-success" : "text-text-error"
-              }`}
-            >
-              {summary.isOpen ? "Open" : "Closed"}
-            </AppText>
-
-            <AppText
-              weight="medium"
-              className="mx-1 text-sm text-text-secondary"
-            >
-              ·
-            </AppText>
-
-            <AppText weight="medium" className="text-sm text-text-secondary">
-              {summary.label.replace(
-                summary.isOpen ? "Open now · " : "Closed · ",
-                "",
-              )}
-            </AppText>
+            {summary ? (
+              <>
+                <AppText
+                  weight="semibold"
+                  className={`text-sm ${summary.isOpen ? "text-success" : "text-text-error"}`}
+                >
+                  {summary.isOpen ? "Open" : "Closed"}
+                </AppText>
+                <AppText
+                  weight="medium"
+                  className="mx-1 text-sm text-text-secondary"
+                >
+                  ·
+                </AppText>
+                <AppText
+                  weight="medium"
+                  className="text-sm text-text-secondary"
+                >
+                  {summary.label.replace(
+                    summary.isOpen ? "Open now · " : "Closed · ",
+                    "",
+                  )}
+                </AppText>
+              </>
+            ) : (
+              <AppText weight="medium" className="text-sm text-text-secondary">
+                Previously loaded hours
+              </AppText>
+            )}
           </View>
 
           <Pressable
@@ -224,7 +252,9 @@ export default function BusinessVisitInfoContent({
 
                 const isToday = dayKey === currentDay;
 
-                let scheduleLabel = "Closed";
+                let scheduleLabel = hours.is_open
+                  ? "Hours not provided"
+                  : "Closed";
                 let scheduleClass = "text-text-secondary";
 
                 if (hours.is_open) {
@@ -243,7 +273,7 @@ export default function BusinessVisitInfoContent({
                 return (
                   <View
                     key={hours.id}
-                    className="flex-row items-center justify-between"
+                    className="flex-row flex-wrap items-center justify-between gap-x-4 gap-y-1"
                   >
                     {/* Day */}
                     <View className="flex-row items-center">

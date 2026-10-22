@@ -34,7 +34,7 @@ export default function BusinessLayout() {
         <Stack.Screen
           name="getting-there"
           options={{
-            title: "Getting There",
+            headerShown: false,
           }}
         />
 

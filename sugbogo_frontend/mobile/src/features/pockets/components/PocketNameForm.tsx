@@ -24,6 +24,7 @@ export type PocketNameFormProps = {
   onCancel: () => void;
   onBusyChange?: (busy: boolean) => void;
   InputComponent?: ComponentType<TextInputProps>;
+  canSubmit?: () => boolean;
 };
 
 /** Creates or renames a Pocket while retaining input and field errors for retry. */
@@ -33,6 +34,7 @@ export default function PocketNameForm({
   onCancel,
   onBusyChange,
   InputComponent,
+  canSubmit,
 }: PocketNameFormProps) {
   const create = useCreatePocketCollection();
   const rename = useRenamePocketCollection();
@@ -55,6 +57,7 @@ export default function PocketNameForm({
     const session = useAuthStore.getState();
     return (
       mounted.current &&
+      (canSubmit?.() ?? true) &&
       session.isAuthenticated &&
       !session.isLoading &&
       session.user?.id === identity.ownerId &&

@@ -1,56 +1,19 @@
-import { router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useLayoutEffect } from "react";
 
-import BusinessProfileErrorState from "../components/business-profile/state/BusinessProfileErrorState";
-import BusinessProfileSkeletonContent from "../components/business-profile/state/BusinessProfileSkeletonContent";
-import ReadOnlyBusinessProfile from "../components/business-profile/ReadOnlyBusinessProfile";
+import { usePocketPicker } from "@/features/pockets/providers/PocketPickerContext";
+import BusinessProfilePresentation from "../components/business-profile/BusinessProfilePresentation";
 import useBusinessDetailSource from "../hooks/useBusinessDetailSource";
-import LiveBusinessProfile, {
-  type BusinessProfileProps,
-} from "./LiveBusinessProfile";
+import type { BusinessProfileProps } from "./LiveBusinessProfile";
 
-/** Selects one profile subtree so local presentation never initializes live-only effects. */
+/** Resolves authority while preserving one recognizable profile shell across source changes. */
 export default function ExploreBusinessProfileScreen(
   props: BusinessProfileProps,
 ) {
   const detail = useBusinessDetailSource(props.businessId);
-  if (detail.source === "live" && detail.business) {
-    return (
-      <LiveBusinessProfile
-        {...props}
-        business={detail.business}
-        error={detail.error}
-        refetch={detail.refetch}
-      />
-    );
-  }
-  if (
-    detail.snapshot &&
-    (detail.source === "offline-pocket" || detail.source === "recent")
-  ) {
-    return (
-      <ReadOnlyBusinessProfile
-        snapshot={detail.snapshot}
-        source={detail.source}
-        localCoverUri={detail.localCoverUri}
-        refreshing={detail.isFetching}
-        onRefresh={() => void detail.refetch()}
-      />
-    );
-  }
-  return (
-    <SafeAreaView
-      edges={["top", "left", "right"]}
-      className="flex-1 bg-background"
-    >
-      {detail.isLoading ? (
-        <BusinessProfileSkeletonContent />
-      ) : (
-        <BusinessProfileErrorState
-          onRetry={() => void detail.refetch()}
-          onGoBack={() => router.back()}
-        />
-      )}
-    </SafeAreaView>
-  );
+  const picker = usePocketPicker();
+  const closePicker = picker?.closePocketPicker;
+  useLayoutEffect(() => {
+    if (detail.source !== "live") closePicker?.(props.businessId);
+  }, [detail.source, props.businessId, closePicker]);
+  return <BusinessProfilePresentation {...props} detail={detail} />;
 }

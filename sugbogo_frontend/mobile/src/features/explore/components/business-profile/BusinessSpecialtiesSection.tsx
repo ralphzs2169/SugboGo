@@ -1,13 +1,12 @@
-import { View } from "react-native";
 import Toast from "react-native-toast-message";
+import { onlineManager } from "@tanstack/react-query";
 
-import AppText from "@/shared/components/AppText";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import useBusinessVouch from "../../hooks/useBusinessVouch";
 import type { ExploreBusinessSpecialtyTag } from "../../types/exploreBusiness.types";
-import BusinessSpecialtyVouchCard from "./BusinessSpecialtyVouchCard";
+import BusinessSpecialtiesPresentation from "./BusinessSpecialtiesPresentation";
 
 type Props = {
   businessId: number;
@@ -37,7 +36,7 @@ export default function BusinessSpecialtiesSection({
   }
 
   const handleVouch = async (tag: ExploreBusinessSpecialtyTag) => {
-    if (pendingTagId !== null) {
+    if (pendingTagId !== null || !onlineManager.isOnline()) {
       return;
     }
 
@@ -70,35 +69,14 @@ export default function BusinessSpecialtiesSection({
   };
 
   return (
-    <View className="bg-surface px-4 py-4">
-      {/* Section heading */}
-      <AppText weight="bold" className="text-base text-text-primary">
-        Specialties
-      </AppText>
-
-      <AppText className="mt-0.5 text-xs text-text-secondary">
-        {isOwnBusiness && !displayAsExplorer
-          ? "What Explorers vouch for at your business"
-          : "What does this place get right?"}
-      </AppText>
-
-      {/* Specialty reactions */}
-      <View className="mt-3 rounded-xl bg-background px-1 py-2">
-        <View className="flex-row items-start">
-          {specialtyTags.map((tag) => (
-            <BusinessSpecialtyVouchCard
-              key={tag.id}
-              name={tag.name}
-              color={tag.color}
-              icon={tag.icon}
-              vouchCount={tag.vouch_count}
-              isVouched={tag.is_vouched}
-              disabled={isOwnBusiness}
-              onPress={() => handleVouch(tag)}
-            />
-          ))}
-        </View>
-      </View>
-    </View>
+    <BusinessSpecialtiesPresentation
+      tags={specialtyTags}
+      disabled={isOwnBusiness || pendingTagId !== null}
+      ownerPresentation={isOwnBusiness && !displayAsExplorer}
+      onVouch={(tagId) => {
+        const tag = specialtyTags.find((item) => item.id === tagId);
+        if (tag) void handleVouch(tag);
+      }}
+    />
   );
 }

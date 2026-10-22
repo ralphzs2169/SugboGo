@@ -10,7 +10,8 @@ type Props = {
   statusLabel: string;
   statusDetail: string;
   distance: string | null;
-  isOpenNow: boolean;
+  isOpenNow: boolean | null;
+  unavailable?: boolean;
 };
 
 /**
@@ -25,17 +26,25 @@ export default function BusinessProfileQuickInfo({
   statusDetail,
   distance,
   isOpenNow,
+  unavailable = false,
 }: Props) {
-  const statusColor = isOpenNow
-    ? theme.extends.colors.success
-    : theme.extends.colors.error;
+  const statusColor =
+    isOpenNow === null
+      ? theme.extends.colors.text.secondary
+      : isOpenNow
+        ? theme.extends.colors.success
+        : theme.extends.colors.error;
 
   return (
     <View className="rounded-xl bg-surface" style={shadows.elevated}>
       {/* Quick information surface */}
       <View className="flex-row items-stretch overflow-hidden rounded-xl border border-border-primary bg-surface">
         {/* Review summary */}
-        <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+        <View
+          accessible={unavailable || undefined}
+          accessibilityLabel={unavailable ? "Reviews unavailable" : undefined}
+          className="min-h-[76px] flex-1 items-center justify-center px-1 py-2"
+        >
           <MaterialCommunityIcons
             name="message-text-outline"
             size={18}
@@ -44,13 +53,13 @@ export default function BusinessProfileQuickInfo({
 
           <AppText
             weight="bold"
-            className="mt-0.5 text-[13px] text-text-primary"
+            className="mt-0.5 text-center text-[13px] text-text-primary"
           >
-            {reviewCount ?? "—"}
+            {unavailable ? "—" : (reviewCount ?? "—")}
           </AppText>
 
           <AppText className="text-[11px] text-text-secondary">
-            {reviewCount === 1 ? "review" : "reviews"}
+            {unavailable ? "Reviews" : reviewCount === 1 ? "review" : "reviews"}
           </AppText>
         </View>
 
@@ -58,7 +67,13 @@ export default function BusinessProfileQuickInfo({
         <View className="my-3 w-px bg-border-primary" />
 
         {/* Operating status */}
-        <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+        <View
+          accessible={unavailable || undefined}
+          accessibilityLabel={
+            unavailable ? "Current status unavailable" : undefined
+          }
+          className="min-h-[76px] flex-1 items-center justify-center px-1 py-2"
+        >
           <MaterialCommunityIcons
             name="clock-outline"
             size={18}
@@ -67,19 +82,23 @@ export default function BusinessProfileQuickInfo({
 
           <AppText
             weight="bold"
-            className={`mt-0.5 text-[13px] ${
-              isOpenNow ? "text-success" : "text-text-error"
+            className={`mt-0.5 text-center text-[13px] ${
+              isOpenNow === null
+                ? "text-text-secondary"
+                : isOpenNow
+                  ? "text-success"
+                  : "text-text-error"
             }`}
-            numberOfLines={1}
+            numberOfLines={unavailable ? undefined : 1}
           >
-            {statusLabel}
+            {unavailable ? "—" : statusLabel}
           </AppText>
 
           <AppText
             className="text-center text-[11px] text-text-secondary"
             numberOfLines={1}
           >
-            {statusDetail}
+            {unavailable ? "Hours" : statusDetail}
           </AppText>
         </View>
 
@@ -87,7 +106,11 @@ export default function BusinessProfileQuickInfo({
         <View className="my-3 w-px bg-border-primary" />
 
         {/* Distance summary */}
-        <View className="min-h-[76px] flex-1 items-center justify-center px-1 py-2">
+        <View
+          accessible={unavailable || undefined}
+          accessibilityLabel={unavailable ? "Distance unavailable" : undefined}
+          className="min-h-[76px] flex-1 items-center justify-center px-1 py-2"
+        >
           <MaterialCommunityIcons
             name="map-marker-outline"
             size={18}
@@ -96,14 +119,14 @@ export default function BusinessProfileQuickInfo({
 
           <AppText
             weight="bold"
-            className="mt-0.5 text-[13px] text-text-primary"
-            numberOfLines={1}
+            className="mt-0.5 text-center text-[13px] text-text-primary"
+            numberOfLines={unavailable ? undefined : 1}
           >
-            {distance ?? "—"}
+            {unavailable ? "—" : (distance ?? "—")}
           </AppText>
 
           <AppText className="text-[11px] text-text-secondary">
-            {distance !== null ? "away" : "distance"}
+            {unavailable ? "Distance" : distance !== null ? "away" : "distance"}
           </AppText>
         </View>
       </View>

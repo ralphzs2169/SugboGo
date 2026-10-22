@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { onlineManager } from "@tanstack/react-query";
 import {
   BottomSheetBackdrop,
   BottomSheetFlatList,
@@ -37,6 +38,7 @@ type Props = {
   ownerId: number;
   generation: number;
   onDismiss: () => void;
+  isCurrent?: () => boolean;
 };
 
 /** Edits a complete local selection while paginating visible collection choices. */
@@ -45,6 +47,7 @@ export default function PocketPickerSheet({
   ownerId,
   generation,
   onDismiss,
+  isCurrent,
 }: Props) {
   const ref = useRef<BottomSheetModal | null>(null);
   const mounted = useRef(true);
@@ -121,6 +124,8 @@ export default function PocketPickerSheet({
 
     return (
       mounted.current &&
+      onlineManager.isOnline() &&
+      (isCurrent?.() ?? true) &&
       session.isAuthenticated &&
       !session.isLoading &&
       session.user?.id === ownerId &&
@@ -331,6 +336,7 @@ export default function PocketPickerSheet({
             }}
           >
             <PocketNameForm
+              canSubmit={currentSession}
               InputComponent={BottomSheetTextInput}
               onBusyChange={(busy) => {
                 creationBusy.current = busy;

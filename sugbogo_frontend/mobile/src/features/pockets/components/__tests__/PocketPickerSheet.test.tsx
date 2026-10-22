@@ -90,11 +90,13 @@ jest.mock("@gorhom/bottom-sheet", () => {
         onDismiss,
         onChange,
         enablePanDownToClose,
+        footerComponent: Footer,
       }: {
         children: React.ReactNode;
         onDismiss: () => void;
         onChange: (index: number) => void;
         enablePanDownToClose: boolean;
+        footerComponent?: React.ComponentType;
       },
       ref,
     ) {
@@ -109,6 +111,7 @@ jest.mock("@gorhom/bottom-sheet", () => {
           accessibilityState={{ busy: !enablePanDownToClose }}
         >
           {children}
+          {Footer && <Footer />}
         </View>
       );
     }),
@@ -116,6 +119,7 @@ jest.mock("@gorhom/bottom-sheet", () => {
     BottomSheetScrollView: ScrollView,
     BottomSheetTextInput: TextInput,
     BottomSheetBackdrop: () => null,
+    BottomSheetFooter: View,
   };
 });
 
@@ -271,13 +275,14 @@ describe("PocketPickerSheet", () => {
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
   }
-  async function sheet() {
+  async function sheet(isCurrent?: () => boolean) {
     const screen = await render(
       <PocketPickerSheet
         businessId={42}
         ownerId={1}
         generation={getAuthSessionGeneration()}
         onDismiss={dismissed}
+        isCurrent={isCurrent}
       />,
       { wrapper: Wrapper },
     );
@@ -286,6 +291,18 @@ describe("PocketPickerSheet", () => {
     );
     return screen;
   }
+
+  it("blocks submission from an already-open workflow after its authority is revoked", async () => {
+    let allowed = true;
+    const screen = await sheet(() => allowed);
+    allowed = false;
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Create Pocket" }),
+    );
+    expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
+    expect(createPocketCollection).not.toHaveBeenCalled();
+  });
 
   it("waits for a fresh complete selection before enabling Done, even with cached data", async () => {
     const pending = deferred<ApiResponse<BusinessPocketMemberships>>();
@@ -308,8 +325,8 @@ describe("PocketPickerSheet", () => {
     );
     expect(screen.getByTestId("pocket-picker-loading")).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Done" }).props.accessibilityState
-        .disabled,
+      screen.getByRole("button", { name: "Save changes" }).props
+        .accessibilityState.disabled,
     ).toBe(true);
     await act(async () => pending.resolve(membership([20, 999])));
     await waitFor(() =>
@@ -339,7 +356,7 @@ describe("PocketPickerSheet", () => {
     ).toBe(false);
     await fireEvent.press(screen.getByRole("checkbox", { name: "Pocket 30" }));
     expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(dismissed).toHaveBeenCalledTimes(1));
     expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(
       42,
@@ -351,7 +368,7 @@ describe("PocketPickerSheet", () => {
     serverIds = [20];
     const screen = await sheet();
     await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(dismissed).toHaveBeenCalled());
     expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(42, []);
   });
@@ -433,7 +450,7 @@ describe("PocketPickerSheet", () => {
       expect(screen.getByRole("checkbox", { name: "Pocket 30" })).toBeTruthy(),
     );
     expect(getPocketCollections).toHaveBeenNthCalledWith(3, 2);
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(dismissed).toHaveBeenCalled());
     expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(42, [999]);
   });
@@ -444,7 +461,7 @@ describe("PocketPickerSheet", () => {
       .mockResolvedValueOnce(failure);
     const screen = await sheet();
     await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
     expect(dismissed).not.toHaveBeenCalled();
     expect(Toast.show).not.toHaveBeenCalledWith(
@@ -454,7 +471,7 @@ describe("PocketPickerSheet", () => {
       screen.getByRole("checkbox", { name: "Favorites" }).props
         .accessibilityState.checked,
     ).toBe(false);
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(dismissed).toHaveBeenCalledTimes(1));
   });
 
@@ -465,8 +482,8 @@ describe("PocketPickerSheet", () => {
       .mockReturnValueOnce(pending.promise);
     const back = jest.spyOn(BackHandler, "addEventListener");
     const screen = await sheet();
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await fireEvent.press(screen.getByRole("button", { name: "Cancel" }));
     await act(async () => {
       expect(
@@ -488,7 +505,7 @@ describe("PocketPickerSheet", () => {
       .mocked(replaceBusinessPocketMemberships)
       .mockReturnValueOnce(pending.promise);
     const screen = await sheet();
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await screen.unmount();
     await act(async () => {
       useAuthStore.setState({ user: { ...user, id: 2 } });
@@ -513,7 +530,7 @@ describe("PocketPickerSheet", () => {
       { wrapper: Wrapper },
     );
     await waitFor(() =>
-      expect(screen.getByText("No Pockets available yet.")).toBeTruthy(),
+      expect(screen.getByText("No Pockets yet")).toBeTruthy(),
     );
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     expect(screen.getByRole("button", { name: "Create Pocket" })).toBeTruthy();
@@ -552,7 +569,7 @@ describe("PocketPickerSheet", () => {
     ).toBe(false);
     expect(createPocketCollection).toHaveBeenCalledWith("Coffee spots");
     expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(
         42,
@@ -600,7 +617,7 @@ describe("PocketPickerSheet", () => {
         .accessibilityState.checked,
     ).toBe(false);
     expect(dismissed).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(replaceBusinessPocketMemberships).toHaveBeenCalledWith(42, [999]),
     );
@@ -650,7 +667,7 @@ describe("PocketPickerSheet", () => {
         .accessibilityValue.text,
     ).toBe("0 available businesses");
     await fireEvent.press(first.getByRole("checkbox", { name: "Favorites" }));
-    await fireEvent.press(first.getByRole("button", { name: "Done" }));
+    await fireEvent.press(first.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(dismissed).toHaveBeenCalledTimes(1));
     await first.unmount();
     const reopened = await sheet();
@@ -688,7 +705,7 @@ describe("PocketPickerSheet", () => {
     );
     expect(screen.getAllByTestId("pocket-picker-list")).toHaveLength(1);
     await fireEvent.press(screen.getByRole("checkbox", { name: "Favorites" }));
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(screen.queryByTestId("pocket-picker-list")).toBeNull(),
     );
@@ -751,7 +768,9 @@ describe("PocketPickerSheet", () => {
       expectGray();
       expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
       await open();
-      await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+      await fireEvent.press(
+        screen.getByRole("button", { name: "Save changes" }),
+      );
       expectGray();
       await act(async () =>
         result.resolve(
@@ -828,7 +847,9 @@ describe("PocketPickerSheet", () => {
       expectUnsaved();
       expect(replaceBusinessPocketMemberships).not.toHaveBeenCalled();
       await open();
-      await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+      await fireEvent.press(
+        screen.getByRole("button", { name: "Save changes" }),
+      );
       expectUnsaved();
       await act(async () =>
         result.resolve(
@@ -868,7 +889,9 @@ describe("PocketPickerSheet", () => {
         expect(screen.getByTestId("icon-bookmark").props.style.color).toBe(
           "#F27F0D",
         );
-        await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+        await fireEvent.press(
+          screen.getByRole("button", { name: "Save changes" }),
+        );
         await waitFor(() =>
           expect(screen.queryByTestId("pocket-picker-list")).toBeNull(),
         );

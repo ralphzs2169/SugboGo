@@ -95,12 +95,31 @@ describe("Pocket name form", () => {
       />,
       { wrapper: Wrapper },
     );
-  it("validates a blank name before requesting creation", async () => {
-    const screen = await form();
-    await fireEvent.changeText(screen.getByLabelText("Pocket name"), "  ");
+
+  it("does not create a Pocket after the parent workflow is revoked", async () => {
+    let allowed = true;
+    const screen = await render(
+      <PocketNameForm
+        onSuccess={saved}
+        onCancel={cancel}
+        canSubmit={() => allowed}
+      />,
+      { wrapper: Wrapper },
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("Pocket name"),
+      "Coffee spots",
+    );
+    allowed = false;
     await fireEvent.press(
       screen.getByRole("button", { name: "Create Pocket" }),
     );
+    expect(createPocketCollection).not.toHaveBeenCalled();
+  });
+  it("validates a blank name before requesting creation", async () => {
+    const screen = await form();
+    await fireEvent.changeText(screen.getByLabelText("Pocket name"), "  ");
+    await fireEvent(screen.getByLabelText("Pocket name"), "submitEditing");
     expect(screen.getByText("Pocket name is required.")).toBeTruthy();
     expect(createPocketCollection).not.toHaveBeenCalled();
   });

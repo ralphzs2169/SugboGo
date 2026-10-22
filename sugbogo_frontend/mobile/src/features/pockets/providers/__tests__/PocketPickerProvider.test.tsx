@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import { router } from "expo-router";
+import { onlineManager } from "@tanstack/react-query";
 import { Pressable, View } from "react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -42,6 +43,11 @@ function Controls() {
   const picker = usePocketPicker();
   return (
     <View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Close 42"
+        onPress={() => picker?.closePocketPicker?.(42)}
+      />
       {[42, 7].map((id) => (
         <Pressable
           key={id}
@@ -55,6 +61,7 @@ function Controls() {
 }
 describe("PocketPickerProvider", () => {
   beforeEach(() => {
+    onlineManager.setOnline(true);
     beginAuthSession();
     useAuthStore.setState({ user, isAuthenticated: true, isLoading: false });
     jest.mocked(PocketPickerSheet).mockClear();
@@ -62,6 +69,7 @@ describe("PocketPickerProvider", () => {
   afterEach(async () => {
     await cleanup();
     useAuthStore.setState(initialAuth);
+    onlineManager.setOnline(true);
   });
   async function host() {
     return render(
@@ -116,5 +124,22 @@ describe("PocketPickerProvider", () => {
     expect(jest.mocked(PocketPickerSheet).mock.calls.at(-1)?.[0]).toMatchObject(
       { ownerId: 2, businessId: 7 },
     );
+  });
+
+  it("revokes profile selection and rejects the previous workflow after reconnect", async () => {
+    const screen = await host();
+    await fireEvent.press(screen.getByRole("button", { name: "Open 42" }));
+    const previous = jest.mocked(PocketPickerSheet).mock.calls.at(-1)![0];
+    expect(previous.isCurrent?.()).toBe(true);
+    await fireEvent.press(screen.getByRole("button", { name: "Close 42" }));
+    expect(screen.queryByTestId("picker-selection")).toBeNull();
+    expect(previous.isCurrent?.()).toBe(false);
+    await fireEvent.press(screen.getByRole("button", { name: "Open 42" }));
+    const next = jest.mocked(PocketPickerSheet).mock.calls.at(-1)![0];
+    await act(async () => onlineManager.setOnline(false));
+    expect(screen.queryByTestId("picker-selection")).toBeNull();
+    await act(async () => onlineManager.setOnline(true));
+    expect(next.isCurrent?.()).toBe(false);
+    expect(screen.queryByTestId("picker-selection")).toBeNull();
   });
 });

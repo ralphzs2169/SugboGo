@@ -11,7 +11,8 @@ type TransportActionProps = {
     height?: number;
   }>;
   label: string;
-  onPress: () => void;
+  onPress?: () => void;
+  disabled?: boolean;
   accessibilityLabel: string;
 };
 
@@ -25,13 +26,16 @@ export default function TransportAction({
   label,
   onPress,
   accessibilityLabel,
+  disabled = false,
 }: TransportActionProps) {
   return (
     <SafePressable
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      className="min-h-25 flex-1 cursor-pointer items-center justify-center rounded-xl bg-background-secondary px-2 py-2.5 active:opacity-70"
+      className="min-h-25 flex-1 cursor-pointer items-center justify-center rounded-xl bg-background-secondary px-2 py-2.5 active:opacity-70 disabled:opacity-50"
     >
       {/* Transportation illustration */}
       {SvgIcon ? (

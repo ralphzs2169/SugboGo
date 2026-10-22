@@ -51,8 +51,51 @@ export default function useBusinessDetailSource(businessId: number) {
   }, [ownerId, generation, apiScope]);
   const current = session?.isAuthorized() ?? false;
   const denied = isBusinessDetailDenied(live.error);
+  const [recovery, setRecovery] = useState<{
+    session: typeof session;
+    businessId: number;
+    receipt: typeof live.successfulFetch;
+  } | null>(null);
+
+  useEffect(() => {
+    const requireFreshResponse = () => {
+      setRecovery((previous) => {
+        if (
+          onlineManager.isOnline() &&
+          previous?.session === session &&
+          previous.businessId === businessId
+        ) {
+          return previous;
+        }
+        return { session, businessId, receipt: live.successfulFetch };
+      });
+    };
+    if (!online || live.error || live.isPaused) requireFreshResponse();
+    return onlineManager.subscribe((connected) => {
+      if (!connected) requireFreshResponse();
+    });
+  }, [
+    session,
+    businessId,
+    live.successfulFetch,
+    live.error,
+    live.isPaused,
+    online,
+  ]);
+
+  const requiresRecovery =
+    recovery?.session === session && recovery?.businessId === businessId;
+  const receipt = live.successfulFetch;
+  const recovered =
+    receipt != null &&
+    receipt !== recovery?.receipt &&
+    receipt.businessId === businessId &&
+    receipt.generation === generation &&
+    receipt.ownerId === ownerId &&
+    receipt.apiScope === apiScope;
   const isLive =
     current &&
+    (!requiresRecovery || recovered) &&
     live.business?.id === businessId &&
     !live.error &&
     !live.isPaused &&
@@ -61,6 +104,7 @@ export default function useBusinessDetailSource(businessId: number) {
     current &&
     !denied &&
     !isLive &&
+    (!online || live.isPaused || !!live.error || requiresRecovery) &&
     (!live.error ||
       canUseBusinessDetailFallback(live.error) ||
       live.isPaused ||
@@ -158,6 +202,8 @@ export default function useBusinessDetailSource(businessId: number) {
     current &&
     ((mayFallback && (pocketPending || !recentReady)) ||
       (live.isLoading && !live.isPaused && online));
+  const isInitialLoading =
+    isLoading && !mayFallback && online && !live.error && !live.isPaused;
 
   return {
     source,
@@ -167,6 +213,8 @@ export default function useBusinessDetailSource(businessId: number) {
       ? pocket.data?.covers?.[businessId]
       : undefined,
     error: live.error,
+    denied,
+    isInitialLoading,
     isLoading,
     isFetching: live.isFetching,
     refetch: live.refetch,

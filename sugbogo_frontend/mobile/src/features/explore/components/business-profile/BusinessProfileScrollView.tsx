@@ -8,7 +8,18 @@ import BusinessProfileStickyHeader from "./BusinessProfileStickyHeader";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 
 type Props = {
-  business: ExploreBusiness | null;
+  business:
+    | (Pick<
+        ExploreBusiness,
+        | "id"
+        | "business_name"
+        | "cluster"
+        | "category"
+        | "display_cover_photo_url"
+      > & {
+        is_pocketed?: boolean;
+      })
+    | null;
   isRefreshing: boolean;
   onRefresh: () => void;
   children: ReactNode;
@@ -90,7 +101,7 @@ export default function BusinessProfileScrollView({
       {business && (
         <BusinessProfileStickyHeader
           businessId={business.id}
-          isPocketed={business.is_pocketed}
+          isPocketed={business.is_pocketed ?? null}
           businessName={business.business_name}
           coverPhotoUrl={business.display_cover_photo_url}
           clusterIconName={clusterIconName}
@@ -105,7 +116,9 @@ export default function BusinessProfileScrollView({
       )}
 
       <Animated.ScrollView
+        testID="business-profile-scroll"
         contentContainerStyle={{
+          flexGrow: 1,
           paddingBottom: isOwnBusiness ? 100 : bottom,
         }}
         onScroll={handleScroll}
