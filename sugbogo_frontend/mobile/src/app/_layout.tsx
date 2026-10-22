@@ -1,6 +1,5 @@
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "@/shared/query/queryClient";
+import QueryPersistenceProvider from "@/shared/query/QueryPersistenceProvider";
 import QueryLifecycle from "@/shared/query/QueryLifecycle";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import AppSplash from "@/shared/components/AppSplash";
@@ -61,7 +60,7 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryPersistenceProvider>
       <QueryLifecycle />
       <NotificationRealtimeSync />
       <OfflinePocketSync />
@@ -121,6 +120,6 @@ export default function RootLayout() {
           </SafeAreaProvider>
         </ActionSheetProvider>
       </GestureHandlerRootView>
-    </QueryClientProvider>
+    </QueryPersistenceProvider>
   );
 }

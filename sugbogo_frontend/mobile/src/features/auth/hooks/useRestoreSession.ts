@@ -41,7 +41,7 @@ export function useRestoreSession() {
 
     async function restoreSession() {
       // Claim startup before reading storage so a later login or logout wins.
-      const restoreGeneration = beginAuthSession();
+      const restoreGeneration = beginAuthSession("restore");
 
       try {
         const token = await getAccessToken();

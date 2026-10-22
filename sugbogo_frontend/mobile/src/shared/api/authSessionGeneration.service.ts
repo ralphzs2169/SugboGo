@@ -1,6 +1,31 @@
 let authSessionGeneration = 0;
 let hasActiveAuthSession = false;
 
+type SessionChange = "replace" | "restore" | "revoke";
+const sessionListeners = new Set<(change: SessionChange) => void>();
+
+/** Observes synchronous session boundaries without granting authentication. */
+export function subscribeAuthSessionChanges(
+  listener: (change: SessionChange) => void,
+) {
+  sessionListeners.add(listener);
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
+
+function notifySessionChange(change: SessionChange) {
+  sessionListeners.forEach((listener) => {
+    try {
+      listener(change);
+    } catch {
+      if (__DEV__) {
+        console.warn("Session observer cleanup failed.");
+      }
+    }
+  });
+}
+
 /**
  * Error raised when asynchronous authentication work belongs to a session
  * that has since been replaced or invalidated.
@@ -18,9 +43,10 @@ export function getAuthSessionGeneration() {
 }
 
 /** Starts a new authenticated-session generation. */
-export function beginAuthSession() {
+export function beginAuthSession(change: "replace" | "restore" = "replace") {
   authSessionGeneration += 1;
   hasActiveAuthSession = true;
+  notifySessionChange(change);
   return authSessionGeneration;
 }
 
@@ -28,6 +54,7 @@ export function beginAuthSession() {
 export function invalidateAuthSession() {
   authSessionGeneration += 1;
   hasActiveAuthSession = false;
+  notifySessionChange("revoke");
   return authSessionGeneration;
 }
 
