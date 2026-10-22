@@ -1,4 +1,5 @@
 import type { QueryKey } from "@tanstack/react-query";
+import { EXPLORE_HOMEPAGE_PERSISTENCE_POLICIES } from "@/features/explore/persistence/exploreHomepagePolicies";
 
 export const QUERY_PERSISTENCE_STORAGE_KEY = "sugbogo_temporary_queries";
 export const QUERY_PERSISTENCE_FORMAT_VERSION = 1;
@@ -29,9 +30,9 @@ export type QueryPersistencePolicy = Readonly<{
   parse: (data: unknown) => unknown;
 }>;
 
-// Production queries remain denied until their feature explicitly opts in.
+// All other query families remain denied by default.
 export const QUERY_PERSISTENCE_POLICIES: readonly QueryPersistencePolicy[] =
-  Object.freeze([]);
+  EXPLORE_HOMEPAGE_PERSISTENCE_POLICIES;
 
 /** Matches the API identity already used by the API client and offline resources. */
 export function getQueryPersistenceApiScope() {

@@ -11,6 +11,12 @@ jest.mock("../../api/exploreBusiness.service", () => ({
   getDiscoveryFeed: jest.fn(),
 }));
 
+const clients: QueryClient[] = [];
+
+afterEach(() => {
+  clients.splice(0).forEach((client) => client.clear());
+});
+
 function setupClient() {
   const client = new QueryClient({
     defaultOptions: {
@@ -20,6 +26,7 @@ function setupClient() {
       },
     },
   });
+  clients.push(client);
 
   /** Supplies React Query state to the Discovery feed hook. */
   function Wrapper({ children }: PropsWithChildren) {

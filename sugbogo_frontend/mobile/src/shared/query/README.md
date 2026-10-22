@@ -1,9 +1,48 @@
 # Temporary query persistence
 
-This is the foundation for automatic last-loaded content. The production policy
-list is empty: no Explore, Community, inbox, history, merchant or offline-resource
-query is persisted yet. Mutations are always excluded. No local cache grants an
+This is automatic last-loaded content for approved Explore homepage queries.
+The allowlist contains only Discovery, New Businesses, Recommendations, Discovery
+shortcuts, Specialty metadata and filter options. Search, collections, business
+detail, map results, Community, inbox, history, merchant and offline-resource
+queries remain excluded. Mutations are always excluded. No local cache grants an
 authenticated session or changes route guards.
+
+## Explore homepage policies
+
+Feature-owned policies live in
+`features/explore/persistence/exploreHomepagePolicies.ts`. Matchers require the
+exact single-element keys exported through the existing hooks. Filtered or paged
+key variants are excluded. The three feeds use ordinary `useQuery` first-page
+responses, not infinite queries. Persist only the first ten items of page one,
+in server order, with the existing pagination DTO. Empty successful responses
+replace previous snapshots, including on the next cold restoration. No additional
+pages are stored. All nested DTO objects strip unknown fields; image URLs and
+personalized Pocket/vouch/recommendation metadata remain owner/API scoped.
+
+Discovery, New Businesses, Recommendations, shortcuts and Specialties retain
+their existing five-minute freshness and have a 24-hour maximum persisted age.
+Filter options retain their existing 30-minute freshness and have a 72-hour
+maximum persisted age. Filter options are required for homepage cluster controls;
+the full compatible taxonomy DTO is kept because that query also supplies search
+filters. No result sets from search/filter routes are approved.
+
+The shared client applies GC defaults to these six families before hydration,
+even when Explore has not mounted. Their hooks use the same limits: 24 hours for
+the five homepage families and 72 hours for filter options. GC is an in-memory
+inactivity timer; persisted expiry is still measured from the original successful
+server fetch. Opening a screen, restoring, or saving unrelated metadata cannot
+renew that fetch age. Global freshness and GC defaults are unchanged.
+
+The provider restores into React Query before normal observer requests run.
+Hydrated data renders without waiting for a request failure. Online stale data
+revalidates; offline requests pause while cards remain visible. Task 1 rendering
+keeps non-empty cards after refresh failures. No separate feed state is added.
+No offline/restored indicator is shown: the foundation exposes fetch age but does
+not expose trustworthy restored provenance to the screen. A future UI task can
+add that explicitly rather than mislabeling live in-memory content.
+
+No managed image downloads are performed. Native `expo-image` disk caching and
+existing placeholders determine whether remote image URLs render offline.
 
 ## Lifecycle and ownership
 
@@ -67,13 +106,31 @@ within both byte and count bounds. Oversized entries are skipped. Persistence
 never clears unrelated AsyncStorage keys. Storage/serialization failures are
 development diagnostics, not API/page errors.
 
-No `staleTime` or `gcTime` is changed here. Query removal also removes its temporary
-snapshot, so garbage collection can shorten retention. When a feature opts in, it
-must deliberately configure that approved query family's GC lifetime if longer
-restart retention is desired; do not increase unrelated query lifetimes globally.
+Query removal also removes its temporary snapshot, so garbage collection can
+shorten retention. New approved families must deliberately configure their own
+GC lifetime; do not increase unrelated query lifetimes globally.
 Confirmed entity deletions/visibility withdrawals must also remove all affected
 query variants. This foundation does not implement those feature-specific rules.
 
 The app must use the exported singleton coordinator so storage operations remain
 serialized. Factory injection exists for deterministic tests. Future policies
 require their own security, moderation, invalidation, pagination and UX tests.
+
+## Physical-device verification (not run in this implementation)
+
+1. Log in online and open Explore; wait for all homepage sections to load.
+2. Navigate away and return. Check the existing in-memory cards and refresh behavior.
+3. Force-close and reopen online. Check quick restoration and normal revalidation
+   when older than the existing freshness window (five minutes for feeds).
+4. Load Explore again, force-close, disable internet and reopen.
+5. If the authenticated shell is reachable, check restored cards and metadata
+   without a new successful request. Images may use disk cache or placeholders.
+6. If startup authentication cannot validate the session and normal Explore is
+   blocked, record that expected cold-start boundary. Do not bypass the guard.
+7. Reconnect and refresh; verify fresh data replaces restored cards. Log out and
+   switch accounts; verify the previous owner's temporary content is unavailable.
+
+Offline cold-start access remains governed by `useRestoreSession`/`useAuthGuard`.
+This task does not grant local authentication, add Recent Explore, or expose a
+new local-only route. Tests simulate process recreation with an already validated
+authenticated shell to prove the data boundary independently of route access.

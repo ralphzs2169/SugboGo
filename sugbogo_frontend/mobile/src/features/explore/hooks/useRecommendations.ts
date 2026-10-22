@@ -3,8 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import { getRecommendations } from "../api/exploreBusiness.service";
+import {
+  RECOMMENDATIONS_QUERY_KEY,
+  EXPLORE_HOMEPAGE_RETENTION_MS,
+} from "../constants/exploreHomepageQueries";
 
-export const RECOMMENDATIONS_QUERY_KEY = ["explore-recommendations"] as const;
+export { RECOMMENDATIONS_QUERY_KEY } from "../constants/exploreHomepageQueries";
 
 /** Loads the first server-ranked recommendation page without client sorting. */
 export default function useRecommendations() {
@@ -15,6 +19,7 @@ export default function useRecommendations() {
 
       return throwOnApiError(response);
     },
+    gcTime: EXPLORE_HOMEPAGE_RETENTION_MS,
     staleTime: 5 * 60 * 1000,
   });
 

@@ -165,11 +165,10 @@ afterEach(async () => {
   jest.restoreAllMocks();
 });
 
-it("keeps the production allowlist empty and excludes arbitrary query families", async () => {
-  expect(QUERY_PERSISTENCE_POLICIES).toEqual([]);
+it("excludes arbitrary query families by default", async () => {
   const context = setup({ policies: QUERY_PERSISTENCE_POLICIES });
   for (const prefix of [
-    "explore-discovery",
+    "explore-discovery-results",
     "notifications",
     "auth",
     "login-history",

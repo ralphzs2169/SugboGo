@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import { configureExploreHomepageQueryRetention } from "@/features/explore/persistence/exploreHomepageQueryDefaults";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -11,3 +12,5 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+configureExploreHomepageQueryRetention(queryClient);

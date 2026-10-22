@@ -2,8 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getDiscoveryShortcuts } from "../api/exploreBusiness.service";
+import {
+  DISCOVERY_SHORTCUTS_QUERY_KEY,
+  EXPLORE_HOMEPAGE_RETENTION_MS,
+} from "../constants/exploreHomepageQueries";
 
-export const DISCOVERY_SHORTCUTS_QUERY_KEY = ["discovery-shortcuts"] as const;
+export { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../constants/exploreHomepageQueries";
 
 export default function useDiscoveryShortcuts() {
   const query = useQuery({
@@ -13,6 +17,7 @@ export default function useDiscoveryShortcuts() {
 
       return throwOnApiError(response);
     },
+    gcTime: EXPLORE_HOMEPAGE_RETENTION_MS,
     staleTime: 5 * 60 * 1000,
   });
 
