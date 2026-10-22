@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
+import type { ReactNode } from "react";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -12,6 +13,7 @@ type Props = {
   alightingPointName: string;
   destinationDistance: string;
   landmarkName?: string | null;
+  headerAction?: ReactNode;
 };
 
 const BOARDING_BACKGROUND = "#3B82F6";
@@ -32,6 +34,7 @@ export default function JeepneyStopGuidanceCard({
   alightingPointName,
   destinationDistance,
   landmarkName,
+  headerAction,
 }: Props) {
   return (
     <View
@@ -40,7 +43,7 @@ export default function JeepneyStopGuidanceCard({
     >
       {/* Guidance heading */}
       <View className="mb-3 flex-row items-center justify-between">
-        <View>
+        <View className="min-w-0 flex-1 pr-3">
           <AppText weight="bold" className="text-base text-text-primary">
             Your stops
           </AppText>
@@ -50,16 +53,18 @@ export default function JeepneyStopGuidanceCard({
           </AppText>
         </View>
 
-        <View className="h-8 w-8 items-center justify-center rounded-full bg-surface-secondary">
-          <MaterialCommunityIcons
-            name="transit-connection-variant"
-            size={17}
-            color={theme.extends.colors.text.secondary}
-          />
-        </View>
+        {headerAction ?? (
+          <View className="h-8 w-8 items-center justify-center rounded-full bg-surface-secondary">
+            <MaterialCommunityIcons
+              name="transit-connection-variant"
+              size={17}
+              color={theme.extends.colors.text.secondary}
+            />
+          </View>
+        )}
       </View>
 
-      <View className="rounded-xl bg-surface-muted p-3">
+      <View className="rounded-xl  bg-surface-muted p-3">
         {/* Boarding point */}
         <View className="flex-row items-start">
           <View className="items-center">

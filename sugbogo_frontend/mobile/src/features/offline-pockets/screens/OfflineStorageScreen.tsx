@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNetInfo } from "@react-native-community/netinfo";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { Platform, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,7 +22,10 @@ import SafePressable from "@/shared/components/SafePressable";
 import Skeleton from "@/shared/components/Skeleton";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 
-import OfflineStorageHeader from "../components/OfflineStorageHeader";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 import useOfflineStorageSummary from "../hooks/useOfflineStorageSummary";
 import {
   clearOfflineBusinessData,
@@ -343,12 +346,16 @@ export default function OfflineStorageScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <OfflineStorageHeader
-        title="Offline Storage"
-        onBack={() =>
-          router.canGoBack() ? router.back() : router.replace("/(auth)/login")
-        }
+    <SafeAreaView
+      edges={["left", "right", "bottom"]}
+      className="flex-1 bg-background"
+    >
+      <Stack.Screen
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          title: "Offline Storage",
+        }}
       />
 
       <ScrollView

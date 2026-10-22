@@ -182,13 +182,15 @@ export default function JeepneyRouteMapScreen({
         alightingPointName={journey.alighting_transit_point.name}
         destinationDistance={formatJourneyDistance(destinationDistanceMeters)}
         landmarkName={journey.landmark_context?.name}
-      />
-      {/* Explicit offline snapshot save */}
-      <SaveOfflineJourneyButton
-        businessId={businessId}
-        businessName={businessQuery.business?.business_name ?? null}
-        journey={journey}
-        origin={activeOrigin!}
+        headerAction={
+          <SaveOfflineJourneyButton
+            key={`${businessId}:${journey.boarding_transit_point.id}:${journey.alighting_transit_point.id}:${activeOrigin!.latitude}:${activeOrigin!.longitude}`}
+            businessId={businessId}
+            businessName={businessQuery.business?.business_name ?? null}
+            journey={journey}
+            origin={activeOrigin!}
+          />
+        }
       />
     </SafeAreaView>
   );

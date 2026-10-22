@@ -53,17 +53,16 @@ export default function JourneyOptionCard({
       {/* Recommended badge */}
       {recommended && (
         <View
-          className="absolute right-3 flex-row items-center rounded-full bg-text-info/90 px-2.5 py-1"
+          className="absolute right-3 flex-row items-center rounded-full bg-info px-2.5 py-1"
           style={{
             top: -10,
             zIndex: 10,
-            elevation: 4,
           }}
           pointerEvents="none"
         >
           <AppText
             weight="bold"
-            className="text-[10px] tracking-wide text-white"
+            className="text-[10px] tracking-wide text-text-info"
           >
             Recommended
           </AppText>

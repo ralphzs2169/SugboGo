@@ -57,7 +57,7 @@ export default function ConfirmModal({
 }: ConfirmModalProps) {
   const [isModalVisible, setIsModalVisible] = useState(visible);
 
-  const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
 
   const shouldStackActions =
     confirmText.trim().length > LONG_ACTION_TEXT_LENGTH ||
@@ -70,7 +70,7 @@ export default function ConfirmModal({
       opacity.setValue(0);
       setIsModalVisible(true);
 
-      requestAnimationFrame(() => {
+      const frame = requestAnimationFrame(() => {
         Animated.timing(opacity, {
           toValue: 1,
           duration: FADE_IN_DURATION,
@@ -78,11 +78,10 @@ export default function ConfirmModal({
         }).start();
       });
 
-      return;
-    }
-
-    if (!isModalVisible) {
-      return;
+      return () => {
+        cancelAnimationFrame(frame);
+        opacity.stopAnimation();
+      };
     }
 
     Animated.timing(opacity, {
@@ -94,7 +93,8 @@ export default function ConfirmModal({
         setIsModalVisible(false);
       }
     });
-  }, [visible, isModalVisible, opacity]);
+    return () => opacity.stopAnimation();
+  }, [visible, opacity]);
 
   return (
     <Modal

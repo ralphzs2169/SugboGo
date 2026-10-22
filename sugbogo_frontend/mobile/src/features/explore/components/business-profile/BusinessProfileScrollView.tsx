@@ -24,6 +24,7 @@ type Props = {
   onRefresh: () => void;
   children: ReactNode;
   isOwnBusiness: boolean;
+  extraBottomPadding?: number;
 };
 
 // Calibrated against the hero's fixed h-80 (320px) height.
@@ -40,6 +41,7 @@ export default function BusinessProfileScrollView({
   onRefresh,
   children,
   isOwnBusiness,
+  extraBottomPadding = 0,
 }: Props) {
   const { bottom } = useSafeAreaInsets();
 
@@ -119,7 +121,7 @@ export default function BusinessProfileScrollView({
         testID="business-profile-scroll"
         contentContainerStyle={{
           flexGrow: 1,
-          paddingBottom: isOwnBusiness ? 100 : bottom,
+          paddingBottom: (isOwnBusiness ? 100 : bottom) + extraBottomPadding,
         }}
         onScroll={handleScroll}
         scrollEventThrottle={16}

@@ -99,6 +99,14 @@ export default function ProfileLayout() {
             title: "Pocket",
           }}
         />
+        <Stack.Screen
+          name="my-pockets"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "My Pockets",
+          }}
+        />
       </Stack>
     </>
   );

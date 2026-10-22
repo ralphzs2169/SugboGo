@@ -499,7 +499,7 @@ export default function PocketPickerSheet({
                       >
                         <MaterialCommunityIcons
                           name={
-                            item.is_default ? "heart-outline" : "folder-outline"
+                            item.is_default ? "heart-outline" : "wallet-outline"
                           }
                           size={21}
                           color={theme.extends.colors.text.secondary}
@@ -590,7 +590,7 @@ export default function PocketPickerSheet({
                   <View className="items-center px-5 py-10">
                     <View className="mb-3 h-14 w-14 items-center justify-center rounded-full bg-surface">
                       <MaterialCommunityIcons
-                        name="folder-outline"
+                        name="wallet-outline"
                         size={28}
                         color={theme.extends.colors.text.tertiary}
                       />

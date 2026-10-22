@@ -28,12 +28,18 @@ import BusinessProfileErrorState from "./state/BusinessProfileErrorState";
 import BusinessProfileSkeletonContent from "./state/BusinessProfileSkeletonContent";
 
 type Props = BusinessProfileProps & {
-  detail: ReturnType<typeof useBusinessDetailSource>;
+  sourceLabel?: string;
+  extraBottomPadding?: number;
+  detail: Omit<ReturnType<typeof useBusinessDetailSource>, "refetch"> & {
+    refetch: () => Promise<unknown>;
+  };
 };
 
 /** Keeps the normal scroll, hero and information shell mounted across source changes. */
 export default function BusinessProfilePresentation({
   detail,
+  sourceLabel,
+  extraBottomPadding,
   ...props
 }: Props) {
   const live = detail.source === "live" ? detail.business : null;
@@ -71,6 +77,7 @@ export default function BusinessProfilePresentation({
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <BusinessProfileScrollView
+        extraBottomPadding={extraBottomPadding}
         business={identity}
         isRefreshing={isPullRefreshing && !detail.isLoading}
         onRefresh={() => void refreshProfile()}
@@ -132,9 +139,10 @@ export default function BusinessProfilePresentation({
                       weight="medium"
                       className="text-xs leading-5 text-text-secondary"
                     >
-                      {detail.source === "offline-pocket"
-                        ? "Saved for offline"
-                        : "Previously loaded"}
+                      {sourceLabel ??
+                        (detail.source === "offline-pocket"
+                          ? "Saved for offline"
+                          : "Previously loaded")}
                     </AppText>
                     <AppText className="text-xs leading-5 text-text-tertiary">
                       Updated{" "}

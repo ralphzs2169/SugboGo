@@ -1,18 +1,31 @@
-import { router } from "expo-router";
-import { useRef, useState } from "react";
-import { Platform, ScrollView, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { router, Stack, useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { onlineManager } from "@tanstack/react-query";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import SafePressable from "@/shared/components/SafePressable";
+import AppText from "@/shared/components/AppText";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { shadows } from "@/shared/styles/shadows";
+import { Platform, View } from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import ErrorState from "@/shared/components/ErrorState";
-import Skeleton from "@/shared/components/Skeleton";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { isAuthSessionGenerationCurrent } from "@/shared/api/authSessionGeneration.service";
-import OfflineBusinessContent from "../components/OfflineBusinessContent";
-import OfflineBusinessHeader from "../components/OfflineBusinessHeader";
+import BusinessProfilePresentation from "@/features/explore/components/business-profile/BusinessProfilePresentation";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 import useOfflineBusinessSnapshots from "../hooks/useOfflineBusinessSnapshots";
 import { removeUnreadableOfflineBusinessSnapshot } from "../services/offlinePockets.service";
 import type { OfflinePocketReadContext } from "../types/offlinePockets.types";
+
+const subscribeOnline = (notify: () => void) => onlineManager.subscribe(notify);
 
 /** Displays only validated device information and narrowly scoped unreadable-copy cleanup. */
 export default function OfflineBusinessDetailScreen({
@@ -21,6 +34,20 @@ export default function OfflineBusinessDetailScreen({
   businessId: number;
 }) {
   const saved = useOfflineBusinessSnapshots(businessId);
+  const openingProfile = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      openingProfile.current = false;
+    }, []),
+  );
+  const insets = useSafeAreaInsets();
+  const [actionHeight, setActionHeight] = useState(56);
+  const online = useSyncExternalStore(subscribeOnline, () =>
+    onlineManager.isOnline(),
+  );
+  const authenticated = useAuthStore(
+    (state) => state.isAuthenticated && !state.isLoading,
+  );
   const entry = saved.data?.entries[0];
   const [cleanup, setCleanup] = useState<{
     context: OfflinePocketReadContext;
@@ -55,9 +82,23 @@ export default function OfflineBusinessDetailScreen({
   }
   const unreadable =
     entry?.status === "corrupt" || entry?.status === "unsupported";
+  const showProfileShell =
+    saved.ownerId !== null &&
+    Platform.OS !== "web" &&
+    (saved.isPending || (!saved.isError && entry?.status === "available"));
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <OfflineBusinessHeader detail />
+    <SafeAreaView
+      edges={showProfileShell ? [] : ["left", "right", "bottom"]}
+      className="flex-1 bg-background"
+    >
+      <Stack.Screen
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          title: "Saved business",
+          headerShown: !showProfileShell,
+        }}
+      />
       {/* Authorization failures never retain a previous account's presentation. */}
       {saved.ownerId === null ? (
         <ErrorState
@@ -76,11 +117,24 @@ export default function OfflineBusinessDetailScreen({
           description="Saved offline businesses are available on Android and iOS."
         />
       ) : saved.isPending ? (
-        <View className="gap-4 px-screen-x">
-          <Skeleton className="h-40 rounded-card" />
-          <Skeleton className="h-8 rounded-md" />
-          <Skeleton className="h-28 rounded-card" />
-        </View>
+        <BusinessProfilePresentation
+          businessId={businessId}
+          distance={null}
+          distanceAccuracy={null}
+          previewAsExplorer
+          detail={{
+            source: "unavailable",
+            business: null,
+            snapshot: null,
+            localCoverUri: undefined,
+            error: null,
+            denied: false,
+            isInitialLoading: true,
+            isLoading: true,
+            isFetching: saved.isFetching,
+            refetch: saved.refetch,
+          }}
+        />
       ) : saved.isError ? (
         <ErrorState
           size="small"
@@ -91,12 +145,26 @@ export default function OfflineBusinessDetailScreen({
           onPrimaryAction={() => void saved.refetch()}
         />
       ) : entry?.status === "available" ? (
-        <ScrollView>
-          <OfflineBusinessContent
-            snapshot={entry.snapshot}
-            localCoverUri={saved.data?.covers?.[businessId]}
-          />
-        </ScrollView>
+        <BusinessProfilePresentation
+          businessId={businessId}
+          distance={null}
+          distanceAccuracy={null}
+          previewAsExplorer
+          sourceLabel="Saved device copy"
+          extraBottomPadding={online && authenticated ? actionHeight + 32 : 0}
+          detail={{
+            source: "offline-pocket",
+            business: null,
+            snapshot: entry.snapshot,
+            localCoverUri: saved.data?.covers?.[businessId],
+            error: null,
+            denied: false,
+            isInitialLoading: false,
+            isLoading: false,
+            isFetching: saved.isFetching,
+            refetch: saved.refetch,
+          }}
+        />
       ) : (
         <ErrorState
           size="small"
@@ -125,6 +193,53 @@ export default function OfflineBusinessDetailScreen({
           }
         />
       )}
+      {entry?.status === "available" &&
+        saved.ownerId !== null &&
+        !saved.isError &&
+        !saved.isPending &&
+        Platform.OS !== "web" &&
+        online &&
+        authenticated && (
+          <View
+            onLayout={({ nativeEvent }) =>
+              setActionHeight(nativeEvent.layout.height)
+            }
+            className="absolute right-4 z-30 max-w-[90%] rounded-full bg-brand"
+            style={[{ bottom: insets.bottom + 16 }, shadows.floating]}
+          >
+            <SafePressable
+              accessibilityRole="button"
+              accessibilityLabel="View current profile"
+              className="min-h-12 flex-row items-center justify-center gap-2 rounded-full px-5 py-3.5 active:opacity-80"
+              onPress={() => {
+                const auth = useAuthStore.getState();
+                if (
+                  openingProfile.current ||
+                  !onlineManager.isOnline() ||
+                  !auth.isAuthenticated ||
+                  auth.isLoading ||
+                  auth.user?.id !== saved.ownerId
+                )
+                  return;
+                openingProfile.current = true;
+                router.push({
+                  pathname: "/(explorer)/business/[businessId]",
+                  params: { businessId: String(businessId) },
+                });
+              }}
+            >
+              <MaterialCommunityIcons
+                name="open-in-new"
+                size={18}
+                color="#FFFFFF"
+                accessible={false}
+              />
+              <AppText weight="semibold" className="text-sm text-white">
+                View current profile
+              </AppText>
+            </SafePressable>
+          </View>
+        )}
       <ConfirmModal
         visible={
           cleanup !== null &&

@@ -1,8 +1,5 @@
 import React, { type PropsWithChildren } from "react";
-import {
-  QueryClient,
-  QueryClientProvider,
-} from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
@@ -116,18 +113,16 @@ describe("merchant registration landmark location flow", () => {
     });
 
     await waitFor(() =>
-      expect(
-        useMerchantRegistrationStore.getState().selectedLocation,
-      ).toEqual(businessLocation),
+      expect(useMerchantRegistrationStore.getState().selectedLocation).toEqual(
+        businessLocation,
+      ),
     );
 
     expect(searchNearbyLandmarksService).toHaveBeenCalledWith(
       businessLocation.latitude,
       businessLocation.longitude,
     );
-    expect(
-      useMerchantRegistrationStore.getState().selectedLandmarks,
-    ).toEqual([
+    expect(useMerchantRegistrationStore.getState().selectedLandmarks).toEqual([
       expect.objectContaining({
         id: "place-1",
         name: "Cebu Monument",
@@ -173,9 +168,9 @@ describe("merchant registration landmark location flow", () => {
       }),
       undefined,
     );
-    expect(
-      useMerchantRegistrationStore.getState().selectedLandmarks,
-    ).toEqual([customLandmark]);
+    expect(useMerchantRegistrationStore.getState().selectedLandmarks).toEqual([
+      customLandmark,
+    ]);
 
     screen.unmount();
   });

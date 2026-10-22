@@ -11,6 +11,7 @@ type Props = {
   collection: PocketCollection;
   onPress?: () => void;
   onManage?: () => void;
+  compact?: boolean;
 };
 
 /**
@@ -21,6 +22,7 @@ export default function PocketCollectionCard({
   collection,
   onPress,
   onManage,
+  compact = false,
 }: Props) {
   const businessLabel =
     collection.business_count === 1 ? "business" : "businesses";
@@ -29,28 +31,41 @@ export default function PocketCollectionCard({
     <>
       {/* Collection identity */}
       <View
-        className="h-12 w-12 shrink-0 items-center justify-center rounded-card bg-brand/10"
+        className="h-12 w-12 shrink-0 items-center justify-center rounded-card bg-surface-muted"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
         <MaterialCommunityIcons
-          name={collection.is_default ? "heart-outline" : "folder-outline"}
+          name={collection.is_default ? "heart-outline" : "wallet-outline"}
           size={22}
-          color={theme.extends.colors.brand}
+          color={theme.extends.colors.text.secondary}
         />
       </View>
 
       <View className="min-w-0 flex-1">
-        <AppText weight="semibold" className="text-md text-text-primary">
+        <AppText
+          weight="semibold"
+          className={
+            compact ? "text-sm text-text-primary" : "text-md text-text-primary"
+          }
+        >
           {collection.name}
         </AppText>
 
         {/* Available businesses and default status */}
-        <AppText className="mt-1 text-body text-text-secondary">
-          {collection.business_count} {businessLabel}
+        <AppText
+          className={
+            compact
+              ? "mt-1 text-xs text-text-secondary"
+              : "mt-1 text-body text-text-secondary"
+          }
+        >
+          {compact && collection.business_count === 0
+            ? "No places yet"
+            : `${collection.business_count} ${businessLabel}`}
         </AppText>
 
-        {collection.is_default && (
+        {collection.is_default && !compact && (
           <View className="mt-2 self-start rounded-full bg-brand/10 px-2 py-1">
             <AppText weight="medium" className="text-small text-text-primary">
               Default
@@ -61,7 +76,13 @@ export default function PocketCollectionCard({
     </>
   );
   return (
-    <View className="flex-row items-center rounded-card border border-border-primary bg-surface">
+    <View
+      className={
+        compact
+          ? "flex-row items-center bg-surface"
+          : "flex-row items-center rounded-card border border-border-primary bg-surface"
+      }
+    >
       {/* Navigation and management remain sibling touch targets. */}
       {onPress ? (
         <SafePressable

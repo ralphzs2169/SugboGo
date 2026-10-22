@@ -29,6 +29,10 @@ import Toast from "react-native-toast-message";
 import NotificationRealtimeSync from "@/features/notifications/components/NotificationRealtimeSync";
 import PocketPickerProvider from "@/features/pockets/providers/PocketPickerProvider";
 import OfflinePocketSync from "@/features/offline-pockets/providers/OfflinePocketSync";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 
 import "../../global.css";
 
@@ -80,10 +84,38 @@ export default function RootLayout() {
                       name="index"
                       options={{ animation: "none" }}
                     />
-                    <Stack.Screen name="offline-routes" />
-                    <Stack.Screen name="offline-storage" />
-                    <Stack.Screen name="offline-pockets" />
-                    <Stack.Screen name="offline-business/[businessId]" />
+                    <Stack.Screen
+                      name="offline-routes"
+                      options={{
+                        headerShown: true,
+                        ...defaultStackScreenOptions,
+                        ...slideFromRight,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="offline-storage"
+                      options={{
+                        headerShown: true,
+                        ...defaultStackScreenOptions,
+                        ...slideFromRight,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="offline-pockets"
+                      options={{
+                        headerShown: true,
+                        ...defaultStackScreenOptions,
+                        ...slideFromRight,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="offline-business/[businessId]"
+                      options={{
+                        headerShown: false,
+                        ...defaultStackScreenOptions,
+                        ...slideFromRight,
+                      }}
+                    />
 
                     <Stack.Screen
                       name="(auth)"
