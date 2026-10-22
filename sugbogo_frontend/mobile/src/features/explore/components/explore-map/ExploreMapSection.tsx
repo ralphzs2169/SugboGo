@@ -17,6 +17,7 @@ import ExploreMapSkeleton from "./ExploreMapSkeleton";
 type Props = {
   businesses: BusinessMapMarker[];
   isLoading: boolean;
+  isPaused?: boolean;
   error: unknown;
   refetch: () => Promise<unknown>;
   userLocation: LocationObject | null;
@@ -34,6 +35,7 @@ const MAP_PREVIEW_HEIGHT = 210;
 export default function ExploreMapSection({
   businesses,
   isLoading,
+  isPaused = false,
   error,
   refetch,
   userLocation,
@@ -60,9 +62,9 @@ export default function ExploreMapSection({
       />
 
       {/* Map loading state */}
-      {isLoading || isRetrying ? (
+      {(isLoading || isRetrying) && !isPaused && businesses.length === 0 ? (
         <ExploreMapSkeleton />
-      ) : error ? (
+      ) : (error || isPaused) && businesses.length === 0 ? (
         /* Section recovery */
         <ErrorState
           title="Unable to load the map"

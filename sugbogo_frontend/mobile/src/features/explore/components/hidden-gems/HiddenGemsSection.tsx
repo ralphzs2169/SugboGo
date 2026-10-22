@@ -15,6 +15,7 @@ import HiddenGemSpotlight from "./HiddenGemSpotlight";
 type Props = {
   businesses: ExploreBusiness[];
   isLoading: boolean;
+  isPaused?: boolean;
   error: unknown;
   refetch: () => Promise<unknown>;
   impressions: BusinessImpressionObservation;
@@ -36,6 +37,7 @@ type Props = {
 export default function HiddenGemsSection({
   businesses: rankedBusinesses,
   isLoading,
+  isPaused = false,
   error,
   refetch,
   impressions,
@@ -60,7 +62,7 @@ export default function HiddenGemsSection({
     }
   };
 
-  if (isLoading || isRetrying) {
+  if ((isLoading || isRetrying) && !isPaused && businesses.length === 0) {
     return (
       <View className="py-6">
         <ExploreSectionHeader
@@ -76,7 +78,7 @@ export default function HiddenGemsSection({
     );
   }
 
-  if (error) {
+  if ((error || isPaused) && businesses.length === 0) {
     return (
       <View className="py-6" testID="hidden-gems-error">
         {/* Section heading */}

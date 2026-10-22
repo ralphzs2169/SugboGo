@@ -10,7 +10,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import ReviewComposerSheet from "@/features/explore/components/business-profile/ReviewComposerSheet";
 import { ReviewDerivedDataSyncProvider } from "@/features/explore/hooks/ReviewDerivedDataSyncProvider";
-import MerchantMetricCard from "@/features/merchant/components/MerchantMetricCard";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
 import AppText from "@/shared/components/AppText";
@@ -223,6 +222,8 @@ export default function ReviewsSubmittedScreen() {
   const initialLoading =
     history.isAuthLoading || (isEnabled && history.isPending);
   const hasReviews = history.reviews.length > 0;
+  const showEndMessage =
+    hasReviews && !history.error && !history.hasNextPage && !history.isFetching;
   const reviewCounts = history.summary;
   const filteredEmptyLabel =
     reviewFilter === "under_review"
@@ -251,40 +252,29 @@ export default function ReviewsSubmittedScreen() {
         renderItem={renderReview}
         className="flex-1 bg-surface"
         contentContainerStyle={{
-          paddingBottom: insets.bottom,
           flexGrow: 1,
+        }}
+        ListFooterComponentStyle={{
+          flexGrow: showEndMessage ? 1 : 0,
+          backgroundColor: showEndMessage
+            ? theme.extends.colors.background
+            : theme.extends.colors.surface,
+          paddingBottom: insets.bottom,
         }}
         ItemSeparatorComponent={ReviewSeparator}
         ListHeaderComponent={
           isEnabled ? (
-            <View className="gap-4 px-4 pb-4 pt-5">
-              <View className="flex-row gap-3">
-                <MerchantMetricCard
-                  icon="comment-text-outline"
-                  label="Total reviews"
-                  value={reviewCounts?.total.toLocaleString() ?? "—"}
-                  stacked={false}
-                />
-                <MerchantMetricCard
-                  icon="check-circle-outline"
-                  label="Published"
-                  value={reviewCounts?.published.toLocaleString() ?? "—"}
-                  stacked={false}
-                />
-              </View>
-              <View className="flex-row gap-3">
-                <MerchantMetricCard
-                  icon="clock-outline"
-                  label="Under review"
-                  value={reviewCounts?.under_review.toLocaleString() ?? "—"}
-                  stacked={false}
-                />
-                <MerchantMetricCard
-                  icon="eye-off-outline"
-                  label="Not published"
-                  value={reviewCounts?.not_published.toLocaleString() ?? "—"}
-                  stacked={false}
-                />
+            <View className="gap-2 px-4 pb-3 pt-4">
+              <View className="mb-1 flex-row items-center justify-between gap-3">
+                <AppText
+                  weight="semibold"
+                  className="text-sm text-text-primary"
+                >
+                  Your reviews
+                </AppText>
+                <AppText className="text-sm text-text-secondary">
+                  {reviewCounts?.total.toLocaleString() ?? "—"} total
+                </AppText>
               </View>
               <ScrollView
                 horizontal
@@ -294,9 +284,9 @@ export default function ReviewsSubmittedScreen() {
                 {REVIEW_FILTERS.map((option) => (
                   <FilterChip
                     key={option.value}
-                    label={option.label}
+                    label={`${option.label}${reviewCounts ? ` ${reviewCounts[option.value === "all" ? "total" : option.value].toLocaleString()}` : ""}`}
                     selected={reviewFilter === option.value}
-                    accessibilityLabel={option.accessibilityLabel}
+                    accessibilityLabel={`${option.accessibilityLabel}${reviewCounts ? `, ${reviewCounts[option.value === "all" ? "total" : option.value].toLocaleString()} reviews` : ""}`}
                     onPress={() => setReviewFilter(option.value)}
                   />
                 ))}
@@ -431,7 +421,7 @@ export default function ReviewsSubmittedScreen() {
                 }
               />
             </View>
-          ) : hasReviews && !history.hasNextPage && !history.isFetching ? (
+          ) : showEndMessage ? (
             <EndOfListMessage description="You've seen all your submitted reviews." />
           ) : null
         }

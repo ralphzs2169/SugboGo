@@ -6,7 +6,7 @@ import { router } from "expo-router";
 
 import ExploreScreen from "../ExploreScreen";
 import ExploreBusinessProfileScreen from "../ExploreBusinessProfileScreen";
-import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
+import useBusinessDetailSource from "../../hooks/useBusinessDetailSource";
 import useDiscoveryFeed from "../../hooks/useDiscoveryFeed";
 import {
   recordBusinessImpressions,
@@ -33,7 +33,10 @@ jest.mock("../../api/exploreBusiness.service", () => ({
   recordBusinessImpressions: jest.fn(),
   recordBusinessProfileVisit: jest.fn(),
 }));
-jest.mock("../../hooks/useExploreBusinessProfile");
+jest.mock("../../hooks/useBusinessDetailSource", () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
   ReviewDerivedDataSyncProvider: ({
     children,
@@ -373,7 +376,8 @@ it("places Hidden Gems before New Businesses", async () => {
 
 it("suppresses an owner's explorer preview without hiding the profile", async () => {
   const { wrapper } = setup();
-  (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+  (useBusinessDetailSource as jest.Mock).mockReturnValue({
+    source: "live",
     business: {
       id: 42,
       operating_hours: [],
@@ -402,12 +406,13 @@ it("suppresses an owner's explorer preview without hiding the profile", async ()
 it("records only displayed profile content and keeps it visible when tracking fails", async () => {
   const { wrapper } = setup();
   const profile = {
+    source: "unavailable",
     business: null,
     isLoading: true,
     error: null,
     refetch: jest.fn(),
   };
-  (useExploreBusinessProfile as jest.Mock).mockReturnValue(profile);
+  (useBusinessDetailSource as jest.Mock).mockReturnValue(profile);
   const screen = await render(
     <ExploreBusinessProfileScreen
       businessId={42}
@@ -418,7 +423,7 @@ it("records only displayed profile content and keeps it visible when tracking fa
   );
   expect(screen.getByText("Profile loading")).toBeTruthy();
   expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
-  (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+  (useBusinessDetailSource as jest.Mock).mockReturnValue({
     ...profile,
     isLoading: false,
     error: new Error("load failed"),
@@ -432,8 +437,9 @@ it("records only displayed profile content and keeps it visible when tracking fa
   );
   expect(screen.getByText("Profile load error")).toBeTruthy();
   expect(recordBusinessProfileVisit).not.toHaveBeenCalled();
-  (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+  (useBusinessDetailSource as jest.Mock).mockReturnValue({
     ...profile,
+    source: "live",
     isLoading: false,
     business: {
       id: 42,

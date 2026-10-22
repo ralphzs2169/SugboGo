@@ -93,7 +93,7 @@ describe("device-only owner access", () => {
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     await releaseOfflineAccessIfEmpty(7, getAuthSessionGeneration());
     expect(useOfflineAccessStore.getState().ownerId).toBeNull();
-    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(OFFLINE_OWNER_KEY);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     expect(useOfflineAccessStore.getState().isRevoking).toBe(false);
   });
 

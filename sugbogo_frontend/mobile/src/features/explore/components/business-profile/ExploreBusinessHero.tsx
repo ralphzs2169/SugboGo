@@ -2,17 +2,30 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import Skeleton from "@/shared/components/Skeleton";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 import BusinessPocketButton from "./BusinessPocketButton";
 
 type Props = {
-  business: ExploreBusiness;
+  business:
+    | (Pick<
+        ExploreBusiness,
+        | "id"
+        | "business_name"
+        | "cluster"
+        | "category"
+        | "display_cover_photo_url"
+      > & {
+        is_pocketed?: boolean;
+      })
+    | null;
   isOwnBusiness: boolean;
   onShare: () => void;
 };
@@ -28,14 +41,39 @@ export default function ExploreBusinessHero({
   isOwnBusiness,
   onShare,
 }: Props) {
+  const [failedCover, setFailedCover] = useState<string | null>(null);
+  if (!business) {
+    return (
+      <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
+        <Skeleton className="h-full w-full rounded-none" />
+        <Pressable
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          className="absolute left-4 top-4 h-10 w-10 items-center justify-center rounded-full bg-white/95"
+        >
+          <MaterialCommunityIcons
+            name="chevron-left"
+            size={26}
+            color={theme.extends.colors.text.primary}
+          />
+        </Pressable>
+      </View>
+    );
+  }
   const clusterIconName = CLUSTER_ICONS[business.cluster.icon] ?? "store";
+  const cover =
+    business.display_cover_photo_url !== failedCover
+      ? business.display_cover_photo_url
+      : null;
 
   return (
     <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
       {/* Cover photo */}
-      {business.display_cover_photo_url ? (
+      {cover ? (
         <Image
-          source={{ uri: business.display_cover_photo_url }}
+          source={{ uri: cover }}
+          onError={() => setFailedCover(cover)}
           style={{
             width: "100%",
             height: "100%",
@@ -128,7 +166,7 @@ export default function ExploreBusinessHero({
           {/* Pocket */}
           <BusinessPocketButton
             businessId={business.id}
-            isPocketed={business.is_pocketed}
+            isPocketed={business.is_pocketed ?? null}
           />
         </View>
       </View>

@@ -19,7 +19,10 @@ jest.mock("expo-router", () => ({
 jest.mock("@/shared/hooks/useUserLocation");
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("../../hooks/useDirectJourneys");
-jest.mock("../../hooks/useExploreBusinessProfile");
+jest.mock("../../hooks/useExploreBusinessProfile", () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
 
 const businessRefetch = jest.fn();
 const journeyRefetch = jest.fn();
@@ -134,8 +137,7 @@ describe("JeepneyGuideScreen", () => {
     fireEvent.press(screen.getByText("Change"));
 
     expect(router.push).toHaveBeenCalledWith({
-      pathname:
-        "/(explorer)/business/[businessId]/jeepney-starting-point",
+      pathname: "/(explorer)/business/[businessId]/jeepney-starting-point",
       params: {
         businessId: "21",
       },
@@ -225,8 +227,7 @@ describe("JeepneyGuideScreen", () => {
     fireEvent.press(screen.getByText("View on map"));
 
     expect(router.push).toHaveBeenCalledWith({
-      pathname:
-        "/(explorer)/business/[businessId]/jeepney-route-map",
+      pathname: "/(explorer)/business/[businessId]/jeepney-route-map",
       params: {
         businessId: "21",
         routeVariantId: "8",

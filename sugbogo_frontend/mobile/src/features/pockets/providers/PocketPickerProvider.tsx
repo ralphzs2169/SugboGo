@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { onlineManager } from "@tanstack/react-query";
 import {
   useCallback,
   useEffect,
@@ -22,6 +23,11 @@ export default function PocketPickerProvider({ children }: PropsWithChildren) {
   const restoring = useAuthStore((state) => state.isLoading);
   const [selection, setSelection] = useState<Selection | null>(null);
   const selectedRef = useRef<Selection | null>(null);
+  const closePocketPicker = useCallback((businessId: number) => {
+    if (selectedRef.current?.businessId !== businessId) return;
+    selectedRef.current = null;
+    setSelection(null);
+  }, []);
   const currentSelection =
     selection &&
     authenticated &&
@@ -49,10 +55,21 @@ export default function PocketPickerProvider({ children }: PropsWithChildren) {
     [],
   );
 
+  useEffect(
+    () =>
+      onlineManager.subscribe((online) => {
+        if (!online && selectedRef.current) {
+          closePocketPicker(selectedRef.current.businessId);
+        }
+      }),
+    [closePocketPicker],
+  );
+
   const openPocketPicker = useCallback((businessId: number) => {
     const session = useAuthStore.getState();
     if (
       session.isLoading ||
+      !onlineManager.isOnline() ||
       !Number.isSafeInteger(businessId) ||
       businessId <= 0
     )
@@ -71,8 +88,12 @@ export default function PocketPickerProvider({ children }: PropsWithChildren) {
     setSelection(next);
   }, []);
   const value = useMemo(
-    () => ({ openPocketPicker, isOpen: currentSelection !== null }),
-    [openPocketPicker, currentSelection],
+    () => ({
+      openPocketPicker,
+      closePocketPicker,
+      isOpen: currentSelection !== null,
+    }),
+    [openPocketPicker, closePocketPicker, currentSelection],
   );
 
   return (
@@ -82,6 +103,9 @@ export default function PocketPickerProvider({ children }: PropsWithChildren) {
         <PocketPickerSheet
           key={`${currentSelection.ownerId}:${currentSelection.businessId}:${currentSelection.generation}`}
           {...currentSelection}
+          isCurrent={() =>
+            selectedRef.current === currentSelection && onlineManager.isOnline()
+          }
           onDismiss={() => {
             if (selectedRef.current !== currentSelection) return;
             selectedRef.current = null;

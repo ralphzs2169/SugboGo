@@ -1,6 +1,7 @@
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "@/shared/query/queryClient";
+import QueryPersistenceProvider from "@/shared/query/QueryPersistenceProvider";
+import QueryLifecycle from "@/shared/query/QueryLifecycle";
+import RecentExploreReconnect from "@/features/explore/components/RecentExploreReconnect";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import AppSplash from "@/shared/components/AppSplash";
 import { toastConfig } from "@/shared/components/ToastConfig";
@@ -28,6 +29,10 @@ import Toast from "react-native-toast-message";
 import NotificationRealtimeSync from "@/features/notifications/components/NotificationRealtimeSync";
 import PocketPickerProvider from "@/features/pockets/providers/PocketPickerProvider";
 import OfflinePocketSync from "@/features/offline-pockets/providers/OfflinePocketSync";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 
 import "../../global.css";
 
@@ -60,7 +65,9 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryPersistenceProvider>
+      <QueryLifecycle />
+      <RecentExploreReconnect />
       <NotificationRealtimeSync />
       <OfflinePocketSync />
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -77,10 +84,38 @@ export default function RootLayout() {
                       name="index"
                       options={{ animation: "none" }}
                     />
-                    <Stack.Screen name="offline-routes" />
-                    <Stack.Screen name="offline-storage" />
-                    <Stack.Screen name="offline-pockets" />
-                    <Stack.Screen name="offline-business/[businessId]" />
+                    <Stack.Screen
+                      name="offline-routes"
+                      options={{
+                        headerShown: true,
+                        ...defaultStackScreenOptions,
+                        ...slideFromRight,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="offline-storage"
+                      options={{
+                        headerShown: true,
+                        ...defaultStackScreenOptions,
+                        ...slideFromRight,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="offline-pockets"
+                      options={{
+                        headerShown: true,
+                        ...defaultStackScreenOptions,
+                        ...slideFromRight,
+                      }}
+                    />
+                    <Stack.Screen
+                      name="offline-business/[businessId]"
+                      options={{
+                        headerShown: false,
+                        ...defaultStackScreenOptions,
+                        ...slideFromRight,
+                      }}
+                    />
 
                     <Stack.Screen
                       name="(auth)"
@@ -119,6 +154,6 @@ export default function RootLayout() {
           </SafeAreaProvider>
         </ActionSheetProvider>
       </GestureHandlerRootView>
-    </QueryClientProvider>
+    </QueryPersistenceProvider>
   );
 }

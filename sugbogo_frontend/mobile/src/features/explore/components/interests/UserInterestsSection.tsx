@@ -67,17 +67,12 @@ export default function UserInterestsSection({
 
   useEffect(() => {
     const displayedIds =
-      recommendations.error || recommendations.isLoading
+      recommendations.isLoading && visibleBusinesses.length === 0
         ? []
         : visibleBusinesses.map((business) => business.id);
 
     retainBusinesses(displayedIds);
-  }, [
-    recommendations.error,
-    recommendations.isLoading,
-    retainBusinesses,
-    visibleBusinesses,
-  ]);
+  }, [recommendations.isLoading, retainBusinesses, visibleBusinesses]);
 
   useEffect(() => {
     return () => retainBusinesses([]);
@@ -114,12 +109,15 @@ export default function UserInterestsSection({
       />
 
       {/* Recommendation loading */}
-      {recommendations.isLoading || isRetrying ? (
+      {(recommendations.isLoading || isRetrying) &&
+      !recommendations.isPaused &&
+      visibleBusinesses.length === 0 ? (
         <CompactBusinessListSkeleton
           count={PREVIEW_LIMIT}
           testID="recommendations-loading"
         />
-      ) : recommendations.error ? (
+      ) : (recommendations.error || recommendations.isPaused) &&
+        visibleBusinesses.length === 0 ? (
         /* Section recovery */
         <View testID="recommendations-error">
           <ErrorState

@@ -1,5 +1,10 @@
 import type { PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import { exploreBusinessDetailKey } from "../reviewQueryKeys";
 import { act, renderHook } from "@testing-library/react-native";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
@@ -23,11 +28,13 @@ jest.mock("../../api/reviewBusiness.service", () => ({
 
 describe("ReviewDerivedDataSyncProvider lifecycle", () => {
   beforeEach(() => {
+    onlineManager.setOnline(true);
     jest.useFakeTimers();
     jest.clearAllMocks();
   });
 
   afterEach(() => {
+    onlineManager.setOnline(true);
     jest.useRealTimers();
   });
 
@@ -37,6 +44,8 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
     "account-change",
     "cache-clear",
     "timeout",
+    "offline",
+    "detail-error",
   ] as const)(
     "handles navigation when synchronization starts %s unmount",
     async (mode) => {
@@ -90,11 +99,20 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
       });
       const callsBeforeLeaving = (getBusinessReviewPreview as jest.Mock).mock
         .calls.length;
+      if (mode === "offline") onlineManager.setOnline(false);
+      if (mode === "detail-error") {
+        client
+          .getQueryCache()
+          .find({ queryKey: exploreBusinessDetailKey(20) })
+          ?.setState({ error: new Error("Detail unavailable") });
+      }
       await unmount();
       if (
         mode === "account-change" ||
         mode === "cache-clear" ||
-        mode === "timeout"
+        mode === "timeout" ||
+        mode === "offline" ||
+        mode === "detail-error"
       ) {
         if (mode === "cache-clear") client.clear();
         if (mode === "account-change")
@@ -104,6 +122,9 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
         });
         const completedCalls = (getBusinessReviewPreview as jest.Mock).mock
           .calls.length;
+        if (mode === "offline" || mode === "detail-error") {
+          expect(completedCalls).toBe(callsBeforeLeaving);
+        }
         await act(async () => {
           await jest.advanceTimersByTimeAsync(4001);
         });

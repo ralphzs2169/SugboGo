@@ -1,22 +1,33 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { Image } from "expo-image";
+import { router, Stack } from "expo-router";
 import { FlatList, Platform, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
 import OfflineBusinessCard from "../components/OfflineBusinessCard";
-import OfflineBusinessHeader from "../components/OfflineBusinessHeader";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 import useOfflineBusinessSnapshots from "../hooks/useOfflineBusinessSnapshots";
 
 /** Flat, device-only business library; collections remain managed in My Pockets online. */
 export default function OfflinePocketLibraryScreen() {
   const saved = useOfflineBusinessSnapshots();
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <OfflineBusinessHeader />
+    <SafeAreaView
+      edges={["left", "right", "bottom"]}
+      className="flex-1 bg-surface"
+    >
+      <Stack.Screen
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          title: "Saved businesses",
+        }}
+      />
       {/* Storage reads stay available in airplane mode. */}
       {saved.ownerId === null ? (
         <ErrorState
@@ -35,7 +46,7 @@ export default function OfflinePocketLibraryScreen() {
           description="Saved offline businesses are available on Android and iOS."
         />
       ) : saved.isPending ? (
-        <View className="gap-3 px-screen-x">
+        <View className="gap-3 px-4 pt-4">
           <Skeleton className="h-36 rounded-card" />
           <Skeleton className="h-36 rounded-card" />
         </View>
@@ -52,30 +63,40 @@ export default function OfflinePocketLibraryScreen() {
         <FlatList
           data={saved.data?.entries ?? []}
           keyExtractor={(entry) => String(entry.businessId)}
-          contentContainerClassName="grow px-screen-x pb-6"
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName="grow px-4 pb-6 pt-4"
           ListHeaderComponent={
-            <AppText className="pb-5 text-sm leading-5 text-text-secondary">
-              Available on this device, even without internet. Your Pockets stay
-              saved online.
-            </AppText>
+            <View className="mb-4 border-b border-border-primary/60 pb-3">
+              <View className="flex-row items-center justify-between gap-3">
+                <AppText className="min-w-0 flex-1 text-sm text-text-secondary">
+                  Ready to view offline.
+                </AppText>
+                <AppText
+                  weight="semibold"
+                  className="text-sm text-text-secondary"
+                >
+                  {saved.data?.entries.length ?? 0} saved
+                </AppText>
+              </View>
+            </View>
           }
           ListEmptyComponent={
-            <View className="flex-1 items-center justify-center px-4 pb-16">
-              <MaterialCommunityIcons
-                name="storefront-outline"
-                size={44}
-                color={theme.extends.colors.text.tertiary}
+            <View className="items-center px-8 py-10">
+              <Image
+                source={require("@/shared/assets/mascot/mascot-no-filter-result.webp")}
+                style={{ width: 120, height: 120 }}
+                contentFit="contain"
                 accessible={false}
               />
               <AppText
                 weight="bold"
-                className="mt-4 text-center text-lg text-text-primary"
+                className="mt-2 text-center text-md text-text-primary"
               >
                 No saved businesses yet
               </AppText>
-              <AppText className="mt-2 text-center text-sm leading-6 text-text-secondary">
-                Businesses you save to Pockets online appear here once their
-                information is ready.
+              <AppText className="mt-1 text-center text-sm leading-5 text-text-secondary">
+                Save places to your Pockets while online. Their device copies
+                appear here once ready.
               </AppText>
             </View>
           }

@@ -26,8 +26,11 @@ type Props = {
  * specialty shortcuts are available.
  */
 export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
-  const { specialties, isLoading, error, refetch } = useExploreSpecialties();
+  const { specialties, isLoading, isPaused, error, refetch } =
+    useExploreSpecialties();
   const [isRetrying, setIsRetrying] = useState(false);
+  const hasContent = specialties.length > 0;
+  const showLoading = (isLoading || isRetrying) && !isPaused && !hasContent;
 
   const handleRetry = async () => {
     setIsRetrying(true);
@@ -55,7 +58,7 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
     }
   }, [error]);
 
-  if (!isLoading && !error && specialties.length === 0) {
+  if (!isLoading && !isPaused && !error && specialties.length === 0) {
     return null;
   }
 
@@ -65,10 +68,10 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
       <ExploreSectionHeader title="Explore by Specialty" />
 
       {/* Loading state */}
-      {(isLoading || isRetrying) && <ExploreBySpecialtySkeleton />}
+      {showLoading && <ExploreBySpecialtySkeleton />}
 
       {/* Section recovery */}
-      {!isLoading && !isRetrying && error && (
+      {!showLoading && !hasContent && (error || isPaused) && (
         <ErrorState
           title="Unable to load specialties"
           description="Specialty shortcuts couldn't be loaded right now."
@@ -80,7 +83,7 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
       )}
 
       {/* Specialty shortcut grid */}
-      {!isLoading && !isRetrying && !error && (
+      {!showLoading && hasContent && (
         <View className="flex-row flex-wrap justify-between gap-y-5 px-4">
           {specialties.map((specialty) => {
             const accentColor = getSpecialtyTagColor(

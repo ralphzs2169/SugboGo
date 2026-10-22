@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 
 export const PocketPickerContext = createContext<{
   openPocketPicker: (businessId: number) => void;
+  closePocketPicker?: (businessId: number) => void;
   isOpen: boolean;
 } | null>(null);
 

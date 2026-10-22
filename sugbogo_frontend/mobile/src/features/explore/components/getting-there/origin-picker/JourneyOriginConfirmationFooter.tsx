@@ -64,7 +64,7 @@ export default function JourneyOriginConfirmationFooter({
       </View>
 
       {/* Selected location card */}
-      <View className="mt-3 rounded-2xl border border-border-primary bg-background p-3.5">
+      <View className="mt-3 rounded-2xl bg-surface-muted p-3.5">
         <View className="flex-row items-center">
           <View className="h-6 w-6 shrink-0 items-center justify-center rounded-xl ">
             <MaterialCommunityIcons

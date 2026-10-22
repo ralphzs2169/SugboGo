@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -77,6 +78,11 @@ export default function BusinessCard({
   variant = "default",
   recommendationReason = null,
 }: Props) {
+  const [failedCover, setFailedCover] = useState<string | null>(null);
+  const cover =
+    business.display_cover_photo_url !== failedCover
+      ? business.display_cover_photo_url
+      : null;
   const { width: screenWidth } = useWindowDimensions();
   const compactImageWidth = Math.min(
     176,
@@ -156,7 +162,6 @@ export default function BusinessCard({
               : `Open ${business.business_name} business profile`
           }
           className="min-h-40 w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90"
-          style={compactTrailingAction ? { paddingRight: 48 } : undefined}
           android_ripple={{
             color: "rgba(0,0,0,0.05)",
           }}
@@ -168,9 +173,10 @@ export default function BusinessCard({
             }}
             className="relative min-h-40 shrink-0 self-stretch overflow-hidden bg-surface-muted"
           >
-            {business.display_cover_photo_url ? (
+            {cover ? (
               <Image
-                source={{ uri: business.display_cover_photo_url }}
+                source={{ uri: cover }}
+                onError={() => setFailedCover(cover)}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 transition={150}
@@ -206,6 +212,11 @@ export default function BusinessCard({
               <AppText
                 weight="bold"
                 className="text-[13px] leading-5 text-text-primary"
+                style={
+                  compactTrailingAction
+                    ? { paddingRight: 48, minHeight: 40 }
+                    : undefined
+                }
                 numberOfLines={2}
               >
                 {business.business_name}
@@ -284,7 +295,7 @@ export default function BusinessCard({
         </SafePressable>
         {pocketAction}
         {compactTrailingAction && (
-          <View className="absolute bottom-0 right-2.5 top-0 justify-center">
+          <View className="absolute right-1 top-1">
             {compactTrailingAction}
           </View>
         )}
@@ -320,9 +331,10 @@ export default function BusinessCard({
           }}
           className="relative w-full bg-surface-secondary"
         >
-          {business.display_cover_photo_url ? (
+          {cover ? (
             <Image
-              source={{ uri: business.display_cover_photo_url }}
+              source={{ uri: cover }}
+              onError={() => setFailedCover(cover)}
               style={{
                 width: "100%",
                 height: "100%",

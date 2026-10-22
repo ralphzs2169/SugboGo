@@ -1,5 +1,31 @@
 let authSessionGeneration = 0;
 let hasActiveAuthSession = false;
+let offlineTransportSession = false;
+
+type SessionChange = "replace" | "restore" | "revoke" | "offline";
+const sessionListeners = new Set<(change: SessionChange) => void>();
+
+/** Observes synchronous session boundaries without granting authentication. */
+export function subscribeAuthSessionChanges(
+  listener: (change: SessionChange) => void,
+) {
+  sessionListeners.add(listener);
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
+
+function notifySessionChange(change: SessionChange) {
+  sessionListeners.forEach((listener) => {
+    try {
+      listener(change);
+    } catch {
+      if (__DEV__) {
+        console.warn("Session observer cleanup failed.");
+      }
+    }
+  });
+}
 
 /**
  * Error raised when asynchronous authentication work belongs to a session
@@ -18,9 +44,11 @@ export function getAuthSessionGeneration() {
 }
 
 /** Starts a new authenticated-session generation. */
-export function beginAuthSession() {
+export function beginAuthSession(change: "replace" | "restore" = "replace") {
   authSessionGeneration += 1;
   hasActiveAuthSession = true;
+  offlineTransportSession = false;
+  notifySessionChange(change);
   return authSessionGeneration;
 }
 
@@ -28,7 +56,23 @@ export function beginAuthSession() {
 export function invalidateAuthSession() {
   authSessionGeneration += 1;
   hasActiveAuthSession = false;
+  offlineTransportSession = false;
+  notifySessionChange("revoke");
   return authSessionGeneration;
+}
+
+/** Withdraws API authority after startup transport failure, preserving temporary disk data. */
+export function suspendAuthSession() {
+  authSessionGeneration += 1;
+  hasActiveAuthSession = false;
+  offlineTransportSession = true;
+  notifySessionChange("offline");
+  return authSessionGeneration;
+}
+
+/** Eligibility probes are allowed only after the current startup transport failure. */
+export function isOfflineTransportSession(generation: number) {
+  return offlineTransportSession && isAuthSessionGenerationCurrent(generation);
 }
 
 /** Checks whether asynchronous work still belongs to the active session. */

@@ -23,12 +23,11 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
-
-/** Separates collection cards using the existing list spacing. */
-function CollectionSeparator() {
-  return <View className="h-3" />;
-}
 
 /**
  * Displays the authenticated explorer's collection overview in backend order.
@@ -105,14 +104,26 @@ export default function MyPocketsScreen() {
 
   const collections = pockets.isEnabled ? pockets.collections : [];
   const hasCollections = collections.length > 0;
+  const showEndMessage =
+    pockets.isEnabled &&
+    hasCollections &&
+    !pockets.hasNextPage &&
+    !pockets.isFetching &&
+    !pockets.error &&
+    collections.length >= 5;
   const initialLoading =
     pockets.isAuthLoading ||
     (pockets.isEnabled && !pockets.hasData && !pockets.error);
 
   return (
-    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-background">
-      {/* Profile stack header */}
-      <Stack.Screen options={{ title: "My Pockets" }} />
+    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-surface">
+      <Stack.Screen
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          title: "My Pockets",
+        }}
+      />
 
       {/* Collections and request recovery */}
       <FlatList
@@ -124,52 +135,91 @@ export default function MyPocketsScreen() {
           <View>
             {(index === 0 ||
               collections[index - 1].is_default !== item.is_default) && (
-              <AppText
-                accessibilityRole="header"
-                weight="bold"
-                className={`${index > 0 ? "mt-5" : ""} mb-3 text-small tracking-widest text-text-secondary`}
+              <View
+                className={`${index > 0 ? "mt-5" : ""} mb-2 flex-row items-center gap-2`}
               >
-                {item.is_default ? "DEFAULT" : "YOUR POCKETS"}
-              </AppText>
+                <MaterialCommunityIcons
+                  name={item.is_default ? "heart-outline" : "wallet-outline"}
+                  size={16}
+                  color={theme.extends.colors.text.secondary}
+                  accessible={false}
+                />
+                <AppText
+                  accessibilityRole="header"
+                  weight="semibold"
+                  className="text-xs text-text-secondary"
+                >
+                  {item.is_default ? "Favorites" : "Custom Pockets"}
+                </AppText>
+              </View>
             )}
-            <PocketCollectionCard
-              collection={item}
-              onPress={() =>
-                router.push(`/(explorer)/profile/pockets/${item.id}` as Href)
-              }
-              onManage={
-                item.is_default
-                  ? undefined
-                  : () => {
-                      if (
-                        pockets.userId === null ||
-                        useAuthStore.getState().user?.id !== pockets.userId
-                      )
-                        return;
-                      setManaging({
-                        collection: item,
-                        ownerId: pockets.userId,
-                        generation: getAuthSessionGeneration(),
-                      });
-                    }
-              }
-            />
+            <View
+              collapsable={false}
+              className={`overflow-hidden border-x border-border-primary bg-surface ${
+                index === 0 ||
+                collections[index - 1].is_default !== item.is_default
+                  ? "rounded-t-card border-t"
+                  : ""
+              } ${index === collections.length - 1 || collections[index + 1].is_default !== item.is_default ? "rounded-b-card border-b" : ""}`}
+            >
+              {index > 0 &&
+                collections[index - 1].is_default === item.is_default && (
+                  <View className="mx-4 h-px bg-border-primary/60" />
+                )}
+              <PocketCollectionCard
+                compact
+                collection={item}
+                onPress={() =>
+                  router.push(`/(explorer)/profile/pockets/${item.id}` as Href)
+                }
+                onManage={
+                  item.is_default
+                    ? undefined
+                    : () => {
+                        if (
+                          pockets.userId === null ||
+                          useAuthStore.getState().user?.id !== pockets.userId
+                        )
+                          return;
+                        setManaging({
+                          collection: item,
+                          ownerId: pockets.userId,
+                          generation: getAuthSessionGeneration(),
+                        });
+                      }
+                }
+              />
+            </View>
           </View>
         )}
-        ItemSeparatorComponent={CollectionSeparator}
-        contentContainerClassName="px-4 pt-4"
+        className="bg-surface"
+        contentContainerClassName="bg-surface px-4 pt-4"
         contentContainerStyle={{
+          flexGrow: 1,
+        }}
+        ListFooterComponentStyle={{
+          flexGrow: showEndMessage ? 1 : 0,
+          marginHorizontal: -16,
+          marginTop: showEndMessage ? 16 : 0,
+          backgroundColor: showEndMessage
+            ? theme.extends.colors.background
+            : theme.extends.colors.surface,
           paddingBottom:
             insets.bottom +
             (pockets.isEnabled ? creationActionHeight + 48 : 24),
-          flexGrow: 1,
         }}
         ListHeaderComponent={
           pockets.isEnabled ? (
-            <View className="mb-6">
-              <AppText className="text-body text-text-secondary">
-                Keep your favorite places together, ready for your next visit.
+            <View className="mb-4 flex-row items-center justify-between gap-3">
+              <AppText className="min-w-0 flex-1 text-body text-text-secondary">
+                Your places, organized.
               </AppText>
+              {pockets.hasData && (
+                <AppText weight="bold" className="text-sm text-text-secondary">
+                  {pockets.totalCount}{" "}
+                  {pockets.totalCount === 1 ? "Pocket" : "Pockets"}
+                </AppText>
+              )}
             </View>
           ) : null
         }
@@ -228,7 +278,7 @@ export default function MyPocketsScreen() {
                 />
               </View>
             ) : pockets.error ? (
-              <View className="-mx-4 py-4">
+              <View className="py-4">
                 <ErrorState
                   size="section"
                   title={
@@ -245,7 +295,7 @@ export default function MyPocketsScreen() {
                   }
                 />
               </View>
-            ) : !pockets.hasNextPage && !pockets.isFetching ? (
+            ) : showEndMessage ? (
               <EndOfListMessage description="You've seen all your Pockets." />
             ) : null
           ) : null
@@ -256,6 +306,7 @@ export default function MyPocketsScreen() {
         onEndReached={() => loadNextPage()}
         onEndReachedThreshold={0.35}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={false}
         refreshControl={
           <RefreshControl
             enabled={pockets.isEnabled}

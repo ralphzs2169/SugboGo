@@ -84,4 +84,41 @@ describe("BusinessVisitInfoContent", () => {
     expect(screen.queryByLabelText("Open jeepney guide")).toBeNull();
     expect(screen.queryByLabelText("Choose a ride provider")).toBeNull();
   });
+
+  it("keeps saved visit information while disabling transport and avoiding a current-status claim", async () => {
+    const screen = await render(
+      <BusinessVisitInfoContent
+        {...defaultProps}
+        readOnly
+        operatingHours={[
+          {
+            id: 1,
+            day: "monday",
+            is_open: true,
+            is_24_hours: false,
+            open_time: null,
+            close_time: null,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("123 Colon Street")).toBeTruthy();
+    expect(screen.getByText("Previously loaded hours")).toBeTruthy();
+    expect(screen.queryByText("Open")).toBeNull();
+    expect(screen.queryByText("Closed")).toBeNull();
+    for (const label of [
+      "View road route",
+      "Open jeepney guide",
+      "Choose a ride provider",
+    ]) {
+      const button = screen.getByLabelText(label);
+      expect(button.props.accessibilityState.disabled).toBe(true);
+      await fireEvent.press(button);
+    }
+    expect(defaultProps.onViewRoute).not.toHaveBeenCalled();
+    expect(defaultProps.onJeepneyGuide).not.toHaveBeenCalled();
+    expect(defaultProps.onRide).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByLabelText("Show full business hours"));
+    expect(screen.getByText("Hours not provided")).toBeTruthy();
+  });
 });

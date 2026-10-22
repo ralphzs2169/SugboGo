@@ -11,6 +11,12 @@ jest.mock("../../api/exploreBusiness.service", () => ({
   getRecommendations: jest.fn(),
 }));
 
+const clients: QueryClient[] = [];
+
+afterEach(() => {
+  clients.splice(0).forEach((client) => client.clear());
+});
+
 describe("useRecommendations", () => {
   it("keeps the first backend page in its received order", async () => {
     const data = {
@@ -36,6 +42,7 @@ describe("useRecommendations", () => {
         queries: { retry: false, gcTime: Infinity },
       },
     });
+    clients.push(client);
 
     function Wrapper({ children }: PropsWithChildren) {
       return (

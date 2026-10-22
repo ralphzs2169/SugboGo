@@ -65,8 +65,11 @@ export default function useExploreCollection(
     hasNextPage: query.hasNextPage,
     fetchNextPage: query.fetchNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
+    isFetchNextPageError: query.isFetchNextPageError,
+    isFetching: query.isFetching,
     isLoading: query.isLoading,
-    isRefetching: query.isRefetching,
+    isPaused: query.isPaused,
+    isRefetching: query.isRefetching && !query.isPaused,
     error: query.error,
     refetch: query.refetch,
   };
