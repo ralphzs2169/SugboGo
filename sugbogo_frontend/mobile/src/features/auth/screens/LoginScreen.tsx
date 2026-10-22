@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { TouchableOpacity, View } from "react-native";
+import { Pressable, TouchableOpacity, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import AuthHeader from "@/features/auth/components/AuthHeader";
@@ -321,6 +321,18 @@ export default function LoginScreen() {
           onPress={() => router.push("/(auth)/register")}
         />
       </View>
+
+      {/* Public privacy information */}
+      <Pressable
+        onPress={() => router.push("/privacy-policy")}
+        accessibilityRole="link"
+        accessibilityLabel="Read Privacy Policy"
+        className="mt-3 min-h-12 cursor-pointer items-center justify-center px-4 py-3 active:opacity-70"
+      >
+        <AppText weight="semibold" className="text-center text-sm text-brand">
+          Privacy Policy
+        </AppText>
+      </Pressable>
     </AuthLayout>
   );
 }
