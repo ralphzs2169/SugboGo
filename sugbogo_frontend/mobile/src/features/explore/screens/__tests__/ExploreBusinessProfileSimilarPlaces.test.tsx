@@ -4,11 +4,16 @@ import { router } from "expo-router";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import ExploreBusinessProfileScreen from "../ExploreBusinessProfileScreen";
-import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
+import useBusinessDetailSource from "../../hooks/useBusinessDetailSource";
+import useBusinessProfileVisit from "../../hooks/useBusinessProfileVisit";
+import useRoutePlanningIntent from "../../hooks/useRoutePlanningIntent";
+import { useBusinessReviewPreview } from "../../hooks/useBusinessReviews";
+import { ReviewDerivedDataSyncProvider } from "../../hooks/ReviewDerivedDataSyncProvider";
+import { snapshotFixture } from "@/features/offline-pockets/validation/__tests__/snapshotFixture";
 const mockRecordRouteIntent = jest.fn();
 jest.mock("../../hooks/useRoutePlanningIntent", () => ({
   __esModule: true,
-  default: () => mockRecordRouteIntent,
+  default: jest.fn(() => mockRecordRouteIntent),
 }));
 
 jest.mock("expo-router", () => ({
@@ -17,22 +22,33 @@ jest.mock("expo-router", () => ({
     push: jest.fn(),
   },
 }));
-jest.mock("../../hooks/useExploreBusinessProfile");
-jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
-  ReviewDerivedDataSyncProvider: ({
-    children,
+jest.mock("../../hooks/useBusinessDetailSource", () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
+jest.mock("../../components/business-profile/ReadOnlyBusinessProfile", () => {
+  const { Text } = jest.requireActual("react-native");
+  return function MockReadOnlyProfile({
+    snapshot,
   }: {
-    children: React.ReactNode;
-  }) => children,
+    snapshot: { business: { business_name: string } };
+  }) {
+    return <Text>{snapshot.business.business_name}</Text>;
+  };
+});
+jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
+  ReviewDerivedDataSyncProvider: jest.fn(
+    ({ children }: { children: React.ReactNode }) => children,
+  ),
 }));
 jest.mock("../../hooks/useBusinessProfileVisit", () => jest.fn());
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),
 }));
 jest.mock("../../hooks/useBusinessReviews", () => ({
-  useBusinessReviewPreview: () => ({
+  useBusinessReviewPreview: jest.fn(() => ({
     totalCount: 0,
-  }),
+  })),
 }));
 jest.mock("../../utils/businessHours.utils", () => ({
   getBusinessHoursSummary: () => ({
@@ -204,7 +220,8 @@ const explorerBusiness = {
 describe("Explore Business Profile actions and section placement", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: explorerBusiness,
       isLoading: false,
       error: null,
@@ -276,7 +293,8 @@ describe("Explore Business Profile actions and section placement", () => {
   });
 
   it("preserves the owner footer and hides Explorer actions", async () => {
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: {
         ...explorerBusiness,
         is_own_business: true,
@@ -300,7 +318,8 @@ describe("Explore Business Profile actions and section placement", () => {
   });
 
   it("shows Explorer presentation in merchant preview without enabling review creation", async () => {
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: {
         ...explorerBusiness,
         is_own_business: true,
@@ -327,7 +346,8 @@ describe("Explore Business Profile actions and section placement", () => {
   });
 
   it("does not offer duplicate review creation", async () => {
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: {
         ...explorerBusiness,
         has_own_review: true,
@@ -348,3 +368,35 @@ describe("Explore Business Profile actions and section placement", () => {
     expect(screen.queryByTestId("write-review-action")).toBeNull();
   });
 });
+
+it.each(["recent", "offline-pocket"])(
+  "never mounts live effects for %s presentation",
+  async (source) => {
+    jest.clearAllMocks();
+    jest.mocked(useBusinessDetailSource).mockReturnValue({
+      source,
+      business: null,
+      snapshot: snapshotFixture(),
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: jest.fn(),
+    } as never);
+    const screen = await render(
+      <ExploreBusinessProfileScreen
+        businessId={21}
+        distance={null}
+        distanceAccuracy={null}
+      />,
+    );
+    expect(screen.getByText("Sugbo Cafe")).toBeTruthy();
+    expect(useBusinessProfileVisit).not.toHaveBeenCalled();
+    expect(useBusinessReviewPreview).not.toHaveBeenCalled();
+    expect(useRoutePlanningIntent).not.toHaveBeenCalled();
+    expect(ReviewDerivedDataSyncProvider).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("profile-reviews")).toBeNull();
+    expect(screen.queryByTestId("profile-similar-places")).toBeNull();
+    expect(screen.queryByTestId("route-action")).toBeNull();
+    expect(screen.queryByTestId("write-review-action")).toBeNull();
+  },
+);

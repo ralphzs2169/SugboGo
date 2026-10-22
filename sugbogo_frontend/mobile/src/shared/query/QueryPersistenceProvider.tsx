@@ -1,4 +1,6 @@
 import { useEffect, useSyncExternalStore, type PropsWithChildren } from "react";
+// Register temporary-detail cleanup before startup authentication runs.
+import "@/features/explore/services/recentBusinessDetails.service";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import type { QueryClient } from "@tanstack/react-query";
 

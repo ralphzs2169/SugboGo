@@ -22,7 +22,10 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ bottom: 0 }),
 }));
 jest.mock("../../hooks/useBusinessReviews");
-jest.mock("../../hooks/useExploreBusinessProfile");
+jest.mock("../../hooks/useExploreBusinessProfile", () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock("../../hooks/ReviewDerivedDataSyncProvider", () => ({
   ReviewDerivedDataSyncProvider: ({
     children,

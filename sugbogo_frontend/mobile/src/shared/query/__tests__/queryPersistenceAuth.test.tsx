@@ -14,6 +14,11 @@ import { createApiError } from "@/shared/utils/apiErrors";
 import { createQueryPersistence } from "../queryPersistence.service";
 import { QUERY_PERSISTENCE_STORAGE_KEY } from "../queryPersistencePolicies";
 import { queryClient } from "../queryClient";
+import {
+  createRecentBusinessDetails,
+  RECENT_BUSINESS_STORAGE_KEY,
+} from "@/features/explore/services/recentBusinessDetails.service";
+import { businessFixture } from "@/features/offline-pockets/validation/__tests__/snapshotFixture";
 
 jest.mock("@react-native-async-storage/async-storage", () =>
   jest.requireActual(
@@ -47,6 +52,7 @@ jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 
 let values: Map<string, string>;
 let runtime: ReturnType<typeof createQueryPersistence>;
+let details: ReturnType<typeof createRecentBusinessDetails>;
 let stop: () => void;
 const key = ["auth-persistence-fixture"];
 
@@ -86,6 +92,18 @@ beforeEach(async () => {
     isLoading: false,
   });
   runtime = createRuntime();
+  details = createRecentBusinessDetails({
+    storage: {
+      getItem: async (name) => values.get(name) ?? null,
+      setItem: async (name, value) => {
+        values.set(name, value);
+      },
+      removeItem: async (name) => {
+        values.delete(name);
+      },
+    },
+  });
+  await details.capture().save(businessFixture(), Date.now());
   const session = runtime.openSession(queryClient);
   stop = session.track();
   await queryClient.fetchQuery({
@@ -98,6 +116,7 @@ beforeEach(async () => {
 afterEach(() => {
   stop();
   runtime.dispose();
+  details.dispose();
   queryClient.clear();
 });
 
@@ -109,8 +128,10 @@ it("uses the existing session establishment boundary to clear old disk and memor
     user: { id: 8 } as never,
   });
   await runtime.flush();
+  await details.flush();
   expect(queryClient.getQueryData(key)).toBeUndefined();
   expect(values.has(QUERY_PERSISTENCE_STORAGE_KEY)).toBe(false);
+  expect(values.has(RECENT_BUSINESS_STORAGE_KEY)).toBe(false);
   expect(useAuthStore.getState().user?.id).toBe(8);
 });
 
@@ -125,8 +146,10 @@ it("uses the existing logout boundary to revoke temporary disk and memory state"
     expect(await hook.result.current.logout()).toBe(true);
   });
   await runtime.flush();
+  await details.flush();
   expect(queryClient.getQueryData(key)).toBeUndefined();
   expect(values.has(QUERY_PERSISTENCE_STORAGE_KEY)).toBe(false);
+  expect(values.has(RECENT_BUSINESS_STORAGE_KEY)).toBe(false);
   expect(useAuthStore.getState().isAuthenticated).toBe(false);
   await hook.unmount();
 });
@@ -148,7 +171,9 @@ it("discards temporary content after a transport-failed cold-start restoration",
   const hook = await renderHook(useRestoreSession);
   await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
   await runtime.flush();
+  await details.flush();
   expect(values.has(QUERY_PERSISTENCE_STORAGE_KEY)).toBe(false);
+  expect(values.has(RECENT_BUSINESS_STORAGE_KEY)).toBe(false);
   expect(useAuthStore.getState().isAuthenticated).toBe(false);
   expect(queryClient.getQueryData(key)).toBeUndefined();
   await hook.unmount();

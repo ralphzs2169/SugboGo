@@ -21,7 +21,10 @@ import {
 import { offlineCoverFileUri } from "../services/offlinePocketCoverFiles";
 
 /** Always reads SQLite, including when React Query's network manager is offline. */
-export default function useOfflineBusinessSnapshots(businessId?: number) {
+export default function useOfflineBusinessSnapshots(
+  businessId?: number,
+  enabled = true,
+) {
   useAuthStore();
   useOfflineAccessStore();
   const ownerId = currentOfflineBusinessOwner();
@@ -40,7 +43,7 @@ export default function useOfflineBusinessSnapshots(businessId?: number) {
       businessId ?? "library",
       revision,
     ],
-    enabled: ownerId !== null,
+    enabled: enabled && ownerId !== null,
     networkMode: "always",
     retry: false,
     gcTime: 0,
@@ -95,8 +98,8 @@ export default function useOfflineBusinessSnapshots(businessId?: number) {
   const { refetch } = query;
   useFocusEffect(
     useCallback(() => {
-      if (ownerId !== null) void refetch();
-    }, [ownerId, refetch]),
+      if (enabled && ownerId !== null) void refetch();
+    }, [enabled, ownerId, refetch]),
   );
   return { ...query, ownerId };
 }

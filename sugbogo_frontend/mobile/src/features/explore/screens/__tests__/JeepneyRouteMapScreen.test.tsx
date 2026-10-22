@@ -21,7 +21,10 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("../../hooks/useDirectJourneyMap");
-jest.mock("../../hooks/useExploreBusinessProfile");
+jest.mock("../../hooks/useExploreBusinessProfile", () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock(
   "../../components/getting-there/JeepneyRouteMap",
   () =>

@@ -6,18 +6,25 @@ import { StyleSheet, View } from "react-native";
 import { theme } from "@/constants/theme";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 
-/** Renders local covers only, preserving the Explore placeholder when decoding or storage fails. */
+/** Defaults to local covers; recent details may opt into normal remote disk caching. */
 export default function OfflineBusinessCover({
   uri,
   clusterIcon,
   hero = false,
+  allowRemote = false,
 }: {
   uri?: string;
   clusterIcon?: string;
   hero?: boolean;
+  allowRemote?: boolean;
 }) {
   const [failedUri, setFailedUri] = useState<string | null>(null);
-  const localUri = uri?.startsWith("file://") && uri !== failedUri ? uri : null;
+  const localUri =
+    uri &&
+    uri !== failedUri &&
+    (uri.startsWith("file://") || (allowRemote && /^https?:\/\//i.test(uri)))
+      ? uri
+      : null;
   return (
     <View
       className="absolute inset-0 items-center justify-center bg-brand/8"
@@ -37,7 +44,7 @@ export default function OfflineBusinessCover({
           source={{ uri: localUri }}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
-          cachePolicy="none"
+          cachePolicy={allowRemote ? "disk" : "none"}
           recyclingKey={localUri}
           accessible={false}
           onError={() => setFailedUri(localUri)}

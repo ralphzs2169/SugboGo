@@ -1,5 +1,6 @@
 import {
   focusManager,
+  onlineManager,
   type QueryClient,
   useQuery,
   useQueryClient,
@@ -89,13 +90,18 @@ async function continuePendingSynchronization(
   userId: number,
   pending: PendingSynchronization,
 ) {
-  const canContinue = () =>
-    ownsSession(userId) &&
-    Boolean(
-      queryClient
-        .getQueryCache()
-        .find({ queryKey: exploreBusinessDetailKey(businessId), exact: true }),
+  const canContinue = () => {
+    const detail = queryClient.getQueryState(
+      exploreBusinessDetailKey(businessId),
     );
+    return (
+      ownsSession(userId) &&
+      onlineManager.isOnline() &&
+      detail !== undefined &&
+      !detail.error &&
+      detail.fetchStatus !== "paused"
+    );
+  };
   while (canContinue()) {
     if (
       pending.sentiment &&
@@ -289,7 +295,18 @@ export function ReviewDerivedDataSyncProvider({
     useState<GeneratedInsightsSyncSession | null>(null);
 
   const continueAfterUnmount = useCallback(() => {
-    if (continuing.current || ownerId === null || !ownsSession(ownerId)) return;
+    const detail = queryClient.getQueryState(
+      exploreBusinessDetailKey(businessId),
+    );
+    if (
+      continuing.current ||
+      ownerId === null ||
+      !ownsSession(ownerId) ||
+      !onlineManager.isOnline() ||
+      detail?.error ||
+      detail?.fetchStatus === "paused"
+    )
+      return;
     continuing.current = true;
     void continuePendingSynchronization(
       queryClient,

@@ -19,13 +19,15 @@ const DAYS = [
   "sunday",
 ] as const;
 
-/** Read-only profile presentation with a local-only cover and no online actions or API hooks. */
+/** Read-only profile information with source-specific wording and no live hooks or actions. */
 export default function OfflineBusinessContent({
   snapshot,
   localCoverUri,
+  source = "offline-pocket",
 }: {
   snapshot: OfflineBusinessSnapshot;
   localCoverUri?: string;
+  source?: "offline-pocket" | "recent";
 }) {
   const business = snapshot.business;
   const contacts = [
@@ -38,7 +40,14 @@ export default function OfflineBusinessContent({
       {/* Hero uses the online profile's cover proportions and placeholder, without overlays/actions. */}
       <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-muted">
         <OfflineBusinessCover
-          uri={localCoverUri}
+          uri={
+            source === "recent"
+              ? business.display_cover_photo_url ||
+                business.cover_photo_url ||
+                undefined
+              : localCoverUri
+          }
+          allowRemote={source === "recent"}
           clusterIcon={business.cluster.icon}
           hero
         />
@@ -60,8 +69,11 @@ export default function OfflineBusinessContent({
           ))}
         </View>
         <AppText className="mt-1 text-xs leading-5 text-text-secondary">
-          Device copy · Updated {new Date(snapshot.fetchedAt).toLocaleString()}.
-          Information may have changed.
+          {source === "recent"
+            ? "Showing previously loaded information"
+            : "Device copy"}{" "}
+          · Updated {new Date(snapshot.fetchedAt).toLocaleString()}. Information
+          may have changed.
         </AppText>
       </View>
       {/* Reuses the online profile's section hierarchy, without its data-fetching children. */}
