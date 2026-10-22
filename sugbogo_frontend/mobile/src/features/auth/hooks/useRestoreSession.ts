@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { isAxiosError } from "axios";
 
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import {
@@ -27,23 +28,27 @@ import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineA
  * by fetching the current user, and updates the global authentication state.
  */
 export function useRestoreSession() {
-  const hasRestored = useRef(false);
+  const [attempt, setAttempt] = useState(0);
+  const [recoveryRequired, setRecoveryRequired] = useState(false);
+  const restoredAttempt = useRef(-1);
 
   const setUser = useAuthStore((state) => state.setUser);
   const clearUser = useAuthStore((state) => state.clearUser);
   const setLoading = useAuthStore((state) => state.setLoading);
 
   useEffect(() => {
-    if (hasRestored.current) return;
+    if (restoredAttempt.current === attempt) return;
 
-    hasRestored.current = true;
+    restoredAttempt.current = attempt;
 
     async function restoreSession() {
       // Claim startup before reading storage so a later login or logout wins.
       const restoreGeneration = beginAuthSession();
+      let hasStoredToken = false;
 
       try {
         const token = await getAccessToken();
+        hasStoredToken = Boolean(token);
 
         if (!isAuthSessionCurrent(restoreGeneration)) {
           return;
@@ -74,12 +79,22 @@ export function useRestoreSession() {
         clearUser();
         useAppModeStore.getState().resetActiveMode();
 
-        if (isTransportError(error)) {
+        const authenticationRejected =
+          (error instanceof Error && error.name === "AUTH_ERROR") ||
+          (isAxiosError(error) &&
+            (error.response?.status === 401 || error.response?.status === 403));
+
+        if (!authenticationRejected) {
           // Local guidance access never authenticates protected routes.
-          const ownerId = await getOfflineOwner().catch(() => null);
+          // Keep the existing offline boundary; HTTP/server errors do not grant it.
+          const ownerId =
+            hasStoredToken && isTransportError(error)
+              ? await getOfflineOwner().catch(() => null)
+              : null;
 
           if (isAuthSessionGenerationCurrent(cleanupGeneration)) {
             useOfflineAccessStore.getState().setOwnerId(ownerId);
+            setRecoveryRequired(true);
           }
         } else {
           await clearSessionTokens(cleanupGeneration);
@@ -92,5 +107,17 @@ export function useRestoreSession() {
     void restoreSession().catch(() => {
       // Runtime state was revoked before cleanup; never clear a newer session.
     });
-  }, [clearUser, setLoading, setUser]);
+  }, [attempt, clearUser, setLoading, setUser]);
+
+  const retry = useCallback(() => {
+    setRecoveryRequired(false);
+    setLoading(true);
+    setAttempt((value) => value + 1);
+  }, [setLoading]);
+
+  return {
+    recoveryRequired,
+    retry,
+    continueWithoutSession: () => setRecoveryRequired(false),
+  };
 }

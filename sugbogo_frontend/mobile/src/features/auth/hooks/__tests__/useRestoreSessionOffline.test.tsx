@@ -1,9 +1,15 @@
-import { beginAuthSession, invalidateAuthSession } from "@/shared/api/authSessionGeneration.service";
+import {
+  beginAuthSession,
+  invalidateAuthSession,
+} from "@/shared/api/authSessionGeneration.service";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useAuthStore } from "../../store/auth.store";
 import { getCurrentUser } from "../../api/auth.service";
-import { clearSessionTokens, getAccessToken } from "@/shared/api/storage.service";
+import {
+  clearSessionTokens,
+  getAccessToken,
+} from "@/shared/api/storage.service";
 import {
   clearOfflineAccess,
   getOfflineOwner,
@@ -11,6 +17,7 @@ import {
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import { createApiError } from "@/shared/utils/apiErrors";
 import { useRestoreSession } from "../useRestoreSession";
+import { AxiosError } from "axios";
 
 jest.mock("../../api/auth.service", () => ({ getCurrentUser: jest.fn() }));
 jest.mock("@/shared/api/storage.service", () => ({
@@ -43,6 +50,96 @@ describe("offline startup boundary", () => {
     (getOfflineOwner as jest.Mock).mockResolvedValue(7);
     (clearSessionTokens as jest.Mock).mockResolvedValue(undefined);
     (clearOfflineAccess as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  it.each([429, 500, 503])(
+    "preserves credentials and offers recovery on HTTP %s",
+    async (status) => {
+      const error = Object.assign(new AxiosError("Temporarily unavailable"), {
+        response: { status },
+      });
+      jest.mocked(getCurrentUser).mockRejectedValueOnce(error);
+      const hook = await renderHook(() => useRestoreSession());
+      await waitFor(() =>
+        expect(hook.result.current.recoveryRequired).toBe(true),
+      );
+      expect(clearSessionTokens).not.toHaveBeenCalled();
+      expect(getOfflineOwner).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+      await hook.unmount();
+    },
+  );
+
+  it.each([401, 403])(
+    "clears credentials after authoritative HTTP %s rejection",
+    async (status) => {
+      jest
+        .mocked(getCurrentUser)
+        .mockRejectedValueOnce(
+          Object.assign(new AxiosError("Authentication rejected"), {
+            response: { status },
+          }),
+        );
+      const hook = await renderHook(() => useRestoreSession());
+      await waitFor(() =>
+        expect(useAuthStore.getState().isLoading).toBe(false),
+      );
+      expect(clearSessionTokens).toHaveBeenCalledTimes(1);
+      expect(hook.result.current.recoveryRequired).toBe(false);
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      await hook.unmount();
+    },
+  );
+
+  it("preserves credentials without granting offline ownership when storage cannot be read", async () => {
+    jest
+      .mocked(getAccessToken)
+      .mockRejectedValueOnce(new Error("SecureStore unavailable"));
+    const hook = await renderHook(() => useRestoreSession());
+    await waitFor(() =>
+      expect(hook.result.current.recoveryRequired).toBe(true),
+    );
+    expect(getCurrentUser).not.toHaveBeenCalled();
+    expect(getOfflineOwner).not.toHaveBeenCalled();
+    expect(clearSessionTokens).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    await hook.unmount();
+  });
+
+  it("revalidates the stored session when Retry is selected", async () => {
+    jest
+      .mocked(getCurrentUser)
+      .mockRejectedValueOnce(createApiError("NETWORK_ERROR"));
+    const hook = await renderHook(() => useRestoreSession());
+    await waitFor(() =>
+      expect(hook.result.current.recoveryRequired).toBe(true),
+    );
+    jest.mocked(getCurrentUser).mockResolvedValueOnce({ id: 7 } as never);
+    await act(async () => hook.result.current.retry());
+    await waitFor(() =>
+      expect(useAuthStore.getState().isAuthenticated).toBe(true),
+    );
+    expect(hook.result.current.recoveryRequired).toBe(false);
+    expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+    expect(clearSessionTokens).not.toHaveBeenCalled();
+    await hook.unmount();
+  });
+
+  it("allows continuing to the existing offline/sign-in flow without erasing credentials", async () => {
+    jest
+      .mocked(getCurrentUser)
+      .mockRejectedValueOnce(createApiError("NETWORK_ERROR"));
+    const hook = await renderHook(() => useRestoreSession());
+    await waitFor(() =>
+      expect(hook.result.current.recoveryRequired).toBe(true),
+    );
+    await act(async () => hook.result.current.continueWithoutSession());
+    expect(hook.result.current.recoveryRequired).toBe(false);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(useOfflineAccessStore.getState().ownerId).toBe(7);
+    expect(clearSessionTokens).not.toHaveBeenCalled();
+    await hook.unmount();
   });
 
   it.each(["NETWORK_ERROR", "REQUEST_TIMEOUT"])(
@@ -112,7 +209,9 @@ describe("offline startup boundary", () => {
   it("does not grant old offline ownership after a newer login", async () => {
     const read = deferred<number | null>();
     jest.mocked(getOfflineOwner).mockReturnValueOnce(read.promise);
-    jest.mocked(getCurrentUser).mockRejectedValueOnce(createApiError("NETWORK_ERROR"));
+    jest
+      .mocked(getCurrentUser)
+      .mockRejectedValueOnce(createApiError("NETWORK_ERROR"));
     const hook = await renderHook(() => useRestoreSession());
     await waitFor(() => expect(getOfflineOwner).toHaveBeenCalled());
     beginAuthSession();

@@ -3,6 +3,10 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { updateProfilePicture } from "../api/profile.service";
+import {
+  assertProfileSessionCurrent,
+  captureProfileSession,
+} from "../utils/profileSession";
 
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type { UpdateProfilePictureResponse } from "../types/profile.types";
@@ -29,6 +33,7 @@ export function useUpdateProfilePicture() {
   async function uploadProfilePicture(
     imageUri: string,
   ): Promise<ApiResponse<UpdateProfilePictureResponse>> {
+    const session = captureProfileSession();
     setIsUploading(true);
 
     try {
@@ -58,7 +63,9 @@ export function useUpdateProfilePicture() {
         type: "image/jpeg",
       } as any);
 
+      assertProfileSessionCurrent(session);
       const response = await updateProfilePicture(formData);
+      assertProfileSessionCurrent(session);
 
       if (response.success) {
         setUser(response.data);
