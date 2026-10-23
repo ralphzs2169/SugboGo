@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import re
+from contextlib import contextmanager
 from datetime import UTC, timedelta
 
 from django.conf import settings
@@ -78,6 +79,9 @@ class ReviewKeywordService:
         summary.BRSU_GENERATED_AT = None
         summary.BRSU_KEYWORDS_PROCESSED_AT = None
         summary.BRSU_KEYWORDS_RETRYABLE = False
+        # Evidence invalidation permits a fresh attempt even if normalized input
+        # returns to an earlier successful fingerprint on the same UTC day.
+        summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT = ""
         summary.save(
             update_fields=[
                 "BRSU_GENERATION_POLICY_VERSION",
@@ -89,6 +93,7 @@ class ReviewKeywordService:
                 "BRSU_GENERATED_AT",
                 "BRSU_KEYWORDS_PROCESSED_AT",
                 "BRSU_KEYWORDS_RETRYABLE",
+                "BRSU_KEYWORDS_ATTEMPT_FINGERPRINT",
                 "BRSU_UPDATED_AT",
             ],
         )
@@ -331,17 +336,93 @@ class ReviewKeywordService:
     def refresh(cls, business_id, reference_time=None):
         """Refreshes one business while preventing duplicate provider requests."""
         reference_time = reference_time or timezone.now()
+        with cls.generation_lock(business_id) as acquired:
+            if not acquired:
+                return "busy"
+            return cls._refresh_locked(business_id, reference_time)
+
+    @classmethod
+    @contextmanager
+    def generation_lock(
+        cls,
+        business_id,
+    ):
+        """Share the existing session advisory lock across both execution paths."""
         lock_name = f"sugbogo:review-insights:{business_id}"
         with connection.cursor() as cursor:
-            cursor.execute("SELECT pg_try_advisory_lock(hashtextextended(%s, 0))", [lock_name])
+            cursor.execute(
+                "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))",
+                [lock_name],
+            )
             acquired = cursor.fetchone()[0]
-        if not acquired:
-            return "busy"
         try:
-            return cls._refresh_locked(business_id, reference_time)
+            yield acquired
         finally:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", [lock_name])
+            if acquired:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT pg_advisory_unlock(hashtextextended(%s, 0))",
+                        [lock_name],
+                    )
+
+    @classmethod
+    def has_current_content(
+        cls,
+        summary,
+        reviews,
+        fingerprint,
+    ):
+        """Require a complete validated bundle before reusing a matching fingerprint."""
+        if (
+            summary.BRSU_KEYWORDS_FINGERPRINT != fingerprint
+            or not summary.BRSU_GENERATED_AT
+            or summary.BRSU_GENERATION_POLICY_VALUES != current_policy().review_rules
+        ):
+            return False
+        references = summary.BRSU_SUPPORTING_REVIEW_REFERENCES
+        if not isinstance(references, dict):
+            return False
+        try:
+            parsed = cls._parse(
+                json.dumps({
+                    "narrative": summary.BRSU_NARRATIVE,
+                    "narrative_review_ids": references.get("narrative_review_ids"),
+                    "tags": summary.BRSU_KEYWORD_TAGS,
+                }),
+                cls._select_reviews(reviews),
+            )
+        except InvalidKeywordResponse:
+            return False
+        return parsed["references"] == references
+
+    @classmethod
+    @transaction.atomic
+    def _reuse_current_content(
+        cls,
+        business_id,
+        reference_time,
+        fingerprint,
+    ):
+        """Restore retained content only after locking and revalidating its full input."""
+        summary = BusinessReviewSummary.objects.select_for_update().get(
+            BUSN_ID_id=business_id,
+        )
+        reviews = cls._snapshot(business_id, reference_time)
+        if (
+            AnalyticsPolicyService.read().review_rules != current_policy().review_rules
+            or cls._fingerprint(reviews) != fingerprint
+            or not cls.has_current_content(summary, reviews, fingerprint)
+        ):
+            return False
+        if (
+            summary.BRSU_GENERATION_STATE
+            != BusinessReviewSummary.GenerationState.READY
+        ):
+            summary.BRSU_GENERATION_STATE = BusinessReviewSummary.GenerationState.READY
+            summary.save(
+                update_fields=["BRSU_GENERATION_STATE", "BRSU_UPDATED_AT"],
+            )
+        return True
 
     @classmethod
     def mark_retry_exhausted(cls, business_id, reference_time=None):
@@ -359,12 +440,17 @@ class ReviewKeywordService:
         reviews = cls._snapshot(business_id, reference_time)
         fingerprint = cls._fingerprint(reviews)
         if (
-            fingerprint == summary.BRSU_KEYWORDS_FINGERPRINT
+            len(reviews) >= current_policy()["narrative_min_eligible_reviews"]
+            and cls.has_current_content(summary, reviews, fingerprint)
+            and cls._reuse_current_content(business_id, reference_time, fingerprint)
+        ):
+            return "unchanged"
+
+        if (
+            len(reviews) < current_policy()["narrative_min_eligible_reviews"]
+            and fingerprint == summary.BRSU_KEYWORDS_FINGERPRINT
             and summary.BRSU_GENERATION_STATE
-            in {
-                BusinessReviewSummary.GenerationState.READY,
-                BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS,
-            }
+            == BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS
         ):
             return "unchanged"
 
@@ -491,13 +577,21 @@ class ReviewKeywordService:
 
     @classmethod
     @transaction.atomic
-    def _mark_failed_generation(cls, business_id, reference_time, retryable=False):
+    def _mark_failed_generation(
+        cls,
+        business_id,
+        reference_time,
+        retryable=False,
+    ):
+        """Retain prior content only while its evidence and current policy remain safe."""
         summary = BusinessReviewSummary.objects.select_for_update().get(
             BUSN_ID_id=business_id,
         )
+        reviews = cls._snapshot(business_id, reference_time)
+        policy = AnalyticsPolicyService.read()
         current_ids = {
             review_id
-            for review_id, _ in cls._snapshot(business_id, reference_time)
+            for review_id, _ in reviews
         }
         supporting_ids = cls._reference_ids(
             summary.BRSU_SUPPORTING_REVIEW_REFERENCES,
@@ -506,6 +600,8 @@ class ReviewKeywordService:
             summary.BRSU_GENERATED_AT
             and supporting_ids
             and supporting_ids.issubset(current_ids)
+            and len(reviews) >= policy["narrative_min_eligible_reviews"]
+            and summary.BRSU_GENERATION_POLICY_VALUES == policy.review_rules
         )
         if not safe_to_retain:
             summary.BRSU_NARRATIVE = ""

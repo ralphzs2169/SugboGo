@@ -1,3 +1,4 @@
+import json
 from unittest.mock import ANY, patch
 
 from django.test import TestCase
@@ -93,18 +94,23 @@ class BusinessReviewInsightsServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(result["generation_outcome"], "unchanged")
 
     def test_existing_unchanged_snapshot_skips_provider(self):
+        reviews = []
         for index in range(5):
-            self.create_review(self.business, index)
-        summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
-        fingerprint = ReviewKeywordService._fingerprint(
-            ReviewKeywordService._snapshot(self.business.pk),
-        )
-        summary.BRSU_KEYWORDS_FINGERPRINT = fingerprint
-        summary.BRSU_GENERATION_STATE = BusinessReviewSummary.GenerationState.READY
-        summary.save(update_fields=[
-            "BRSU_KEYWORDS_FINGERPRINT",
-            "BRSU_GENERATION_STATE",
-        ])
+            reviews.append(self.create_review(self.business, index))
+        BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
+        with (
+            self.settings(GEMINI_API_KEY="test-only-key"),
+            patch.object(
+                ReviewKeywordService,
+                "_generate",
+                return_value=json.dumps({
+                    "narrative": "Visitors mention friendly service.",
+                    "narrative_review_ids": [reviews[0].pk, reviews[1].pk],
+                    "tags": [],
+                }),
+            ),
+        ):
+            self.assertEqual(ReviewKeywordService.refresh(self.business.pk), "updated")
 
         with patch.object(ReviewKeywordService, "_generate") as provider:
             result = BusinessReviewInsightsService.refresh(self.business.pk)

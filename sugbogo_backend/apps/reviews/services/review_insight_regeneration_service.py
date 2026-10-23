@@ -244,6 +244,29 @@ class ReviewInsightRegenerationService:
         record.RIRG_LEASE_EXPIRES_AT = None
 
     @staticmethod
+    def lock_current_attempt(
+        business_id: int,
+        revision: int,
+        attempt_token,
+    ) -> ReviewInsightRegeneration | None:
+        """Fence summary writes under the caller's coordinator-first transaction lock."""
+        if not connection.in_atomic_block:
+            raise ValidationError(
+                "Review insight publication requires an atomic transaction.",
+            )
+        record = ReviewInsightRegenerationService._locked_record(business_id)
+        if not ReviewInsightRegenerationService._owns_attempt(
+            record,
+            revision,
+            attempt_token,
+            timezone.now(),
+        ):
+            return None
+        if record.RIRG_REQUESTED_REVISION != revision:
+            return None
+        return record
+
+    @staticmethod
     @transaction.atomic
     def release_claim(
         business_id: int,
