@@ -65,12 +65,17 @@ class ReviewCreateSerializer(InstallationIdInputSerializer):
 class ReviewUpdateSerializer(ReviewCreateSerializer):
     """Validates a partial review update and the retained photo IDs."""
 
-    text = serializers.CharField(max_length=1000, required=False)
     keep_photo_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
         required=False,
         allow_empty=True,
     )
+
+    def get_fields(self):
+        """Reuse creation text validation while allowing updates that omit text."""
+        fields = super().get_fields()
+        fields["text"].required = False
+        return fields
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

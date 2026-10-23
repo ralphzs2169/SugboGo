@@ -22,7 +22,7 @@ class ReviewSummaryBatchService:
         business_ids=None,
         reference_time=None,
     ):
-        """Reconcile sentiment and narrative demand while preserving legacy report keys."""
+        """Reconcile sentiment and narrative demand while reporting partial failures."""
         reference_time = reference_time or timezone.now()
         retry_only = business_ids is not None
         if retry_only:
@@ -36,6 +36,8 @@ class ReviewSummaryBatchService:
         result = {
             "considered": 0,
             "sentiment_updated": 0,
+            "classification_failed": 0,
+            "sentiment_results": [],
             "keywords_updated": 0,
             "keywords_cleared": 0,
             "keywords_skipped": 0,
@@ -46,17 +48,30 @@ class ReviewSummaryBatchService:
             result["considered"] += 1
             try:
                 if not retry_only:
-                    ReviewSentimentService.reconcile_business(
+                    sentiment_result = {
+                        "business_id": business_id,
+                        "classification": None,
+                        "aggregate_updated": False,
+                    }
+                    result["sentiment_results"].append(sentiment_result)
+                    classification = ReviewSentimentService.reconcile_business(
                         business_id,
                         reference_time=reference_time,
                     )
+                    sentiment_result["classification"] = classification
+                    result["classification_failed"] += classification["failed"]
+                    if classification["failed"]:
+                        result["failed_business_ids"].append(business_id)
                     BusinessReviewSummaryService.recompute_sentiment(
                         business_id,
                         reference_time=reference_time,
                     )
+                    sentiment_result["aggregate_updated"] = True
+                    # This legacy counter measures aggregate writes, not classification completeness.
                     result["sentiment_updated"] += 1
             except Exception as exc:
-                result["failed_business_ids"].append(business_id)
+                if business_id not in result["failed_business_ids"]:
+                    result["failed_business_ids"].append(business_id)
                 logger.error(
                     "Business sentiment reconciliation failed. business_id=%s error_type=%s",
                     business_id,

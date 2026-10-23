@@ -336,6 +336,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(result["attempted"], 2)
         self.assertEqual(result["updated"], 1)
         self.assertEqual(result["failed"], 1)
+        self.assertEqual(result["failed_review_ids"], [failed.pk])
         self.assertEqual(scorer.call_count, 2)
         self.assertIsNone(failed.REVW_SENTIMENT_LABEL)
         self.assertEqual(recovered.REVW_SENTIMENT_LABEL, "negative")
@@ -397,7 +398,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
 
     def test_failed_review_does_not_block_another_business(self):
         other_business = self.create_business(2)
-        self.create_review(
+        failed = self.create_review(
             self.business,
             1,
             REVW_TEXT="Failed review.",
@@ -427,7 +428,13 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
             result = ReviewSummaryBatchService.recompute()
 
         self.assertEqual(result["sentiment_updated"], 2)
-        self.assertEqual(result["failed_business_ids"], [])
+        self.assertEqual(result["failed_business_ids"], [self.business.pk])
+        self.assertEqual(result["classification_failed"], 1)
+        self.assertEqual(
+            result["sentiment_results"][0]["classification"]["failed_review_ids"],
+            [failed.pk],
+        )
+        self.assertTrue(result["sentiment_results"][0]["aggregate_updated"])
         self.assertEqual(
             BusinessReviewSummary.objects.get(BUSN_ID=self.business).BRSU_REVIEW_COUNT,
             1,

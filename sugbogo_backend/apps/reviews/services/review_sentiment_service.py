@@ -109,6 +109,7 @@ class ReviewSentimentService:
             "attempted": 0,
             "updated": 0,
             "failed": 0,
+            "failed_review_ids": [],
         }
         for review_id in review_ids:
             result["attempted"] += 1
@@ -131,6 +132,7 @@ class ReviewSentimentService:
                     )
             except Exception as exc:
                 result["failed"] += 1
+                result["failed_review_ids"].append(review_id)
                 logger.error(
                     "Review sentiment reconciliation failed.",
                     extra={
