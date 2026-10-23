@@ -169,6 +169,7 @@ function LiveReviews({
           displayAsExplorer={previewAsExplorer}
           hasOwnReview={business.has_own_review}
           reviewInsights={business.review_insights}
+          regeneration={business.review_insight_regeneration}
           onWriteReview={() => {
             if (!canAct()) return;
             setEditingReview(null);

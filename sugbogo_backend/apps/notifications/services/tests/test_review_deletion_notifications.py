@@ -315,7 +315,10 @@ class ReviewClosureCommitTests(TransactionTestCase):
     def test_notice_and_cleanup_publish_only_after_actual_commit(self):
         observations = []
 
-        def observe(recipient_id):
+        def observe(
+            recipient_id,
+            notification_id=None,
+        ):
             in_atomic = connection.in_atomic_block
 
             def read_committed():
@@ -343,7 +346,10 @@ class ReviewClosureCommitTests(TransactionTestCase):
                 ReviewService.delete_review(self.explorer, self.review.pk)
                 publish.assert_not_called()
                 cleanup.assert_not_called()
-            publish.assert_called_once_with(self.second_explorer.pk)
+            publish.assert_called_once_with(
+                self.second_explorer.pk,
+                notification_id=Notification.objects.get().pk,
+            )
             cleanup.assert_called_once()
         self.assertEqual(observations, [(False, (False, 1, 1, 1))])
 

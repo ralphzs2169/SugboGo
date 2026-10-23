@@ -14,7 +14,12 @@ class PremiumReviewInsightsService:
     def get_report(user, period):
         """Reuse the public content gate and exclude private generation evidence."""
         business = BusinessProfileService.get_business_for_merchant(user)
-        summary = BusinessReviewSummary.objects.filter(BUSN_ID=business.pk).first()
+        summary = (
+            BusinessReviewSummary.objects
+            .select_related("BUSN_ID__review_insight_regeneration")
+            .filter(BUSN_ID=business.pk)
+            .first()
+        )
         reasons = ["stored_summary_uses_own_coverage"]
         if summary is None:
             insights = None

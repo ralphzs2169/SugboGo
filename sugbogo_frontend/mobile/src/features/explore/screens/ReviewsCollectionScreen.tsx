@@ -332,6 +332,7 @@ function ReviewsCollectionScreenContent({
             )}
             <ReviewFiltersSection
               insights={business?.review_insights}
+              regeneration={business?.review_insight_regeneration}
               insightsLoading={insightsLoading}
               insightsError={Boolean(insightsError)}
               onRetryInsights={() => void refetchInsights()}

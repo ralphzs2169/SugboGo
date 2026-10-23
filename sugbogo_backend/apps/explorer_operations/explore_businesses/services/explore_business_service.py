@@ -83,6 +83,7 @@ class ExploreBusinessService:
                     "CTGRY_ID__CLUS_ID",
                     "LOCT_ID",
                     "review_summary",
+                    "review_insight_regeneration",
                 )
                 .annotate(
                     is_pocketed=Exists(

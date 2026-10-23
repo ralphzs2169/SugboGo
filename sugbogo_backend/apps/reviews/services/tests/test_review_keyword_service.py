@@ -46,10 +46,14 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         })
 
     def refresh(self):
-        return ReviewKeywordService.refresh(
-            self.business.pk,
-            reference_time=self.reference_time,
-        )
+        """Exercise retained old-worker behavior behind its original advisory lock."""
+        with ReviewKeywordService.generation_lock(self.business.pk) as acquired:
+            if not acquired:
+                return "busy"
+            return ReviewKeywordService._refresh_locked(
+                self.business.pk,
+                reference_time=self.reference_time,
+            )
 
     def allow_next_day(self):
         BusinessReviewSummary.objects.filter(pk=self.summary.pk).update(
@@ -140,6 +144,45 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
 
         self.assertEqual(self.refresh(), "failed")
         self.assertEqual(self.refresh(), "already_attempted")
+        self.provider.assert_called_once()
+
+    def test_same_day_supporting_text_change_and_revert_after_clear_regenerates(self):
+        self.assertEqual(self.refresh(), "updated")
+        review = self.reviews[0]
+        Review.objects.filter(pk=review.pk).update(REVW_TEXT="Changed supporting text.")
+        self.assertTrue(
+            ReviewKeywordService.remove_review_evidence(self.business.pk, review.pk),
+        )
+        Review.objects.filter(pk=review.pk).update(REVW_TEXT=review.REVW_TEXT)
+
+        self.assertEqual(self.refresh(), "updated")
+        self.assertEqual(self.refresh(), "unchanged")
+        self.assertEqual(self.provider.call_count, 2)
+
+    def test_failed_attempt_after_same_day_invalidation_remains_guarded(self):
+        self.assertEqual(self.refresh(), "updated")
+        ReviewKeywordService.remove_review_evidence(
+            self.business.pk,
+            self.reviews[0].pk,
+        )
+        self.provider.return_value = "not JSON"
+
+        self.assertEqual(self.refresh(), "failed")
+        self.assertEqual(self.refresh(), "already_attempted")
+        self.assertEqual(self.provider.call_count, 2)
+
+    def test_matching_retained_content_can_return_to_ready_without_provider(self):
+        self.assertEqual(self.refresh(), "updated")
+        self.summary.refresh_from_db()
+        generated_at = self.summary.BRSU_GENERATED_AT
+        BusinessReviewSummary.objects.filter(pk=self.summary.pk).update(
+            BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.OUTDATED,
+        )
+
+        self.assertEqual(self.refresh(), "unchanged")
+        self.summary.refresh_from_db()
+        self.assertEqual(self.summary.BRSU_GENERATION_STATE, "ready")
+        self.assertEqual(self.summary.BRSU_GENERATED_AT, generated_at)
         self.provider.assert_called_once()
 
     def test_changed_snapshot_can_generate_again_on_same_day(self):

@@ -31,6 +31,7 @@ from apps.reviews.models import (
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
+from apps.reviews.services.review_insight_scheduling_service import ReviewInsightSchedulingService
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.services.review_moderation_service import ReviewModerationService
 from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
@@ -129,28 +130,11 @@ class ReviewService:
         transaction.on_commit(publish, robust=True)
 
     @staticmethod
-    def _queue_review_insights_after_commit(business_id: int) -> None:
-        """Publishes review-insight regeneration after a successful commit."""
-
-        def publish():
-            try:
-                from apps.reviews.tasks import refresh_business_review_insights
-
-                refresh_business_review_insights.delay(business_id)
-                logger.info(
-                    "Business review insights regeneration queued.",
-                    extra={"business_id": business_id},
-                )
-            except Exception as exc:
-                logger.error(
-                    "Business review insights regeneration enqueue failed.",
-                    extra={
-                        "business_id": business_id,
-                        "error_type": type(exc).__name__,
-                    },
-                )
-
-        transaction.on_commit(publish, robust=True)
+    def _queue_review_insights_after_commit(
+        business_id: int,
+    ) -> None:
+        """Keep old internal callers on idempotent durable reconciliation."""
+        ReviewInsightSchedulingService.reconcile(business_id)
 
     @staticmethod
     def _queue_moderation_retry_after_commit(review_id: int) -> None:
@@ -203,6 +187,11 @@ class ReviewService:
         ReviewService._queue_sentiment_after_commit(
             review.REVW_ID,
             review.BUSN_ID_id,
+        )
+        ReviewInsightSchedulingService.review_changed(
+            review.BUSN_ID_id,
+            None,
+            ReviewInsightSchedulingService.review_input(review),
         )
 
     @staticmethod
@@ -555,7 +544,7 @@ class ReviewService:
         try:
             return (
                 Review.objects
-                .select_for_update()
+                .select_for_update(of=("self",))
                 .select_related(
                     "BUSN_ID",
                 )
@@ -1126,6 +1115,8 @@ class ReviewService:
         ]
 
         text_changed = False
+        previous_input = ReviewInsightSchedulingService.review_input(review)
+        previous_normalized_text = review.REVW_TEXT.strip()
 
         if show_in_community is not None and (
             show_in_community != review.REVW_SHOW_IN_COMMUNITY
@@ -1216,6 +1207,19 @@ class ReviewService:
             )
 
         if text_changed:
+            ReviewInsightSchedulingService.review_changed(
+                review.BUSN_ID_id,
+                previous_input,
+                ReviewInsightSchedulingService.review_input(review),
+            )
+            if (
+                previous_input is None
+                and previous_normalized_text != review.REVW_TEXT.strip()
+            ):
+                ReviewKeywordService.remove_review_evidence(
+                    review.BUSN_ID_id,
+                    review.REVW_ID,
+                )
             duplicate_already_recorded = (
                 Review.ReliabilityReason.DUPLICATE_CONTENT
                 in review.REVW_RELIABILITY_REASONS
@@ -1247,10 +1251,6 @@ class ReviewService:
             BusinessReviewSummaryService.recompute_sentiment(
                 review.BUSN_ID_id,
             )
-            ReviewKeywordService.remove_review_evidence(
-                business_id=review.BUSN_ID_id,
-                review_id=review.REVW_ID,
-            )
             ReviewService._queue_sentiment_after_commit(
                 review.REVW_ID,
                 review.BUSN_ID_id,
@@ -1280,10 +1280,11 @@ class ReviewService:
 
         ReviewMediaCleanupService.register_review_assets(review)
 
-        deleted_review_id = review.REVW_ID
         business_id = review.BUSN_ID_id
+        deleted_review_id = review.REVW_ID
 
         was_published = review.REVW_STATUS == Review.ReviewStatus.PUBLISHED
+        previous_input = ReviewInsightSchedulingService.review_input(review)
         review.delete()
 
         if was_published:
@@ -1296,14 +1297,17 @@ class ReviewService:
                 ),
             )
 
-        BusinessReviewSummaryService.recompute_sentiment(
+        ReviewInsightSchedulingService.review_changed(
             business_id,
+            previous_input,
+            None,
         )
-        ReviewKeywordService.remove_review_evidence(
-            business_id=business_id,
-            review_id=deleted_review_id,
-        )
-        ReviewService._queue_review_insights_after_commit(
+        if previous_input is None:
+            ReviewKeywordService.remove_review_evidence(
+                business_id,
+                deleted_review_id,
+            )
+        BusinessReviewSummaryService.recompute_sentiment(
             business_id,
         )
 
@@ -1443,9 +1447,6 @@ class ReviewService:
         review.save(update_fields=["REVW_STATUS", "REVW_UPDATED_AT"])
 
         ReviewService._apply_published_effects(review)
-        ReviewService._queue_review_insights_after_commit(
-            review.BUSN_ID_id,
-        )
         return review
 
     @staticmethod

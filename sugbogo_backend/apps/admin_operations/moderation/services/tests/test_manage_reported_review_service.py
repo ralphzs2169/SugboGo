@@ -20,7 +20,7 @@ from apps.admin_operations.moderation.services.tests.test_manage_review_report_s
 )
 from apps.business.models import Business
 from apps.notifications.models import Notification
-from apps.reviews.models import Review, ReviewReport
+from apps.reviews.models import Review, ReviewReport, ReviewInsightRegeneration
 from apps.users.models import ReputationEvent, User
 
 
@@ -81,7 +81,13 @@ class ManageReportedReviewServiceTests(ReportFixtures, TestCase):
         with patch("apps.reviews.tasks.refresh_business_review_insights.delay") as enqueue:
             with self.captureOnCommitCallbacks(execute=True):
                 result = self.decide("reject")
-            enqueue.assert_called_once_with(self.business.pk)
+            enqueue.assert_not_called()
+        self.assertTrue(
+            ReviewInsightRegeneration.objects.filter(
+                BUSN_ID=self.business,
+                RIRG_REQUESTED_REVISION__gte=1,
+            ).exists(),
+        )
 
         self.review.refresh_from_db()
         self.business.refresh_from_db()

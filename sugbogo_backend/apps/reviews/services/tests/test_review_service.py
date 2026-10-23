@@ -29,6 +29,7 @@ from apps.reviews.models import (
     ReviewMediaCleanup,
     ReviewPhoto,
     ReviewReport,
+    ReviewInsightRegeneration,
 )
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
@@ -100,7 +101,13 @@ class ReviewServiceTests(TestCase):
         ):
             ReviewService.publish_under_review(review.pk)
         sentiment.assert_called_once_with(review.pk, self.business.pk)
-        insights.assert_called_once_with(self.business.pk)
+        insights.assert_not_called()
+        self.assertEqual(
+            ReviewInsightRegeneration.objects.get(
+                BUSN_ID=self.business,
+            ).RIRG_REQUESTED_REVISION,
+            1,
+        )
         review.refresh_from_db()
         self.business.refresh_from_db()
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
@@ -1886,7 +1893,13 @@ class ReviewServiceTests(TestCase):
                 cleanup.assert_not_called()
 
         self.assertEqual(len(callbacks), 2)
-        enqueue.assert_called_once_with(self.business.BUSN_ID)
+        enqueue.assert_not_called()
+        self.assertTrue(
+            ReviewInsightRegeneration.objects.filter(
+                BUSN_ID=self.business,
+                RIRG_REQUESTED_REVISION__gte=1,
+            ).exists(),
+        )
         cleanup.assert_called_once()
 
         self.assertFalse(
@@ -2078,7 +2091,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(summary.BRSU_SUPPORTING_REVIEW_REFERENCES, {})
         self.assertEqual(
             summary.BRSU_GENERATION_STATE,
-            BusinessReviewSummary.GenerationState.OUTDATED,
+            BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS,
         )
         self.assertIsNone(summary.BRSU_GENERATED_AT)
         self.assertIsNone(summary.BRSU_KEYWORDS_PROCESSED_AT)
@@ -2142,7 +2155,13 @@ class ReviewServiceTests(TestCase):
                     review_id=reviews[0].pk,
                 )
 
-        enqueue.assert_called_once_with(self.business.BUSN_ID)
+        enqueue.assert_not_called()
+        self.assertTrue(
+            ReviewInsightRegeneration.objects.filter(
+                BUSN_ID=self.business,
+                RIRG_REQUESTED_REVISION__gte=1,
+            ).exists(),
+        )
 
         from apps.reviews.tasks import refresh_business_review_insights
 
@@ -2152,7 +2171,7 @@ class ReviewServiceTests(TestCase):
             )
 
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
-        self.assertEqual(result["generation_outcome"], "insufficient_reviews")
+        self.assertEqual(result["generation_outcome"], "pending")
         self.assertEqual(
             summary.BRSU_GENERATION_STATE,
             BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS,
@@ -2583,7 +2602,7 @@ class ReviewServiceTests(TestCase):
                 enqueue.assert_not_called()
                 self.score_review.assert_not_called()
 
-        self.assertEqual(len(callbacks), 1)
+        self.assertEqual(len(callbacks), 3)
         enqueue.assert_called_once_with(
             review.pk,
             self.business.pk,
@@ -2622,7 +2641,7 @@ class ReviewServiceTests(TestCase):
                 self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
                 self.assertEqual(summary.BRSU_NARRATIVE, "")
                 self.assertEqual(summary.BRSU_KEYWORD_TAGS, [])
-                self.assertEqual(summary.BRSU_GENERATION_STATE, "outdated")
+                self.assertEqual(summary.BRSU_GENERATION_STATE, "insufficient_reviews")
                 enqueue.assert_not_called()
             enqueue.assert_called_once_with(review.pk, self.business.pk)
 
@@ -2699,7 +2718,7 @@ class ReviewServiceTests(TestCase):
                 enqueue.assert_not_called()
                 self.score_review.assert_not_called()
 
-        self.assertEqual(len(callbacks), 1)
+        self.assertEqual(len(callbacks), 2)
         enqueue.assert_called_once_with(
             review.pk,
             self.business.pk,

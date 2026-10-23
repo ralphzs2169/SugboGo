@@ -7,6 +7,7 @@ import type { OverallReviewVibe } from "../../../types/exploreBusiness.types";
 
 type Props = {
   recentCount: number;
+  reviewPopulation?: "eligible" | "classified";
   overallVibe?: OverallReviewVibe | null;
   compact?: boolean;
 };
@@ -19,6 +20,7 @@ type Props = {
  */
 export default function ReviewInsightsHeader({
   recentCount,
+  reviewPopulation = "eligible",
   overallVibe = null,
   compact = false,
 }: Props) {
@@ -45,7 +47,7 @@ export default function ReviewInsightsHeader({
 
       {/* Rolling-window context */}
       <AppText className="mt-1 text-xs leading-5 text-text-secondary">
-        Based on {recentCount} eligible{" "}
+        Based on {recentCount} {reviewPopulation}{" "}
         {recentCount === 1 ? "review" : "reviews"} from the past 30 days.
       </AppText>
     </View>

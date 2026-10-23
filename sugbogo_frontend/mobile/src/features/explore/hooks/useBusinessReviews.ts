@@ -29,6 +29,7 @@ import type {
   ReviewCreateResult,
 } from "../types/review.types";
 import type { ExploreBusinessDetail } from "../types/exploreBusiness.types";
+import { resolveReviewInsightRegeneration } from "../utils/reviewInsightRegeneration.utils";
 import { useReviewDerivedDataSyncActions } from "./ReviewDerivedDataSyncProvider";
 import {
   invalidateBusinessCardCollections,
@@ -51,6 +52,8 @@ type ReviewMutationContext = {
   baselineInsightsState:
     NonNullable<ExploreBusinessDetail["review_insights"]>["state"] | null;
   baselineSentimentComputedAt: string | null;
+  baselineRequestedRevision: number | null;
+  baselineDataUpdateCount: number;
   startedAt: number;
 };
 
@@ -84,6 +87,14 @@ function useReviewMutation<TVariables, TResult>(
         baselineInsightsState: detail?.review_insights?.state ?? null,
         baselineSentimentComputedAt:
           detail?.review_insights?.sentiment_computed_at ?? null,
+        baselineRequestedRevision:
+          resolveReviewInsightRegeneration(
+            detail?.review_insight_regeneration,
+            detail?.review_insights,
+          )?.requested_revision ?? null,
+        baselineDataUpdateCount:
+          queryClient.getQueryState(exploreBusinessDetailKey(businessId))
+            ?.dataUpdateCount ?? 0,
         startedAt: Date.now(),
       };
     },
@@ -152,6 +163,13 @@ function useReviewMutation<TVariables, TResult>(
         );
       }
 
+      if (sync) {
+        // A response started before this mutation cannot acknowledge its revision.
+        await queryClient.cancelQueries({
+          queryKey: exploreBusinessDetailKey(businessId),
+        });
+      }
+
       await Promise.all([
         ...(sync
           ? [
@@ -200,6 +218,8 @@ function useReviewMutation<TVariables, TResult>(
           baselineGeneratedAt: context.baselineGeneratedAt,
           baselineInsightsUpdatedAt: context.baselineInsightsUpdatedAt,
           baselineInsightsState: context.baselineInsightsState,
+          baselineRequestedRevision: context.baselineRequestedRevision,
+          baselineDataUpdateCount: context.baselineDataUpdateCount,
           startedAt: context.startedAt,
         });
       }
@@ -215,6 +235,8 @@ function useReviewMutation<TVariables, TResult>(
           baselineGeneratedAt: context.baselineGeneratedAt,
           baselineInsightsUpdatedAt: context.baselineInsightsUpdatedAt,
           baselineInsightsState: context.baselineInsightsState,
+          baselineRequestedRevision: context.baselineRequestedRevision,
+          baselineDataUpdateCount: context.baselineDataUpdateCount,
           startedAt: context.startedAt,
         });
       }
@@ -225,6 +247,8 @@ function useReviewMutation<TVariables, TResult>(
           baselineGeneratedAt: context.baselineGeneratedAt,
           baselineUpdatedAt: context.baselineInsightsUpdatedAt,
           baselineState: context.baselineInsightsState,
+          baselineRequestedRevision: context.baselineRequestedRevision,
+          baselineDataUpdateCount: context.baselineDataUpdateCount,
           resultNotBefore: context.startedAt,
           startedAt: context.startedAt,
         });

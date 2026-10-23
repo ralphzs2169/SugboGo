@@ -19,7 +19,8 @@ from apps.business.models import (
     Location,
 )
 from apps.review_disputes.models import MerchantReviewDispute
-from apps.reviews.models import BusinessReviewSummary, Review, ReviewReport
+from apps.reviews.models import BusinessReviewSummary, Review, ReviewReport, ReviewInsightRegeneration
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 from apps.reviews.services.review_report_service import ReviewReportService
 from apps.users.models import ReputationEvent, User
 from apps.users.services.reputation_service import ReputationService
@@ -31,6 +32,7 @@ class ManageReviewDisputeServiceTests(TestCase):
     """Tests for administrator-facing review dispute moderation."""
 
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         self.admin = User.objects.create_user(
             email="moderation-admin@example.com", password=None,
             USER_FNAME="Admin", USER_LNAME="Moderator",
@@ -176,7 +178,13 @@ class ManageReviewDisputeServiceTests(TestCase):
                     actor=self.admin,
                 )
                 enqueue.assert_not_called()
-            enqueue.assert_called_once_with(self.business.pk)
+            enqueue.assert_not_called()
+            self.assertEqual(
+                ReviewInsightRegeneration.objects.get(
+                    BUSN_ID=self.business,
+                ).RIRG_REQUESTED_REVISION,
+                1,
+            )
         summary.refresh_from_db()
         self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
@@ -905,7 +913,13 @@ class ConcurrentDisputeResolutionTests(TransactionTestCase):
                     with self.assertRaises(TimeoutError):
                         future.result(timeout=0.2)
                 self.assertEqual(future.result(timeout=10), "rejected")
-            enqueue.assert_called_once_with(self.business.pk)
+            enqueue.assert_not_called()
+            self.assertEqual(
+                ReviewInsightRegeneration.objects.get(
+                    BUSN_ID=self.business,
+                ).RIRG_REQUESTED_REVISION,
+                1,
+            )
         dispute.refresh_from_db()
         self.assertEqual(dispute.MRDSP_STATUS, "upheld")
         self.assertEqual(AdminActivity.objects.count(), 1)

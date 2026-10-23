@@ -2,12 +2,21 @@ import { View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
 
-import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
+import type {
+  BusinessReviewInsights,
+  ReviewInsightRegeneration,
+} from "../../../../types/exploreBusiness.types";
+import {
+  isTrackedReviewInsightRegeneration,
+  resolveReviewInsightRegeneration,
+  reviewInsightUpdateMessage,
+} from "../../../../utils/reviewInsightRegeneration.utils";
 import ReviewInsightsStateCard from "../ReviewInsightsStateCard";
 import ReviewInsightsSummaryCard from "../ReviewInsightsSummaryCard";
 
 type Props = {
   insights?: BusinessReviewInsights | null;
+  regeneration?: ReviewInsightRegeneration | null;
 };
 
 /**
@@ -16,15 +25,24 @@ type Props = {
  * Keeps Reviews as the profile's main section heading while making unavailable,
  * insufficient, and updating states explicitly identifiable as Review Insights.
  */
-export default function ReviewInsightsPreview({ insights }: Props) {
+export default function ReviewInsightsPreview({
+  insights,
+  regeneration,
+}: Props) {
   const recentCount = insights?.eligible_review_count ?? 0;
   const hasRecentReviews = recentCount > 0;
+  const progress = resolveReviewInsightRegeneration(regeneration, insights);
+  const tracked = isTrackedReviewInsightRegeneration(progress);
+  const updateMessage = reviewInsightUpdateMessage(progress);
 
   const hasGeneratedSummary = Boolean(
-    insights?.content_available && insights.narrative,
+    insights?.content_available &&
+    (progress?.content_available ?? true) &&
+    insights.narrative,
   );
 
   const isUpdating = Boolean(
+    !tracked &&
     insights &&
     (insights.state === "pending" || insights.state === "outdated") &&
     !insights.content_available,
@@ -37,6 +55,16 @@ export default function ReviewInsightsPreview({ insights }: Props) {
 
   return (
     <View className="mb-5">
+      {updateMessage && (
+        <AppText className="mb-2 text-xs leading-5 text-text-secondary">
+          {updateMessage}
+        </AppText>
+      )}
+      {tracked && hasGeneratedSummary && !progress.content_is_current && (
+        <AppText className="mb-2 text-xs leading-5 text-text-secondary">
+          Showing previous insights; they may not reflect the latest reviews.
+        </AppText>
+      )}
       {/* Review Insights availability and generation states */}
       {!insights ? (
         <ReviewInsightsStateCard
@@ -78,11 +106,13 @@ export default function ReviewInsightsPreview({ insights }: Props) {
                 days.
               </AppText>
 
-              {insights.state === "outdated" && insights.state_message && (
-                <AppText className="mt-1 text-xs leading-5 text-text-tertiary">
-                  {insights.state_message}
-                </AppText>
-              )}
+              {!tracked &&
+                insights.state === "outdated" &&
+                insights.state_message && (
+                  <AppText className="mt-1 text-xs leading-5 text-text-tertiary">
+                    {insights.state_message}
+                  </AppText>
+                )}
             </View>
           }
         />
