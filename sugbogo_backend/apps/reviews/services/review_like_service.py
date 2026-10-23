@@ -66,20 +66,30 @@ class ReviewLikeService:
         user: User,
         review_id: int,
     ) -> None:
+        """Lock the review first and decrement only for a like actually removed."""
         try:
-            like = ReviewLike.objects.get(
-                REVW_ID=review_id,
-                USER_ID=user,
+            review = (
+                Review.objects
+                .select_for_update()
+                .only("REVW_ID")
+                .get(REVW_ID=review_id)
             )
-        except ReviewLike.DoesNotExist:
+        except Review.DoesNotExist:
+            raise NotFound(
+                "Your like could not be found.",
+            ) from None
+
+        deleted_count, _ = ReviewLike.objects.filter(
+            REVW_ID=review_id,
+            USER_ID=user,
+        ).delete()
+        if deleted_count == 0:
             raise NotFound(
                 "Your like could not be found.",
             )
 
-        like.delete()
-
         Review.objects.filter(
-            REVW_ID=review_id,
+            REVW_ID=review.pk,
         ).update(
             REVW_LIKE_COUNT=Greatest(
                 models.F(

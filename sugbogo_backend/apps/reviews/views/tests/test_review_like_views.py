@@ -271,6 +271,72 @@ class ReviewLikeViewTests(APITestCase):
             "Your like could not be found.",
         )
 
+    def test_duplicate_unlike_preserves_other_likes_and_error_contract(self):
+        ReviewLike.objects.create(
+            REVW_ID=self.review,
+            USER_ID=self.explorer,
+        )
+        other_like = ReviewLike.objects.create(
+            REVW_ID=self.review,
+            USER_ID=self.second_explorer,
+        )
+        self.review.REVW_LIKE_COUNT = 2
+        self.review.save(update_fields=["REVW_LIKE_COUNT"])
+
+        first = self.client.delete(self.like_url)
+        duplicate = self.client.delete(self.like_url)
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertTrue(first.data["success"])
+        self.assertEqual(first.data["data"], {
+            "review_id": self.review.pk,
+            "is_liked": False,
+        })
+        self.assertEqual(duplicate.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(duplicate.data, {
+            "success": False,
+            "message": "Your like could not be found.",
+            "code": "NOT_FOUND",
+        })
+        self.assertTrue(ReviewLike.objects.filter(pk=other_like.pk).exists())
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_LIKE_COUNT, 1)
+
+    def test_unlike_cannot_remove_another_users_like(self):
+        like = ReviewLike.objects.create(
+            REVW_ID=self.review,
+            USER_ID=self.second_explorer,
+        )
+        self.review.REVW_LIKE_COUNT = 1
+        self.review.save(update_fields=["REVW_LIKE_COUNT"])
+
+        response = self.client.delete(self.like_url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(ReviewLike.objects.filter(pk=like.pk).exists())
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_LIKE_COUNT, 1)
+
+    def test_unlike_remains_available_for_nonpublished_reviews(self):
+        for review_status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=review_status):
+                ReviewLike.objects.create(
+                    REVW_ID=self.review,
+                    USER_ID=self.explorer,
+                )
+                self.review.REVW_STATUS = review_status
+                self.review.REVW_LIKE_COUNT = 1
+                self.review.save(update_fields=["REVW_STATUS", "REVW_LIKE_COUNT"])
+                response = self.client.delete(self.like_url)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.review.refresh_from_db()
+                self.assertEqual(self.review.REVW_LIKE_COUNT, 0)
+                self.assertFalse(ReviewLike.objects.filter(REVW_ID=self.review).exists())
+
     def test_remove_like_does_not_decrease_counter_below_zero(self):
         response = self.client.delete(
             self.like_url,

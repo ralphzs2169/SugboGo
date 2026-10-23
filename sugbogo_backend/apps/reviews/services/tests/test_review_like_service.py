@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from rest_framework.exceptions import NotFound, ValidationError
@@ -261,6 +263,29 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
                 user=self.user,
                 review_id=review.REVW_ID,
             )
+
+    def test_counter_failure_rolls_back_like_removal(self):
+        review = Review.objects.create(
+            USER_ID=self.second_user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Previously published review.",
+        )
+        like = ReviewLikeService.create_like(
+            user=self.user,
+            review_id=review.pk,
+        )
+        with patch(
+            "django.db.models.query.QuerySet.update",
+            side_effect=RuntimeError("counter unavailable"),
+        ):
+            with self.assertRaisesMessage(RuntimeError, "counter unavailable"):
+                ReviewLikeService.remove_like(
+                    user=self.user,
+                    review_id=review.pk,
+                )
+        self.assertTrue(ReviewLike.objects.filter(pk=like.pk).exists())
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_LIKE_COUNT, 1)
 
     def test_has_liked_returns_true_when_like_exists(self):
         review = create_and_moderate_review(
