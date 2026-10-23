@@ -86,16 +86,16 @@ describe("ReviewComposerSheet moderation response", () => {
   });
 
   it.each([
-    ["published", "Review added", undefined, undefined],
+    ["published", "Review received", undefined, undefined],
     [
       "under_review",
-      "Review submitted",
+      "Review received",
       "Your review is saved privately. Its status is not yet confirmed.",
       undefined,
     ],
     [
       "under_review",
-      "Review submitted",
+      "Review received",
       "We're checking your review before it appears publicly.",
       "pending",
     ],

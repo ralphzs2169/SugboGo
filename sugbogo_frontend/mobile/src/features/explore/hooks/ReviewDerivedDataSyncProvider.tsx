@@ -37,7 +37,14 @@ import {
   refreshAuthorReviewReads,
   refreshAuthorReviewSentiment,
 } from "../utils/reviewPublicationSync.utils";
-import { useReviewWorkflowStore } from "../stores/reviewWorkflow.store";
+import {
+  confirmReviewSubmission,
+  expireReviewSubmissionCheck,
+  matchesReviewSubmission,
+  SUBMISSION_CHECK_BUDGET_MS,
+  useReviewWorkflowStore,
+} from "../stores/reviewWorkflow.store";
+import { useAuthorReviewSubmissions } from "./useAuthorReviewSubmissions";
 import type {
   BusinessReviewInsights,
   ExploreBusinessDetail,
@@ -410,6 +417,8 @@ export function ReviewDerivedDataSyncProvider({
   );
   const [ownerGeneration] = useState(getAuthSessionGeneration);
   const edits = useReviewWorkflowStore((state) => state.edits);
+  const submission = useAuthorReviewSubmissions(businessId)[0];
+  const checkingSubmission = submission?.state === "confirming";
   const authorized =
     ownerId !== null &&
     currentOwnerId === ownerId &&
@@ -492,6 +501,7 @@ export function ReviewDerivedDataSyncProvider({
     authorized &&
       isFocused &&
       Boolean(
+        checkingSubmission ||
         sentimentSession ||
         generatedSession ||
         (observeAuthorReview && needsAuthorCheck(cachedReview)),
@@ -505,13 +515,19 @@ export function ReviewDerivedDataSyncProvider({
       businessId &&
       authorized &&
       isFocused &&
-      (observeAuthorReview || sentimentSession),
+      (observeAuthorReview || sentimentSession || submission),
     ),
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
+    ...(checkingSubmission ? { retry: false } : {}),
     refetchInterval: (query) => {
       if (!ownsPolling) return false;
+      if (
+        checkingSubmission &&
+        Date.now() - (submission.checkingStartedAt ?? 0) < SUBMISSION_CHECK_BUDGET_MS
+      )
+        return 5_000;
       if (sentimentSession) return POLL_INTERVAL_MS;
       return observeAuthorReview &&
         needsAuthorCheck(query.state.data?.user_review) &&
@@ -522,6 +538,57 @@ export function ReviewDerivedDataSyncProvider({
     refetchIntervalInBackground: false,
   });
   const { refetch: refetchPreview } = previewQuery;
+
+  useEffect(() => {
+    if (
+      !authorized ||
+      !checkingSubmission ||
+      !submission ||
+      !ownsSession(ownerId!, ownerGeneration)
+    )
+      return;
+    const remaining = Math.max(
+      0,
+      SUBMISSION_CHECK_BUDGET_MS - (Date.now() - (submission.checkingStartedAt ?? 0)),
+    );
+    const timeout = setTimeout(
+      () => expireReviewSubmissionCheck(submission.token),
+      remaining,
+    );
+    if (isFocused && remaining > 0)
+      void refetchPreview({ cancelRefetch: false });
+    return () => clearTimeout(timeout);
+  }, [
+    authorized,
+    checkingSubmission,
+    isFocused,
+    ownerGeneration,
+    ownerId,
+    refetchPreview,
+    submission,
+  ]);
+
+  useEffect(() => {
+    const review = previewQuery.data?.user_review;
+    if (
+      !authorized ||
+      !submission ||
+      !review ||
+      previewQuery.isError ||
+      !previewQuery.isFetchedAfterMount ||
+      !matchesReviewSubmission(submission, review, businessId)
+    )
+      return;
+    if (!submission.result) submittedReviewId.current = review.id;
+    confirmReviewSubmission(review, businessId);
+  }, [
+    authorized,
+    businessId,
+    previewQuery.data,
+    previewQuery.isError,
+    previewQuery.isFetchedAfterMount,
+    submission,
+  ]);
 
   const detailQuery = useQuery({
     queryKey: exploreBusinessDetailKey(businessId),

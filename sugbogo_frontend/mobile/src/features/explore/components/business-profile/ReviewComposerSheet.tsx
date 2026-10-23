@@ -29,7 +29,11 @@ import type { ApiError, ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { reviewModerationFeedback } from "../../utils/reviewModeration.utils";
 import { useAuthorReviewSubmissions } from "../../hooks/useAuthorReviewSubmissions";
-import { isUncertainReviewOutcome } from "../../stores/reviewWorkflow.store";
+import {
+  checkReviewSubmissionAgain,
+  isUncertainReviewOutcome,
+  isUncertainReviewSubmissionOutcome,
+} from "../../stores/reviewWorkflow.store";
 import {
   getAuthSessionGeneration,
   subscribeAuthSessionChanges,
@@ -389,11 +393,11 @@ export default function ReviewComposerSheet({
         if (created.status === "under_review") {
           Toast.show({
             type: "success",
-            text1: "Review submitted",
+            text1: "Review received",
             text2: reviewModerationFeedback(created).description,
           });
         } else {
-          Toast.show({ type: "success", text1: "Review added" });
+          Toast.show({ type: "success", text1: "Review received" });
         }
       }
 
@@ -468,7 +472,8 @@ export default function ReviewComposerSheet({
     )
       return;
 
-    if (isUncertainReviewOutcome(error)) {
+    if (!isEditing && isUncertainReviewSubmissionOutcome(error)) return;
+    if (isEditing && isUncertainReviewOutcome(error)) {
       Toast.show({
         type: "info",
         text1: isEditing
@@ -752,7 +757,9 @@ export default function ReviewComposerSheet({
         >
           {((isPending &&
             (isEditing || submission?.state !== "acknowledged")) ||
-            (!isEditing && submission?.state === "confirming")) && (
+            (!isEditing && (
+              submission?.state === "confirming" || submission?.state === "unconfirmed"
+            ))) && (
             <AppText
               accessibilityLiveRegion="polite"
               className="mb-2 text-center text-xs text-text-secondary"
@@ -761,7 +768,9 @@ export default function ReviewComposerSheet({
                 ? "Saving changes…"
                 : isPending
                   ? "Submitting · Only you can see this"
-                  : "Still confirming. Check your review before trying again."}
+                  : submission?.state === "unconfirmed"
+                    ? "Unable to confirm submission. Your text and photos are kept here."
+                    : "Still confirming…"}
             </AppText>
           )}
           {!isEditing && submission?.state === "acknowledged" && (
@@ -769,7 +778,7 @@ export default function ReviewComposerSheet({
               accessibilityLiveRegion="polite"
               className="mb-2 text-center text-xs text-text-secondary"
             >
-              Your review is saved. You can close this screen.
+              Review received. You can close this screen.
             </AppText>
           )}
           {editFeedback && (
@@ -795,12 +804,21 @@ export default function ReviewComposerSheet({
               </View>
             </View>
           )}
+          {!isEditing && submission?.state === "unconfirmed" && (
+            <Button
+              title="Check again"
+              onPress={() => checkReviewSubmissionAgain(submission.token)}
+              variant="soft"
+              rounded="full"
+              className="mb-2"
+            />
+          )}
           <Button
             title={
               isEditing
                 ? "Save changes"
                 : submission?.state === "acknowledged"
-                  ? "Review submitted"
+                  ? "Review received"
                   : "Submit review"
             }
             onPress={submit}

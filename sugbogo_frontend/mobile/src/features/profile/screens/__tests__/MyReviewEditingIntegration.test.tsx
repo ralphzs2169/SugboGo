@@ -623,7 +623,17 @@ describe("My Reviews editing integration", () => {
     }));
     (getBusinessReviewPreview as jest.Mock).mockResolvedValue({
       success: true,
-      data: { reviews: [], user_review: null, total_count: 1 },
+      data: {
+        reviews: [],
+        user_review: {
+          ...retained,
+          text: changedText,
+          sentiment_label: null,
+          sentiment_score: null,
+          sentiment_aggregate_included: false,
+        },
+        total_count: 1,
+      },
     });
     const { screen, client } = await setup();
     await openEditor(screen);

@@ -118,6 +118,8 @@ export async function createReview(
     apiClient.post(
       `/reviews/business/${businessId}/`,
       form,
+      // Up to three 10 MB photos are uploaded to Cloudinary before DB creation.
+      { timeout: photos.length > 0 ? 120_000 : 30_000 },
     ),
   );
 }

@@ -14,7 +14,7 @@ import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.ser
 import { useAuthorReviewSubmissions } from "./useAuthorReviewSubmissions";
 import {
   isCurrentReviewSession,
-  isUncertainReviewOutcome,
+  isUncertainReviewSubmissionOutcome,
   nextReviewOperationToken,
   settleReviewSubmission,
   useReviewWorkflowStore,
@@ -88,6 +88,9 @@ function useReviewMutation<TVariables, TResult>(
   } = useReviewDerivedDataSyncActions();
 
   return useMutation<TResult, Error, TVariables, ReviewMutationContext>({
+    ...(sync === "create"
+      ? { retry: false, networkMode: "always" as const }
+      : {}),
     mutationFn: async (variables: TVariables) =>
       throwOnApiError((await mutationFn(variables)) as never) as TResult,
 
@@ -125,6 +128,21 @@ function useReviewMutation<TVariables, TResult>(
           businessName?: string;
           showInCommunity?: boolean;
         };
+        const previewReview = queryClient.getQueryData<BusinessReviewPreview>(
+          businessReviewPreviewKey(businessId),
+        )?.user_review;
+        const historyReviews = queryClient
+          .getQueriesData<InfiniteData<MyReviewPage>>({
+            queryKey: myReviewsKey(user.id),
+          })
+          .flatMap(([, data]) =>
+            data?.pages.flatMap((page) =>
+              page.items.filter((item) => item.business?.id === businessId),
+            ) ?? [],
+          );
+        const previousReviewIds = [previewReview, ...historyReviews].flatMap(
+          (review) => review?.author?.id === user.id ? [review.id] : [],
+        );
         useReviewWorkflowStore.setState((current) => ({
           submissions: [
             ...current.submissions.filter(
@@ -148,6 +166,7 @@ function useReviewMutation<TVariables, TResult>(
                 avatar_key: user.avatar_key,
               },
               createdAt: new Date().toISOString(),
+              previousReviewIds,
               state: "submitting",
             },
           ],
@@ -381,7 +400,7 @@ function useReviewMutation<TVariables, TResult>(
       settleReviewSubmission(
         context.operationToken,
         undefined,
-        isUncertainReviewOutcome(error),
+        isUncertainReviewSubmissionOutcome(error),
       );
       if (isCurrentReviewSession(context.authorUserId, context.generation)) {
         // Reuse the existing private read path. Never automatically resubmit.

@@ -9,7 +9,9 @@ import Button from "@/shared/components/Button";
 import { useCachedReviewPreview } from "../../../hooks/useAuthorReviewSource";
 import { useAuthorReviewSubmissions } from "../../../hooks/useAuthorReviewSubmissions";
 import {
-  settleReviewSubmission,
+  checkReviewSubmissionAgain,
+  confirmReviewSubmission,
+  matchesReviewSubmission,
   useReviewWorkflowStore,
   type ReviewSubmissionDraft,
 } from "../../../stores/reviewWorkflow.store";
@@ -45,7 +47,10 @@ function Submission({
   // Subscribe to the existing cache; R6.1 owns all polling and recovery.
   const data = useCachedReviewPreview(draft.businessId);
   const server =
-    data?.user_review?.author.id === draft.userId ? data.user_review : null;
+    data?.user_review &&
+    matchesReviewSubmission(draft, data.user_review, draft.businessId)
+      ? data.user_review
+      : null;
   useEffect(() => {
     if (server && !draft.serverObserved) {
       useReviewWorkflowStore.setState((current) => ({
@@ -62,15 +67,7 @@ function Submission({
         ),
       }));
     }
-    if ((draft.state !== "confirming" && draft.state !== "failed") || !server)
-      return;
-    settleReviewSubmission(draft.token, {
-      id: server.id,
-      business_id: draft.businessId,
-      user_id: draft.userId,
-      status: server.status,
-      moderation_progress: server.moderation_progress,
-    });
+    if (server) confirmReviewSubmission(server, draft.businessId);
   }, [
     draft.state,
     draft.token,
@@ -100,11 +97,17 @@ function Submission({
               description:
                 "Your draft is kept here. Open the review to try again.",
             }
-          : {
-              label: "Still confirming",
-              description:
-                "We haven't confirmed your submission yet. Check your review before trying again.",
-            };
+          : draft.state === "unconfirmed"
+            ? {
+                label: "Unable to confirm submission",
+                description:
+                  "Your text and photos are kept here. Check again without uploading them again.",
+              }
+            : {
+                label: "Still confirming",
+                description:
+                  "We're checking for your review. You don't need to submit it again.",
+              };
   const content = server ?? {
     author: draft.author,
     text: draft.text,
@@ -168,6 +171,16 @@ function Submission({
             <Button
               title="Continue review"
               onPress={onResume}
+              variant="soft"
+              size="sm"
+              rounded="full"
+              className="mt-2 self-start"
+            />
+          )}
+          {draft.state === "unconfirmed" && !server && (
+            <Button
+              title="Check again"
+              onPress={() => checkReviewSubmissionAgain(draft.token)}
               variant="soft"
               size="sm"
               rounded="full"

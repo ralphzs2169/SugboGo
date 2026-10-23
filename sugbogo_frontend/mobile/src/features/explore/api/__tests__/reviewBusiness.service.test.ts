@@ -259,6 +259,15 @@ describe("createReview installation ID", () => {
     expect(getInstallationId).toHaveBeenCalledTimes(1);
   });
 
+  it("bounds creation uploads separately without changing editing timeouts", async () => {
+    await createReview(20, "A detailed review", [{ uri: "file:///photo.jpg" }]);
+    expect(jest.mocked(apiClient.post).mock.calls[0][2]).toEqual({ timeout: 120_000 });
+    await createReview(20, "A detailed review", []);
+    expect(jest.mocked(apiClient.post).mock.calls[1][2]).toEqual({ timeout: 30_000 });
+    await updateReview(18, "Updated text", []);
+    expect(jest.mocked(apiClient.patch).mock.calls.at(-1)).toHaveLength(2);
+  });
+
   it("stops submission with a clear error when SecureStore fails", async () => {
     (getInstallationId as jest.Mock).mockRejectedValue(
       new Error("SecureStore unavailable"),

@@ -146,6 +146,8 @@ describe("private review submission workflow", () => {
     return businessReviewFixture({
       ...acknowledged,
       text: input.text,
+      created_at: new Date().toISOString(),
+      photos: [{ id: 9, photo_url: "https://example.com/stored.jpg" }],
       is_own_review: true,
       author: {
         id: 10,

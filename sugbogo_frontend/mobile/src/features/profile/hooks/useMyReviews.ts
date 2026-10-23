@@ -22,6 +22,7 @@ import { getBusinessReviewPreview } from "@/features/explore/api/reviewBusiness.
 import { refreshAuthorReviewDecision } from "@/features/explore/utils/reviewPublicationSync.utils";
 import { isHeldReview } from "@/features/explore/utils/reviewModeration.utils";
 import { businessReviewPreviewKey } from "@/features/explore/hooks/reviewQueryKeys";
+import { confirmReviewSubmission } from "@/features/explore/stores/reviewWorkflow.store";
 
 import { getMyReviews } from "../api/myReviews.service";
 import { myReviewsKey } from "./myReviewQueryKeys";
@@ -155,6 +156,7 @@ export function useMyReviews(
     };
     const currentIds = new Set(reviews.map((review) => review.id));
     for (const review of reviews) {
+      if (review.business?.id) confirmReviewSubmission(review, review.business.id);
       const old = previous.current.reviews.get(review.id);
       previous.current.reviews.set(review.id, review);
       if (old && isHeldReview(old)) decide(review, review.business.id);
