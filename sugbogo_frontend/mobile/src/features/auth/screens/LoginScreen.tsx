@@ -322,17 +322,37 @@ export default function LoginScreen() {
         />
       </View>
 
-      {/* Public privacy information */}
-      <Pressable
-        onPress={() => router.push("/privacy-policy")}
-        accessibilityRole="link"
-        accessibilityLabel="Read Privacy Policy"
-        className="mt-3 min-h-12 cursor-pointer items-center justify-center px-4 py-3 active:opacity-70"
-      >
-        <AppText weight="semibold" className="text-center text-sm text-brand">
-          Privacy Policy
+      {/* Public privacy and support information */}
+      <View className="mt-3 flex-row flex-wrap items-center justify-center gap-x-2">
+        <Pressable
+          onPress={() => router.push("/privacy-policy")}
+          accessibilityRole="link"
+          accessibilityLabel="Read Privacy Policy"
+          className="min-h-12 max-w-full cursor-pointer items-center justify-center px-4 py-3 active:opacity-70"
+        >
+          <AppText weight="semibold" className="text-center text-sm text-brand">
+            Privacy Policy
+          </AppText>
+        </Pressable>
+        <AppText
+          accessible={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          className="text-sm text-text-secondary"
+        >
+          |
         </AppText>
-      </Pressable>
+        <Pressable
+          onPress={() => router.push("/contact-support")}
+          accessibilityRole="link"
+          accessibilityLabel="Open Contact Support"
+          className="min-h-12 max-w-full cursor-pointer items-center justify-center px-4 py-3 active:opacity-70"
+        >
+          <AppText weight="semibold" className="text-center text-sm text-brand">
+            Contact Support
+          </AppText>
+        </Pressable>
+      </View>
     </AuthLayout>
   );
 }
