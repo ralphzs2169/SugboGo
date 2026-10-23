@@ -102,7 +102,10 @@ function WizardStep({ step, savedApplication = application }: HarnessProps) {
         onEditSection={mockEditSection}
         isResubmission={savedApplication.status === "rejected"}
         feedback={[]}
-        registerErrorScrollTarget={() => ({})}
+        registerErrorScrollTarget={() => ({
+          ref: () => {},
+          onLayout: () => {},
+        })}
       />
     </FormProvider>
   );

@@ -138,13 +138,13 @@ describe("asynchronous author review synchronization", () => {
       }
       const decisionInvalidations = invalidate.mock.calls.filter(
         ([arg]) =>
-          JSON.stringify(arg.queryKey) === JSON.stringify(myReviewsKey(10)),
+          JSON.stringify(arg?.queryKey) === JSON.stringify(myReviewsKey(10)),
       ).length;
       await advance(4_001);
       expect(
         invalidate.mock.calls.filter(
           ([arg]) =>
-            JSON.stringify(arg.queryKey) === JSON.stringify(myReviewsKey(10)),
+            JSON.stringify(arg?.queryKey) === JSON.stringify(myReviewsKey(10)),
         ),
       ).toHaveLength(decisionInvalidations);
       if (status === "published")

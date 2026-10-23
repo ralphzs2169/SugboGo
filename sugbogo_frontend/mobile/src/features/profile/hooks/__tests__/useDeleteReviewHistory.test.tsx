@@ -237,7 +237,7 @@ describe("confirmed deletion and private infinite history", () => {
     client.clear();
   });
 
-  it("updates only the submitting account's cache when the account changes in flight", async () => {
+  it("ignores a deletion response after the submitting account's session changes", async () => {
     const { client, Wrapper } = setup();
     const cached: InfiniteData<MyReviewPage> = {
       pages: [page(1)],
@@ -266,14 +266,9 @@ describe("confirmed deletion and private infinite history", () => {
       finishDelete({ success: true, data: { review_id: 5 } });
       await saving;
     });
-    expect(
-      client
-        .getQueryData<InfiniteData<MyReviewPage>>(myReviewsKey(10))
-        ?.pages[0].items.map((review) => review.id),
-    ).toEqual([4]);
+    expect(client.getQueryData(myReviewsKey(10))).toEqual(cached);
     expect(client.getQueryData(myReviewsKey(99))).toEqual(cached);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: myReviewsKey(10) });
-    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: myReviewsKey(99) });
+    expect(invalidate).not.toHaveBeenCalled();
     await unmount();
     client.clear();
   });

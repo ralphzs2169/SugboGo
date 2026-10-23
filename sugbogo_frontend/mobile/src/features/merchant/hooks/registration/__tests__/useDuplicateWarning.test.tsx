@@ -30,7 +30,10 @@ describe("saved duplicate warning", () => {
       data: { evaluated: true, possible_duplicate: true },
     });
     const { result, rerender } = await renderHook(
-      ({ evidence, saved }) => useDuplicateWarning(evidence, saved),
+      ({ evidence, saved }: {
+        evidence: Parameters<typeof useDuplicateWarning>[0];
+        saved: Parameters<typeof useDuplicateWarning>[1];
+      }) => useDuplicateWarning(evidence, saved),
       {
         initialProps: { evidence: "", saved: false },
         wrapper: createWrapper(),
@@ -69,7 +72,8 @@ describe("saved duplicate warning", () => {
         data: { evaluated: true, possible_duplicate: false },
       });
     const { result, rerender } = await renderHook(
-      ({ evidence }) => useDuplicateWarning(evidence, true),
+      ({ evidence }: { evidence: Parameters<typeof useDuplicateWarning>[0] }) =>
+        useDuplicateWarning(evidence, true),
       { initialProps: { evidence: "old" }, wrapper: createWrapper() },
     );
     await waitFor(() => expect(getDuplicateWarning).toHaveBeenCalledTimes(1));

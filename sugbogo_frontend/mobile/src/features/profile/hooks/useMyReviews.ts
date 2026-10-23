@@ -1,4 +1,5 @@
 import {
+  type InfiniteData,
   focusManager,
   onlineManager,
   useInfiniteQuery,
@@ -30,6 +31,7 @@ import type {
   MyReview,
   MyReviewFilter,
   MyReviewOrdering,
+  MyReviewPage,
 } from "../types/myReview.types";
 
 export { MY_REVIEWS_QUERY_KEY, myReviewsKey } from "./myReviewQueryKeys";
@@ -57,11 +59,18 @@ export function useMyReviews(
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isAuthLoading = useAuthStore((state) => state.isLoading);
   const isEnabled = isAuthenticated && userId !== null && !isAuthLoading;
-  const query = useInfiniteQuery({
-    queryKey:
-      status === "all" && ordering === "newest"
-        ? myReviewsKey(isEnabled ? userId : null)
-        : [...myReviewsKey(isEnabled ? userId : null), status, ordering],
+  const queryKey =
+    status === "all" && ordering === "newest"
+      ? myReviewsKey(isEnabled ? userId : null)
+      : [...myReviewsKey(isEnabled ? userId : null), status, ordering] as const;
+  const query = useInfiniteQuery<
+    MyReviewPage,
+    Error,
+    InfiniteData<MyReviewPage, number>,
+    typeof queryKey,
+    number
+  >({
+    queryKey,
     enabled: isEnabled && focused,
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
