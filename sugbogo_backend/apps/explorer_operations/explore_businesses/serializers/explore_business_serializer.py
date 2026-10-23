@@ -10,7 +10,10 @@ from apps.reviews.models import (
 )
 from rest_framework import serializers
 
-from .review_insights_serializers import BusinessReviewInsightsSerializer
+from .review_insights_serializers import (
+    BusinessReviewInsightsSerializer,
+    ReviewInsightRegenerationSerializer,
+)
 
 
 class ExploreClusterSerializer(serializers.Serializer):
@@ -408,6 +411,10 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
         read_only=True,
         allow_null=True,
     )
+    review_insight_regeneration = ReviewInsightRegenerationSerializer(
+        source="*",
+        read_only=True,
+    )
 
     description = serializers.CharField(
         source="BUSN_DESCRIPTION",
@@ -491,4 +498,5 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
             "is_own_business",
             "has_own_review",
             "review_insights",
+            "review_insight_regeneration",
         )

@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from apps.reviews.models import BusinessReviewSummary, Review
+from apps.reviews.models import BusinessReviewSummary, Review, ReviewInsightRegeneration
 from apps.reviews.services.business_review_insights_service import BusinessReviewInsightsService
 
 from ..premium_review_insights_service import PremiumReviewInsightsService
@@ -64,6 +64,21 @@ class PremiumReviewServicesTests(MerchantAnalyticsFixtures, TestCase):
         self.assertEqual(insights["coverage_end"], summary.BRSU_COVERAGE_END.isoformat().replace("+00:00", "Z"))
         self.assertNotIn("supporting_review_references", insights)
         self.assertIsNone(PremiumReviewInsightsService.get_report(self.merchant_b, self.period)["stored_summary"])
+
+    def test_stored_summary_includes_durable_progress_without_requesting_generation(self):
+        self.summary("outdated")
+        ReviewInsightRegeneration.objects.create(
+            BUSN_ID=self.business_a,
+            RIRG_REQUESTED_REVISION=1,
+        )
+        with patch.object(BusinessReviewInsightsService, "refresh") as refresh:
+            report = PremiumReviewInsightsService.get_report(self.merchant_a, self.period)
+        progress = report["stored_summary"]["regeneration"]
+        self.assertEqual(progress["status"], "scheduled")
+        self.assertEqual(progress["completed_revision"], 0)
+        self.assertTrue(progress["content_available"])
+        self.assertFalse(progress["content_is_current"])
+        refresh.assert_not_called()
 
     def test_pending_insufficient_and_invalidated_content_are_not_exposed(self):
         for state, narrative in (("pending", "Old text"), ("insufficient_reviews", "Old text"), ("outdated", "")):

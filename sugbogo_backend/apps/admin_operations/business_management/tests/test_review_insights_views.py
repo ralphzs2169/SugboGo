@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 from apps.admin_operations.business_management.services.manage_business_service import (
     BusinessService,
 )
-from apps.reviews.models import BusinessReviewSummary
+from apps.reviews.models import BusinessReviewSummary, ReviewInsightRegeneration
 from apps.reviews.services.tests.test_business_review_summary_service import (
     SummaryFixtureMixin,
 )
@@ -61,6 +61,20 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
                 })
                 enqueue.assert_called_once_with(self.business.pk)
                 process.assert_not_called()
+
+    def test_admin_can_observe_pending_demand_without_creating_a_summary(self):
+        ReviewInsightRegeneration.objects.create(
+            BUSN_ID=self.business,
+            RIRG_REQUESTED_REVISION=1,
+        )
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, 200)
+        data = response.data["data"]
+        self.assertIsNone(data["review_insights"])
+        self.assertEqual(data["review_insight_regeneration"]["status"], "scheduled")
+        self.assertEqual(data["review_insight_regeneration"]["completed_revision"], 0)
+        self.assertFalse(BusinessReviewSummary.objects.exists())
 
     def test_explorer_cannot_queue_refresh(self):
         self.client.force_authenticate(self.explorer)
@@ -121,6 +135,7 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
                 "state",
                 "state_message",
                 "content_available",
+                "regeneration",
                 "narrative",
                 "review_count",
                 "eligible_review_count",
