@@ -422,6 +422,8 @@ class ReviewService:
         moderation["retry_exhausted"] = False
         moderation["last_attempted_at"] = moderation["checked_at"]
         moderation["last_provider_failure"] = moderation["failure_type"]
+        if moderation["retryable"]:
+            moderation["retry_next_attempt_at"] = timezone.now().isoformat()
         review_status = Review.ReviewStatus.PUBLISHED
         if moderation["outcome"] != "safe":
             review_status = Review.ReviewStatus.UNDER_REVIEW

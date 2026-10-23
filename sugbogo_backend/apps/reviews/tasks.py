@@ -20,8 +20,6 @@ from apps.reviews.services.review_insight_scheduling_service import ReviewInsigh
 logger = logging.getLogger(__name__)
 
 TRANSIENT_RETRY_LIMIT = 3
-TRANSIENT_RETRY_BASE_SECONDS = 60
-TRANSIENT_RETRY_MAX_SECONDS = 300
 
 
 @shared_task(
@@ -53,23 +51,23 @@ def recover_review_media_cleanup() -> int:
 
 
 @shared_task(
-    bind=True,
     name="apps.reviews.tasks.retry_failed_review_moderation",
-    max_retries=TRANSIENT_RETRY_LIMIT,
 )
-def retry_failed_review_moderation(task, review_id: int) -> str:
-    """Recover only a review held by a transient moderation failure."""
+def retry_failed_review_moderation(
+    review_id: int,
+    expected_attempt: int | None = None,
+) -> str:
+    """Use persisted attempt identity and redispatch recoverable provider failures."""
     logger.info(
         "Review moderation retry started.",
         extra={
             "review_id": review_id,
-            "retry_number": task.request.retries,
+            "expected_attempt": expected_attempt,
         },
     )
     outcome = ReviewModerationRetryService.retry(
         review_id=review_id,
-        expected_attempt=task.request.retries,
-        max_retries=task.max_retries,
+        expected_attempt=expected_attempt,
     )
 
     if outcome == "stale":
@@ -97,21 +95,14 @@ def retry_failed_review_moderation(task, review_id: int) -> str:
         )
         return outcome
 
-    countdown = min(
-        TRANSIENT_RETRY_BASE_SECONDS * (2 ** task.request.retries),
-        TRANSIENT_RETRY_MAX_SECONDS,
-    )
-    logger.warning(
-        "Review moderation provider failed again; retry scheduled.",
-        extra={
-            "review_id": review_id,
-            "retry_countdown_seconds": countdown,
-        },
-    )
-    raise task.retry(
-        exc=RuntimeError("Review moderation provider remains unavailable."),
-        countdown=countdown,
-    )
+    ReviewModerationRetryService.dispatch(review_id)
+    return outcome
+
+
+@shared_task(name="apps.reviews.tasks.recover_review_moderation_retries")
+def recover_review_moderation_retries() -> int:
+    """Recover due provider-failure moderation independently of message history."""
+    return ReviewModerationRetryService.recover_pending()
 
 
 @shared_task(name="apps.reviews.tasks.process_review_sentiment")

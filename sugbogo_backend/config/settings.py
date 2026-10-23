@@ -431,6 +431,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.reviews.tasks.recover_review_media_cleanup",
         "schedule": crontab(minute="*/5"),
     },
+    "recover-review-moderation-retries": {
+        "task": "apps.reviews.tasks.recover_review_moderation_retries",
+        "schedule": 30.0,
+    },
     "recover-review-insight-regeneration": {
         "task": "apps.reviews.tasks.recover_review_insight_regeneration",
         "schedule": 30.0,
