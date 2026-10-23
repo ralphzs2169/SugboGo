@@ -13,6 +13,9 @@ from rest_framework.exceptions import ValidationError
 from apps.admin_operations.moderation.services.manage_reported_review_service import (
     ManageReportedReviewService,
 )
+from apps.admin_operations.moderation.services.manage_review_report_service import (
+    ManageReviewReportService,
+)
 from apps.admin_operations.moderation.services.manage_under_review_service import (
     ManageUnderReviewService,
 )
@@ -51,7 +54,7 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
         BusinessReviewSummary.objects.create(BUSN_ID=self.business)
         ReviewInsightSchedulingService.reconcile(self.business.pk)
         self.initial_revision = self.state().RIRG_REQUESTED_REVISION
-        self.counter_locked = Event()
+        self.publication_locked = Event()
         self.contender_ready = Event()
         self.admin = create_policy_admin()
         for target in (
@@ -84,6 +87,13 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
                 decision="reject",
                 admin_notes="Inspected the review and confirmed the reported violation.",
             )
+        if operation == "admin_report_reject":
+            return ManageReviewReportService.resolve(
+                self.report.pk,
+                actor=self.admin,
+                approve=True,
+                admin_notes="Inspected the review and confirmed the reported violation.",
+            )
         if operation == "delete":
             return ReviewService.delete_review(
                 self.excluding.USER_ID,
@@ -95,11 +105,13 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
         self,
         operation,
         publisher,
+        shared_reporter=False,
     ):
         business_table = connection.ops.quote_name(Business._meta.db_table)
         policy_table = connection.ops.quote_name(
             AnalyticsPolicyConfiguration._meta.db_table,
         )
+        user_table = connection.ops.quote_name(User._meta.db_table)
 
         def coordinate(
             execute,
@@ -110,14 +122,25 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
         ):
             counter_update = sql.startswith(f"UPDATE {business_table} ")
             policy_lock = policy_table in sql and "FOR UPDATE" in sql
-            if not publisher and counter_update:
-                # With the corrected order this signals before waiting on the
-                # publisher's real business row lock. The old order has already
-                # acquired the policy lock by this point.
+            user_lock = (
+                f"FROM {user_table} " in sql
+                and "FOR UPDATE" in sql
+            )
+            shared_user_lock = shared_reporter and user_lock
+            if (
+                not publisher
+                and (counter_update or shared_user_lock)
+            ):
+                # Signal before a possible wait on publication's first shared
+                # lock: the account for reporter races, otherwise the counter.
                 self.contender_ready.set()
             result = execute(sql, params, many, context)
-            if publisher and counter_update:
-                self.counter_locked.set()
+            if (
+                publisher
+                and (counter_update or shared_user_lock)
+                and not self.publication_locked.is_set()
+            ):
+                self.publication_locked.set()
                 if not self.contender_ready.wait(timeout=5):
                     raise AssertionError("Exclusion did not reach its first shared lock.")
                 deadline = monotonic() + 5
@@ -130,7 +153,7 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
                         if cursor.fetchone()[0]:
                             break
                     if monotonic() >= deadline:
-                        raise AssertionError("Exclusion did not wait on the business row.")
+                        raise AssertionError("Exclusion did not wait on the shared row.")
                     Event().wait(0.01)
             elif not publisher and policy_lock:
                 # Before the fix, resume publication only after rejection holds
@@ -146,8 +169,8 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
                 backend_id = cursor.fetchone()[0]
             if not publisher:
                 self.exclusion_backend_id = backend_id
-                if not self.counter_locked.wait(timeout=5):
-                    raise AssertionError("Publication did not acquire its counter lock.")
+                if not self.publication_locked.wait(timeout=5):
+                    raise AssertionError("Publication did not acquire its first shared lock.")
             with connection.execute_wrapper(coordinate):
                 self._operate(operation)
             return backend_id
@@ -158,10 +181,21 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
         self,
         publication="publish",
         exclusion="reject",
+        shared_reporter=False,
     ):
         with ThreadPoolExecutor(max_workers=2) as executor:
-            published = executor.submit(self._worker, publication, True)
-            excluded = executor.submit(self._worker, exclusion, False)
+            published = executor.submit(
+                self._worker,
+                publication,
+                True,
+                shared_reporter,
+            )
+            excluded = executor.submit(
+                self._worker,
+                exclusion,
+                False,
+                shared_reporter,
+            )
             publisher_id = published.result(timeout=18)
             exclusion_id = excluded.result(timeout=18)
         self.assertNotEqual(publisher_id, exclusion_id)
@@ -232,6 +266,39 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
 
     def test_publication_and_deletion_keep_the_same_lock_order(self):
         self._assert_race(exclusion="delete")
+
+    def _assert_shared_reporter_race(
+        self,
+        exclusion,
+    ):
+        self.report = ReviewReport.objects.create(
+            REVW_ID=self.excluding,
+            USER_ID=self.publishing.USER_ID,
+            RREP_TYPE=ReviewReport.ReportType.ABUSE,
+        )
+        self._assert_race(
+            exclusion=exclusion,
+            shared_reporter=True,
+        )
+        self.report.refresh_from_db()
+        self.assertEqual(self.report.RREP_STATUS, ReviewReport.ReportStatus.APPROVED)
+        self.assertEqual(
+            ReputationEvent.objects.filter(USER_ID=self.publishing.USER_ID).count(),
+            2,
+        )
+        before_reputation = ReputationEvent.objects.count()
+        before_notifications = Notification.objects.count()
+        with self.assertRaises(ValidationError):
+            self._operate(exclusion)
+        self.assertEqual(ReputationEvent.objects.count(), before_reputation)
+        self.assertEqual(Notification.objects.count(), before_notifications)
+        self.assertEqual(self.state().RIRG_REQUESTED_REVISION, self.initial_revision + 2)
+
+    def test_publishing_author_reporting_rejected_review_does_not_deadlock(self):
+        self._assert_shared_reporter_race("admin_reject")
+
+    def test_publishing_author_reporting_individually_resolved_review_does_not_deadlock(self):
+        self._assert_shared_reporter_race("admin_report_reject")
 
     def test_failed_publication_rolls_back_all_effects_and_demand(self):
         with self.assertRaises(RuntimeError):

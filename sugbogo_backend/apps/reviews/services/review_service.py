@@ -168,10 +168,8 @@ class ReviewService:
             review.REVW_PUBLISHED_AT = timezone.now()
             review.save(update_fields=["REVW_PUBLISHED_AT"])
         NotificationEventService.business_review_received(review)
-        Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
-            BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
-        )
-
+        # Match report decisions: lock the reputation account before the
+        # business counter, then acquire insight policy and demand locks.
         if review.photos.exists():
             ReputationService.apply_review_with_photo_reward(
                 user_id=review.USER_ID_id,
@@ -184,6 +182,10 @@ class ReviewService:
                 source_id=review.REVW_ID,
                 business_id=review.BUSN_ID_id,
             )
+
+        Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
+            BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
+        )
 
         ReviewService._queue_sentiment_after_commit(
             review.REVW_ID,
