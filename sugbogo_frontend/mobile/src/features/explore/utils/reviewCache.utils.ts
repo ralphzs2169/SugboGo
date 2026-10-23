@@ -48,9 +48,42 @@ export function updateReviewInCaches(
   authorUserId: number | null,
   review: BusinessReview,
 ) {
+  const preview = queryClient.getQueryData<BusinessReviewPreview>(
+    businessReviewPreviewKey(businessId),
+  );
+  const knownSources = [
+    preview?.user_review,
+    ...(preview?.reviews ?? []),
+    ...queryClient
+      .getQueriesData<InfiniteData<MyReviewPage>>({
+        queryKey: myReviewsKey(authorUserId),
+      })
+      .flatMap(([, data]) => data?.pages.flatMap((page) => page.items) ?? []),
+    ...queryClient
+      .getQueriesData<
+        InfiniteData<BusinessReviewListResponse> | { reviews: BusinessReview[] }
+      >({
+        queryKey: businessReviewsKey(businessId),
+      })
+      .flatMap(([, data]) => {
+        if (!data) return [];
+        return "pages" in data
+          ? data.pages.flatMap((page) => page.items)
+          : data.reviews;
+      }),
+  ];
+  if (
+    knownSources.some(
+      (source) =>
+        source?.id === review.id &&
+        Date.parse(source.updated_at) > Date.parse(review.updated_at),
+    )
+  )
+    return;
+
   if (authorUserId !== null) {
-    queryClient.setQueryData<InfiniteData<MyReviewPage>>(
-      myReviewsKey(authorUserId),
+    queryClient.setQueriesData<InfiniteData<MyReviewPage>>(
+      { queryKey: myReviewsKey(authorUserId) },
       (current) => {
         if (!current) return current;
         return {

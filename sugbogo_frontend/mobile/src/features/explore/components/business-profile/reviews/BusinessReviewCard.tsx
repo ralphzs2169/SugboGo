@@ -13,10 +13,10 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
-import {
-  useDeleteReview,
-} from "../../../hooks/useBusinessReviews";
+import { useDeleteReview } from "../../../hooks/useBusinessReviews";
 import { useReviewLike } from "../../../hooks/useReviewLike";
+import { useAuthorReviewSource } from "../../../hooks/useAuthorReviewSource";
+import { useReviewWorkflowStore } from "../../../stores/reviewWorkflow.store";
 import type { BusinessReview } from "../../../types/review.types";
 import MerchantReviewResponse from "./MerchantReviewResponse";
 import ReviewContent from "./ReviewContent";
@@ -45,11 +45,15 @@ type Props = {
  */
 export default function BusinessReviewCard({
   businessId,
-  review,
+  review: suppliedReview,
   onEdit,
   isLast = false,
   highlightedTopic,
 }: Props) {
+  const review = useAuthorReviewSource(businessId, suppliedReview);
+  const saving = useReviewWorkflowStore((state) =>
+    Boolean(state.edits[review.id]),
+  );
   const { mutateAsync: like, isPending: isLikePending } = useReviewLike(
     businessId,
     review.id,
@@ -57,7 +61,6 @@ export default function BusinessReviewCard({
 
   const { mutateAsync: deleteReview, isPending: isDeletePending } =
     useDeleteReview(businessId);
-
 
   const [isDeleteVisible, setIsDeleteVisible] = useState(false);
   const [reportedByUserId, setReportedByUserId] = useState<number | null>(null);
@@ -144,6 +147,15 @@ export default function BusinessReviewCard({
         highlightedTopic={highlightedTopic}
         showEngagement={review.status === "published"}
       />
+
+      {review.is_own_review && saving && (
+        <AppText
+          accessibilityLiveRegion="polite"
+          className="mt-2 text-xs text-text-secondary"
+        >
+          Saving changes…
+        </AppText>
+      )}
 
       {review.is_own_review && review.status !== "published" && (
         <View className="mt-3 rounded-lg bg-surface-secondary px-3 py-2">

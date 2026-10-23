@@ -521,7 +521,8 @@ describe("My Reviews editing integration", () => {
       screen.getByDisplayValue(originalText),
       changedText,
     );
-    (getMyReviews as jest.Mock).mockResolvedValueOnce({
+    const loadHistory = (getMyReviews as jest.Mock).getMockImplementation();
+    (getMyReviews as jest.Mock).mockResolvedValue({
       success: false,
       code: "NETWORK_ERROR",
       message: "Offline",
@@ -531,6 +532,7 @@ describe("My Reviews editing integration", () => {
     expect(screen.getByText(changedText)).toBeTruthy();
     expect(screen.queryByText(originalText)).toBeNull();
     expect(screen.getByText("Couldn't refresh your reviews")).toBeTruthy();
+    (getMyReviews as jest.Mock).mockImplementation(loadHistory);
     await fireEvent.press(screen.getByText("Tap to retry"));
     await waitFor(() =>
       expect(screen.queryByText("Couldn't refresh your reviews")).toBeNull(),
@@ -704,7 +706,9 @@ describe("My Reviews editing integration", () => {
     else
       await waitFor(() =>
         expect(Toast.show).toHaveBeenCalledWith(
-          expect.objectContaining({ type: "error" }),
+          expect.objectContaining({
+            type: code === "NETWORK_ERROR" ? "info" : "error",
+          }),
         ),
       );
     expect(invalidate).not.toHaveBeenCalled();

@@ -9,6 +9,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import ReviewComposerSheet from "@/features/explore/components/business-profile/ReviewComposerSheet";
+import AuthorReviewSubmissions from "@/features/explore/components/business-profile/reviews/AuthorReviewSubmission";
+import { useAuthorReviewSubmissions } from "@/features/explore/hooks/useAuthorReviewSubmissions";
 import { ReviewDerivedDataSyncProvider } from "@/features/explore/hooks/ReviewDerivedDataSyncProvider";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
@@ -71,6 +73,7 @@ export default function ReviewsSubmittedScreen() {
   const [ordering, setOrdering] = useState<MyReviewOrdering>("newest");
   const focused = useIsFocused();
   const history = useMyReviews(reviewFilter, ordering, focused);
+  const submissions = useAuthorReviewSubmissions();
   const insets = useSafeAreaInsets();
 
   const paginationArmed = useRef(false);
@@ -309,6 +312,14 @@ export default function ReviewsSubmittedScreen() {
                   />
                 </SafePressable>
               </View>
+              {reviewFilter === "all" && (
+                <View className="-mx-4">
+                  <AuthorReviewSubmissions
+                    showBusiness
+                    representedIds={history.reviews.map((review) => review.id)}
+                  />
+                </View>
+              )}
             </View>
           ) : null
         }
@@ -353,7 +364,8 @@ export default function ReviewsSubmittedScreen() {
               primaryActionTitle="Retry"
               onPrimaryAction={() => void history.refetch()}
             />
-          ) : reviewFilter !== "all" ? (
+          ) : reviewFilter === "all" &&
+            submissions.length > 0 ? null : reviewFilter !== "all" ? (
             <View className="items-center px-4 py-10">
               <AppText
                 weight="semibold"
@@ -484,6 +496,10 @@ export default function ReviewsSubmittedScreen() {
             ...syncBusinesses.filter(
               (item) => isEnabled && item.userId === userId,
             ),
+            ...submissions.map((draft) => ({
+              userId: draft.userId,
+              businessId: draft.businessId,
+            })),
             ...(history.publishedBusinessIds ?? []).map((businessId) => ({
               userId: userId!,
               businessId,
@@ -494,12 +510,14 @@ export default function ReviewsSubmittedScreen() {
         <ReviewDerivedDataSyncProvider
           key={`review-sync-${item.userId}-${item.businessId}`}
           businessId={item.businessId}
-          observePublication={(history.publishedBusinessIds ?? []).includes(
-            item.businessId,
-          )}
-          observeAuthorReview={(history.publishedBusinessIds ?? []).includes(
-            item.businessId,
-          )}
+          observePublication={
+            (history.publishedBusinessIds ?? []).includes(item.businessId) ||
+            submissions.some((draft) => draft.businessId === item.businessId)
+          }
+          observeAuthorReview={
+            (history.publishedBusinessIds ?? []).includes(item.businessId) ||
+            submissions.some((draft) => draft.businessId === item.businessId)
+          }
         >
           {currentEditor?.business.id === item.businessId && (
             <ReviewComposerSheet

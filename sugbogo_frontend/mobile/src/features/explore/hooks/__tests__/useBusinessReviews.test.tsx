@@ -230,7 +230,9 @@ describe("useBusinessReviews", () => {
       });
     });
 
-    await waitFor(() => expect(result.current.userReview?.status).toBe("published"));
+    await waitFor(() =>
+      expect(result.current.userReview?.status).toBe("published"),
+    );
     expect(invalidate).not.toHaveBeenCalled();
     unmount();
     client.clear();
@@ -487,7 +489,7 @@ describe("useBusinessReviews", () => {
     client.clear();
   });
 
-  it("invalidates the mutation author's history if the active account changes while saving", async () => {
+  it("ignores the mutation response if the active account changes while saving", async () => {
     useAuthStore.setState({ user: { id: 10 } as never });
     let finishUpdate!: (value: unknown) => void;
     (updateReview as jest.Mock).mockImplementationOnce(
@@ -515,7 +517,7 @@ describe("useBusinessReviews", () => {
       finishUpdate({ success: true, data: { id: 8, status: "published" } });
       await saving;
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: myReviewsKey(10) });
+    expect(invalidate).not.toHaveBeenCalled();
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: myReviewsKey(99) });
     await unmount();
     client.clear();

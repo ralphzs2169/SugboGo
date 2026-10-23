@@ -3,6 +3,16 @@ import { fireEvent, render } from "@testing-library/react-native";
 import type { BusinessReview } from "../../../../types/review.types";
 import BusinessReviewCard from "../BusinessReviewCard";
 
+jest.mock("../../../../hooks/useAuthorReviewSource", () => ({
+  useAuthorReviewSource: (_businessId: number, review: BusinessReview) =>
+    review,
+}));
+jest.mock("../../../../stores/reviewWorkflow.store", () => ({
+  useReviewWorkflowStore: (
+    selector: (state: { edits: Record<number, number> }) => unknown,
+  ) => selector({ edits: {} }),
+}));
+
 jest.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: jest.fn() }),
 }));
@@ -31,11 +41,14 @@ jest.mock("../MerchantReviewResponse", () => ({
 }));
 jest.mock("@/shared/components/bottom-sheets/ActionBottomSheet", () => ({
   __esModule: true,
-  default: ({ options, onSelect }: {
+  default: ({
+    options,
+    onSelect,
+  }: {
     options: { label: string; value: string }[];
     onSelect: (value: string) => void;
   }) => {
-    const { Pressable, Text } = require("react-native");
+    const { Pressable, Text } = jest.requireActual("react-native");
     return options.map((option) => (
       <Pressable key={option.value} onPress={() => onSelect(option.value)}>
         <Text>{option.label}</Text>
@@ -77,7 +90,9 @@ describe("BusinessReviewCard held review", () => {
 
     expect(screen.getByText("Under review")).toBeTruthy();
     expect(
-      screen.getByText("We're reviewing this before it appears publicly."),
+      screen.getByText(
+        "Your review is saved privately. Its status is not yet confirmed.",
+      ),
     ).toBeTruthy();
     expect(screen.queryByText("Edit my review")).toBeNull();
     expect(screen.getByText("Delete my review")).toBeTruthy();

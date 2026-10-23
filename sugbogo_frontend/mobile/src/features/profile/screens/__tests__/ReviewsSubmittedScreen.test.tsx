@@ -7,6 +7,9 @@ import type { MyReview } from "../../types/myReview.types";
 import ReviewsSubmittedScreen from "../ReviewsSubmittedScreen";
 
 jest.mock("../../hooks/useMyReviews");
+jest.mock("@/features/explore/hooks/useAuthorReviewSource", () => ({
+  useAuthorReviewSource: (_businessId: number, review: MyReview) => review,
+}));
 jest.mock(
   "@/shared/components/bottom-sheets/ActionBottomSheet",
   () => () => null,

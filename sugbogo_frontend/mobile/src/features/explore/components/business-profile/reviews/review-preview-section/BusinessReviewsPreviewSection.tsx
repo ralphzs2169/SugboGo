@@ -16,6 +16,7 @@ import type {
 import type { BusinessReview } from "../../../../types/review.types";
 import BusinessReviewCardSkeleton from "../../state/BusinessReviewCardSkeleton";
 import BusinessReviewCard from "../BusinessReviewCard";
+import AuthorReviewSubmissions from "../AuthorReviewSubmission";
 import ReviewInsightsPreview from "./ReviewInsightsPreview";
 
 const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
@@ -116,6 +117,14 @@ export default function BusinessReviewsPreviewSection({
       />
 
       {/* Loading state */}
+      <AuthorReviewSubmissions
+        businessId={businessId}
+        representedIds={[
+          ...reviews.map((review) => review.id),
+          ...(userReview ? [userReview.id] : []),
+        ]}
+        onResume={onWriteReview}
+      />
       {isLoading && <BusinessReviewCardSkeleton />}
 
       {/* Error state */}
@@ -163,13 +172,16 @@ export default function BusinessReviewsPreviewSection({
       )}
 
       {/* Review preview */}
-      {!isLoading && !error && userReview && userReview.status !== "published" && (
-        <BusinessReviewCard
-          businessId={businessId}
-          review={userReview}
-          onEdit={onEditReview}
-        />
-      )}
+      {!isLoading &&
+        !error &&
+        userReview &&
+        userReview.status !== "published" && (
+          <BusinessReviewCard
+            businessId={businessId}
+            review={userReview}
+            onEdit={onEditReview}
+          />
+        )}
 
       {!isLoading && !error && reviews.length > 0 && (
         <View>

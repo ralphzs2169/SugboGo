@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
 
 import {
@@ -145,6 +146,41 @@ describe("ReviewComposerSheet Community visibility", () => {
     });
   });
 
+  it("shows submitting feedback and allows closing a new submission", async () => {
+    (useCreateReview as jest.Mock).mockReturnValue({
+      mutateAsync: create,
+      isPending: true,
+      error: null,
+    });
+    const screen = await showReview();
+    expect(screen.getByText("Submitting · Only you can see this")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Close"));
+    expect(sheetRef.current.dismiss).toHaveBeenCalled();
+  });
+
+  it("shows saving feedback while retaining proposed edit content", async () => {
+    (useUpdateReview as jest.Mock).mockReturnValue({
+      mutateAsync: update,
+      isPending: true,
+      error: null,
+    });
+    const screen = await showReview(review);
+    expect(screen.getByText("Saving changes…")).toBeTruthy();
+    expect(screen.getByDisplayValue(review.text)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Close"));
+    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+  });
+
+  it("clears an open private edit when the account changes", async () => {
+    await act(async () => useAuthStore.setState({ user: { id: 10 } as never }));
+    const screen = await showReview({ ...review, author: { id: 10 } } as never);
+    expect(screen.getByDisplayValue(review.text)).toBeTruthy();
+    await act(async () => useAuthStore.setState({ user: { id: 99 } as never }));
+    expect(screen.queryByDisplayValue(review.text)).toBeNull();
+    expect(screen.getByLabelText("Your review").props.value).toBe("");
+    await act(async () => useAuthStore.setState({ user: null }));
+  });
+
   it("defaults on and submits an explicit enabled preference", async () => {
     const screen = await showReview();
     await settleForm();
@@ -159,6 +195,7 @@ describe("ReviewComposerSheet Community visibility", () => {
     await fireEvent.press(screen.getByText("Submit review"));
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith({
+        businessName: "Sugbo Cafe",
         text: "A lovely visit with friendly staff.",
         photos: [],
         showInCommunity: true,

@@ -26,6 +26,7 @@ import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";
 import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
 import BusinessReviewCard from "../components/business-profile/reviews/BusinessReviewCard";
+import AuthorReviewSubmissions from "../components/business-profile/reviews/AuthorReviewSubmission";
 import ReviewFilterBottomSheet from "../components/business-profile/reviews/review-collection/ReviewFilterBottomSheet";
 import ReviewFiltersSection from "../components/business-profile/reviews/review-collection/ReviewFiltersSection";
 
@@ -105,7 +106,7 @@ function ReviewsCollectionScreenContent({
     filters.merchantReplied,
   );
 
-  const canWriteReview = !isOwnBusiness && !ownership.userReview;
+  const canWriteReview = !isOwnBusiness && !ownership.hasOwnReview;
   const showWriteReviewFab = canWriteReview && totalCount > 0;
 
   const isInitialLoading = ownership.isLoading || reviewQuery.isInitialLoading;
@@ -279,12 +280,24 @@ function ReviewsCollectionScreenContent({
   );
 
   if (isInitialLoading) {
-    return <BusinessReviewsSkeleton bottomInset={insets.bottom} />;
+    return (
+      <View className="flex-1 bg-surface">
+        <AuthorReviewSubmissions
+          businessId={businessId}
+          onResume={createReview}
+        />
+        <BusinessReviewsSkeleton bottomInset={insets.bottom} />
+      </View>
+    );
   }
 
   if (isInitialError) {
     return (
       <View className="flex-1 bg-surface">
+        <AuthorReviewSubmissions
+          businessId={businessId}
+          onResume={createReview}
+        />
         <ErrorState
           size="small"
           icon="comment-off-outline"
@@ -324,12 +337,20 @@ function ReviewsCollectionScreenContent({
         renderItem={renderReview}
         ListHeaderComponent={
           <View className="gap-3 px-4">
-            {ownership.userReview?.status === "under_review" && (
-              <BusinessReviewCard
-                businessId={businessId}
-                review={ownership.userReview}
-              />
-            )}
+            <AuthorReviewSubmissions
+              businessId={businessId}
+              representedIds={
+                ownership.userReview ? [ownership.userReview.id] : []
+              }
+              onResume={createReview}
+            />
+            {ownership.userReview &&
+              ownership.userReview.status !== "published" && (
+                <BusinessReviewCard
+                  businessId={businessId}
+                  review={ownership.userReview}
+                />
+              )}
             <ReviewFiltersSection
               insights={business?.review_insights}
               regeneration={business?.review_insight_regeneration}

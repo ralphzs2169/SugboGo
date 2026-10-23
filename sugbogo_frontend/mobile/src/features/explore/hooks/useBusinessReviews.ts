@@ -11,6 +11,14 @@ import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
+import { useAuthorReviewSubmissions } from "./useAuthorReviewSubmissions";
+import {
+  isCurrentReviewSession,
+  isUncertainReviewOutcome,
+  nextReviewOperationToken,
+  settleReviewSubmission,
+  useReviewWorkflowStore,
+} from "../stores/reviewWorkflow.store";
 import { myReviewsKey } from "@/features/profile/hooks/myReviewQueryKeys";
 import { ACTIVITY_TIMELINE_QUERY_KEY } from "@/features/profile/hooks/activityTimelineQueryKeys";
 import type { MyReviewPage } from "@/features/profile/types/myReview.types";
@@ -46,6 +54,9 @@ import {
 type ReviewMutationSync = "create" | "update" | "delete";
 
 type ReviewMutationContext = {
+  generation: number;
+  operationToken: number;
+  operationKey: string;
   authorUserId: number | null;
   baselineGeneratedAt: string | null;
   baselineInsightsUpdatedAt: string | null;
@@ -56,6 +67,8 @@ type ReviewMutationContext = {
   baselineDataUpdateCount: number;
   startedAt: number;
 };
+
+const latestOperations = new WeakMap<object, Map<string, number>>();
 
 /**
  * Handles review-related mutations and refreshes the affected
@@ -78,13 +91,84 @@ function useReviewMutation<TVariables, TResult>(
     mutationFn: async (variables: TVariables) =>
       throwOnApiError((await mutationFn(variables)) as never) as TResult,
 
-    onMutate: () => {
+    onMutate: (variables) => {
+      const user = useAuthStore.getState().user;
+      const authorUserId = user?.id ?? null;
+      const generation = getAuthSessionGeneration();
+      const operationToken = nextReviewOperationToken();
+      const operationKey = `${generation}:${authorUserId}:${businessId}:${sync}`;
+      let operations = latestOperations.get(queryClient);
+      if (!operations) {
+        operations = new Map();
+        latestOperations.set(queryClient, operations);
+      }
+
+      if (sync === "create" && user) {
+        const existing = useReviewWorkflowStore
+          .getState()
+          .submissions.some(
+            (draft) =>
+              draft.businessId === businessId &&
+              draft.userId === user.id &&
+              draft.generation === generation &&
+              draft.state !== "failed",
+          );
+        if (existing) {
+          throw {
+            code: "SUBMISSION_IN_PROGRESS",
+            message: "Check your submitted review before trying again.",
+          };
+        }
+        const input = variables as {
+          text: string;
+          photos: LocalReviewPhoto[];
+          businessName?: string;
+          showInCommunity?: boolean;
+        };
+        useReviewWorkflowStore.setState((current) => ({
+          submissions: [
+            ...current.submissions.filter(
+              (draft) =>
+                draft.businessId !== businessId || draft.userId !== user.id,
+            ),
+            {
+              token: operationToken,
+              userId: user.id,
+              generation,
+              businessId,
+              businessName: input.businessName ?? "Your review",
+              text: input.text,
+              showInCommunity: input.showInCommunity ?? true,
+              photos: input.photos.map((photo) => ({ ...photo })),
+              author: {
+                id: user.id,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                avatar_url: user.avatar_url ?? null,
+                avatar_key: user.avatar_key,
+              },
+              createdAt: new Date().toISOString(),
+              state: "submitting",
+            },
+          ],
+        }));
+      }
+      operations.set(operationKey, operationToken);
+      if (sync === "update") {
+        const reviewId = (variables as { reviewId: number }).reviewId;
+        useReviewWorkflowStore.setState((current) => ({
+          edits: { ...current.edits, [reviewId]: operationToken },
+        }));
+      }
       const detail = queryClient.getQueryData<ExploreBusinessDetail>(
         exploreBusinessDetailKey(businessId),
       );
 
       return {
-        authorUserId: useAuthStore.getState().user?.id ?? null,
+        authorUserId,
+        generation,
+        operationToken,
+        operationKey,
         baselineGeneratedAt: detail?.review_insights?.generated_at ?? null,
         baselineInsightsUpdatedAt: detail?.review_insights?.updated_at ?? null,
         baselineInsightsState: detail?.review_insights?.state ?? null,
@@ -103,6 +187,17 @@ function useReviewMutation<TVariables, TResult>(
     },
 
     onSuccess: async (result, variables, context) => {
+      const isCurrent = () =>
+        isCurrentReviewSession(context.authorUserId, context.generation) &&
+        latestOperations.get(queryClient)?.get(context.operationKey) ===
+          context.operationToken;
+      if (!isCurrent()) return;
+      if (sync === "create") {
+        settleReviewSubmission(
+          context.operationToken,
+          result as ReviewCreateResult,
+        );
+      }
       if (
         sync === "create" &&
         (result as ReviewCreateResult).status !== "published"
@@ -126,6 +221,7 @@ function useReviewMutation<TVariables, TResult>(
           }),
           queryClient.cancelQueries({ queryKey: COMMUNITY_REVIEWS_QUERY_KEY }),
         ]);
+        if (!isCurrent()) return;
         updateReviewInCaches(
           queryClient,
           businessId,
@@ -144,6 +240,14 @@ function useReviewMutation<TVariables, TResult>(
           }),
           queryClient.cancelQueries({ queryKey: COMMUNITY_REVIEWS_QUERY_KEY }),
         ]);
+        if (!isCurrent()) return;
+        useReviewWorkflowStore.setState((current) => ({
+          submissions: current.submissions.filter(
+            (draft) =>
+              draft.businessId !== businessId ||
+              draft.userId !== context.authorUserId,
+          ),
+        }));
         removeDeletedReviewFromPublicCaches(
           queryClient,
           businessId,
@@ -154,6 +258,7 @@ function useReviewMutation<TVariables, TResult>(
         const historyKey = myReviewsKey(context.authorUserId);
         // A pre-deletion request must not restore the confirmed-deleted item.
         await queryClient.cancelQueries({ queryKey: historyKey });
+        if (!isCurrent()) return;
         queryClient.setQueryData<InfiniteData<MyReviewPage>>(
           historyKey,
           (current) => {
@@ -178,6 +283,8 @@ function useReviewMutation<TVariables, TResult>(
           queryKey: exploreBusinessDetailKey(businessId),
         });
       }
+
+      if (!isCurrent()) return;
 
       await Promise.all([
         ...(sync
@@ -212,9 +319,13 @@ function useReviewMutation<TVariables, TResult>(
           : []),
       ]);
 
+      if (!isCurrent()) return;
+
       if (sync === "create" || sync === "delete") {
         await invalidateBusinessCardCollections(queryClient);
       }
+
+      if (!isCurrent()) return;
 
       if (
         sync === "create" &&
@@ -262,12 +373,59 @@ function useReviewMutation<TVariables, TResult>(
         });
       }
     },
+    onError: (error, _variables, context) => {
+      if (sync !== "create" || !context) return;
+      settleReviewSubmission(
+        context.operationToken,
+        undefined,
+        isUncertainReviewOutcome(error),
+      );
+      if (isCurrentReviewSession(context.authorUserId, context.generation)) {
+        // Reuse the existing private read path. Never automatically resubmit.
+        void queryClient.invalidateQueries({
+          queryKey: businessReviewPreviewKey(businessId),
+        });
+        if (context.authorUserId !== null) {
+          void queryClient.invalidateQueries({
+            queryKey: myReviewsKey(context.authorUserId),
+          });
+        }
+      }
+    },
+    onSettled: (_result, _error, variables, context) => {
+      if (sync !== "update" || !context) return;
+      const reviewId = (variables as { reviewId: number }).reviewId;
+      useReviewWorkflowStore.setState((current) => {
+        if (current.edits[reviewId] !== context.operationToken) return current;
+        const edits = { ...current.edits };
+        delete edits[reviewId];
+        return { edits };
+      });
+      if (
+        isCurrentReviewSession(context.authorUserId, context.generation) &&
+        latestOperations.get(queryClient)?.get(context.operationKey) !==
+          context.operationToken
+      ) {
+        void queryClient.invalidateQueries({
+          queryKey: businessReviewPreviewKey(businessId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: businessReviewsKey(businessId),
+        });
+        if (context.authorUserId !== null) {
+          void queryClient.invalidateQueries({
+            queryKey: myReviewsKey(context.authorUserId),
+          });
+        }
+      }
+    },
   });
 }
 
 /** Retrieves the review preview shown on the business profile. */
 export function useBusinessReviewPreview(businessId: number) {
   const userId = useAuthStore((state) => state.user?.id);
+  const submissions = useAuthorReviewSubmissions(businessId);
   const query = useQuery({
     queryKey: businessReviewPreviewKey(businessId),
     queryFn: async (): Promise<BusinessReviewPreview> => {
@@ -294,7 +452,8 @@ export function useBusinessReviewPreview(businessId: number) {
     reviews,
     totalCount: query.error ? null : (query.data?.total_count ?? 0),
     userReview,
-    hasOwnReview: Boolean(userReview),
+    hasOwnReview: Boolean(userReview) || submissions.length > 0,
+    submission: submissions[0] ?? null,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,
     error: query.error,
@@ -390,7 +549,12 @@ export function useMerchantBusinessReviews(businessId: number) {
 
 export function useCreateReview(businessId: number) {
   return useReviewMutation<
-    { text: string; photos: LocalReviewPhoto[]; showInCommunity?: boolean },
+    {
+      text: string;
+      photos: LocalReviewPhoto[];
+      showInCommunity?: boolean;
+      businessName?: string;
+    },
     ReviewCreateResult
   >(
     businessId,

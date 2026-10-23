@@ -8,6 +8,8 @@ import { theme } from "@/constants/theme";
 import MerchantReviewResponse from "@/features/explore/components/business-profile/reviews/MerchantReviewResponse";
 import ReviewContent from "@/features/explore/components/business-profile/reviews/ReviewContent";
 import { reviewModerationFeedback } from "@/features/explore/utils/reviewModeration.utils";
+import { useAuthorReviewSource } from "@/features/explore/hooks/useAuthorReviewSource";
+import { useReviewWorkflowStore } from "@/features/explore/stores/reviewWorkflow.store";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
@@ -63,12 +65,19 @@ const statusPresentation: Record<MyReview["status"], StatusPresentation> = {
  * merchant response.
  */
 function MyReviewCard({
-  review,
+  review: suppliedReview,
   onActions,
 }: {
   review: MyReview;
   onActions?: (review: MyReview) => void;
 }) {
+  const review = useAuthorReviewSource(
+    suppliedReview.business.id,
+    suppliedReview,
+  );
+  const saving = useReviewWorkflowStore((state) =>
+    Boolean(state.edits[review.id]),
+  );
   const { business } = review;
   const isAvailable = business.status === "active";
   const status = {
@@ -175,6 +184,14 @@ function MyReviewCard({
       </View>
 
       {/* Review content and attached photos */}
+      {saving && (
+        <AppText
+          accessibilityLiveRegion="polite"
+          className="mt-2 text-xs text-text-secondary"
+        >
+          Saving changes…
+        </AppText>
+      )}
       {review.status !== "published" && (
         <AppText className="mt-2 text-xs text-text-secondary">
           {reviewModerationFeedback(review).description}
