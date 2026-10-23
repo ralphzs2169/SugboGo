@@ -14,7 +14,10 @@ from apps.business.models import (
     Location,
 )
 from apps.reviews.models import Review, ReviewReply
-from apps.reviews.services.review_reply_service import ReviewReplyService
+from apps.reviews.services.review_reply_service import (
+    ReviewReplyEditConflict,
+    ReviewReplyService,
+)
 from apps.reviews.services.tests.review_moderation_test_mixin import (
     create_and_moderate_review,
     SafeReviewModerationMixin,
@@ -477,6 +480,26 @@ class ReviewReplyDetailViewTests(SafeReviewModerationMixin, APITestCase):
         self.assertIn("created_at", data)
         self.assertIn("updated_at", data)
         self.assertIn("photos", data)
+
+    def test_stale_reply_edit_uses_existing_conflict_envelope(self):
+        with patch.object(
+            ReviewReplyService,
+            "update_reply",
+            side_effect=ReviewReplyEditConflict(),
+        ):
+            response = self.client.patch(
+                self.detail_url,
+                {"text": "Stale proposed reply."},
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data, {
+            "success": False,
+            "message": "This reply changed while you were editing. Reload it and try again.",
+            "code": "REVIEW_REPLY_EDIT_CONFLICT",
+        })
+        self.reply.refresh_from_db()
+        self.assertEqual(self.reply.RPLY_TEXT, "Original reply.")
 
     def test_update_reply_rejects_non_owner_merchant(self):
         self.client.force_authenticate(self.other_merchant)
