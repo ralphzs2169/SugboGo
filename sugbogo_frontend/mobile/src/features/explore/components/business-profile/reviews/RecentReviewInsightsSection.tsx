@@ -50,6 +50,7 @@ export default function RecentReviewInsightsSection({
 }: Props) {
   const recentCount = insights?.eligible_review_count ?? 0;
   const hasRecentReviews = recentCount > 0;
+  const classifiedCount = insights?.classified_review_count ?? 0;
 
   const progress = resolveReviewInsightRegeneration(regeneration, insights);
   const tracked = isTrackedReviewInsightRegeneration(progress);
@@ -59,9 +60,11 @@ export default function RecentReviewInsightsSection({
   );
 
   const showSentiment = Boolean(
-    hasRecentReviews &&
     insights?.has_sufficient_sentiment_data &&
-    insights.overall_vibe,
+    classifiedCount > 0 &&
+    Object.values(insights.sentiment).some(
+      (item) => item.count > 0 && item.percentage > 0,
+    ),
   );
 
   const isUpdating = Boolean(
@@ -80,7 +83,8 @@ export default function RecentReviewInsightsSection({
       {/* Review Insights heading and recent-review context */}
       {showSectionHeader && (
         <ReviewInsightsHeader
-          recentCount={recentCount}
+          recentCount={showSentiment ? classifiedCount : recentCount}
+          reviewPopulation={showSentiment ? "classified" : "eligible"}
           overallVibe={overallVibe}
         />
       )}
@@ -131,16 +135,27 @@ export default function RecentReviewInsightsSection({
           title="Recent insights are not available yet"
           description="Insights will appear after recent reviews are processed."
         />
-      ) : !hasRecentReviews && !isUpdating ? (
+      ) : !showSectionHeader &&
+        !isUpdating &&
+        insights.state !== "insufficient_reviews" ? (
         <ReviewInsightsStateCard
           icon="chart-box-outline"
-          title="No recent insights yet"
-          description={`At least ${insights.minimum_eligible_review_count} eligible reviews from the past 30 days are needed to generate insights.`}
+          title={
+            hasRecentReviews
+              ? "Recent insights are not available yet"
+              : "No recent insights yet"
+          }
+          description={
+            hasRecentReviews
+              ? insights.state_message ||
+                "Insights will appear after recent reviews are processed."
+              : `At least ${insights.minimum_eligible_review_count} eligible reviews from the past 30 days are needed to generate insights.`
+          }
         />
       ) : (
         <>
           {/* Insufficient generated-insight state */}
-          {insights.state === "insufficient_reviews" && (
+          {insights.state === "insufficient_reviews" && !showSectionHeader && (
             <ReviewInsightsStateCard
               icon="chart-box-outline"
               title="Not enough recent reviews yet"
