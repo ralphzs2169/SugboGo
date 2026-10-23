@@ -23,6 +23,7 @@ from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
+    ReviewMediaCleanup,
     ReviewPhoto,
     ReviewReply,
 )
@@ -1321,6 +1322,12 @@ class ReviewDetailViewTests(APITestCase):
     """Tests for the review update/delete endpoint."""
 
     def setUp(self):
+        cleanup_patcher = patch(
+            "apps.reviews.tasks.cleanup_review_media_asset.apply_async",
+        )
+        self.cleanup_enqueue = cleanup_patcher.start()
+        self.addCleanup(cleanup_patcher.stop)
+
         moderation_patcher = patch(
             "apps.reviews.services.review_service.ReviewModerationService.moderate",
             return_value={
@@ -1433,7 +1440,14 @@ class ReviewDetailViewTests(APITestCase):
                 self.assertEqual(response.data["data"]["photos"], [])
                 self.assertFalse(self.review.photos.exists())
                 for photo in photos:
-                    delete_image.assert_any_call(photo.RPHO_PHOTO_PUBLIC_ID)
+                    self.assertTrue(
+                        ReviewMediaCleanup.objects.filter(
+                            RMCU_REVIEW_ID=self.review.pk,
+                            RMCU_PUBLIC_ID=photo.RPHO_PHOTO_PUBLIC_ID,
+                            RMCU_RESOURCE_TYPE="image",
+                        ).exists(),
+                    )
+                delete_image.assert_not_called()
 
     @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
     @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
@@ -1466,7 +1480,14 @@ class ReviewDetailViewTests(APITestCase):
                 pk__in=[photo.pk for photo in originals],
             ).exists(),
         )
-        self.assertEqual(delete_image.call_count, 3)
+        delete_image.assert_not_called()
+        self.assertEqual(
+            ReviewMediaCleanup.objects.filter(
+                RMCU_REVIEW_ID=self.review.pk,
+            ).count(),
+            3,
+        )
+        self.assertEqual(self.cleanup_enqueue.call_count, 3)
         self.assertEqual(self.moderate_review.call_args.kwargs["image_urls"], [])
         self.assertEqual(len(self.moderate_review.call_args.kwargs["photos"]), 1)
 
@@ -1500,7 +1521,14 @@ class ReviewDetailViewTests(APITestCase):
             {photo["id"] for photo in response.data["data"]["photos"]},
             {photos[0].pk, photos[2].pk},
         )
-        delete_image.assert_called_once_with(photos[1].RPHO_PHOTO_PUBLIC_ID)
+        delete_image.assert_not_called()
+        cleanup = ReviewMediaCleanup.objects.get(
+            RMCU_PUBLIC_ID=photos[1].RPHO_PHOTO_PUBLIC_ID,
+        )
+        self.cleanup_enqueue.assert_called_once_with(
+            args=[cleanup.pk],
+            retry=False,
+        )
 
     def test_invalid_or_mixed_retention_values_remain_rejected(self):
         photos = self._add_existing_photos(1)

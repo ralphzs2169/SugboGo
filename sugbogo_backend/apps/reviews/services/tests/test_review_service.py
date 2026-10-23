@@ -80,6 +80,12 @@ class ReviewServiceTests(TestCase):
         self.moderate_review = moderation_patcher.start()
         self.addCleanup(moderation_patcher.stop)
 
+        cleanup_patcher = patch(
+            "apps.reviews.tasks.cleanup_review_media_asset.apply_async",
+        )
+        self.cleanup_enqueue = cleanup_patcher.start()
+        self.addCleanup(cleanup_patcher.stop)
+
     def test_under_review_lifecycle_and_public_count(self):
         """A held review can be published once and counted only after approval."""
         review = Review.objects.create(
@@ -1685,7 +1691,14 @@ class ReviewServiceTests(TestCase):
             ],
             [replacement_record.pk, retained.pk],
         )
-        mock_delete.assert_called_once_with("sugbogo/reviews/removed")
+        mock_delete.assert_not_called()
+        cleanup = ReviewMediaCleanup.objects.get(
+            RMCU_PUBLIC_ID="sugbogo/reviews/removed",
+        )
+        self.cleanup_enqueue.assert_called_once_with(
+            args=[cleanup.pk],
+            retry=False,
+        )
 
     def test_photo_removal_skips_ai_and_removes_stale_photo_finding(self):
         review = ReviewService.create_review(
@@ -1798,8 +1811,13 @@ class ReviewServiceTests(TestCase):
             ).exists(),
         )
 
-        mock_delete.assert_called_once_with(
-            "sugbogo/reviews/second",
+        mock_delete.assert_not_called()
+        cleanup = ReviewMediaCleanup.objects.get(
+            RMCU_PUBLIC_ID="sugbogo/reviews/second",
+        )
+        self.cleanup_enqueue.assert_called_once_with(
+            args=[cleanup.pk],
+            retry=False,
         )
 
     def test_update_review_rejects_more_than_three_photos(self):
@@ -2243,8 +2261,13 @@ class ReviewServiceTests(TestCase):
             ).exists(),
         )
 
-        mock_delete.assert_called_once_with(
-            "sugbogo/reviews/review",
+        mock_delete.assert_not_called()
+        cleanup = ReviewMediaCleanup.objects.get(
+            RMCU_PUBLIC_ID="sugbogo/reviews/review",
+        )
+        self.cleanup_enqueue.assert_called_once_with(
+            args=[cleanup.pk],
+            retry=False,
         )
 
     def test_delete_photo_rejects_nonexistent_photo(self):

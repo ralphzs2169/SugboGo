@@ -24,6 +24,7 @@ from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
     ReviewLike,
+    ReviewMediaCleanup,
     ReviewPhoto,
     ReviewReport,
     ReviewReply,
@@ -1153,16 +1154,22 @@ class ReviewService:
             )
 
         if removed_photos:
+            ReviewMediaCleanupService.register_assets(
+                review_id=review.pk,
+                assets={
+                    (
+                        photo.RPHO_PHOTO_PUBLIC_ID,
+                        ReviewMediaCleanup.ResourceType.IMAGE,
+                    )
+                    for photo in removed_photos
+                },
+            )
             ReviewPhoto.objects.filter(
-                RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
+                RPHO_ID__in=[
+                    photo.RPHO_ID
+                    for photo in removed_photos
+                ],
             ).delete()
-            for photo in removed_photos:
-                transaction.on_commit(
-                    lambda public_id=photo.RPHO_PHOTO_PUBLIC_ID: (
-                        CloudinaryService.delete_image(public_id)
-                    ),
-                    robust=True,
-                )
 
         if moderation is not None:
             accepted_moderation = deepcopy(moderation)
@@ -1385,6 +1392,7 @@ class ReviewService:
         user: User,
         photo_id: int,
     ) -> None:
+        """Remove an author's photo while retaining durable cleanup intent until success."""
         review_id = (
             ReviewPhoto.objects
             .filter(RPHO_ID=photo_id)
@@ -1416,15 +1424,19 @@ class ReviewService:
                 "This review cannot be edited while it is under review.",
             )
 
-        public_id = photo.RPHO_PHOTO_PUBLIC_ID
+        ReviewMediaCleanupService.register_assets(
+            review_id=review.pk,
+            assets={
+                (
+                    photo.RPHO_PHOTO_PUBLIC_ID,
+                    ReviewMediaCleanup.ResourceType.IMAGE,
+                ),
+            },
+        )
         photo.delete()
         ReviewService._reconcile_removed_photo_findings(
             review,
             set(review.photos.values_list("RPHO_ID", flat=True)),
-        )
-        transaction.on_commit(
-            lambda: CloudinaryService.delete_image(public_id),
-            robust=True,
         )
 
     @staticmethod
