@@ -57,7 +57,7 @@ def retry_failed_review_moderation(
     review_id: int,
     expected_attempt: int | None = None,
 ) -> str:
-    """Use persisted attempt identity and redispatch recoverable provider failures."""
+    """Process initial or retry work and redispatch recoverable provider failures."""
     logger.info(
         "Review moderation retry started.",
         extra={
@@ -101,7 +101,7 @@ def retry_failed_review_moderation(
 
 @shared_task(name="apps.reviews.tasks.recover_review_moderation_retries")
 def recover_review_moderation_retries() -> int:
-    """Recover due provider-failure moderation independently of message history."""
+    """Recover initial and provider-failure moderation independently of message history."""
     return ReviewModerationRetryService.recover_pending()
 
 

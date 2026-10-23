@@ -1,4 +1,4 @@
-"""Recover reviews held only because content moderation could not complete."""
+"""Process explicitly queued initial checks and recover failed review moderation."""
 
 import logging
 import math
@@ -25,13 +25,30 @@ class ReviewModerationRetryService:
     RETRY_MAX_SECONDS = 300
     CLAIM_SECONDS = 120
     RECOVERY_BATCH_SIZE = 100
+    INITIAL_OUTCOME = "pending_initial"
+
+    @staticmethod
+    def initial_metadata() -> dict:
+        """Build explicit first-check intent for a held review's owning transaction."""
+        return {
+            "outcome": ReviewModerationRetryService.INITIAL_OUTCOME,
+            "checked_at": None,
+            "failure_type": None,
+            "findings": [],
+            "retry_attempt": 0,
+            "retryable": True,
+            "retry_exhausted": False,
+            "last_attempted_at": None,
+            "last_provider_failure": None,
+            "retry_next_attempt_at": timezone.now().isoformat(),
+        }
 
     @staticmethod
     def _is_retryable(
         review: Review,
         expected_attempt: int | None = None,
     ) -> bool:
-        """Exclude completed decisions and preserve legacy retry metadata defaults."""
+        """Accept explicit first checks or existing failures without guessing legacy intent."""
         metadata = review.REVW_MODERATION_DATA
         if not isinstance(metadata, dict):
             return False
@@ -41,9 +58,26 @@ class ReviewModerationRetryService:
             return False
 
         attempt = metadata.get("retry_attempt", 0)
+        initial = (
+            metadata.get("outcome") == ReviewModerationRetryService.INITIAL_OUTCOME
+            and metadata.get("retry_attempt") == 0
+            and metadata.get("retryable") is True
+            and metadata.get("retry_exhausted") is False
+            and metadata.get("findings") == []
+            and metadata.get("checked_at") is None
+            and metadata.get("failure_type") is None
+            and metadata.get("last_attempted_at") is None
+            and metadata.get("last_provider_failure") is None
+            and ReviewModerationRetryService._timestamp(
+                metadata.get("retry_next_attempt_at"),
+            ) is not None
+        )
         return (
             review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW
-            and metadata.get("outcome") == "provider_failure"
+            and (
+                initial
+                or metadata.get("outcome") == "provider_failure"
+            )
             and metadata.get("retryable", True) is True
             and metadata.get("retry_exhausted", False) is False
             and type(attempt) is int
@@ -143,6 +177,7 @@ class ReviewModerationRetryService:
         return {
             "token": token,
             "attempt": attempt,
+            "outcome": metadata["outcome"],
             "text": review.REVW_TEXT,
             "photos": list(
                 review.photos.order_by("RPHO_ID").values_list(
@@ -195,7 +230,8 @@ class ReviewModerationRetryService:
                 previous_metadata.get("retry_claim_expires_at"),
             )
             if (
-                previous_metadata.get("retry_claim_token") != claim["token"]
+                previous_metadata.get("outcome") != claim["outcome"]
+                or previous_metadata.get("retry_claim_token") != claim["token"]
                 or expires is None
                 or expires <= timezone.now()
             ):
@@ -236,7 +272,10 @@ class ReviewModerationRetryService:
                 moderation["failure_type"] = "IncompleteModeration"
 
             attempt = claim["attempt"]
-            moderation["retry_attempt"] = attempt + 1
+            initial = claim["outcome"] == ReviewModerationRetryService.INITIAL_OUTCOME
+            moderation["retry_attempt"] = attempt
+            if not initial:
+                moderation["retry_attempt"] += 1
             moderation["last_attempted_at"] = timezone.now().isoformat()
             moderation["last_provider_failure"] = previous_metadata.get(
                 "last_provider_failure",
@@ -244,7 +283,7 @@ class ReviewModerationRetryService:
             )
 
             if moderation["outcome"] == "provider_failure":
-                exhausted = attempt >= max_retries
+                exhausted = not initial and attempt >= max_retries
                 moderation["retryable"] = not exhausted
                 moderation["retry_exhausted"] = exhausted
                 moderation["last_provider_failure"] = moderation["failure_type"]
@@ -254,10 +293,13 @@ class ReviewModerationRetryService:
 
             moderation["retry_next_attempt_at"] = None
             if moderation["retryable"]:
+                # A first-check failure enters the same immediate retry-zero path
+                # as today's failed synchronous submission assessment.
+                delay = 0
+                if not initial:
+                    delay = ReviewModerationRetryService._backoff(attempt)
                 moderation["retry_next_attempt_at"] = (
-                    timezone.now() + timedelta(
-                        seconds=ReviewModerationRetryService._backoff(attempt),
-                    )
+                    timezone.now() + timedelta(seconds=delay)
                 ).isoformat()
 
             current.REVW_MODERATION_DATA = moderation
@@ -310,12 +352,15 @@ class ReviewModerationRetryService:
 
     @staticmethod
     def recover_pending() -> int:
-        """Redispatch a bounded batch of due or interrupted provider-failure checks."""
+        """Redispatch due initial checks and failures through the shared bounded sweep."""
         candidates = (
             Review.objects
             .filter(
                 REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
-                REVW_MODERATION_DATA__outcome="provider_failure",
+                REVW_MODERATION_DATA__outcome__in=[
+                    "provider_failure",
+                    ReviewModerationRetryService.INITIAL_OUTCOME,
+                ],
             )
             .filter(
                 Q(
