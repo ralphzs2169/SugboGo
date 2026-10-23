@@ -204,6 +204,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(result["sentiment_updated"], 1)
         self.assertEqual(result["failed_business_ids"], [])
         self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(len(summary.BRSU_SENTIMENT_SOURCES), 1)
 
     def test_scores_review_and_recomputes_summary_without_keywords(self):
         review = self.create_review(

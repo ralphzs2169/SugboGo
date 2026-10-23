@@ -14,6 +14,9 @@ from apps.reviews.models import (
 from apps.reviews.serializers.review_reply_serializers import (
     ReviewReplyResponseSerializer,
 )
+from apps.reviews.services.business_review_summary_service import (
+    BusinessReviewSummaryService,
+)
 from apps.reviews.services.review_moderation_retry_service import (
     ReviewModerationRetryService,
 )
@@ -318,6 +321,9 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             data["moderation_progress"] = ReviewModerationProgressSerializer(
                 instance,
             ).data
+            data["sentiment_aggregate_included"] = (
+                BusinessReviewSummaryService.is_sentiment_included(instance)
+            )
         return data
 
 

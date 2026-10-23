@@ -373,6 +373,7 @@ class MyReviewViewTests(
             "text",
             "status",
             "moderation_progress",
+            "sentiment_aggregate_included",
             "created_at",
             "updated_at",
             "edited_at",

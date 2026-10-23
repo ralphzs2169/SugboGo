@@ -32,6 +32,7 @@ class ReviewInsightRegenerationMigrationTests(SummaryFixtureMixin, TransactionTe
             BRSU_GENERATION_STATE="outdated",
         )
         before = BusinessReviewSummary.objects.values().get(pk=summary.pk)
+        before.pop("BRSU_SENTIMENT_SOURCES")
         apps = self.migrate(self.migrate_to)
         work_model = apps.get_model("reviews", "ReviewInsightRegeneration")
         record = work_model.objects.create(BUSN_ID_id=business.pk)
@@ -42,7 +43,10 @@ class ReviewInsightRegenerationMigrationTests(SummaryFixtureMixin, TransactionTe
         self.assertEqual(upgraded.RIRG_COMPLETED_REVISION, 0)
         self.assertEqual(upgraded.RIRG_INPUT_FINGERPRINT, "")
         self.assertIsNone(upgraded.RIRG_RECHECK_AT)
-        self.assertEqual(BusinessReviewSummary.objects.values().get(pk=summary.pk), before)
+        self.assertEqual(
+            BusinessReviewSummary.objects.values(*before).get(pk=summary.pk),
+            before,
+        )
         with self.assertRaises(OperationalError):
             with transaction.atomic():
                 BusinessReviewSummary.objects.filter(pk=summary.pk).update(
@@ -54,7 +58,10 @@ class ReviewInsightRegenerationMigrationTests(SummaryFixtureMixin, TransactionTe
             BRSU_NARRATIVE="Preserved legacy content.",
         )
         self.migrate(("reviews", "0026_review_insight_publication_fence"))
-        self.assertEqual(BusinessReviewSummary.objects.values().get(pk=summary.pk), before)
+        self.assertEqual(
+            BusinessReviewSummary.objects.values(*before).get(pk=summary.pk),
+            before,
+        )
         self.assertEqual(work_model.objects.get(pk=record.pk).RIRG_REQUESTED_REVISION, 0)
 
     def test_forward_backward_forward_preserves_summaries_and_seeds_no_work(self):
@@ -68,6 +75,7 @@ class ReviewInsightRegenerationMigrationTests(SummaryFixtureMixin, TransactionTe
             BRSU_KEYWORDS_ATTEMPT_FINGERPRINT="original-attempt",
         )
         before = BusinessReviewSummary.objects.values().get(pk=summary.pk)
+        before.pop("BRSU_SENTIMENT_SOURCES")
         self.migrate(self.migrate_from)
         self.assertNotIn(
             "REVIEW_INSIGHT_REGENERATION",

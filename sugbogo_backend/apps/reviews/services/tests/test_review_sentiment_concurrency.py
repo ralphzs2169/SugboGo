@@ -101,6 +101,11 @@ class ReviewSentimentConcurrencyTests(SummaryFixtureMixin, TransactionTestCase):
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
         self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 0)
+        self.assertEqual(summary.BRSU_SENTIMENT_SOURCES, {
+            str(self.review.pk): BusinessReviewSummaryService.sentiment_source(
+                self.review,
+            ),
+        })
 
     def test_duplicate_inflight_classification_preserves_winning_score(self):
         self._assert_duplicate_race()
@@ -157,6 +162,12 @@ class ReviewSentimentConcurrencyTests(SummaryFixtureMixin, TransactionTestCase):
         self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
         self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
         self.assertEqual(BusinessReviewSummary.objects.count(), 1)
+        for review in (self.review, second_review):
+            current = BusinessReviewSummaryService.annotate_sentiment_source(
+                Review.objects.all(),
+                review.USER_ID,
+            ).get(pk=review.pk)
+            self.assertTrue(BusinessReviewSummaryService.is_sentiment_included(current))
 
     def test_multiple_reviews_with_concurrent_initial_summary_creation(self):
         self._assert_multiple_reviews()
@@ -218,6 +229,80 @@ class ReviewSentimentConcurrencyTests(SummaryFixtureMixin, TransactionTestCase):
         else:
             self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
             self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
+            self.assertEqual(summary.BRSU_SENTIMENT_SOURCES, {})
+
+    def test_score_committed_after_snapshot_is_not_verified_by_later_timestamp(self):
+        """A score between source SELECT and summary save is absent from provenance."""
+        BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
+        captured = Event()
+        release = Event()
+
+        def pause_source_read(
+            execute,
+            sql,
+            params,
+            many,
+            context,
+        ):
+            result = execute(sql, params, many, context)
+            if 'FROM "BUSINESS_REVIEW"' in sql:
+                captured.set()
+                if not release.wait(10):
+                    raise TimeoutError("Source read was not released.")
+            return result
+
+        def aggregate():
+            try:
+                with connection.execute_wrapper(pause_source_read):
+                    return BusinessReviewSummaryService.recompute_sentiment(
+                        self.business.pk,
+                    )
+            finally:
+                connections.close_all()
+
+        with (
+            patch(
+                "apps.reviews.services.review_sentiment_service.route_sentiment",
+                return_value=(0.7, "Positive", "vader"),
+            ) as scorer,
+            ThreadPoolExecutor(max_workers=1) as executor,
+        ):
+            pending = executor.submit(aggregate)
+            try:
+                self.assertTrue(captured.wait(10))
+                self.assertEqual(
+                    ReviewSentimentService.process_review(
+                        self.review.pk,
+                        recompute_summary=False,
+                    ),
+                    "updated",
+                )
+            finally:
+                release.set()
+            pending.result(timeout=10)
+            self.review.refresh_from_db()
+            summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
+            self.assertGreater(
+                summary.BRSU_SENTIMENT_COMPUTED_AT,
+                self.review.REVW_UPDATED_AT,
+            )
+            self.assertEqual(summary.BRSU_SENTIMENT_SOURCES, {})
+            current = BusinessReviewSummaryService.annotate_sentiment_source(
+                Review.objects.all(),
+                self.review.USER_ID,
+            ).get(pk=self.review.pk)
+            self.assertFalse(BusinessReviewSummaryService.is_sentiment_included(current))
+        with patch(
+            "apps.reviews.services.review_sentiment_service.route_sentiment",
+        ) as repeat_inference:
+            ReviewSentimentService.process_review(self.review.pk)
+        repeat_inference.assert_not_called()
+        scorer.assert_called_once()
+        current = BusinessReviewSummaryService.annotate_sentiment_source(
+            Review.objects.all(),
+            self.review.USER_ID,
+        ).get(pk=self.review.pk)
+        self.assertTrue(BusinessReviewSummaryService.is_sentiment_included(current))
 
     def test_rejection_during_inference(self):
         self._assert_source_mutation("reject")

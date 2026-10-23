@@ -645,7 +645,10 @@ class ReviewService:
         )
 
         return (
-            Review.objects
+            BusinessReviewSummaryService.annotate_sentiment_source(
+                Review.objects.all(),
+                user,
+            )
             .select_related("USER_ID")
             .annotate(
                 is_liked=Exists(likes),
