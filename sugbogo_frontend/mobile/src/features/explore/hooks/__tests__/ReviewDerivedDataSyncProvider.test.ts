@@ -1,4 +1,8 @@
-import type { BusinessReviewInsights } from "../../types/exploreBusiness.types";
+import type {
+  BusinessReviewInsights,
+  ReviewInsightRegeneration,
+} from "../../types/exploreBusiness.types";
+import { resolveReviewInsightRegeneration } from "../../utils/reviewInsightRegeneration.utils";
 import type { BusinessReview } from "../../types/review.types";
 import {
   isSentimentSynchronizationComplete,
@@ -40,6 +44,65 @@ function insights(
 }
 
 describe("review-derived data synchronization", () => {
+  const scheduled: ReviewInsightRegeneration = {
+    status: "scheduled",
+    is_outstanding: true,
+    requested_revision: 3,
+    completed_revision: 2,
+    run_after: null,
+    content_available: true,
+    content_is_current: false,
+  };
+
+  it("prefers top-level progress over a conflicting nested snapshot", () => {
+    const nested = {
+      ...scheduled,
+      status: "idle" as const,
+      is_outstanding: false,
+    };
+    expect(
+      resolveReviewInsightRegeneration(scheduled, {
+        ...insights("ready", null, null),
+        regeneration: nested,
+      }),
+    ).toBe(scheduled);
+    expect(
+      resolveReviewInsightRegeneration(undefined, {
+        ...insights("ready", null, null),
+        regeneration: nested,
+      }),
+    ).toBe(nested);
+  });
+
+  it("uses completed revisions even without content or a changed generation timestamp", () => {
+    const session: GeneratedInsightsSyncSession = {
+      baselineGeneratedAt: "unchanged",
+      baselineRequestedRevision: 2,
+      targetRevision: 3,
+      startedAt: 0,
+    };
+    expect(
+      shouldStopGeneratedInsightsSync(session, null, false, scheduled),
+    ).toBe(false);
+    expect(
+      shouldStopGeneratedInsightsSync(session, null, false, {
+        ...scheduled,
+        status: "idle",
+        is_outstanding: false,
+        requested_revision: 2,
+        completed_revision: 2,
+      }),
+    ).toBe(false);
+    expect(
+      shouldStopGeneratedInsightsSync(session, null, false, {
+        ...scheduled,
+        status: "idle",
+        is_outstanding: false,
+        completed_revision: 3,
+        content_available: false,
+      }),
+    ).toBe(true);
+  });
   const sentimentSession: SentimentSyncSession = {
     reviewId: 18,
     baselineComputedAt: "2026-09-28T01:00:00Z",
@@ -134,9 +197,9 @@ describe("review-derived data synchronization", () => {
     };
     const unchanged = insights("ready", "2026-09-28T01:00:00Z", null);
 
-    expect(
-      shouldStopGeneratedInsightsSync(session, unchanged, false),
-    ).toBe(false);
+    expect(shouldStopGeneratedInsightsSync(session, unchanged, false)).toBe(
+      false,
+    );
   });
 
   it("waits for a post-mutation insufficient result", () => {

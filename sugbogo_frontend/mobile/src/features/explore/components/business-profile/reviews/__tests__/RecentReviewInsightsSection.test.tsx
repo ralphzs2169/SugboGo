@@ -1,6 +1,9 @@
 import { render } from "@testing-library/react-native";
 
-import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
+import type {
+  BusinessReviewInsights,
+  ReviewInsightRegeneration,
+} from "../../../../types/exploreBusiness.types";
 import RecentReviewInsightsSection from "../RecentReviewInsightsSection";
 
 const insights: BusinessReviewInsights = {
@@ -30,6 +33,97 @@ const insights: BusinessReviewInsights = {
 };
 
 describe("RecentReviewInsightsSection", () => {
+  const scheduled: ReviewInsightRegeneration = {
+    status: "scheduled",
+    is_outstanding: true,
+    requested_revision: 2,
+    completed_revision: 1,
+    run_after: null,
+    content_available: true,
+    content_is_current: false,
+  };
+
+  it.each([
+    ["scheduled", /refreshed shortly/],
+    ["processing", /Updating insights with the latest reviews/],
+    ["retry_wait", /taking longer to update/],
+  ] as const)(
+    "shows subtle %s feedback with retained content",
+    async (status, message) => {
+      const screen = await render(
+        <RecentReviewInsightsSection
+          insights={insights}
+          regeneration={{ ...scheduled, status }}
+        />,
+      );
+      expect(screen.getByText(message)).toBeTruthy();
+      expect(screen.getByText(/Showing previous insights/)).toBeTruthy();
+      expect(screen.getByText(insights.narrative!)).toBeTruthy();
+      expect(screen.getByTestId("insight-update-status")).toBeTruthy();
+    },
+  );
+
+  it("uses top-level metadata to hide invalidated content and child mentions", async () => {
+    const screen = await render(
+      <RecentReviewInsightsSection
+        insights={{
+          ...insights,
+          regeneration: { ...scheduled, content_available: true },
+        }}
+        regeneration={{ ...scheduled, content_available: false }}
+      />,
+    );
+    expect(screen.queryByText(insights.narrative!)).toBeNull();
+    expect(screen.getByText(/refreshed shortly/)).toBeTruthy();
+  });
+
+  it("shows queued feedback with no summary and stops feedback on deterministic completion", async () => {
+    const screen = await render(
+      <RecentReviewInsightsSection
+        insights={null}
+        regeneration={{ ...scheduled, content_available: false }}
+      />,
+    );
+    expect(screen.getByText(/refreshed shortly/)).toBeTruthy();
+    await screen.rerender(
+      <RecentReviewInsightsSection
+        insights={{
+          ...insights,
+          state: "insufficient_reviews",
+          content_available: false,
+          narrative: null,
+        }}
+        regeneration={{
+          ...scheduled,
+          status: "idle",
+          is_outstanding: false,
+          completed_revision: 2,
+          content_available: false,
+        }}
+      />,
+    );
+    expect(screen.queryByTestId("insight-update-status")).toBeNull();
+    expect(screen.getByText("Not enough recent reviews yet")).toBeTruthy();
+  });
+
+  it("displays completed current content without an updating or retained indicator", async () => {
+    const screen = await render(
+      <RecentReviewInsightsSection
+        insights={insights}
+        regeneration={{
+          ...scheduled,
+          status: "idle",
+          is_outstanding: false,
+          completed_revision: 2,
+          content_is_current: true,
+        }}
+      />,
+    );
+    expect(screen.getByText(insights.narrative!)).toBeTruthy();
+    expect(screen.queryByTestId("insight-update-status")).toBeNull();
+    expect(screen.queryByText(/Showing previous insights/)).toBeNull();
+  });
+
   it("distinguishes an unprocessed summary from zero eligible reviews", async () => {
     const screen = await render(
       <RecentReviewInsightsSection insights={null} />,

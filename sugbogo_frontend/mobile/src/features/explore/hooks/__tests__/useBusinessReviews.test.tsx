@@ -317,6 +317,8 @@ describe("useBusinessReviews", () => {
       baselineGeneratedAt: null,
       baselineUpdatedAt: null,
       baselineState: null,
+      baselineRequestedRevision: null,
+      baselineDataUpdateCount: 0,
       resultNotBefore: expect.any(Number),
       startedAt: expect.any(Number),
     });
@@ -348,6 +350,8 @@ describe("useBusinessReviews", () => {
       baselineGeneratedAt: null,
       baselineInsightsUpdatedAt: null,
       baselineInsightsState: null,
+      baselineRequestedRevision: null,
+      baselineDataUpdateCount: 0,
       startedAt: expect.any(Number),
     });
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
@@ -427,6 +431,8 @@ describe("useBusinessReviews", () => {
       baselineGeneratedAt: null,
       baselineInsightsUpdatedAt: null,
       baselineInsightsState: null,
+      baselineRequestedRevision: null,
+      baselineDataUpdateCount: 0,
       startedAt: expect.any(Number),
     });
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();

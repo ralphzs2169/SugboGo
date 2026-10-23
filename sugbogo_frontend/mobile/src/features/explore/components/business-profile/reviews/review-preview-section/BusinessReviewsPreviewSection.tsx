@@ -9,7 +9,10 @@ import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 
 import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
-import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
+import type {
+  BusinessReviewInsights,
+  ReviewInsightRegeneration,
+} from "../../../../types/exploreBusiness.types";
 import type { BusinessReview } from "../../../../types/review.types";
 import BusinessReviewCardSkeleton from "../../state/BusinessReviewCardSkeleton";
 import BusinessReviewCard from "../BusinessReviewCard";
@@ -24,6 +27,7 @@ type Props = {
   displayAsExplorer?: boolean;
   hasOwnReview: boolean;
   reviewInsights?: BusinessReviewInsights | null;
+  regeneration?: ReviewInsightRegeneration | null;
   onWriteReview: () => void;
   onEditReview: (review: BusinessReview) => void;
 };
@@ -40,6 +44,7 @@ export default function BusinessReviewsPreviewSection({
   displayAsExplorer = false,
   hasOwnReview: businessHasOwnReview,
   reviewInsights,
+  regeneration,
   onWriteReview,
   onEditReview,
 }: Props) {
@@ -105,7 +110,10 @@ export default function BusinessReviewsPreviewSection({
       </View>
 
       {/* Compact review insights */}
-      <ReviewInsightsPreview insights={reviewInsights} />
+      <ReviewInsightsPreview
+        insights={reviewInsights}
+        regeneration={regeneration}
+      />
 
       {/* Loading state */}
       {isLoading && <BusinessReviewCardSkeleton />}

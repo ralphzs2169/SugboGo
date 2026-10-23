@@ -152,6 +152,7 @@ export type ExploreOperatingHours = {
 
 export type ExploreBusinessDetail = ExploreBusiness & {
   review_insights?: BusinessReviewInsights | null;
+  review_insight_regeneration?: ReviewInsightRegeneration | null;
   description: string | null;
   contact_number: string;
   email: string | null;
@@ -174,7 +175,18 @@ export type FrequentMention = {
 
 export type OverallReviewVibe = ReviewVibe;
 
+export type ReviewInsightRegeneration = {
+  status: "untracked" | "idle" | "scheduled" | "processing" | "retry_wait";
+  is_outstanding: boolean;
+  requested_revision: number | null;
+  completed_revision: number | null;
+  run_after: string | null;
+  content_available: boolean;
+  content_is_current: boolean;
+};
+
 export type BusinessReviewInsights = {
+  regeneration?: ReviewInsightRegeneration | null;
   state: "pending" | "insufficient_reviews" | "ready" | "outdated";
   state_message: string | null;
   content_available: boolean;
