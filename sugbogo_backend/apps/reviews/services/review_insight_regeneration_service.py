@@ -1,6 +1,7 @@
-"""Durable coordination primitives, intentionally unused by review lifecycle tasks."""
+"""Durable demand, ownership, and publication fencing for review insights."""
 
 import re
+from contextlib import contextmanager
 from datetime import timedelta
 from uuid import uuid4
 
@@ -264,7 +265,39 @@ class ReviewInsightRegenerationService:
             return None
         if record.RIRG_REQUESTED_REVISION != revision:
             return None
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT set_config('sugbogo.review_insight_attempt', %s, true)",
+                [str(attempt_token)],
+            )
         return record
+
+    @staticmethod
+    @contextmanager
+    def safety_updates(
+        business_id: int,
+    ):
+        """Authorize synchronous evidence removal without granting generation ownership."""
+        if not connection.in_atomic_block:
+            raise ValidationError("Review insight safety updates require a transaction.")
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT current_setting('sugbogo.review_insight_safety', true)",
+            )
+            previous = cursor.fetchone()[0] or ""
+            cursor.execute(
+                "SELECT set_config('sugbogo.review_insight_safety', %s, true)",
+                [str(business_id)],
+            )
+        try:
+            yield
+        finally:
+            if not connection.needs_rollback:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT set_config('sugbogo.review_insight_safety', %s, true)",
+                        [previous],
+                    )
 
     @staticmethod
     @transaction.atomic
@@ -371,6 +404,8 @@ class ReviewInsightRegenerationService:
         business_id: int,
         revision: int,
         attempt_token,
+        input_fingerprint: str | None = None,
+        recheck_at=None,
     ) -> bool:
         """Acknowledge an authorized current evaluation atomically with future publication."""
         record = ReviewInsightRegenerationService._locked_record(business_id)
@@ -390,6 +425,9 @@ class ReviewInsightRegenerationService:
         record.RIRG_DUE_AT = None
         record.RIRG_RETRY_NOT_BEFORE = None
         record.RIRG_LAST_ERROR = ""
+        if input_fingerprint is not None:
+            record.RIRG_INPUT_FINGERPRINT = input_fingerprint
+            record.RIRG_RECHECK_AT = recheck_at
         ReviewInsightRegenerationService._clear_ownership(record)
         record.save(
             update_fields=[
@@ -399,6 +437,8 @@ class ReviewInsightRegenerationService:
                 "RIRG_DUE_AT",
                 "RIRG_RETRY_NOT_BEFORE",
                 "RIRG_LAST_ERROR",
+                "RIRG_INPUT_FINGERPRINT",
+                "RIRG_RECHECK_AT",
                 "RIRG_ATTEMPT_TOKEN",
                 "RIRG_CLAIMED_REVISION",
                 "RIRG_LEASE_EXPIRES_AT",

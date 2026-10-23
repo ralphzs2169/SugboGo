@@ -46,10 +46,14 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         })
 
     def refresh(self):
-        return ReviewKeywordService.refresh(
-            self.business.pk,
-            reference_time=self.reference_time,
-        )
+        """Exercise retained old-worker behavior behind its original advisory lock."""
+        with ReviewKeywordService.generation_lock(self.business.pk) as acquired:
+            if not acquired:
+                return "busy"
+            return ReviewKeywordService._refresh_locked(
+                self.business.pk,
+                reference_time=self.reference_time,
+            )
 
     def allow_next_day(self):
         BusinessReviewSummary.objects.filter(pk=self.summary.pk).update(

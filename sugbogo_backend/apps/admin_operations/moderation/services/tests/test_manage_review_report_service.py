@@ -9,7 +9,8 @@ from rest_framework.exceptions import ValidationError
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.moderation.services.manage_review_report_service import ManageReviewReportService
 from apps.business.models import Business
-from apps.reviews.models import Review, ReviewReport, BusinessReviewSummary
+from apps.reviews.models import Review, ReviewReport, BusinessReviewSummary, ReviewInsightRegeneration
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 from apps.reviews.services.review_report_service import ReviewReportService
 from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests import test_review_report_service as report_fixtures
@@ -21,6 +22,7 @@ class ReportFixtures:
     """Provides existing business fixtures and one pending reported review."""
 
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         report_fixtures.ReviewReportServiceTests.setUpTestData.__func__(type(self))
         self.admin = User.objects.create_user(
             email="report-admin@example.com", password=None,
@@ -84,7 +86,13 @@ class ManageReviewReportServiceTests(ReportFixtures, TestCase):
             with self.captureOnCommitCallbacks(execute=True):
                 self.resolve()
                 enqueue.assert_not_called()
-            enqueue.assert_called_once_with(self.business.pk)
+            enqueue.assert_not_called()
+        self.assertTrue(
+            ReviewInsightRegeneration.objects.filter(
+                BUSN_ID=self.business,
+                RIRG_REQUESTED_REVISION__gte=1,
+            ).exists(),
+        )
         self.review.refresh_from_db()
         self.report.refresh_from_db()
         summary.refresh_from_db()

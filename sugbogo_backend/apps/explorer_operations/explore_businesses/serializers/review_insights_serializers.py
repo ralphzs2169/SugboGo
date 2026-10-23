@@ -1,7 +1,8 @@
 from rest_framework import serializers
+from django.utils import timezone
 
 from apps.shared.analytics.policy import current_policy, policy_scope
-from apps.reviews.models import BusinessReviewSummary
+from apps.reviews.models import BusinessReviewSummary, ReviewInsightRegeneration
 
 
 class FrequentMentionSerializer(serializers.Serializer):
@@ -96,6 +97,8 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
 
     def get_state(self, instance):
         """Label incompatible stored generation rules outdated without writing during a read."""
+        if self._expiration_due(instance):
+            return BusinessReviewSummary.GenerationState.OUTDATED
         generated = instance.BRSU_GENERATION_POLICY_VALUES
         if (generated and generated != current_policy().review_rules
                 and instance.BRSU_GENERATION_STATE in {BusinessReviewSummary.GenerationState.READY, BusinessReviewSummary.GenerationState.OUTDATED, BusinessReviewSummary.GenerationState.INSUFFICIENT_REVIEWS}):
@@ -107,6 +110,8 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
 
     def _has_publishable_content(self, instance):
         """Retain stored content only when it meets current narrative eligibility and existing evidence state."""
+        if self._expiration_due(instance):
+            return False
         if instance.BRSU_GENERATION_STATE not in {
             BusinessReviewSummary.GenerationState.READY,
             BusinessReviewSummary.GenerationState.OUTDATED,
@@ -114,6 +119,20 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
             return False
         return bool((instance.BRSU_NARRATIVE or "").strip()) and (
             instance.BRSU_ELIGIBLE_REVIEW_COUNT >= current_policy()["narrative_min_eligible_reviews"]
+        )
+
+    @staticmethod
+    def _expiration_due(
+        instance,
+    ):
+        """Hide elapsed evidence while the periodic expiry reconciliation catches up."""
+        try:
+            work = instance.BUSN_ID.review_insight_regeneration
+        except ReviewInsightRegeneration.DoesNotExist:
+            return False
+        return (
+            work.RIRG_RECHECK_AT is not None
+            and work.RIRG_RECHECK_AT <= timezone.now()
         )
 
     def get_state_message(self, instance):

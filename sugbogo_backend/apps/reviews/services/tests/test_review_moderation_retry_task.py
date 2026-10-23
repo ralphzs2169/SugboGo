@@ -8,7 +8,7 @@ from django.db import connection
 from django.test import SimpleTestCase, TestCase, TransactionTestCase
 
 from apps.business.models import Business, Category, Cluster, Location
-from apps.reviews.models import Review, ReviewPhoto
+from apps.reviews.models import Review, ReviewInsightRegeneration, ReviewPhoto
 from apps.reviews.services.review_moderation_retry_service import (
     ReviewModerationRetryService,
 )
@@ -142,7 +142,13 @@ class ReviewModerationRetryTests(TestCase):
         )
         publish.assert_called_once_with(self.review.pk)
         sentiment.assert_called_once_with(self.review.pk, self.business.pk)
-        insights.assert_called_once_with(self.business.pk)
+        insights.assert_not_called()
+        self.assertEqual(
+            ReviewInsightRegeneration.objects.get(
+                BUSN_ID=self.business,
+            ).RIRG_REQUESTED_REVISION,
+            1,
+        )
         self.review.refresh_from_db()
         self.business.refresh_from_db()
         self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)

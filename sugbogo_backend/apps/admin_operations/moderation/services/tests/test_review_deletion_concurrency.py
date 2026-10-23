@@ -315,7 +315,10 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
                 self.assertEqual(self.explorer.USER_REPUTATION, self.starting_reputation)
             self.assertEqual(
                 Notification.objects.count(),
-                int(first in ("dismiss", "report_reject")) + closure_count,
+                int(first in ("dismiss", "report_reject"))
+                + int(first in ("held_approve", "held_reject"))
+                + int(first == "held_approve")
+                + closure_count,
             )
 
     def _prepare_report(self):

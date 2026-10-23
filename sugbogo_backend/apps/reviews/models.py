@@ -27,6 +27,16 @@ class ReviewInsightRegeneration(models.Model):
     RIRG_REQUESTED_REVISION = models.PositiveBigIntegerField(default=0)
     RIRG_COMPLETED_REVISION = models.PositiveBigIntegerField(default=0)
     RIRG_OBSERVED_REVISION = models.PositiveBigIntegerField(default=0)
+    RIRG_INPUT_FINGERPRINT = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+    )
+    RIRG_RECHECK_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     RIRG_FIRST_CHANGED_AT = models.DateTimeField(
         null=True,
         blank=True,

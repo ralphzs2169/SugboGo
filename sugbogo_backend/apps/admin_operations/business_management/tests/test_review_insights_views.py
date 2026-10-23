@@ -45,10 +45,10 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
                 self.client.force_authenticate(user)
                 with (
                     patch(
-                        "apps.admin_operations.business_management.views.manage_business_views.refresh_business_review_insights.delay",
+                        "apps.reviews.services.review_insight_scheduling_service.ReviewInsightSchedulingService.reconcile",
                     ) as enqueue,
                     patch(
-                        "apps.reviews.services.business_review_insights_service.BusinessReviewInsightsService.refresh",
+                        "apps.reviews.services.business_review_insights_service.BusinessReviewInsightsService.refresh_claim",
                     ) as process,
                 ):
                     response = self.client.post(self.refresh_url)
@@ -66,7 +66,7 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
         self.client.force_authenticate(self.explorer)
 
         with patch(
-            "apps.admin_operations.business_management.views.manage_business_views.refresh_business_review_insights.delay",
+            "apps.reviews.services.review_insight_scheduling_service.ReviewInsightSchedulingService.reconcile",
         ) as enqueue:
             response = self.client.post(self.refresh_url)
 
@@ -77,7 +77,7 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
         self.client.force_authenticate(self.admin)
 
         with patch(
-            "apps.admin_operations.business_management.views.manage_business_views.refresh_business_review_insights.delay",
+            "apps.reviews.services.review_insight_scheduling_service.ReviewInsightSchedulingService.reconcile",
         ) as enqueue:
             response = self.client.post(
                 "/api/admin/businesses/999999/review-insights/refresh/",
@@ -117,6 +117,7 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
         self.assertEqual(
             set(insights),
             {
+                "policy",
                 "state",
                 "state_message",
                 "content_available",

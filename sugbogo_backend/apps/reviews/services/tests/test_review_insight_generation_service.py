@@ -79,6 +79,16 @@ class ReviewInsightGenerationServiceTests(SummaryFixtureMixin, TransactionTestCa
     def state(self):
         return ReviewInsightRegeneration.objects.get(BUSN_ID=self.business)
 
+    def safety_update(
+        self,
+        **fields,
+    ):
+        with (
+            transaction.atomic(),
+            ReviewInsightRegenerationService.safety_updates(self.business.pk),
+        ):
+            return BusinessReviewSummary.objects.filter(pk=self.summary.pk).update(**fields)
+
     def evaluate(
         self,
         claim,
@@ -224,7 +234,7 @@ class ReviewInsightGenerationServiceTests(SummaryFixtureMixin, TransactionTestCa
 
     def test_matching_fingerprint_with_cleared_content_requires_generation(self):
         self.assertEqual(self.evaluate(self.request_claim()), "updated")
-        BusinessReviewSummary.objects.filter(pk=self.summary.pk).update(
+        self.safety_update(
             BRSU_NARRATIVE="",
             BRSU_KEYWORD_TAGS=[],
             BRSU_SUPPORTING_REVIEW_REFERENCES={},
@@ -239,7 +249,7 @@ class ReviewInsightGenerationServiceTests(SummaryFixtureMixin, TransactionTestCa
         self.summary.refresh_from_db()
         generated_at = self.summary.BRSU_GENERATED_AT
         processed_at = self.summary.BRSU_KEYWORDS_PROCESSED_AT
-        BusinessReviewSummary.objects.filter(pk=self.summary.pk).update(
+        self.safety_update(
             BRSU_GENERATION_STATE="outdated",
         )
         self.assertEqual(self.evaluate(self.request_claim()), "unchanged")
@@ -328,7 +338,7 @@ class ReviewInsightGenerationServiceTests(SummaryFixtureMixin, TransactionTestCa
 
     def test_retained_content_stays_outdated_when_acknowledgement_fails(self):
         self.assertEqual(self.evaluate(self.request_claim()), "updated")
-        BusinessReviewSummary.objects.filter(pk=self.summary.pk).update(
+        self.safety_update(
             BRSU_GENERATION_STATE="outdated",
         )
         claim = self.request_claim()

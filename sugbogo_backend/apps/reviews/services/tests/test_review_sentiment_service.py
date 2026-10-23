@@ -15,6 +15,7 @@ from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatc
 from apps.reviews.services.tests.test_business_review_summary_service import (
     SummaryFixtureMixin,
 )
+from apps.reviews.tasks import reconcile_business_review_sentiment
 
 
 class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
@@ -159,7 +160,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 2)
         self.assertEqual(summary.sentiment_percentages["positive"], 50.0)
 
-    def test_manual_refresh_reconciles_before_aggregation(self):
+    def test_manual_refresh_task_reconciles_before_aggregation(self):
         review = self.create_review(
             self.business,
             REVW_SENTIMENT_SCORE=None,
@@ -170,12 +171,20 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
                 "apps.reviews.services.review_sentiment_service.route_sentiment",
                 return_value=(0.5, "Positive", "vader"),
             ),
-            patch.object(ReviewKeywordService, "refresh", return_value="unchanged"),
+            patch(
+                "apps.reviews.services.review_insight_scheduling_service."
+                "ReviewInsightSchedulingService.reconcile",
+                return_value="queued",
+            ),
+            patch.object(reconcile_business_review_sentiment, "apply_async") as dispatch,
         ):
-            result = BusinessReviewInsightsService.refresh(self.business.pk)
+            with self.captureOnCommitCallbacks(execute=True):
+                result = BusinessReviewInsightsService.refresh(self.business.pk)
+            dispatch.assert_called_once_with(args=[self.business.pk], retry=False)
+            reconcile_business_review_sentiment.run(self.business.pk)
 
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
-        self.assertEqual(result["generation_outcome"], "unchanged")
+        self.assertEqual(result["generation_outcome"], "queued")
         self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         review.refresh_from_db()

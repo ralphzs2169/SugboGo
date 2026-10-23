@@ -19,6 +19,7 @@ from apps.reviews.models import BusinessReviewSummary
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
 from apps.reviews.services.tests.test_business_review_summary_service import SummaryFixtureMixin
 from apps.shared.analytics.date_ranges import resolve_period
+from apps.shared.analytics.policy import with_policy_snapshot
 
 from ..analytics_policy_service import AnalyticsPolicyService
 from .test_analytics_policy_service import create_policy_admin
@@ -66,7 +67,7 @@ class AnalyticsPolicyConsumerTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(data["policy"]["provenance"], "legacy_unknown")
         self.assertTrue(all(query["sql"].lstrip().upper().startswith("SELECT") for query in queries))
         self.summary.refresh_from_db()
-        self.assertEqual(self.summary.BRSU_NARRATIVE, "Stored friendly service summary.")
+        self.assertEqual(self.summary.BRSU_NARRATIVE, "")
         self.assertIsNone(self.summary.BRSU_GENERATION_POLICY_VERSION)
 
     def test_higher_mention_rule_filters_stored_mentions_and_labels_original_content(self):
@@ -84,7 +85,7 @@ class AnalyticsPolicyConsumerTests(SummaryFixtureMixin, TestCase):
 
     def test_successful_background_generation_records_its_policy_snapshot(self):
         with patch.object(ReviewKeywordService, "_generate", return_value=self.provider_response()):
-            result = ReviewKeywordService.refresh(self.business.pk)
+            result = with_policy_snapshot(ReviewKeywordService._refresh_locked)(self.business.pk, timezone.now())
         self.assertEqual(result, "updated")
         self.summary.refresh_from_db()
         self.assertEqual(self.summary.BRSU_GENERATION_POLICY_VERSION, 1)
@@ -96,7 +97,7 @@ class AnalyticsPolicyConsumerTests(SummaryFixtureMixin, TestCase):
             return self.provider_response()
 
         with patch.object(ReviewKeywordService, "_generate", side_effect=generate):
-            result = ReviewKeywordService.refresh(self.business.pk)
+            result = with_policy_snapshot(ReviewKeywordService._refresh_locked)(self.business.pk, timezone.now())
         self.assertEqual(result, "stale")
         self.summary.refresh_from_db()
         self.assertNotEqual(self.summary.BRSU_NARRATIVE, "Visitors mention friendly service.")

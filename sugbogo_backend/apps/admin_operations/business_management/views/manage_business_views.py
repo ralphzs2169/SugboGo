@@ -13,7 +13,7 @@ from apps.admin_operations.business_management.services.manage_business_service 
     BusinessService,
 )
 from apps.authentication.permissions import HasRole
-from apps.reviews.tasks import refresh_business_review_insights
+from apps.reviews.services.business_review_insights_service import BusinessReviewInsightsService
 from apps.users.models import User
 
 
@@ -124,12 +124,16 @@ class BusinessReviewInsightsRefreshView(APIView):
         HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
     )
 
-    def post(self, request, business_id):
-        """Verify the business and queue its asynchronous refresh."""
+    def post(
+        self,
+        request,
+        business_id,
+    ):
+        """Verify the business and durably request its debounced refresh."""
         business = BusinessService.get_business_for_review_insights_refresh(
             business_id,
         )
-        refresh_business_review_insights.delay(business.BUSN_ID)
+        BusinessReviewInsightsService.refresh(business.BUSN_ID)
 
         return success_response(
             data={"business_id": business.BUSN_ID},

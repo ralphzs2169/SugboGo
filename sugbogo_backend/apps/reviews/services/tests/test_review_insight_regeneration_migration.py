@@ -1,4 +1,4 @@
-from django.db import connection
+from django.db import OperationalError, connection, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 
@@ -23,6 +23,39 @@ class ReviewInsightRegenerationMigrationTests(SummaryFixtureMixin, TransactionTe
         executor = MigrationExecutor(connection)
         executor.migrate([target])
         return executor.loader.project_state([target]).apps
+
+    def test_publication_fence_roundtrip_preserves_existing_content_and_demand(self):
+        business = self.create_business()
+        summary = BusinessReviewSummary.objects.create(
+            BUSN_ID=business,
+            BRSU_NARRATIVE="Preserved legacy content.",
+            BRSU_GENERATION_STATE="outdated",
+        )
+        before = BusinessReviewSummary.objects.values().get(pk=summary.pk)
+        apps = self.migrate(self.migrate_to)
+        work_model = apps.get_model("reviews", "ReviewInsightRegeneration")
+        record = work_model.objects.create(BUSN_ID_id=business.pk)
+        apps = self.migrate(("reviews", "0026_review_insight_publication_fence"))
+        work_model = apps.get_model("reviews", "ReviewInsightRegeneration")
+        upgraded = work_model.objects.get(pk=record.pk)
+        self.assertEqual(upgraded.RIRG_REQUESTED_REVISION, 0)
+        self.assertEqual(upgraded.RIRG_COMPLETED_REVISION, 0)
+        self.assertEqual(upgraded.RIRG_INPUT_FINGERPRINT, "")
+        self.assertIsNone(upgraded.RIRG_RECHECK_AT)
+        self.assertEqual(BusinessReviewSummary.objects.values().get(pk=summary.pk), before)
+        with self.assertRaises(OperationalError):
+            with transaction.atomic():
+                BusinessReviewSummary.objects.filter(pk=summary.pk).update(
+                    BRSU_NARRATIVE="Unowned publication.",
+                )
+
+        self.migrate(self.migrate_to)
+        BusinessReviewSummary.objects.filter(pk=summary.pk).update(
+            BRSU_NARRATIVE="Preserved legacy content.",
+        )
+        self.migrate(("reviews", "0026_review_insight_publication_fence"))
+        self.assertEqual(BusinessReviewSummary.objects.values().get(pk=summary.pk), before)
+        self.assertEqual(work_model.objects.get(pk=record.pk).RIRG_REQUESTED_REVISION, 0)
 
     def test_forward_backward_forward_preserves_summaries_and_seeds_no_work(self):
         business = self.create_business()

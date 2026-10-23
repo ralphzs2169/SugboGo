@@ -95,7 +95,14 @@ class AnalyticsPolicyService:
 
     @classmethod
     @transaction.atomic
-    def update(cls, *, actor, expected_version, reason, values):
+    def update(
+        cls,
+        *,
+        actor,
+        expected_version,
+        reason,
+        values,
+    ):
         """Lock the singleton and publish one audited revision for a genuine settings change."""
         if not actor or not actor.is_authenticated or not actor.is_active or not user_has_role(actor, User.UserRole.SUPER_ADMIN):
             raise PermissionDenied("Only active Super Admins can update analytics policy.")
@@ -125,6 +132,15 @@ class AnalyticsPolicyService:
             APCH_VERSION=configuration.APC_VERSION, APCH_ACTOR=actor, APCH_ACTOR_ID_SNAPSHOT=actor.pk,
             APCH_REASON=reason.strip(), APCH_BEFORE=before, APCH_AFTER=after,
         )
+        if any(
+            before[name] != after[name]
+            for name in ("narrative_min_eligible_reviews", "mention_min_supporting_reviews")
+        ):
+            from apps.reviews.services.review_insight_scheduling_service import (
+                ReviewInsightSchedulingService,
+            )
+
+            ReviewInsightSchedulingService.policy_changed()
         return configuration, True
 
     @staticmethod

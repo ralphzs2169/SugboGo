@@ -48,6 +48,11 @@ class ReviewKeywordService:
         review_id: int,
     ) -> bool:
         """Invalidates generated insights when supporting review evidence changes."""
+        from apps.reviews.services.review_insight_regeneration_service import (
+            ReviewInsightRegenerationService,
+        )
+
+        ReviewInsightRegenerationService._locked_record(business_id)
         try:
             summary = BusinessReviewSummary.objects.select_for_update().get(
                 BUSN_ID_id=business_id,
@@ -82,21 +87,22 @@ class ReviewKeywordService:
         # Evidence invalidation permits a fresh attempt even if normalized input
         # returns to an earlier successful fingerprint on the same UTC day.
         summary.BRSU_KEYWORDS_ATTEMPT_FINGERPRINT = ""
-        summary.save(
-            update_fields=[
-                "BRSU_GENERATION_POLICY_VERSION",
-                "BRSU_GENERATION_POLICY_VALUES",
-                "BRSU_NARRATIVE",
-                "BRSU_KEYWORD_TAGS",
-                "BRSU_SUPPORTING_REVIEW_REFERENCES",
-                "BRSU_GENERATION_STATE",
-                "BRSU_GENERATED_AT",
-                "BRSU_KEYWORDS_PROCESSED_AT",
-                "BRSU_KEYWORDS_RETRYABLE",
-                "BRSU_KEYWORDS_ATTEMPT_FINGERPRINT",
-                "BRSU_UPDATED_AT",
-            ],
-        )
+        with ReviewInsightRegenerationService.safety_updates(business_id):
+            summary.save(
+                update_fields=[
+                    "BRSU_GENERATION_POLICY_VERSION",
+                    "BRSU_GENERATION_POLICY_VALUES",
+                    "BRSU_NARRATIVE",
+                    "BRSU_KEYWORD_TAGS",
+                    "BRSU_SUPPORTING_REVIEW_REFERENCES",
+                    "BRSU_GENERATION_STATE",
+                    "BRSU_GENERATED_AT",
+                    "BRSU_KEYWORDS_PROCESSED_AT",
+                    "BRSU_KEYWORDS_RETRYABLE",
+                    "BRSU_KEYWORDS_ATTEMPT_FINGERPRINT",
+                    "BRSU_UPDATED_AT",
+                ],
+            )
         return True
 
     @staticmethod
@@ -138,14 +144,19 @@ class ReviewKeywordService:
         return [reviews[index] for index in indexes]
 
     @classmethod
-    def _fingerprint(cls, reviews):
+    def _fingerprint(
+        cls,
+        reviews,
+        policy=None,
+    ):
         """Hashes all eligible input and policy, including reviews outside the sample."""
+        policy = policy or current_policy()
         payload = json.dumps(
             [
                 settings.GEMINI_KEYWORD_MODEL,
                 BusinessReviewSummaryService.WINDOW_DAYS,
-                current_policy()["narrative_min_eligible_reviews"],
-                current_policy()["mention_min_supporting_reviews"],
+                policy["narrative_min_eligible_reviews"],
+                policy["mention_min_supporting_reviews"],
                 cls.MAX_ANALYZED_REVIEWS,
                 cls.MAX_TAGS,
                 cls.MAX_NARRATIVE_WORDS,
@@ -333,13 +344,17 @@ class ReviewKeywordService:
 
     @classmethod
     @with_policy_snapshot
-    def refresh(cls, business_id, reference_time=None):
-        """Refreshes one business while preventing duplicate provider requests."""
-        reference_time = reference_time or timezone.now()
-        with cls.generation_lock(business_id) as acquired:
-            if not acquired:
-                return "busy"
-            return cls._refresh_locked(business_id, reference_time)
+    def refresh(
+        cls,
+        business_id,
+        reference_time=None,
+    ):
+        """Route legacy direct callers through durable reconciliation without Gemini."""
+        from apps.reviews.services.review_insight_scheduling_service import (
+            ReviewInsightSchedulingService,
+        )
+
+        return ReviewInsightSchedulingService.reconcile(business_id)
 
     @classmethod
     @contextmanager
@@ -582,6 +597,7 @@ class ReviewKeywordService:
         business_id,
         reference_time,
         retryable=False,
+        invalidate_evidence=False,
     ):
         """Retain prior content only while its evidence and current policy remain safe."""
         summary = BusinessReviewSummary.objects.select_for_update().get(
@@ -597,7 +613,8 @@ class ReviewKeywordService:
             summary.BRSU_SUPPORTING_REVIEW_REFERENCES,
         )
         safe_to_retain = bool(
-            summary.BRSU_GENERATED_AT
+            not invalidate_evidence
+            and summary.BRSU_GENERATED_AT
             and supporting_ids
             and supporting_ids.issubset(current_ids)
             and len(reviews) >= policy["narrative_min_eligible_reviews"]
