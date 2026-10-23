@@ -343,6 +343,45 @@ class ReviewInsightSchedulingServiceTests(SummaryFixtureMixin, TransactionTestCa
         self.assertEqual(self.state().RIRG_REQUESTED_REVISION, 1)
         self.assertEqual(self.evaluate(), "updated")
 
+    def test_real_sentiment_aggregate_repair_preserves_pending_narrative_demand(self):
+        self.edit("Committed text awaiting sentiment.")
+        ReviewInsightSchedulingService.recover_and_dispatch()
+        before = ReviewInsightRegeneration.objects.values().get(BUSN_ID=self.business)
+        self.assertEqual(
+            before["RIRG_DUE_AT"],
+            self.clock.return_value + timedelta(seconds=120),
+        )
+        with (
+            patch(
+                "apps.reviews.services.review_sentiment_service.route_sentiment",
+                return_value=(-0.6, "Negative", "vader"),
+            ) as scorer,
+            patch.object(process_review_insight_regeneration, "apply_async") as dispatch,
+        ):
+            with patch(
+                "apps.reviews.services.review_sentiment_service."
+                "BusinessReviewSummaryService.recompute_sentiment",
+                side_effect=RuntimeError("aggregate unavailable"),
+            ):
+                self.assertEqual(
+                    process_review_sentiment.run(self.reviews[0].pk, self.business.pk),
+                    "failed",
+                )
+            self.assertEqual(
+                process_review_sentiment.run(self.reviews[0].pk, self.business.pk),
+                "already_scored",
+            )
+        scorer.assert_called_once()
+        dispatch.assert_not_called()
+        self.provider.assert_not_called()
+        self.assertEqual(
+            ReviewInsightRegeneration.objects.values().get(BUSN_ID=self.business),
+            before,
+        )
+        self.summary.refresh_from_db()
+        self.assertEqual(self.summary.BRSU_CLASSIFIED_REVIEW_COUNT, 5)
+        self.assertEqual(self.summary.BRSU_NEGATIVE_COUNT, 1)
+
     def test_daily_reconciliation_recovers_missed_changes_without_resetting_pending_inputs(self):
         ReviewInsightSchedulingService.reconcile(self.business.pk)
         self.evaluate()
