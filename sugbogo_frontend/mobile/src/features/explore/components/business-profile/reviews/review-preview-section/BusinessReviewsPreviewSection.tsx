@@ -163,7 +163,7 @@ export default function BusinessReviewsPreviewSection({
       )}
 
       {/* Review preview */}
-      {!isLoading && !error && userReview?.status === "under_review" && (
+      {!isLoading && !error && userReview && userReview.status !== "published" && (
         <BusinessReviewCard
           businessId={businessId}
           review={userReview}

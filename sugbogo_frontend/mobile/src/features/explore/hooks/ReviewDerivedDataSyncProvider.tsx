@@ -27,9 +27,18 @@ import {
 
 import { getExploreBusinessDetail } from "../api/exploreBusiness.service";
 import { getBusinessReviewPreview } from "../api/reviewBusiness.service";
-import type { BusinessReview } from "../types/review.types";
+import type {
+  BusinessReview,
+  BusinessReviewPreview,
+} from "../types/review.types";
+import { isHeldReview } from "../utils/reviewModeration.utils";
+import {
+  refreshAuthorReviewDecision,
+  refreshAuthorReviewReads,
+} from "../utils/reviewPublicationSync.utils";
 import type {
   BusinessReviewInsights,
+  ExploreBusinessDetail,
   ReviewInsightRegeneration,
 } from "../types/exploreBusiness.types";
 import {
@@ -45,6 +54,7 @@ import {
 
 const POLL_INTERVAL_MS = 2_000;
 const SENTIMENT_TIMEOUT_MS = 45_000;
+const AUTHOR_CHECK_TIMEOUT_MS = 12 * 60_000;
 const LEGACY_INSIGHTS_TIMEOUT_MS = 60_000;
 const GENERATED_INSIGHTS_TIMEOUT_MS = 12 * 60_000;
 
@@ -254,11 +264,13 @@ async function continuePendingSynchronization(
 }
 
 type ReviewDerivedDataSyncActions = {
+  observeReviewSubmission: (reviewId: number) => void;
   startSentimentSync: (session: StartSentimentSync) => void;
   startGeneratedInsightsSync: (session: StartGeneratedInsightsSync) => void;
 };
 
 const NOOP_ACTIONS: ReviewDerivedDataSyncActions = {
+  observeReviewSubmission: () => undefined,
   startSentimentSync: () => undefined,
   startGeneratedInsightsSync: () => undefined,
 };
@@ -283,24 +295,14 @@ function hasAdvancedTimestamp(
 }
 
 export function isSentimentSynchronizationComplete(
-  session: SentimentSyncSession,
-  review: BusinessReview | null | undefined,
-  insights: BusinessReviewInsights | null | undefined,
+  _session: SentimentSyncSession,
+  _review: BusinessReview | null | undefined,
+  _insights: BusinessReviewInsights | null | undefined,
 ) {
-  const computedAt = insights?.sentiment_computed_at;
-
-  return Boolean(
-    review?.id === session.reviewId &&
-    review.sentiment_label !== null &&
-    review.sentiment_score !== null &&
-    computedAt &&
-    Date.parse(computedAt) >= session.startedAt &&
-    hasAdvancedTimestamp(
-      computedAt,
-      session.baselineComputedAt,
-      session.startedAt,
-    ),
-  );
+  // The API has no per-classification aggregate inclusion token. Even a newer
+  // timestamp can belong to counts read before this score committed.
+  // Refresh within a bounded budget; expiration is not a completion acknowledgement.
+  return false;
 }
 
 export function shouldStopGeneratedInsightsSync(
@@ -364,8 +366,14 @@ export function shouldStopGeneratedInsightsSync(
  */
 export function ReviewDerivedDataSyncProvider({
   businessId,
+  observePublication = false,
+  observeAuthorReview = true,
   children,
-}: PropsWithChildren<{ businessId: number }>) {
+}: PropsWithChildren<{
+  businessId: number;
+  observePublication?: boolean;
+  observeAuthorReview?: boolean;
+}>) {
   const queryClient = useQueryClient();
   const isFocused = useIsFocused();
   const currentOwnerId = useAuthStore((state) =>
@@ -393,6 +401,25 @@ export function ReviewDerivedDataSyncProvider({
     useState<SentimentSyncSession | null>(null);
   const [generatedSession, setGeneratedSession] =
     useState<GeneratedInsightsSyncSession | null>(null);
+  const authorCheckingStartedAt = useRef(0);
+  const previousReview = useRef<BusinessReview | null>(
+    queryClient.getQueryData<BusinessReviewPreview>(
+      businessReviewPreviewKey(businessId),
+    )?.user_review ?? null,
+  );
+  const scoredSource = useRef<string | null>(null);
+  const refreshedScore = useRef<string | null>(null);
+  const submittedReviewId = useRef<number | null>(null);
+  const cachedReview = queryClient.getQueryData<BusinessReviewPreview>(
+    businessReviewPreviewKey(businessId),
+  )?.user_review;
+  const needsAuthorCheck = (review: BusinessReview | null | undefined) =>
+    Boolean(
+      review &&
+      (isHeldReview(review) ||
+        (review.status === "published" &&
+          (review.sentiment_score == null || review.sentiment_label == null))),
+    );
 
   const continueAfterUnmount = useCallback(() => {
     const detail = queryClient.getQueryState(
@@ -437,16 +464,39 @@ export function ReviewDerivedDataSyncProvider({
     queryClient,
     businessId,
     ownerId,
-    authorized && isFocused && Boolean(sentimentSession || generatedSession),
+    authorized &&
+      isFocused &&
+      Boolean(
+        sentimentSession ||
+        generatedSession ||
+        (observeAuthorReview && needsAuthorCheck(cachedReview)),
+      ),
   );
 
   const previewQuery = useQuery({
     queryKey: businessReviewPreviewKey(businessId),
     queryFn: () => fetchSyncPreview(businessId, ownerId, ownerGeneration),
-    enabled: Boolean(businessId && authorized && isFocused && sentimentSession),
-    refetchInterval: ownsPolling && sentimentSession ? POLL_INTERVAL_MS : false,
+    enabled: Boolean(
+      businessId &&
+      authorized &&
+      isFocused &&
+      (observeAuthorReview || sentimentSession),
+    ),
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
+    refetchInterval: (query) => {
+      if (!ownsPolling) return false;
+      if (sentimentSession) return POLL_INTERVAL_MS;
+      return observeAuthorReview &&
+        needsAuthorCheck(query.state.data?.user_review) &&
+        Date.now() - authorCheckingStartedAt.current < AUTHOR_CHECK_TIMEOUT_MS
+        ? 30_000
+        : false;
+    },
     refetchIntervalInBackground: false,
   });
+  const { refetch: refetchPreview } = previewQuery;
 
   const detailQuery = useQuery({
     queryKey: exploreBusinessDetailKey(businessId),
@@ -503,6 +553,15 @@ export function ReviewDerivedDataSyncProvider({
     [authorized, continueAfterUnmount, ownerGeneration, ownerId],
   );
 
+  const observeReviewSubmission = useCallback(
+    (reviewId: number) => {
+      if (authorized && ownsSession(ownerId!, ownerGeneration)) {
+        submittedReviewId.current = reviewId;
+      }
+    },
+    [authorized, ownerGeneration, ownerId],
+  );
+
   const startGeneratedInsightsSync = useCallback(
     (session: StartGeneratedInsightsSync) => {
       if (
@@ -527,6 +586,125 @@ export function ReviewDerivedDataSyncProvider({
     },
     [authorized, ownerGeneration, ownerId],
   );
+
+  useEffect(() => {
+    if (!authorized || !isFocused || !observeAuthorReview) return;
+    const review = previewQuery.data?.user_review;
+    if (
+      !review ||
+      (review.author?.id !== undefined && review.author.id !== ownerId)
+    )
+      return;
+    const previous = previousReview.current;
+    previousReview.current = review;
+    const decided =
+      ((previous?.id === review.id && isHeldReview(previous)) ||
+        submittedReviewId.current === review.id) &&
+      (review.status === "published" || review.status === "rejected");
+    if (review.status === "published" || decided) {
+      void refreshAuthorReviewDecision(
+        queryClient,
+        businessId,
+        ownerId!,
+        review.id,
+        review.status as "published" | "rejected",
+      );
+    }
+    if (decided) submittedReviewId.current = null;
+    if (review.status !== "published") {
+      scoredSource.current = null;
+      if (review.status && pending.current.sentiment?.reviewId === review.id) {
+        pending.current.sentiment = null;
+        setSentimentSession(null);
+      }
+      return;
+    }
+    const source = `${review.id}:${review.text}:${review.sentiment_label}:${review.sentiment_score}`;
+    if (scoredSource.current === source && !decided) return;
+    const incomplete =
+      review.sentiment_label == null || review.sentiment_score == null;
+    const completedLate = scoredSource.current !== null;
+    scoredSource.current = source;
+    if (!decided && !incomplete && !completedLate && !observePublication)
+      return;
+    const detail = queryClient.getQueryData<ExploreBusinessDetail>(
+      exploreBusinessDetailKey(businessId),
+    );
+    startSentimentSync({
+      reviewId: review.id,
+      baselineComputedAt:
+        detail?.review_insights?.sentiment_computed_at ?? null,
+      baselineGeneratedAt: detail?.review_insights?.generated_at ?? null,
+      baselineInsightsUpdatedAt: detail?.review_insights?.updated_at ?? null,
+      baselineInsightsState: detail?.review_insights?.state ?? null,
+      baselineRequestedRevision:
+        detail?.review_insight_regeneration?.requested_revision ?? null,
+      startedAt: Date.now(),
+    });
+  }, [
+    authorized,
+    businessId,
+    isFocused,
+    observeAuthorReview,
+    observePublication,
+    ownerId,
+    previewQuery.data,
+    previewQuery.dataUpdatedAt,
+    queryClient,
+    startSentimentSync,
+  ]);
+
+  useEffect(() => {
+    if (!authorized || !isFocused || !observeAuthorReview) return;
+    const recover = () => {
+      authorCheckingStartedAt.current = Date.now();
+      if (ownsSession(ownerId!, ownerGeneration))
+        void refetchPreview({ cancelRefetch: false });
+    };
+    recover();
+    const unsubscribeFocus = focusManager.subscribe((focused) => {
+      if (focused) recover();
+    });
+    const unsubscribeOnline = onlineManager.subscribe((online) => {
+      if (online) recover();
+    });
+    return () => {
+      unsubscribeFocus();
+      unsubscribeOnline();
+    };
+  }, [
+    authorized,
+    isFocused,
+    observeAuthorReview,
+    ownerGeneration,
+    ownerId,
+    refetchPreview,
+  ]);
+
+  useEffect(() => {
+    if (!authorized || !isFocused || !sentimentSession) return;
+    const review = previewQuery.data?.user_review;
+    if (
+      review?.id !== sentimentSession.reviewId ||
+      (review.status && review.status !== "published") ||
+      review.sentiment_label == null ||
+      review.sentiment_score == null
+    )
+      return;
+    const source = `${review.id}:${review.text}:${review.sentiment_label}:${review.sentiment_score}`;
+    if (refreshedScore.current === source) return;
+    refreshedScore.current = source;
+    // Refresh public readers of the observed score without acknowledging aggregate inclusion.
+    void refreshAuthorReviewReads(queryClient, businessId, ownerId!);
+  }, [
+    authorized,
+    businessId,
+    isFocused,
+    ownerId,
+    previewQuery.data,
+    queryClient,
+    sentimentSession,
+  ]);
 
   useEffect(() => {
     if (!sentimentSession) {
@@ -572,6 +750,10 @@ export function ReviewDerivedDataSyncProvider({
     }
 
     const timeout = setTimeout(() => {
+      if (authorized && ownsSession(ownerId!, ownerGeneration) && isFocused) {
+        // This refresh ends a bounded observation window; it does not prove inclusion.
+        void refreshAuthorReviewReads(queryClient, businessId, ownerId!);
+      }
       if (pending.current.sentiment?.startedAt === sentimentSession.startedAt)
         pending.current.sentiment = null;
       setSentimentSession((current) =>
@@ -580,7 +762,15 @@ export function ReviewDerivedDataSyncProvider({
     }, SENTIMENT_TIMEOUT_MS);
 
     return () => clearTimeout(timeout);
-  }, [sentimentSession]);
+  }, [
+    authorized,
+    businessId,
+    isFocused,
+    ownerGeneration,
+    ownerId,
+    queryClient,
+    sentimentSession,
+  ]);
 
   useEffect(() => {
     if (!generatedSession) {
@@ -715,10 +905,11 @@ export function ReviewDerivedDataSyncProvider({
 
   const actions = useMemo(
     () => ({
+      observeReviewSubmission,
       startSentimentSync,
       startGeneratedInsightsSync,
     }),
-    [startGeneratedInsightsSync, startSentimentSync],
+    [observeReviewSubmission, startGeneratedInsightsSync, startSentimentSync],
   );
 
   return (

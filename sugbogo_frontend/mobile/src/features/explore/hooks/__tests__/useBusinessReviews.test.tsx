@@ -42,6 +42,7 @@ import { myReviewsKey } from "@/features/profile/hooks/myReviewQueryKeys";
 
 const mockStartSentimentSync = jest.fn();
 const mockStartGeneratedInsightsSync = jest.fn();
+const mockObserveReviewSubmission = jest.fn();
 
 jest.mock("../../api/reviewBusiness.service", () => ({
   createReview: jest.fn(),
@@ -56,6 +57,7 @@ jest.mock("../../api/reviewBusiness.service", () => ({
 
 jest.mock("../ReviewDerivedDataSyncProvider", () => ({
   useReviewDerivedDataSyncActions: () => ({
+    observeReviewSubmission: mockObserveReviewSubmission,
     startSentimentSync: mockStartSentimentSync,
     startGeneratedInsightsSync: mockStartGeneratedInsightsSync,
   }),
@@ -196,7 +198,7 @@ describe("useBusinessReviews", () => {
     client.clear();
   });
 
-  it("refreshes public queries when a held review receives a decision", async () => {
+  it("reads a decision without duplicating the shared provider's polling or invalidation", async () => {
     const heldReview = {
       id: 1,
       status: "under_review",
@@ -228,14 +230,8 @@ describe("useBusinessReviews", () => {
       });
     });
 
-    await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({
-        queryKey: businessReviewsKey(20),
-      }),
-    );
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: exploreBusinessDetailKey(20),
-    });
+    await waitFor(() => expect(result.current.userReview?.status).toBe("published"));
+    expect(invalidate).not.toHaveBeenCalled();
     unmount();
     client.clear();
   });
@@ -388,6 +384,7 @@ describe("useBusinessReviews", () => {
     });
 
     expect(created?.status).toBe("under_review");
+    expect(mockObserveReviewSubmission).toHaveBeenCalledWith(19);
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     unmount();
     client.clear();

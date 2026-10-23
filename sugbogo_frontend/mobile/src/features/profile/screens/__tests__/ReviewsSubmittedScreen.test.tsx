@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -26,6 +26,7 @@ jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
   Stack: { Screen: () => null },
+  useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -78,6 +79,7 @@ function state(overrides: Record<string, unknown> = {}) {
   return {
     reviews: [review()],
     totalCount: 12,
+    summary: { total: 12, published: 12, under_review: 0, not_published: 0 },
     userId: 10,
     isEnabled: true,
     isAuthLoading: false,
@@ -108,7 +110,7 @@ describe("ReviewsSubmittedScreen", () => {
     expect(screen.getByText("Business 1")).toBeTruthy();
     expect(screen.getByText("Business 2")).toBeTruthy();
     expect(screen.getByText("Review content 1")).toBeTruthy();
-    expect(screen.getByRole("header", { name: /^12\b/ })).toBeTruthy();
+    expect(screen.getByText("12 total")).toBeTruthy();
     expect(screen.queryByText("Edit")).toBeNull();
     expect(screen.queryByText("Delete")).toBeNull();
     expect(screen.queryByPlaceholderText(/Search/)).toBeNull();
@@ -126,10 +128,29 @@ describe("ReviewsSubmittedScreen", () => {
         state({ reviews: [review(1, status)] }),
       );
       const screen = await render(<ReviewsSubmittedScreen />);
-      expect(screen.getByText(label)).toBeTruthy();
+      expect(
+        within(screen.getByTestId("my-review-1")).getByText(label),
+      ).toBeTruthy();
       expect(screen.getByText("Review content 1")).toBeTruthy();
     },
   );
+
+  it("shows routine checking distinctly from team moderation", async () => {
+    (useMyReviews as jest.Mock).mockReturnValue(
+      state({
+        reviews: [
+          {
+            ...review(1, "under_review"),
+            moderation_progress: { state: "pending" },
+          },
+        ],
+      }),
+    );
+    const screen = await render(<ReviewsSubmittedScreen />);
+    const item = within(screen.getByTestId("my-review-1"));
+    expect(item.getByText("Checking")).toBeTruthy();
+    expect(item.queryByText("Under review")).toBeNull();
+  });
 
   it("opens shared review photos and expands the merchant response", async () => {
     const screen = await render(<ReviewsSubmittedScreen />);

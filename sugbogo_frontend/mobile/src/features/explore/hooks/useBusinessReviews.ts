@@ -6,11 +6,11 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import { myReviewsKey } from "@/features/profile/hooks/myReviewQueryKeys";
 import { ACTIVITY_TIMELINE_QUERY_KEY } from "@/features/profile/hooks/activityTimelineQueryKeys";
 import type { MyReviewPage } from "@/features/profile/types/myReview.types";
@@ -68,8 +68,11 @@ function useReviewMutation<TVariables, TResult>(
   refreshCommunity = false,
 ) {
   const queryClient = useQueryClient();
-  const { startGeneratedInsightsSync, startSentimentSync } =
-    useReviewDerivedDataSyncActions();
+  const {
+    observeReviewSubmission,
+    startGeneratedInsightsSync,
+    startSentimentSync,
+  } = useReviewDerivedDataSyncActions();
 
   return useMutation<TResult, Error, TVariables, ReviewMutationContext>({
     mutationFn: async (variables: TVariables) =>
@@ -100,6 +103,12 @@ function useReviewMutation<TVariables, TResult>(
     },
 
     onSuccess: async (result, variables, context) => {
+      if (
+        sync === "create" &&
+        (result as ReviewCreateResult).status !== "published"
+      ) {
+        observeReviewSubmission?.((result as ReviewCreateResult).id);
+      }
       if (sync === "update") {
         await Promise.all([
           ...(context.authorUserId !== null
@@ -178,8 +187,7 @@ function useReviewMutation<TVariables, TResult>(
               }),
             ]
           : []),
-        ...((sync === "update" || sync === "delete") &&
-        context.authorUserId !== null
+        ...(sync && context.authorUserId !== null
           ? [
               queryClient.invalidateQueries({
                 queryKey: myReviewsKey(context.authorUserId),
@@ -259,49 +267,34 @@ function useReviewMutation<TVariables, TResult>(
 
 /** Retrieves the review preview shown on the business profile. */
 export function useBusinessReviewPreview(businessId: number) {
-  const queryClient = useQueryClient();
-  const previousOwnReview = useRef<{
-    businessId: number;
-    status: BusinessReview["status"] | null;
-  } | null>(null);
+  const userId = useAuthStore((state) => state.user?.id);
   const query = useQuery({
     queryKey: businessReviewPreviewKey(businessId),
-    queryFn: async (): Promise<BusinessReviewPreview> =>
-      throwOnApiError(await reviewService.getBusinessReviewPreview(businessId)),
+    queryFn: async (): Promise<BusinessReviewPreview> => {
+      const generation = getAuthSessionGeneration();
+      const ownerId = useAuthStore.getState().user?.id;
+      const response = await reviewService.getBusinessReviewPreview(businessId);
+      if (
+        getAuthSessionGeneration() !== generation ||
+        useAuthStore.getState().user?.id !== ownerId
+      )
+        throw new Error("Review session changed.");
+      return throwOnApiError(response);
+    },
     enabled: Boolean(businessId),
-    refetchInterval: (currentQuery) =>
-      currentQuery.state.data?.user_review?.status === "under_review"
-        ? 30_000
-        : false,
   });
 
-  useEffect(() => {
-    const currentStatus = query.data?.user_review?.status ?? null;
-    if (
-      previousOwnReview.current?.businessId === businessId &&
-      previousOwnReview.current.status === "under_review" &&
-      currentStatus !== "under_review"
-    ) {
-      void Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: businessReviewsKey(businessId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: exploreBusinessDetailKey(businessId),
-        }),
-        invalidateBusinessCardCollections(queryClient),
-      ]);
-    }
-    previousOwnReview.current = { businessId, status: currentStatus };
-  }, [businessId, query.data?.user_review?.status, queryClient]);
-
   const reviews = query.data?.reviews ?? [];
+  const userReview =
+    query.data?.user_review?.author?.id !== userId
+      ? null
+      : (query.data?.user_review ?? null);
 
   return {
     reviews,
     totalCount: query.error ? null : (query.data?.total_count ?? 0),
-    userReview: query.data?.user_review ?? null,
-    hasOwnReview: Boolean(query.data?.user_review),
+    userReview,
+    hasOwnReview: Boolean(userReview),
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,
     error: query.error,

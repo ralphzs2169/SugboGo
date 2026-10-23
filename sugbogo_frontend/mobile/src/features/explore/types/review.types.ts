@@ -33,10 +33,24 @@ export type ReviewReply = {
   photos: ReviewPhoto[];
 };
 
+export type ReviewModerationState =
+  | "pending"
+  | "processing"
+  | "awaiting_retry"
+  | "awaiting_admin_review"
+  | "retries_exhausted"
+  | "published"
+  | "rejected"
+  | "under_review";
+
+export type ReviewModerationProgress = { state: ReviewModerationState };
+
 export type BusinessReview = {
   id: number;
   text: string;
   status: "published" | "under_review" | "flagged" | "rejected";
+  /** Private progress returned only to this review's author. */
+  moderation_progress?: ReviewModerationProgress;
   like_count: number;
   sentiment_label: ReviewSentiment | null;
   sentiment_score: number | null;
@@ -60,6 +74,7 @@ export type ReviewCreateResult = {
   business_id: number;
   user_id: number;
   status: BusinessReview["status"];
+  moderation_progress?: ReviewModerationProgress;
 };
 
 export type LocalReviewPhoto = {

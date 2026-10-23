@@ -7,6 +7,7 @@ import { Pressable, View } from "react-native";
 import { theme } from "@/constants/theme";
 import MerchantReviewResponse from "@/features/explore/components/business-profile/reviews/MerchantReviewResponse";
 import ReviewContent from "@/features/explore/components/business-profile/reviews/ReviewContent";
+import { reviewModerationFeedback } from "@/features/explore/utils/reviewModeration.utils";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
@@ -70,7 +71,10 @@ function MyReviewCard({
 }) {
   const { business } = review;
   const isAvailable = business.status === "active";
-  const status = statusPresentation[review.status];
+  const status = {
+    ...statusPresentation[review.status],
+    label: reviewModerationFeedback(review).label,
+  };
 
   const openBusiness = () => {
     if (!isAvailable) return;
@@ -171,6 +175,11 @@ function MyReviewCard({
       </View>
 
       {/* Review content and attached photos */}
+      {review.status !== "published" && (
+        <AppText className="mt-2 text-xs text-text-secondary">
+          {reviewModerationFeedback(review).description}
+        </AppText>
+      )}
       <View className="mt-2">
         <ReviewContent
           review={review}

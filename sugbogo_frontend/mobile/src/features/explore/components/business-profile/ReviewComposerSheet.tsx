@@ -27,6 +27,7 @@ import FormTextArea from "@/shared/components/form/FormTextArea";
 import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
 import type { ApiError, ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
+import { reviewModerationFeedback } from "../../utils/reviewModeration.utils";
 
 import {
   useCreateReview,
@@ -361,7 +362,7 @@ export default function ReviewComposerSheet({
           Toast.show({
             type: "success",
             text1: "Review submitted",
-            text2: "It's being reviewed before it appears publicly.",
+            text2: reviewModerationFeedback(created).description,
           });
         } else {
           Toast.show({ type: "success", text1: "Review added" });

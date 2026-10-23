@@ -112,7 +112,7 @@ describe("review-derived data synchronization", () => {
     startedAt: Date.parse("2026-09-28T01:00:01Z"),
   };
 
-  it("waits for both review sentiment and a newer aggregate", () => {
+  it("does not claim aggregate inclusion from a stored score and timestamps alone", () => {
     const pendingReview = {
       id: 18,
       sentiment_label: null,
@@ -151,7 +151,7 @@ describe("review-derived data synchronization", () => {
         completeReview,
         insights("ready", null, "2026-09-28T01:00:04Z"),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("continues through generated transitions and stops at terminal states", () => {

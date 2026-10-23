@@ -341,7 +341,7 @@ describe("durable insight synchronization", () => {
     ).toBe(true);
   });
 
-  it("finishes sentiment promptly while narrative work remains scheduled", async () => {
+  it("keeps sentiment observation bounded without acknowledging unrelated aggregate timestamps", async () => {
     detail = {
       ...detail,
       review_insights: {
@@ -385,7 +385,14 @@ describe("durable insight synchronization", () => {
     const sentimentCalls = jest.mocked(getBusinessReviewPreview).mock.calls
       .length;
     await advance(30_000);
-    expect(getBusinessReviewPreview).toHaveBeenCalledTimes(sentimentCalls);
+    expect(
+      jest.mocked(getBusinessReviewPreview).mock.calls.length,
+    ).toBeGreaterThan(sentimentCalls);
+    await advance(16_000);
+    const boundedCalls = jest.mocked(getBusinessReviewPreview).mock.calls
+      .length;
+    await advance(30_000);
+    expect(getBusinessReviewPreview).toHaveBeenCalledTimes(boundedCalls);
     expect(
       client.getQueryData<ExploreBusinessDetail>(exploreBusinessDetailKey(20))
         ?.review_insight_regeneration?.is_outstanding,

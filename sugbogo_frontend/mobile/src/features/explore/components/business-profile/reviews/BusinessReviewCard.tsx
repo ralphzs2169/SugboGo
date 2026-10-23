@@ -20,6 +20,7 @@ import { useReviewLike } from "../../../hooks/useReviewLike";
 import type { BusinessReview } from "../../../types/review.types";
 import MerchantReviewResponse from "./MerchantReviewResponse";
 import ReviewContent from "./ReviewContent";
+import { reviewModerationFeedback } from "../../../utils/reviewModeration.utils";
 import ReportReviewSheet from "./ReportReviewSheet";
 import ReviewReportReceiptSheet from "./ReviewReportReceiptSheet";
 import {
@@ -63,6 +64,7 @@ export default function BusinessReviewCard({
   const [receiptOpen, setReceiptOpen] = useState(false);
   const userId = useAuthStore((state) => state.user?.id);
   const queryClient = useQueryClient();
+  const moderation = reviewModerationFeedback(review);
   const hasReported = review.has_reported || reportedByUserId === userId;
 
   const actionSheetRef = useRef<BottomSheetModal | null>(null);
@@ -140,15 +142,16 @@ export default function BusinessReviewCard({
         isLikePending={isLikePending}
         onActions={() => presentBottomSheet(actionSheetRef)}
         highlightedTopic={highlightedTopic}
+        showEngagement={review.status === "published"}
       />
 
-      {review.is_own_review && review.status === "under_review" && (
+      {review.is_own_review && review.status !== "published" && (
         <View className="mt-3 rounded-lg bg-surface-secondary px-3 py-2">
           <AppText weight="semibold" className="text-xs text-text-primary">
-            Under review
+            {moderation.label}
           </AppText>
           <AppText className="mt-1 text-xs text-text-secondary">
-            We&apos;re reviewing this before it appears publicly.
+            {moderation.description}
           </AppText>
         </View>
       )}

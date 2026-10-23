@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
-import { router, Stack } from "expo-router";
+import { router, Stack, useIsFocused } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, RefreshControl, ScrollView, View } from "react-native";
@@ -69,7 +69,8 @@ const SIGN_IN_ROUTE = "/(auth)/login";
 export default function ReviewsSubmittedScreen() {
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const [ordering, setOrdering] = useState<MyReviewOrdering>("newest");
-  const history = useMyReviews(reviewFilter, ordering);
+  const focused = useIsFocused();
+  const history = useMyReviews(reviewFilter, ordering, focused);
   const insets = useSafeAreaInsets();
 
   const paginationArmed = useRef(false);
@@ -477,43 +478,59 @@ export default function ReviewsSubmittedScreen() {
       />
 
       {/* Business-specific edit and deletion synchronization */}
-      {syncBusinesses
-        .filter((item) => isEnabled && item.userId === userId)
-        .map((item) => (
-          <ReviewDerivedDataSyncProvider
-            key={`review-sync-${item.userId}-${item.businessId}`}
-            businessId={item.businessId}
-          >
-            {currentEditor?.business.id === item.businessId && (
-              <ReviewComposerSheet
-                businessId={currentEditor.business.id}
-                businessName={currentEditor.business.business_name}
-                coverPhotoUrl={currentEditor.business.display_cover_photo_url}
-                sheetRef={composerRef}
-                review={currentEditor}
-                onDismiss={() =>
-                  setEditingReview((current) =>
-                    current === editingReview ? null : current,
-                  )
-                }
-              />
-            )}
+      {[
+        ...new Map(
+          [
+            ...syncBusinesses.filter(
+              (item) => isEnabled && item.userId === userId,
+            ),
+            ...(history.publishedBusinessIds ?? []).map((businessId) => ({
+              userId: userId!,
+              businessId,
+            })),
+          ].map((item) => [item.businessId, item]),
+        ).values(),
+      ].map((item) => (
+        <ReviewDerivedDataSyncProvider
+          key={`review-sync-${item.userId}-${item.businessId}`}
+          businessId={item.businessId}
+          observePublication={(history.publishedBusinessIds ?? []).includes(
+            item.businessId,
+          )}
+          observeAuthorReview={(history.publishedBusinessIds ?? []).includes(
+            item.businessId,
+          )}
+        >
+          {currentEditor?.business.id === item.businessId && (
+            <ReviewComposerSheet
+              businessId={currentEditor.business.id}
+              businessName={currentEditor.business.business_name}
+              coverPhotoUrl={currentEditor.business.display_cover_photo_url}
+              sheetRef={composerRef}
+              review={currentEditor}
+              onDismiss={() =>
+                setEditingReview((current) =>
+                  current === editingReview ? null : current,
+                )
+              }
+            />
+          )}
 
-            {/* Confirmed review deletion */}
-            {currentDeletion?.review.business.id === item.businessId && (
-              <MyReviewDeleteConfirmation
-                key={`${currentDeletion.userId}-${currentDeletion.review.id}`}
-                review={currentDeletion.review}
-                userId={currentDeletion.userId}
-                onClose={() =>
-                  setDeletingReview((current) =>
-                    current === currentDeletion ? null : current,
-                  )
-                }
-              />
-            )}
-          </ReviewDerivedDataSyncProvider>
-        ))}
+          {/* Confirmed review deletion */}
+          {currentDeletion?.review.business.id === item.businessId && (
+            <MyReviewDeleteConfirmation
+              key={`${currentDeletion.userId}-${currentDeletion.review.id}`}
+              review={currentDeletion.review}
+              userId={currentDeletion.userId}
+              onClose={() =>
+                setDeletingReview((current) =>
+                  current === currentDeletion ? null : current,
+                )
+              }
+            />
+          )}
+        </ReviewDerivedDataSyncProvider>
+      ))}
     </View>
   );
 }

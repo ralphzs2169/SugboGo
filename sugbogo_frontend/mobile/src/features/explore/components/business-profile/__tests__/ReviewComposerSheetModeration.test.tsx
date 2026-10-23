@@ -33,7 +33,10 @@ jest.mock("@gorhom/bottom-sheet", () => {
 });
 jest.mock("@/shared/components/form/FormTextArea", () => ({
   __esModule: true,
-  default: ({ value, onChangeText }: {
+  default: ({
+    value,
+    onChangeText,
+  }: {
     value: string;
     onChangeText: (value: string) => void;
   }) => {
@@ -50,10 +53,7 @@ jest.mock("@/shared/components/form/FormTextArea", () => ({
 }));
 jest.mock("@/shared/components/Button", () => ({
   __esModule: true,
-  default: ({ title, onPress }: {
-    title: string;
-    onPress: () => void;
-  }) => {
+  default: ({ title, onPress }: { title: string; onPress: () => void }) => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Pressable, Text } = require("react-native");
     return (
@@ -86,53 +86,64 @@ describe("ReviewComposerSheet moderation response", () => {
   });
 
   it.each([
-    ["published", "Review added", undefined],
+    ["published", "Review added", undefined, undefined],
     [
       "under_review",
       "Review submitted",
-      "It's being reviewed before it appears publicly.",
+      "Your review is saved privately. Its status is not yet confirmed.",
+      undefined,
     ],
-  ])("treats %s as a successful submission", async (status, title, detail) => {
-    mockCreateReview.mockResolvedValue({
-      id: 12,
-      business_id: 20,
-      user_id: 4,
-      status,
-    });
-    const screen = await render(
-      <SafeAreaProvider
-        initialMetrics={{
-          frame: { x: 0, y: 0, width: 390, height: 844 },
-          insets: { top: 0, right: 0, bottom: 0, left: 0 },
-        }}
-      >
-        <ReviewComposerSheet
-          businessId={20}
-          businessName="Sugbo Cafe"
-          sheetRef={sheetRef}
-        />
-      </SafeAreaProvider>,
-    );
-    await act(async () => {
-      fireEvent.changeText(
-        screen.getByLabelText("Your review"),
-        "Friendly service and a pleasant visit.",
+    [
+      "under_review",
+      "Review submitted",
+      "We're checking your review before it appears publicly.",
+      "pending",
+    ],
+  ])(
+    "treats %s as a successful submission",
+    async (status, title, detail, progress) => {
+      mockCreateReview.mockResolvedValue({
+        id: 12,
+        business_id: 20,
+        user_id: 4,
+        status,
+        ...(progress ? { moderation_progress: { state: progress } } : {}),
+      });
+      const screen = await render(
+        <SafeAreaProvider
+          initialMetrics={{
+            frame: { x: 0, y: 0, width: 390, height: 844 },
+            insets: { top: 0, right: 0, bottom: 0, left: 0 },
+          }}
+        >
+          <ReviewComposerSheet
+            businessId={20}
+            businessName="Sugbo Cafe"
+            sheetRef={sheetRef}
+          />
+        </SafeAreaProvider>,
       );
-    });
-    await act(async () => {
-      fireEvent.press(screen.getByText("Submit review"));
-    });
+      await act(async () => {
+        fireEvent.changeText(
+          screen.getByLabelText("Your review"),
+          "Friendly service and a pleasant visit.",
+        );
+      });
+      await act(async () => {
+        fireEvent.press(screen.getByText("Submit review"));
+      });
 
-    await waitFor(() => expect(mockCreateReview).toHaveBeenCalledTimes(1));
-    await waitFor(() =>
-      expect(Toast.show).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "success",
-          text1: title,
-          ...(detail ? { text2: detail } : {}),
-        }),
-      ),
-    );
-    screen.unmount();
-  });
+      await waitFor(() => expect(mockCreateReview).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(Toast.show).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: "success",
+            text1: title,
+            ...(detail ? { text2: detail } : {}),
+          }),
+        ),
+      );
+      screen.unmount();
+    },
+  );
 });

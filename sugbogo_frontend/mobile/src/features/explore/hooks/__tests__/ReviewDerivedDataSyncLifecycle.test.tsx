@@ -381,7 +381,8 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
       await Promise.resolve();
     });
 
-    expect(getExploreBusinessDetail).toHaveBeenCalledTimes(
+    // A score plus an advanced timestamp cannot prove aggregate inclusion.
+    expect(jest.mocked(getExploreBusinessDetail).mock.calls.length).toBeGreaterThan(
       completedDetailCalls,
     );
 
