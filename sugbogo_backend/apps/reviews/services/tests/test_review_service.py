@@ -669,7 +669,8 @@ class ReviewServiceTests(TestCase):
         )
 
     @patch(
-        "apps.reviews.services.review_service.CloudinaryService.delete_image",
+        "apps.shared.services.cloudinary_service.cloudinary.uploader.destroy",
+        return_value={"result": "ok"},
     )
     @patch(
         "apps.reviews.services.review_service.CloudinaryService.upload_image",
@@ -711,6 +712,9 @@ class ReviewServiceTests(TestCase):
 
         mock_delete.assert_called_once_with(
             "sugbogo/reviews/review-1",
+            resource_type="image",
+            type="upload",
+            timeout=15,
         )
 
         self.assertFalse(

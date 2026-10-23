@@ -520,12 +520,14 @@ class ReviewService:
                         review.REVW_ID,
                     )
 
-        except Exception:
-            for public_id in uploaded_public_ids:
-                CloudinaryService.delete_image(
-                    public_id,
-                )
-
+        except Exception as exc:
+            ReviewService._compensate_uploaded_photos(
+                public_ids=uploaded_public_ids,
+                operation="create",
+                business_id=business_id,
+                review_id=None,
+                request_error=exc,
+            )
             raise
 
         logger.info(
@@ -537,6 +539,70 @@ class ReviewService:
             },
         )
         return review
+
+    @staticmethod
+    def _compensate_uploaded_photos(
+        public_ids: list[str],
+        operation: str,
+        business_id: int,
+        review_id: int | None,
+        request_error: Exception,
+    ) -> None:
+        """Compensate known request uploads without deleting referenced review photos."""
+        for public_id in dict.fromkeys(public_ids):
+            context = {
+                "operation": operation,
+                "business_id": business_id,
+                "review_id": review_id,
+                "public_id": public_id,
+                "request_error_type": type(request_error).__name__,
+            }
+            try:
+                attached = ReviewPhoto.objects.filter(
+                    RPHO_PHOTO_PUBLIC_ID=public_id,
+                ).exists()
+            except Exception as exc:
+                logger.error(
+                    "Review upload compensation skipped; attachment check failed.",
+                    extra={
+                        **context,
+                        "cleanup_stage": "attachment_check",
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                continue
+
+            if attached:
+                logger.warning(
+                    "Review upload compensation skipped; asset is attached.",
+                    extra=context,
+                )
+                continue
+
+            try:
+                result = CloudinaryService.destroy_asset(
+                    public_id=public_id,
+                    resource_type=ReviewMediaCleanup.ResourceType.IMAGE,
+                )
+                cleanup_result = result["result"]
+            except Exception as exc:
+                logger.error(
+                    "Review upload compensation failed; manual inspection required.",
+                    extra={
+                        **context,
+                        "cleanup_stage": "deletion",
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                continue
+
+            logger.info(
+                "Review upload compensation confirmed.",
+                extra={
+                    **context,
+                    "cleanup_result": cleanup_result,
+                },
+            )
 
     @staticmethod
     def _get_review(
@@ -969,15 +1035,16 @@ class ReviewService:
             ):
                 raise ReviewEditModerationUnavailable()
 
+        uploaded_public_ids = []
         uploaded_photos = []
         try:
             for photo in new_photos:
-                uploaded_photos.append(
-                    CloudinaryService.upload_image(
-                        photo,
-                        folder="sugbogo/reviews",
-                    ),
+                upload_result = CloudinaryService.upload_image(
+                    photo,
+                    folder="sugbogo/reviews",
                 )
+                uploaded_public_ids.append(upload_result["public_id"])
+                uploaded_photos.append(upload_result)
 
             return ReviewService._save_review_update(
                 user=user,
@@ -990,9 +1057,14 @@ class ReviewService:
                 uploaded_photos=uploaded_photos,
                 moderation=moderation,
             )
-        except Exception:
-            for upload in uploaded_photos:
-                CloudinaryService.delete_image(upload["public_id"])
+        except Exception as exc:
+            ReviewService._compensate_uploaded_photos(
+                public_ids=uploaded_public_ids,
+                operation="update",
+                business_id=source.BUSN_ID_id,
+                review_id=review_id,
+                request_error=exc,
+            )
             raise
 
     @staticmethod
