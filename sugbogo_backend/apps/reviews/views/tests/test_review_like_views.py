@@ -184,11 +184,32 @@ class ReviewLikeViewTests(APITestCase):
             response.status_code,
             status.HTTP_404_NOT_FOUND,
         )
-
         self.assertEqual(
             response.data["message"],
             "The review could not be found.",
         )
+
+    def test_create_like_hides_nonpublished_reviews(self):
+        for review_status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=review_status):
+                self.review.REVW_STATUS = review_status
+                self.review.save(update_fields=["REVW_STATUS"])
+                response = self.client.post(self.like_url)
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+                self.assertFalse(response.data["success"])
+                self.assertEqual(response.data["code"], "NOT_FOUND")
+                self.assertEqual(
+                    response.data["message"],
+                    "The review could not be found.",
+                )
+                self.assertNotIn(self.review.REVW_TEXT, response.content.decode())
+                self.assertFalse(ReviewLike.objects.filter(REVW_ID=self.review).exists())
+                self.review.refresh_from_db()
+                self.assertEqual(self.review.REVW_LIKE_COUNT, 0)
 
     def test_remove_like_successfully(self):
         ReviewLike.objects.create(

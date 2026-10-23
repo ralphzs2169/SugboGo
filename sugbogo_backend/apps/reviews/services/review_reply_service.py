@@ -28,12 +28,15 @@ class ReviewReplyService:
         text: str,
         photos: list | None = None,
     ) -> ReviewReply:
+        """Lock a published review before accepting its business owner's reply."""
         try:
             review = (
                 Review.objects
+                .select_for_update(of=("self",))
                 .select_related("BUSN_ID")
                 .get(
                     REVW_ID=review_id,
+                    REVW_STATUS=Review.ReviewStatus.PUBLISHED,
                 )
             )
         except Review.DoesNotExist:

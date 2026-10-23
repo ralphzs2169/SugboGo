@@ -159,6 +159,64 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
                 text="Thank you for your feedback.",
             )
 
+    @patch("apps.reviews.services.review_reply_service.CloudinaryService.upload_image")
+    def test_create_reply_rejects_nonpublished_statuses_before_upload(
+        self,
+        upload,
+    ):
+        review = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="Private review content.",
+        )
+        for status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=status):
+                review.REVW_STATUS = status
+                review.save(update_fields=["REVW_STATUS"])
+                with self.assertRaisesMessage(
+                    NotFound,
+                    "The review could not be found.",
+                ):
+                    ReviewReplyService.create_reply(
+                        user=self.merchant,
+                        review_id=review.pk,
+                        text="Thank you for visiting.",
+                        photos=[self.create_test_image("reply.jpg")],
+                    )
+                self.assertFalse(ReviewReply.objects.filter(REVW_ID=review).exists())
+                upload.assert_not_called()
+
+    def test_delete_existing_reply_after_review_is_no_longer_published(self):
+        review = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="Previously published review.",
+        )
+        for status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=status):
+                review.REVW_STATUS = Review.ReviewStatus.PUBLISHED
+                review.save(update_fields=["REVW_STATUS"])
+                reply = ReviewReplyService.create_reply(
+                    user=self.merchant,
+                    review_id=review.pk,
+                    text="Thank you for visiting.",
+                )
+                review.REVW_STATUS = status
+                review.save(update_fields=["REVW_STATUS"])
+                ReviewReplyService.delete_reply(
+                    user=self.merchant,
+                    reply_id=reply.pk,
+                )
+                self.assertFalse(ReviewReply.objects.filter(pk=reply.pk).exists())
+
     def test_create_reply_rejects_merchant_from_different_business(self):
         review = create_and_moderate_review(
             user=self.explorer,

@@ -15,10 +15,16 @@ class ReviewLikeService:
         user: User,
         review_id: int,
     ) -> ReviewLike:
-        """Create an allowed like while excluding merchant owner engagement."""
+        """Lock a published review before creating an allowed non-owner like."""
         try:
-            review = Review.objects.select_related("BUSN_ID").get(
-                REVW_ID=review_id,
+            review = (
+                Review.objects
+                .select_for_update(of=("self",))
+                .select_related("BUSN_ID")
+                .get(
+                    REVW_ID=review_id,
+                    REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+                )
             )
         except Review.DoesNotExist:
             raise NotFound(

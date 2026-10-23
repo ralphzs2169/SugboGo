@@ -13,7 +13,7 @@ from apps.business.models import (
     Cluster,
     Location,
 )
-from apps.reviews.models import ReviewReply
+from apps.reviews.models import Review, ReviewReply
 from apps.reviews.services.review_reply_service import ReviewReplyService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
     create_and_moderate_review,
@@ -125,6 +125,30 @@ class ReviewReplyViewTests(SafeReviewModerationMixin, APITestCase):
             response.data["message"],
             "Review reply added successfully.",
         )
+
+    def test_create_reply_hides_nonpublished_reviews(self):
+        for review_status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=review_status):
+                self.review.REVW_STATUS = review_status
+                self.review.save(update_fields=["REVW_STATUS"])
+                response = self.client.post(
+                    self.url,
+                    {"text": "Thank you for visiting Sugbo Bistro!"},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+                self.assertFalse(response.data["success"])
+                self.assertEqual(response.data["code"], "NOT_FOUND")
+                self.assertEqual(
+                    response.data["message"],
+                    "The review could not be found.",
+                )
+                self.assertNotIn(self.review.REVW_TEXT, response.content.decode())
+                self.assertFalse(ReviewReply.objects.filter(REVW_ID=self.review).exists())
 
     def test_create_reply_rejects_missing_text(self):
         response = self.client.post(

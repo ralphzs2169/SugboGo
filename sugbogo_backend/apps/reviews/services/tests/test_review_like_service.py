@@ -8,7 +8,7 @@ from apps.business.models import (
     Cluster,
     Location,
 )
-from apps.reviews.models import ReviewLike
+from apps.reviews.models import Review, ReviewLike
 from apps.reviews.services.review_like_service import ReviewLikeService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
     create_and_moderate_review,
@@ -161,6 +161,60 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
                 user=self.user,
                 review_id=999999,
             )
+
+    def test_create_like_rejects_all_nonpublished_statuses(self):
+        review = Review.objects.create(
+            USER_ID=self.second_user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Private review content.",
+        )
+        for status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=status):
+                review.REVW_STATUS = status
+                review.save(update_fields=["REVW_STATUS"])
+                with self.assertRaisesMessage(
+                    NotFound,
+                    "The review could not be found.",
+                ):
+                    ReviewLikeService.create_like(
+                        user=self.user,
+                        review_id=review.pk,
+                    )
+                review.refresh_from_db()
+                self.assertEqual(review.REVW_LIKE_COUNT, 0)
+                self.assertFalse(ReviewLike.objects.filter(REVW_ID=review).exists())
+
+    def test_remove_existing_like_after_review_is_no_longer_published(self):
+        review = Review.objects.create(
+            USER_ID=self.second_user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Previously published review.",
+        )
+        for status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=status):
+                review.REVW_STATUS = Review.ReviewStatus.PUBLISHED
+                review.save(update_fields=["REVW_STATUS"])
+                like = ReviewLikeService.create_like(
+                    user=self.user,
+                    review_id=review.pk,
+                )
+                review.REVW_STATUS = status
+                review.save(update_fields=["REVW_STATUS"])
+                ReviewLikeService.remove_like(
+                    user=self.user,
+                    review_id=review.pk,
+                )
+                self.assertFalse(ReviewLike.objects.filter(pk=like.pk).exists())
+                review.refresh_from_db()
+                self.assertEqual(review.REVW_LIKE_COUNT, 0)
 
     def test_remove_like(self):
         review = create_and_moderate_review(
