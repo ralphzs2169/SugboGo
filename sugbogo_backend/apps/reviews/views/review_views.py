@@ -7,6 +7,7 @@ from apps.authentication.permissions import HasRole
 from apps.reviews.serializers.review_serializers import (
     ReviewCreateSerializer,
     ReviewListQuerySerializer,
+    ReviewModerationProgressSerializer,
     ReviewResponseSerializer,
     ReviewUpdateSerializer,
 )
@@ -60,6 +61,9 @@ class ReviewView(APIView):
                 "business_id": review.BUSN_ID_id,
                 "user_id": review.USER_ID_id,
                 "status": review.REVW_STATUS,
+                "moderation_progress": ReviewModerationProgressSerializer(
+                    review,
+                ).data,
             },
             message=(
                 "Review added successfully."
@@ -79,10 +83,14 @@ class ReviewView(APIView):
                 "reviews": ReviewResponseSerializer(
                     preview["reviews"],
                     many=True,
+                    context={"request": request},
                 ).data,
                 "total_count": preview["total_count"],
                 "user_review": (
-                    ReviewResponseSerializer(preview["user_review"]).data
+                    ReviewResponseSerializer(
+                        preview["user_review"],
+                        context={"request": request},
+                    ).data
                     if preview["user_review"] is not None
                     else None
                 ),
@@ -123,6 +131,7 @@ class ReviewListView(APIView):
             ReviewResponseSerializer(
                 page,
                 many=True,
+                context={"request": request},
             ).data,
         )
 
@@ -183,7 +192,10 @@ class ReviewDetailView(APIView):
         )
 
         return success_response(
-            data=ReviewResponseSerializer(review).data,
+            data=ReviewResponseSerializer(
+                review,
+                context={"request": request},
+            ).data,
             message="Review updated successfully.",
         )
 

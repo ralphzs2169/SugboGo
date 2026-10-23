@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from apps.business.models.business_vouch_models import BusinessVouch
@@ -12,6 +13,9 @@ from apps.reviews.models import (
 )
 from apps.reviews.serializers.review_reply_serializers import (
     ReviewReplyResponseSerializer,
+)
+from apps.reviews.services.review_moderation_retry_service import (
+    ReviewModerationRetryService,
 )
 from apps.shared.serializers.installation_id_serializers import (
     InstallationIdInputSerializer,
@@ -148,6 +152,56 @@ class ReviewListQuerySerializer(serializers.Serializer):
     )
 
 
+class ReviewModerationProgressSerializer(serializers.Serializer):
+    """Derives an author-facing state without exposing moderation evidence."""
+
+    state = serializers.SerializerMethodField()
+
+    def get_state(
+        self,
+        review,
+    ):
+        """Prefer authoritative decisions and conservatively describe held work."""
+        if review.REVW_STATUS == Review.ReviewStatus.PUBLISHED:
+            return "published"
+        if review.REVW_STATUS == Review.ReviewStatus.REJECTED:
+            return "rejected"
+        if review.REVW_STATUS == Review.ReviewStatus.FLAGGED:
+            return "awaiting_admin_review"
+
+        metadata = review.REVW_MODERATION_DATA
+        if not isinstance(metadata, dict):
+            return "under_review"
+
+        outcome = metadata.get("outcome")
+        if outcome == "flagged":
+            return "awaiting_admin_review"
+        if (
+            outcome == "provider_failure"
+            and metadata.get("retry_exhausted") is True
+        ):
+            return "retries_exhausted"
+
+        if (
+            not ReviewModerationRetryService._is_retryable(review)
+            or ReviewModerationRetryService._next_due(metadata) is None
+        ):
+            return "under_review"
+        if outcome == "provider_failure":
+            return "awaiting_retry"
+
+        expires = ReviewModerationRetryService._timestamp(
+            metadata.get("retry_claim_expires_at"),
+        )
+        if (
+            metadata.get("retry_claim_token")
+            and expires is not None
+            and expires > timezone.now()
+        ):
+            return "processing"
+        return "pending"
+
+
 class ReviewResponseSerializer(serializers.ModelSerializer):
     """Serializes a business review for API responses."""
 
@@ -251,10 +305,19 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
         )
 
     def to_representation(self, instance):
-        """Expose the preference to its author, not other review readers."""
+        """Expose private progress only when the request belongs to the author."""
         data = super().to_representation(instance)
         if data.get("is_own_review"):
             data["show_in_community"] = instance.REVW_SHOW_IN_COMMUNITY
+        request = self.context.get("request")
+        if (
+            request is not None
+            and request.user.is_authenticated
+            and request.user.pk == instance.USER_ID_id
+        ):
+            data["moderation_progress"] = ReviewModerationProgressSerializer(
+                instance,
+            ).data
         return data
 
 

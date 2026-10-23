@@ -372,6 +372,7 @@ class MyReviewViewTests(
             "id",
             "text",
             "status",
+            "moderation_progress",
             "created_at",
             "updated_at",
             "edited_at",
