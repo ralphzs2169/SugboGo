@@ -48,19 +48,36 @@ class ReviewMediaCleanupService:
                 resource_type = ReviewMediaCleanup.ResourceType.IMAGE
             assets.add((public_id, resource_type))
 
-        if not assets:
-            return
-        records = ReviewMediaCleanup.objects.bulk_create(
-            [
-                ReviewMediaCleanup(
-                    RMCU_REVIEW_ID=review.pk,
-                    RMCU_PUBLIC_ID=public_id,
-                    RMCU_RESOURCE_TYPE=resource_type,
-                )
-                for public_id, resource_type in sorted(assets)
-            ],
+        ReviewMediaCleanupService.register_assets(
+            review_id=review.pk,
+            assets=assets,
         )
-        cleanup_ids = [record.pk for record in records]
+
+    @staticmethod
+    @transaction.atomic
+    def register_assets(
+        review_id: int,
+        assets: set[tuple[str, str]],
+    ) -> None:
+        """Retain unique asset identifiers in the owning transaction before dispatch."""
+        cleanup_ids = []
+
+        for public_id, resource_type in sorted(assets):
+            if not public_id:
+                continue
+
+            record, created = ReviewMediaCleanup.objects.get_or_create(
+                RMCU_REVIEW_ID=review_id,
+                RMCU_PUBLIC_ID=public_id,
+                RMCU_RESOURCE_TYPE=resource_type,
+            )
+
+            if created:
+                cleanup_ids.append(record.pk)
+
+        if not cleanup_ids:
+            return
+
         transaction.on_commit(
             lambda: ReviewMediaCleanupService.dispatch(cleanup_ids),
             robust=True,

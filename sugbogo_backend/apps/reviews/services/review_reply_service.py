@@ -9,8 +9,10 @@ from apps.reviews.constants import MAX_REVIEW_PHOTOS
 from apps.reviews.models import (
     ReplyPhoto,
     Review,
+    ReviewMediaCleanup,
     ReviewReply,
 )
+from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
 from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
 
@@ -123,6 +125,7 @@ class ReviewReplyService:
         photos: list | None = None,
         keep_photo_ids: list | None = None,
     ) -> ReviewReply:
+        """Update reply content and retain removed media for cleanup after commit."""
         reply = ReviewReplyService._get_reply(
             reply_id,
         )
@@ -202,13 +205,22 @@ class ReviewReplyService:
                     RPHO_PHOTO_PUBLIC_ID=public_id,
                 )
 
-            for photo in removed_photos:
-                CloudinaryService.delete_image(
-                    photo.RPHO_PHOTO_PUBLIC_ID,
-                )
+            ReviewMediaCleanupService.register_assets(
+                review_id=reply.REVW_ID_id,
+                assets={
+                    (
+                        photo.RPHO_PHOTO_PUBLIC_ID,
+                        ReviewMediaCleanup.ResourceType.IMAGE,
+                    )
+                    for photo in removed_photos
+                },
+            )
 
             ReplyPhoto.objects.filter(
-                RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
+                RPHO_ID__in=[
+                    photo.RPHO_ID
+                    for photo in removed_photos
+                ],
             ).delete()
 
         except Exception:
@@ -227,6 +239,7 @@ class ReviewReplyService:
         user: User,
         reply_id: int,
     ) -> None:
+        """Delete a reply and retain its media identifiers until cleanup succeeds."""
         reply = ReviewReplyService._get_reply(
             reply_id,
         )
@@ -236,15 +249,16 @@ class ReviewReplyService:
             user,
         )
 
-        public_ids = reply.photos.values_list(
-            "RPHO_PHOTO_PUBLIC_ID",
-            flat=True,
+        ReviewMediaCleanupService.register_assets(
+            review_id=reply.REVW_ID_id,
+            assets={
+                (public_id, ReviewMediaCleanup.ResourceType.IMAGE)
+                for public_id in reply.photos.values_list(
+                    "RPHO_PHOTO_PUBLIC_ID",
+                    flat=True,
+                )
+            },
         )
-
-        for public_id in public_ids:
-            CloudinaryService.delete_image(
-                public_id,
-            )
 
         reply.delete()
 
@@ -254,6 +268,7 @@ class ReviewReplyService:
         user: User,
         photo_id: int,
     ) -> None:
+        """Remove a reply photo and register durable cleanup in the same transaction."""
         try:
             photo = (
                 ReplyPhoto.objects
@@ -274,8 +289,14 @@ class ReviewReplyService:
             user,
         )
 
-        CloudinaryService.delete_image(
-            photo.RPHO_PHOTO_PUBLIC_ID,
+        ReviewMediaCleanupService.register_assets(
+            review_id=photo.RPLY_ID.REVW_ID_id,
+            assets={
+                (
+                    photo.RPHO_PHOTO_PUBLIC_ID,
+                    ReviewMediaCleanup.ResourceType.IMAGE,
+                ),
+            },
         )
 
         photo.delete()
