@@ -281,6 +281,7 @@ describe("asynchronous author review synchronization", () => {
       status: "published",
       sentiment_label: "positive",
       sentiment_score: 0.8,
+      sentiment_aggregate_included: true,
     };
     await mount();
     review = {

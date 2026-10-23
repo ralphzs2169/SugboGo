@@ -54,6 +54,8 @@ export type BusinessReview = {
   like_count: number;
   sentiment_label: ReviewSentiment | null;
   sentiment_score: number | null;
+  /** Author-only proof that this classification is in the stored aggregate. */
+  sentiment_aggregate_included?: boolean;
   is_liked: boolean;
   is_liked_by_owner: boolean;
   is_own_review: boolean;

@@ -333,6 +333,7 @@ function useReviewMutation<TVariables, TResult>(
       ) {
         startSentimentSync({
           reviewId: (result as ReviewCreateResult).id,
+          reviewText: (variables as { text: string }).text.trim(),
           baselineComputedAt: context.baselineSentimentComputedAt,
           baselineGeneratedAt: context.baselineGeneratedAt,
           baselineInsightsUpdatedAt: context.baselineInsightsUpdatedAt,
@@ -350,6 +351,8 @@ function useReviewMutation<TVariables, TResult>(
       ) {
         startSentimentSync({
           reviewId: (variables as { reviewId: number }).reviewId,
+          reviewText: (result as BusinessReview).text,
+          minimumReviewUpdatedAt: (result as BusinessReview).updated_at,
           baselineComputedAt: context.baselineSentimentComputedAt,
           baselineGeneratedAt: context.baselineGeneratedAt,
           baselineInsightsUpdatedAt: context.baselineInsightsUpdatedAt,

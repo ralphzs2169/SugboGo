@@ -4,6 +4,7 @@ import type {
 } from "../../types/exploreBusiness.types";
 import { resolveReviewInsightRegeneration } from "../../utils/reviewInsightRegeneration.utils";
 import type { BusinessReview } from "../../types/review.types";
+import { businessReviewFixture } from "../../__tests__/review.fixtures";
 import {
   isSentimentSynchronizationComplete,
   shouldStopGeneratedInsightsSync,
@@ -152,6 +153,33 @@ describe("review-derived data synchronization", () => {
         insights("ready", null, "2026-09-28T01:00:04Z"),
       ),
     ).toBe(false);
+  });
+
+  it("requires strict inclusion for the current published source regardless of sufficiency", () => {
+    const session = { ...sentimentSession, reviewText: "Current text." };
+    const review = businessReviewFixture({
+      id: 18,
+      text: "Current text.",
+      sentiment_aggregate_included: true,
+    });
+    expect(isSentimentSynchronizationComplete(session, review, null)).toBe(true);
+    for (const value of [false, undefined, null, "true"]) {
+      expect(isSentimentSynchronizationComplete(session, {
+        ...review,
+        sentiment_aggregate_included: value,
+      } as BusinessReview)).toBe(false);
+    }
+    for (const stale of [
+      { ...review, id: 19 },
+      { ...review, text: "Previous text." },
+      { ...review, status: "rejected" as const },
+    ]) {
+      expect(isSentimentSynchronizationComplete(session, stale)).toBe(false);
+    }
+    expect(isSentimentSynchronizationComplete({
+      ...session,
+      minimumReviewUpdatedAt: "2026-09-29T00:00:00Z",
+    }, review)).toBe(false);
   });
 
   it("continues through generated transitions and stops at terminal states", () => {

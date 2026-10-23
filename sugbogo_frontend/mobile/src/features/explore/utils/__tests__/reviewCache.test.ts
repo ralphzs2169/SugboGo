@@ -19,6 +19,21 @@ const accepted = {
 } as BusinessReview;
 
 describe("accepted review cache updates", () => {
+  it("clears an earlier inclusion flag when a legacy edit response omits it", () => {
+    useAuthStore.setState({ user: { id: 10 } as never });
+    const client = new QueryClient();
+    client.setQueryData(businessReviewPreviewKey(20), {
+      reviews: [],
+      total_count: 1,
+      user_review: { ...accepted, sentiment_aggregate_included: true },
+    });
+    updateReviewInCaches(client, 20, 10, accepted);
+    expect(client.getQueryData<{ user_review: BusinessReview }>(
+      businessReviewPreviewKey(20),
+    )?.user_review.sentiment_aggregate_included).toBeUndefined();
+    client.clear();
+  });
+
   it.each([true, false])(
     "preserves business identity and server metadata with Community visibility %s",
     (showInCommunity) => {

@@ -10,8 +10,37 @@ import {
   exploreBusinessDetailKey,
 } from "../hooks/reviewQueryKeys";
 import { invalidateBusinessCardCollections } from "./reviewCache.utils";
+import type { BusinessReview } from "../types/review.types";
 
 const observedDecisions = new WeakMap<QueryClient, Set<string>>();
+const observedSentiment = new WeakMap<QueryClient, Map<string, string>>();
+
+/** Refresh inclusion transitions once across the existing review observers. */
+export async function refreshAuthorReviewSentiment(
+  client: QueryClient,
+  businessId: number,
+  userId: number,
+  review: BusinessReview,
+) {
+  const identity = `${getAuthSessionGeneration()}:${userId}:${businessId}:${review.id}`;
+  let observed = observedSentiment.get(client);
+  if (!observed) {
+    observed = new Map();
+    observedSentiment.set(client, observed);
+  }
+  if (review.sentiment_aggregate_included !== true) {
+    observed.delete(identity);
+    return;
+  }
+  const source = JSON.stringify([
+    review.text,
+    review.sentiment_label,
+    review.sentiment_score,
+  ]);
+  if (observed.get(identity) === source) return;
+  observed.set(identity, source);
+  await refreshAuthorReviewReads(client, businessId, userId);
+}
 
 /** Refresh a confirmed author decision once across preview and history observers. */
 export async function refreshAuthorReviewDecision(

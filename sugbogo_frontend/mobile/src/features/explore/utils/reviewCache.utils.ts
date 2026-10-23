@@ -48,6 +48,11 @@ export function updateReviewInCaches(
   authorUserId: number | null,
   review: BusinessReview,
 ) {
+  // A legacy edit response must clear a previously cached inclusion acknowledgement.
+  review = {
+    ...review,
+    sentiment_aggregate_included: review.sentiment_aggregate_included,
+  };
   const preview = queryClient.getQueryData<BusinessReviewPreview>(
     businessReviewPreviewKey(businessId),
   );

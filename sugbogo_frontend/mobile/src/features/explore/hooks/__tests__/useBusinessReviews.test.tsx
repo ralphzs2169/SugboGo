@@ -344,6 +344,7 @@ describe("useBusinessReviews", () => {
 
     expect(mockStartSentimentSync).toHaveBeenCalledWith({
       reviewId: 18,
+      reviewText: "A detailed review for sentiment processing.",
       baselineComputedAt: null,
       baselineGeneratedAt: null,
       baselineInsightsUpdatedAt: null,
@@ -395,7 +396,12 @@ describe("useBusinessReviews", () => {
   it("starts sentiment synchronization only when edited text changed", async () => {
     (updateReview as jest.Mock).mockResolvedValue({
       success: true,
-      data: { id: 8, status: "published" },
+      data: {
+        id: 8,
+        status: "published",
+        text: "A changed review text for new sentiment.",
+        updated_at: "2026-10-23T01:00:00Z",
+      },
     });
     const { client, Wrapper } = setupClient();
     const invalidate = jest.spyOn(client, "invalidateQueries");
@@ -426,6 +432,8 @@ describe("useBusinessReviews", () => {
 
     expect(mockStartSentimentSync).toHaveBeenCalledWith({
       reviewId: 8,
+      reviewText: "A changed review text for new sentiment.",
+      minimumReviewUpdatedAt: "2026-10-23T01:00:00Z",
       baselineComputedAt: null,
       baselineGeneratedAt: null,
       baselineInsightsUpdatedAt: null,
