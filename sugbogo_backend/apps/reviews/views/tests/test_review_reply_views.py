@@ -15,8 +15,8 @@ from apps.business.models import (
 )
 from apps.reviews.models import ReviewReply
 from apps.reviews.services.review_reply_service import ReviewReplyService
-from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
     SafeReviewModerationMixin,
 )
 from apps.users.models import User
@@ -79,7 +79,7 @@ class ReviewReplyViewTests(SafeReviewModerationMixin, APITestCase):
             LOCT_ID=self.location,
         )
 
-        self.review = ReviewService.create_review(
+        self.review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -408,7 +408,7 @@ class ReviewReplyDetailViewTests(SafeReviewModerationMixin, APITestCase):
             LOCT_ID=self.location,
         )
 
-        self.review = ReviewService.create_review(
+        self.review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",

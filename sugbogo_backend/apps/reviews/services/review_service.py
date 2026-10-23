@@ -139,7 +139,7 @@ class ReviewService:
 
     @staticmethod
     def _queue_moderation_retry_after_commit(review_id: int) -> None:
-        """Queue infrastructure recovery without changing submission success."""
+        """Dispatch durable initial or retry moderation after its owning commit."""
 
         def publish():
             try:
@@ -147,12 +147,12 @@ class ReviewService:
 
                 retry_failed_review_moderation.delay(review_id)
                 logger.info(
-                    "Review moderation retry queued.",
+                    "Review moderation work queued.",
                     extra={"review_id": review_id},
                 )
             except Exception as exc:
                 logger.error(
-                    "Review moderation retry enqueue failed.",
+                    "Review moderation enqueue failed; durable work remains recoverable.",
                     extra={
                         "review_id": review_id,
                         "error_type": type(exc).__name__,
@@ -389,7 +389,7 @@ class ReviewService:
         installation_id: str | None = None,
         show_in_community: bool = True,
     ) -> Review:
-        """Moderate before atomically creating a published or held review."""
+        """Upload and save a private review before dispatching stored-content moderation."""
         try:
             business = Business.objects.get(
                 BUSN_ID=business_id,
@@ -413,21 +413,6 @@ class ReviewService:
             )
 
         submitted_photos = photos or []
-        moderation = ReviewModerationService.moderate(
-            text=text,
-            photos=submitted_photos,
-        )
-        moderation["retry_attempt"] = 0
-        moderation["retryable"] = moderation["outcome"] == "provider_failure"
-        moderation["retry_exhausted"] = False
-        moderation["last_attempted_at"] = moderation["checked_at"]
-        moderation["last_provider_failure"] = moderation["failure_type"]
-        if moderation["retryable"]:
-            moderation["retry_next_attempt_at"] = timezone.now().isoformat()
-        review_status = Review.ReviewStatus.PUBLISHED
-        if moderation["outcome"] != "safe":
-            review_status = Review.ReviewStatus.UNDER_REVIEW
-
         uploaded_public_ids = []
         uploaded_photos = []
 
@@ -442,10 +427,15 @@ class ReviewService:
                 uploaded_photos.append(upload_result)
 
             with transaction.atomic():
+                from apps.reviews.services.review_moderation_retry_service import (
+                    ReviewModerationRetryService,
+                )
+
                 ReviewService._lock_reliability_creation_keys(
                     user.USER_ID,
                     installation_id,
                 )
+                initial_moderation = ReviewModerationRetryService.initial_metadata()
                 try:
                     review = Review.objects.create(
                         USER_ID=user,
@@ -453,24 +443,21 @@ class ReviewService:
                         REVW_TEXT=text,
                         REVW_INSTALLATION_ID=installation_id,
                         REVW_SHOW_IN_COMMUNITY=show_in_community,
-                        REVW_STATUS=review_status,
+                        REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+                        REVW_MODERATION_DATA=initial_moderation,
                     )
                 except IntegrityError:
                     raise ValidationError(
                         "You have already reviewed this business.",
                     ) from None
 
-                for index, upload_result in enumerate(uploaded_photos):
-                    review_photo = ReviewPhoto.objects.create(
+                for upload_result in uploaded_photos:
+                    ReviewPhoto.objects.create(
                         REVW_ID=review,
                         RPHO_PHOTO_URL=upload_result["secure_url"],
                         RPHO_PHOTO_PUBLIC_ID=upload_result["public_id"],
                     )
-                    for finding in moderation["findings"]:
-                        if finding["photo_index"] == index:
-                            finding["photo_id"] = review_photo.RPHO_ID
 
-                review.REVW_MODERATION_DATA = moderation
                 try:
                     with transaction.atomic():
                         (
@@ -515,12 +502,9 @@ class ReviewService:
                     ],
                 )
 
-                if review_status == Review.ReviewStatus.PUBLISHED:
-                    ReviewService._apply_published_effects(review)
-                elif moderation["outcome"] == "provider_failure":
-                    ReviewService._queue_moderation_retry_after_commit(
-                        review.REVW_ID,
-                    )
+                ReviewService._queue_moderation_retry_after_commit(
+                    review.REVW_ID,
+                )
 
         except Exception as exc:
             ReviewService._compensate_uploaded_photos(
@@ -533,11 +517,11 @@ class ReviewService:
             raise
 
         logger.info(
-            "Review creation moderation decision saved.",
+            "Review saved for initial moderation.",
             extra={
                 "review_id": review.REVW_ID,
-                "outcome": moderation["outcome"],
-                "review_status": review_status,
+                "outcome": review.REVW_MODERATION_DATA["outcome"],
+                "review_status": review.REVW_STATUS,
             },
         )
         return review

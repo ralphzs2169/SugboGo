@@ -3,6 +3,20 @@
 from unittest.mock import patch
 
 
+def create_and_moderate_review(
+    *args,
+    **kwargs,
+):
+    """Advance a downstream test fixture through creation and its stored-content check."""
+    from apps.reviews.services.review_moderation_retry_service import ReviewModerationRetryService
+    from apps.reviews.services.review_service import ReviewService
+
+    review = ReviewService.create_review(*args, **kwargs)
+    ReviewModerationRetryService.retry(review.pk)
+    review.refresh_from_db()
+    return review
+
+
 class SafeReviewModerationMixin:
     """Keep established review tests independent of the moderation provider."""
 

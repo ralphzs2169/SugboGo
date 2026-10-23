@@ -31,6 +31,10 @@ from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.review_moderation_retry_service import ReviewModerationRetryService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
+)
 from apps.users.models import User
 
 
@@ -51,6 +55,9 @@ class ReviewViewTests(APITestCase):
         )
         self.moderate_review = moderation_patcher.start()
         self.addCleanup(moderation_patcher.stop)
+        dispatch_patcher = patch("apps.reviews.tasks.retry_failed_review_moderation.delay")
+        dispatch_patcher.start()
+        self.addCleanup(dispatch_patcher.stop)
 
         self.merchant = User.objects.create_user(
             email="merchant-review@example.com",
@@ -216,14 +223,15 @@ class ReviewViewTests(APITestCase):
 
         self.assertEqual(
             response.data["message"],
-            "Review added successfully.",
+            "Review submitted and is under review.",
         )
 
         self.assertEqual(
             response.data["data"]["business_id"],
             self.business.BUSN_ID,
         )
-        self.assertEqual(response.data["data"]["status"], "published")
+        self.assertEqual(response.data["data"]["status"], "under_review")
+        self.moderate_review.assert_not_called()
         self.assertNotIn("report_count", response.data["data"])
         self.assertNotIn("is_report_flagged", response.data["data"])
         self.assertNotIn("reliability_reasons", response.data["data"])
@@ -261,8 +269,8 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Review.objects.filter(USER_ID=self.explorer).exists())
 
-    def test_flagged_submission_returns_successful_under_review_status(self):
-        """The API reports the held state without exposing moderation evidence."""
+    def test_unchecked_submission_returns_successful_under_review_status(self):
+        """The API acknowledges private content without calling the provider."""
         self.moderate_review.return_value["outcome"] = "flagged"
         response = self.client.post(
             self.preview_url,
@@ -279,6 +287,7 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(preview["user_review"]["id"], review.pk)
         self.assertEqual(preview["reviews"], [])
         self.assertEqual(preview["total_count"], 0)
+        self.moderate_review.assert_not_called()
 
     def test_create_review_can_opt_out_without_hiding_business_review(self):
         response = self.client.post(
@@ -295,6 +304,9 @@ class ReviewViewTests(APITestCase):
         preview = self.client.get(self.preview_url).data["data"]
         self.assertEqual(preview["user_review"]["id"], review.pk)
         self.assertFalse(preview["user_review"]["show_in_community"])
+        self.assertEqual(preview["reviews"], [])
+        self.assertEqual(ReviewModerationRetryService.retry(review.pk), "published")
+        preview = self.client.get(self.preview_url).data["data"]
         self.assertIn(review.pk, [item["id"] for item in preview["reviews"]])
         self.client.force_authenticate(self.merchant)
         public_review = self.client.get(self.preview_url).data["data"]["reviews"][0]
@@ -1024,6 +1036,7 @@ class ReviewViewTests(APITestCase):
             REVW_ID=1,
             BUSN_ID=self.business,
             USER_ID=self.explorer,
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
         )
 
         mock_create_review.return_value = mock_review
@@ -1198,7 +1211,7 @@ class ReviewViewTests(APITestCase):
         )
 
     def test_create_review_rejects_duplicate_review(self):
-        ReviewService.create_review(
+        create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="First review.",
@@ -1398,7 +1411,7 @@ class ReviewDetailViewTests(APITestCase):
             LOCT_ID=self.location,
         )
 
-        self.review = ReviewService.create_review(
+        self.review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Original review.",

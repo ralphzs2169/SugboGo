@@ -10,8 +10,8 @@ from apps.business.models import (
 )
 from apps.reviews.models import ReviewLike
 from apps.reviews.services.review_like_service import ReviewLikeService
-from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
     SafeReviewModerationMixin,
 )
 from apps.users.models import User
@@ -81,7 +81,7 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_create_like(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -117,7 +117,7 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
 
 
     def test_create_like_rejects_duplicate(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -163,7 +163,7 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
             )
 
     def test_remove_like(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -193,7 +193,7 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_remove_like_rejects_nonexistent_like(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -209,7 +209,7 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
             )
 
     def test_has_liked_returns_true_when_like_exists(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -228,7 +228,7 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_has_liked_returns_false_when_like_does_not_exist(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -242,7 +242,7 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_different_users_can_like_same_review(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -280,7 +280,7 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
         """Reject owner engagement without creating a like or changing counts."""
         self.business_owner.USER_ROLE = User.UserRole.MERCHANT
         self.business_owner.save(update_fields=["USER_ROLE"])
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.pk,
             text="Great food.",
@@ -299,7 +299,7 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
         """Preserve legacy likes until their owner explicitly removes them."""
         self.business_owner.USER_ROLE = User.UserRole.MERCHANT
         self.business_owner.save(update_fields=["USER_ROLE"])
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user, business_id=self.business.pk, text="Great food.",
         )
         like = ReviewLike.objects.create(USER_ID=self.business_owner, REVW_ID=review)

@@ -40,6 +40,7 @@ class ReviewUploadFixtureMixin:
         self.enqueue = self._patch(
             "apps.reviews.tasks.cleanup_review_media_asset.apply_async",
         )
+        self._patch("apps.reviews.tasks.retry_failed_review_moderation.delay")
 
     def _patch(
         self,
@@ -82,6 +83,8 @@ class ReviewUploadFixtureMixin:
             BUSN_ID=self.business,
             defaults={"REVW_TEXT": "Original published review."},
         )
+        if review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
+            ReviewService.publish_under_review(review.pk)
         return ReviewService.update_review(
             user=self.user,
             review_id=review.pk,
@@ -105,7 +108,7 @@ class ReviewUploadCompensationTests(ReviewUploadFixtureMixin, TestCase):
         review = self._submit("create")
 
         self.assertEqual(review.photos.count(), 2)
-        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
         self.destroy.assert_not_called()
         self._assert_no_durable_work()
 

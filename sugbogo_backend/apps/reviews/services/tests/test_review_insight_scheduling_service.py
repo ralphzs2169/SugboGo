@@ -30,6 +30,9 @@ from apps.reviews.services.review_sentiment_service import ReviewSentimentServic
 from apps.reviews.services.review_report_service import ReviewReportService
 from apps.reviews.services.review_reply_service import ReviewReplyService
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
+)
 from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatchService
 from apps.reviews.services.tests.test_business_review_summary_service import SummaryFixtureMixin
 from apps.reviews.tasks import (
@@ -106,7 +109,7 @@ class ReviewInsightSchedulingServiceTests(SummaryFixtureMixin, TransactionTestCa
     def test_new_published_review_records_demand_before_any_sentiment_completion(self):
         author = User.objects.create_user(email="new-review@example.com", password=None)
         with patch("apps.reviews.tasks.process_review_sentiment.delay") as sentiment:
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 author,
                 self.business.pk,
                 "A new opinion.",
@@ -137,7 +140,7 @@ class ReviewInsightSchedulingServiceTests(SummaryFixtureMixin, TransactionTestCa
                 email=f"burst-author-{index}@example.com",
                 password=None,
             )
-            ReviewService.create_review(
+            create_and_moderate_review(
                 author,
                 self.business.pk,
                 f"A distinct new review {index}.",

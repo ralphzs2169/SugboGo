@@ -13,6 +13,9 @@ from apps.notifications.services.notification_event_service import (
 from apps.notifications.tests.fixtures import NotificationFixtures
 from apps.reviews.models import Review
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
+)
 from apps.users.models import User
 
 
@@ -70,7 +73,7 @@ class BusinessReviewNotificationFixtures(NotificationFixtures):
 class BusinessReviewNotificationTests(BusinessReviewNotificationFixtures, TestCase):
     """Cover first publication, moderation, deduplication, and atomicity."""
 
-    def test_immediate_publication_notifies_only_owner_with_public_name(self):
+    def test_worker_publication_notifies_only_owner_with_public_name(self):
         with patch(
             "apps.reviews.services.review_service.ReviewModerationService.moderate",
             return_value={
@@ -80,7 +83,7 @@ class BusinessReviewNotificationTests(BusinessReviewNotificationFixtures, TestCa
                 "findings": [],
             },
         ):
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 user=self.user,
                 business_id=self.business.pk,
                 text="Friendly staff and a welcoming place to visit.",

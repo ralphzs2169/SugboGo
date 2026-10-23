@@ -20,8 +20,8 @@ from apps.business.models import (
 from apps.reviews.models import ReplyPhoto, Review, ReviewMediaCleanup, ReviewReply
 from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
 from apps.reviews.services.review_reply_service import ReviewReplyService
-from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
     SafeReviewModerationMixin,
 )
 from apps.users.models import User
@@ -127,7 +127,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_create_reply(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food and excellent service.",
@@ -160,7 +160,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
             )
 
     def test_create_reply_rejects_merchant_from_different_business(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -181,7 +181,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_update_reply_rejects_merchant_from_different_business(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -208,7 +208,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
 
 
     def test_delete_reply_rejects_merchant_from_different_business(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -234,7 +234,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
         
     def test_create_reply_rejects_non_business_owner(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -251,7 +251,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
             )
 
     def test_create_reply_rejects_duplicate_reply(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -281,7 +281,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_create_reply_is_available_through_review_relation(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -303,7 +303,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         self,
         mock_delete,
     ):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -342,7 +342,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         mock_upload,
         mock_delete,
     ):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -441,7 +441,7 @@ class ReplyPhotoServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def _create_reply_with_photo(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
