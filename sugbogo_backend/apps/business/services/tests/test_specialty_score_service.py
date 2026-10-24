@@ -197,6 +197,74 @@ class SpecialtyScoreCalculationTests(TestCase):
             reference_time=self.REFERENCE_TIME,
         )
 
+    def test_evidence_creation_cutoff_is_inclusive_for_both_recompute_paths(self):
+        vouch = self._create_vouch(
+            explorer_index=100,
+        )
+        cases = (
+            (timedelta(microseconds=-1), 1),
+            (timedelta(0), 1),
+            (timedelta(microseconds=1), 0),
+        )
+
+        for offset, expected_count in cases:
+            with self.subTest(offset=offset):
+                BusinessVouch.objects.filter(
+                    pk=vouch.pk,
+                ).update(
+                    VOUCH_CREATED_AT=self.REFERENCE_TIME + offset,
+                )
+                tag_result = SpecialtyScoreService.recompute_tag_score(
+                    business_specialty_id=self.business_specialties[0].pk,
+                    reference_time=self.REFERENCE_TIME,
+                )
+                business_result = self._recompute_business()
+                results = (
+                    tag_result,
+                    business_result.tag_scores[0],
+                )
+
+                for result in results:
+                    self.assertEqual(result.valid_evidence_count, expected_count)
+                    if expected_count:
+                        self.assertGreater(result.raw_tag_evidence, Decimal("0"))
+                    else:
+                        self.assertEqual(result.raw_tag_evidence, Decimal("0"))
+                        self.assertEqual(result.tag_score, Decimal("0.00000"))
+
+    def test_cutoff_preserves_withdrawn_invalid_and_suspicious_eligibility(self):
+        suspicious = self._create_vouch(
+            explorer_index=100,
+        )
+        BusinessVouch.objects.filter(
+            pk=suspicious.pk,
+        ).update(
+            VOUCH_FLAG_SUSPICIOUS=True,
+        )
+        self._create_vouch(
+            explorer_index=101,
+            is_valid=False,
+        )
+        withdrawn = self._create_vouch(
+            explorer_index=102,
+        )
+        BusinessVouch.objects.filter(
+            pk=withdrawn.pk,
+        ).update(
+            VOUCH_WITHDRAWN_AT=self.REFERENCE_TIME,
+        )
+
+        tag_result = SpecialtyScoreService.recompute_tag_score(
+            business_specialty_id=self.business_specialties[0].pk,
+            reference_time=self.REFERENCE_TIME,
+        )
+        business_result = self._recompute_business()
+
+        for result in (tag_result, business_result.tag_scores[0]):
+            self.assertEqual(result.valid_evidence_count, 1)
+            self.assertEqual(result.raw_tag_evidence, Decimal("0.20"))
+            self.assertEqual(result.tag_score, Decimal("0.18127"))
+
     def test_newly_created_evidence_has_decay_one(self):
         decay = SpecialtyScoreService.calculate_decay(
             vouch_created_at=self.REFERENCE_TIME,

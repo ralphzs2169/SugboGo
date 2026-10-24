@@ -266,6 +266,59 @@ class DiscoveryScoreServiceTests(TestCase):
             USER_REPUTATION=reputation,
         )
 
+    def test_targeted_refresh_persists_scores_with_reference_time_cutoff(self):
+        """Excludes later evidence through the actual targeted task and persistence path."""
+        from apps.business.tasks import recompute_business_discovery_score
+
+        for reputation, offset in (
+            (Decimal("0.20"), timedelta(0)),
+            (Decimal("0.90"), timedelta(microseconds=1)),
+        ):
+            explorer = self._create_explorer(reputation)
+            vouch = BusinessVouch.objects.create(
+                BUSN_ID=self.business,
+                USER_ID=explorer,
+                TAG_ID=self.specialties[0].TAG_ID,
+                VOUCH_REPUTATION_SNAPSHOT=reputation,
+            )
+            BusinessVouch.objects.filter(
+                pk=vouch.pk,
+            ).update(
+                VOUCH_CREATED_AT=self.REFERENCE_TIME + offset,
+            )
+
+        with patch(
+            "apps.business.tasks.timezone.now",
+            return_value=self.REFERENCE_TIME,
+        ), patch.object(
+            VisibilityGapService,
+            "calculate_business_visibility_gap",
+            return_value=self._visibility_result(Decimal("1")),
+        ):
+            result = recompute_business_discovery_score.run(
+                business_id=self.business.pk,
+            )
+
+        score = DiscoveryScore.objects.get(BUSN_ID=self.business)
+        self.specialties[0].refresh_from_db()
+        self.assertEqual(
+            result["status"],
+            DiscoveryScoreRecomputeStatus.UPDATED.value,
+        )
+        self.assertEqual(
+            self.specialties[0].BST_TAG_SCORE,
+            Decimal("0.18127"),
+        )
+        self.assertEqual(
+            self.specialties[0].BST_SCORE_UPDATED_AT,
+            self.REFERENCE_TIME,
+        )
+        self.assertEqual(score.DSC_S_SCORE, Decimal("0.06042"))
+        self.assertEqual(score.DSC_D_SCORE, Decimal("0.24834"))
+        self.assertEqual(score.DSC_COMPUTED_AT, self.REFERENCE_TIME)
+        self.assertFalse(score.DSC_IS_PROVISIONAL)
+        self.assertIsNone(score.DSC_REFRESH_REQUESTED_AT)
+
     def test_default_formula_examples(self):
         """Uses the configured default weights for deterministic examples."""
 

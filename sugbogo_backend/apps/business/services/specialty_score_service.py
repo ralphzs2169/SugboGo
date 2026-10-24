@@ -359,6 +359,7 @@ class SpecialtyScoreService:
                 BUSN_ID=business_specialty.BUSN_ID_id,
                 TAG_ID=business_specialty.TAG_ID_id,
                 VOUCH_EVIDENCE_IS_VALID=True,
+                VOUCH_CREATED_AT__lte=reference_time,
             ).order_by(
                 "VOUCH_CREATED_AT",
                 "VOUCH_ID",
@@ -438,6 +439,7 @@ class SpecialtyScoreService:
                 BUSN_ID=business,
                 TAG_ID_id__in=specialty_tag_ids,
                 VOUCH_EVIDENCE_IS_VALID=True,
+                VOUCH_CREATED_AT__lte=reference_time,
             )
             .order_by(
                 "TAG_ID_id",

@@ -142,6 +142,22 @@ class PersistentVouchTests(VouchLifecycleFixtures, TestCase):
         self.assertEqual(after.tag_score, before.tag_score)
         self.assertLess(after.raw_tag_evidence, Decimal("0.20"))
 
+        at_creation = SpecialtyScoreService.recompute_tag_score(
+            business_specialty_id=self.spicy_business_tag.pk,
+            reference_time=original_time,
+        )
+        before_creation = SpecialtyScoreService.recompute_tag_score(
+            business_specialty_id=self.spicy_business_tag.pk,
+            reference_time=original_time - timedelta(microseconds=1),
+        )
+        self.assertEqual(at_creation.valid_evidence_count, 1)
+        self.assertEqual(
+            at_creation.raw_tag_evidence,
+            restored.VOUCH_REPUTATION_SNAPSHOT,
+        )
+        self.assertEqual(before_creation.valid_evidence_count, 0)
+        self.assertEqual(before_creation.tag_score, Decimal("0.00000"))
+
     def test_lower_current_reputation_does_not_replace_original_snapshot(self):
         original = self._create()
         self._withdraw()
