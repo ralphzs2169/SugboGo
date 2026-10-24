@@ -39,6 +39,25 @@ class DiscoveryAlgorithmConfiguration(models.Model):
         ],
     )
 
+    DAC_HIDDEN_GEM_MIN_SPECIALTY_SCORE = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("0.10"),
+        validators=[
+            MinValueValidator(ZERO),
+            MaxValueValidator(ONE),
+        ],
+    )
+    DAC_HIDDEN_GEM_MIN_VISIBILITY_GAP = models.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        default=Decimal("0.50"),
+        validators=[
+            MinValueValidator(ZERO),
+            MaxValueValidator(ONE),
+        ],
+    )
+
     DAC_DECAY_RATE = models.DecimalField(
         max_digits=6,
         decimal_places=5,

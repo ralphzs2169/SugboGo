@@ -79,6 +79,14 @@ const metadataKeys = [
   keys.EXPLORE_SPECIALTIES_QUERY_KEY,
   keys.EXPLORE_FILTER_OPTIONS_QUERY_KEY,
 ];
+
+it("versions the homepage Hidden Gems policy to reject old general-discovery snapshots", () => {
+  const policy = QUERY_PERSISTENCE_POLICIES.find((candidate) =>
+    candidate.matches(keys.DISCOVERY_FEED_QUERY_KEY),
+  );
+
+  expect(policy?.version).toBe(2);
+});
 const cluster = { id: 1, name: "Food", icon: "food" };
 const specialty = { id: 1, name: "Coffee", color: "blue", icon: "coffee" };
 
@@ -252,6 +260,25 @@ it.each(feedKeys.map((key) => [key[0], key] as const))(
     expect(
       next.client.getQueryData<{ items: unknown[] }>(key)?.items,
     ).toHaveLength(10);
+  },
+);
+
+it.each([true, false, undefined])(
+  "preserves recommendation personalization state %s across cache restore",
+  async (isPersonalized) => {
+    const original = feed();
+    if (isPersonalized !== undefined) {
+      Object.assign(original, { is_personalized: isPersonalized });
+    }
+    await seed(keys.RECOMMENDATIONS_QUERY_KEY, original);
+    const restored = context();
+    await restored.restore();
+
+    const data = restored.client.getQueryData<{ is_personalized?: boolean }>(
+      keys.RECOMMENDATIONS_QUERY_KEY,
+    );
+    expect(data).toBeDefined();
+    expect(data?.is_personalized).toBe(isPersonalized);
   },
 );
 

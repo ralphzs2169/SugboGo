@@ -215,7 +215,7 @@ class RecommendationRankingTests(SimpleTestCase):
             similarity,
         )
 
-    def test_group_precedes_visibility_gap(self):
+    def test_group_precedes_similarity_and_visibility_gap(self):
         high = self._item(
             1,
             RelevanceGroup.HIGH,
@@ -248,13 +248,72 @@ class RecommendationRankingTests(SimpleTestCase):
             [1, 2, 3],
         )
 
+    def test_same_group_prefers_similarity_over_visibility_gap(self):
+        stronger_match = self._item(
+            2,
+            RelevanceGroup.HIGH,
+            "0.10000",
+            1.0,
+            "0.10000",
+        )
+        higher_gap = self._item(
+            1,
+            RelevanceGroup.HIGH,
+            "1.00000",
+            0.71875,
+            "1.00000",
+        )
+
+        ranked = sorted(
+            [higher_gap, stronger_match],
+            key=recommendation_sort_key,
+        )
+
+        self.assertEqual(
+            [
+                item[0].BUSN_ID
+                for item in ranked
+            ],
+            [2, 1],
+        )
+
     def test_all_tie_breakers_are_applied_in_order(self):
         items = [
-            self._item(5, RelevanceGroup.HIGH, "0.8", 0.8, "0.8"),
-            self._item(4, RelevanceGroup.HIGH, "0.8", 0.8, "0.8"),
-            self._item(3, RelevanceGroup.HIGH, "0.8", 0.8, "0.9"),
-            self._item(2, RelevanceGroup.HIGH, "0.8", 0.9, "0.1"),
-            self._item(1, RelevanceGroup.HIGH, "0.9", 0.7, "0.1"),
+            self._item(
+                5,
+                RelevanceGroup.HIGH,
+                "0.8",
+                0.8,
+                "0.8",
+            ),
+            self._item(
+                4,
+                RelevanceGroup.HIGH,
+                "0.8",
+                0.8,
+                "0.8",
+            ),
+            self._item(
+                3,
+                RelevanceGroup.HIGH,
+                "0.8",
+                0.8,
+                "0.9",
+            ),
+            self._item(
+                2,
+                RelevanceGroup.HIGH,
+                "0.9",
+                0.8,
+                "0.1",
+            ),
+            self._item(
+                1,
+                RelevanceGroup.HIGH,
+                "0.1",
+                0.9,
+                "0.1",
+            ),
         ]
 
         ranked = sorted(
@@ -263,6 +322,9 @@ class RecommendationRankingTests(SimpleTestCase):
         )
 
         self.assertEqual(
-            [item[0].BUSN_ID for item in ranked],
+            [
+                item[0].BUSN_ID
+                for item in ranked
+            ],
             [1, 2, 3, 4, 5],
         )

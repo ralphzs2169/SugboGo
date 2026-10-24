@@ -25,6 +25,7 @@ export default function useRecommendations() {
 
   return {
     businesses: query.data?.items ?? [],
+    isPersonalized: query.data?.is_personalized,
     pagination: query.data?.pagination ?? null,
     isLoading: query.isLoading,
     isPaused: query.isPaused,

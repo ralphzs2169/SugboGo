@@ -1,5 +1,8 @@
 from decimal import Decimal
 
+from apps.admin_operations.system_configuration.models import (
+    DiscoveryAlgorithmConfiguration,
+)
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 
 from apps.business.models import (
@@ -67,10 +70,46 @@ class DiscoveryFeedService:
         )
 
     @staticmethod
+    def hidden_gem_eligibility():
+        """Require measured components meeting configured Hidden Gem thresholds."""
+        def threshold(field_name):
+            """Read one threshold without creating singleton configuration on reads."""
+            return Coalesce(
+                Subquery(
+                    DiscoveryAlgorithmConfiguration.objects.filter(
+                        pk=1,
+                    ).values(field_name)[:1],
+                ),
+                Value(
+                    DiscoveryAlgorithmConfiguration._meta.get_field(
+                        field_name,
+                    ).get_default(),
+                ),
+                output_field=DecimalField(
+                    max_digits=6,
+                    decimal_places=5,
+                ),
+            )
+
+        return Q(
+            discovery_score__DSC_IS_PROVISIONAL=False,
+            discovery_score__DSC_COMPUTED_AT__isnull=False,
+            discovery_score__DSC_S_SCORE__gte=threshold(
+                "DAC_HIDDEN_GEM_MIN_SPECIALTY_SCORE",
+            ),
+            discovery_score__DSC_V_SCORE__gte=threshold(
+                "DAC_HIDDEN_GEM_MIN_VISIBILITY_GAP",
+            ),
+        )
+
+    @staticmethod
     def list_global_hidden_gem_ids():
-        """Return an unfiltered Top 10 ID query matching Explore's homepage."""
+        """Return up to ten globally eligible Hidden Gems matching the homepage."""
         return (
             DiscoveryFeedService.list_ranked_businesses()
+            .filter(
+                DiscoveryFeedService.hidden_gem_eligibility(),
+            )
             .values_list(
                 "BUSN_ID",
                 flat=True,
@@ -251,4 +290,6 @@ class DiscoveryFeedService:
             cluster_id=cluster_id,
             specialty_tag_id=specialty_tag_id,
             rank_specialty_by_tag_score=False,
+        ).filter(
+            DiscoveryFeedService.hidden_gem_eligibility(),
         )

@@ -39,7 +39,9 @@ export default function InterestsIntroCard() {
         </AppText>
 
         <AppText className="mt-1.5 text-sm leading-5 text-text-secondary">
-          Choose what you enjoy to improve your personalized recommendations.
+          Choose categories and specialties that interest you. These help
+          personalize For You alongside your activity. You can change them
+          anytime.
         </AppText>
       </View>
       {/* Personalization mascot */}

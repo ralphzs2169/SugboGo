@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { RECOMMENDATIONS_QUERY_KEY } from "@/features/explore/hooks/useRecommendations";
+import { EXPLORE_COLLECTIONS_QUERY_KEY } from "@/features/explore/hooks/useExploreCollection";
 
 import {
   completeOnboardingInterests,
@@ -20,11 +21,17 @@ export function useCompleteOnboardingInterests() {
 
       return throwOnApiError(response);
     },
-    onSuccess: (interests) => {
+    onSuccess: async (interests) => {
       queryClient.setQueryData(USER_INTERESTS_QUERY_KEY, interests);
-      void queryClient.invalidateQueries({
-        queryKey: RECOMMENDATIONS_QUERY_KEY,
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: RECOMMENDATIONS_QUERY_KEY,
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [...EXPLORE_COLLECTIONS_QUERY_KEY, "interests"],
+        }),
+      ]);
     },
   });
 }
@@ -39,11 +46,17 @@ export function useUpdateUserInterests() {
 
       return throwOnApiError(response);
     },
-    onSuccess: (interests) => {
+    onSuccess: async (interests) => {
       queryClient.setQueryData(USER_INTERESTS_QUERY_KEY, interests);
-      void queryClient.invalidateQueries({
-        queryKey: RECOMMENDATIONS_QUERY_KEY,
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: RECOMMENDATIONS_QUERY_KEY,
+          refetchType: "all",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [...EXPLORE_COLLECTIONS_QUERY_KEY, "interests"],
+        }),
+      ]);
     },
   });
 }

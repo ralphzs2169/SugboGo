@@ -41,7 +41,7 @@ import type {
 export const EXPLORE_COLLECTION_TITLES: Record<ExploreCollectionType, string> =
   {
     "hidden-gems": "Hidden Gems",
-    interests: "Based on Your Interests",
+    interests: "For You",
     "new-businesses": "New to SugboGo",
   };
 
@@ -224,7 +224,7 @@ export default function ExploreCollectionScreen() {
   const emptyDescription = hasActiveFilters
     ? "Try adjusting or clearing a filter."
     : isRecommendationCollection
-      ? "Explore SugboGo to help us learn what interests you."
+      ? "Your interests and activity help shape future recommendations."
       : "Check back later for more places to discover.";
 
   const openBusiness = (business: ExploreBusiness, distance: number | null) => {

@@ -135,6 +135,29 @@ async function seed(key = "explore-discovery", data: unknown = page()) {
 }
 
 it.each([
+  [true, "For You"],
+  [false, "Explore local picks"],
+  [undefined, "Explore local picks"],
+] as const)(
+  "labels recent recommendations from authoritative state %s",
+  async (isPersonalized, title) => {
+    const data = page();
+    if (isPersonalized !== undefined) {
+      Object.assign(data, { is_personalized: isPersonalized });
+    }
+    Object.assign(data.items[0], { recommendation_reason: null });
+    await seed("explore-recommendations", data);
+    await restoreSession();
+    const grant = useOfflineAccessStore.getState().recentExplore;
+
+    expect(grant).not.toBeNull();
+    const feeds = await readRecentExploreFeeds(grant!);
+    expect(feeds[0].title).toBe(title);
+    expect(feeds[0].items[0].id).toBe(data.items[0].id);
+  },
+);
+
+it.each([
   "explore-discovery",
   "explore-new-businesses",
   "explore-recommendations",

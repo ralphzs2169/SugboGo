@@ -133,6 +133,7 @@ class RecommendationViewTests(TestCase):
         items = response.data["data"]["items"]
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIs(response.data["data"]["is_personalized"], True)
         self.assertEqual(
             [item["id"] for item in items],
             [higher_gap.BUSN_ID, lower_gap.BUSN_ID],
@@ -182,6 +183,29 @@ class RecommendationViewTests(TestCase):
         self.assertIsNone(
             response.data["data"]["items"][0]["recommendation_reason"],
         )
+        self.assertIs(response.data["data"]["is_personalized"], False)
+
+    @patch.object(
+        VisibilityEventService,
+        "get_profile_visit_business_ids",
+        return_value=[],
+    )
+    def test_personalized_state_is_preserved_when_no_candidates_match(
+        self,
+        _profile_visits,
+    ):
+        UserCategoryInterest.objects.create(
+            USER_ID=self.explorer,
+            CTGRY_ID=self.category,
+        )
+
+        response = self.client.get(
+            self.url,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["data"]["items"], [])
+        self.assertIs(response.data["data"]["is_personalized"], True)
 
     def test_authentication_is_required(self):
         self.client.force_authenticate(user=None)

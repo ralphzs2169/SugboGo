@@ -34,10 +34,12 @@ describe("visibility transport", () => {
     );
   });
 
-  it("loads the ranked Discovery feed from its exact endpoint", async () => {
+  it("loads eligible homepage Hidden Gems from the collection endpoint", async () => {
     await getDiscoveryFeed();
 
-    expect(apiClient.get).toHaveBeenCalledWith("/explorer/explore/discovery/");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/explorer/explore/collections/hidden-gems/",
+    );
   });
 
   it("loads recommendations from the authenticated Explorer endpoint", async () => {
@@ -61,7 +63,7 @@ describe("visibility transport", () => {
 
     expect(apiClient.get).toHaveBeenNthCalledWith(
       1,
-      "/explorer/explore/discovery/",
+      "/explorer/explore/collections/hidden-gems/",
     );
     expect(apiClient.post).not.toHaveBeenCalled();
   });

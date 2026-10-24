@@ -24,12 +24,12 @@ class RecommendationView(APIView):
     )
 
     def get(self, request):
-        businesses = RecommendationService.list_recommendations(
+        result = RecommendationService.get_recommendation_result(
             request.user,
         )
         paginator = StandardPagination()
         page = paginator.paginate_queryset(
-            businesses,
+            result.businesses,
             request,
         )
         serializer = RecommendationBusinessSerializer(
@@ -37,6 +37,8 @@ class RecommendationView(APIView):
             many=True,
         )
 
-        return paginator.get_paginated_response(
+        response = paginator.get_paginated_response(
             serializer.data,
         )
+        response.data["data"]["is_personalized"] = result.is_personalized
+        return response

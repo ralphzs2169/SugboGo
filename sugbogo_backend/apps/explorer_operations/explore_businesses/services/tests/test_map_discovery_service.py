@@ -5,6 +5,9 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
 
+from apps.admin_operations.system_configuration.models import (
+    DiscoveryAlgorithmConfiguration,
+)
 from apps.business.models import Business, Category, DiscoveryScore
 from apps.business.services.discovery_score_service import DiscoveryScoreService
 
@@ -89,7 +92,7 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
 
         self.assertEqual(len(businesses), 1)
         self.assertEqual(businesses[0].BUSN_ID, active.BUSN_ID)
-        self.assertTrue(businesses[0].is_hidden_gem)
+        self.assertFalse(businesses[0].is_hidden_gem)
         self.assertFalse(active.BUSN_IS_VERIFIED)
 
     def test_global_top_ten_matches_homepage_including_both_tie_breakers(self):
@@ -116,7 +119,7 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
             *[business.BUSN_ID for business in businesses[:9]],
         ]
         homepage_ids = list(
-            DiscoveryFeedService.list_discovery_businesses(
+            DiscoveryFeedService.list_hidden_gems(
                 user=self.explorer,
             ).values_list(
                 "BUSN_ID",
@@ -151,7 +154,8 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
             [businesses[9].BUSN_ID, businesses[10].BUSN_ID],
         )
 
-    def test_missing_scores_remain_eligible_using_the_feed_zero_score_fallback(self):
+    def test_missing_scores_use_default_baseline_above_persisted_low_and_zero_scores(self):
+        """Rank missing scores at the configured baseline while preserving stored zero."""
         scored = self.create_business(
             score="0.10000",
         )
@@ -159,14 +163,99 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
         zero = self.create_business(
             score="0.00000",
         )
+        DiscoveryAlgorithmConfiguration.objects.update_or_create(
+            pk=1,
+            defaults={
+                "DAC_SPECIALTY_SCORE_WEIGHT": Decimal("0.80"),
+                "DAC_VISIBILITY_GAP_WEIGHT": Decimal("0.20"),
+            },
+        )
         now = timezone.now()
         Business.objects.all().update(
             BUSN_CREATED_AT=now,
         )
 
         self.assertEqual(
-            list(DiscoveryFeedService.list_global_hidden_gem_ids()),
-            [scored.BUSN_ID, missing.BUSN_ID, zero.BUSN_ID],
+            list(
+                DiscoveryFeedService.list_ranked_businesses().values_list(
+                    "BUSN_ID",
+                    flat=True,
+                ),
+            ),
+            [missing.BUSN_ID, scored.BUSN_ID, zero.BUSN_ID],
+        )
+        self.assertEqual(
+            list(
+                DiscoveryFeedService.list_ranked_businesses().values_list(
+                    "discovery_rank_score",
+                    flat=True,
+                ),
+            ),
+            [Decimal("0.20"), Decimal("0.10"), Decimal("0.00")],
+        )
+
+    def test_missing_score_never_gets_gem_membership_when_fallback_weight_changes(self):
+        """Keep missing rows ineligible while retaining gem-first viewport ID ordering."""
+        leaders = [
+            self.create_business(
+                score="0.90000",
+            )
+            for _ in range(9)
+        ]
+        persisted = self.create_business(
+            score="0.22000",
+        )
+        missing = self.create_business()
+        for visibility_weight, specialty_weight, last_gem in (
+            ("0.20", "0.80", persisted),
+            ("0.25", "0.75", persisted),
+        ):
+            with self.subTest(visibility_weight=visibility_weight):
+                DiscoveryAlgorithmConfiguration.objects.update_or_create(
+                    pk=1,
+                    defaults={
+                        "DAC_SPECIALTY_SCORE_WEIGHT": Decimal(specialty_weight),
+                        "DAC_VISIBILITY_GAP_WEIGHT": Decimal(visibility_weight),
+                    },
+                )
+                expected_gems = {
+                    business.BUSN_ID
+                    for business in leaders
+                }
+                expected_gems.add(last_gem.BUSN_ID)
+                self.assertSetEqual(
+                    set(DiscoveryFeedService.list_global_hidden_gem_ids()),
+                    expected_gems,
+                )
+                markers = list(
+                    MapDiscoveryService.list_viewport_businesses(
+                        **self.bounds,
+                    ),
+                )
+                self.assertEqual(
+                    [
+                        business.BUSN_ID
+                        for business in markers
+                    ],
+                    sorted(expected_gems) + sorted(
+                        {
+                            persisted.BUSN_ID,
+                            missing.BUSN_ID,
+                        } - expected_gems,
+                    ),
+                )
+                self.assertSetEqual(
+                    {
+                        business.BUSN_ID
+                        for business in markers
+                        if business.is_hidden_gem
+                    },
+                    expected_gems,
+                )
+        self.assertFalse(
+            DiscoveryScore.objects.filter(
+                BUSN_ID=missing,
+            ).exists(),
         )
 
     def test_geographic_and_future_outer_filters_do_not_promote_local_businesses(self):
