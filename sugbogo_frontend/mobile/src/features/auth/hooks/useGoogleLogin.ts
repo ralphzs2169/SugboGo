@@ -7,6 +7,8 @@ import { useGoogleAuth } from "../oauth/google";
 import { useAuthStore } from "../store/auth.store";
 import { establishSession } from "../utils/authSession";
 import { showOAuthError } from "../utils/oauthError";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import { resolvePostLoginRoute } from "@/features/app-mode/utils/resolveAppModeRoute";
 
 /**
  * Hook for handling the Google OAuth sign-in flow.
@@ -16,24 +18,9 @@ import { showOAuthError } from "../utils/oauthError";
  * user session, and redirects based on the authentication result.
  */
 export function useGoogleLogin() {
-  const [request, response, promptAsync] = useGoogleAuth();
+  const [, response, promptAsync] = useGoogleAuth();
 
   const handledResponse = useRef(false);
-
-  useEffect(() => {
-    if (
-      !response ||
-      response.type !== "success" ||
-      !response.authentication ||
-      handledResponse.current
-    ) {
-      return;
-    }
-
-    handledResponse.current = true;
-
-    authenticate(response.authentication);
-  }, [response]);
 
   async function authenticate(authentication: TokenResponse) {
     const setSigningIn = useAuthStore.getState().setSigningIn;
@@ -59,7 +46,12 @@ export function useGoogleLogin() {
 
       await establishSession(result.data);
 
-      router.replace("/");
+      router.replace(
+        resolvePostLoginRoute(
+          result.data.user,
+          useAppModeStore.getState().activeMode,
+        ),
+      );
     } catch (error) {
       console.error("Unexpected Google login error:", error);
 
@@ -69,6 +61,20 @@ export function useGoogleLogin() {
       setSigningIn(false);
     }
   }
+
+  useEffect(() => {
+    if (
+      !response ||
+      response.type !== "success" ||
+      !response.authentication ||
+      handledResponse.current
+    ) {
+      return;
+    }
+
+    handledResponse.current = true;
+    void authenticate(response.authentication);
+  }, [response]);
 
   return {
     handleGoogleLogin: () => promptAsync(),

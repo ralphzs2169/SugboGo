@@ -1,8 +1,20 @@
-import { useEffect, useSyncExternalStore, type PropsWithChildren } from "react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type PropsWithChildren,
+} from "react";
 // Register temporary-detail cleanup before startup authentication runs.
 import "@/features/explore/services/recentBusinessDetails.service";
-import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import type { QueryClient } from "@tanstack/react-query";
+import {
+  persistQueryClientRestore,
+  persistQueryClientSubscribe,
+} from "@tanstack/react-query-persist-client";
+import {
+  IsRestoringProvider,
+  QueryClientProvider,
+  type QueryClient,
+} from "@tanstack/react-query";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import {
@@ -12,7 +24,6 @@ import {
 
 import { queryClient } from "./queryClient";
 import { queryPersistence } from "./queryPersistence.service";
-import { getQueryPersistenceApiScope } from "./queryPersistencePolicies";
 
 function subscribeGeneration(notify: () => void) {
   return subscribeAuthSessionChanges(() => notify());
@@ -27,27 +38,48 @@ export default function QueryPersistenceProvider({
   client?: QueryClient;
   persistence?: typeof queryPersistence;
 }>) {
-  const userId = useAuthStore((state) => state.user?.id);
+  useAuthStore((state) => state.user?.id);
   useAuthStore((state) => state.isAuthenticated);
   useAuthStore((state) => state.isLoading);
-  const generation = useSyncExternalStore(
+  useSyncExternalStore(
     subscribeGeneration,
     getAuthSessionGeneration,
     getAuthSessionGeneration,
   );
-  const apiScope = getQueryPersistenceApiScope();
   // The coordinator reuses the handle while owner, API and generation match.
   const session = persistence.openSession(client);
 
-  useEffect(() => session.track(), [session]);
+  const [restoredSession, setRestoredSession] = useState<typeof session | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    const stopTracking = session.track();
+    const options = { queryClient: client, ...session.persistOptions };
+
+    // Restore each scope without remounting navigation or resetting open forms.
+    void persistQueryClientRestore(options)
+      .catch(() => undefined)
+      .finally(() => {
+        if (cancelled) return;
+        unsubscribe = persistQueryClientSubscribe(options);
+        setRestoredSession(session);
+      });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+      stopTracking();
+    };
+  }, [client, session]);
 
   return (
-    <PersistQueryClientProvider
-      key={`${generation}:${userId ?? "anonymous"}:${apiScope}`}
-      client={client}
-      persistOptions={session.persistOptions}
-    >
-      {children}
-    </PersistQueryClientProvider>
+    <QueryClientProvider client={client}>
+      <IsRestoringProvider value={restoredSession !== session}>
+        {children}
+      </IsRestoringProvider>
+    </QueryClientProvider>
   );
 }

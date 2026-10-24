@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { persistQueryClientSave } from "@tanstack/react-query-persist-client";
 import { Text } from "react-native";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -184,6 +185,30 @@ it("rejects an old provider's pending hydration after identity replacement", asy
   await waitFor(() => expect(screen.getByText("ready:live")).toBeTruthy());
   expect(seen).not.toContain("previous");
   expect(client.getQueryData(fixtureKey)).toEqual({ value: "live" });
+  await screen.unmount();
+});
+
+it("preserves mounted navigation state when the persistence scope changes", async () => {
+  const mounted = jest.fn();
+  function NavigationProbe() {
+    const [draft] = useState("Filled login form");
+    useEffect(() => {
+      mounted();
+    }, []);
+    return <Text>{draft}</Text>;
+  }
+  const screen = await render(
+    <QueryPersistenceProvider client={client} persistence={runtime}>
+      <NavigationProbe />
+    </QueryPersistenceProvider>,
+  );
+  await act(async () => {
+    beginAuthSession();
+    client.clear();
+    useAuthStore.setState({ user: { id: 8 } as never });
+  });
+  expect(screen.getByText("Filled login form")).toBeTruthy();
+  expect(mounted).toHaveBeenCalledTimes(1);
   await screen.unmount();
 });
 

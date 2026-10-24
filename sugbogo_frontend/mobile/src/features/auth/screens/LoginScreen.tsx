@@ -23,7 +23,8 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FormInput from "@/shared/components/form/FormInput";
 import PasswordInput from "@/shared/components/form/PasswordInput";
-import LoadingScreen from "@/shared/components/LoadingScreen";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import { resolvePostLoginRoute } from "@/features/app-mode/utils/resolveAppModeRoute";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 
 /**
@@ -42,7 +43,6 @@ export default function LoginScreen() {
   );
 
   const signingIn = useAuthStore((state) => state.isSigningIn);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const [navigating, setNavigating] = useState(false);
   const [retryAfter, setRetryAfter] = useState(0);
@@ -176,7 +176,12 @@ export default function LoginScreen() {
       }
 
       setNavigating(true);
-      router.replace("/");
+      router.replace(
+        resolvePostLoginRoute(
+          response.data.user,
+          useAppModeStore.getState().activeMode,
+        ),
+      );
     } catch (error) {
       console.error("Unexpected login error:", error);
 
@@ -186,16 +191,6 @@ export default function LoginScreen() {
       });
     }
   };
-
-  // Session-scoped providers can remount this route before navigation completes.
-  if (signingIn || navigating || isAuthenticated) {
-    return (
-      <LoadingScreen
-        title="Signing you in..."
-        description="Please wait while we securely sign you in."
-      />
-    );
-  }
 
   return (
     <AuthLayout>
