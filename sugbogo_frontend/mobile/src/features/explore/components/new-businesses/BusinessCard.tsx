@@ -158,7 +158,7 @@ export default function BusinessCard({
           accessibilityLabel={
             recommendationReason
               ? `Open ${business.business_name} business profile. ` +
-                `Interested in ${recommendationReason.label}.`
+                `Related to ${recommendationReason.label}.`
               : `Open ${business.business_name} business profile`
           }
           className="min-h-40 w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90"
@@ -270,7 +270,7 @@ export default function BusinessCard({
                     className="ml-1 min-w-0 flex-1 text-[11px] text-brand"
                     numberOfLines={1}
                   >
-                    Interested in {recommendationReason.label}
+                    Related to {recommendationReason.label}
                   </AppText>
                 </View>
               )}

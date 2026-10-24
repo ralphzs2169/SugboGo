@@ -64,16 +64,20 @@ async function renderCard(
 describe("BusinessCard recommendation reason", () => {
   it("renders a one-line reason on the compact variant", async () => {
     const screen = await renderCard("compact", reason);
-    const reasonText = screen.getByText("Interested in Local Coffee");
+    const reasonText = screen.getByText("Related to Local Coffee");
 
     expect(reasonText.props.numberOfLines).toBe(1);
+    expect(
+      screen.queryByText(/Interested in|Matches your saved interest/),
+    ).toBeNull();
+    expect(screen.getByLabelText(/Related to Local Coffee/)).toBeTruthy();
     await screen.unmount();
   });
 
   it("renders nothing when the compact reason is null", async () => {
     const screen = await renderCard("compact", null);
 
-    expect(screen.queryByText(/Interested in/)).toBeNull();
+    expect(screen.queryByText(/Related to|Interested in/)).toBeNull();
     await screen.unmount();
   });
 
@@ -82,7 +86,7 @@ describe("BusinessCard recommendation reason", () => {
     async (variant) => {
       const screen = await renderCard(variant, reason);
 
-      expect(screen.queryByText(/Interested in/)).toBeNull();
+      expect(screen.queryByText(/Related to|Interested in/)).toBeNull();
       await screen.unmount();
     },
   );

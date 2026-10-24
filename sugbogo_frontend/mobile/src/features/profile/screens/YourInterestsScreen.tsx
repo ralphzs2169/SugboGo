@@ -20,7 +20,7 @@ import YourInterestsSkeleton from "../components/your-interests/YourInterestsSke
 import useUserInterests from "../hooks/your-interests/useUserInterests";
 import { useUpdateUserInterests } from "../hooks/your-interests/useInterestMutations";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChanges";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 
 function toggleId(current: number[], id: number) {
   return current.includes(id)
@@ -45,6 +45,7 @@ function idsMatch(first: number[], second: number[]) {
  * unsaved changes when the user attempts to leave the screen.
  */
 export default function YourInterestsScreen() {
+  const { source } = useLocalSearchParams<{ source?: string }>();
   const interestsQuery = useUserInterests();
   const updateMutation = useUpdateUserInterests();
 
@@ -151,6 +152,10 @@ export default function YourInterestsScreen() {
       }, 1000);
 
       navigateWithoutConfirmation(() => {
+        if (source === "recommendations" && router.canGoBack()) {
+          router.back();
+          return;
+        }
         router.replace("/profile");
       });
     } catch (error) {

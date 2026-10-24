@@ -1,5 +1,6 @@
 import logging
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from decimal import Decimal
 
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
@@ -31,12 +32,27 @@ from apps.explorer_operations.explore_businesses.services.taxonomy_filter_servic
     business_matches_taxonomy,
 )
 from apps.users.models import UserCategoryInterest, UserSpecialtyTagInterest
-from django.db.models import DecimalField, Exists, OuterRef, Prefetch, Value
+from django.db.models import (
+    DecimalField,
+    Exists,
+    OuterRef,
+    Prefetch,
+    QuerySet,
+    Value,
+)
 from django.db.models.functions import Coalesce
 
 from .published_review_count import published_review_count
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RecommendationResult:
+    """Pairs the ordered businesses with their actual personalization state."""
+
+    businesses: list[Business] | QuerySet
+    is_personalized: bool
 
 
 class RelevanceGroup(IntEnum):
@@ -355,6 +371,19 @@ class RecommendationService:
     ):
         """Return active businesses ranked by relevance to the explorer."""
 
+        result = RecommendationService.get_recommendation_result(
+            user=user,
+            allow_discovery_fallback=allow_discovery_fallback,
+        )
+        return result.businesses
+
+    @staticmethod
+    def get_recommendation_result(
+        user,
+        allow_discovery_fallback=True,
+    ):
+        """Expose whether the existing ranking used personalization or discovery."""
+
         configuration = (
             RecommendationAlgorithmConfigurationService
             .get_current_configuration()
@@ -370,9 +399,17 @@ class RecommendationService:
 
         if not explorer_features:
             if allow_discovery_fallback:
-                return DiscoveryFeedService.list_discovery_businesses(user)
+                return RecommendationResult(
+                    businesses=DiscoveryFeedService.list_discovery_businesses(
+                        user,
+                    ),
+                    is_personalized=False,
+                )
 
-            return []
+            return RecommendationResult(
+                businesses=[],
+                is_personalized=False,
+            )
 
         ranked_businesses = []
 
@@ -415,10 +452,13 @@ class RecommendationService:
             key=recommendation_sort_key,
         )
 
-        return [
-            business
-            for business, _, _ in ranked_businesses
-        ]
+        return RecommendationResult(
+            businesses=[
+                business
+                for business, _, _ in ranked_businesses
+            ],
+            is_personalized=True,
+        )
 
     @staticmethod
     def list_recommendation_collection(

@@ -1,5 +1,6 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
+import { router } from "expo-router";
 
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
@@ -9,7 +10,17 @@ import YourInterestsScreen from "../YourInterestsScreen";
 
 jest.mock("../../hooks/your-interests/useUserInterests");
 jest.mock("../../hooks/your-interests/useInterestMutations");
-jest.mock("expo-router", () => ({ router: { replace: jest.fn() } }));
+let mockRecommendationEntry = false;
+jest.mock("expo-router", () => ({
+  router: {
+    replace: jest.fn(),
+    back: jest.fn(),
+    canGoBack: jest.fn(() => true),
+  },
+  useLocalSearchParams: () => ({
+    source: mockRecommendationEntry ? "recommendations" : undefined,
+  }),
+}));
 jest.mock("../../hooks/useUnsavedChanges", () => ({
   useUnsavedChangesGuard: () => ({
     showConfirm: false,
@@ -47,6 +58,8 @@ describe("YourInterestsScreen", () => {
   const refetch = jest.fn();
 
   beforeEach(() => {
+    mockRecommendationEntry = false;
+    (router.canGoBack as jest.Mock).mockReturnValue(true);
     (useUserInterests as jest.Mock).mockReturnValue({
       data,
       isLoading: false,
@@ -58,6 +71,30 @@ describe("YourInterestsScreen", () => {
       isPending: false,
     });
     (handleSystemError as jest.Mock).mockReturnValue(false);
+  });
+
+  it("explains selections and activity as inputs to For You", async () => {
+    const screen = await render(<YourInterestsScreen />);
+
+    expect(
+      screen.getByText(/Choose categories and specialties that interest you/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/personalize For You alongside your activity/),
+    ).toBeTruthy();
+    expect(screen.getByText(/You can change them anytime/)).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText("How recommendations work"));
+
+    expect(screen.getByText(/selected interests and activity/)).toBeTruthy();
+    expect(
+      screen.getByText(/less-discovered places may be shown earlier/),
+    ).toBeTruthy();
+    expect(screen.getByText(/one input to your recommendations/)).toBeTruthy();
+    expect(screen.getByText("Places you explore")).toBeTruthy();
+    expect(screen.getByText("Places you save")).toBeTruthy();
+    expect(screen.getByText("Specialties you vouch for")).toBeTruthy();
+    expect(screen.queryByText(/Based on Your Interests/)).toBeNull();
   });
 
   it("groups authoritative categories and initializes onboarding selections", async () => {
@@ -97,6 +134,26 @@ describe("YourInterestsScreen", () => {
         category_ids: [8],
         specialty_tag_ids: [14, 21, 37, 52],
       });
+    });
+    expect(router.replace).toHaveBeenCalledWith("/profile");
+    expect(router.back).not.toHaveBeenCalled();
+  });
+
+  it("returns to the existing homepage after saving from the recommendation CTA", async () => {
+    mockRecommendationEntry = true;
+    const screen = await render(<YourInterestsScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Traditional Food")).toBeTruthy();
+    });
+    await fireEvent.press(screen.getByLabelText("Traditional Food"));
+    await fireEvent.press(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() => expect(router.back).toHaveBeenCalledTimes(1));
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(mutateAsync).toHaveBeenCalledWith({
+      category_ids: [8],
+      specialty_tag_ids: [14, 21],
     });
   });
 

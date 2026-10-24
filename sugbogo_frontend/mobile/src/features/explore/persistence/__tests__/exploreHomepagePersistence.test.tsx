@@ -255,6 +255,25 @@ it.each(feedKeys.map((key) => [key[0], key] as const))(
   },
 );
 
+it.each([true, false, undefined])(
+  "preserves recommendation personalization state %s across cache restore",
+  async (isPersonalized) => {
+    const original = feed();
+    if (isPersonalized !== undefined) {
+      Object.assign(original, { is_personalized: isPersonalized });
+    }
+    await seed(keys.RECOMMENDATIONS_QUERY_KEY, original);
+    const restored = context();
+    await restored.restore();
+
+    const data = restored.client.getQueryData<{ is_personalized?: boolean }>(
+      keys.RECOMMENDATIONS_QUERY_KEY,
+    );
+    expect(data).toBeDefined();
+    expect(data?.is_personalized).toBe(isPersonalized);
+  },
+);
+
 it.each(
   metadataKeys.map((key, index) => [key[0], key, metadata[index]] as const),
 )("restores approved %s metadata", async (_, key, data) => {

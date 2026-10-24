@@ -20,10 +20,11 @@ export function useCompleteOnboardingInterests() {
 
       return throwOnApiError(response);
     },
-    onSuccess: (interests) => {
+    onSuccess: async (interests) => {
       queryClient.setQueryData(USER_INTERESTS_QUERY_KEY, interests);
-      void queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: RECOMMENDATIONS_QUERY_KEY,
+        refetchType: "all",
       });
     },
   });
@@ -39,10 +40,11 @@ export function useUpdateUserInterests() {
 
       return throwOnApiError(response);
     },
-    onSuccess: (interests) => {
+    onSuccess: async (interests) => {
       queryClient.setQueryData(USER_INTERESTS_QUERY_KEY, interests);
-      void queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: RECOMMENDATIONS_QUERY_KEY,
+        refetchType: "all",
       });
     },
   });

@@ -188,7 +188,7 @@ describe("ExploreCollectionScreen", () => {
 
   it.each([
     ["hidden-gems", "Hidden Gems"],
-    ["interests", "Based on Your Interests"],
+    ["interests", "For You"],
     ["new-businesses", "New to SugboGo"],
   ])("renders the %s collection title", async (type, title) => {
     mockCollectionType = type;
@@ -246,6 +246,24 @@ describe("ExploreCollectionScreen", () => {
     );
     const empty = await render(<ExploreCollectionScreen />);
     expect(empty.getByTestId("collection-empty")).toBeTruthy();
+  });
+
+  it("keeps an empty For You collection free of generic discovery cards", async () => {
+    mockCollectionType = "interests";
+    (useExploreCollection as jest.Mock).mockReturnValue(
+      collectionState({ businesses: [], totalItems: 0 }),
+    );
+    const screen = await render(<ExploreCollectionScreen />);
+
+    expect(screen.getByText("For You")).toBeTruthy();
+    expect(screen.getByTestId("collection-empty")).toBeTruthy();
+    expect(screen.queryByTestId("collection-card-42")).toBeNull();
+    expect(screen.queryByText("Explore local picks")).toBeNull();
+    expect(screen.queryByText("Make SugboGo yours")).toBeNull();
+    expect(useExploreCollection).toHaveBeenCalledWith(
+      "interests",
+      expect.any(Object),
+    );
   });
 
   it("shows recovery while an initial offline query is paused", async () => {

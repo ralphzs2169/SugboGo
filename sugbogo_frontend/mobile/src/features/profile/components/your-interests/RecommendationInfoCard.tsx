@@ -64,7 +64,7 @@ export default function RecommendationInfoCard() {
 
           {!showInterestInfo && (
             <AppText className="mt-0.5 text-xs leading-5 text-text-secondary">
-              See what helps shape your Based on Your Interests recommendations.
+              See how your choices and activity shape For You.
             </AppText>
           )}
         </View>
@@ -84,8 +84,9 @@ export default function RecommendationInfoCard() {
       {showInterestInfo && (
         <View className="mt-4 border-t border-border-primary pt-4">
           <AppText className="text-sm leading-5 text-text-secondary">
-            SugboGo combines the interests you choose here with signals from how
-            you explore to find businesses that better match what you enjoy.
+            SugboGo uses your selected interests and activity to find relevant
+            businesses. Among equally close matches, less-discovered places may
+            be shown earlier.
           </AppText>
 
           <View className="mt-4 gap-4">
@@ -108,8 +109,8 @@ export default function RecommendationInfoCard() {
                 </AppText>
 
                 <AppText className="mt-0.5 text-xs leading-5 text-text-secondary">
-                  Categories and specialties you select here directly shape your
-                  interests.
+                  Categories and specialties you select are one input to your
+                  recommendations.
                 </AppText>
               </View>
             </View>
@@ -133,8 +134,8 @@ export default function RecommendationInfoCard() {
                 </AppText>
 
                 <AppText className="mt-0.5 text-xs leading-5 text-text-secondary">
-                  Visiting business profiles helps SugboGo learn what catches
-                  your attention.
+                  Business profiles you visit help shape which places are
+                  recommended.
                 </AppText>
               </View>
             </View>
@@ -183,8 +184,8 @@ export default function RecommendationInfoCard() {
                 </AppText>
 
                 <AppText className="mt-0.5 text-xs leading-5 text-text-secondary">
-                  Valid specialty vouches show stronger interest in that kind of
-                  experience.
+                  Valid specialty vouches help shape recommendations for related
+                  experiences.
                 </AppText>
               </View>
             </View>
@@ -199,11 +200,11 @@ export default function RecommendationInfoCard() {
             />
 
             <AppText className="ml-2 flex-1 text-xs leading-5 text-text-secondary">
-              These signals personalize the{" "}
+              Change Your Interests anytime to help shape{" "}
               <AppText weight="semibold" className="text-xs text-text-primary">
-                Based on Your Interests
+                For You
               </AppText>{" "}
-              section in Explore Page.
+              in Explore.
             </AppText>
           </View>
         </View>

@@ -106,7 +106,12 @@ export const EXPLORE_HOMEPAGE_PERSISTENCE_POLICIES: readonly QueryPersistencePol
   Object.freeze([
     policy(DISCOVERY_FEED_QUERY_KEY, feedSchema(business)),
     policy(NEW_BUSINESSES_QUERY_KEY, feedSchema(business)),
-    policy(RECOMMENDATIONS_QUERY_KEY, feedSchema(recommendation)),
+    policy(
+      RECOMMENDATIONS_QUERY_KEY,
+      feedSchema(recommendation).extend({
+        is_personalized: z.boolean().optional(),
+      }),
+    ),
     policy(
       DISCOVERY_SHORTCUTS_QUERY_KEY,
       z.array(

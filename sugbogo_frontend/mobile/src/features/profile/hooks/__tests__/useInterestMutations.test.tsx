@@ -49,6 +49,7 @@ describe("interest mutations", () => {
     expect(client.getQueryData(USER_INTERESTS_QUERY_KEY)).toBe(interests);
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ["explore-recommendations"],
+      refetchType: "all",
     });
     await unmount();
     client.clear();

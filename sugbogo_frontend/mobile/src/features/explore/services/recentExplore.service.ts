@@ -33,7 +33,7 @@ export type RecentExploreFeed = {
 const feeds = [
   { key: DISCOVERY_FEED_QUERY_KEY[0], title: "Hidden Gems" },
   { key: NEW_BUSINESSES_QUERY_KEY[0], title: "New to SugboGo" },
-  { key: RECOMMENDATIONS_QUERY_KEY[0], title: "Based on your interests" },
+  { key: RECOMMENDATIONS_QUERY_KEY[0], title: "Explore local picks" },
 ];
 
 /** Runtime grants come only from startup transport failure, never from stored JSON alone. */
@@ -63,6 +63,12 @@ export async function readRecentExploreFeeds(
       ? [
           {
             ...feed,
+            title:
+              feed.key === RECOMMENDATIONS_QUERY_KEY[0] &&
+              (data as RecommendationBusinessListResponse).is_personalized ===
+                true
+                ? "For You"
+                : feed.title,
             items: data.items,
             fetchedAt: entry.fetchedAt,
             expiresAt: entry.fetchedAt + EXPLORE_HOMEPAGE_RETENTION_MS,

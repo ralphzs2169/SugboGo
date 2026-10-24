@@ -1,9 +1,14 @@
 import type { LocationObject } from "expo-location";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import ErrorState from "@/shared/components/ErrorState";
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
+import { theme } from "@/constants/theme";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
@@ -29,7 +34,7 @@ type Props = {
 const PREVIEW_LIMIT = 3;
 
 /**
- * Displays a compact preview of personalized business recommendations.
+ * Displays personalized business recommendations or a compact interest setup card.
  *
  * Preserves backend ranking, limits the homepage preview to the strongest
  * matches, and keeps recommendation loading and recovery local to the section.
@@ -55,15 +60,24 @@ export default function UserInterestsSection({
   };
 
   const visibleBusinesses = useMemo(
-    () => recommendations.businesses.slice(0, PREVIEW_LIMIT),
-    [recommendations.businesses],
+    () =>
+      recommendations.isPersonalized
+        ? recommendations.businesses.slice(0, PREVIEW_LIMIT)
+        : [],
+    [recommendations.businesses, recommendations.isPersonalized],
   );
+
+  const showSetup =
+    recommendations.isPersonalized === false &&
+    !recommendations.isLoading &&
+    !isRetrying &&
+    !recommendations.isPaused &&
+    !recommendations.error;
 
   const showSeeAll =
     onSeeAll !== undefined &&
-    visibleBusinesses.some(
-      (business) => business.recommendation_reason !== null,
-    );
+    recommendations.isPersonalized &&
+    visibleBusinesses.length > 0;
 
   useEffect(() => {
     const displayedIds =
@@ -101,12 +115,16 @@ export default function UserInterestsSection({
       onLayout={impressions.onSectionLayout}
     >
       {/* Section heading */}
-      <ExploreSectionHeader
-        title="Based on Your Interests"
-        subtitle="Places matched to what you enjoy."
-        onSeeAll={showSeeAll ? () => onSeeAll?.("recommendations") : undefined}
-        seeAllAccessibilityLabel="See all places based on your interests"
-      />
+      {!showSetup && (
+        <ExploreSectionHeader
+          title="For You"
+          subtitle="Places connected to your interests and activity."
+          onSeeAll={
+            showSeeAll ? () => onSeeAll?.("recommendations") : undefined
+          }
+          seeAllAccessibilityLabel="See all For You recommendations"
+        />
+      )}
 
       {/* Recommendation loading */}
       {(recommendations.isLoading || isRetrying) &&
@@ -129,12 +147,71 @@ export default function UserInterestsSection({
             size="section"
           />
         </View>
+      ) : recommendations.isPersonalized === undefined ? (
+        /* An older API or cached response cannot establish personalization. */
+        <View testID="recommendations-state-unavailable">
+          <ErrorState
+            title="Refresh your recommendations"
+            description="We couldn't confirm your recommendation settings. Please refresh."
+            icon="refresh"
+            primaryActionTitle="Refresh"
+            onPrimaryAction={() => void handleRetry()}
+            size="section"
+          />
+        </View>
+      ) : showSetup ? (
+        /* Personalization setup */
+        <View className="mx-4 rounded-card border border-border-primary bg-surface p-4">
+          <View className="flex-row items-start gap-3">
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-brand/10">
+              <MaterialCommunityIcons
+                name="creation-outline"
+                size={22}
+                color={theme.extends.colors.brand}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+            </View>
+            <View className="min-w-0 flex-1">
+              <AppText weight="bold" className="text-lg text-text-primary">
+                Make SugboGo yours
+              </AppText>
+              <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+                Choose a few interests to get recommendations that better match
+                your interests and activity.
+              </AppText>
+            </View>
+          </View>
+          <Button
+            title="Choose interests"
+            size="sm"
+            rounded="full"
+            iconPosition="right"
+            icon={
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color="#FFFFFF"
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+            }
+            variant="secondary"
+            className="mt-4 min-h-11 self-start"
+            onPress={() =>
+              router.push({
+                pathname: "/profile/your-interests",
+                params: { source: "recommendations" },
+              })
+            }
+          />
+        </View>
       ) : visibleBusinesses.length === 0 ? (
         /* Empty recommendation state */
         <View testID="recommendations-empty">
           <ExploreSectionEmptyState
             title="No matching places yet"
-            description="Keep exploring and we'll learn what you like."
+            description="Your interests and activity help shape future recommendations."
             icon="heart-outline"
           />
         </View>

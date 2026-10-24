@@ -131,6 +131,7 @@ export type ExploreCollectionBusinessListResponse = {
 };
 
 export type RecommendationBusinessListResponse = {
+  is_personalized?: boolean;
   items: RecommendationBusiness[];
   pagination: ExploreBusinessPagination;
 };
