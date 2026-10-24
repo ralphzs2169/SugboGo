@@ -31,6 +31,7 @@ type Props = {
   onRefresh: () => void;
   children: ReactNode;
   isOwnBusiness: boolean;
+  ownerFooterHeight?: number;
   extraBottomPadding?: number;
   impressionsEnabled?: boolean;
 };
@@ -49,6 +50,7 @@ export default function BusinessProfileScrollView({
   onRefresh,
   children,
   isOwnBusiness,
+  ownerFooterHeight = 0,
   extraBottomPadding = 0,
   impressionsEnabled = true,
 }: Props) {
@@ -58,9 +60,11 @@ export default function BusinessProfileScrollView({
   const listRef = useRef<View>(null);
   const measurementVersion = useRef(0);
   const impressions = useBusinessImpressions(
-    0,
+    isOwnBusiness ? ownerFooterHeight : 0,
     headerHeight,
-    impressionsEnabled && (!business || headerHeight > 0),
+    impressionsEnabled &&
+      (!business || headerHeight > 0) &&
+      (!isOwnBusiness || ownerFooterHeight > 0),
   );
   const { onSectionLayout, onListLayout } = impressions;
 
@@ -188,7 +192,8 @@ export default function BusinessProfileScrollView({
         testID="business-profile-scroll"
         contentContainerStyle={{
           flexGrow: 1,
-          paddingBottom: (isOwnBusiness ? 100 : bottom) + extraBottomPadding,
+          paddingBottom:
+            (isOwnBusiness ? ownerFooterHeight : bottom) + extraBottomPadding,
         }}
         onScroll={handleScroll}
         onLayout={impressions.onViewportLayout}

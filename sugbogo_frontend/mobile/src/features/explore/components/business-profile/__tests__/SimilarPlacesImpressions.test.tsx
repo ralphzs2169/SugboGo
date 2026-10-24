@@ -1,4 +1,4 @@
-import { useContext, useLayoutEffect } from "react";
+import { useContext, useLayoutEffect, useState } from "react";
 import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 import { AppState, type AppStateStatus, type View } from "react-native";
 import { router } from "expo-router";
@@ -8,6 +8,7 @@ import useSimilarBusinesses from "../../../hooks/useSimilarBusinesses";
 import type { ExploreBusiness } from "../../../types/exploreBusiness.types";
 import BusinessProfileScrollView from "../BusinessProfileScrollView";
 import SimilarPlacesSection from "../SimilarPlacesSection";
+import BusinessProfileFooter from "../BusinessProfileFooter";
 
 const mockSubmit = jest.fn();
 let mockFocused = true;
@@ -76,18 +77,32 @@ function MeasurementProbe() {
   return null;
 }
 
-function Profile({ enabled = true }: { enabled?: boolean }) {
+function Profile({
+  enabled = true,
+  isOwnBusiness = false,
+}: {
+  enabled?: boolean;
+  isOwnBusiness?: boolean;
+}) {
+  const [footerHeight, setFooterHeight] = useState(0);
   return (
-    <BusinessProfileScrollView
-      business={business}
-      isRefreshing={false}
-      onRefresh={() => undefined}
-      isOwnBusiness={false}
-      impressionsEnabled={enabled}
-    >
-      <MeasurementProbe />
-      <SimilarPlacesSection businessId={20} />
-    </BusinessProfileScrollView>
+    <>
+      <BusinessProfileScrollView
+        business={business}
+        isRefreshing={false}
+        onRefresh={() => undefined}
+        isOwnBusiness={isOwnBusiness}
+        ownerFooterHeight={footerHeight}
+        impressionsEnabled={enabled}
+      >
+        <MeasurementProbe />
+        <SimilarPlacesSection businessId={20} />
+      </BusinessProfileScrollView>
+      <BusinessProfileFooter
+        isOwnBusiness={isOwnBusiness}
+        onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
+      />
+    </>
   );
 }
 
@@ -153,6 +168,51 @@ describe("Similar Places impressions", () => {
     await cleanup();
     jest.restoreAllMocks();
     jest.useRealTimers();
+  });
+
+  it("clips owner-footer occlusion and qualifies only after an unobscured 500 ms dwell", async () => {
+    const screen = await render(<Profile isOwnBusiness={true} />);
+    await measure(screen, 463);
+    await advance(1250);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    const footer = screen.getByRole("button", { name: "Manage My Business" });
+    await fireEvent(footer, "layout", {
+      nativeEvent: { layout: { x: 0, y: 512, width: 400, height: 88 } },
+    });
+    // Only 49 of this 100px card's pixels are above the opaque footer.
+    await advance(1250);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await scroll(screen, 1);
+    await advance(499);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await advance(1);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await advance(750);
+    expect(mockSubmit.mock.calls).toEqual([[[1]]]);
+    await screen.rerender(<Profile isOwnBusiness={true} />);
+    await scroll(screen, 0);
+    await scroll(screen, 1);
+    await advance(1250);
+    expect(mockSubmit.mock.calls).toEqual([[[1]]]);
+  });
+
+  it("removes owner-footer clipping on non-owner profiles without losing retained card measurements", async () => {
+    const screen = await render(<Profile isOwnBusiness={true} />);
+    await measure(screen, 463);
+    const footer = screen.getByRole("button", { name: "Manage My Business" });
+    await fireEvent(footer, "layout", {
+      nativeEvent: { layout: { x: 0, y: 512, width: 400, height: 88 } },
+    });
+    await advance(1250);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await screen.rerender(<Profile isOwnBusiness={false} />);
+    expect(
+      screen.queryByRole("button", { name: "Manage My Business" }),
+    ).toBeNull();
+    await advance(499);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await advance(751);
+    expect(mockSubmit.mock.calls).toEqual([[[1]]]);
   });
 
   it("qualifies a visible card only after the shared dwell and batch delay", async () => {

@@ -69,6 +69,8 @@ jest.mock("@gorhom/bottom-sheet", () => {
   const React = jest.requireActual("react");
   const { View, TextInput } = jest.requireActual("react-native");
   return {
+    useBottomSheetInternal: () => ({}),
+    ANIMATION_STATUS: { RUNNING: 1, STOPPED: 2 },
     BottomSheetModal: React.forwardRef(function MockSheet(
       {
         children,

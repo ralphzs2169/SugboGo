@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 type Props = {
   children: React.ReactNode;
   className?: string;
+  onLayout?: ViewProps["onLayout"];
 };
 
 /**
@@ -12,11 +13,16 @@ type Props = {
  * screen-level action bars (e.g. review composer actions, business
  * management CTA) that must stay visible above scrollable content.
  */
-export default function FixedFooter({ children, className = "" }: Props) {
+export default function FixedFooter({
+  children,
+  className = "",
+  onLayout,
+}: Props) {
   const insets = useSafeAreaInsets();
 
   return (
     <View
+      onLayout={onLayout}
       className={`absolute bottom-0 left-0 right-0 border-t border-border-primary bg-surface px-4 pt-3 ${className}`}
       style={{ paddingBottom: Math.max(insets.bottom, 12) }}
     >

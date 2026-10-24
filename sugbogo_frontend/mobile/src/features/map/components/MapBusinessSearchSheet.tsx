@@ -4,10 +4,13 @@ import {
   BottomSheetFlatList,
   BottomSheetModal,
   BottomSheetTextInput,
+  ANIMATION_STATUS,
+  useBottomSheetInternal,
 } from "@gorhom/bottom-sheet";
 import LottieView from "lottie-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAnimatedReaction, useSharedValue } from "react-native-reanimated";
+import { useAnimatedReaction } from "react-native-reanimated";
+import { State } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import {
   ActivityIndicator,
@@ -37,6 +40,36 @@ type Props = {
   impressionsEnabled?: boolean;
 };
 
+/** Observe actual animation completion, including keyboard moves with an unchanged index. */
+function SearchSheetSettlementObserver({
+  onSettledChange,
+}: {
+  onSettledChange: (settled: boolean) => void;
+}) {
+  const {
+    animatedAnimationState,
+    animatedContentGestureState,
+    animatedHandleGestureState,
+    animatedIndex,
+    animatedPosition,
+  } = useBottomSheetInternal();
+
+  useAnimatedReaction(
+    () =>
+      animatedAnimationState.get().status === ANIMATION_STATUS.STOPPED &&
+      animatedIndex.get() >= 0 &&
+      Number.isFinite(animatedPosition.get()) &&
+      animatedContentGestureState.get() !== State.BEGAN &&
+      animatedContentGestureState.get() !== State.ACTIVE &&
+      animatedHandleGestureState.get() !== State.BEGAN &&
+      animatedHandleGestureState.get() !== State.ACTIVE,
+    (settled, previous) => {
+      if (settled !== previous) scheduleOnRN(onSettledChange, settled);
+    },
+  );
+  return null;
+}
+
 /**
  * Adapts Registration's near-full-height search interaction for SugboGo businesses.
  * Search remains global and independent of the camera and applied map filters.
@@ -51,8 +84,6 @@ export default function MapBusinessSearchSheet({
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [isSettled, setIsSettled] = useState(false);
-  const animatedPosition = useSharedValue(Number.NaN);
-  const settledPosition = useSharedValue(Number.NaN);
   const isSheetOpen = useRef(false);
   const selectedResult = useRef(false);
   const pendingSelection = useRef<ExploreBusiness | null>(null);
@@ -67,20 +98,9 @@ export default function MapBusinessSearchSheet({
     businessIds,
   );
 
-  // Position observation also catches a held drag before a snap animation starts.
-  useAnimatedReaction(
-    () =>
-      Number.isFinite(settledPosition.get()) &&
-      Math.abs(animatedPosition.get() - settledPosition.get()) < 0.5,
-    (settled, previous) => {
-      if (settled !== previous) scheduleOnRN(setIsSettled, settled);
-    },
-  );
-
   const pauseImpressions = useCallback(() => {
-    settledPosition.set(Number.NaN);
     setIsSettled(false);
-  }, [settledPosition]);
+  }, []);
 
   useQueryErrorNotification({
     error: results.error,
@@ -116,7 +136,6 @@ export default function MapBusinessSearchSheet({
   return (
     <BottomSheetModal
       ref={sheetRef}
-      animatedPosition={animatedPosition}
       snapPoints={["94%"]}
       topInset={insets.top}
       enableDynamicSizing={false}
@@ -140,19 +159,15 @@ export default function MapBusinessSearchSheet({
           opacity={0.45}
         />
       )}
-      onAnimate={(_fromIndex, toIndex, _fromPosition, toPosition) => {
+      onAnimate={() => {
         setIsSettled(false);
-        settledPosition.set(
-          toIndex >= 0 ? toPosition + insets.top : Number.NaN,
-        );
         onVisibilityChange?.(true);
       }}
-      onChange={(index, position) => {
+      onChange={(index) => {
         const wasOpen = isSheetOpen.current;
         isSheetOpen.current = index >= 0;
         setIsOpen(index >= 0);
-        settledPosition.set(index >= 0 ? position + insets.top : Number.NaN);
-        setIsSettled(index >= 0);
+        if (index < 0) setIsSettled(false);
         if (index >= 0) onVisibilityChange?.(true);
         if (index >= 0 && !wasOpen) {
           selectedResult.current = false;
@@ -173,6 +188,7 @@ export default function MapBusinessSearchSheet({
         }
       }}
     >
+      <SearchSheetSettlementObserver onSettledChange={setIsSettled} />
       {/* Search input and explicit dismissal */}
       <View className="px-5 pb-4 pt-2">
         <View className="flex-row items-center justify-between">

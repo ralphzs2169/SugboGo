@@ -2,6 +2,7 @@ import React from "react";
 import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 import { AppState, Keyboard, type AppStateStatus } from "react-native";
 import { router } from "expo-router";
+import { State } from "react-native-gesture-handler";
 
 import MapScreen from "../MapScreen";
 import type { ExploreBusiness } from "@/features/explore/types/exploreBusiness.types";
@@ -15,6 +16,14 @@ let mockPositionReaction: {
 };
 const mockAppListeners = new Set<(state: AppStateStatus) => void>();
 const mockKeyboardListeners = new Map<string, () => void>();
+const mockSheetMotion = {
+  status: 2,
+  index: -1,
+  position: 800,
+  contentGesture: 0,
+  handleGesture: 0,
+};
+let mockPreviousSettled: boolean | null = null;
 
 const mockBusinesses = [1, 2].map((id) => ({
   id,
@@ -178,6 +187,18 @@ jest.mock("@gorhom/bottom-sheet", () => {
   const React = jest.requireActual("react");
   const { View, TextInput } = jest.requireActual("react-native");
   return {
+    ANIMATION_STATUS: { RUNNING: 1, STOPPED: 2 },
+    useBottomSheetInternal: () => ({
+      animatedAnimationState: {
+        get: () => ({ status: mockSheetMotion.status }),
+      },
+      animatedIndex: { get: () => mockSheetMotion.index },
+      animatedPosition: { get: () => mockSheetMotion.position },
+      animatedContentGestureState: {
+        get: () => mockSheetMotion.contentGesture,
+      },
+      animatedHandleGestureState: { get: () => mockSheetMotion.handleGesture },
+    }),
     BottomSheetModal: React.forwardRef(function Sheet(
       props: any,
       ref: React.Ref<unknown>,
@@ -235,6 +256,16 @@ async function selectPreview(screen: Screen, id = 1) {
 async function openSearch(screen: Screen) {
   await fireEvent(screen.getByTestId("map-overlay"), "search");
   await fireEvent(screen.getByTestId("search-sheet"), "change", 0, 48);
+  await sheetMotion({ status: 2, index: 0, position: 48 });
+}
+
+async function sheetMotion(changes: Partial<typeof mockSheetMotion>) {
+  await act(async () => {
+    Object.assign(mockSheetMotion, changes);
+    const settled = mockPositionReaction.prepare();
+    mockPositionReaction.react(settled, mockPreviousSettled);
+    mockPreviousSettled = settled;
+  });
 }
 
 async function viewableResults(screen: Screen, ids: number[]) {
@@ -294,11 +325,21 @@ describe("map impressions", () => {
     AppState.currentState = "active";
     mockAppListeners.clear();
     mockKeyboardListeners.clear();
+    Object.assign(mockSheetMotion, {
+      status: 2,
+      index: -1,
+      position: 800,
+      contentGesture: 0,
+      handleGesture: 0,
+    });
+    mockPreviousSettled = null;
     jest.spyOn(Keyboard, "isVisible").mockReturnValue(false);
     jest
       .spyOn(Keyboard, "addListener")
       .mockImplementation((event, callback) => {
-      mockKeyboardListeners.set(event, () => callback({} as Parameters<typeof callback>[0]));
+        mockKeyboardListeners.set(event, () =>
+          callback({} as Parameters<typeof callback>[0]),
+        );
         return { remove: () => mockKeyboardListeners.delete(event) };
       });
     jest
@@ -370,21 +411,85 @@ describe("map impressions", () => {
     await openSearch(screen);
     await viewableResults(screen, [1]);
     await advance(250);
-    const sheet = screen.getByTestId("search-sheet");
-    await act(async () => {
-      sheet.props.animatedPosition.value = 300;
-      mockPositionReaction.react(mockPositionReaction.prepare(), true);
-    });
+    await sheetMotion({ position: 300, handleGesture: State.ACTIVE });
     await advance(1250);
     expect(mockSubmit).not.toHaveBeenCalled();
-    await act(async () => {
-      sheet.props.animatedPosition.value = 48;
-      mockPositionReaction.react(mockPositionReaction.prepare(), false);
-    });
+    await sheetMotion({ position: 48, handleGesture: State.END });
     await advance(499);
     expect(mockSubmit).not.toHaveBeenCalled();
     await advance(751);
     expect(mockSubmit.mock.calls).toEqual([[[1]]]);
+  });
+
+  it("resumes after keyboard-driven same-index settlement and restarts dwell on keyboard dismissal", async () => {
+    const screen = await render(<MapScreen />);
+    await openSearch(screen);
+    await viewableResults(screen, [1]);
+    await advance(250);
+    await act(async () => {
+      mockKeyboardListeners.get("keyboardWillShow")?.();
+    });
+    await sheetMotion({ status: 1, position: 24 });
+    await advance(1250);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    // Position can stop changing before the native animation actually completes.
+    await sheetMotion({ position: 0 });
+    await advance(1250);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await sheetMotion({ status: 2 });
+    expect(mockSheetMotion.index).toBe(0);
+    await advance(499);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    // Dismissal also moves to a new position without changing index 0.
+    await act(async () => {
+      mockKeyboardListeners.get("keyboardWillHide")?.();
+    });
+    await sheetMotion({ status: 1, position: 24 });
+    await advance(1250);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await act(async () => {
+      mockKeyboardListeners.get("keyboardDidHide")?.();
+    });
+    await sheetMotion({ status: 2, position: 48 });
+    await advance(499);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await advance(751);
+    expect(mockSubmit.mock.calls).toEqual([[[1]]]);
+    await screen.rerender(<MapScreen />);
+    await sheetMotion({ status: 2 });
+    await viewableResults(screen, [1]);
+    await advance(1250);
+    expect(mockSubmit.mock.calls).toEqual([[[1]]]);
+  });
+
+  it("does not count keyboard-clipped results or previews after same-index settlement", async () => {
+    const screen = await render(<MapScreen />);
+    await selectPreview(screen);
+    await advance(250);
+    await openSearch(screen);
+    await viewableResults(screen, [2]);
+    await advance(250);
+    await act(async () => {
+      mockKeyboardListeners.get("keyboardWillShow")?.();
+    });
+    await sheetMotion({ status: 1, position: 24 });
+    await scrollSearchResults(screen, 0, 49);
+    await sheetMotion({ status: 2, position: 0 });
+    await advance(1250);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await scrollSearchResults(screen, 100, 50);
+    await advance(250);
+    await fireEvent(screen.getByTestId("map-overlay"), "filters");
+    await sheetMotion({ status: 1, position: 24 });
+    await sheetMotion({ status: 2, position: 0 });
+    await advance(1250);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await fireEvent(screen.getByTestId("filter-sheet"), "dismiss");
+    await advance(499);
+    expect(mockSubmit).not.toHaveBeenCalled();
+    await advance(751);
+    expect(mockSubmit.mock.calls).toEqual([[[2]]]);
+    expect(mockSheetMotion.index).toBe(0);
   });
 
   it("prunes changed search results and preserves deduplication on rerenders", async () => {
