@@ -2,7 +2,7 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router, useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, RefreshControl, View } from "react-native";
+import { FlatList, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
@@ -10,6 +10,7 @@ import { theme } from "@/constants/theme";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import Button from "@/shared/components/Button";
+import AppText from "@/shared/components/AppText";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -21,9 +22,12 @@ import SearchFilterBottomSheet from "../components/search-filter-results/SearchF
 import SearchFilterEmptyState from "../components/search-filter-results/SearchFilterEmptyState";
 import SearchFilterResultsHeader from "../components/search-filter-results/SearchFilterResultsHeader";
 import SearchFilterResultsTopBar from "../components/search-filter-results/SearchFilterResultsTopBar";
+import RecentSearches from "../components/search-filter-results/RecentSearches";
+import SearchInitialState from "../components/search-filter-results/SearchInitialState";
 import useDiscoveryResults from "../hooks/useDiscoveryResults";
 import useExploreFilterOptions from "../hooks/useExploreFilterOptions";
 import useResultsImpressions from "../hooks/useResultsImpressions";
+import { useRecentSearchesStore } from "../stores/recentSearches.store";
 import type {
   ExploreBusiness,
   ExploreResultsCriteria,
@@ -76,7 +80,8 @@ export default function SearchFilterResultsScreen() {
 
   const initialCriteria = useMemo<ExploreResultsCriteria>(
     () => ({
-      search: typeof params.search === "string" ? params.search : "",
+      search:
+        typeof params.search === "string" ? params.search.slice(0, 200) : "",
       clusterId: parsePositiveId(params.clusterId),
       categoryIds: parseCategoryIds(params.categoryIds),
       specialtyTagId: parsePositiveId(params.specialtyTagId),
@@ -95,6 +100,17 @@ export default function SearchFilterResultsScreen() {
   );
   const [appliedCriteria, setAppliedCriteria] = useState(initialCriteria);
   const [draftCriteria, setDraftCriteria] = useState(initialCriteria);
+  const history = useRecentSearchesStore();
+  const hasSearch = search.trim().length > 0;
+  const hasAppliedFilters =
+    appliedCriteria.clusterId !== null ||
+    appliedCriteria.categoryIds.length > 0 ||
+    appliedCriteria.specialtyTagId !== null;
+  const isInitialSearch = !hasSearch && !hasAppliedFilters;
+  // Wait for live text to settle, but clearing text keeps applied filters active.
+  const resultsEnabled =
+    !isInitialSearch && (!hasSearch || search.trim() === debouncedSearch);
+  const hasDebouncedCriteria = hasAppliedFilters || debouncedSearch.length > 0;
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -107,18 +123,27 @@ export default function SearchFilterResultsScreen() {
   const queryCriteria = useMemo(
     () => ({
       ...appliedCriteria,
-      search: debouncedSearch,
+      search: hasSearch ? debouncedSearch : "",
     }),
-    [appliedCriteria, debouncedSearch],
+    [appliedCriteria, debouncedSearch, hasSearch],
   );
 
-  const results = useDiscoveryResults(queryCriteria);
+  const results = useDiscoveryResults(queryCriteria, resultsEnabled);
   const taxonomy = useExploreFilterOptions();
-  const impressions = useResultsImpressions();
+  const resultBusinessIds = useMemo(
+    () => results.businesses.map((business) => business.id),
+    [results.businesses],
+  );
+  const impressions = useResultsImpressions(resultsEnabled, resultBusinessIds);
   const { location: userLocation } = useUserLocation();
 
+  const replaySearch = (query: string) => {
+    setSearch(query);
+    void history.addQuery(query);
+  };
+
   useEffect(() => {
-    if (!results.error) {
+    if (!resultsEnabled || !results.error) {
       return;
     }
 
@@ -131,7 +156,7 @@ export default function SearchFilterResultsScreen() {
         text2: response.message || "Please try again.",
       });
     }
-  }, [results.error]);
+  }, [results.error, resultsEnabled]);
 
   useEffect(() => {
     if (!taxonomy.error) {
@@ -259,6 +284,7 @@ export default function SearchFilterResultsScreen() {
 
   const loadNextPage = (retryFailedPage = false) => {
     if (
+      !resultsEnabled ||
       isEndReachedRef.current ||
       (!retryFailedPage && results.isFetchNextPageError) ||
       !results.hasNextPage ||
@@ -291,90 +317,136 @@ export default function SearchFilterResultsScreen() {
         isFilterLoading={taxonomy.isLoading}
         topInset={insets.top}
         onSearchChange={setSearch}
+        onSearchSubmit={(query) => void history.addQuery(query)}
         onBack={() => router.back()}
         onOpenFilters={openFilters}
       />
 
-      {/* Paginated business results */}
-      <FlatList
-        testID="search-filter-results-list"
-        data={results.businesses}
-        keyExtractor={(business) => String(business.id)}
-        renderItem={renderBusiness}
-        ListHeaderComponent={
-          (results.error || results.isPaused) &&
-          results.businesses.length === 0 ? null : (
-            <SearchFilterResultsHeader
-              clusters={taxonomy.options.clusters}
-              selectedClusterId={appliedCriteria.clusterId}
-              selectedCategories={selectedCategories}
-              selectedSpecialty={selectedSpecialty}
-              totalItems={results.totalItems}
-              isLoading={results.isLoading}
-              onSelectCluster={selectCluster}
-              onRemoveCategory={removeCategory}
-              onRemoveSpecialty={removeSpecialty}
+      {/* Empty search is an invitation/history surface, never an unfiltered feed. */}
+      {isInitialSearch ? (
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{
+            paddingBottom: Math.max(insets.bottom, 24),
+          }}
+        >
+          {history.queries.length > 0 ? (
+            <View className="px-5 pt-4">
+              <RecentSearches
+                key={history.scope}
+                queries={history.queries}
+                onSelect={replaySearch}
+                onRemove={history.removeQuery}
+                onClear={history.clearQueries}
+              />
+            </View>
+          ) : history.isHydrated ? (
+            <SearchInitialState />
+          ) : (
+            <AppText className="px-5 py-8 text-sm text-text-secondary">
+              Loading recent searches…
+            </AppText>
+          )}
+        </ScrollView>
+      ) : (
+        /* Paginated business results */
+        <FlatList
+          testID="search-filter-results-list"
+          data={hasDebouncedCriteria ? results.businesses : []}
+          keyExtractor={(business) => String(business.id)}
+          renderItem={renderBusiness}
+          ListHeaderComponent={
+            <>
+              {!hasSearch && history.queries.length > 0 && (
+                <View className="px-5 py-3">
+                  <RecentSearches
+                    key={history.scope}
+                    queries={history.queries}
+                    onSelect={replaySearch}
+                    onRemove={history.removeQuery}
+                    onClear={history.clearQueries}
+                  />
+                </View>
+              )}
+              {(results.error || results.isPaused) &&
+              results.businesses.length === 0 ? null : (
+                <SearchFilterResultsHeader
+                  clusters={taxonomy.options.clusters}
+                  selectedClusterId={appliedCriteria.clusterId}
+                  selectedCategories={selectedCategories}
+                  selectedSpecialty={selectedSpecialty}
+                  totalItems={results.totalItems}
+                  isLoading={!resultsEnabled || results.isLoading}
+                  onSelectCluster={selectCluster}
+                  onRemoveCategory={removeCategory}
+                  onRemoveSpecialty={removeSpecialty}
+                />
+              )}
+            </>
+          }
+          ListEmptyComponent={
+            <SearchFilterEmptyState
+              isLoading={!resultsEnabled || results.isLoading}
+              hasError={Boolean(results.error || results.isPaused)}
+              hasSearch={debouncedSearch.length > 0}
+              onRetry={() => void results.refetch()}
+              onGoBack={() => router.back()}
+              isRetrying={results.isRefetching && !results.isFetchingNextPage}
             />
-          )
-        }
-        ListEmptyComponent={
-          <SearchFilterEmptyState
-            isLoading={results.isLoading}
-            hasError={Boolean(results.error || results.isPaused)}
-            hasSearch={debouncedSearch.length > 0}
-            onRetry={() => void results.refetch()}
-            onGoBack={() => router.back()}
-            isRetrying={results.isRefetching && !results.isFetchingNextPage}
-          />
-        }
-        ListFooterComponent={
-          results.isFetchingNextPage ? (
-            <View
-              className="items-center py-5"
-              testID="search-filter-results-page-loader"
-            >
-              {/* Pagination loader */}
-              <LottieView
-                source={loadingAnimation}
-                autoPlay
-                loop
-                style={{
-                  width: 50,
-                  height: 50,
-                }}
+          }
+          ListFooterComponent={
+            !resultsEnabled ? null : results.isFetchingNextPage ? (
+              <View
+                className="items-center py-5"
+                testID="search-filter-results-page-loader"
+              >
+                {/* Pagination loader */}
+                <LottieView
+                  source={loadingAnimation}
+                  autoPlay
+                  loop
+                  style={{
+                    width: 50,
+                    height: 50,
+                  }}
+                />
+              </View>
+            ) : results.isFetchNextPageError &&
+              results.businesses.length > 0 ? (
+              <View className="items-center py-5">
+                <Button
+                  title="Retry loading more places"
+                  onPress={() => loadNextPage(true)}
+                  variant="soft"
+                  rounded="full"
+                  size="sm"
+                />
+              </View>
+            ) : shouldShowEndMessage ? (
+              <EndOfListMessage description="You've reached the end of these results." />
+            ) : null
+          }
+          contentContainerStyle={{
+            paddingBottom: insets.bottom,
+          }}
+          onEndReached={() => loadNextPage()}
+          onEndReachedThreshold={0.35}
+          onViewableItemsChanged={impressions.onViewableItemsChanged}
+          viewabilityConfig={impressions.viewabilityConfig}
+          refreshControl={
+            resultsEnabled ? (
+              <RefreshControl
+                refreshing={results.isRefetching && !results.isFetchingNextPage}
+                onRefresh={() => void results.refetch()}
+                tintColor={theme.extends.colors.brand}
               />
-            </View>
-          ) : results.isFetchNextPageError && results.businesses.length > 0 ? (
-            <View className="items-center py-5">
-              <Button
-                title="Retry loading more places"
-                onPress={() => loadNextPage(true)}
-                variant="soft"
-                rounded="full"
-                size="sm"
-              />
-            </View>
-          ) : shouldShowEndMessage ? (
-            <EndOfListMessage description="You've reached the end of these results." />
-          ) : null
-        }
-        contentContainerStyle={{
-          paddingBottom: insets.bottom,
-        }}
-        onEndReached={() => loadNextPage()}
-        onEndReachedThreshold={0.35}
-        onViewableItemsChanged={impressions.onViewableItemsChanged}
-        viewabilityConfig={impressions.viewabilityConfig}
-        refreshControl={
-          <RefreshControl
-            refreshing={results.isRefetching && !results.isFetchingNextPage}
-            onRefresh={() => void results.refetch()}
-            tintColor={theme.extends.colors.brand}
-          />
-        }
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      />
+            ) : undefined
+          }
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        />
+      )}
 
       {/* Search and taxonomy filters */}
       <SearchFilterBottomSheet

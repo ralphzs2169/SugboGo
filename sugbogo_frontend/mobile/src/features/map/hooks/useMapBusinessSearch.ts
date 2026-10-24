@@ -16,7 +16,8 @@ export default function useMapBusinessSearch(search: string, isOpen: boolean) {
   }, [normalizedSearch]);
 
   const isDebouncing = normalizedSearch !== debouncedSearch;
-  const enabled = isOpen && normalizedSearch.length >= 2 && !isDebouncing;
+  const hasQuery = normalizedSearch.length > 0;
+  const enabled = isOpen && hasQuery && !isDebouncing;
   const results = useDiscoveryResults(
     {
       search: debouncedSearch,
@@ -31,8 +32,7 @@ export default function useMapBusinessSearch(search: string, isOpen: boolean) {
     ...results,
     businesses: enabled ? results.businesses : [],
     error: enabled ? results.error : null,
-    isPending:
-      normalizedSearch.length >= 2 && (isDebouncing || results.isLoading),
-    hasQuery: normalizedSearch.length >= 2,
+    isPending: hasQuery && (isDebouncing || results.isLoading),
+    hasQuery,
   };
 }
