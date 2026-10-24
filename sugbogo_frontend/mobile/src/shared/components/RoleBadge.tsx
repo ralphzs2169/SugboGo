@@ -27,7 +27,7 @@ export default function RoleBadge({ role }: RoleBadgeProps) {
 
   return (
     <View
-      className={`mt-2 flex-row items-center self-start rounded-full px-2.5 py-1 ${config.background}`}
+      className={`flex-row items-center rounded-full px-2.5 py-1 ${config.background}`}
     >
       {/* <MaterialCommunityIcons
         name={config.icon}

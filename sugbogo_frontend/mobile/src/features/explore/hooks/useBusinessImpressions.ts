@@ -20,12 +20,17 @@ type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
  * Observes the existing nested ScrollViews without changing their rendering.
  * Layouts share the outer scroll-content coordinate space; both axes clip cards.
  */
-export default function useBusinessImpressions(bottomInset: number) {
+export default function useBusinessImpressions(
+  bottomInset: number,
+  topInset = 0,
+  enabled = true,
+) {
   const { mutateAsync } = useRecordBusinessImpressions();
   const submitRef = useRef(mutateAsync);
   const isFocused = useIsFocused();
   const active = useRef(false);
   const inset = useRef(bottomInset);
+  const top = useRef(topInset);
   const geometry = useRef({
     viewport: null as VisibilityRect | null,
     section: null as VisibilityRect | null,
@@ -65,9 +70,9 @@ export default function useBusinessImpressions(bottomInset: number) {
 
     const outerViewport = {
       x: 0,
-      y: scrollY,
+      y: scrollY + top.current,
       width: viewport.width,
-      height: Math.max(0, viewport.height - inset.current),
+      height: Math.max(0, viewport.height - inset.current - top.current),
     };
     const listViewport = {
       x: section.x + list.x,
@@ -94,7 +99,8 @@ export default function useBusinessImpressions(bottomInset: number) {
 
   useEffect(() => {
     const updateActive = () => {
-      active.current = isFocused && AppState.currentState === "active";
+      active.current =
+        enabled && isFocused && AppState.currentState === "active";
       updateVisibility();
     };
 
@@ -106,12 +112,13 @@ export default function useBusinessImpressions(bottomInset: number) {
       tracker.current?.updateVisible([]);
       subscription.remove();
     };
-  }, [isFocused, updateVisibility]);
+  }, [enabled, isFocused, updateVisibility]);
 
   useLayoutEffect(() => {
     inset.current = bottomInset;
+    top.current = topInset;
     updateVisibility();
-  }, [bottomInset, updateVisibility]);
+  }, [bottomInset, topInset, updateVisibility]);
 
   const onViewportLayout = useCallback(
     (event: LayoutChangeEvent) => {

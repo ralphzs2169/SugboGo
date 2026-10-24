@@ -35,6 +35,13 @@ jest.mock("../../hooks/useBusinessProfileVisit", () => ({
   __esModule: true,
   default: jest.fn(),
 }));
+jest.mock("../../hooks/useVisibilityMutations", () => ({
+  useRecordBusinessImpressions: () => ({ mutateAsync: jest.fn() }),
+}));
+jest.mock("../../components/business-profile/BusinessLocationMap", () => ({
+  __esModule: true,
+  default: () => null,
+}));
 jest.mock("../../hooks/useRoutePlanningIntent", () => ({
   __esModule: true,
   default: jest.fn(() => mockRecordRouteIntent),
@@ -112,6 +119,7 @@ jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),
 }));
 jest.mock("expo-router", () => ({
+  useIsFocused: () => true,
   router: { back: jest.fn(), push: jest.fn() },
   useNavigation: () => ({ isFocused: () => true }),
 }));

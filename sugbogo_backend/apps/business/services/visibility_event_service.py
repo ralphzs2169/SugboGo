@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from math import ceil
 from threading import Lock
 from time import monotonic
 
@@ -36,14 +37,22 @@ class VisibilityTrackingUnavailable(APIException):
         *args,
         cooldown_short_circuit=False,
         reason=None,
+        retry_after=None,
         **kwargs,
     ):
+        """Expose a whole-second retry interval using DRF's Retry-After convention."""
         super().__init__(
             *args,
             **kwargs,
         )
         self.cooldown_short_circuit = cooldown_short_circuit
         self.reason = reason
+        if retry_after is None:
+            retry_after = settings.MONGODB_VISIBILITY_FAILURE_COOLDOWN_SECONDS
+        self.wait = max(
+            1,
+            ceil(retry_after),
+        )
 
 
 class VisibilityEventType(StrEnum):
@@ -81,9 +90,11 @@ class VisibilityEventService:
         with cls._availability_lock:
             unavailable_until = cls._unavailable_until
 
-        if cls._get_monotonic_time() < unavailable_until:
+        remaining_seconds = unavailable_until - cls._get_monotonic_time()
+        if remaining_seconds > 0:
             raise VisibilityTrackingUnavailable(
                 cooldown_short_circuit=True,
+                retry_after=remaining_seconds,
             )
 
     @classmethod
@@ -207,7 +218,7 @@ class VisibilityEventService:
         *,
         explorer_id: int,
     ) -> list[int]:
-        """Validate the whole active batch before excluding the actor's owned business."""
+        """Keep only existing active businesses not owned by the actor."""
         normalized_business_ids = (
             VisibilityEventService._normalize_business_ids(
                 business_ids,
@@ -230,23 +241,6 @@ class VisibilityEventService:
                 "USER_ID",
             ),
         )
-
-        active_business_ids = [
-            business_id
-            for business_id, owner_id in businesses
-        ]
-
-        if active_business_ids != normalized_business_ids:
-            raise ValidationError(
-                {
-                    "business_ids": [
-                        (
-                            "One or more businesses could not be found "
-                            "or are not active."
-                        ),
-                    ],
-                },
-            )
 
         return [
             business_id
@@ -507,6 +501,8 @@ class VisibilityEventService:
         business_ids: Iterable[int],
         start_time: datetime,
         end_time: datetime,
+        *,
+        read_only: bool = False,
     ) -> dict[int, dict[str, int]]:
         """Retrieves recent visibility metrics for a list of businesses."""
         
@@ -526,7 +522,10 @@ class VisibilityEventService:
         if not normalized_business_ids:
             return metrics
 
-        cls.ensure_indexes()
+        if read_only:
+            cls._raise_if_temporarily_unavailable()
+        else:
+            cls.ensure_indexes()
         pipeline = [
             {
                 "$match": {

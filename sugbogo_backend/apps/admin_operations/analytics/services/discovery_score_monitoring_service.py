@@ -1,15 +1,109 @@
 """Discovery score monitoring queries for administrators."""
 
+from dataclasses import asdict
+from datetime import timedelta
+
 from django.db.models import Case, CharField, Count, F, Max, Prefetch, Q, Value, When
 from django.utils import timezone
+from rest_framework.exceptions import NotFound
 
+from apps.admin_operations.system_configuration.models import DiscoveryAlgorithmConfiguration
+from apps.admin_operations.system_configuration.services.discovery_algorithm_configuration_service import (
+    DiscoveryAlgorithmConfigurationService,
+)
 from apps.business.models import Business, BusinessSpecialtyTag, DiscoveryScore
 from apps.business.services.discovery_score_service import DiscoveryScoreService
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+from apps.business.services.visibility_gap_service import VisibilityGapService
 
 
 class DiscoveryScoreMonitoringService:
     """Provides persisted score records and delegates recomputation."""
+
+    TELEMETRY_NOTE = (
+        "Telemetry coverage is unverified. Recorded activity may be incomplete; "
+        "zero recorded events do not establish zero exposure. "
+        "Score freshness describes computation, not telemetry completeness."
+    )
+
+    @staticmethod
+    def visibility_context():
+        """Read current settings once without initializing or persisting configuration."""
+        configuration = DiscoveryAlgorithmConfiguration.objects.filter(
+            pk=DiscoveryAlgorithmConfigurationService.SINGLETON_ID,
+        ).first()
+        if configuration is None:
+            configuration = DiscoveryAlgorithmConfiguration(
+                pk=DiscoveryAlgorithmConfigurationService.SINGLETON_ID,
+            )
+        return {
+            "configuration": configuration,
+            "reference_time": timezone.now(),
+        }
+
+    @staticmethod
+    def observation_context(
+        business,
+        reference_time,
+        window_days,
+    ):
+        """Describe potential observation age without asserting continuous tracking."""
+        age = max(
+            timedelta(0),
+            reference_time - business.BUSN_CREATED_AT,
+        )
+        window = timedelta(days=window_days)
+        potential_duration = min(age, window)
+        return {
+            "business_created_at": business.BUSN_CREATED_AT,
+            "reference_time": reference_time,
+            "window_days": window_days,
+            "potential_observation_days": round(
+                potential_duration.total_seconds() / timedelta(days=1).total_seconds(),
+                2,
+            ),
+            "short_history": age < window,
+        }
+
+    @classmethod
+    def visibility_diagnostics(
+        cls,
+        business_id,
+    ):
+        """Calculate current visibility context without saving scores or initializing indexes."""
+        try:
+            business = Business.objects.get(
+                pk=business_id,
+                BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            )
+        except Business.DoesNotExist:
+            raise NotFound("The active business could not be found.") from None
+        context = cls.visibility_context()
+        configuration = context["configuration"]
+        reference_time = context["reference_time"]
+        result = VisibilityGapService.calculate_business_visibility_gap(
+            business_id=business_id,
+            reference_time=reference_time,
+            configuration=configuration,
+            read_only=True,
+        )
+        return {
+            **asdict(result),
+            "reference_time": reference_time,
+            "observation_context": cls.observation_context(
+                business,
+                reference_time,
+                configuration.DAC_VISIBILITY_WINDOW_DAYS,
+            ),
+            "signal_weights": {
+                "impressions": configuration.DAC_IMPRESSION_WEIGHT,
+                "profile_visits": configuration.DAC_PROFILE_VISIT_WEIGHT,
+                "saves": configuration.DAC_SAVE_WEIGHT,
+            },
+            "coverage_verified": False,
+            "telemetry_reason": "coverage_unverified",
+            "telemetry_note": cls.TELEMETRY_NOTE,
+        }
 
     @staticmethod
     def list_scores(

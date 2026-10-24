@@ -319,14 +319,15 @@ export default function useBusinessVouch({ businessId }: Props) {
       }
     },
 
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
         queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
       });
     },
 
-    onSettled: async () => {
-      await Promise.all([
+    onSettled: () => {
+      // Reconcile caches in the background without extending the write lock.
+      void Promise.all([
         queryClient.invalidateQueries({
           queryKey: ACTIVITY_TIMELINE_QUERY_KEY,
         }),

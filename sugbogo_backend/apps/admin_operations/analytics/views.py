@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.admin_operations.analytics.serializers.discovery_score_serializers import (
     AdminDiscoveryScoreSerializer,
+    VisibilityGapDiagnosticSerializer,
 )
 from apps.admin_operations.analytics.services.discovery_score_monitoring_service import (
     DiscoveryScoreMonitoringService,
@@ -145,10 +146,39 @@ class DiscoveryScoreListView(APIView):
         )
         paginator = StandardPagination()
         page = paginator.paginate_queryset(queryset, request)
-        serializer = AdminDiscoveryScoreSerializer(page, many=True)
+        serializer = AdminDiscoveryScoreSerializer(
+            page,
+            many=True,
+            context={
+                "visibility_context": DiscoveryScoreMonitoringService.visibility_context(),
+            },
+        )
         response = paginator.get_paginated_response(serializer.data)
         response.data["data"]["coverage"] = DiscoveryScoreMonitoringService.coverage()
         return response
+
+
+class VisibilityGapDiagnosticView(APIView):
+    """Provide an opt-in current visibility calculation for one active business."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def get(
+        self,
+        request,
+        business_id,
+    ):
+        """Expose live diagnostic context without recomputing or persisting a Discovery Score."""
+        diagnostic = DiscoveryScoreMonitoringService.visibility_diagnostics(
+            business_id,
+        )
+        return success_response(
+            data=VisibilityGapDiagnosticSerializer(diagnostic).data,
+            message="Current Visibility Gap diagnostic calculated successfully.",
+        )
 
 
 class DiscoveryScoreRecomputeView(APIView):

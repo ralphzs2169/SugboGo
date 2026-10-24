@@ -1,5 +1,6 @@
 import Toast from "react-native-toast-message";
 import { onlineManager } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -30,18 +31,25 @@ export default function BusinessSpecialtiesSection({
   const { vouch, pendingTagId } = useBusinessVouch({
     businessId,
   });
+  const isSubmitting = useRef(false);
 
   if (specialtyTags.length === 0) {
     return null;
   }
 
   const handleVouch = async (tag: ExploreBusinessSpecialtyTag) => {
-    if (pendingTagId !== null || !onlineManager.isOnline()) {
+    if (
+      isSubmitting.current ||
+      pendingTagId !== null ||
+      !onlineManager.isOnline()
+    ) {
       return;
     }
 
+    isSubmitting.current = true;
+
     try {
-      await vouch({
+      const request = vouch({
         tagId: tag.id,
         isVouched: tag.is_vouched,
       });
@@ -51,6 +59,8 @@ export default function BusinessSpecialtiesSection({
         text1: tag.is_vouched ? "Vouch removed" : `Vouched for ${tag.name}`,
         visibilityTime: 1500,
       });
+
+      await request;
     } catch (error) {
       const response = error as ApiResponse<unknown>;
 
@@ -65,13 +75,15 @@ export default function BusinessSpecialtiesSection({
           text2: response.message || "Something went wrong. Please try again.",
         });
       }
+    } finally {
+      isSubmitting.current = false;
     }
   };
 
   return (
     <BusinessSpecialtiesPresentation
       tags={specialtyTags}
-      disabled={isOwnBusiness || pendingTagId !== null}
+      disabled={isOwnBusiness}
       ownerPresentation={isOwnBusiness && !displayAsExplorer}
       onVouch={(tagId) => {
         const tag = specialtyTags.find((item) => item.id === tagId);

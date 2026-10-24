@@ -92,7 +92,7 @@ export default function ProfileScreen() {
             role={user?.role ?? "explorer"}
             onEditProfile={() => router.push("/profile/edit-profile")}
           >
-            <ProfileActivitySummary className="mt-4" />
+            <ProfileActivitySummary className="mt-2" />
           </ProfileHeader>
 
           {/* Explorer activity */}

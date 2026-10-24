@@ -4,9 +4,14 @@ import {
   BottomSheetFlatList,
   BottomSheetModal,
   BottomSheetTextInput,
+  ANIMATION_STATUS,
+  useBottomSheetInternal,
 } from "@gorhom/bottom-sheet";
 import LottieView from "lottie-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAnimatedReaction } from "react-native-reanimated";
+import { State } from "react-native-gesture-handler";
+import { scheduleOnRN } from "react-native-worklets";
 import {
   ActivityIndicator,
   BackHandler,
@@ -26,11 +31,44 @@ import loadingAnimation from "@/shared/assets/animations/loading.json";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
 import useMapBusinessSearch from "../hooks/useMapBusinessSearch";
+import useResultsImpressions from "@/features/explore/hooks/useResultsImpressions";
 
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
   onBusinessSelect: (business: ExploreBusiness) => void;
+  onVisibilityChange?: (visible: boolean) => void;
+  impressionsEnabled?: boolean;
 };
+
+/** Observe actual animation completion, including keyboard moves with an unchanged index. */
+function SearchSheetSettlementObserver({
+  onSettledChange,
+}: {
+  onSettledChange: (settled: boolean) => void;
+}) {
+  const {
+    animatedAnimationState,
+    animatedContentGestureState,
+    animatedHandleGestureState,
+    animatedIndex,
+    animatedPosition,
+  } = useBottomSheetInternal();
+
+  useAnimatedReaction(
+    () =>
+      animatedAnimationState.get().status === ANIMATION_STATUS.STOPPED &&
+      animatedIndex.get() >= 0 &&
+      Number.isFinite(animatedPosition.get()) &&
+      animatedContentGestureState.get() !== State.BEGAN &&
+      animatedContentGestureState.get() !== State.ACTIVE &&
+      animatedHandleGestureState.get() !== State.BEGAN &&
+      animatedHandleGestureState.get() !== State.ACTIVE,
+    (settled, previous) => {
+      if (settled !== previous) scheduleOnRN(onSettledChange, settled);
+    },
+  );
+  return null;
+}
 
 /**
  * Adapts Registration's near-full-height search interaction for SugboGo businesses.
@@ -39,15 +77,30 @@ type Props = {
 export default function MapBusinessSearchSheet({
   sheetRef,
   onBusinessSelect,
+  onVisibilityChange,
+  impressionsEnabled = true,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [isSettled, setIsSettled] = useState(false);
   const isSheetOpen = useRef(false);
   const selectedResult = useRef(false);
   const pendingSelection = useRef<ExploreBusiness | null>(null);
   const endReached = useRef(false);
   const results = useMapBusinessSearch(query, isOpen);
+  const businessIds = useMemo(
+    () => results.businesses.map((business) => business.id),
+    [results.businesses],
+  );
+  const impressions = useResultsImpressions(
+    isOpen && isSettled && impressionsEnabled,
+    businessIds,
+  );
+
+  const pauseImpressions = useCallback(() => {
+    setIsSettled(false);
+  }, []);
 
   useQueryErrorNotification({
     error: results.error,
@@ -65,15 +118,17 @@ export default function MapBusinessSearchSheet({
         }
 
         Keyboard.dismiss();
+        pauseImpressions();
         sheetRef.current?.dismiss();
         return true;
       },
     );
 
     return () => subscription.remove();
-  }, [sheetRef]);
+  }, [sheetRef, pauseImpressions]);
 
   const close = () => {
+    pauseImpressions();
     Keyboard.dismiss();
     sheetRef.current?.dismiss();
   };
@@ -104,16 +159,24 @@ export default function MapBusinessSearchSheet({
           opacity={0.45}
         />
       )}
+      onAnimate={() => {
+        setIsSettled(false);
+        onVisibilityChange?.(true);
+      }}
       onChange={(index) => {
         const wasOpen = isSheetOpen.current;
         isSheetOpen.current = index >= 0;
         setIsOpen(index >= 0);
+        if (index < 0) setIsSettled(false);
+        if (index >= 0) onVisibilityChange?.(true);
         if (index >= 0 && !wasOpen) {
           selectedResult.current = false;
           pendingSelection.current = null;
         }
       }}
       onDismiss={() => {
+        pauseImpressions();
+        onVisibilityChange?.(false);
         isSheetOpen.current = false;
         setIsOpen(false);
         setQuery("");
@@ -125,6 +188,7 @@ export default function MapBusinessSearchSheet({
         }
       }}
     >
+      <SearchSheetSettlementObserver onSettledChange={setIsSettled} />
       {/* Search input and explicit dismissal */}
       <View className="px-5 pb-4 pt-2">
         <View className="flex-row items-center justify-between">
@@ -184,7 +248,10 @@ export default function MapBusinessSearchSheet({
 
       {/* Registered businesses and localized recovery */}
       <BottomSheetFlatList<ExploreBusiness>
+        testID="map-business-search-results"
         data={results.businesses}
+        onViewableItemsChanged={impressions.onViewableItemsChanged}
+        viewabilityConfig={impressions.viewabilityConfig}
         keyExtractor={(business) => String(business.id)}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"

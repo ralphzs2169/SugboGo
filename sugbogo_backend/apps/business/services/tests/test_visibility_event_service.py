@@ -6,7 +6,7 @@ from unittest.mock import patch
 from django.contrib.gis.geos import Point
 from django.test import TestCase, override_settings
 from pymongo.errors import AutoReconnect
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound
 
 from apps.business.models import (
     Business,
@@ -305,13 +305,18 @@ class VisibilityEventServiceTests(TestCase):
         self.assertEqual(result.recorded_count, 1)
         self.assertEqual(result.duplicate_count, 0)
 
-    def test_owner_filter_does_not_hide_an_invalid_impression_target(self):
-        with self.assertRaises(ValidationError):
-            VisibilityEventService.record_impressions(
-                explorer_id=self.first_owner.pk,
-                business_ids=[self.first_business.pk, 999999],
-            )
+    def test_owner_and_nonexistent_targets_are_ignored_without_mongo(self):
+        result = VisibilityEventService.record_impressions(
+            explorer_id=self.first_owner.pk,
+            business_ids=[
+                self.first_business.pk,
+                999999,
+            ],
+        )
 
+        self.assertEqual(result.eligible_business_ids, ())
+        self.assertEqual(result.recorded_count, 0)
+        self.assertEqual(result.duplicate_count, 0)
         self.get_database.assert_not_called()
 
     def test_merchant_can_record_and_deduplicate_other_business_events(self):
@@ -507,29 +512,59 @@ class VisibilityEventServiceTests(TestCase):
             1,
         )
 
-    def test_batch_rejects_nonexistent_business(self):
-        with self.assertRaises(ValidationError):
-            VisibilityEventService.record_impressions(
-                explorer_id=self.explorer.USER_ID,
-                business_ids=[
-                    self.first_business.BUSN_ID,
-                    999999,
-                ],
-            )
-
-        self.assertEqual(
-            len(self.collection.documents),
-            0,
+    def test_batch_preserves_valid_businesses_with_nonexistent_target(self):
+        result = VisibilityEventService.record_impressions(
+            explorer_id=self.explorer.USER_ID,
+            business_ids=[
+                self.first_business.BUSN_ID,
+                999999,
+                self.second_business.BUSN_ID,
+            ],
         )
 
-    def test_batch_rejects_inactive_business(self):
-        with self.assertRaises(ValidationError):
-            VisibilityEventService.record_impressions(
-                explorer_id=self.explorer.USER_ID,
-                business_ids=[
-                    self.suspended_business.BUSN_ID,
-                ],
-            )
+        self.assertEqual(
+            result.eligible_business_ids,
+            (
+                self.first_business.BUSN_ID,
+                self.second_business.BUSN_ID,
+            ),
+        )
+        self.assertEqual(result.recorded_count, 2)
+        self.assertEqual(result.duplicate_count, 0)
+        self.assertEqual(len(self.collection.documents), 2)
+
+    def test_batch_preserves_valid_businesses_with_inactive_target(self):
+        result = VisibilityEventService.record_impressions(
+            explorer_id=self.explorer.USER_ID,
+            business_ids=[
+                self.first_business.BUSN_ID,
+                self.suspended_business.BUSN_ID,
+                self.second_business.BUSN_ID,
+            ],
+        )
+
+        self.assertEqual(
+            result.eligible_business_ids,
+            (
+                self.first_business.BUSN_ID,
+                self.second_business.BUSN_ID,
+            ),
+        )
+        self.assertEqual(result.recorded_count, 2)
+        self.assertEqual(len(self.collection.documents), 2)
+
+    def test_batch_ignores_inactive_business_without_mongo(self):
+        result = VisibilityEventService.record_impressions(
+            explorer_id=self.explorer.USER_ID,
+            business_ids=[
+                self.suspended_business.BUSN_ID,
+            ],
+        )
+
+        self.assertEqual(result.eligible_business_ids, ())
+        self.assertEqual(result.recorded_count, 0)
+        self.assertEqual(result.duplicate_count, 0)
+        self.get_database.assert_not_called()
 
     def test_batch_business_validation_uses_one_query(self):
         with self.assertNumQueries(1):

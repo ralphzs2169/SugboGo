@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -12,11 +12,18 @@ import { GEM_FILL, GEM_ICON } from "@/shared/styles/hiddenGems";
 import { shadows } from "@/shared/styles/shadows";
 
 import type { MapDiscoveryBusiness } from "../types/mapDiscovery.types";
+import type { VisibilityRect } from "@/features/explore/utils/businessImpressions";
+
+export type PreviewIdentityGeometry = {
+  viewport: VisibilityRect;
+  identity: VisibilityRect;
+};
 
 type Props = {
   business: MapDiscoveryBusiness;
   onClose: () => void;
   onViewBusiness: () => void;
+  onIdentityGeometryChange?: (geometry: PreviewIdentityGeometry | null) => void;
 };
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
@@ -67,9 +74,35 @@ export default function MSMEPreviewCard({
   business,
   onClose,
   onViewBusiness,
+  onIdentityGeometryChange,
 }: Props) {
   const { height } = useWindowDimensions();
   const [failedPhotos, setFailedPhotos] = useState<string[]>([]);
+  const identityGeometry = useRef({
+    viewport: null as VisibilityRect | null,
+    identity: null as VisibilityRect | null,
+    scrollY: 0,
+  });
+  const updateIdentityGeometry = useCallback(() => {
+    const { viewport, identity, scrollY } = identityGeometry.current;
+    onIdentityGeometryChange?.(
+      viewport && identity
+        ? {
+            viewport,
+            identity: {
+              ...identity,
+              x: viewport.x + identity.x,
+              y: viewport.y + identity.y - scrollY,
+            },
+          }
+        : null,
+    );
+  }, [onIdentityGeometryChange]);
+
+  useLayoutEffect(() => {
+    updateIdentityGeometry();
+    return () => onIdentityGeometryChange?.(null);
+  }, [onIdentityGeometryChange, updateIdentityGeometry]);
 
   const photo = [
     business.display_cover_photo_url,
@@ -101,10 +134,27 @@ export default function MSMEPreviewCard({
     >
       {/* Business identity and specialty tags */}
       <ScrollView
+        testID="map-preview-identity-viewport"
+        onLayout={(event) => {
+          identityGeometry.current.viewport = event.nativeEvent.layout;
+          updateIdentityGeometry();
+        }}
+        onScroll={(event) => {
+          identityGeometry.current.scrollY = event.nativeEvent.contentOffset.y;
+          updateIdentityGeometry();
+        }}
+        scrollEventThrottle={16}
         style={{ flexGrow: 0, flexShrink: 1 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="flex-row items-start gap-3">
+        <View
+          testID="map-preview-identity"
+          onLayout={(event) => {
+            identityGeometry.current.identity = event.nativeEvent.layout;
+            updateIdentityGeometry();
+          }}
+          className="flex-row items-start gap-3"
+        >
           {/* Business cover photo */}
           <View
             className="shrink-0"

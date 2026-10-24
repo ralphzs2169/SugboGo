@@ -42,6 +42,7 @@ const unavailable = {
   success: false,
   code: "VISIBILITY_TRACKING_UNAVAILABLE",
   message: "Unavailable",
+  retry_after: 1,
 };
 
 function setupClient() {

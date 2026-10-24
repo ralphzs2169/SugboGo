@@ -63,6 +63,7 @@ export default function BusinessProfilePresentation({
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  const [ownerFooterHeight, setOwnerFooterHeight] = useState(0);
 
   async function refreshProfile() {
     if (detail.isLoading || isPullRefreshing) return;
@@ -77,11 +78,13 @@ export default function BusinessProfilePresentation({
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <BusinessProfileScrollView
+        impressionsEnabled={!galleryVisible}
         extraBottomPadding={extraBottomPadding}
         business={identity}
         isRefreshing={isPullRefreshing && !detail.isLoading}
         onRefresh={() => void refreshProfile()}
         isOwnBusiness={ownerPresentation}
+        ownerFooterHeight={ownerFooterHeight}
       >
         {!business && !detail.isLoading ? (
           <BusinessProfileErrorState
@@ -281,7 +284,14 @@ export default function BusinessProfilePresentation({
           </>
         )}
       </BusinessProfileScrollView>
-      {ownerPresentation && <BusinessProfileFooter isOwnBusiness />}
+      {ownerPresentation && (
+        <BusinessProfileFooter
+          isOwnBusiness
+          onLayout={(event) =>
+            setOwnerFooterHeight(event.nativeEvent.layout.height)
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }

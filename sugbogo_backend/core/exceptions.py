@@ -112,4 +112,9 @@ def custom_exception_handler(exc, context):
         "code": code,
     }
 
+    # Preserve DRF's Retry-After interval in the JSON envelope for API clients.
+    retry_after = getattr(exc, "wait", None)
+    if retry_after is not None:
+        response.data["retry_after"] = retry_after
+
     return response
