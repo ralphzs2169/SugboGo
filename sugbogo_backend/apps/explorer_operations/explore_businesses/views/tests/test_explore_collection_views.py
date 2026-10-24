@@ -15,7 +15,11 @@ from apps.business.models import (
 from apps.business.services.visibility_event_service import (
     VisibilityEventService,
 )
-from apps.users.models import User, UserCategoryInterest
+from apps.users.models import (
+    User,
+    UserCategoryInterest,
+    UserSpecialtyTagInterest,
+)
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from django.utils import timezone
@@ -233,11 +237,30 @@ class ExploreCollectionViewTests(TestCase):
             USER_ID=self.explorer,
             CTGRY_ID=self.cafe_category,
         )
+        UserSpecialtyTagInterest.objects.create(
+            USER_ID=self.explorer,
+            TAG_ID=self.coffee_tag,
+        )
         lower_gap = self._create_business("Lower Visibility Gap")
         higher_gap = self._create_business("Higher Visibility Gap")
         no_match = self._create_business(
             "No Match",
             self.trail_category,
+        )
+        self._add_specialty(
+            lower_gap,
+            self.coffee_tag,
+            Decimal("0.00000"),
+        )
+        self._add_specialty(
+            higher_gap,
+            self.coffee_tag,
+            Decimal("0.00000"),
+        )
+        self._add_specialty(
+            higher_gap,
+            self.hiking_tag,
+            Decimal("0.00000"),
         )
         self._add_score(
             lower_gap,
@@ -260,7 +283,23 @@ class ExploreCollectionViewTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             [item["id"] for item in response.data["data"]["items"]],
-            [higher_gap.BUSN_ID, lower_gap.BUSN_ID],
+            [lower_gap.BUSN_ID, higher_gap.BUSN_ID],
+        )
+
+        filtered_response = self._get_collection(
+            "interests",
+            params={
+                "specialty_tag": self.coffee_tag.TAG_ID,
+            },
+        )
+
+        self.assertEqual(filtered_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [
+                item["id"]
+                for item in filtered_response.data["data"]["items"]
+            ],
+            [lower_gap.BUSN_ID, higher_gap.BUSN_ID],
         )
 
     @patch.object(

@@ -70,8 +70,8 @@ def recommendation_sort_key(item):
 
     return (
         -int(relevance_group),
-        -business.recommendation_visibility_gap,
         -similarity,
+        -business.recommendation_visibility_gap,
         -business.recommendation_discovery_score,
         business.BUSN_ID,
     )
