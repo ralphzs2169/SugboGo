@@ -3,10 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import { getExploreFilterOptions } from "../api/exploreBusiness.service";
+import {
+  EXPLORE_FILTER_OPTIONS_QUERY_KEY,
+  EXPLORE_FILTER_RETENTION_MS,
+} from "../constants/exploreHomepageQueries";
 
-export const EXPLORE_FILTER_OPTIONS_QUERY_KEY = [
-  "explore-filter-options",
-] as const;
+export { EXPLORE_FILTER_OPTIONS_QUERY_KEY } from "../constants/exploreHomepageQueries";
 
 /** Loads authoritative taxonomy choices for Explorer search and filtering. */
 export default function useExploreFilterOptions() {
@@ -17,6 +19,7 @@ export default function useExploreFilterOptions() {
 
       return throwOnApiError(response);
     },
+    gcTime: EXPLORE_FILTER_RETENTION_MS,
     staleTime: 30 * 60 * 1000,
   });
 

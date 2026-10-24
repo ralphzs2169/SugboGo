@@ -819,18 +819,23 @@ describe("MerchantDashboardScreen", () => {
       true,
     );
     expect(screen.getByLabelText("Tip 1 of 4")).toBeTruthy();
-    jest.replaceProperty(globalThis, "__DEV__", false);
-    await screen.rerender(
-      <QueryClientProvider client={client}>
-        <MerchantDashboardScreen />
-      </QueryClientProvider>,
-    );
-    expect(
-      screen.queryByRole("switch", { name: "Preview all listing tips" }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("header", { name: "Improve your listing" }),
-    ).toBeNull();
+    const development = __DEV__;
+    Object.defineProperty(globalThis, "__DEV__", { value: false });
+    try {
+      await screen.rerender(
+        <QueryClientProvider client={client}>
+          <MerchantDashboardScreen />
+        </QueryClientProvider>,
+      );
+      expect(
+        screen.queryByRole("switch", { name: "Preview all listing tips" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("header", { name: "Improve your listing" }),
+      ).toBeNull();
+    } finally {
+      Object.defineProperty(globalThis, "__DEV__", { value: development });
+    }
   });
 
   function sectionPeriodControl(

@@ -1,6 +1,7 @@
 import { beginAuthSession } from "../authSessionGeneration.service";
 import MockAdapter from "axios-mock-adapter";
 import { AxiosError } from "axios";
+import NetInfo from "@react-native-community/netinfo";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { createApiError } from "@/shared/utils/apiErrors";
@@ -36,6 +37,17 @@ describe("refresh failure classification", () => {
       sessionExpired: false,
     });
     adapter.onGet("/users/me/").reply(401);
+  });
+
+  it("rejects an offline write before sending it to the server", async () => {
+    jest.mocked(NetInfo.fetch).mockResolvedValueOnce({
+      isConnected: false,
+      isInternetReachable: false,
+    } as never);
+    await expect(apiClient.post("/offline-write/", {})).rejects.toMatchObject({
+      name: "NETWORK_ERROR",
+    });
+    expect(adapter.history.post).toHaveLength(0);
   });
 
   it.each(["NETWORK_ERROR", "REQUEST_TIMEOUT"])(

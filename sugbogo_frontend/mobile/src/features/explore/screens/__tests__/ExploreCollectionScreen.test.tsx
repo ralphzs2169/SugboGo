@@ -248,6 +248,46 @@ describe("ExploreCollectionScreen", () => {
     expect(empty.getByTestId("collection-empty")).toBeTruthy();
   });
 
+  it("shows recovery while an initial offline query is paused", async () => {
+    (useExploreCollection as jest.Mock).mockReturnValue(
+      collectionState({ businesses: [], totalItems: 0, isPaused: true }),
+    );
+    const screen = await render(<ExploreCollectionScreen />);
+    expect(screen.getByText("Retry")).toBeTruthy();
+    expect(screen.queryByTestId("collection-empty")).toBeNull();
+  });
+
+  it("keeps rows and filters visible after refresh failure", async () => {
+    const screen = await render(<ExploreCollectionScreen />);
+    (useExploreCollection as jest.Mock).mockReturnValue(
+      collectionState({ error: new Error("Offline") }),
+    );
+    await screen.rerender(<ExploreCollectionScreen />);
+    expect(screen.getByTestId("collection-card-42")).toBeTruthy();
+    expect(screen.getByText("1 place")).toBeTruthy();
+    expect(screen.queryByTestId("collection-error")).toBeNull();
+  });
+
+  it("keeps rows after page failure and offers a focused continuation retry", async () => {
+    (useExploreCollection as jest.Mock).mockReturnValue(
+      collectionState({
+        error: new Error("Page failed"),
+        isFetchNextPageError: true,
+        hasNextPage: true,
+      }),
+    );
+    const screen = await render(<ExploreCollectionScreen />);
+    expect(screen.getByTestId("collection-card-42")).toBeTruthy();
+    await fireEvent(
+      screen.getByTestId("explore-collection-list"),
+      "endReached",
+    );
+    expect(mockFetchNextPage).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByText("Retry loading more places"));
+    expect(mockFetchNextPage).toHaveBeenCalledTimes(1);
+    expect(mockRefetch).not.toHaveBeenCalled();
+  });
+
   it("guards pagination requests and refreshes only the active collection", async () => {
     (useExploreCollection as jest.Mock).mockReturnValue(
       collectionState({ hasNextPage: true }),
@@ -293,10 +333,13 @@ describe("ExploreCollectionScreen", () => {
     });
     fireEvent.press(screen.getByText("Apply taxonomy filters"));
     await waitFor(() => {
-      expect(screen.getByLabelText("Remove Food filter")).toBeTruthy();
+      expect(useExploreCollection).toHaveBeenLastCalledWith(
+        "hidden-gems",
+        expect.objectContaining({ clusterId: 1 }),
+      );
     });
 
-    fireEvent.press(screen.getByLabelText("Remove Food filter"));
+    await fireEvent.press(screen.getByText("All"));
 
     await waitFor(() => {
       expect(useExploreCollection).toHaveBeenLastCalledWith(

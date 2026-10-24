@@ -115,8 +115,10 @@ export async function getRecommendations(): Promise<
 
 export async function getExploreBusinessDetail(
   businessId: number,
+  signal?: AbortSignal,
 ): Promise<ApiResponse<ExploreBusinessDetail>> {
-  return request(apiClient.get(`/explorer/explore/businesses/${businessId}/`));
+  const url = `/explorer/explore/businesses/${businessId}/`;
+  return request(signal ? apiClient.get(url, { signal }) : apiClient.get(url));
 }
 
 export async function getSimilarBusinesses(

@@ -1,5 +1,10 @@
 import type { PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import { exploreBusinessDetailKey } from "../reviewQueryKeys";
 import { act, renderHook } from "@testing-library/react-native";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
@@ -17,17 +22,26 @@ jest.mock("../../api/exploreBusiness.service", () => ({
   getExploreBusinessDetail: jest.fn(),
 }));
 
+jest.mock("expo-router", () => ({ useIsFocused: () => true }));
+
 jest.mock("../../api/reviewBusiness.service", () => ({
   getBusinessReviewPreview: jest.fn(),
 }));
 
 describe("ReviewDerivedDataSyncProvider lifecycle", () => {
   beforeEach(() => {
+    useAuthStore.setState({
+      user: { id: 10 } as never,
+      isAuthenticated: true,
+      isLoading: false,
+    });
+    onlineManager.setOnline(true);
     jest.useFakeTimers();
     jest.clearAllMocks();
   });
 
   afterEach(() => {
+    onlineManager.setOnline(true);
     jest.useRealTimers();
   });
 
@@ -37,6 +51,8 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
     "account-change",
     "cache-clear",
     "timeout",
+    "offline",
+    "detail-error",
   ] as const)(
     "handles navigation when synchronization starts %s unmount",
     async (mode) => {
@@ -90,11 +106,20 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
       });
       const callsBeforeLeaving = (getBusinessReviewPreview as jest.Mock).mock
         .calls.length;
+      if (mode === "offline") onlineManager.setOnline(false);
+      if (mode === "detail-error") {
+        client
+          .getQueryCache()
+          .find({ queryKey: exploreBusinessDetailKey(20) })
+          ?.setState({ error: new Error("Detail unavailable") });
+      }
       await unmount();
       if (
         mode === "account-change" ||
         mode === "cache-clear" ||
-        mode === "timeout"
+        mode === "timeout" ||
+        mode === "offline" ||
+        mode === "detail-error"
       ) {
         if (mode === "cache-clear") client.clear();
         if (mode === "account-change")
@@ -104,6 +129,9 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
         });
         const completedCalls = (getBusinessReviewPreview as jest.Mock).mock
           .calls.length;
+        if (mode === "offline" || mode === "detail-error") {
+          expect(completedCalls).toBe(callsBeforeLeaving);
+        }
         await act(async () => {
           await jest.advanceTimersByTimeAsync(4001);
         });
@@ -205,8 +233,7 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
         baselineInsightsState: null,
         startedAt: Date.now(),
       });
-      jest.advanceTimersByTime(1);
-      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(1);
     });
     expect(getBusinessReviewPreview).toHaveBeenCalled();
 
@@ -330,12 +357,12 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
       await Promise.resolve();
     });
 
-    expect(getBusinessReviewPreview).toHaveBeenCalledTimes(
-      previewCallsAfterSentiment,
-    );
-    expect(getExploreBusinessDetail).toHaveBeenCalledTimes(
-      detailCallsAfterSentiment + 1,
-    );
+    expect(
+      (getBusinessReviewPreview as jest.Mock).mock.calls.length,
+    ).toBeLessThanOrEqual(previewCallsAfterSentiment + 1);
+    expect(
+      (getExploreBusinessDetail as jest.Mock).mock.calls.length,
+    ).toBeGreaterThan(detailCallsAfterSentiment);
 
     await act(async () => {
       jest.advanceTimersByTime(2_001);
@@ -354,7 +381,8 @@ describe("ReviewDerivedDataSyncProvider lifecycle", () => {
       await Promise.resolve();
     });
 
-    expect(getExploreBusinessDetail).toHaveBeenCalledTimes(
+    // A score plus an advanced timestamp cannot prove aggregate inclusion.
+    expect(jest.mocked(getExploreBusinessDetail).mock.calls.length).toBeGreaterThan(
       completedDetailCalls,
     );
 

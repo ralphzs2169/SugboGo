@@ -15,7 +15,8 @@ export const NOTIFICATION_SYNC_COALESCE_MS = 250;
 type TimerHandle = ReturnType<typeof setTimeout>;
 
 type NotificationSocketMessage = {
-  type: "inbox.ready" | "inbox.changed";
+  type: "inbox.ready" | "inbox.changed" | "notification.created";
+  notification_id?: number;
   sync_required: true;
 };
 
@@ -32,6 +33,7 @@ type NotificationSocketSession = {
   userId: number;
   authSessionGeneration: number;
   onSyncRequired: () => void;
+  onNotificationCreated?: (notificationId: number) => void;
   onSessionExpired: () => void | Promise<void>;
 };
 
@@ -105,7 +107,11 @@ function isSyncMessage(value: unknown): value is NotificationSocketMessage {
   const message = value as Record<string, unknown>;
 
   return (
-    (message.type === "inbox.ready" || message.type === "inbox.changed") &&
+    (message.type === "inbox.ready" ||
+      message.type === "inbox.changed" ||
+      (message.type === "notification.created" &&
+        Number.isSafeInteger(message.notification_id) &&
+        (message.notification_id as number) > 0)) &&
     message.sync_required === true
   );
 }
@@ -113,8 +119,8 @@ function isSyncMessage(value: unknown): value is NotificationSocketMessage {
 /**
  * Owns the single authenticated notification socket for the current account.
  *
- * The service only transports reconciliation signals. Notification records
- * remain authoritative in REST and are refreshed by the supplied callback.
+ * Transports reconciliation signals and explicit creation IDs. Notification
+ * records remain authoritative in REST and refresh through the sync callback.
  */
 export class NotificationWebSocketService {
   private readonly dependencies: NotificationSocketDependencies;
@@ -311,6 +317,10 @@ export class NotificationWebSocketService {
       if (message.type === "inbox.ready") {
         this.reconnectAttempt = 0;
         this.refreshAttempted = false;
+      }
+
+      if (message.type === "notification.created" && this.appActive) {
+        this.session?.onNotificationCreated?.(message.notification_id!);
       }
 
       this.scheduleSync(sessionEpoch);

@@ -27,7 +27,16 @@ jest.mock("@/shared/components/AppText", () => {
 
   return Text;
 });
-jest.mock("@/shared/components/ErrorState", () => () => null);
+jest.mock("@/shared/components/ErrorState", () => {
+  const { Text } = jest.requireActual("react-native");
+  return function MockErrorState({
+    onPrimaryAction,
+  }: {
+    onPrimaryAction: () => void;
+  }) {
+    return <Text onPress={onPrimaryAction}>Retry initial request</Text>;
+  };
+});
 jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
   useTabBarSpacing: () => 0,
 }));
@@ -114,4 +123,66 @@ it("attributes a filtered-result opening to SEARCH_RESULTS while preserving busi
       profileSource: "SEARCH_RESULTS",
     },
   });
+});
+
+it("keeps loaded rows and the result header after a refresh fails", async () => {
+  const state = {
+    ...resultState(false),
+    businesses: [{ id: 42 }],
+    totalItems: 1,
+  };
+  (useDiscoveryResults as jest.Mock).mockReturnValue(state);
+  const screen = await render(<ExploreResultsScreen />);
+  (useDiscoveryResults as jest.Mock).mockReturnValue({
+    ...state,
+    error: new Error("Offline"),
+  });
+  await screen.rerender(<ExploreResultsScreen />);
+  expect(screen.getByText("Open search result")).toBeTruthy();
+  expect(screen.getByTestId("search-filter-results-list").props.data).toBe(
+    state.businesses,
+  );
+  expect(
+    screen.getByTestId("search-filter-results-list").props.ListHeaderComponent,
+  ).not.toBeNull();
+  expect(screen.queryByTestId("search-filter-results-error")).toBeNull();
+});
+
+it("keeps an initial error retry when no rows exist", async () => {
+  const state = { ...resultState(false), error: new Error("Offline") };
+  (useDiscoveryResults as jest.Mock).mockReturnValue(state);
+  const screen = await render(<ExploreResultsScreen />);
+  await fireEvent.press(screen.getByText("Retry initial request"));
+  expect(state.refetch).toHaveBeenCalledTimes(1);
+});
+
+it("shows recovery while an initial offline query is paused", async () => {
+  (useDiscoveryResults as jest.Mock).mockReturnValue({
+    ...resultState(false),
+    isPaused: true,
+  });
+  const screen = await render(<ExploreResultsScreen />);
+  expect(screen.getByText("Retry initial request")).toBeTruthy();
+  expect(screen.queryByTestId("search-filter-results-empty")).toBeNull();
+});
+
+it("keeps rows after a page failure and retries only through the continuation action", async () => {
+  const state = {
+    ...resultState(false),
+    businesses: [{ id: 42 }],
+    error: new Error("Page failed"),
+    isFetchNextPageError: true,
+    hasNextPage: true,
+  };
+  (useDiscoveryResults as jest.Mock).mockReturnValue(state);
+  const screen = await render(<ExploreResultsScreen />);
+  expect(screen.getByText("Open search result")).toBeTruthy();
+  await fireEvent(
+    screen.getByTestId("search-filter-results-list"),
+    "endReached",
+  );
+  expect(state.fetchNextPage).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText("Retry loading more places"));
+  expect(state.fetchNextPage).toHaveBeenCalledTimes(1);
+  expect(state.refetch).not.toHaveBeenCalled();
 });

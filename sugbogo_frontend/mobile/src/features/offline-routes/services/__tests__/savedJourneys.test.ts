@@ -1,8 +1,11 @@
+import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
+import { Platform } from "react-native";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useOfflineAccessStore } from "../../stores/offlineAccess.store";
 import { snapshot } from "../../utils/__tests__/savedJourney.fixture";
 import {
   clearSavedJourneys,
+  clearSavedJourneysForLogout,
   deleteSavedJourney,
   listSavedJourneys,
   saveJourney,
@@ -22,6 +25,7 @@ jest.mock("expo-sqlite", () => ({
 }));
 jest.mock("../offlineAccess.service", () => ({
   rememberOfflineOwner: jest.fn(),
+  releaseOfflineAccessIfEmpty: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe("saved journey device repository", () => {
@@ -47,7 +51,10 @@ describe("saved journey device repository", () => {
     expect(args[3]).toBe("21:8:2:4");
     expect(JSON.parse(args[4])).toEqual(snapshot);
     expect(args[5]).toBe(snapshot.savedAt);
-    expect(rememberOfflineOwner).toHaveBeenCalledWith(7);
+    expect(rememberOfflineOwner).toHaveBeenCalledWith(
+      7,
+      getAuthSessionGeneration(),
+    );
   });
 
   it("returns persisted data from SQLite independently of React Query or network state", async () => {
@@ -115,5 +122,22 @@ describe("saved journey device repository", () => {
   it("propagates storage failure instead of presenting it as an empty list", async () => {
     mockDb.getAllAsync.mockRejectedValueOnce(new Error("storage unavailable"));
     await expect(listSavedJourneys(7)).rejects.toThrow("storage unavailable");
+  });
+
+  it("keeps ordinary bulk deletion unauthorized after access is revoked", async () => {
+    useAuthStore.setState({ user: null, isAuthenticated: false });
+    await expect(clearSavedJourneys(7)).rejects.toThrow("unavailable");
+    await expect(clearSavedJourneysForLogout()).resolves.toBeUndefined();
+    expect(mockDb.runAsync).not.toHaveBeenCalled();
+  });
+
+  it("does not attempt native SQLite cleanup on web", async () => {
+    const platform = jest.replaceProperty(Platform, "OS", "web");
+    try {
+      await expect(clearSavedJourneysForLogout()).resolves.toBeUndefined();
+      expect(mockDb.runAsync).not.toHaveBeenCalled();
+    } finally {
+      platform.restore();
+    }
   });
 });

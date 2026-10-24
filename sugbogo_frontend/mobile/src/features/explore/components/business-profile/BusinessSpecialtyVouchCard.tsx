@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
@@ -14,9 +14,9 @@ type Props = {
   name: string;
   color: SpecialtyTagColor;
   icon?: SpecialtyTagIcon | null;
-  vouchCount: number;
-  isVouched: boolean;
-  onPress: () => void;
+  vouchCount: number | null;
+  isVouched: boolean | null;
+  onPress?: () => void;
   disabled?: boolean;
 };
 
@@ -41,10 +41,10 @@ export default function BusinessSpecialtyVouchCard({
   const styles = getSpecialtyTagColor(color);
   const iconName = getSpecialtyTagIcon(icon);
 
-  const reactionScale = useRef(new Animated.Value(1)).current;
-  const heartScale = useRef(new Animated.Value(1)).current;
-  const pulseScale = useRef(new Animated.Value(1)).current;
-  const pulseOpacity = useRef(new Animated.Value(0)).current;
+  const [reactionScale] = useState(() => new Animated.Value(1));
+  const [heartScale] = useState(() => new Animated.Value(1));
+  const [pulseScale] = useState(() => new Animated.Value(1));
+  const [pulseOpacity] = useState(() => new Animated.Value(0));
   const previousVouched = useRef(isVouched);
 
   const foregroundColor = isVouched ? "#FFFFFF" : styles.borderColor;
@@ -114,12 +114,14 @@ export default function BusinessSpecialtyVouchCard({
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityLabel={`${name}, ${vouchCount} ${
-        vouchCount === 1 ? "vouch" : "vouches"
-      }`}
+      accessibilityLabel={
+        vouchCount === null
+          ? `${name}, Vouch unavailable offline`
+          : `${name}, ${vouchCount} ${vouchCount === 1 ? "vouch" : "vouches"}`
+      }
       accessibilityState={{
         disabled,
-        selected: isVouched,
+        selected: isVouched ?? undefined,
       }}
       className="flex-1 cursor-pointer items-center px-0.5 py-1 active:opacity-75 disabled:opacity-50"
     >
@@ -179,7 +181,7 @@ export default function BusinessSpecialtyVouchCard({
       </View>
 
       {/* Specialty label */}
-      <View className="h-8 w-full items-center justify-center px-1">
+      <View className="min-h-8 w-full items-center justify-center px-1">
         <AppText
           weight="semibold"
           className="w-full text-center text-[11px] leading-[14px] text-text-primary"
@@ -217,7 +219,7 @@ export default function BusinessSpecialtyVouchCard({
             color: isVouched ? "#FFFFFF" : styles.borderColor,
           }}
         >
-          {vouchCount}
+          {vouchCount ?? "Vouch"}
         </AppText>
       </View>
     </Pressable>

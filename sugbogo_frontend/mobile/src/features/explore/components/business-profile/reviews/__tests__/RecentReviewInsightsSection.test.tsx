@@ -1,6 +1,11 @@
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 
-import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
+import AppText from "@/shared/components/AppText";
+
+import type {
+  BusinessReviewInsights,
+  ReviewInsightRegeneration,
+} from "../../../../types/exploreBusiness.types";
 import RecentReviewInsightsSection from "../RecentReviewInsightsSection";
 
 const insights: BusinessReviewInsights = {
@@ -30,6 +35,147 @@ const insights: BusinessReviewInsights = {
 };
 
 describe("RecentReviewInsightsSection", () => {
+  const scheduled: ReviewInsightRegeneration = {
+    status: "scheduled",
+    is_outstanding: true,
+    requested_revision: 2,
+    completed_revision: 1,
+    run_after: null,
+    content_available: true,
+    content_is_current: false,
+  };
+
+  it.each([
+    ["pending", "scheduled", /refreshed shortly/],
+    ["pending", "processing", /Updating insights with the latest reviews/],
+    ["outdated", "retry_wait", /taking longer to update/],
+  ] as const)(
+    "renders classified sentiment with %s narrative and %s regeneration",
+    async (state, status, message) => {
+      const screen = await render(
+        <RecentReviewInsightsSection
+          insights={{
+            ...insights,
+            state,
+            review_count: 8,
+            eligible_review_count: 0,
+            content_available: false,
+            narrative: null,
+            sentiment: {
+              positive: { count: 3, percentage: 60 },
+              neutral: { count: 1, percentage: 20 },
+              negative: { count: 1, percentage: 20 },
+            },
+          }}
+          regeneration={{ ...scheduled, status, content_available: false }}
+        />,
+      );
+
+      expect(screen.getByLabelText("Positive, 60%, 3 reviews")).toBeTruthy();
+      expect(screen.getByLabelText("Neutral, 20%, 1 review")).toBeTruthy();
+      expect(screen.getByLabelText("Negative, 20%, 1 review")).toBeTruthy();
+      expect(screen.getByText("Mostly positive")).toBeTruthy();
+      expect(
+        screen.getByText("Based on 5 classified reviews from the past 30 days."),
+      ).toBeTruthy();
+      expect(screen.getByText(message)).toBeTruthy();
+      expect(screen.getByTestId("insight-update-status")).toBeTruthy();
+      expect(screen.queryByText("No recent insights yet")).toBeNull();
+      expect(screen.queryByText("Not enough recent reviews yet")).toBeNull();
+      expect(screen.queryByText("Vibe Summary")).toBeNull();
+    },
+  );
+
+  it.each([
+    ["scheduled", /refreshed shortly/],
+    ["processing", /Updating insights with the latest reviews/],
+    ["retry_wait", /taking longer to update/],
+  ] as const)(
+    "shows subtle %s feedback with retained content",
+    async (status, message) => {
+      const screen = await render(
+        <RecentReviewInsightsSection
+          insights={insights}
+          regeneration={{ ...scheduled, status }}
+        />,
+      );
+      expect(screen.getByText(message)).toBeTruthy();
+      expect(screen.getByText(/Showing previous insights/)).toBeTruthy();
+      expect(screen.getByText(insights.narrative!)).toBeTruthy();
+      expect(screen.getByTestId("insight-update-status")).toBeTruthy();
+    },
+  );
+
+  it("uses top-level metadata to hide invalidated content and child mentions", async () => {
+    const screen = await render(
+      <RecentReviewInsightsSection
+        insights={{
+          ...insights,
+          regeneration: { ...scheduled, content_available: true },
+        }}
+        regeneration={{ ...scheduled, content_available: false }}
+      >
+        <AppText>Generated mentions</AppText>
+      </RecentReviewInsightsSection>,
+    );
+    expect(screen.queryByText(insights.narrative!)).toBeNull();
+    expect(screen.queryByText("Generated mentions")).toBeNull();
+    expect(screen.getByText("Positive")).toBeTruthy();
+    expect(screen.getByText("Mostly positive")).toBeTruthy();
+    expect(screen.getByText(/refreshed shortly/)).toBeTruthy();
+    expect(screen.queryByText("No recent insights yet")).toBeNull();
+  });
+
+  it("shows queued feedback with no summary and stops feedback on deterministic completion", async () => {
+    const screen = await render(
+      <RecentReviewInsightsSection
+        insights={null}
+        regeneration={{ ...scheduled, content_available: false }}
+      />,
+    );
+    expect(screen.getByText(/refreshed shortly/)).toBeTruthy();
+    await screen.rerender(
+      <RecentReviewInsightsSection
+        insights={{
+          ...insights,
+          state: "insufficient_reviews",
+          content_available: false,
+          narrative: null,
+          classified_review_count: 0,
+          has_sufficient_sentiment_data: false,
+          overall_vibe: null,
+        }}
+        regeneration={{
+          ...scheduled,
+          status: "idle",
+          is_outstanding: false,
+          completed_revision: 2,
+          content_available: false,
+        }}
+      />,
+    );
+    expect(screen.queryByTestId("insight-update-status")).toBeNull();
+    expect(screen.getByText("Not enough recent reviews yet")).toBeTruthy();
+  });
+
+  it("displays completed current content without an updating or retained indicator", async () => {
+    const screen = await render(
+      <RecentReviewInsightsSection
+        insights={insights}
+        regeneration={{
+          ...scheduled,
+          status: "idle",
+          is_outstanding: false,
+          completed_revision: 2,
+          content_is_current: true,
+        }}
+      />,
+    );
+    expect(screen.getByText(insights.narrative!)).toBeTruthy();
+    expect(screen.queryByTestId("insight-update-status")).toBeNull();
+    expect(screen.queryByText(/Showing previous insights/)).toBeNull();
+  });
+
   it("distinguishes an unprocessed summary from zero eligible reviews", async () => {
     const screen = await render(
       <RecentReviewInsightsSection insights={null} />,
@@ -40,16 +186,18 @@ describe("RecentReviewInsightsSection", () => {
     expect(screen.queryByText("No recent insights yet")).toBeNull();
   });
 
-  it("uses recent eligible count and shows ready content", async () => {
+  it("uses the classified population when sentiment and narrative are available", async () => {
     const screen = await render(
       <RecentReviewInsightsSection insights={insights} />,
     );
     expect(
-      screen.getByText("Based on 5 eligible reviews from the past 30 days."),
+      screen.getByText("Based on 5 classified reviews from the past 30 days."),
     ).toBeTruthy();
     expect(screen.getByText("Visitors praise friendly service.")).toBeTruthy();
     expect(screen.getByText("Mostly positive")).toBeTruthy();
     expect(screen.getByText("Positive")).toBeTruthy();
+    expect(screen.getByLabelText("Positive, 100%, 5 reviews")).toBeTruthy();
+    expect(screen.queryByText("No recent insights yet")).toBeNull();
   });
 
   it("keeps a zero recent review state visible", async () => {
@@ -88,12 +236,89 @@ describe("RecentReviewInsightsSection", () => {
         }}
       />,
     );
-    expect(screen.getByText("Not enough recent reviews yet")).toBeTruthy();
+    expect(screen.queryByText("Not enough recent reviews yet")).toBeNull();
     expect(
-      screen.getByText("Based on 4 eligible reviews from the past 30 days."),
+      screen.getByText("Based on 5 classified reviews from the past 30 days."),
     ).toBeTruthy();
     expect(screen.getByText("Mostly positive")).toBeTruthy();
     expect(screen.queryByText("Vibe Summary")).toBeNull();
+  });
+
+  it.each(["no-classifications", "below-threshold", "empty-distribution"] as const)(
+    "does not fabricate sentiment for %s when narrative is unavailable",
+    async (reason) => {
+      const screen = await render(
+        <RecentReviewInsightsSection
+          insights={{
+            ...insights,
+            state: "insufficient_reviews",
+            eligible_review_count: 0,
+            classified_review_count: reason === "no-classifications" ? 0 : 5,
+            has_sufficient_sentiment_data: reason !== "below-threshold",
+            content_available: false,
+            narrative: null,
+            sentiment:
+              reason === "empty-distribution"
+                ? {
+                    positive: { count: 0, percentage: 0 },
+                    neutral: { count: 0, percentage: 0 },
+                    negative: { count: 0, percentage: 0 },
+                  }
+                : insights.sentiment,
+          }}
+          regeneration={{
+            ...scheduled,
+            status: "idle",
+            is_outstanding: false,
+            completed_revision: 2,
+            content_available: false,
+          }}
+        />,
+      );
+
+      expect(screen.getByText("Not enough recent reviews yet")).toBeTruthy();
+      expect(screen.queryByText("Positive")).toBeNull();
+      expect(screen.queryByText("Mostly positive")).toBeNull();
+      expect(screen.queryByText("Vibe Summary")).toBeNull();
+      expect(screen.queryByTestId("insight-update-status")).toBeNull();
+    },
+  );
+
+  it("keeps sentiment filtering available after a content-free evaluation completes", async () => {
+    const onSentimentPress = jest.fn();
+    const screen = await render(
+      <RecentReviewInsightsSection
+        insights={{
+          ...insights,
+          state: "insufficient_reviews",
+          eligible_review_count: 0,
+          content_available: false,
+          narrative: null,
+        }}
+        regeneration={{
+          ...scheduled,
+          status: "idle",
+          is_outstanding: false,
+          completed_revision: 2,
+          content_available: false,
+        }}
+        selectedSentiment="positive"
+        onSentimentPress={onSentimentPress}
+      />,
+    );
+
+    fireEvent.press(screen.getByRole("button", { name: "Neutral, 0%, 0 reviews" }));
+
+    expect(onSentimentPress).toHaveBeenCalledWith("neutral");
+    expect(
+      screen.getByRole("button", {
+        name: "Positive, 100%, 5 reviews, selected",
+        selected: true,
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByText("Not enough recent reviews yet")).toBeNull();
+    expect(screen.queryByTestId("insight-update-status")).toBeNull();
+    expect(screen.queryByText(/Showing previous insights/)).toBeNull();
   });
 
   it("shows generated content without fabricating insufficient sentiment", async () => {

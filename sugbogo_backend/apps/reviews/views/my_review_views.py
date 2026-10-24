@@ -42,6 +42,7 @@ class MyReviewListView(APIView):
             MyReviewResponseSerializer(
                 page,
                 many=True,
+                context={"request": request},
             ).data,
         )
         response.data["data"]["summary"] = summary

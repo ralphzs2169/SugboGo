@@ -60,10 +60,9 @@ describe("DiscoveryShortcutsSection", () => {
       <DiscoveryShortcutsSection onShortcutPress={onShortcutPress} />,
     );
 
-    expect(screen.getAllByText(/shortcut$/).map((node) => node.props.children)).toEqual([
-      "First shortcut",
-      "Second shortcut",
-    ]);
+    expect(
+      screen.getAllByText(/shortcut$/).map((node) => node.props.children),
+    ).toEqual(["First shortcut", "Second shortcut"]);
     fireEvent.press(screen.getByLabelText("First shortcut"));
     expect(onShortcutPress).toHaveBeenCalledWith(42);
   });
@@ -79,7 +78,11 @@ describe("DiscoveryShortcutsSection", () => {
     mockQuery({ error: { success: false, message: "Unavailable" } });
     const screen = await render(<DiscoveryShortcutsSection />);
 
-    fireEvent.press(screen.getByText("Retry"));
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Unable to load discovery shortcuts/,
+      }),
+    );
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 });

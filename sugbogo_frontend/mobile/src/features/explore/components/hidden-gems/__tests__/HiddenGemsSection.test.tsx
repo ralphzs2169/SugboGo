@@ -27,7 +27,7 @@ jest.mock("../../new-businesses/BusinessCard", () => ({
 jest.mock("@/shared/components/ErrorState", () => ({
   __esModule: true,
   default: ({ onPrimaryAction }: { onPrimaryAction: () => void }) => {
-    const { Pressable, Text } = require("react-native");
+    const { Pressable, Text } = jest.requireActual("react-native");
 
     return (
       <Pressable testID="discovery-retry" onPress={onPrimaryAction}>
@@ -83,6 +83,24 @@ function createImpressions() {
 }
 
 describe("HiddenGemsSection", () => {
+  it("preserves cards when a refresh fails", async () => {
+    const props = {
+      businesses: [createBusiness(1, "Previously loaded gem", 10.31)],
+      isLoading: false,
+      error: null as Error | null,
+      refetch: jest.fn(),
+      impressions: createImpressions(),
+      spotlightImpressions: createImpressions(),
+      userLocation: null,
+      onBusinessPress: jest.fn(),
+    };
+    const screen = await render(<HiddenGemsSection {...props} />);
+    await screen.rerender(
+      <HiddenGemsSection {...props} error={new Error("Offline")} />,
+    );
+    expect(screen.getByText("Previously loaded gem")).toBeTruthy();
+    expect(screen.queryByTestId("hidden-gems-error")).toBeNull();
+  });
   beforeEach(() => {
     mockBusinessCard.mockClear();
   });

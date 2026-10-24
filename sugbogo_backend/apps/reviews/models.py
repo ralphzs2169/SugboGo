@@ -1,10 +1,155 @@
+from datetime import timedelta
+
 from django.db import models
+from django.db.models.functions import Least
 from django.utils import timezone
 
 from apps.business.models.business_core_models import (
     Business,
 )
 from apps.users.models import User
+from apps.reviews.constants import (
+    REVIEW_INSIGHT_MAX_WAIT_SECONDS,
+    REVIEW_INSIGHT_QUIET_SECONDS,
+)
+
+
+class ReviewInsightRegeneration(models.Model):
+    """Retains one business's regeneration demand and fenced worker ownership."""
+
+    RIRG_ID = models.BigAutoField(primary_key=True)
+    BUSN_ID = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        db_column="BUSN_ID",
+        related_name="review_insight_regeneration",
+    )
+    RIRG_REQUESTED_REVISION = models.PositiveBigIntegerField(default=0)
+    RIRG_COMPLETED_REVISION = models.PositiveBigIntegerField(default=0)
+    RIRG_OBSERVED_REVISION = models.PositiveBigIntegerField(default=0)
+    RIRG_INPUT_FINGERPRINT = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+    )
+    RIRG_RECHECK_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+    RIRG_FIRST_CHANGED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="First committed change observed in the outstanding period.",
+    )
+    RIRG_LATEST_CHANGED_AT = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Latest committed revision observed outside its mutation transaction.",
+    )
+    RIRG_DUE_AT = models.DateTimeField(null=True, blank=True)
+    RIRG_ATTEMPT_TOKEN = models.UUIDField(null=True, blank=True)
+    RIRG_CLAIMED_REVISION = models.PositiveBigIntegerField(null=True, blank=True)
+    RIRG_LEASE_EXPIRES_AT = models.DateTimeField(null=True, blank=True)
+    RIRG_ATTEMPTS = models.PositiveIntegerField(default=0)
+    RIRG_RETRY_NOT_BEFORE = models.DateTimeField(null=True, blank=True)
+    RIRG_LAST_ERROR = models.CharField(max_length=64, blank=True, default="")
+    RIRG_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    RIRG_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "REVIEW_INSIGHT_REGENERATION"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        RIRG_COMPLETED_REVISION__lte=models.F("RIRG_OBSERVED_REVISION"),
+                    )
+                    & models.Q(
+                        RIRG_OBSERVED_REVISION__lte=models.F("RIRG_REQUESTED_REVISION"),
+                    )
+                ),
+                name="rirg_revision_order",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        RIRG_OBSERVED_REVISION=models.F("RIRG_COMPLETED_REVISION"),
+                        RIRG_FIRST_CHANGED_AT__isnull=True,
+                        RIRG_LATEST_CHANGED_AT__isnull=True,
+                        RIRG_DUE_AT__isnull=True,
+                    )
+                    | (
+                        models.Q(
+                            RIRG_OBSERVED_REVISION__gt=models.F("RIRG_COMPLETED_REVISION"),
+                            RIRG_FIRST_CHANGED_AT__isnull=False,
+                            RIRG_LATEST_CHANGED_AT__isnull=False,
+                            RIRG_DUE_AT__isnull=False,
+                        )
+                        & models.Q(
+                            RIRG_FIRST_CHANGED_AT__lte=models.F("RIRG_LATEST_CHANGED_AT"),
+                            RIRG_DUE_AT=Least(
+                                models.F("RIRG_LATEST_CHANGED_AT")
+                                + timedelta(seconds=REVIEW_INSIGHT_QUIET_SECONDS),
+                                models.F("RIRG_FIRST_CHANGED_AT")
+                                + timedelta(seconds=REVIEW_INSIGHT_MAX_WAIT_SECONDS),
+                            ),
+                        )
+                    )
+                ),
+                name="rirg_observed_deadline",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        RIRG_ATTEMPT_TOKEN__isnull=True,
+                        RIRG_CLAIMED_REVISION__isnull=True,
+                        RIRG_LEASE_EXPIRES_AT__isnull=True,
+                    )
+                    | models.Q(
+                        RIRG_ATTEMPT_TOKEN__isnull=False,
+                        RIRG_CLAIMED_REVISION__isnull=False,
+                        RIRG_LEASE_EXPIRES_AT__isnull=False,
+                        RIRG_CLAIMED_REVISION__gt=models.F("RIRG_COMPLETED_REVISION"),
+                        RIRG_CLAIMED_REVISION__lte=models.F("RIRG_OBSERVED_REVISION"),
+                    )
+                ),
+                name="rirg_complete_ownership",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        RIRG_REQUESTED_REVISION__gt=models.F("RIRG_COMPLETED_REVISION"),
+                    )
+                    | models.Q(
+                        RIRG_ATTEMPT_TOKEN__isnull=True,
+                        RIRG_RETRY_NOT_BEFORE__isnull=True,
+                    )
+                ),
+                name="rirg_idle_has_no_attempt",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["RIRG_DUE_AT", "RIRG_ID"],
+                condition=models.Q(
+                    RIRG_REQUESTED_REVISION__gt=models.F("RIRG_COMPLETED_REVISION"),
+                ),
+                name="rirg_outstanding_due",
+            ),
+            models.Index(
+                fields=["RIRG_UPDATED_AT", "RIRG_ID"],
+                condition=models.Q(
+                    RIRG_OBSERVED_REVISION__lt=models.F("RIRG_REQUESTED_REVISION"),
+                ),
+                name="rirg_unobserved_changes",
+            ),
+            models.Index(
+                fields=["RIRG_LEASE_EXPIRES_AT", "RIRG_ID"],
+                condition=models.Q(RIRG_ATTEMPT_TOKEN__isnull=False),
+                name="rirg_active_lease",
+            ),
+        ]
 
 
 class ReviewMediaCleanup(models.Model):
@@ -536,6 +681,10 @@ class BusinessReviewSummary(models.Model):
 
     BRSU_SENTIMENT_COMPUTED_AT = models.DateTimeField(
         null=True,
+        blank=True,
+    )
+    BRSU_SENTIMENT_SOURCES = models.JSONField(
+        default=dict,
         blank=True,
     )
     BRSU_KEYWORDS_PROCESSED_AT = models.DateTimeField(

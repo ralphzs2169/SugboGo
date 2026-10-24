@@ -14,12 +14,14 @@ import {
 import { clearSessionTokens } from "@/shared/api/storage.service";
 
 import { notificationWebSocketService } from "../../services/notificationWebSocket.service";
+import { notificationArrivalService } from "../../services/notificationArrival.service";
 import { notificationKeys } from "../notificationQueryKeys";
 import { useNotificationWebSocketLifecycle } from "../useNotificationWebSocketLifecycle";
 
 let mockNetworkListener:
   | ((state: { isConnected: boolean; isInternetReachable: boolean }) => void)
   | null = null;
+let mockPathname = "/explore";
 
 jest.mock("@react-native-community/netinfo", () => ({
   __esModule: true,
@@ -37,6 +39,7 @@ jest.mock("@react-native-community/netinfo", () => ({
 
 jest.mock("expo-router", () => ({
   router: { replace: jest.fn() },
+  usePathname: () => mockPathname,
 }));
 
 jest.mock("@/shared/api/storage.service", () => ({
@@ -85,6 +88,7 @@ describe("useNotificationWebSocketLifecycle", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPathname = "/explore";
     appStateListener = null;
     mockNetworkListener = null;
     removeAppStateListener = jest.fn();
@@ -137,6 +141,33 @@ describe("useNotificationWebSocketLifecycle", () => {
     await waitFor(() =>
       expect(notificationWebSocketService.stop).toHaveBeenCalled(),
     );
+  });
+
+  it("routes explicit arrivals to the coordinator and suppresses them in the inbox", async () => {
+    const { Wrapper } = setupClient();
+    const animate = jest.fn();
+    const unsubscribe = notificationArrivalService.subscribe({
+      userId: 7,
+      isEligible: () => true,
+      animate,
+    });
+    const { rerender, unmount } = await renderHook(
+      useNotificationWebSocketLifecycle,
+      {
+        wrapper: Wrapper,
+      },
+    );
+    const session = (notificationWebSocketService.start as jest.Mock).mock
+      .calls[0][0];
+    session.onNotificationCreated(9001);
+    expect(animate).toHaveBeenCalledTimes(1);
+    mockPathname = "/notifications";
+    await rerender({});
+    session.onNotificationCreated(9002);
+    expect(animate).toHaveBeenCalledTimes(1);
+    expect(notificationWebSocketService.start).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    await unmount();
   });
 
   it("forwards foreground and connectivity transitions to the singleton", async () => {

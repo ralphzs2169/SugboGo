@@ -1,0 +1,7 @@
+export const OFFLINE_POCKETS_API_SCOPE = process.env.EXPO_PUBLIC_API_URL ?? "";
+export const OFFLINE_POCKETS_DATABASE = "sugbogo_offline_pockets.db";
+export const OFFLINE_POCKETS_SCHEMA_VERSION = 3;
+export const OFFLINE_BUSINESS_SNAPSHOT_VERSION = 1;
+export const MAX_OFFLINE_BUSINESS_SNAPSHOT_CHARACTERS = 1_000_000;
+export const MAX_OFFLINE_COVER_BYTES = 10 * 1024 * 1024;
+export const OFFLINE_COVER_TIMEOUT_MS = 30_000;

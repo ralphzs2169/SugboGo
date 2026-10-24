@@ -13,10 +13,13 @@ from apps.business.models import (
     Cluster,
     Location,
 )
-from apps.reviews.models import ReviewReply
-from apps.reviews.services.review_reply_service import ReviewReplyService
-from apps.reviews.services.review_service import ReviewService
+from apps.reviews.models import Review, ReviewReply
+from apps.reviews.services.review_reply_service import (
+    ReviewReplyEditConflict,
+    ReviewReplyService,
+)
 from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
     SafeReviewModerationMixin,
 )
 from apps.users.models import User
@@ -79,7 +82,7 @@ class ReviewReplyViewTests(SafeReviewModerationMixin, APITestCase):
             LOCT_ID=self.location,
         )
 
-        self.review = ReviewService.create_review(
+        self.review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -125,6 +128,30 @@ class ReviewReplyViewTests(SafeReviewModerationMixin, APITestCase):
             response.data["message"],
             "Review reply added successfully.",
         )
+
+    def test_create_reply_hides_nonpublished_reviews(self):
+        for review_status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=review_status):
+                self.review.REVW_STATUS = review_status
+                self.review.save(update_fields=["REVW_STATUS"])
+                response = self.client.post(
+                    self.url,
+                    {"text": "Thank you for visiting Sugbo Bistro!"},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+                self.assertFalse(response.data["success"])
+                self.assertEqual(response.data["code"], "NOT_FOUND")
+                self.assertEqual(
+                    response.data["message"],
+                    "The review could not be found.",
+                )
+                self.assertNotIn(self.review.REVW_TEXT, response.content.decode())
+                self.assertFalse(ReviewReply.objects.filter(REVW_ID=self.review).exists())
 
     def test_create_reply_rejects_missing_text(self):
         response = self.client.post(
@@ -408,7 +435,7 @@ class ReviewReplyDetailViewTests(SafeReviewModerationMixin, APITestCase):
             LOCT_ID=self.location,
         )
 
-        self.review = ReviewService.create_review(
+        self.review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -453,6 +480,26 @@ class ReviewReplyDetailViewTests(SafeReviewModerationMixin, APITestCase):
         self.assertIn("created_at", data)
         self.assertIn("updated_at", data)
         self.assertIn("photos", data)
+
+    def test_stale_reply_edit_uses_existing_conflict_envelope(self):
+        with patch.object(
+            ReviewReplyService,
+            "update_reply",
+            side_effect=ReviewReplyEditConflict(),
+        ):
+            response = self.client.patch(
+                self.detail_url,
+                {"text": "Stale proposed reply."},
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data, {
+            "success": False,
+            "message": "This reply changed while you were editing. Reload it and try again.",
+            "code": "REVIEW_REPLY_EDIT_CONFLICT",
+        })
+        self.reply.refresh_from_db()
+        self.assertEqual(self.reply.RPLY_TEXT, "Original reply.")
 
     def test_update_reply_rejects_non_owner_merchant(self):
         self.client.force_authenticate(self.other_merchant)

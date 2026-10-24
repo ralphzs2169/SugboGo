@@ -6,7 +6,15 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 
-import type { BusinessReviewInsights } from "../../../types/exploreBusiness.types";
+import type {
+  BusinessReviewInsights,
+  ReviewInsightRegeneration,
+} from "../../../types/exploreBusiness.types";
+import {
+  isTrackedReviewInsightRegeneration,
+  resolveReviewInsightRegeneration,
+  reviewInsightUpdateMessage,
+} from "../../../utils/reviewInsightRegeneration.utils";
 import type { ReviewSentiment } from "../../../types/review.types";
 import ReviewInsightsHeader from "./ReviewInsightsHeader";
 import ReviewInsightsStateCard from "./ReviewInsightsStateCard";
@@ -15,6 +23,7 @@ import ReviewVibeSection from "./ReviewVibeSection";
 
 type Props = {
   insights?: BusinessReviewInsights | null;
+  regeneration?: ReviewInsightRegeneration | null;
   isLoading?: boolean;
   error?: boolean;
   onRetry?: () => void;
@@ -31,6 +40,7 @@ type Props = {
  */
 export default function RecentReviewInsightsSection({
   insights,
+  regeneration,
   isLoading = false,
   error = false,
   onRetry,
@@ -40,19 +50,28 @@ export default function RecentReviewInsightsSection({
 }: Props) {
   const recentCount = insights?.eligible_review_count ?? 0;
   const hasRecentReviews = recentCount > 0;
+  const classifiedCount = insights?.classified_review_count ?? 0;
 
-  const showGeneratedContent = Boolean(insights?.content_available);
+  const progress = resolveReviewInsightRegeneration(regeneration, insights);
+  const tracked = isTrackedReviewInsightRegeneration(progress);
+  const updateMessage = reviewInsightUpdateMessage(progress);
+  const showGeneratedContent = Boolean(
+    insights?.content_available && (progress?.content_available ?? true),
+  );
 
   const showSentiment = Boolean(
-    hasRecentReviews &&
     insights?.has_sufficient_sentiment_data &&
-    insights.overall_vibe,
+    classifiedCount > 0 &&
+    Object.values(insights.sentiment).some(
+      (item) => item.count > 0 && item.percentage > 0,
+    ),
   );
 
   const isUpdating = Boolean(
+    !tracked &&
     insights &&
-      (insights.state === "pending" || insights.state === "outdated") &&
-      !showGeneratedContent,
+    (insights.state === "pending" || insights.state === "outdated") &&
+    !showGeneratedContent,
   );
 
   const showSectionHeader = showGeneratedContent || showSentiment;
@@ -64,12 +83,45 @@ export default function RecentReviewInsightsSection({
       {/* Review Insights heading and recent-review context */}
       {showSectionHeader && (
         <ReviewInsightsHeader
-          recentCount={recentCount}
+          recentCount={showSentiment ? classifiedCount : recentCount}
+          reviewPopulation={showSentiment ? "classified" : "eligible"}
           overallVibe={overallVibe}
         />
       )}
 
       {/* Loading, error, and unavailable states */}
+      {!isLoading && !error && updateMessage && (
+        <View
+          className="flex-row items-start gap-2"
+          testID="insight-update-status"
+        >
+          <MaterialCommunityIcons
+            name="clock-outline"
+            size={16}
+            color={theme.extends.colors.text.secondary}
+          />
+          <View className="flex-1 gap-0.5">
+            <AppText className="text-xs leading-5 text-text-secondary">
+              {updateMessage}
+            </AppText>
+            {tracked && showGeneratedContent && !progress.content_is_current && (
+              <AppText className="text-xs leading-5 text-text-tertiary">
+                Showing the previous summary for now.
+              </AppText>
+            )}
+          </View>
+        </View>
+      )}
+      {!isLoading &&
+        !error &&
+        tracked &&
+        showGeneratedContent &&
+        !updateMessage &&
+        !progress.content_is_current && (
+          <AppText className="text-xs leading-5 text-text-secondary">
+            Showing the previous summary for now.
+          </AppText>
+        )}
       {isLoading ? (
         <ActivityIndicator
           className="self-start"
@@ -91,16 +143,27 @@ export default function RecentReviewInsightsSection({
           title="Recent insights are not available yet"
           description="Insights will appear after recent reviews are processed."
         />
-      ) : !hasRecentReviews && !isUpdating ? (
+      ) : !showSectionHeader &&
+        !isUpdating &&
+        insights.state !== "insufficient_reviews" ? (
         <ReviewInsightsStateCard
           icon="chart-box-outline"
-          title="No recent insights yet"
-          description={`At least ${insights.minimum_eligible_review_count} eligible reviews from the past 30 days are needed to generate insights.`}
+          title={
+            hasRecentReviews
+              ? "Recent insights are not available yet"
+              : "No recent insights yet"
+          }
+          description={
+            hasRecentReviews
+              ? insights.state_message ||
+                "Insights will appear after recent reviews are processed."
+              : `At least ${insights.minimum_eligible_review_count} eligible reviews from the past 30 days are needed to generate insights.`
+          }
         />
       ) : (
         <>
           {/* Insufficient generated-insight state */}
-          {insights.state === "insufficient_reviews" && (
+          {insights.state === "insufficient_reviews" && !showSectionHeader && (
             <ReviewInsightsStateCard
               icon="chart-box-outline"
               title="Not enough recent reviews yet"
@@ -121,7 +184,7 @@ export default function RecentReviewInsightsSection({
           )}
 
           {/* Generation freshness messages */}
-          {insights.state === "pending" && !isUpdating && (
+          {!tracked && insights.state === "pending" && !isUpdating && (
             <View className="flex-row items-start gap-2">
               <MaterialCommunityIcons
                 name="clock-outline"
@@ -135,19 +198,21 @@ export default function RecentReviewInsightsSection({
             </View>
           )}
 
-          {insights.state === "outdated" && showGeneratedContent && (
-            <View className="flex-row items-start gap-2">
-              <MaterialCommunityIcons
-                name="clock-alert-outline"
-                size={16}
-                color={theme.extends.colors.text.secondary}
-              />
+          {!tracked &&
+            insights.state === "outdated" &&
+            showGeneratedContent && (
+              <View className="flex-row items-start gap-2">
+                <MaterialCommunityIcons
+                  name="clock-alert-outline"
+                  size={16}
+                  color={theme.extends.colors.text.secondary}
+                />
 
-              <AppText className="flex-1 text-xs leading-5 text-text-secondary">
-                {insights.state_message}
-              </AppText>
-            </View>
-          )}
+                <AppText className="flex-1 text-xs leading-5 text-text-secondary">
+                  {insights.state_message}
+                </AppText>
+              </View>
+            )}
 
           {/* Generated Vibe Summary */}
           {showGeneratedContent && insights.narrative && (

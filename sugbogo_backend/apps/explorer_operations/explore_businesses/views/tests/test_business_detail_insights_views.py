@@ -41,6 +41,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         "state",
         "state_message",
         "content_available",
+        "regeneration",
         "narrative",
         "review_count",
         "eligible_review_count",

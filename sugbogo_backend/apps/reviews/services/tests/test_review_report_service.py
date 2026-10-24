@@ -20,6 +20,7 @@ from apps.reviews.services.review_report_service import (
 )
 from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
     SafeReviewModerationMixin,
 )
 from apps.users.models import User
@@ -88,7 +89,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_create_report(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -134,7 +135,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_create_report_without_installation_id(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -171,7 +172,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
 
     def test_author_cannot_report_own_review(self):
         """Self-reporting is rejected before a report or count is written."""
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.second_user,
             self.business.pk,
             "A review by the would-be reporter.",
@@ -214,7 +215,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
                 review.delete()
 
     def test_create_report_rejects_duplicate_report(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -254,7 +255,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_different_users_can_report_same_review(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.second_user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -304,7 +305,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         self.assertFalse(review.REVW_IS_REPORT_FLAGGED)
 
     def test_third_report_flags_review_without_rejecting_it(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.second_user, self.business.pk, "A review receiving several reports.",
         )
         third_reporter = User.objects.create_user(
@@ -391,7 +392,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         self.assertEqual(summary.BRSU_GENERATION_STATE, "ready")
 
     def test_stale_report_flag_is_cleared_below_pending_threshold(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.second_user, self.business.pk, "A previously flagged review.",
         )
         review.REVW_IS_REPORT_FLAGGED = True
@@ -405,7 +406,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         self.assertEqual(review.REVW_STATUS, review.ReviewStatus.PUBLISHED)
 
     def test_historical_total_count_does_not_trigger_attention(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.second_user, self.business.pk, "A review with historical reports.",
         )
         review.REVW_REPORT_COUNT = 3
@@ -419,7 +420,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
 
     def test_rejected_and_withdrawn_reports_do_not_count_as_active(self):
         """Only pending rows contribute to the Admin attention threshold."""
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.second_user,
             self.business.pk,
             "A review with resolved report history.",

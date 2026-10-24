@@ -19,7 +19,10 @@ jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("react-native-toast-message", () => ({
   show: jest.fn(),
 }));
-jest.mock("../../hooks/useExploreBusinessProfile");
+jest.mock("../../hooks/useExploreBusinessProfile", () => ({
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock("../../hooks/useRoadRoute");
 jest.mock("../../services/googleMapsHandoff.service", () => ({
   openGoogleMapsDirections: jest.fn(),

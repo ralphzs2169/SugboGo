@@ -186,6 +186,7 @@ class BusinessService:
                     "LOCT_ID",
                     "merchant_application",
                     "review_summary",
+                    "review_insight_regeneration",
                 )
                 .prefetch_related(
                     Prefetch(

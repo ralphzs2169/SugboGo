@@ -1,2 +1,4 @@
 # Signed local demo execution journals contain database-bound fixture identities.
 .analytics-demo/
+
+celerybeat-schedule*

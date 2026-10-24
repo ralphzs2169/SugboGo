@@ -9,6 +9,7 @@ import Toast from "react-native-toast-message";
 import { theme } from "@/constants/theme";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
+import Button from "@/shared/components/Button";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -256,11 +257,13 @@ export default function SearchFilterResultsScreen() {
     [openBusiness, userLocation],
   );
 
-  const loadNextPage = () => {
+  const loadNextPage = (retryFailedPage = false) => {
     if (
       isEndReachedRef.current ||
+      (!retryFailedPage && results.isFetchNextPageError) ||
       !results.hasNextPage ||
-      results.isFetchingNextPage
+      results.isFetchingNextPage ||
+      results.isFetching
     ) {
       return;
     }
@@ -295,11 +298,12 @@ export default function SearchFilterResultsScreen() {
       {/* Paginated business results */}
       <FlatList
         testID="search-filter-results-list"
-        data={results.isLoading || results.error ? [] : results.businesses}
+        data={results.businesses}
         keyExtractor={(business) => String(business.id)}
         renderItem={renderBusiness}
         ListHeaderComponent={
-          results.error ? null : (
+          (results.error || results.isPaused) &&
+          results.businesses.length === 0 ? null : (
             <SearchFilterResultsHeader
               clusters={taxonomy.options.clusters}
               selectedClusterId={appliedCriteria.clusterId}
@@ -316,7 +320,7 @@ export default function SearchFilterResultsScreen() {
         ListEmptyComponent={
           <SearchFilterEmptyState
             isLoading={results.isLoading}
-            hasError={Boolean(results.error)}
+            hasError={Boolean(results.error || results.isPaused)}
             hasSearch={debouncedSearch.length > 0}
             onRetry={() => void results.refetch()}
             onGoBack={() => router.back()}
@@ -340,6 +344,16 @@ export default function SearchFilterResultsScreen() {
                 }}
               />
             </View>
+          ) : results.isFetchNextPageError && results.businesses.length > 0 ? (
+            <View className="items-center py-5">
+              <Button
+                title="Retry loading more places"
+                onPress={() => loadNextPage(true)}
+                variant="soft"
+                rounded="full"
+                size="sm"
+              />
+            </View>
           ) : shouldShowEndMessage ? (
             <EndOfListMessage description="You've reached the end of these results." />
           ) : null
@@ -347,7 +361,7 @@ export default function SearchFilterResultsScreen() {
         contentContainerStyle={{
           paddingBottom: insets.bottom,
         }}
-        onEndReached={loadNextPage}
+        onEndReached={() => loadNextPage()}
         onEndReachedThreshold={0.35}
         onViewableItemsChanged={impressions.onViewableItemsChanged}
         viewabilityConfig={impressions.viewabilityConfig}

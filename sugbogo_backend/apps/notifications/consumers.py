@@ -127,6 +127,17 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         if self.user_id is not None and await self._authorized():
             await self.send(text_data=json.dumps({"type": "inbox.changed", "sync_required": True}))
 
+    async def notification_created(self, event):
+        """Signal a committed new record only to its authorized recipient."""
+        if self.user_id is not None and await self._authorized():
+            await self.send(
+                text_data=json.dumps({
+                    "type": "notification.created",
+                    "notification_id": event["notification_id"],
+                    "sync_required": True,
+                }),
+            )
+
     async def close(self, code=None, reason=None):
         """Prevent further signals or duplicate closes while disconnect is pending."""
         if not self.closing:

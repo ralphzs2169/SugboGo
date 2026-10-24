@@ -23,6 +23,7 @@ from apps.business.services.vouch_service import VouchService
 from apps.reviews.models import Review, ReviewPhoto
 from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
     SafeReviewModerationMixin,
 )
 from apps.users.models import ReputationEvent, User
@@ -100,7 +101,7 @@ class SpecialtyEvidenceContextTests(SafeReviewModerationMixin, TestCase):
         )
 
     def _create_review(self):
-        return ReviewService.create_review(
+        return create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="The experience was detailed and worthwhile.",

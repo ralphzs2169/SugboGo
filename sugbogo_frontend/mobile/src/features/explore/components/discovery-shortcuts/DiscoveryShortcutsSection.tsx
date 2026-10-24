@@ -27,8 +27,11 @@ type Props = {
  * active shortcuts are available.
  */
 export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
-  const { shortcuts, isLoading, error, refetch } = useDiscoveryShortcuts();
+  const { shortcuts, isLoading, isPaused, error, refetch } =
+    useDiscoveryShortcuts();
   const [isRetrying, setIsRetrying] = useState(false);
+  const hasContent = shortcuts.length > 0;
+  const showLoading = (isLoading || isRetrying) && !isPaused && !hasContent;
 
   const handleRetry = async () => {
     setIsRetrying(true);
@@ -56,7 +59,7 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
     }
   }, [error]);
 
-  if (!isLoading && !error && shortcuts.length === 0) {
+  if (!isLoading && !isPaused && !error && shortcuts.length === 0) {
     return null;
   }
 
@@ -69,10 +72,10 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
       />
 
       {/* Loading state */}
-      {(isLoading || isRetrying) && <DiscoveryShortcutsSkeleton />}
+      {showLoading && <DiscoveryShortcutsSkeleton />}
 
       {/* Section recovery */}
-      {!isLoading && !isRetrying && error && (
+      {!showLoading && !hasContent && (error || isPaused) && (
         <ErrorState
           title="Unable to load discovery shortcuts"
           description="Discovery shortcuts couldn't be loaded right now."
@@ -84,7 +87,7 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
       )}
 
       {/* Discovery shortcuts */}
-      {!isLoading && !error && (
+      {!showLoading && hasContent && (
         <View className="gap-3 px-4">
           {shortcuts.map((shortcut) => (
             <SafePressable

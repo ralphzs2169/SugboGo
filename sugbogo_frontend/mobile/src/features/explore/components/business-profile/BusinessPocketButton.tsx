@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { onlineManager } from "@tanstack/react-query";
 import { Animated, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -7,7 +8,8 @@ import { usePocketPicker } from "@/features/pockets/providers/PocketPickerContex
 
 type Props = {
   businessId: number;
-  isPocketed: boolean;
+  isPocketed: boolean | null;
+  disabled?: boolean;
 };
 
 /**
@@ -18,12 +20,50 @@ type Props = {
 export default function BusinessPocketButton({
   businessId,
   isPocketed,
+  disabled = false,
 }: Props) {
-  const picker = usePocketPicker();
+  if (disabled || isPocketed === null) {
+    return (
+      <Pressable
+        disabled
+        accessibilityRole="button"
+        accessibilityLabel="Pocket unavailable offline"
+        accessibilityState={{ disabled: true }}
+        className="h-10 w-10 items-center justify-center rounded-full bg-white/95 opacity-50"
+      >
+        <MaterialCommunityIcons
+          name="bookmark-outline"
+          size={22}
+          color={theme.extends.colors.text.secondary}
+        />
+      </Pressable>
+    );
+  }
+  return (
+    <LiveBusinessPocketButton businessId={businessId} isPocketed={isPocketed} />
+  );
+}
 
-  const bookmarkScale = useRef(new Animated.Value(1)).current;
-  const pulseScale = useRef(new Animated.Value(1)).current;
-  const pulseOpacity = useRef(new Animated.Value(0)).current;
+/** Mounts the shared picker binding only for authoritative live membership. */
+function LiveBusinessPocketButton({
+  businessId,
+  isPocketed,
+}: {
+  businessId: number;
+  isPocketed: boolean;
+}) {
+  const picker = usePocketPicker();
+  const active = useRef(true);
+  useLayoutEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+
+  const [bookmarkScale] = useState(() => new Animated.Value(1));
+  const [pulseScale] = useState(() => new Animated.Value(1));
+  const [pulseOpacity] = useState(() => new Animated.Value(0));
 
   const previousPocketedRef = useRef(isPocketed);
 
@@ -72,7 +112,10 @@ export default function BusinessPocketButton({
 
   return (
     <Pressable
-      onPress={() => picker?.openPocketPicker(businessId)}
+      onPress={() => {
+        if (active.current && onlineManager.isOnline())
+          picker?.openPocketPicker(businessId);
+      }}
       disabled={!picker || picker.isOpen}
       hitSlop={4}
       accessibilityRole="button"

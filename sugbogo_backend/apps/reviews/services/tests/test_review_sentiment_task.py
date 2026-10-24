@@ -9,10 +9,10 @@ from apps.reviews.tasks import process_review_sentiment
 class ReviewSentimentTaskTests(SimpleTestCase):
     @patch("apps.reviews.tasks.refresh_business_review_insights.delay")
     @patch.object(ReviewSentimentService, "process_review", return_value="updated")
-    def test_updated_sentiment_queues_review_insights(self, process, refresh):
+    def test_updated_sentiment_does_not_schedule_narrative(self, process, refresh):
         self.assertEqual(process_review_sentiment.run(12, 34), "updated")
         process.assert_called_once_with(12)
-        refresh.assert_called_once_with(34)
+        refresh.assert_not_called()
 
     @patch("apps.reviews.tasks.refresh_business_review_insights.delay")
     @patch.object(ReviewSentimentService, "process_review", return_value="missing")

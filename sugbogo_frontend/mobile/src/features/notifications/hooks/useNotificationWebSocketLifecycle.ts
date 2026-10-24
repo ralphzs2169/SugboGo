@@ -1,6 +1,6 @@
 import NetInfo from "@react-native-community/netinfo";
 import { useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import { useEffect } from "react";
 import { AppState } from "react-native";
 
@@ -14,6 +14,7 @@ import {
 import { clearSessionTokens } from "@/shared/api/storage.service";
 
 import { notificationWebSocketService } from "../services/notificationWebSocket.service";
+import { notificationArrivalService } from "../services/notificationArrival.service";
 import { notificationKeys } from "./notificationQueryKeys";
 
 function hasUsableConnection(
@@ -33,6 +34,19 @@ export function useNotificationWebSocketLifecycle() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const userId = useAuthStore((state) => state.user?.id);
   const queryClient = useQueryClient();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const updateContext = (state: string) => {
+      notificationArrivalService.setContext(
+        state === "active",
+        pathname === "/notifications",
+      );
+    };
+    updateContext(AppState.currentState);
+    const subscription = AppState.addEventListener("change", updateContext);
+    return () => subscription.remove();
+  }, [pathname]);
 
   useEffect(() => {
     let disposed = false;
@@ -77,6 +91,9 @@ export function useNotificationWebSocketLifecycle() {
     notificationWebSocketService.start({
       userId,
       authSessionGeneration,
+      onNotificationCreated: (notificationId) => {
+        notificationArrivalService.created(userId, notificationId);
+      },
       onSyncRequired: () => {
         void queryClient.invalidateQueries({
           queryKey: notificationKeys.account(userId),

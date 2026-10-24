@@ -193,9 +193,15 @@ export default function ProfileScreen() {
             />
 
             <ProfileMenuItem
-              title="Offline Data"
+              title="Offline Storage"
               icon="database-outline"
-              onPress={() => router.push("/offline-routes")}
+              onPress={() => router.push("/offline-storage")}
+            />
+
+            <ProfileMenuItem
+              title="Privacy Policy"
+              icon="shield-lock-outline"
+              onPress={() => router.push("/privacy-policy")}
             />
           </ProfileMenuSection>
 

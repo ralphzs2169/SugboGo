@@ -156,7 +156,7 @@ class ReviewReliabilityConcurrencyTests(TransactionTestCase):
             )
             self.assertEqual(
                 review.REVW_STATUS,
-                Review.ReviewStatus.PUBLISHED,
+                Review.ReviewStatus.UNDER_REVIEW,
             )
 
     def test_concurrent_rapid_submissions_detect_eleventh_review(self):

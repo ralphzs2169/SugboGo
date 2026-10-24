@@ -11,13 +11,35 @@ from apps.notifications.tests.fixtures import NotificationFixtures
 
 @override_settings(CHANNEL_LAYERS={"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}})
 class NotificationPublicationTests(NotificationFixtures, TestCase):
+    def test_all_event_types_publish_explicit_unique_creation_ids(self):
+        for event_type in (
+            "business_vouch_received",
+            "business_review_received",
+            "business_name_change_approved",
+            "system",
+        ):
+            with self.subTest(event_type=event_type):
+                with patch.object(NotificationRealtimeService, "publish") as publish:
+                    with self.captureOnCommitCallbacks(execute=True):
+                        notification = self.create_notification(
+                            key=event_type,
+                            event_type=event_type,
+                        )
+                    publish.assert_called_once_with(
+                        self.user.pk,
+                        notification_id=notification.pk,
+                    )
+
     def test_commit_emits_one_creation_signal_and_duplicate_emits_none(self):
         with patch.object(NotificationRealtimeService, "publish") as publish:
             with self.captureOnCommitCallbacks(execute=True):
-                self.create_notification()
+                notification = self.create_notification()
                 self.create_notification()
                 publish.assert_not_called()
-            publish.assert_called_once_with(self.user.pk)
+            publish.assert_called_once_with(
+                self.user.pk,
+                notification_id=notification.pk,
+            )
 
     def test_rollback_discards_publication_and_inbox_record(self):
         with patch.object(NotificationRealtimeService, "publish") as publish:

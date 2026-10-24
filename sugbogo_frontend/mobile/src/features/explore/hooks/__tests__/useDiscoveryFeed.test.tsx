@@ -1,6 +1,6 @@
 import React, { type PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react-native";
+import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { getDiscoveryFeed } from "../../api/exploreBusiness.service";
 import useDiscoveryFeed, {
@@ -11,6 +11,12 @@ jest.mock("../../api/exploreBusiness.service", () => ({
   getDiscoveryFeed: jest.fn(),
 }));
 
+const clients: QueryClient[] = [];
+
+afterEach(() => {
+  clients.splice(0).forEach((client) => client.clear());
+});
+
 function setupClient() {
   const client = new QueryClient({
     defaultOptions: {
@@ -20,6 +26,7 @@ function setupClient() {
       },
     },
   });
+  clients.push(client);
 
   /** Supplies React Query state to the Discovery feed hook. */
   function Wrapper({ children }: PropsWithChildren) {
@@ -35,6 +42,31 @@ function setupClient() {
 }
 
 describe("useDiscoveryFeed", () => {
+  it("keeps the last successful feed after a background refresh fails", async () => {
+    const items = [{ id: 20, business_name: "Loaded business" }];
+    (getDiscoveryFeed as jest.Mock)
+      .mockResolvedValueOnce({ success: true, data: { items, pagination: {} } })
+      .mockResolvedValueOnce({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    const { client, wrapper } = setupClient();
+    const hook = await renderHook(useDiscoveryFeed, { wrapper });
+    try {
+      await waitFor(() =>
+        expect(hook.result.current.businesses).toEqual(items),
+      );
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: DISCOVERY_FEED_QUERY_KEY });
+      });
+      await waitFor(() => expect(hook.result.current.error).toBeTruthy());
+      expect(hook.result.current.businesses).toEqual(items);
+    } finally {
+      await hook.unmount();
+      client.clear();
+    }
+  });
   it("loads the ranked first page with a stable React Query key", async () => {
     const rankedItems = [
       { id: 20, business_name: "Backend First" },

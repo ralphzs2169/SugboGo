@@ -16,6 +16,7 @@ from apps.business.serializers.business_serializers import (
 )
 from apps.explorer_operations.explore_businesses.serializers.review_insights_serializers import (
     BusinessReviewInsightsSerializer,
+    ReviewInsightRegenerationSerializer,
 )
 from apps.merchant_application.models import MerchantApplication
 from apps.reviews.models import Review
@@ -548,6 +549,10 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    review_insight_regeneration = ReviewInsightRegenerationSerializer(
+        source="*",
+        read_only=True,
+    )
         
     application = AdminBusinessApplicationSerializer(
         source="merchant_application",
@@ -595,5 +600,6 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
             "operating_hours",
             "latest_reviews",
             "review_insights",
+            "review_insight_regeneration",
             "application",
         )

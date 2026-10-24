@@ -106,6 +106,30 @@ async function renderSection() {
 }
 
 describe("Based on Your Interests", () => {
+  it("retains recommendations after refresh failure", async () => {
+    const state = {
+      businesses: [createBusiness(1, "Previously loaded recommendation")],
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    };
+    (useRecommendations as jest.Mock).mockReturnValue(state);
+    const impressions = createImpressions();
+    const props = {
+      impressions,
+      userLocation: null,
+      onBusinessPress: jest.fn(),
+    };
+    const screen = await render(<InterestsSection {...props} />);
+    (useRecommendations as jest.Mock).mockReturnValue({
+      ...state,
+      error: new Error("Offline"),
+    });
+    await screen.rerender(<InterestsSection {...props} />);
+    expect(screen.getByText("Previously loaded recommendation")).toBeTruthy();
+    expect(screen.queryByTestId("recommendations-error")).toBeNull();
+    expect(impressions.retainBusinesses).toHaveBeenLastCalledWith([1]);
+  });
   beforeEach(() => {
     mockBusinessCard.mockClear();
   });
@@ -138,7 +162,7 @@ describe("Based on Your Interests", () => {
     expect(mockBusinessCard).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        recommendationReason: reason,
+        business: expect.objectContaining({ recommendation_reason: reason }),
         variant: "compact",
       }),
     );
@@ -164,7 +188,6 @@ describe("Based on Your Interests", () => {
     });
     const empty = await renderSection();
     expect(empty.getByTestId("recommendations-empty")).toBeTruthy();
-    expect(empty.getByText("No matching places yet.")).toBeTruthy();
     expect(empty.queryByText("Retry")).toBeNull();
     await empty.unmount();
   });

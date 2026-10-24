@@ -21,59 +21,69 @@ class ReviewSentimentService:
         review_id: int,
         recompute_summary: bool = True,
     ) -> str:
-        """Stores a score only while its source text is still current."""
+        """Score current published text and repair aggregates even for stored scores."""
         source = (
             Review.objects
             .filter(REVW_ID=review_id)
-            .values("REVW_TEXT", "REVW_SENTIMENT_SCORE", "REVW_SENTIMENT_LABEL")
+            .values(
+                "BUSN_ID_id",
+                "REVW_STATUS",
+                "REVW_TEXT",
+                "REVW_SENTIMENT_SCORE",
+                "REVW_SENTIMENT_LABEL",
+            )
             .first()
         )
         if source is None:
             return "missing"
-        if (
+        if source["REVW_STATUS"] != Review.ReviewStatus.PUBLISHED:
+            return "ineligible"
+
+        business_id = source["BUSN_ID_id"]
+        outcome = "already_scored"
+        if not (
             source["REVW_SENTIMENT_SCORE"] is not None
             and source["REVW_SENTIMENT_LABEL"] is not None
         ):
-            return "already_scored"
+            source_text = source["REVW_TEXT"]
+            score, label, _ = route_sentiment(source_text)
 
-        source_text = source["REVW_TEXT"]
-        score, label, _ = route_sentiment(source_text)
+            with transaction.atomic():
+                review = (
+                    Review.objects
+                    .select_for_update()
+                    .filter(REVW_ID=review_id)
+                    .first()
+                )
+                if review is None:
+                    return "missing"
+                if review.REVW_STATUS != Review.ReviewStatus.PUBLISHED:
+                    return "ineligible"
+                if review.REVW_TEXT != source_text:
+                    return "stale"
+                if not (
+                    review.REVW_SENTIMENT_SCORE is not None
+                    and review.REVW_SENTIMENT_LABEL is not None
+                ):
+                    review.REVW_SENTIMENT_SCORE = score
+                    review.REVW_SENTIMENT_LABEL = label.lower()
+                    review.REVW_IS_OUTLIER_SENTIMENT = ReviewService._is_outlier_sentiment(
+                        review,
+                    )
+                    review.save(
+                        update_fields=[
+                            "REVW_SENTIMENT_SCORE",
+                            "REVW_SENTIMENT_LABEL",
+                            "REVW_IS_OUTLIER_SENTIMENT",
+                            "REVW_UPDATED_AT",
+                        ],
+                    )
+                    outcome = "updated"
 
-        with transaction.atomic():
-            review = (
-                Review.objects
-                .select_for_update()
-                .filter(REVW_ID=review_id)
-                .first()
-            )
-            if review is None:
-                return "missing"
-            if review.REVW_TEXT != source_text:
-                return "stale"
-            if (
-                review.REVW_SENTIMENT_SCORE is not None
-                and review.REVW_SENTIMENT_LABEL is not None
-            ):
-                return "already_scored"
-
-            review.REVW_SENTIMENT_SCORE = score
-            review.REVW_SENTIMENT_LABEL = label.lower()
-            review.REVW_IS_OUTLIER_SENTIMENT = ReviewService._is_outlier_sentiment(
-                review,
-            )
-            business_id = review.BUSN_ID_id
-            review.save(
-                update_fields=[
-                    "REVW_SENTIMENT_SCORE",
-                    "REVW_SENTIMENT_LABEL",
-                    "REVW_IS_OUTLIER_SENTIMENT",
-                    "REVW_UPDATED_AT",
-                ],
-            )
-
+        # Classification stays committed if this separate, serialized repair fails.
         if recompute_summary:
             BusinessReviewSummaryService.recompute_sentiment(business_id)
-        return "updated"
+        return outcome
 
     @staticmethod
     def reconcile_business(
@@ -99,6 +109,7 @@ class ReviewSentimentService:
             "attempted": 0,
             "updated": 0,
             "failed": 0,
+            "failed_review_ids": [],
         }
         for review_id in review_ids:
             result["attempted"] += 1
@@ -121,6 +132,7 @@ class ReviewSentimentService:
                     )
             except Exception as exc:
                 result["failed"] += 1
+                result["failed_review_ids"].append(review_id)
                 logger.error(
                     "Review sentiment reconciliation failed.",
                     extra={

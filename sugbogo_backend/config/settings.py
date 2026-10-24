@@ -97,6 +97,8 @@ GEMINI_KEYWORD_MODEL = os.getenv(
     "gemini-3.5-flash-lite",
 )
 GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "60"))
+if not 1 <= GEMINI_TIMEOUT_SECONDS <= 300:
+    raise ImproperlyConfigured("GEMINI_TIMEOUT_SECONDS must be between 1 and 300 seconds.")
 
 
 # Product-defined Metro Cebu urban-core scope for Explorer origin autocomplete.
@@ -409,6 +411,8 @@ USE_I18N = True
 
 USE_TZ = True
 
+TEST_RUNNER = "core.tests.runner.IsolatedExternalServicesTestRunner"
+
 
 # Celery uses Redis for task delivery and Django's timezone for scheduling.
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
@@ -426,6 +430,14 @@ CELERY_BEAT_SCHEDULE = {
     "recover-review-media-cleanup": {
         "task": "apps.reviews.tasks.recover_review_media_cleanup",
         "schedule": crontab(minute="*/5"),
+    },
+    "recover-review-moderation-retries": {
+        "task": "apps.reviews.tasks.recover_review_moderation_retries",
+        "schedule": 30.0,
+    },
+    "recover-review-insight-regeneration": {
+        "task": "apps.reviews.tasks.recover_review_insight_regeneration",
+        "schedule": 30.0,
     },
     "daily-review-summary-recomputation": {
         "task": "apps.reviews.tasks.recompute_review_summaries",

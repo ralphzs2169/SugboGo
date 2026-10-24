@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -7,6 +7,9 @@ import type { MyReview } from "../../types/myReview.types";
 import ReviewsSubmittedScreen from "../ReviewsSubmittedScreen";
 
 jest.mock("../../hooks/useMyReviews");
+jest.mock("@/features/explore/hooks/useAuthorReviewSource", () => ({
+  useAuthorReviewSource: (_businessId: number, review: MyReview) => review,
+}));
 jest.mock(
   "@/shared/components/bottom-sheets/ActionBottomSheet",
   () => () => null,
@@ -26,6 +29,7 @@ jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
   Stack: { Screen: () => null },
+  useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -78,6 +82,7 @@ function state(overrides: Record<string, unknown> = {}) {
   return {
     reviews: [review()],
     totalCount: 12,
+    summary: { total: 12, published: 12, under_review: 0, not_published: 0 },
     userId: 10,
     isEnabled: true,
     isAuthLoading: false,
@@ -108,7 +113,7 @@ describe("ReviewsSubmittedScreen", () => {
     expect(screen.getByText("Business 1")).toBeTruthy();
     expect(screen.getByText("Business 2")).toBeTruthy();
     expect(screen.getByText("Review content 1")).toBeTruthy();
-    expect(screen.getByRole("header", { name: /^12\b/ })).toBeTruthy();
+    expect(screen.getByText("12 total")).toBeTruthy();
     expect(screen.queryByText("Edit")).toBeNull();
     expect(screen.queryByText("Delete")).toBeNull();
     expect(screen.queryByPlaceholderText(/Search/)).toBeNull();
@@ -126,8 +131,43 @@ describe("ReviewsSubmittedScreen", () => {
         state({ reviews: [review(1, status)] }),
       );
       const screen = await render(<ReviewsSubmittedScreen />);
-      expect(screen.getByText(label)).toBeTruthy();
+      const item = within(screen.getByTestId("my-review-1"));
+      if (status === "published") {
+        expect(item.queryByText(label)).toBeNull();
+      } else {
+        expect(item.getByText(label)).toBeTruthy();
+      }
       expect(screen.getByText("Review content 1")).toBeTruthy();
+    },
+  );
+
+  it.each(["pending", "processing", "awaiting_retry"] as const)(
+    "shows %s checks inline with the You badge",
+    async (progress) => {
+      (useMyReviews as jest.Mock).mockReturnValue(
+        state({
+          reviews: [
+            {
+              ...review(1, "under_review"),
+              moderation_progress: { state: progress },
+            },
+          ],
+        }),
+      );
+      const screen = await render(<ReviewsSubmittedScreen />);
+      const item = within(screen.getByTestId("my-review-1"));
+      expect(
+        item.getByText(
+          progress === "awaiting_retry"
+            ? "Taking a little longer than usual · Only you can see this"
+            : "Checking before publishing · Only you can see this",
+        ),
+      ).toBeTruthy();
+      expect(item.getByText("You")).toBeTruthy();
+      expect(item.queryByText("Checking")).toBeNull();
+      expect(item.queryByText("Delayed")).toBeNull();
+      expect(item.queryByText("Under review")).toBeNull();
+      expect(item.queryByLabelText("Like this review")).toBeNull();
     },
   );
 

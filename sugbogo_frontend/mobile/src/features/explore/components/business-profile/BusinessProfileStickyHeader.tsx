@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -11,7 +12,7 @@ import BusinessPocketButton from "./BusinessPocketButton";
 
 type Props = {
   businessId: number;
-  isPocketed: boolean;
+  isPocketed: boolean | null;
   businessName: string;
   coverPhotoUrl: string | null;
   clusterIconName: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -49,6 +50,8 @@ export default function BusinessProfileStickyHeader({
   onShare,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const [failedCover, setFailedCover] = useState<string | null>(null);
+  const cover = coverPhotoUrl !== failedCover ? coverPhotoUrl : null;
 
   const navHeight = insets.top + 40;
 
@@ -138,9 +141,10 @@ export default function BusinessProfileStickyHeader({
         }}
       >
         <View className="flex-row items-center px-4">
-          {coverPhotoUrl ? (
+          {cover ? (
             <Image
-              source={{ uri: coverPhotoUrl }}
+              source={{ uri: cover }}
+              onError={() => setFailedCover(cover)}
               style={{
                 width: 32,
                 height: 32,

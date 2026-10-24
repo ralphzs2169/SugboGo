@@ -21,7 +21,7 @@ export default function BusinessProfileSkeletonContent() {
       {/* Business hero and overlapping quick info */}
       <View className="bg-surface">
         {/* Hero */}
-        <View className="relative h-80 w-full bg-surface-secondary">
+        <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
           <Skeleton className="h-full w-full rounded-none" />
 
           {/* Navigation controls */}
@@ -106,37 +106,30 @@ export default function BusinessProfileSkeletonContent() {
           Vouch for what this place gets right
         </AppText>
 
-        <View className="mt-3 flex-row gap-2">
-          {/* Specialty placeholder */}
-          <View className="min-h-24 flex-1 items-center justify-center rounded-xl border border-border-primary px-3 py-2.5">
-            <Skeleton className="h-5 w-5 rounded-full" />
-            <Skeleton className="mt-1.5 h-3 w-14 rounded-md" />
+        <View className="mt-3 rounded-xl bg-background px-1 py-2">
+          <View className="flex-row flex-wrap items-start">
+            {/* Specialty placeholder */}
+            <View className="flex-1 items-center px-0.5 py-1">
+              <Skeleton className="h-[62px] w-[62px] rounded-full" />
+              <Skeleton className="mt-1 h-7 w-14 rounded-md" />
 
-            <View className="mt-2 flex-row items-center">
-              <Skeleton className="h-5 w-5 rounded-full" />
-              <Skeleton className="ml-1 h-3 w-4 rounded-md" />
+              <Skeleton className="mt-0.5 h-5 w-12 rounded-full" />
             </View>
-          </View>
 
-          {/* Specialty placeholder */}
-          <View className="min-h-24 flex-1 items-center justify-center rounded-xl border border-border-primary px-3 py-2.5">
-            <Skeleton className="h-5 w-5 rounded-full" />
-            <Skeleton className="mt-1.5 h-3 w-16 rounded-md" />
+            {/* Specialty placeholder */}
+            <View className="flex-1 items-center px-0.5 py-1">
+              <Skeleton className="h-[62px] w-[62px] rounded-full" />
+              <Skeleton className="mt-1 h-7 w-16 rounded-md" />
 
-            <View className="mt-2 flex-row items-center">
-              <Skeleton className="h-5 w-5 rounded-full" />
-              <Skeleton className="ml-1 h-3 w-4 rounded-md" />
+              <Skeleton className="mt-0.5 h-5 w-12 rounded-full" />
             </View>
-          </View>
 
-          {/* Specialty placeholder */}
-          <View className="min-h-24 flex-1 items-center justify-center rounded-xl border border-border-primary px-3 py-2.5">
-            <Skeleton className="h-5 w-5 rounded-full" />
-            <Skeleton className="mt-1.5 h-3 w-12 rounded-md" />
+            {/* Specialty placeholder */}
+            <View className="flex-1 items-center px-0.5 py-1">
+              <Skeleton className="h-[62px] w-[62px] rounded-full" />
+              <Skeleton className="mt-1 h-7 w-12 rounded-md" />
 
-            <View className="mt-2 flex-row items-center">
-              <Skeleton className="h-5 w-5 rounded-full" />
-              <Skeleton className="ml-1 h-3 w-4 rounded-md" />
+              <Skeleton className="mt-0.5 h-5 w-12 rounded-full" />
             </View>
           </View>
         </View>
@@ -175,8 +168,21 @@ export default function BusinessProfileSkeletonContent() {
           </View>
         </View>
 
+        {/* Map preview */}
+        <Skeleton className="mt-4 h-[150px] w-full rounded-card" />
+
         {/* Getting there options */}
-        <Skeleton className="mt-4 h-11 w-full rounded-md" />
+        <AppText
+          weight="semibold"
+          className="mb-2 mt-4 text-base text-text-primary"
+        >
+          How to get there
+        </AppText>
+        <View className="flex-row gap-2">
+          <Skeleton className="h-20 flex-1 rounded-xl" />
+          <Skeleton className="h-20 flex-1 rounded-xl" />
+          <Skeleton className="h-20 flex-1 rounded-xl" />
+        </View>
 
         {/* Hours */}
         <View className="mt-4 border-t border-border-primary/60 pt-4">

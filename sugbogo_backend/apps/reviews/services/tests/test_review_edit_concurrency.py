@@ -8,6 +8,7 @@ from django.contrib.gis.geos import Point
 from django.db import connection, connections
 from django.test import TransactionTestCase
 
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 from apps.business.models import Business, Category, Cluster, Location
 from apps.reviews.models import Review
 from apps.reviews.services.review_service import ReviewEditConflict, ReviewService
@@ -19,6 +20,7 @@ class ReviewEditConcurrencyTests(TransactionTestCase):
         if connection.vendor != "postgresql":
             self.skipTest("This test requires PostgreSQL transaction visibility.")
 
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         self.user = User.objects.create_user(
             email="concurrent-review-author@example.com",
             password="StrongPassword123!",

@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
-import { router, Stack } from "expo-router";
+import { router, Stack, useIsFocused } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, RefreshControl, ScrollView, View } from "react-native";
@@ -9,8 +9,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import ReviewComposerSheet from "@/features/explore/components/business-profile/ReviewComposerSheet";
+import AuthorReviewSubmissions from "@/features/explore/components/business-profile/reviews/AuthorReviewSubmission";
+import { useAuthorReviewSubmissions } from "@/features/explore/hooks/useAuthorReviewSubmissions";
 import { ReviewDerivedDataSyncProvider } from "@/features/explore/hooks/ReviewDerivedDataSyncProvider";
-import MerchantMetricCard from "@/features/merchant/components/MerchantMetricCard";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
 import AppText from "@/shared/components/AppText";
@@ -70,7 +71,9 @@ const SIGN_IN_ROUTE = "/(auth)/login";
 export default function ReviewsSubmittedScreen() {
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const [ordering, setOrdering] = useState<MyReviewOrdering>("newest");
-  const history = useMyReviews(reviewFilter, ordering);
+  const focused = useIsFocused();
+  const history = useMyReviews(reviewFilter, ordering, focused);
+  const submissions = useAuthorReviewSubmissions();
   const insets = useSafeAreaInsets();
 
   const paginationArmed = useRef(false);
@@ -223,6 +226,11 @@ export default function ReviewsSubmittedScreen() {
   const initialLoading =
     history.isAuthLoading || (isEnabled && history.isPending);
   const hasReviews = history.reviews.length > 0;
+  const showEndMessage =
+    history.reviews.length >= 5 &&
+    !history.error &&
+    !history.hasNextPage &&
+    !history.isFetching;
   const reviewCounts = history.summary;
   const filteredEmptyLabel =
     reviewFilter === "under_review"
@@ -251,41 +259,19 @@ export default function ReviewsSubmittedScreen() {
         renderItem={renderReview}
         className="flex-1 bg-surface"
         contentContainerStyle={{
-          paddingBottom: insets.bottom,
           flexGrow: 1,
+        }}
+        ListFooterComponentStyle={{
+          flexGrow: showEndMessage ? 1 : 0,
+          backgroundColor: showEndMessage
+            ? theme.extends.colors.background
+            : theme.extends.colors.surface,
+          paddingBottom: insets.bottom,
         }}
         ItemSeparatorComponent={ReviewSeparator}
         ListHeaderComponent={
           isEnabled ? (
-            <View className="gap-4 px-4 pb-4 pt-5">
-              <View className="flex-row gap-3">
-                <MerchantMetricCard
-                  icon="comment-text-outline"
-                  label="Total reviews"
-                  value={reviewCounts?.total.toLocaleString() ?? "—"}
-                  stacked={false}
-                />
-                <MerchantMetricCard
-                  icon="check-circle-outline"
-                  label="Published"
-                  value={reviewCounts?.published.toLocaleString() ?? "—"}
-                  stacked={false}
-                />
-              </View>
-              <View className="flex-row gap-3">
-                <MerchantMetricCard
-                  icon="clock-outline"
-                  label="Under review"
-                  value={reviewCounts?.under_review.toLocaleString() ?? "—"}
-                  stacked={false}
-                />
-                <MerchantMetricCard
-                  icon="eye-off-outline"
-                  label="Not published"
-                  value={reviewCounts?.not_published.toLocaleString() ?? "—"}
-                  stacked={false}
-                />
-              </View>
+            <View className="gap-1 px-4 pb-1 pt-4">
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -294,9 +280,9 @@ export default function ReviewsSubmittedScreen() {
                 {REVIEW_FILTERS.map((option) => (
                   <FilterChip
                     key={option.value}
-                    label={option.label}
+                    label={`${option.label}${reviewCounts ? ` ${reviewCounts[option.value === "all" ? "total" : option.value].toLocaleString()}` : ""}`}
                     selected={reviewFilter === option.value}
-                    accessibilityLabel={option.accessibilityLabel}
+                    accessibilityLabel={`${option.accessibilityLabel}${reviewCounts ? `, ${reviewCounts[option.value === "all" ? "total" : option.value].toLocaleString()} reviews` : ""}`}
                     onPress={() => setReviewFilter(option.value)}
                   />
                 ))}
@@ -318,6 +304,14 @@ export default function ReviewsSubmittedScreen() {
                   />
                 </SafePressable>
               </View>
+              {reviewFilter === "all" && (
+                <View className="-mx-4">
+                  <AuthorReviewSubmissions
+                    showBusiness
+                    representedIds={history.reviews.map((review) => review.id)}
+                  />
+                </View>
+              )}
             </View>
           ) : null
         }
@@ -362,7 +356,8 @@ export default function ReviewsSubmittedScreen() {
               primaryActionTitle="Retry"
               onPrimaryAction={() => void history.refetch()}
             />
-          ) : reviewFilter !== "all" ? (
+          ) : reviewFilter === "all" &&
+            submissions.length > 0 ? null : reviewFilter !== "all" ? (
             <View className="items-center px-4 py-10">
               <AppText
                 weight="semibold"
@@ -431,7 +426,7 @@ export default function ReviewsSubmittedScreen() {
                 }
               />
             </View>
-          ) : hasReviews && !history.hasNextPage && !history.isFetching ? (
+          ) : showEndMessage ? (
             <EndOfListMessage description="You've seen all your submitted reviews." />
           ) : null
         }
@@ -487,43 +482,65 @@ export default function ReviewsSubmittedScreen() {
       />
 
       {/* Business-specific edit and deletion synchronization */}
-      {syncBusinesses
-        .filter((item) => isEnabled && item.userId === userId)
-        .map((item) => (
-          <ReviewDerivedDataSyncProvider
-            key={`review-sync-${item.userId}-${item.businessId}`}
-            businessId={item.businessId}
-          >
-            {currentEditor?.business.id === item.businessId && (
-              <ReviewComposerSheet
-                businessId={currentEditor.business.id}
-                businessName={currentEditor.business.business_name}
-                coverPhotoUrl={currentEditor.business.display_cover_photo_url}
-                sheetRef={composerRef}
-                review={currentEditor}
-                onDismiss={() =>
-                  setEditingReview((current) =>
-                    current === editingReview ? null : current,
-                  )
-                }
-              />
-            )}
+      {[
+        ...new Map(
+          [
+            ...syncBusinesses.filter(
+              (item) => isEnabled && item.userId === userId,
+            ),
+            ...submissions.map((draft) => ({
+              userId: draft.userId,
+              businessId: draft.businessId,
+            })),
+            ...(history.publishedBusinessIds ?? []).map((businessId) => ({
+              userId: userId!,
+              businessId,
+            })),
+          ].map((item) => [item.businessId, item]),
+        ).values(),
+      ].map((item) => (
+        <ReviewDerivedDataSyncProvider
+          key={`review-sync-${item.userId}-${item.businessId}`}
+          businessId={item.businessId}
+          observePublication={
+            (history.publishedBusinessIds ?? []).includes(item.businessId) ||
+            submissions.some((draft) => draft.businessId === item.businessId)
+          }
+          observeAuthorReview={
+            (history.publishedBusinessIds ?? []).includes(item.businessId) ||
+            submissions.some((draft) => draft.businessId === item.businessId)
+          }
+        >
+          {currentEditor?.business.id === item.businessId && (
+            <ReviewComposerSheet
+              businessId={currentEditor.business.id}
+              businessName={currentEditor.business.business_name}
+              coverPhotoUrl={currentEditor.business.display_cover_photo_url}
+              sheetRef={composerRef}
+              review={currentEditor}
+              onDismiss={() =>
+                setEditingReview((current) =>
+                  current === editingReview ? null : current,
+                )
+              }
+            />
+          )}
 
-            {/* Confirmed review deletion */}
-            {currentDeletion?.review.business.id === item.businessId && (
-              <MyReviewDeleteConfirmation
-                key={`${currentDeletion.userId}-${currentDeletion.review.id}`}
-                review={currentDeletion.review}
-                userId={currentDeletion.userId}
-                onClose={() =>
-                  setDeletingReview((current) =>
-                    current === currentDeletion ? null : current,
-                  )
-                }
-              />
-            )}
-          </ReviewDerivedDataSyncProvider>
-        ))}
+          {/* Confirmed review deletion */}
+          {currentDeletion?.review.business.id === item.businessId && (
+            <MyReviewDeleteConfirmation
+              key={`${currentDeletion.userId}-${currentDeletion.review.id}`}
+              review={currentDeletion.review}
+              userId={currentDeletion.userId}
+              onClose={() =>
+                setDeletingReview((current) =>
+                  current === currentDeletion ? null : current,
+                )
+              }
+            />
+          )}
+        </ReviewDerivedDataSyncProvider>
+      ))}
     </View>
   );
 }

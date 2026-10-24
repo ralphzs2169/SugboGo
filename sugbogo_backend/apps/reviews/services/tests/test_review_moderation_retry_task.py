@@ -2,13 +2,14 @@
 
 from unittest.mock import patch
 
-from celery.exceptions import Retry
 from django.contrib.gis.geos import Point
 from django.db import connection
 from django.test import SimpleTestCase, TestCase, TransactionTestCase
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from apps.business.models import Business, Category, Cluster, Location
-from apps.reviews.models import Review, ReviewPhoto
+from apps.reviews.models import Review, ReviewInsightRegeneration, ReviewPhoto
 from apps.reviews.services.review_moderation_retry_service import (
     ReviewModerationRetryService,
 )
@@ -105,6 +106,17 @@ class ReviewModerationRetryTests(TestCase):
     def setUpTestData(cls):
         cls.review, cls.business = create_held_review()
 
+    def setUp(self):
+        self.clock = self.enterContext(
+            patch("django.utils.timezone.now", return_value=timezone.now()),
+        )
+
+    def advance_to_retry(self):
+        self.review.refresh_from_db()
+        self.clock.return_value = parse_datetime(
+            self.review.REVW_MODERATION_DATA["retry_next_attempt_at"],
+        )
+
     @patch(
         "apps.reviews.services.review_moderation_retry_service."
         "ReviewModerationService.moderate",
@@ -142,7 +154,13 @@ class ReviewModerationRetryTests(TestCase):
         )
         publish.assert_called_once_with(self.review.pk)
         sentiment.assert_called_once_with(self.review.pk, self.business.pk)
-        insights.assert_called_once_with(self.business.pk)
+        insights.assert_not_called()
+        self.assertEqual(
+            ReviewInsightRegeneration.objects.get(
+                BUSN_ID=self.business,
+            ).RIRG_REQUESTED_REVISION,
+            1,
+        )
         self.review.refresh_from_db()
         self.business.refresh_from_db()
         self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
@@ -235,6 +253,8 @@ class ReviewModerationRetryTests(TestCase):
                     self.review.REVW_MODERATION_DATA["retry_attempt"],
                     retry_number + 1,
                 )
+                if retry_number < 3:
+                    self.advance_to_retry()
 
         self.assertEqual(moderate.call_count, 4)
         self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
@@ -283,6 +303,7 @@ class ReviewModerationRetryTests(TestCase):
             expected_attempt=0,
             max_retries=3,
         )
+        self.advance_to_retry()
         second_outcome = ReviewModerationRetryService.retry(
             self.review.pk,
             expected_attempt=1,
@@ -311,16 +332,12 @@ class ReviewModerationRetryTests(TestCase):
         metadata["retry_attempt"] = 3
         self.review.save(update_fields=["REVW_MODERATION_DATA"])
 
-        retry_failed_review_moderation.push_request(retries=3)
-        try:
-            with patch.object(retry_failed_review_moderation, "retry") as retry:
-                outcome = retry_failed_review_moderation.run(self.review.pk)
-        finally:
-            retry_failed_review_moderation.pop_request()
+        with patch.object(ReviewModerationRetryService, "dispatch") as dispatch:
+            outcome = retry_failed_review_moderation.run(self.review.pk)
 
         self.assertEqual(outcome, "exhausted")
         moderate.assert_called_once()
-        retry.assert_not_called()
+        dispatch.assert_not_called()
         self.review.refresh_from_db()
         self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
         self.assertTrue(self.review.REVW_MODERATION_DATA["retry_exhausted"])
@@ -413,28 +430,16 @@ class ReviewModerationRetryTaskTests(SimpleTestCase):
         "retry",
         return_value="provider_failure",
     )
-    def test_provider_failure_uses_bounded_backoff(
+    def test_provider_failure_dispatches_from_persisted_state(
         self,
         service,
     ):
-        for retry_number, seconds in enumerate([60, 120, 240]):
-            with self.subTest(retry_number=retry_number):
-                retry_failed_review_moderation.push_request(retries=retry_number)
-                try:
-                    with patch.object(
-                        retry_failed_review_moderation,
-                        "retry",
-                        side_effect=Retry(),
-                    ) as retry:
-                        with self.assertRaises(Retry):
-                            retry_failed_review_moderation.run(42)
-                finally:
-                    retry_failed_review_moderation.pop_request()
+        with patch.object(ReviewModerationRetryService, "dispatch") as dispatch:
+            outcome = retry_failed_review_moderation.run(42, expected_attempt=2)
 
-                self.assertEqual(retry.call_args.kwargs["countdown"], seconds)
-
-        self.assertEqual(retry_failed_review_moderation.max_retries, 3)
-        self.assertEqual(service.call_count, 3)
+        self.assertEqual(outcome, "provider_failure")
+        service.assert_called_once_with(review_id=42, expected_attempt=2)
+        dispatch.assert_called_once_with(42)
 
     @patch.object(
         ReviewModerationRetryService,
@@ -445,20 +450,15 @@ class ReviewModerationRetryTaskTests(SimpleTestCase):
         self,
         service,
     ):
-        retry_failed_review_moderation.push_request(retries=3)
-        try:
-            with patch.object(retry_failed_review_moderation, "retry") as retry:
-                outcome = retry_failed_review_moderation.run(42)
-        finally:
-            retry_failed_review_moderation.pop_request()
+        with patch.object(ReviewModerationRetryService, "dispatch") as dispatch:
+            outcome = retry_failed_review_moderation.run(42)
 
         self.assertEqual(outcome, "exhausted")
         service.assert_called_once_with(
             review_id=42,
-            expected_attempt=3,
-            max_retries=3,
+            expected_attempt=None,
         )
-        retry.assert_not_called()
+        dispatch.assert_not_called()
 
     @patch.object(
         ReviewModerationRetryService,
@@ -469,9 +469,9 @@ class ReviewModerationRetryTaskTests(SimpleTestCase):
         self,
         service,
     ):
-        with patch.object(retry_failed_review_moderation, "retry") as retry:
+        with patch.object(ReviewModerationRetryService, "dispatch") as dispatch:
             outcome = retry_failed_review_moderation.run(42)
 
         self.assertEqual(outcome, "flagged")
         service.assert_called_once()
-        retry.assert_not_called()
+        dispatch.assert_not_called()

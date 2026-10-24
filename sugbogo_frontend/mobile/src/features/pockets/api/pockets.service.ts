@@ -50,10 +50,10 @@ export function getPocketCollectionBusinesses(
 /** Reads the complete selection, including collections outside loaded pages. */
 export function getBusinessPocketMemberships(
   businessId: number,
+  signal?: AbortSignal,
 ): Promise<ApiResponse<BusinessPocketMemberships>> {
-  return request(
-    apiClient.get(`/explorer/explore/businesses/${businessId}/pockets/`),
-  );
+  const url = `/explorer/explore/businesses/${businessId}/pockets/`;
+  return request(signal ? apiClient.get(url, { signal }) : apiClient.get(url));
 }
 
 /** Replaces all memberships atomically; an empty selection removes every save. */

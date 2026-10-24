@@ -12,12 +12,23 @@ import {
 } from "@/shared/api/storage.service";
 import {
   clearOfflineAccess,
-  getOfflineOwner,
+  getRestorableOfflineOwner,
+  rememberOfflineResources,
 } from "@/features/offline-routes/services/offlineAccess.service";
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import { createApiError } from "@/shared/utils/apiErrors";
 import { useRestoreSession } from "../useRestoreSession";
 import { AxiosError } from "axios";
+import { restoreRecentExploreAccess } from "@/features/explore/services/recentExplore.service";
+jest.mock("@react-native-async-storage/async-storage", () =>
+  jest.requireActual(
+    "@react-native-async-storage/async-storage/jest/async-storage-mock",
+  ),
+);
+
+jest.mock("@/features/explore/services/recentExplore.service", () => ({
+  restoreRecentExploreAccess: jest.fn().mockResolvedValue(null),
+}));
 
 jest.mock("../../api/auth.service", () => ({ getCurrentUser: jest.fn() }));
 jest.mock("@/shared/api/storage.service", () => ({
@@ -26,7 +37,8 @@ jest.mock("@/shared/api/storage.service", () => ({
 }));
 jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
   clearOfflineAccess: jest.fn(),
-  getOfflineOwner: jest.fn(),
+  rememberOfflineResources: jest.fn().mockResolvedValue(undefined),
+  getRestorableOfflineOwner: jest.fn(),
 }));
 
 function deferred<T>() {
@@ -39,15 +51,21 @@ function deferred<T>() {
 
 describe("offline startup boundary", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+    jest.mocked(rememberOfflineResources).mockResolvedValue(undefined);
     useAuthStore.setState({
       user: null,
       isAuthenticated: false,
       isLoading: true,
     });
-    useOfflineAccessStore.setState({ ownerId: null, isRevoking: false });
+    useOfflineAccessStore.setState({
+      ownerId: null,
+      isRevoking: false,
+      recentExplore: null,
+    });
+    jest.mocked(restoreRecentExploreAccess).mockResolvedValue(null);
     (getAccessToken as jest.Mock).mockResolvedValue("stored-token");
-    (getOfflineOwner as jest.Mock).mockResolvedValue(7);
+    (getRestorableOfflineOwner as jest.Mock).mockResolvedValue(7);
     (clearSessionTokens as jest.Mock).mockResolvedValue(undefined);
     (clearOfflineAccess as jest.Mock).mockResolvedValue(undefined);
   });
@@ -64,7 +82,7 @@ describe("offline startup boundary", () => {
         expect(hook.result.current.recoveryRequired).toBe(true),
       );
       expect(clearSessionTokens).not.toHaveBeenCalled();
-      expect(getOfflineOwner).not.toHaveBeenCalled();
+      expect(getRestorableOfflineOwner).not.toHaveBeenCalled();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
       expect(useOfflineAccessStore.getState().ownerId).toBeNull();
       await hook.unmount();
@@ -101,7 +119,7 @@ describe("offline startup boundary", () => {
       expect(hook.result.current.recoveryRequired).toBe(true),
     );
     expect(getCurrentUser).not.toHaveBeenCalled();
-    expect(getOfflineOwner).not.toHaveBeenCalled();
+    expect(getRestorableOfflineOwner).not.toHaveBeenCalled();
     expect(clearSessionTokens).not.toHaveBeenCalled();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     await hook.unmount();
@@ -163,9 +181,26 @@ describe("offline startup boundary", () => {
     const hook = await renderHook(() => useRestoreSession());
     await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
     expect(getCurrentUser).not.toHaveBeenCalled();
-    expect(getOfflineOwner).not.toHaveBeenCalled();
+    expect(getRestorableOfflineOwner).not.toHaveBeenCalled();
     expect(clearOfflineAccess).toHaveBeenCalled();
     hook.unmount();
+  });
+
+  it("restores eligible Recent Explore alongside startup recovery", async () => {
+    jest.mocked(getCurrentUser).mockRejectedValueOnce(
+      createApiError("NETWORK_ERROR"),
+    );
+    const grant = { ownerId: 7, apiScope: "test", generation: 1 };
+    jest.mocked(restoreRecentExploreAccess).mockResolvedValueOnce(grant);
+    const hook = await renderHook(() => useRestoreSession());
+
+    await waitFor(() =>
+      expect(hook.result.current.recoveryRequired).toBe(true),
+    );
+    expect(useOfflineAccessStore.getState().recentExplore).toEqual(grant);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(clearSessionTokens).not.toHaveBeenCalled();
+    await hook.unmount();
   });
 
   it("fails closed when the server rejects the session", async () => {
@@ -175,7 +210,7 @@ describe("offline startup boundary", () => {
     const hook = await renderHook(() => useRestoreSession());
     await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
     expect(clearSessionTokens).toHaveBeenCalled();
-    expect(getOfflineOwner).not.toHaveBeenCalled();
+    expect(getRestorableOfflineOwner).not.toHaveBeenCalled();
     expect(useOfflineAccessStore.getState().ownerId).toBeNull();
     hook.unmount();
   });
@@ -184,7 +219,7 @@ describe("offline startup boundary", () => {
     (getCurrentUser as jest.Mock).mockRejectedValue(
       createApiError("NETWORK_ERROR"),
     );
-    (getOfflineOwner as jest.Mock).mockRejectedValue(
+    (getRestorableOfflineOwner as jest.Mock).mockRejectedValue(
       new Error("storage unavailable"),
     );
     const hook = await renderHook(() => useRestoreSession());
@@ -208,17 +243,18 @@ describe("offline startup boundary", () => {
 
   it("does not grant old offline ownership after a newer login", async () => {
     const read = deferred<number | null>();
-    jest.mocked(getOfflineOwner).mockReturnValueOnce(read.promise);
+    jest.mocked(getRestorableOfflineOwner).mockReturnValueOnce(read.promise);
     jest
       .mocked(getCurrentUser)
       .mockRejectedValueOnce(createApiError("NETWORK_ERROR"));
     const hook = await renderHook(() => useRestoreSession());
-    await waitFor(() => expect(getOfflineOwner).toHaveBeenCalled());
+    await waitFor(() => expect(getRestorableOfflineOwner).toHaveBeenCalled());
     beginAuthSession();
     useAuthStore.getState().setUser({ id: 8 } as never);
     await act(async () => read.resolve(7));
     expect(useOfflineAccessStore.getState().ownerId).toBeNull();
     expect(useAuthStore.getState().user?.id).toBe(8);
+    expect(hook.result.current.recoveryRequired).toBe(false);
     hook.unmount();
   });
 

@@ -18,6 +18,7 @@ jest.mock("@/shared/api/storage.service", () => ({
 }));
 jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
   clearOfflineAccess: jest.fn(),
+  rememberOfflineResources: jest.fn().mockResolvedValue(undefined),
 }));
 
 const mockedClearSessionTokens = jest.mocked(clearSessionTokens);
@@ -119,9 +120,9 @@ describe("establishSession", () => {
   });
 
   it("revokes the failed session if offline access cleanup fails", async () => {
-    jest.mocked(clearOfflineAccess).mockRejectedValueOnce(
-      new Error("storage failed"),
-    );
+    jest
+      .mocked(clearOfflineAccess)
+      .mockRejectedValueOnce(new Error("storage failed"));
     await expect(establishSession(explorerSession)).rejects.toThrow(
       "storage failed",
     );

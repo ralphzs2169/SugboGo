@@ -61,6 +61,7 @@ function createHarness() {
   });
   service.setOnline(true);
   const onSyncRequired = jest.fn();
+  const onNotificationCreated = jest.fn();
   const onSessionExpired = jest.fn().mockResolvedValue(undefined);
 
   return {
@@ -69,12 +70,14 @@ function createHarness() {
     getAccessToken,
     refreshSession,
     onSyncRequired,
+    onNotificationCreated,
     onSessionExpired,
     start(userId = 7) {
       service.start({
         userId,
         authSessionGeneration: getAuthSessionGeneration(),
         onSyncRequired,
+        onNotificationCreated,
         onSessionExpired,
       });
     },
@@ -111,6 +114,46 @@ describe("resolveNotificationWebSocketUrl", () => {
 });
 
 describe("NotificationWebSocketService", () => {
+  it.each(["business_vouch_received", "business_review_received", "system"])(
+    "forwards explicit arrivals for %s and reconciles independently",
+    async (notificationType) => {
+      const harness = createHarness();
+      harness.start();
+      await flushPromises();
+      const socket = harness.sockets[0];
+      socket.message({ type: "inbox.ready", sync_required: true });
+      socket.message({ type: "inbox.changed", sync_required: true });
+      expect(harness.onNotificationCreated).not.toHaveBeenCalled();
+      socket.message({
+        type: "notification.created",
+        notification_id: 42,
+        notification_type: notificationType,
+        sync_required: true,
+      });
+      expect(harness.onNotificationCreated).toHaveBeenCalledWith(42);
+      jest.advanceTimersByTime(NOTIFICATION_SYNC_COALESCE_MS);
+      expect(harness.onSyncRequired).toHaveBeenCalledTimes(1);
+      harness.service.stop();
+    },
+  );
+
+  it("rejects invalid IDs and does not treat reconnection as arrival", async () => {
+    const harness = createHarness();
+    harness.start();
+    await flushPromises();
+    harness.sockets[0].message({
+      type: "notification.created",
+      notification_id: -1,
+      sync_required: true,
+    });
+    harness.service.setAppActive(false);
+    harness.service.setAppActive(true);
+    await flushPromises();
+    harness.sockets[1].message({ type: "inbox.ready", sync_required: true });
+    expect(harness.onNotificationCreated).not.toHaveBeenCalled();
+    harness.service.stop();
+  });
+
   beforeEach(() => {
     jest.useFakeTimers();
     beginAuthSession();

@@ -57,13 +57,19 @@ The existing plain Django `runserver` setup is not changed to serve sockets; use
 ```
 
 4. Refetch `GET /api/notifications/` and `GET /api/notifications/unread-count/` using the existing REST JWT authentication.
-5. Committed creation/read-state changes trigger:
+5. Committed new notifications trigger an explicit arrival event, independent of notification type:
+
+```json
+{"type":"notification.created","notification_id":123,"sync_required":true}
+```
+
+Read-state changes continue to trigger reconciliation only:
 
 ```json
 {"type":"inbox.changed","sync_required":true}
 ```
 
-6. Refetch the inbox/count again. Coalesce closely spaced signals in the frontend rather than assuming signals are notification items. Continue to mark items read through REST.
+6. Refetch the inbox/count for either event. Coalesce closely spaced refreshes, but process each unique creation ID independently for transient UI feedback. Continue to mark items read through REST. The mobile bell suppresses duplicate IDs, background/inbox arrivals, and arrivals within its shared three-second animation cooldown; suppressed animations are never queued. Reconnect ready signals only reconcile and never announce historical arrivals.
 
 The server derives the recipient group from the validated JWT. Clients cannot select recipients, send broadcast messages, create notifications, or mutate read state over this socket. Signals contain no notification text, recipient IDs, event keys, or administrator evidence. Native clients may omit Origin but must still authenticate. Browser connections require an allowlisted Origin.
 

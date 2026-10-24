@@ -57,7 +57,10 @@ class NotificationService:
             defaults=values,
         )
         if created:
-            NotificationRealtimeService.schedule(recipient.pk)
+            NotificationRealtimeService.schedule(
+                recipient.pk,
+                notification_id=notification.pk,
+            )
         return notification
 
     @staticmethod

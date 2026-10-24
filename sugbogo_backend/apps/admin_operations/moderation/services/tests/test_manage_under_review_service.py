@@ -1,6 +1,6 @@
 """Focused service coverage for direct held-review decisions."""
 
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from django.contrib.gis.geos import Point
 from django.test import TestCase
@@ -16,7 +16,7 @@ from apps.notifications.services.notification_realtime_service import (
     NotificationRealtimeService,
 )
 from apps.notifications.services.notification_service import NotificationService
-from apps.reviews.models import Review
+from apps.reviews.models import Review, ReviewInsightRegeneration
 from apps.reviews.services.review_service import ReviewService
 from apps.users.models import User
 
@@ -121,7 +121,13 @@ class ManageUnderReviewServiceTests(TestCase):
 
         publish.assert_called_once_with(self.review.pk)
         sentiment.assert_called_once_with(self.review.pk, self.business.pk)
-        insights.assert_called_once_with(self.business.pk)
+        insights.assert_not_called()
+        self.assertEqual(
+            ReviewInsightRegeneration.objects.get(
+                BUSN_ID=self.business,
+            ).RIRG_REQUESTED_REVISION,
+            1,
+        )
         self.review.refresh_from_db()
         self.business.refresh_from_db()
         self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
@@ -135,7 +141,7 @@ class ManageUnderReviewServiceTests(TestCase):
         self.assertEqual(activity.AACT_CONTEXT["review_id"], self.review.pk)
         self.assertNotIn("moderation_notes", activity.AACT_CONTEXT)
         self.assertIsNone(self.review.REVW_MODERATION_NOTES)
-        notification = Notification.objects.get()
+        notification = Notification.objects.get(USER_ID=self.author)
         self.assertEqual(notification.USER_ID_id, self.author.pk)
         self.assertEqual(notification.NOTF_TYPE, "review_published")
         self.assertEqual(notification.NOTF_TITLE, "Review published")
@@ -146,6 +152,12 @@ class ManageUnderReviewServiceTests(TestCase):
         )
         self.assertEqual(notification.NOTF_TARGET_TYPE, "")
         self.assertIsNone(notification.NOTF_TARGET_ID)
+        self.assertTrue(
+            Notification.objects.filter(
+                USER_ID=self.owner,
+                NOTF_TYPE="business_review_received",
+            ).exists(),
+        )
 
     def test_rejection_preserves_count_and_records_action_once(self):
         """A never-published review cannot decrement the public count."""
@@ -233,13 +245,19 @@ class ManageUnderReviewServiceTests(TestCase):
                 approve=False,
             )
         self.assertEqual(AdminActivity.objects.count(), 1)
-        self.assertEqual(Notification.objects.count(), 1)
-        self.assertEqual(Notification.objects.get().NOTF_TYPE, "review_published")
+        self.assertEqual(Notification.objects.count(), 2)
+        self.assertEqual(
+            Notification.objects.get(USER_ID=self.author).NOTF_TYPE,
+            "review_published",
+        )
 
     def test_decision_notification_broadcasts_only_after_commit(self):
-        """Each successful Admin outcome schedules one recipient signal."""
+        """Each committed notification broadcasts once, including the merchant notice."""
         for approve, author in ((True, self.admin), (False, self.owner)):
             with self.subTest(approve=approve):
+                previous_notice_ids = list(
+                    Notification.objects.values_list("pk", flat=True),
+                )
                 review = Review.objects.create(
                     USER_ID=author,
                     BUSN_ID=self.business,
@@ -266,7 +284,18 @@ class ManageUnderReviewServiceTests(TestCase):
                                 moderation_notes="Private administrator rejection notes.",
                             )
                         publish.assert_not_called()
-                    publish.assert_called_once_with(author.pk)
+                    recipient_ids = {author.pk}
+                    if approve:
+                        recipient_ids.add(self.owner.pk)
+                    notices = Notification.objects.filter(
+                        USER_ID_id__in=recipient_ids,
+                    ).exclude(pk__in=previous_notice_ids)
+                    expected = [
+                        call(notice.USER_ID_id, notification_id=notice.pk)
+                        for notice in notices
+                    ]
+                    publish.assert_has_calls(expected, any_order=True)
+                    self.assertEqual(publish.call_count, len(expected))
 
     def test_automatic_publication_does_not_notify_author(self):
         """The publication transition used by AI recovery creates no Admin notice."""
@@ -278,7 +307,11 @@ class ManageUnderReviewServiceTests(TestCase):
 
         self.review.refresh_from_db()
         self.assertEqual(self.review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
-        self.assertFalse(Notification.objects.exists())
+        self.assertFalse(Notification.objects.filter(USER_ID=self.author).exists())
+        self.assertEqual(
+            Notification.objects.get(USER_ID=self.owner).NOTF_TYPE,
+            "business_review_received",
+        )
 
     def test_notification_failure_rolls_back_decision_and_broadcast(self):
         """Inbox failure preserves held content, notes, counts, and audit state."""

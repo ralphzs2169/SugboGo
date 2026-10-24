@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ComponentProps } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
@@ -13,13 +13,14 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
-import {
-  useDeleteReview,
-} from "../../../hooks/useBusinessReviews";
+import { useDeleteReview } from "../../../hooks/useBusinessReviews";
 import { useReviewLike } from "../../../hooks/useReviewLike";
+import { useAuthorReviewSource } from "../../../hooks/useAuthorReviewSource";
+import { useReviewWorkflowStore } from "../../../stores/reviewWorkflow.store";
 import type { BusinessReview } from "../../../types/review.types";
 import MerchantReviewResponse from "./MerchantReviewResponse";
 import ReviewContent from "./ReviewContent";
+import AuthorReviewStatus from "./AuthorReviewStatus";
 import ReportReviewSheet from "./ReportReviewSheet";
 import ReviewReportReceiptSheet from "./ReviewReportReceiptSheet";
 import {
@@ -35,6 +36,36 @@ type Props = {
   highlightedTopic?: string | null;
 };
 
+/** Presents review content with author progress and merchant responses. */
+function ReviewCardContent({
+  review,
+  saving = false,
+  ...contentProps
+}: Omit<ComponentProps<typeof ReviewContent>, "showEngagement" | "review"> & {
+  review: BusinessReview;
+  saving?: boolean;
+}) {
+  return (
+    <>
+      <ReviewContent
+        {...contentProps}
+        review={review}
+        showEngagement={review.status === "published"}
+      />
+      {review.is_own_review && saving && (
+        <AppText
+          accessibilityLiveRegion="polite"
+          className="mt-2 text-xs text-text-secondary"
+        >
+          Saving changes…
+        </AppText>
+      )}
+      {review.is_own_review && <AuthorReviewStatus review={review} />}
+      {review.reply && <MerchantReviewResponse reply={review.reply} />}
+    </>
+  );
+}
+
 /**
  * Presents a customer review in the explorer business profile.
  *
@@ -44,11 +75,15 @@ type Props = {
  */
 export default function BusinessReviewCard({
   businessId,
-  review,
+  review: suppliedReview,
   onEdit,
   isLast = false,
   highlightedTopic,
 }: Props) {
+  const review = useAuthorReviewSource(businessId, suppliedReview);
+  const saving = useReviewWorkflowStore((state) =>
+    Boolean(state.edits[review.id]),
+  );
   const { mutateAsync: like, isPending: isLikePending } = useReviewLike(
     businessId,
     review.id,
@@ -56,7 +91,6 @@ export default function BusinessReviewCard({
 
   const { mutateAsync: deleteReview, isPending: isDeletePending } =
     useDeleteReview(businessId);
-
 
   const [isDeleteVisible, setIsDeleteVisible] = useState(false);
   const [reportedByUserId, setReportedByUserId] = useState<number | null>(null);
@@ -134,27 +168,14 @@ export default function BusinessReviewCard({
       }`}
     >
       {/* Shared review content */}
-      <ReviewContent
+      <ReviewCardContent
         review={review}
         onLike={toggleLike}
         isLikePending={isLikePending}
         onActions={() => presentBottomSheet(actionSheetRef)}
         highlightedTopic={highlightedTopic}
+        saving={saving}
       />
-
-      {review.is_own_review && review.status === "under_review" && (
-        <View className="mt-3 rounded-lg bg-surface-secondary px-3 py-2">
-          <AppText weight="semibold" className="text-xs text-text-primary">
-            Under review
-          </AppText>
-          <AppText className="mt-1 text-xs text-text-secondary">
-            We&apos;re reviewing this before it appears publicly.
-          </AppText>
-        </View>
-      )}
-
-      {/* Merchant response */}
-      {review.reply && <MerchantReviewResponse reply={review.reply} />}
 
       {/* Review actions */}
       <ActionBottomSheet

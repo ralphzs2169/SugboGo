@@ -3,7 +3,10 @@ import { View } from "react-native";
 
 import ReviewMentionedAspects from "@/shared/components/reviews/ReviewMentionedAspects";
 
-import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
+import type {
+  BusinessReviewInsights,
+  ReviewInsightRegeneration,
+} from "../../../../types/exploreBusiness.types";
 import type {
   BusinessReviewFilters,
   ReviewSentiment,
@@ -13,6 +16,7 @@ import ReviewFilterControls from "./ReviewFilterControls";
 
 type Props = {
   insights?: BusinessReviewInsights | null;
+  regeneration?: ReviewInsightRegeneration | null;
   insightsLoading: boolean;
   insightsError: boolean;
   onRetryInsights: () => void;
@@ -32,6 +36,7 @@ type Props = {
  */
 export default function ReviewFiltersSection({
   insights,
+  regeneration,
   insightsLoading,
   insightsError,
   onRetryInsights,
@@ -78,6 +83,7 @@ export default function ReviewFiltersSection({
       {/* Recent insights and evidence-backed topic filters */}
       <RecentReviewInsightsSection
         insights={insights}
+        regeneration={regeneration}
         isLoading={insightsLoading}
         error={insightsError}
         onRetry={onRetryInsights}

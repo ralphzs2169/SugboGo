@@ -21,11 +21,14 @@ export default function BusinessProfileErrorState({
   onGoBack,
 }: Props) {
   return (
-    <View className="flex-1 bg-background">
+    <View testID="business-profile-error" className="flex-1 bg-background">
       {/* Business hero and overlapping quick info */}
       <View className="bg-surface">
         {/* Hero placeholder */}
-        <View className="relative h-80 w-full bg-surface-secondary">
+        <View
+          testID="business-profile-error-hero"
+          className="relative h-80 w-full bg-surface-secondary"
+        >
           <Skeleton className="h-full w-full rounded-none" />
 
           {/* Back navigation */}
@@ -91,7 +94,10 @@ export default function BusinessProfileErrorState({
       </View>
 
       {/* Profile loading error */}
-      <View className="flex-1">
+      <View
+        testID="business-profile-error-body"
+        className="min-h-64 flex-1 py-6"
+      >
         <ErrorState
           size="small"
           icon="store-off-outline"

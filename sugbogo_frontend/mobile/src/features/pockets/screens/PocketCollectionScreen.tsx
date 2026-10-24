@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useEffect, useRef, useState } from "react";
@@ -20,10 +21,14 @@ import SafePressable from "@/shared/components/SafePressable";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
+import {
+  defaultStackScreenOptions,
+  slideFromRight,
+} from "@/shared/navigation/stackOptions";
 
-import PocketCollectionCard from "../components/PocketCollectionCard";
 import PocketCollectionActions from "../components/PocketCollectionActions";
 import PocketBusinessRemovalConfirmation from "../components/PocketBusinessRemovalConfirmation";
+import PocketBusinessActions from "../components/PocketBusinessActions";
 import usePocketCollection from "../hooks/usePocketCollection";
 import usePocketCollectionBusinesses from "../hooks/usePocketCollectionBusinesses";
 import type { PocketCollection } from "../types/pockets.types";
@@ -50,6 +55,7 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
     ownerId: number;
     generation: number;
   } | null>(null);
+  const [businessAction, setBusinessAction] = useState<typeof removing>(null);
   const isValidId =
     typeof collectionId === "number" &&
     Number.isSafeInteger(collectionId) &&
@@ -192,24 +198,42 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
   ) : !contents.hasData ? (
     loading
   ) : (
-    <View testID="pocket-detail-empty" className="items-center py-10">
+    <View testID="pocket-detail-empty" className="items-center px-8 py-10">
+      <Image
+        source={require("@/shared/assets/mascot/mascot-no-filter-result.webp")}
+        style={{ width: 120, height: 120 }}
+        contentFit="contain"
+        accessible={false}
+      />
       <AppText
-        weight="semibold"
-        className="text-center text-lg text-text-primary"
+        weight="bold"
+        className="mt-2 text-center text-md text-text-primary"
       >
-        No available businesses yet
+        {metadata.collection?.business_count === 0
+          ? "Your next find belongs here"
+          : "No available businesses right now"}
       </AppText>
-      <AppText className="mt-2 text-center text-body text-text-secondary">
-        Businesses saved here will appear when they are available.
+      <AppText className="mt-1 text-center text-sm leading-5 text-text-secondary">
+        {metadata.collection?.business_count === 0
+          ? "Save a business from Explore and choose this Pocket."
+          : "Your saved businesses will appear here when they're available again."}
       </AppText>
+      <Button
+        title="Explore places"
+        size="sm"
+        rounded="full"
+        className="mt-4"
+        onPress={() => router.push("/(explorer)/(tabs)/explore")}
+      />
     </View>
   );
 
   return (
-    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-background">
-      {/* Profile stack identity */}
+    <SafeAreaView edges={["left", "right"]} className="flex-1 bg-surface">
       <Stack.Screen
         options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
           title: canShowContents ? metadata.collection?.name : "Pocket",
         }}
       />
@@ -228,26 +252,41 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
         ListHeaderComponent={
           canShowContents && metadata.collection ? (
             <View className="mb-4">
-              <PocketCollectionCard
-                collection={metadata.collection}
-                onManage={
-                  metadata.collection.is_default
-                    ? undefined
-                    : () => {
-                        if (
-                          !metadata.collection ||
-                          metadata.userId === null ||
-                          useAuthStore.getState().user?.id !== metadata.userId
-                        )
-                          return;
-                        setManaging({
-                          collection: metadata.collection,
-                          ownerId: metadata.userId,
-                          generation: getAuthSessionGeneration(),
-                        });
-                      }
-                }
-              />
+              <View className="flex-row items-center justify-between border-b border-border-primary/60 pb-3">
+                <AppText className="min-w-0 flex-1 text-sm text-text-secondary">
+                  {metadata.collection.business_count} saved{" "}
+                  {metadata.collection.business_count === 1
+                    ? "business"
+                    : "businesses"}
+                </AppText>
+                {!metadata.collection.is_default && (
+                  <SafePressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Manage this Pocket"
+                    className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-muted"
+                    onPress={() => {
+                      if (
+                        !metadata.collection ||
+                        metadata.userId === null ||
+                        useAuthStore.getState().user?.id !== metadata.userId
+                      )
+                        return;
+                      setManaging({
+                        collection: metadata.collection,
+                        ownerId: metadata.userId,
+                        generation: getAuthSessionGeneration(),
+                      });
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="dots-horizontal"
+                      size={22}
+                      color={theme.extends.colors.text.secondary}
+                      accessible={false}
+                    />
+                  </SafePressable>
+                )}
+              </View>
               {metadata.error && (
                 <View className="-mx-4 mt-3">
                   <ErrorState
@@ -278,7 +317,7 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
               compactTrailingAction={
                 <SafePressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove ${item.business_name} from ${metadata.collection?.name}`}
+                  accessibilityLabel={`Options for ${item.business_name}`}
                   className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-muted"
                   onPress={() => {
                     if (
@@ -287,7 +326,7 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
                       !isValidId
                     )
                       return;
-                    setRemoving({
+                    setBusinessAction({
                       collectionId,
                       business: item,
                       ownerId: metadata.userId,
@@ -296,7 +335,7 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
                   }}
                 >
                   <MaterialCommunityIcons
-                    name="trash-can-outline"
+                    name="dots-horizontal"
                     size={22}
                     color={theme.extends.colors.text.secondary}
                     accessibilityElementsHidden
@@ -340,7 +379,9 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
                   }
                 />
               </View>
-            ) : !contents.hasNextPage && !contents.isFetching ? (
+            ) : !contents.hasNextPage &&
+              !contents.isFetching &&
+              businesses.length >= 5 ? (
               <EndOfListMessage />
             ) : null
           ) : null
@@ -374,6 +415,17 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
             collection={managing.collection}
             onClose={() => setManaging(null)}
             onDeleted={() => router.replace("/(explorer)/profile/my-pockets")}
+          />
+        )}
+      {canShowContents &&
+        businessAction &&
+        businessAction.collectionId === collectionId &&
+        businessAction.ownerId === metadata.userId &&
+        businessAction.generation === getAuthSessionGeneration() && (
+          <PocketBusinessActions
+            {...businessAction}
+            onRemove={() => setRemoving(businessAction)}
+            onClose={() => setBusinessAction(null)}
           />
         )}
       {canShowContents &&

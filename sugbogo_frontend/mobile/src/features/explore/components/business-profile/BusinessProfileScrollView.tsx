@@ -8,11 +8,23 @@ import BusinessProfileStickyHeader from "./BusinessProfileStickyHeader";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 
 type Props = {
-  business: ExploreBusiness | null;
+  business:
+    | (Pick<
+        ExploreBusiness,
+        | "id"
+        | "business_name"
+        | "cluster"
+        | "category"
+        | "display_cover_photo_url"
+      > & {
+        is_pocketed?: boolean;
+      })
+    | null;
   isRefreshing: boolean;
   onRefresh: () => void;
   children: ReactNode;
   isOwnBusiness: boolean;
+  extraBottomPadding?: number;
 };
 
 // Calibrated against the hero's fixed h-80 (320px) height.
@@ -29,6 +41,7 @@ export default function BusinessProfileScrollView({
   onRefresh,
   children,
   isOwnBusiness,
+  extraBottomPadding = 0,
 }: Props) {
   const { bottom } = useSafeAreaInsets();
 
@@ -90,7 +103,7 @@ export default function BusinessProfileScrollView({
       {business && (
         <BusinessProfileStickyHeader
           businessId={business.id}
-          isPocketed={business.is_pocketed}
+          isPocketed={business.is_pocketed ?? null}
           businessName={business.business_name}
           coverPhotoUrl={business.display_cover_photo_url}
           clusterIconName={clusterIconName}
@@ -105,8 +118,10 @@ export default function BusinessProfileScrollView({
       )}
 
       <Animated.ScrollView
+        testID="business-profile-scroll"
         contentContainerStyle={{
-          paddingBottom: isOwnBusiness ? 100 : bottom,
+          flexGrow: 1,
+          paddingBottom: (isOwnBusiness ? 100 : bottom) + extraBottomPadding,
         }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
