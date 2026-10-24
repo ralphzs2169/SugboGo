@@ -300,6 +300,12 @@ class DiscoveryScoreService:
                     and score_record.DSC_REFRESH_VERSION != expected_version
                 )
                 or (
+                    # Generation zero is initialization, not an evidence invalidation.
+                    score_record.DSC_REFRESH_VERSION > 0
+                    and score_record.DSC_REFRESH_REQUESTED_AT is not None
+                    and reference_time < score_record.DSC_REFRESH_REQUESTED_AT
+                )
+                or (
                     score_record.DSC_LAST_ATTEMPT_AT is not None
                     and reference_time < score_record.DSC_LAST_ATTEMPT_AT
                 )

@@ -130,14 +130,16 @@ class DiscoveryScoreRefreshService:
         publisher=None,
         invalidate=True,
     ):
-        """Commits a recoverable dirty marker before publishing affected-business work."""
+        """Pairs each invalidation generation with its latest time before publishing work."""
         try:
             score = DiscoveryScoreRefreshService.initialize(business_id)
         except NotFound:
             return
         if invalidate:
             score.DSC_REFRESH_VERSION += 1
-        if score.DSC_REFRESH_REQUESTED_AT is None:
+            # Keep the time paired with the latest generation, even while pending.
+            score.DSC_REFRESH_REQUESTED_AT = timezone.now()
+        elif score.DSC_REFRESH_REQUESTED_AT is None:
             score.DSC_REFRESH_REQUESTED_AT = timezone.now()
         score.save(
             update_fields=[

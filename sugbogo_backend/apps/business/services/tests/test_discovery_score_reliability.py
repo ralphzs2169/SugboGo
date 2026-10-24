@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from celery.exceptions import Retry
 from django.db import transaction
 from django.test import TestCase
 from django.utils import timezone
@@ -15,6 +16,8 @@ from apps.business.services.discovery_score_service import (
 from apps.business.services.tests import test_discovery_score_service as fixtures
 from apps.business.services.visibility_event_service import VisibilityTrackingUnavailable
 from apps.business.services.visibility_gap_service import VisibilityGapService
+from apps.business.services.vouch_service import VouchService
+from apps.business.tasks import recompute_business_discovery_score, recompute_discovery_scores
 from apps.explorer_operations.explore_businesses.services.discovery_feed_service import DiscoveryFeedService
 from apps.admin_operations.analytics.services.discovery_score_monitoring_service import (
     DiscoveryScoreMonitoringService,
@@ -134,6 +137,172 @@ class DiscoveryScoreReliabilityTests(TestCase):
             )
         self.assertEqual(result.status, DiscoveryScoreRecomputeStatus.SKIPPED_STALE)
         telemetry.assert_not_called()
+
+    def test_old_batch_retry_cannot_acknowledge_a_later_vouch_refresh(self):
+        initial_time = self.reference_time
+        vouch_time = initial_time + timedelta(minutes=1)
+        targeted_time = vouch_time + timedelta(minutes=1)
+
+        with patch.object(
+            VisibilityGapService,
+            "calculate_visibility_gaps",
+            side_effect=VisibilityTrackingUnavailable(),
+        ), patch.object(
+            recompute_discovery_scores,
+            "retry",
+            return_value=Retry("retry visibility"),
+        ) as retry, patch(
+            "apps.business.tasks.logger.warning",
+        ), self.assertRaises(Retry):
+            recompute_discovery_scores.run(
+                reference_time_iso=initial_time.isoformat(),
+            )
+
+        explorer = fixtures.DiscoveryScoreServiceTests._create_explorer(
+            self,
+            Decimal("0.20"),
+        )
+        with patch(
+            "apps.business.services.discovery_score_refresh_service.timezone.now",
+            return_value=vouch_time,
+        ):
+            vouch = VouchService.create_vouch(
+                user=explorer,
+                business_id=self.business.pk,
+                tag_id=self.specialties[0].TAG_ID_id,
+            )
+        self.assertEqual(vouch.VOUCH_CREATED_AT, vouch_time)
+        score = DiscoveryScore.objects.get()
+        version = score.DSC_REFRESH_VERSION
+        self.assertEqual(score.DSC_REFRESH_REQUESTED_AT, vouch_time)
+
+        with patch.object(
+            VisibilityGapService,
+            "calculate_visibility_gaps",
+            return_value=(self._visibility_result(Decimal("1")),),
+        ):
+            summary = recompute_discovery_scores.run(
+                **retry.call_args.kwargs["kwargs"],
+            )
+
+        score.refresh_from_db()
+        self.assertEqual(summary["updated"], 0)
+        self.assertEqual(summary["skipped_stale"], 1)
+        self.assertEqual(score.DSC_REFRESH_VERSION, version)
+        self.assertEqual(score.DSC_REFRESH_REQUESTED_AT, vouch_time)
+        self.assertIsNone(score.DSC_COMPUTED_AT)
+        self.assertTrue(score.DSC_IS_PROVISIONAL)
+
+        with patch(
+            "apps.business.tasks.timezone.now",
+            return_value=targeted_time,
+        ), patch.object(
+            VisibilityGapService,
+            "calculate_business_visibility_gap",
+            return_value=self._visibility_result(Decimal("1")),
+        ):
+            result = recompute_business_discovery_score.run(
+                business_id=self.business.pk,
+            )
+
+        score.refresh_from_db()
+        self.specialties[0].refresh_from_db()
+        self.assertEqual(
+            result["status"],
+            DiscoveryScoreRecomputeStatus.UPDATED.value,
+        )
+        self.assertGreater(self.specialties[0].BST_TAG_SCORE, Decimal("0"))
+        self.assertGreater(score.DSC_S_SCORE, Decimal("0"))
+        self.assertEqual(score.DSC_COMPUTED_AT, targeted_time)
+        self.assertIsNone(score.DSC_REFRESH_REQUESTED_AT)
+        self.assertEqual(score.DSC_LAST_ERROR, "")
+        self.assertFalse(score.DSC_IS_PROVISIONAL)
+
+    def test_pending_requests_retain_the_latest_invalidation_generation_and_time(self):
+        first_time = self.reference_time
+        second_time = first_time + timedelta(minutes=1)
+        global_time = second_time + timedelta(minutes=1)
+        reconciliation_time = global_time + timedelta(minutes=1)
+
+        for requested_at in (first_time, second_time):
+            with patch(
+                "apps.business.services.discovery_score_refresh_service.timezone.now",
+                return_value=requested_at,
+            ):
+                DiscoveryScoreRefreshService.request_refresh(self.business.pk)
+
+        score = DiscoveryScore.objects.get()
+        self.assertEqual(score.DSC_REFRESH_VERSION, 2)
+        self.assertEqual(score.DSC_REFRESH_REQUESTED_AT, second_time)
+
+        with patch(
+            "apps.business.services.discovery_score_refresh_service.timezone.now",
+            return_value=global_time,
+        ):
+            DiscoveryScoreRefreshService.request_global_refresh()
+        with patch(
+            "apps.business.services.discovery_score_refresh_service.timezone.now",
+            return_value=reconciliation_time,
+        ):
+            DiscoveryScoreRefreshService.request_refresh(
+                self.business.pk,
+                invalidate=False,
+            )
+
+        stale = self._compute(
+            reference_time=second_time,
+            only_if_pending=True,
+        )
+        score.refresh_from_db()
+        self.assertEqual(stale.status, DiscoveryScoreRecomputeStatus.SKIPPED_STALE)
+        self.assertEqual(score.DSC_REFRESH_VERSION, 3)
+        self.assertEqual(score.DSC_REFRESH_REQUESTED_AT, global_time)
+        self.assertIsNone(score.DSC_COMPUTED_AT)
+
+        result = self._compute(
+            reference_time=global_time,
+            only_if_pending=True,
+        )
+        score.refresh_from_db()
+        self.assertEqual(result.status, DiscoveryScoreRecomputeStatus.UPDATED)
+        self.assertEqual(score.DSC_COMPUTED_AT, global_time)
+        self.assertIsNone(score.DSC_REFRESH_REQUESTED_AT)
+
+    def test_older_batch_cannot_overwrite_a_newer_completed_refresh(self):
+        invalidation_time = self.reference_time
+        older_time = invalidation_time + timedelta(minutes=1)
+        newer_time = older_time + timedelta(minutes=1)
+        with patch(
+            "apps.business.services.discovery_score_refresh_service.timezone.now",
+            return_value=invalidation_time,
+        ):
+            DiscoveryScoreRefreshService.request_refresh(self.business.pk)
+
+        def complete_newer_refresh(**kwargs):
+            self._compute(
+                reference_time=newer_time,
+                only_if_pending=True,
+            )
+            return (self._visibility_result(Decimal("0")),)
+
+        with patch.object(
+            VisibilityGapService,
+            "calculate_visibility_gaps",
+            side_effect=complete_newer_refresh,
+        ):
+            result = DiscoveryScoreService.recompute_business_scores(
+                business_ids=[self.business.pk],
+                reference_time=older_time,
+            )
+
+        score = DiscoveryScore.objects.get()
+        self.assertEqual(result.updated_count, 0)
+        self.assertEqual(result.stale_count, 1)
+        self.assertEqual(score.DSC_COMPUTED_AT, newer_time)
+        self.assertEqual(score.DSC_D_SCORE, Decimal("0.20000"))
+        self.assertEqual(score.DSC_V_SCORE, Decimal("1.00000"))
+        self.assertIsNone(score.DSC_REFRESH_REQUESTED_AT)
+        self.assertEqual(score.DSC_LAST_ERROR, "")
 
     def test_mutation_during_visibility_calculation_invalidates_old_generation(self):
         before = self._compute()
