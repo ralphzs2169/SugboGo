@@ -1,9 +1,10 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, localcontext
+from itertools import permutations
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.admin_operations.system_configuration.services.discovery_algorithm_configuration_service import (
     DiscoveryAlgorithmConfigurationService,
@@ -196,6 +197,74 @@ class SpecialtyScoreCalculationTests(TestCase):
             reference_time=self.REFERENCE_TIME,
         )
 
+    def test_evidence_creation_cutoff_is_inclusive_for_both_recompute_paths(self):
+        vouch = self._create_vouch(
+            explorer_index=100,
+        )
+        cases = (
+            (timedelta(microseconds=-1), 1),
+            (timedelta(0), 1),
+            (timedelta(microseconds=1), 0),
+        )
+
+        for offset, expected_count in cases:
+            with self.subTest(offset=offset):
+                BusinessVouch.objects.filter(
+                    pk=vouch.pk,
+                ).update(
+                    VOUCH_CREATED_AT=self.REFERENCE_TIME + offset,
+                )
+                tag_result = SpecialtyScoreService.recompute_tag_score(
+                    business_specialty_id=self.business_specialties[0].pk,
+                    reference_time=self.REFERENCE_TIME,
+                )
+                business_result = self._recompute_business()
+                results = (
+                    tag_result,
+                    business_result.tag_scores[0],
+                )
+
+                for result in results:
+                    self.assertEqual(result.valid_evidence_count, expected_count)
+                    if expected_count:
+                        self.assertGreater(result.raw_tag_evidence, Decimal("0"))
+                    else:
+                        self.assertEqual(result.raw_tag_evidence, Decimal("0"))
+                        self.assertEqual(result.tag_score, Decimal("0.00000"))
+
+    def test_cutoff_preserves_withdrawn_invalid_and_suspicious_eligibility(self):
+        suspicious = self._create_vouch(
+            explorer_index=100,
+        )
+        BusinessVouch.objects.filter(
+            pk=suspicious.pk,
+        ).update(
+            VOUCH_FLAG_SUSPICIOUS=True,
+        )
+        self._create_vouch(
+            explorer_index=101,
+            is_valid=False,
+        )
+        withdrawn = self._create_vouch(
+            explorer_index=102,
+        )
+        BusinessVouch.objects.filter(
+            pk=withdrawn.pk,
+        ).update(
+            VOUCH_WITHDRAWN_AT=self.REFERENCE_TIME,
+        )
+
+        tag_result = SpecialtyScoreService.recompute_tag_score(
+            business_specialty_id=self.business_specialties[0].pk,
+            reference_time=self.REFERENCE_TIME,
+        )
+        business_result = self._recompute_business()
+
+        for result in (tag_result, business_result.tag_scores[0]):
+            self.assertEqual(result.valid_evidence_count, 1)
+            self.assertEqual(result.raw_tag_evidence, Decimal("0.20"))
+            self.assertEqual(result.tag_score, Decimal("0.18127"))
+
     def test_newly_created_evidence_has_decay_one(self):
         decay = SpecialtyScoreService.calculate_decay(
             vouch_created_at=self.REFERENCE_TIME,
@@ -306,53 +375,7 @@ class SpecialtyScoreCalculationTests(TestCase):
             Decimal("1"),
         )
 
-    def test_first_valid_interaction_has_full_dampening(self):
-        dampening = (
-            SpecialtyScoreService.calculate_evidence_dampening(
-                previous_valid_interactions=0,
-            )
-        )
-
-        self.assertEqual(
-            dampening,
-            Decimal("1"),
-        )
-
-    def test_second_valid_interaction_uses_square_root_two(self):
-        dampening = (
-            SpecialtyScoreService.calculate_evidence_dampening(
-                previous_valid_interactions=1,
-            )
-        )
-
-        with localcontext() as context:
-            context.prec = 40
-            expected = Decimal("1") / Decimal("2").sqrt()
-
-        self.assertAlmostEqual(
-            dampening,
-            expected,
-            places=20,
-        )
-
-    def test_third_valid_interaction_uses_square_root_three(self):
-        dampening = (
-            SpecialtyScoreService.calculate_evidence_dampening(
-                previous_valid_interactions=2,
-            )
-        )
-
-        with localcontext() as context:
-            context.prec = 40
-            expected = Decimal("1") / Decimal("3").sqrt()
-
-        self.assertAlmostEqual(
-            dampening,
-            expected,
-            places=20,
-        )
-
-    def test_invalid_evidence_does_not_consume_dampening_position(self):
+    def test_invalid_evidence_is_excluded_from_additive_sum(self):
         first = self._create_vouch(
             explorer_index=2,
             reputation_snapshot=Decimal("0.20"),
@@ -443,12 +466,11 @@ class SpecialtyScoreCalculationTests(TestCase):
         contribution = SpecialtyScoreService.calculate_contribution(
             reputation_snapshot=Decimal("0.35"),
             decay=Decimal("0.80"),
-            dampening=Decimal("0.50"),
         )
 
         self.assertEqual(
             contribution,
-            Decimal("0.1400"),
+            Decimal("0.2800"),
         )
 
     def test_current_user_reputation_is_ignored(self):
@@ -478,12 +500,11 @@ class SpecialtyScoreCalculationTests(TestCase):
         contribution = SpecialtyScoreService.calculate_contribution(
             reputation_snapshot=Decimal("0.40"),
             decay=Decimal("0.75"),
-            dampening=Decimal("0.50"),
         )
 
         self.assertEqual(
             contribution,
-            Decimal("0.150000"),
+            Decimal("0.3000"),
         )
 
     def test_no_valid_evidence_produces_zero_tag_score(self):
@@ -666,6 +687,45 @@ class SpecialtyScoreCalculationTests(TestCase):
         self.assertLess(
             later.tag_score,
             current.tag_score,
+        )
+
+    def test_invalidating_older_weak_evidence_lowers_persisted_scores(self):
+        weak_vouch = self._create_vouch(
+            explorer_index=31,
+            reputation_snapshot=Decimal("0.01"),
+            age_days=Decimal("300"),
+        )
+        self._create_vouch(
+            explorer_index=32,
+            reputation_snapshot=Decimal("1.00"),
+        )
+        before = self._recompute_business()
+
+        BusinessVouch.objects.filter(
+            VOUCH_ID=weak_vouch.VOUCH_ID,
+        ).update(
+            VOUCH_EVIDENCE_IS_VALID=False,
+        )
+        after = self._recompute_business()
+        business_specialty = BusinessSpecialtyTag.objects.get(
+            BST_ID=self.business_specialties[0].BST_ID,
+        )
+
+        self.assertLess(
+            after.specialty_score,
+            before.specialty_score,
+        )
+        self.assertLess(
+            after.tag_scores[0].tag_score,
+            before.tag_scores[0].tag_score,
+        )
+        self.assertEqual(
+            business_specialty.BST_TAG_SCORE,
+            after.tag_scores[0].tag_score,
+        )
+        self.assertEqual(
+            after.tag_scores[0].valid_evidence_count,
+            1,
         )
 
     def test_inactive_specialty_is_excluded_from_current_sc(self):
@@ -1156,23 +1216,17 @@ class SpecialtyScoreCalculationTests(TestCase):
             first_decay = Decimal("-0.20").exp()
             second_decay = Decimal("-0.10").exp()
             third_decay = Decimal("1")
-            first_dampening = Decimal("1")
-            second_dampening = Decimal("1") / Decimal("2").sqrt()
-            third_dampening = Decimal("1") / Decimal("3").sqrt()
             first_contribution = (
                 Decimal("0.20")
                 * first_decay
-                * first_dampening
             )
             second_contribution = (
                 Decimal("0.50")
                 * second_decay
-                * second_dampening
             )
             third_contribution = (
                 Decimal("0.80")
                 * third_decay
-                * third_dampening
             )
             expected_raw = (
                 first_contribution
@@ -1191,7 +1245,7 @@ class SpecialtyScoreCalculationTests(TestCase):
         )
         self.assertAlmostEqual(
             result.contributions[1].dampening,
-            second_dampening,
+            Decimal("1"),
             places=20,
         )
         self.assertAlmostEqual(
@@ -1238,4 +1292,216 @@ class SpecialtyScoreCalculationTests(TestCase):
         self.assertEqual(
             business_specialty.BST_VOUCH_COUNT,
             1,
+        )
+
+
+class MonotonicSpecialtyScoreTests(SimpleTestCase):
+    REFERENCE_TIME = SpecialtyScoreCalculationTests.REFERENCE_TIME
+
+    def _calculate(
+        self,
+        evidence,
+    ):
+        return SpecialtyScoreService.calculate_tag_score(
+            evidence=evidence,
+            decay_rate=Decimal("0.10"),
+            reference_time=self.REFERENCE_TIME,
+        )
+
+    def _evidence(self):
+        return [
+            SpecialtyEvidenceInput(
+                evidence_id=1,
+                created_at=self.REFERENCE_TIME - timedelta(days=300),
+                reputation_snapshot=Decimal("0.01"),
+            ),
+            SpecialtyEvidenceInput(
+                evidence_id=2,
+                created_at=self.REFERENCE_TIME - timedelta(days=30),
+                reputation_snapshot=Decimal("0.20"),
+            ),
+            SpecialtyEvidenceInput(
+                evidence_id=3,
+                created_at=self.REFERENCE_TIME,
+                reputation_snapshot=Decimal("1.00"),
+            ),
+        ]
+
+    def test_removing_any_positive_evidence_cannot_increase_scores(self):
+        evidence = self._evidence()
+        before = self._calculate(
+            evidence,
+        )
+
+        for removed in evidence:
+            with self.subTest(removed_id=removed.evidence_id):
+                after = self._calculate(
+                    [
+                        item
+                        for item in evidence
+                        if item.evidence_id != removed.evidence_id
+                    ],
+                )
+
+                self.assertLess(
+                    after.raw_tag_evidence,
+                    before.raw_tag_evidence,
+                )
+                self.assertLess(
+                    after.tag_score,
+                    before.tag_score,
+                )
+                self.assertLessEqual(
+                    SpecialtyScoreService._quantize_score(
+                        after.tag_score,
+                    ),
+                    SpecialtyScoreService._quantize_score(
+                        before.tag_score,
+                    ),
+                )
+                self.assertEqual(
+                    after.contributions,
+                    tuple(
+                        contribution
+                        for contribution in before.contributions
+                        if contribution.evidence_id != removed.evidence_id
+                    ),
+                )
+
+    def test_adding_older_weak_evidence_cannot_decrease_score(self):
+        evidence = self._evidence()
+        before = self._calculate(
+            evidence[1:],
+        )
+        after = self._calculate(
+            evidence,
+        )
+
+        self.assertGreater(
+            after.raw_tag_evidence,
+            before.raw_tag_evidence,
+        )
+        self.assertGreater(
+            after.tag_score,
+            before.tag_score,
+        )
+
+    def test_all_input_permutations_have_identical_results(self):
+        evidence = self._evidence()
+        expected = self._calculate(
+            evidence,
+        )
+
+        for ordering in permutations(evidence):
+            self.assertEqual(
+                self._calculate(
+                    iter(ordering),
+                ),
+                expected,
+            )
+
+    def test_timestamp_tie_ids_do_not_weight_reputation(self):
+        evidence = self._evidence()
+        original = [
+            SpecialtyEvidenceInput(
+                evidence_id=item.evidence_id,
+                created_at=self.REFERENCE_TIME,
+                reputation_snapshot=item.reputation_snapshot,
+            )
+            for item in evidence
+        ]
+        swapped = [
+            SpecialtyEvidenceInput(
+                evidence_id=4 - item.evidence_id,
+                created_at=item.created_at,
+                reputation_snapshot=item.reputation_snapshot,
+            )
+            for item in original
+        ]
+
+        self.assertEqual(
+            self._calculate(original).tag_score,
+            self._calculate(swapped).tag_score,
+        )
+
+    def test_equal_positive_additions_have_diminishing_returns(self):
+        scores = []
+
+        for count in range(4):
+            result = self._calculate(
+                [
+                    SpecialtyEvidenceInput(
+                        evidence_id=index,
+                        created_at=self.REFERENCE_TIME,
+                        reputation_snapshot=Decimal("0.20"),
+                    )
+                    for index in range(count)
+                ],
+            )
+            scores.append(
+                result.tag_score,
+            )
+            self.assertGreaterEqual(
+                result.tag_score,
+                Decimal("0"),
+            )
+            self.assertLessEqual(
+                result.tag_score,
+                Decimal("1"),
+            )
+            self.assertTrue(
+                all(
+                    contribution.dampening == Decimal("1")
+                    for contribution in result.contributions
+                ),
+            )
+
+        gains = [
+            scores[index + 1] - scores[index]
+            for index in range(3)
+        ]
+        self.assertGreater(
+            gains[0],
+            gains[1],
+        )
+        self.assertGreater(
+            gains[1],
+            gains[2],
+        )
+
+    def test_large_evidence_set_remains_bounded_and_monotonic(self):
+        evidence = [
+            SpecialtyEvidenceInput(
+                evidence_id=index,
+                created_at=self.REFERENCE_TIME,
+                reputation_snapshot=Decimal("1.00"),
+            )
+            for index in range(1000)
+        ]
+        before = self._calculate(
+            evidence,
+        )
+        after = self._calculate(
+            evidence[1:],
+        )
+
+        self.assertEqual(
+            before.raw_tag_evidence,
+            Decimal("1000"),
+        )
+        self.assertEqual(
+            after.raw_tag_evidence,
+            Decimal("999"),
+        )
+        self.assertLessEqual(
+            after.tag_score,
+            before.tag_score,
+        )
+        self.assertGreaterEqual(
+            after.tag_score,
+            Decimal("0"),
+        )
+        self.assertLessEqual(
+            before.tag_score,
+            Decimal("1"),
         )

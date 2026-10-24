@@ -47,7 +47,11 @@ class BusinessVouchView(APIView):
     def delete(self, request, business_id):
         """Remove the authenticated user's vouch for a business specialty."""
 
-        tag_id = request.data.get("tag_id")
+        serializer = BusinessVouchSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+        tag_id = serializer.validated_data["tag_id"]
 
         VouchService.remove_vouch(
             user=request.user,

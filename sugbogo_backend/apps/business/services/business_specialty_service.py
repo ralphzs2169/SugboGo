@@ -2,7 +2,8 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
-from apps.business.models import BusinessSpecialtyTag
+from apps.business.models import Business, BusinessSpecialtyTag
+from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 
 
 class BusinessSpecialtyService:
@@ -14,6 +15,7 @@ class BusinessSpecialtyService:
         tag_id: int,
     ) -> BusinessSpecialtyTag:
         try:
+            Business.objects.select_for_update().get(pk=business_id)
             return (
                 BusinessSpecialtyTag.objects
                 .select_for_update()
@@ -22,7 +24,7 @@ class BusinessSpecialtyService:
                     TAG_ID=tag_id,
                 )
             )
-        except BusinessSpecialtyTag.DoesNotExist:
+        except (Business.DoesNotExist, BusinessSpecialtyTag.DoesNotExist):
             raise NotFound(
                 "The business specialty could not be found.",
             )
@@ -51,6 +53,7 @@ class BusinessSpecialtyService:
                 "BST_UPDATED_AT",
             ],
         )
+        DiscoveryScoreRefreshService.request_refresh(business_id)
 
         return business_specialty
 
@@ -80,5 +83,6 @@ class BusinessSpecialtyService:
                 "BST_UPDATED_AT",
             ],
         )
+        DiscoveryScoreRefreshService.request_refresh(business_id)
 
         return business_specialty

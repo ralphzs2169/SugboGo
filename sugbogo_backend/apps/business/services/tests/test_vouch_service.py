@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from decimal import Decimal
 from threading import Barrier
+from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.db import close_old_connections, connection
@@ -393,6 +394,7 @@ class BusinessVouchServiceTests(TestCase):
         self.assertFalse(
             BusinessVouch.objects.filter(
                 VOUCH_ID=vouch.VOUCH_ID,
+                VOUCH_WITHDRAWN_AT__isnull=True,
             ).exists(),
         )
 
@@ -529,6 +531,11 @@ class ConcurrentVouchRemovalTests(TransactionTestCase):
     """Verify competing removals cannot decrement vouch counts twice."""
 
     def setUp(self):
+        dispatch = patch(
+            "apps.business.services.vouch_service.VouchService._dispatch_score_refresh",
+        )
+        dispatch.start()
+        self.addCleanup(dispatch.stop)
         self.user = User.objects.create_user(
             email="concurrent-vouch@example.com",
             password="StrongPassword123!",
@@ -613,7 +620,12 @@ class ConcurrentVouchRemovalTests(TransactionTestCase):
             ]
 
         self.assertCountEqual(results, ["removed", "not_found"])
-        self.assertFalse(BusinessVouch.objects.exists())
+        self.assertFalse(
+            BusinessVouch.objects.filter(
+                VOUCH_WITHDRAWN_AT__isnull=True,
+            ).exists(),
+        )
+        self.assertEqual(BusinessVouch.objects.count(), 1)
         self.business.refresh_from_db()
         self.business_tag.refresh_from_db()
         self.assertEqual(self.business.BUSN_VOUCH_COUNT, 0)

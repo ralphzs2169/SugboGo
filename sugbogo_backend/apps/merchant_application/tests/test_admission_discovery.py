@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -85,7 +86,10 @@ class AdmissionDiscoveryTests(MerchantApplicationServiceMixin, APITestCase):
         self.assertEqual(BusinessOperatingHours.objects.filter(BUSN_ID=business).count(), 7)
         self.assertEqual(BusinessLandmark.objects.filter(LOCT_ID=business.LOCT_ID).count(), 2)
         self.assertEqual(BusinessSpecialtyTag.objects.filter(BUSN_ID=business).count(), 3)
-        self.assertFalse(DiscoveryScore.objects.filter(BUSN_ID=business).exists())
+        initial_score = DiscoveryScore.objects.get(BUSN_ID=business)
+        self.assertTrue(initial_score.DSC_IS_PROVISIONAL)
+        self.assertIsNone(initial_score.DSC_COMPUTED_AT)
+        self.assertEqual(initial_score.DSC_D_SCORE, Decimal("0.20000"))
         review = MerchantApplicationReview.objects.get(MAPP_ID=self.application)
         self.assertEqual(review.USER_ID_id, self.admin.pk)
         self.assertEqual(review.MASUB_ID.MASUB_SUBMISSION_NUMBER, 1)
@@ -115,6 +119,46 @@ class AdmissionDiscoveryTests(MerchantApplicationServiceMixin, APITestCase):
 
     def test_legacy_approval_uses_the_same_publication_flow(self):
         self._assert_approval_reaches_feed(legacy=True)
+
+    def test_later_admission_failure_rolls_back_provisional_score_and_dispatch(self):
+        self._submit()
+        self.client.force_authenticate(self.admin)
+        with patch(
+            "apps.admin_operations.business_management.services."
+            "manage_application_service.BusinessPhoto.objects.bulk_create",
+            side_effect=RuntimeError("photo copy failed"),
+        ), patch(
+            "apps.business.tasks.recompute_business_discovery_score.delay",
+        ) as dispatch, self.captureOnCommitCallbacks(execute=True):
+            with self.assertRaisesMessage(RuntimeError, "photo copy failed"):
+                self.client.post(self.approve_url)
+
+        dispatch.assert_not_called()
+        self.assertFalse(DiscoveryScore.objects.exists())
+        self.assertFalse(Business.objects.filter(USER_ID=self.user).exists())
+        self.application.refresh_from_db()
+        self.assertIsNone(self.application.BUSN_ID_id)
+
+    def test_publish_failure_leaves_admission_provisional_and_recoverable(self):
+        self._submit()
+        self.client.force_authenticate(self.admin)
+        with patch(
+            "apps.business.tasks.recompute_business_discovery_score.delay",
+            side_effect=RuntimeError("broker unavailable"),
+        ), patch(
+            "apps.business.services.discovery_score_refresh_service.logger.exception",
+        ), patch(
+            "apps.notifications.services.notification_realtime_service."
+            "NotificationRealtimeService.publish",
+        ), self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.approve_url)
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.application.refresh_from_db()
+        score = DiscoveryScore.objects.get(BUSN_ID=self.application.BUSN_ID)
+        self.assertTrue(score.DSC_IS_PROVISIONAL)
+        self.assertIsNone(score.DSC_COMPUTED_AT)
+        self.assertEqual(score.DSC_LAST_ERROR, "DISPATCH_FAILED")
 
     def test_legacy_rejection_records_reviewer_and_feedback_without_publication(self):
         self._submit()

@@ -73,6 +73,7 @@ class PeerAnalyticsService:
         )
         # Approved period definition differs from Standard's all-time current support.
         rows = BusinessVouch.objects.filter(
+            VOUCH_WITHDRAWN_AT__isnull=True,
             BUSN_ID__in=business_ids, VOUCH_EVIDENCE_IS_VALID=True,
             VOUCH_CREATED_AT__gte=period.start, VOUCH_CREATED_AT__lt=period.end,
         ).filter(Exists(active_link)).values("BUSN_ID").annotate(value=Count("pk"))

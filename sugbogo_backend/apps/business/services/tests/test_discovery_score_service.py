@@ -226,9 +226,12 @@ class DiscoveryScoreServiceTests(TestCase):
         self,
         specialty_score: Decimal,
         visibility_gap: Decimal,
+        reference_time=None,
     ):
         """Runs the combined service with controlled lower-level results."""
 
+        if reference_time is None:
+            reference_time = self.REFERENCE_TIME
         with patch.object(
             VisibilityGapService,
             "calculate_business_visibility_gap",
@@ -244,7 +247,7 @@ class DiscoveryScoreServiceTests(TestCase):
         ):
             return DiscoveryScoreService.recompute_business_score(
                 business_id=self.business.BUSN_ID,
-                reference_time=self.REFERENCE_TIME,
+                reference_time=reference_time,
             )
 
     def _create_explorer(
@@ -262,6 +265,59 @@ class DiscoveryScoreServiceTests(TestCase):
             USER_STATUS=User.UserStatus.ACTIVE,
             USER_REPUTATION=reputation,
         )
+
+    def test_targeted_refresh_persists_scores_with_reference_time_cutoff(self):
+        """Excludes later evidence through the actual targeted task and persistence path."""
+        from apps.business.tasks import recompute_business_discovery_score
+
+        for reputation, offset in (
+            (Decimal("0.20"), timedelta(0)),
+            (Decimal("0.90"), timedelta(microseconds=1)),
+        ):
+            explorer = self._create_explorer(reputation)
+            vouch = BusinessVouch.objects.create(
+                BUSN_ID=self.business,
+                USER_ID=explorer,
+                TAG_ID=self.specialties[0].TAG_ID,
+                VOUCH_REPUTATION_SNAPSHOT=reputation,
+            )
+            BusinessVouch.objects.filter(
+                pk=vouch.pk,
+            ).update(
+                VOUCH_CREATED_AT=self.REFERENCE_TIME + offset,
+            )
+
+        with patch(
+            "apps.business.tasks.timezone.now",
+            return_value=self.REFERENCE_TIME,
+        ), patch.object(
+            VisibilityGapService,
+            "calculate_business_visibility_gap",
+            return_value=self._visibility_result(Decimal("1")),
+        ):
+            result = recompute_business_discovery_score.run(
+                business_id=self.business.pk,
+            )
+
+        score = DiscoveryScore.objects.get(BUSN_ID=self.business)
+        self.specialties[0].refresh_from_db()
+        self.assertEqual(
+            result["status"],
+            DiscoveryScoreRecomputeStatus.UPDATED.value,
+        )
+        self.assertEqual(
+            self.specialties[0].BST_TAG_SCORE,
+            Decimal("0.18127"),
+        )
+        self.assertEqual(
+            self.specialties[0].BST_SCORE_UPDATED_AT,
+            self.REFERENCE_TIME,
+        )
+        self.assertEqual(score.DSC_S_SCORE, Decimal("0.06042"))
+        self.assertEqual(score.DSC_D_SCORE, Decimal("0.24834"))
+        self.assertEqual(score.DSC_COMPUTED_AT, self.REFERENCE_TIME)
+        self.assertFalse(score.DSC_IS_PROVISIONAL)
+        self.assertIsNone(score.DSC_REFRESH_REQUESTED_AT)
 
     def test_default_formula_examples(self):
         """Uses the configured default weights for deterministic examples."""
@@ -422,6 +478,7 @@ class DiscoveryScoreServiceTests(TestCase):
         second_result = self._recompute_with_results(
             specialty_score=Decimal("0.25000"),
             visibility_gap=Decimal("0.75000"),
+            reference_time=self.REFERENCE_TIME + timedelta(seconds=1),
         )
         score_record = DiscoveryScore.objects.get(
             BUSN_ID=self.business,
@@ -658,6 +715,83 @@ class DiscoveryScoreServiceTests(TestCase):
             ReputationEvent.objects.exists(),
         )
 
+    def test_invalidating_older_weak_vouch_lowers_persisted_discovery_score(self):
+        """Keeps persisted tag, specialty, and discovery scores monotonic."""
+
+        weak_explorer = self._create_explorer(
+            reputation=Decimal("0.01000"),
+        )
+        strong_explorer = self._create_explorer(
+            reputation=Decimal("1.00000"),
+        )
+        weak_vouch = BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=weak_explorer,
+            TAG_ID=self.specialties[0].TAG_ID,
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("0.01000"),
+        )
+        strong_vouch = BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=strong_explorer,
+            TAG_ID=self.specialties[0].TAG_ID,
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("1.00000"),
+        )
+        BusinessVouch.objects.filter(
+            VOUCH_ID=weak_vouch.VOUCH_ID,
+        ).update(
+            VOUCH_CREATED_AT=self.REFERENCE_TIME - timedelta(days=300),
+        )
+        BusinessVouch.objects.filter(
+            VOUCH_ID=strong_vouch.VOUCH_ID,
+        ).update(
+            VOUCH_CREATED_AT=self.REFERENCE_TIME,
+        )
+
+        with patch.object(
+            VisibilityGapService,
+            "calculate_business_visibility_gap",
+            return_value=self._visibility_result(
+                Decimal("1.00000"),
+            ),
+        ):
+            before = DiscoveryScoreService.recompute_business_score(
+                business_id=self.business.BUSN_ID,
+                reference_time=self.REFERENCE_TIME,
+            )
+            BusinessVouch.objects.filter(
+                VOUCH_ID=weak_vouch.VOUCH_ID,
+            ).update(
+                VOUCH_EVIDENCE_IS_VALID=False,
+            )
+            after = DiscoveryScoreService.recompute_business_score(
+                business_id=self.business.BUSN_ID,
+                reference_time=self.REFERENCE_TIME + timedelta(microseconds=1),
+            )
+
+        score_record = DiscoveryScore.objects.get(
+            BUSN_ID=self.business,
+        )
+        self.assertLess(
+            after.discovery_score,
+            before.discovery_score,
+        )
+        self.assertLess(
+            after.specialty_score,
+            before.specialty_score,
+        )
+        self.assertEqual(
+            score_record.DSC_D_SCORE,
+            after.discovery_score,
+        )
+        self.assertEqual(
+            score_record.DSC_S_SCORE,
+            after.specialty_score,
+        )
+        self.assertEqual(
+            after.visibility_gap,
+            before.visibility_gap,
+        )
+
     def test_new_business_without_evidence_or_visibility_scores_point_two(self):
         """Stores SC zero, VG one, and DS point two for a new business."""
 
@@ -784,7 +918,7 @@ class DiscoveryScoreServiceTests(TestCase):
         ):
             DiscoveryScoreService.recompute_business_score(
                 business_id=self.business.BUSN_ID,
-                reference_time=self.REFERENCE_TIME,
+                reference_time=self.REFERENCE_TIME + timedelta(seconds=1),
             )
 
         existing_score.refresh_from_db()
@@ -820,6 +954,9 @@ class DiscoveryScoreServiceTests(TestCase):
             BST_SCORE_UPDATED_AT=None,
         )
 
+        from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+
+        DiscoveryScoreRefreshService.initialize(self.business.pk)
         with patch.object(
             VisibilityGapService,
             "calculate_business_visibility_gap",
@@ -827,8 +964,8 @@ class DiscoveryScoreServiceTests(TestCase):
                 Decimal("1.00000"),
             ),
         ), patch.object(
-            DiscoveryScore.objects,
-            "create",
+            DiscoveryScore,
+            "save",
             side_effect=RuntimeError(
                 "aggregate write failed",
             ),
@@ -841,11 +978,7 @@ class DiscoveryScoreServiceTests(TestCase):
                 reference_time=self.REFERENCE_TIME,
             )
 
-        self.assertFalse(
-            DiscoveryScore.objects.filter(
-                BUSN_ID=self.business,
-            ).exists(),
-        )
+        self.assertTrue(DiscoveryScore.objects.get(BUSN_ID=self.business).DSC_IS_PROVISIONAL)
         self.assertFalse(
             BusinessSpecialtyTag.objects.filter(
                 BUSN_ID=self.business,
@@ -1039,8 +1172,8 @@ class DiscoveryScoreServiceTests(TestCase):
             ).exists(),
         )
 
-    def test_same_reference_time_recomputes_same_current_row(self):
-        """Allows an equal reference time to update the existing current row."""
+    def test_same_reference_time_skips_existing_current_row(self):
+        """Preserves the first committed calculation at an identical reference time."""
 
         score_record = DiscoveryScore.objects.create(
             BUSN_ID=self.business,
@@ -1058,7 +1191,7 @@ class DiscoveryScoreServiceTests(TestCase):
 
         self.assertEqual(
             result.status,
-            DiscoveryScoreRecomputeStatus.UPDATED,
+            DiscoveryScoreRecomputeStatus.SKIPPED_STALE,
         )
         self.assertEqual(
             result.discovery_score_id,
@@ -1066,7 +1199,7 @@ class DiscoveryScoreServiceTests(TestCase):
         )
         self.assertEqual(
             score_record.DSC_D_SCORE,
-            Decimal("0.60000"),
+            Decimal("0.10000"),
         )
         self.assertEqual(
             DiscoveryScore.objects.filter(
@@ -1170,13 +1303,25 @@ class DiscoveryScoreServiceTests(TestCase):
     def test_batch_isolates_known_business_domain_failures(self):
         """Continues after one business has a known service-layer failure."""
 
+        second_owner = User.objects.create_user(
+            email="batch-failure-other@example.com",
+            password=None,
+            USER_REPUTATION=Decimal("0.20"),
+        )
+        second_business = Business.objects.create(
+            USER_ID=second_owner,
+            BUSN_NAME="Batch survivor",
+            BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            CTGRY_ID=self.category,
+            LOCT_ID=self.location,
+        )
         visibility_results = (
             self._visibility_result(
                 Decimal("1.00000"),
             ),
             self._visibility_result(
                 Decimal("0.50000"),
-                business_id=999,
+                business_id=second_business.pk,
             ),
         )
 
@@ -1198,7 +1343,7 @@ class DiscoveryScoreServiceTests(TestCase):
                 DiscoveryScoreService.recompute_business_scores(
                     business_ids=[
                         self.business.BUSN_ID,
-                        999,
+                        second_business.pk,
                     ],
                     reference_time=self.REFERENCE_TIME,
                 )

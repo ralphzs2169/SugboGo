@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import serializers
 
 from apps.admin_operations.system_configuration.models import (
@@ -8,6 +9,29 @@ from apps.admin_operations.system_configuration.models import (
 
 class DiscoveryAlgorithmConfigurationSerializer(serializers.ModelSerializer):
     """Validates typed Discovery Algorithm configuration values."""
+
+    @transaction.atomic
+    def update(
+        self,
+        instance,
+        validated_data,
+    ):
+        """Requests shared refresh only for changed inputs used by the scoring formula."""
+        from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+        from apps.business.models import DiscoveryScore
+
+        changed = any(
+            field in validated_data
+            and getattr(instance, field) != validated_data[field]
+            for field in DiscoveryScoreRefreshService.SCORING_CONFIGURATION_FIELDS
+        )
+        instance = super().update(instance, validated_data)
+        if changed:
+            DiscoveryScoreRefreshService.request_global_refresh()
+            DiscoveryScore.objects.filter(DSC_IS_PROVISIONAL=True).update(
+                DSC_D_SCORE=instance.DAC_VISIBILITY_GAP_WEIGHT,
+            )
+        return instance
 
     specialty_score_weight = serializers.DecimalField(
         source="DAC_SPECIALTY_SCORE_WEIGHT",

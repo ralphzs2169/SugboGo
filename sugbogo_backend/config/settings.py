@@ -453,6 +453,10 @@ CELERY_BEAT_SCHEDULE = {
             hour=2,
         ),
     },
+    "hourly-discovery-score-reconciliation": {
+        "task": "apps.business.tasks.reconcile_discovery_scores",
+        "schedule": crontab(minute=15),
+    },
 }
 
 

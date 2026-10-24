@@ -17,6 +17,7 @@ class VouchHistoryService:
         return (
             BusinessVouch.objects
             .filter(
+                VOUCH_WITHDRAWN_AT__isnull=True,
                 USER_ID=user,
                 BUSN_ID__BUSN_STATUS=Business.BusinessStatus.ACTIVE,
             )
@@ -41,6 +42,7 @@ class VouchHistoryService:
             .order_by("-VOUCH_CREATED_AT", "-VOUCH_ID")
         )
         user_vouch = BusinessVouch.objects.filter(
+            VOUCH_WITHDRAWN_AT__isnull=True,
             BUSN_ID=OuterRef("BUSN_ID"),
             TAG_ID=OuterRef("TAG_ID"),
             USER_ID=user,

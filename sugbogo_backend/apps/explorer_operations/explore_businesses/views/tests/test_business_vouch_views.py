@@ -380,6 +380,7 @@ class BusinessVouchViewTests(APITestCase):
             self.business.vouches.filter(
                 USER_ID=self.user,
                 TAG_ID=self.spicy_tag,
+                VOUCH_WITHDRAWN_AT__isnull=True,
             ).exists()
         )
 
@@ -410,6 +411,54 @@ class BusinessVouchViewTests(APITestCase):
             response.data["message"],
             "Your vouch could not be found.",
         )
+
+    def test_delete_validates_tag_id(self):
+        for payload in [{}, {"tag_id": 0}, {"tag_id": "invalid"}]:
+            with self.subTest(payload=payload):
+                response = self.client.delete(
+                    self.url,
+                    payload,
+                    format="json",
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("tag_id", response.data["errors"])
+
+    def test_post_restores_same_identity_and_invalid_restoration_is_controlled(self):
+        created = self.client.post(
+            self.url,
+            {"tag_id": self.spicy_tag.pk},
+            format="json",
+        )
+        vouch_id = created.data["data"]["id"]
+        removed = self.client.delete(
+            self.url,
+            {"tag_id": self.spicy_tag.pk},
+            format="json",
+        )
+        self.assertEqual(removed.status_code, 200)
+        restored = self.client.post(
+            self.url,
+            {"tag_id": self.spicy_tag.pk},
+            format="json",
+        )
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.data["data"], created.data["data"])
+        self.client.delete(
+            self.url,
+            {"tag_id": self.spicy_tag.pk},
+            format="json",
+        )
+        self.business.vouches.filter(pk=vouch_id).update(
+            VOUCH_EVIDENCE_IS_VALID=False,
+        )
+        blocked = self.client.post(
+            self.url,
+            {"tag_id": self.spicy_tag.pk},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertFalse(blocked.data["success"])
+        self.assertIn("evidence is invalid", blocked.data["message"])
 
     def test_unauthenticated_user_cannot_create_vouch(self):
         self.client.force_authenticate(user=None)

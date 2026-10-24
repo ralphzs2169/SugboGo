@@ -1,5 +1,3 @@
-import logging
-from functools import partial
 
 from django.db import IntegrityError, transaction
 from django.db.models import Case, IntegerField, Prefetch, Value, When
@@ -13,7 +11,6 @@ from apps.notifications.services.notification_event_service import (
 )
 
 from apps.business.models import Business, BusinessSpecialtyTag, Category, SpecialtyTag
-from apps.business.tasks import recompute_discovery_scores
 from apps.merchant_operations.business_profile.models import (
     BusinessClassificationChangeRequest,
     BusinessClassificationSpecialtySnapshot,
@@ -25,7 +22,6 @@ from apps.merchant_operations.business_profile.services.merchant_change_reason i
     validate_merchant_change_reason,
 )
 
-logger = logging.getLogger(__name__)
 
 
 class BusinessClassificationChangeService:
@@ -316,23 +312,6 @@ class BusinessClassificationChangeService:
             raise NotFound("The classification change request could not be found.")
 
     @staticmethod
-    def _queue_discovery_refresh(
-        request_id,
-        business_id,
-    ):
-        """Queue the existing all-business refresh after a committed approval."""
-        try:
-            recompute_discovery_scores.delay()
-        except Exception:
-            logger.exception(
-                "Classification approved but discovery refresh dispatch failed.",
-                extra={
-                    "request_id": request_id,
-                    "business_id": business_id,
-                },
-            )
-
-    @staticmethod
     @transaction.atomic
     def approve(request_id, reviewer):
         """Apply one pending proposal atomically against its captured baseline."""
@@ -481,12 +460,11 @@ class BusinessClassificationChangeService:
                 "BCCR_UPDATED_AT",
             ],
         )
-        transaction.on_commit(
-            partial(
-                BusinessClassificationChangeService._queue_discovery_refresh,
-                request_id=change_request.pk,
-                business_id=change_request.BUSN_ID_id,
-            ),
+        from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+
+        # Target the changed business now; the daily run refreshes comparison peers.
+        DiscoveryScoreRefreshService.request_refresh(
+            change_request.BUSN_ID_id,
         )
         AdminActivityService.record_user_action(
             actor=reviewer,

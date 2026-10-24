@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from datetime import timedelta
 from threading import Barrier
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from django.contrib.gis.geos import Point
 from django.db import IntegrityError, close_old_connections, transaction
@@ -544,8 +544,7 @@ class BusinessClassificationChangeViewTests(TestCase):
         request_id = self._submit().data["data"]["id"]
 
         with patch(
-            "apps.merchant_operations.business_profile.services."
-            "business_classification_change_service.recompute_discovery_scores.delay"
+            "apps.business.tasks.recompute_business_discovery_score.delay"
         ) as dispatch, patch(
             "apps.notifications.services.notification_realtime_service."
             "NotificationRealtimeService.publish"
@@ -558,8 +557,11 @@ class BusinessClassificationChangeViewTests(TestCase):
 
             # Both callbacks should execute after commit.
             self.assertEqual(len(callbacks), 2)
-            dispatch.assert_called_once_with()
-            publish.assert_called_once_with(self.merchant.pk)
+            dispatch.assert_called_once_with(business_id=self.business.pk)
+            publish.assert_called_once_with(
+                self.merchant.pk,
+                notification_id=ANY,
+            )
 
         self.assertEqual(response.status_code, 200, response.data)
         self.business.refresh_from_db()
@@ -639,8 +641,7 @@ class BusinessClassificationChangeViewTests(TestCase):
                         CLUS_ID=self.old_cluster,
                     )
                 with patch(
-                    "apps.merchant_operations.business_profile.services."
-                    "business_classification_change_service.recompute_discovery_scores.delay"
+                    "apps.business.tasks.recompute_business_discovery_score.delay"
                 ) as dispatch:
                     with self.captureOnCommitCallbacks(execute=True) as callbacks:
                         approval = self._approve(request_id)
@@ -693,8 +694,7 @@ class BusinessClassificationChangeViewTests(TestCase):
             "apps.notifications.services.notification_realtime_service."
             "NotificationRealtimeService.publish"
         ) as publish, patch(
-            "apps.merchant_operations.business_profile.services."
-            "business_classification_change_service.recompute_discovery_scores.delay"
+            "apps.business.tasks.recompute_business_discovery_score.delay"
         ) as dispatch:
             with self.captureOnCommitCallbacks(execute=True) as callbacks:
                 rejected = self.client.post(
@@ -703,7 +703,10 @@ class BusinessClassificationChangeViewTests(TestCase):
                     format="json",
                 )
             self.assertEqual(len(callbacks), 1)
-            publish.assert_called_once_with(self.merchant.pk)
+            publish.assert_called_once_with(
+                self.merchant.pk,
+                notification_id=ANY,
+            )
             dispatch.assert_not_called()
         self.assertEqual(rejected.status_code, 200, rejected.data)
         self.assertEqual(rejected.data["data"]["status"], "rejected")
@@ -786,12 +789,10 @@ class BusinessClassificationChangeViewTests(TestCase):
 
         request_id = self._submit().data["data"]["id"]
         with patch(
-            "apps.merchant_operations.business_profile.services."
-            "business_classification_change_service.recompute_discovery_scores.delay",
+            "apps.business.tasks.recompute_business_discovery_score.delay",
             side_effect=RuntimeError("broker unavailable"),
         ), patch(
-            "apps.merchant_operations.business_profile.services."
-            "business_classification_change_service.logger.exception"
+            "apps.business.services.discovery_score_refresh_service.logger.exception"
         ) as logged_error:
             with self.captureOnCommitCallbacks(execute=True):
                 response = self._approve(request_id)
@@ -799,7 +800,6 @@ class BusinessClassificationChangeViewTests(TestCase):
         self.assertEqual(
             logged_error.call_args.kwargs["extra"],
             {
-                "request_id": request_id,
                 "business_id": self.business.pk,
             },
         )
@@ -908,8 +908,7 @@ class BusinessClassificationConcurrencyTests(TransactionTestCase):
                 close_old_connections()
 
         with patch(
-            "apps.merchant_operations.business_profile.services."
-            "business_classification_change_service.recompute_discovery_scores.delay"
+            "apps.business.tasks.recompute_business_discovery_score.delay"
         ):
             with ThreadPoolExecutor(max_workers=2) as executor:
                 approval_future = executor.submit(approve)

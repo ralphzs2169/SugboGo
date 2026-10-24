@@ -90,6 +90,7 @@ class CommunityReviewService:
                 BST_IS_ACTIVE=True,
             )
             author_vouch = BusinessVouch.objects.filter(
+                VOUCH_WITHDRAWN_AT__isnull=True,
                 BUSN_ID_id=OuterRef("BUSN_ID_id"),
                 USER_ID_id=OuterRef("USER_ID_id"),
                 TAG_ID_id=specialty_tag_id,

@@ -6,7 +6,7 @@ from enum import StrEnum
 
 from django.db import transaction
 from django.utils import timezone
-from rest_framework.exceptions import APIException, NotFound
+from rest_framework.exceptions import NotFound
 
 from apps.admin_operations.system_configuration.models import (
     DiscoveryAlgorithmConfiguration,
@@ -15,6 +15,7 @@ from apps.admin_operations.system_configuration.services.discovery_algorithm_con
     DiscoveryAlgorithmConfigurationService,
 )
 from apps.business.models import Business, DiscoveryScore
+from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 from apps.business.services.specialty_score_service import (
     BusinessSpecialtyScore,
     PersistedTagScore,
@@ -61,7 +62,7 @@ class StaleDiscoveryScoreResult:
 
     business_id: int
     requested_reference_time: datetime
-    current_reference_time: datetime
+    current_reference_time: datetime | None
     specialty_score: Decimal
     visibility_gap: Decimal
     discovery_score: Decimal
@@ -270,6 +271,8 @@ class DiscoveryScoreService:
         visibility_result: VisibilityGapResult,
         reference_time: datetime,
         configuration: DiscoveryAlgorithmConfiguration,
+        expected_version: int | None = None,
+        only_if_pending: bool = False,
     ) -> DiscoveryScoreBusinessResult:
         """Stores TagScores and one aggregate score in one transaction."""
 
@@ -287,7 +290,40 @@ class DiscoveryScoreService:
 
         if (
             score_record is not None
-            and reference_time < score_record.DSC_COMPUTED_AT
+            and (
+                (
+                    score_record.DSC_COMPUTED_AT is not None
+                    and reference_time <= score_record.DSC_COMPUTED_AT
+                )
+                or (
+                    expected_version is not None
+                    and score_record.DSC_REFRESH_VERSION != expected_version
+                )
+                or (
+                    # Generation zero is initialization, not an evidence invalidation.
+                    score_record.DSC_REFRESH_VERSION > 0
+                    and score_record.DSC_REFRESH_REQUESTED_AT is not None
+                    and reference_time < score_record.DSC_REFRESH_REQUESTED_AT
+                )
+                or (
+                    score_record.DSC_LAST_ATTEMPT_AT is not None
+                    and reference_time < score_record.DSC_LAST_ATTEMPT_AT
+                )
+                or (
+                    configuration.DAC_UPDATED_AT is not None
+                    and not DiscoveryAlgorithmConfiguration.objects.filter(
+                        pk=configuration.pk,
+                        DAC_UPDATED_AT=configuration.DAC_UPDATED_AT,
+                    ).exists()
+                )
+                or (
+                    only_if_pending
+                    and not DiscoveryScoreRefreshService.needs_refresh(
+                        score_record,
+                        reference_time,
+                    )
+                )
+            )
         ):
             return cls._build_stale_result(
                 business_id=business_id,
@@ -329,18 +365,27 @@ class DiscoveryScoreService:
                 DSC_V_SCORE=persisted_visibility_gap,
                 DSC_D_SCORE=persisted_discovery_score,
                 DSC_COMPUTED_AT=reference_time,
+                DSC_LAST_ATTEMPT_AT=reference_time,
             )
         else:
             score_record.DSC_S_SCORE = persisted_specialty_score
             score_record.DSC_V_SCORE = persisted_visibility_gap
             score_record.DSC_D_SCORE = persisted_discovery_score
             score_record.DSC_COMPUTED_AT = reference_time
+            score_record.DSC_IS_PROVISIONAL = False
+            score_record.DSC_REFRESH_REQUESTED_AT = None
+            score_record.DSC_LAST_ATTEMPT_AT = reference_time
+            score_record.DSC_LAST_ERROR = ""
             score_record.save(
                 update_fields=[
                     "DSC_S_SCORE",
                     "DSC_V_SCORE",
                     "DSC_D_SCORE",
                     "DSC_COMPUTED_AT",
+                    "DSC_IS_PROVISIONAL",
+                    "DSC_REFRESH_REQUESTED_AT",
+                    "DSC_LAST_ATTEMPT_AT",
+                    "DSC_LAST_ERROR",
                     "DSC_UPDATED_AT",
                 ],
             )
@@ -359,33 +404,63 @@ class DiscoveryScoreService:
         business_id: int,
         reference_time: datetime | None = None,
         configuration: DiscoveryAlgorithmConfiguration | None = None,
+        only_if_pending: bool = False,
     ) -> DiscoveryScoreBusinessResult:
-        """Recomputes and stores the current score for one active business."""
-
+        """Refreshes one active business while retaining provenance on failures."""
         if reference_time is None:
             reference_time = timezone.now()
-
         if configuration is None:
-            configuration = (
-                DiscoveryAlgorithmConfigurationService
-                .get_current_configuration()
+            configuration = DiscoveryAlgorithmConfigurationService.get_current_configuration()
+        score = DiscoveryScoreRefreshService.initialize(
+            business_id,
+            configuration,
+        )
+        if (
+            only_if_pending
+            and not DiscoveryScoreRefreshService.needs_refresh(
+                score,
+                reference_time,
             )
-
-        visibility_result = (
-            VisibilityGapService
-            .calculate_business_visibility_gap(
+        ):
+            return cls._build_stale_result(
+                business_id,
+                reference_time,
+                score,
+            )
+        version = score.DSC_REFRESH_VERSION
+        if not DiscoveryScoreRefreshService.record_attempt(
+            business_id,
+            version,
+            reference_time,
+        ):
+            score.refresh_from_db()
+            return cls._build_stale_result(
+                business_id,
+                reference_time,
+                score,
+            )
+        try:
+            visibility_result = VisibilityGapService.calculate_business_visibility_gap(
                 business_id=business_id,
                 reference_time=reference_time,
                 configuration=configuration,
             )
-        )
-
-        return cls._persist_business_score(
-            business_id=business_id,
-            visibility_result=visibility_result,
-            reference_time=reference_time,
-            configuration=configuration,
-        )
+            return cls._persist_business_score(
+                business_id=business_id,
+                visibility_result=visibility_result,
+                reference_time=reference_time,
+                configuration=configuration,
+                expected_version=version,
+                only_if_pending=only_if_pending,
+            )
+        except Exception as exc:
+            DiscoveryScoreRefreshService.record_failure(
+                business_id,
+                version,
+                reference_time,
+                exc,
+            )
+            raise
 
     @classmethod
     def recompute_business_scores(
@@ -393,74 +468,98 @@ class DiscoveryScoreService:
         business_ids: Iterable[int] | None = None,
         reference_time: datetime | None = None,
     ) -> DiscoveryScoreBatchResult:
-        """Recomputes active businesses with one time and configuration snapshot."""
-
+        """Uses one visibility snapshot and isolates per-business persistence failures."""
         if reference_time is None:
             reference_time = timezone.now()
-
-        configuration = (
-            DiscoveryAlgorithmConfigurationService
-            .get_current_configuration()
+        if business_ids is not None:
+            business_ids = tuple(business_ids)
+        configuration = DiscoveryAlgorithmConfigurationService.get_current_configuration()
+        targets = Business.objects.filter(
+            BUSN_STATUS=Business.BusinessStatus.ACTIVE,
         )
-        visibility_results = (
-            VisibilityGapService
-            .calculate_visibility_gaps(
+        if business_ids is not None:
+            targets = targets.filter(pk__in=business_ids)
+        states = {}
+        target_ids = targets.order_by("BUSN_ID").values_list(
+            "BUSN_ID",
+            flat=True,
+        )
+        for business_id in target_ids:
+            try:
+                score = DiscoveryScoreRefreshService.initialize(
+                    business_id,
+                    configuration,
+                )
+            except NotFound:
+                continue
+            states[business_id] = score
+            DiscoveryScoreRefreshService.record_attempt(
+                business_id,
+                score.DSC_REFRESH_VERSION,
+                reference_time,
+            )
+        try:
+            visibility_results = VisibilityGapService.calculate_visibility_gaps(
                 business_ids=business_ids,
                 reference_time=reference_time,
                 configuration=configuration,
             )
-        )
+        except Exception as exc:
+            for business_id, score in states.items():
+                DiscoveryScoreRefreshService.record_failure(
+                    business_id,
+                    score.DSC_REFRESH_VERSION,
+                    reference_time,
+                    exc,
+                )
+            raise
 
         updated_results = []
         stale_results = []
         failures = []
-
         for visibility_result in visibility_results:
-            try:
-                result = cls._persist_business_score(
-                    business_id=visibility_result.business_id,
-                    visibility_result=visibility_result,
-                    reference_time=reference_time,
-                    configuration=configuration,
-                )
-            except APIException as exc:
+            business_id = visibility_result.business_id
+            score = states.get(business_id)
+            if score is None:
                 failures.append(
                     DiscoveryScoreBusinessFailure(
-                        business_id=visibility_result.business_id,
-                        error_type=type(
-                            exc,
-                        ).__name__,
-                        detail=str(
-                            exc.detail,
-                        ),
+                        business_id=business_id,
+                        error_type="NotFound",
+                        detail="Business population changed during the refresh.",
                     ),
                 )
                 continue
-
-            if isinstance(
-                result,
-                StaleDiscoveryScoreResult,
-            ):
-                stale_results.append(
-                    result,
+            try:
+                result = cls._persist_business_score(
+                    business_id=business_id,
+                    visibility_result=visibility_result,
+                    reference_time=reference_time,
+                    configuration=configuration,
+                    expected_version=score.DSC_REFRESH_VERSION,
                 )
+            except Exception as exc:
+                DiscoveryScoreRefreshService.record_failure(
+                    business_id,
+                    score.DSC_REFRESH_VERSION,
+                    reference_time,
+                    exc,
+                )
+                failures.append(
+                    DiscoveryScoreBusinessFailure(
+                        business_id=business_id,
+                        error_type=type(exc).__name__,
+                        detail="Score refresh failed; pending state retained.",
+                    ),
+                )
+                continue
+            if isinstance(result, StaleDiscoveryScoreResult):
+                stale_results.append(result)
             else:
-                updated_results.append(
-                    result,
-                )
-
+                updated_results.append(result)
         return DiscoveryScoreBatchResult(
             reference_time=reference_time,
-            considered_count=len(
-                visibility_results,
-            ),
-            updated_results=tuple(
-                updated_results,
-            ),
-            stale_results=tuple(
-                stale_results,
-            ),
-            failures=tuple(
-                failures,
-            ),
+            considered_count=len(visibility_results),
+            updated_results=tuple(updated_results),
+            stale_results=tuple(stale_results),
+            failures=tuple(failures),
         )

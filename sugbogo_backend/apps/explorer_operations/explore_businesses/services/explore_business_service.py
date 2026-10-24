@@ -23,6 +23,7 @@ class ExploreBusinessService:
         """Retrieve an active business and its public Explorer details."""
 
         user_vouch_exists = BusinessVouch.objects.filter(
+            VOUCH_WITHDRAWN_AT__isnull=True,
             BUSN_ID=OuterRef("BUSN_ID"),
             USER_ID=user,
             TAG_ID=OuterRef("TAG_ID"),

@@ -77,6 +77,14 @@ class AdminDiscoveryScoreSerializer(serializers.ModelSerializer):
         source="DSC_COMPUTED_AT",
         read_only=True,
     )
+    score_state = serializers.CharField(read_only=True)
+    is_provisional = serializers.BooleanField(source="DSC_IS_PROVISIONAL", read_only=True)
+    refresh_requested_at = serializers.DateTimeField(
+        source="DSC_REFRESH_REQUESTED_AT",
+        read_only=True,
+    )
+    last_attempt_at = serializers.DateTimeField(source="DSC_LAST_ATTEMPT_AT", read_only=True)
+    last_error_code = serializers.CharField(source="DSC_LAST_ERROR", read_only=True)
 
     class Meta:
         model = DiscoveryScore
@@ -86,4 +94,9 @@ class AdminDiscoveryScoreSerializer(serializers.ModelSerializer):
             "visibility_gap",
             "discovery_score",
             "computed_at",
+            "score_state",
+            "is_provisional",
+            "refresh_requested_at",
+            "last_attempt_at",
+            "last_error_code",
         )

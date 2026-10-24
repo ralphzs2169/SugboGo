@@ -493,6 +493,13 @@ class ApplicationService:
             ]
         )
 
+        # Publish only after admission commits; initialization never reads telemetry.
+        from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+
+        DiscoveryScoreRefreshService.request_refresh(
+            business.BUSN_ID,
+        )
+
         # Copy permanent business landmarks.
 
         application_landmarks = application_location.landmarks.all()
