@@ -141,11 +141,14 @@ class DiscoveryScoreListView(APIView):
             category=request.query_params.get("category"),
             specialty_tag=request.query_params.get("specialty_tag"),
             ordering=request.query_params.get("ordering"),
+            score_state=request.query_params.get("score_state"),
         )
         paginator = StandardPagination()
         page = paginator.paginate_queryset(queryset, request)
         serializer = AdminDiscoveryScoreSerializer(page, many=True)
-        return paginator.get_paginated_response(serializer.data)
+        response = paginator.get_paginated_response(serializer.data)
+        response.data["data"]["coverage"] = DiscoveryScoreMonitoringService.coverage()
+        return response
 
 
 class DiscoveryScoreRecomputeView(APIView):

@@ -170,3 +170,30 @@ class DiscoveryScoreMonitoringViewTests(APITestCase):
         url = reverse("discovery-score-list")
         self.assertEqual(self.client.put(url, {}).status_code, 405)
         self.assertEqual(self.client.patch(url, {}).status_code, 405)
+
+    def test_coverage_and_initial_failure_state_are_visible_without_recalculation(self):
+        from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+
+        self.client.force_authenticate(user=self.admin)
+        DiscoveryScore.objects.filter(BUSN_ID=self.business).delete()
+        response = self.client.get(reverse("discovery-score-list"))
+        coverage = response.data["data"]["coverage"]
+        self.assertEqual(coverage["missing"], 1)
+        self.assertEqual(coverage["missing_businesses"][0]["id"], self.business.pk)
+        DiscoveryScoreRefreshService.initialize(self.business.pk)
+        response = self.client.get(
+            reverse("discovery-score-list"),
+            {"score_state": "PROVISIONAL"},
+        )
+        row = response.data["data"]["items"][0]
+        self.assertTrue(row["is_provisional"])
+        self.assertIsNone(row["computed_at"])
+        DiscoveryScore.objects.update(DSC_LAST_ERROR="OperationalError")
+        response = self.client.get(
+            reverse("discovery-score-list"),
+            {"score_state": "FAILED"},
+        )
+        self.assertEqual(
+            response.data["data"]["items"][0]["last_error_code"],
+            "OperationalError",
+        )

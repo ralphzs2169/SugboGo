@@ -115,7 +115,7 @@ class Business(models.Model):
 
 
 class DiscoveryScore(models.Model):
-    """Stores the authoritative current discovery scores for one business."""
+    """Stores current discovery values and their initialization/refresh provenance."""
 
     DSC_ID = models.AutoField(primary_key=True)
     DSC_S_SCORE = models.DecimalField(
@@ -154,7 +154,29 @@ class DiscoveryScore(models.Model):
             ),
         ],
     )
-    DSC_COMPUTED_AT = models.DateTimeField()
+    DSC_COMPUTED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    DSC_IS_PROVISIONAL = models.BooleanField(
+        default=False,
+    )
+    DSC_REFRESH_VERSION = models.PositiveBigIntegerField(
+        default=0,
+    )
+    DSC_REFRESH_REQUESTED_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    DSC_LAST_ATTEMPT_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    DSC_LAST_ERROR = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+    )
     DSC_CREATED_AT = models.DateTimeField(
         auto_now_add=True,
     )
