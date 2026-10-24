@@ -1,3 +1,6 @@
+import logging
+from datetime import timedelta
+
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
@@ -15,9 +18,55 @@ from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 
+logger = logging.getLogger(__name__)
+
 
 class VouchService:
     """Maintains one scoring identity through endorsement withdrawal and reinstatement."""
+
+    CONCENTRATION_REASON = "shared_installation_account_concentration"
+    CONCENTRATION_THRESHOLD = 5
+    CONCENTRATION_WINDOW = timedelta(hours=24)
+
+    @staticmethod
+    def _record_reliability_finding(vouch):
+        """Records advisory account concentration while the business lock is held."""
+        installation_id = vouch.VOUCH_INSTALLATION_ID
+        if installation_id is None or not installation_id.strip():
+            return
+
+        observed_at = timezone.now()
+        window_start = observed_at - VouchService.CONCENTRATION_WINDOW
+        # Retained submissions describe activity regardless of current support validity.
+        account_count = (
+            BusinessVouch.objects.filter(
+                BUSN_ID_id=vouch.BUSN_ID_id,
+                VOUCH_INSTALLATION_ID=installation_id,
+                VOUCH_CREATED_AT__gte=window_start,
+                VOUCH_CREATED_AT__lte=observed_at,
+            )
+            .values("USER_ID_id")
+            .distinct()
+            .count()
+        )
+        if account_count < VouchService.CONCENTRATION_THRESHOLD:
+            return
+
+        evidence = {
+            VouchService.CONCENTRATION_REASON: {
+                "observed_at": observed_at.isoformat(),
+                "window_start": window_start.isoformat(),
+                "window_hours": 24,
+                "distinct_account_count": account_count,
+                "threshold": VouchService.CONCENTRATION_THRESHOLD,
+            },
+        }
+        BusinessVouch.objects.filter(pk=vouch.pk).update(
+            VOUCH_FLAG_SUSPICIOUS=True,
+            VOUCH_RELIABILITY_EVIDENCE=evidence,
+        )
+        vouch.VOUCH_FLAG_SUSPICIOUS = True
+        vouch.VOUCH_RELIABILITY_EVIDENCE = evidence
 
     @staticmethod
     def _dispatch_score_refresh(
@@ -264,6 +313,15 @@ class VouchService:
         except IntegrityError:
             raise ValidationError(
                 "You have already vouched for this specialty.",
+            )
+
+        try:
+            with transaction.atomic():
+                VouchService._record_reliability_finding(vouch)
+        except Exception:
+            logger.exception(
+                "Vouch reliability evaluation failed.",
+                extra={"vouch_id": vouch.pk},
             )
 
         VouchService._update_counts(

@@ -19,6 +19,7 @@ const REFRESH_TOKEN_KEY = "refresh_token";
 const INSTALLATION_ID_KEY = "installation_id";
 
 let tokenMutationQueue: Promise<void> = Promise.resolve();
+let installationIdInitialization: Promise<string> | null = null;
 
 function enqueueTokenMutation<T>(mutation: () => Promise<T>): Promise<T> {
   const result = tokenMutationQueue.then(mutation, mutation);
@@ -129,18 +130,27 @@ export async function clearSessionTokens(generation: number) {
  * uninstalled or its secure app data is removed.
  */
 export async function getInstallationId() {
-  const existingInstallationId =
-    await SecureStore.getItemAsync(INSTALLATION_ID_KEY);
+  if (installationIdInitialization === null) {
+    installationIdInitialization = (async () => {
+      const existingInstallationId =
+        await SecureStore.getItemAsync(INSTALLATION_ID_KEY);
 
-  if (existingInstallationId) {
-    return existingInstallationId;
+      if (existingInstallationId) {
+        return existingInstallationId;
+      }
+
+      const installationId = randomUUID();
+
+      await SecureStore.setItemAsync(INSTALLATION_ID_KEY, installationId);
+
+      return installationId;
+    })().finally(() => {
+      // Share pending work only; retries must read the persisted source of truth.
+      installationIdInitialization = null;
+    });
   }
 
-  const installationId = randomUUID();
-
-  await SecureStore.setItemAsync(INSTALLATION_ID_KEY, installationId);
-
-  return installationId;
+  return installationIdInitialization;
 }
 
 /**

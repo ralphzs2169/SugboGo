@@ -142,6 +142,11 @@ class BusinessVouch(models.Model):
         default=False,
     )
 
+    VOUCH_RELIABILITY_EVIDENCE = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+
     VOUCH_INSTALLATION_ID = models.CharField(
         max_length=255,
         blank=True,
