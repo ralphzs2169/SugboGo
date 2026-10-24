@@ -2,6 +2,7 @@ export interface ApiError {
   success: false;
   message: string;
   code: string;
+  retry_after?: number;
   errors?: Record<string, string[]>;
 }
 

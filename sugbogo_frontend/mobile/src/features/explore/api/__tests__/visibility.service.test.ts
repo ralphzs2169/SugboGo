@@ -83,4 +83,19 @@ describe("visibility transport", () => {
       success: false,
     });
   });
+
+  it("preserves backend retry timing in a visibility error", async () => {
+    const failure = {
+      success: false,
+      code: "VISIBILITY_TRACKING_UNAVAILABLE",
+      message: "Unavailable",
+      retry_after: 30,
+    };
+    (apiClient.post as jest.Mock).mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 503, data: failure },
+    });
+    await expect(recordBusinessImpressions([12])).resolves.toEqual(failure);
+    await expect(recordBusinessProfileVisit(12)).resolves.toEqual(failure);
+  });
 });

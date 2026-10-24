@@ -34,35 +34,38 @@ export default function ProfileHeader({
 }: ProfileHeaderProps) {
   return (
     <View className="relative rounded-md bg-surface p-5">
-      <View className="mb-2 flex-row items-center justify-end">
+      <View className="absolute right-1 top-1 z-10 items-center">
         <NotificationBellButton />
-        {onEditProfile && (
-          <SafePressable
-            onPress={onEditProfile}
-            accessibilityRole="button"
-            accessibilityLabel="Edit profile"
-            className="h-12 w-12 items-center justify-center rounded-full active:bg-background"
-          >
-            <Feather
-              name="edit"
-              size={20}
-              color={theme.extends.colors.text.secondary}
-              strokeWidth={2}
-            />
-          </SafePressable>
-        )}
       </View>
 
       <View className="items-center px-6">
         <Avatar imageUrl={avatarUrl} avatarKey={avatarKey} size={80} />
 
         <View className="mt-3 w-full items-center">
-          <AppText
-            weight="bold"
-            className="text-center text-md text-text-primary"
-          >
-            {firstname} {lastname}
-          </AppText>
+          <View className="max-w-full flex-row items-center justify-center gap-2">
+            <AppText
+              weight="bold"
+              className="shrink text-center text-md text-text-primary"
+            >
+              {firstname} {lastname}
+            </AppText>
+            {onEditProfile && (
+              <SafePressable
+                onPress={onEditProfile}
+                accessibilityRole="button"
+                accessibilityLabel="Edit profile"
+                hitSlop={12}
+                className="h-6 w-6 shrink-0 items-center justify-center rounded-full active:bg-background"
+              >
+                <Feather
+                  name="edit"
+                  size={16}
+                  color={theme.extends.colors.text.secondary}
+                  strokeWidth={2}
+                />
+              </SafePressable>
+            )}
+          </View>
 
           <AppText
             className="mt-1 text-center text-xs text-text-secondary"
@@ -70,8 +73,9 @@ export default function ProfileHeader({
             {email}
           </AppText>
 
-          <View className="items-center">
-            <RoleBadge role={role} />
+          <View className="mt-3 flex-row flex-wrap items-center justify-center gap-2">
+            <RoleBadge role="explorer" />
+            {role === "merchant" && <RoleBadge role="merchant" />}
           </View>
         </View>
       </View>

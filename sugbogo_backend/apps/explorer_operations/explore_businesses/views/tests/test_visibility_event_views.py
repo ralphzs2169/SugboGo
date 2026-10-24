@@ -2,8 +2,10 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
+from django.test import SimpleTestCase, override_settings
+from pymongo.errors import AutoReconnect
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APIRequestFactory, force_authenticate
 
 from apps.business.models import (
     Business,
@@ -18,6 +20,194 @@ from apps.business.services.visibility_event_service import (
 )
 from apps.shared.services.mongodb_service import MongoDBService
 from apps.users.models import User
+from apps.business.services.tests.test_visibility_event_service import FakeVisibilityCollection
+from apps.explorer_operations.explore_businesses.views.visibility_event_views import (
+    BusinessImpressionBatchView,
+    BusinessProfileVisitView,
+)
+
+
+@override_settings(
+    MONGODB_VISIBILITY_FAILURE_COOLDOWN_SECONDS=30,
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        },
+    },
+)
+class VisibilityRetryMetadataTests(SimpleTestCase):
+    """Exercise real persistence failures and API envelopes without database access."""
+
+    def setUp(self):
+        self.clock = 100.0
+        self.collection = FakeVisibilityCollection()
+        self.factory = APIRequestFactory()
+        self.user = SimpleNamespace(
+            pk=1,
+            USER_ID=1,
+            USER_ROLE=User.UserRole.EXPLORER,
+            is_authenticated=True,
+            is_active=True,
+        )
+        patches = [
+            patch.object(
+                VisibilityEventService,
+                "_unavailable_until",
+                0.0,
+            ),
+            patch.object(
+                VisibilityEventService,
+                "_indexes_initialized",
+                True,
+            ),
+            patch.object(
+                VisibilityEventService,
+                "_get_monotonic_time",
+                side_effect=lambda: self.clock,
+            ),
+            patch.object(
+                VisibilityEventService,
+                "_validate_active_business_ids",
+                return_value=[42],
+            ),
+            patch.object(
+                VisibilityEventService,
+                "_validate_active_business",
+                return_value=SimpleNamespace(
+                    BUSN_ID=42,
+                    USER_ID_id=99,
+                ),
+            ),
+        ]
+        for patcher in patches:
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        collection_patch = patch.object(
+            VisibilityEventService,
+            "_get_collection",
+            return_value=self.collection,
+        )
+        self.get_collection = collection_patch.start()
+        self.addCleanup(collection_patch.stop)
+
+    def request_event(
+        self,
+        profile_visit=False,
+        payload=None,
+    ):
+        """Send an authenticated request through the maintained visibility API view."""
+        if payload is None:
+            payload = {"business_ids": [42]}
+        request = self.factory.post(
+            "/visibility/",
+            payload,
+            format="json",
+        )
+        force_authenticate(
+            request,
+            user=self.user,
+        )
+        if profile_visit:
+            return BusinessProfileVisitView.as_view()(
+                request,
+                business_id=42,
+            )
+        return BusinessImpressionBatchView.as_view()(request)
+
+    def test_persistence_failure_returns_retry_after_for_both_endpoints(self):
+        for profile_visit in (False, True):
+            with self.subTest(profile_visit=profile_visit):
+                VisibilityEventService._unavailable_until = 0.0
+                self.collection.bulk_write_error = AutoReconnect("Unavailable")
+                response = self.request_event(profile_visit=profile_visit)
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+                self.assertEqual(
+                    response.data["code"],
+                    "VISIBILITY_TRACKING_UNAVAILABLE",
+                )
+                self.assertEqual(
+                    response.data["retry_after"],
+                    30,
+                )
+                self.assertEqual(
+                    response["Retry-After"],
+                    "30",
+                )
+                self.assertFalse(response.data["success"])
+                self.assertEqual(
+                    response.data["message"],
+                    "Visibility tracking is temporarily unavailable.",
+                )
+
+    def test_cooldown_reports_remaining_delay_and_recovers_without_duplicates(self):
+        self.collection.bulk_write_error = AutoReconnect("Unavailable")
+        self.request_event()
+        self.clock = 107.25
+        response = self.request_event()
+        self.assertEqual(
+            response.data["retry_after"],
+            23,
+        )
+        self.assertEqual(
+            response["Retry-After"],
+            "23",
+        )
+        self.assertEqual(
+            self.get_collection.call_count,
+            1,
+        )
+
+        self.clock = 130.0
+        self.collection.bulk_write_error = None
+        recovered = self.request_event()
+        repeated = self.request_event()
+        self.assertEqual(
+            recovered.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            recovered.data["data"]["recorded_count"],
+            1,
+        )
+        self.assertEqual(
+            repeated.data["data"]["duplicate_count"],
+            1,
+        )
+        self.assertEqual(
+            len(self.collection.documents),
+            1,
+        )
+        self.assertNotIn(
+            "retry_after",
+            recovered.data,
+        )
+        self.assertNotIn(
+            "Retry-After",
+            recovered,
+        )
+
+    def test_invalid_payload_has_no_retry_metadata_or_persistence_attempt(self):
+        response = self.request_event(payload={})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(
+            response.data["code"],
+            "VALIDATION_ERROR",
+        )
+        self.assertNotIn(
+            "retry_after",
+            response.data,
+        )
+        self.assertNotIn(
+            "Retry-After",
+            response,
+        )
+        self.get_collection.assert_not_called()
 
 
 class VisibilityEventViewTests(APITestCase):

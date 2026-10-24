@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from math import ceil
 from threading import Lock
 from time import monotonic
 
@@ -36,14 +37,22 @@ class VisibilityTrackingUnavailable(APIException):
         *args,
         cooldown_short_circuit=False,
         reason=None,
+        retry_after=None,
         **kwargs,
     ):
+        """Expose a whole-second retry interval using DRF's Retry-After convention."""
         super().__init__(
             *args,
             **kwargs,
         )
         self.cooldown_short_circuit = cooldown_short_circuit
         self.reason = reason
+        if retry_after is None:
+            retry_after = settings.MONGODB_VISIBILITY_FAILURE_COOLDOWN_SECONDS
+        self.wait = max(
+            1,
+            ceil(retry_after),
+        )
 
 
 class VisibilityEventType(StrEnum):
@@ -81,9 +90,11 @@ class VisibilityEventService:
         with cls._availability_lock:
             unavailable_until = cls._unavailable_until
 
-        if cls._get_monotonic_time() < unavailable_until:
+        remaining_seconds = unavailable_until - cls._get_monotonic_time()
+        if remaining_seconds > 0:
             raise VisibilityTrackingUnavailable(
                 cooldown_short_circuit=True,
+                retry_after=remaining_seconds,
             )
 
     @classmethod
