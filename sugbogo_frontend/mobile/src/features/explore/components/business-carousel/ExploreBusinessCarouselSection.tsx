@@ -61,11 +61,13 @@ export default function ExploreBusinessCarousel({
 
   useEffect(() => {
     retainBusinesses(businesses.map((business) => business.id));
+  }, [businesses, retainBusinesses]);
 
+  useEffect(() => {
     return () => {
       retainBusinesses([]);
     };
-  }, [businesses, retainBusinesses]);
+  }, [retainBusinesses]);
 
   return (
     <View
