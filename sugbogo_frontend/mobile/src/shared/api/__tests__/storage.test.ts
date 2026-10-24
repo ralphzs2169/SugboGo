@@ -38,11 +38,13 @@ jest.mock("expo-crypto", () => ({ randomUUID: jest.fn() }));
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
 
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 describe("token storage", () => {
@@ -156,6 +158,105 @@ describe("token storage", () => {
 
     await expect(getInstallationId()).rejects.toThrow(
       "SecureStore unavailable",
+    );
+  });
+
+  it("shares concurrent installation initialization until the ID is persisted", async () => {
+    const read = createDeferred<string | null>();
+    const write = createDeferred<void>();
+    const writeStarted = createDeferred<void>();
+    (SecureStore.getItemAsync as jest.Mock).mockReturnValue(read.promise);
+    (randomUUID as jest.Mock).mockReturnValue("shared-installation");
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation(() => {
+      writeStarted.resolve();
+      return write.promise;
+    });
+
+    const first = getInstallationId();
+    const second = getInstallationId();
+    expect(SecureStore.getItemAsync).toHaveBeenCalledTimes(1);
+    expect(SecureStore.getItemAsync).toHaveBeenCalledWith("installation_id");
+    expect(randomUUID).not.toHaveBeenCalled();
+
+    read.resolve(null);
+    await writeStarted.promise;
+    const third = getInstallationId();
+    const settled = jest.fn();
+    const results = Promise.all([first, second, third]).then(settled);
+    await Promise.resolve();
+
+    expect(settled).not.toHaveBeenCalled();
+    expect(SecureStore.getItemAsync).toHaveBeenCalledTimes(1);
+    expect(randomUUID).toHaveBeenCalledTimes(1);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledTimes(1);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      "installation_id",
+      "shared-installation",
+    );
+
+    write.resolve();
+    await results;
+    expect(settled).toHaveBeenCalledWith([
+      "shared-installation",
+      "shared-installation",
+      "shared-installation",
+    ]);
+  });
+
+  it("retries installation initialization after a shared read failure", async () => {
+    const read = createDeferred<string | null>();
+    const error = new Error("SecureStore read failed");
+    (SecureStore.getItemAsync as jest.Mock)
+      .mockReturnValueOnce(read.promise)
+      .mockResolvedValueOnce("stored-after-retry");
+
+    const results = Promise.allSettled([
+      getInstallationId(),
+      getInstallationId(),
+    ]);
+    read.reject(error);
+    await expect(results).resolves.toEqual([
+      { status: "rejected", reason: error },
+      { status: "rejected", reason: error },
+    ]);
+    expect(randomUUID).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+
+    await expect(getInstallationId()).resolves.toBe("stored-after-retry");
+    expect(SecureStore.getItemAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries installation initialization without caching an unpersisted ID", async () => {
+    const write = createDeferred<void>();
+    const writeStarted = createDeferred<void>();
+    const error = new Error("SecureStore write failed");
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    (randomUUID as jest.Mock)
+      .mockReturnValueOnce("unpersisted-installation")
+      .mockReturnValueOnce("persisted-installation");
+    (SecureStore.setItemAsync as jest.Mock)
+      .mockImplementationOnce(() => {
+        writeStarted.resolve();
+        return write.promise;
+      })
+      .mockResolvedValueOnce(undefined);
+
+    const first = getInstallationId();
+    await writeStarted.promise;
+    const results = Promise.allSettled([first, getInstallationId()]);
+    write.reject(error);
+    await expect(results).resolves.toEqual([
+      { status: "rejected", reason: error },
+      { status: "rejected", reason: error },
+    ]);
+
+    await expect(getInstallationId()).resolves.toBe("persisted-installation");
+    expect(SecureStore.getItemAsync).toHaveBeenCalledTimes(2);
+    expect(randomUUID).toHaveBeenCalledTimes(2);
+    expect(SecureStore.setItemAsync).toHaveBeenNthCalledWith(
+      2,
+      "installation_id",
+      "persisted-installation",
     );
   });
 
