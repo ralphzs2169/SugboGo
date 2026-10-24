@@ -3,6 +3,7 @@ import type { SpecialtyTag } from "@/shared/types/specialtyTag.types";
 export type MerchantBusinessProfileResponse = {
   business_name: string;
   description: string | null;
+  access_directions?: string;
   contact_number: string;
   business_email: string | null;
   website: string | null;
@@ -22,6 +23,7 @@ export type MerchantBusinessProfileResponse = {
 };
 
 export type MerchantBusinessInformationUpdate = {
+  access_directions?: string;
   description?: string;
   contact_number?: string;
   business_email?: string | null;
@@ -29,6 +31,7 @@ export type MerchantBusinessInformationUpdate = {
 };
 
 export type MerchantBusinessInformationResponse = {
+  access_directions?: string;
   description: string | null;
   contact_number: string;
   business_email: string | null;

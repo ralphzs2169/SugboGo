@@ -23,6 +23,7 @@ import JeepneyDestinationHeader from "../components/getting-there/jeepney-guidan
 import JeepneyDestinationStickyHeader from "../components/getting-there/jeepney-guidance/JeepneyDestinationStickyHeader";
 import JourneyOriginSelector from "../components/getting-there/jeepney-guidance/JourneyOriginSelector";
 import GettingThereEmptyState from "../components/getting-there/GettingThereEmptyState";
+import MerchantAccessDirections from "../components/getting-there/MerchantAccessDirections";
 import GettingThereLoadingState from "../components/getting-there/GettingThereLoadingState";
 import LocationUnavailableState from "../components/getting-there/LocationUnavailableState";
 import useDirectJourneys from "../hooks/useDirectJourneys";
@@ -275,6 +276,9 @@ export default function JeepneyGuideScreen({ businessId }: Props) {
               onRetry={() => void journeyQuery.refetch()}
             />
           ) : null}
+
+          {/* Merchant guidance remains readable for successful and empty searches. */}
+          <MerchantAccessDirections directions={business?.access_directions} />
 
           {/* Approximate-distance clarification */}
           {journeyQuery.routeOptions.length > 0 && (

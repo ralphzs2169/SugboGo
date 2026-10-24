@@ -15,7 +15,9 @@ jest.mock("@/features/merchant/api/merchantBusinessProfile.service", () => ({
 
 function createWrapper(client: QueryClient) {
   return function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
   };
 }
 
@@ -35,6 +37,7 @@ describe("useUpdateMerchantBusinessInformation", () => {
       message: "Updated.",
       data: {
         description: "Updated business description",
+        access_directions: "Walk from the market entrance.",
         contact_number: "09171234567",
         business_email: "hello@example.com",
         website: "https://example.com",
@@ -57,7 +60,10 @@ describe("useUpdateMerchantBusinessInformation", () => {
       () => useUpdateMerchantBusinessInformation(7),
       { wrapper: createWrapper(client) },
     );
-    const changes = { description: "Updated business description" };
+    const changes = {
+      description: "Updated business description",
+      access_directions: "Walk from the market entrance.",
+    };
 
     await act(async () => {
       await result.current.updateInformation(changes);
@@ -76,6 +82,7 @@ describe("useUpdateMerchantBusinessInformation", () => {
         id: 7,
         business_name: "Sugbo Bistro",
         description: "Updated business description",
+        access_directions: "Walk from the market entrance.",
       }),
     );
     unmount();

@@ -7,7 +7,7 @@ DTO is dehydrated into the Query persistence allowlist.
 ## Projection and storage
 
 `recentBusinessDetailSchema` reuses the actual Offline Pocket business-data schema.
-It keeps identity, cluster/category, description, specialty labels/icons/colors,
+It keeps identity, cluster/category, description, optional merchant access directions, specialty labels/icons/colors,
 public address/coordinates/contacts, weekly hours and remote photo metadata.
 Nested objects strip unknown fields. Review data, insights, aggregates, vouch
 counts/state, Pocket state, ownership and mutation eligibility are absent.

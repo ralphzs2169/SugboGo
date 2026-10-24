@@ -151,6 +151,7 @@ export type ExploreOperatingHours = {
 };
 
 export type ExploreBusinessDetail = ExploreBusiness & {
+  access_directions?: string;
   review_insights?: BusinessReviewInsights | null;
   review_insight_regeneration?: ReviewInsightRegeneration | null;
   description: string | null;

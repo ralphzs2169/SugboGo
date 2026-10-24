@@ -6,6 +6,24 @@ import {
 import { businessFixture, snapshotFixture } from "./snapshotFixture";
 
 describe("Offline business snapshot validation", () => {
+  it("preserves optional directions while accepting snapshots saved before the field existed", () => {
+    const old = snapshotFixture();
+    delete old.business.access_directions;
+    expect(parseOfflineBusinessSnapshot(JSON.stringify(old)).status).toBe(
+      "available",
+    );
+    const snapshot = createOfflineBusinessSnapshot(
+      { ...businessFixture(), access_directions: "Walk from the market." },
+      "2026-10-22T01:00:00Z",
+    );
+    const saved = parseOfflineBusinessSnapshot(
+      serializeOfflineBusinessSnapshot(snapshot).json,
+    );
+    expect(saved.status).toBe("available");
+    expect(saved.snapshot?.business.access_directions).toBe(
+      "Walk from the market.",
+    );
+  });
   it("round trips only presentation fields from the real detail DTO", () => {
     const input = businessFixture();
     const snapshot = createOfflineBusinessSnapshot(

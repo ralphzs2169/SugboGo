@@ -24,6 +24,12 @@ class Business(models.Model):
         null=True,
     )
 
+    BUSN_ACCESS_DIRECTIONS = models.TextField(
+        max_length=1000,
+        blank=True,
+        default="",
+    )
+
     BUSN_CONTACT_NUMBER = models.CharField(
         max_length=20,
     )

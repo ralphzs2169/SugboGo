@@ -17,6 +17,9 @@ jest.mock("expo-router", () => ({
   },
 }));
 jest.mock("@/shared/hooks/useUserLocation");
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("../../hooks/useDirectJourneys");
 jest.mock("../../hooks/useExploreBusinessProfile", () => ({
@@ -84,7 +87,16 @@ describe("JeepneyGuideScreen", () => {
       confirmedOrigin: null,
     });
     (useExploreBusinessProfile as jest.Mock).mockReturnValue({
-      business: { business_name: "Sugbo Cafe" },
+      business: {
+        business_name: "Sugbo Cafe",
+        location: {
+          address: "Market",
+          city: "Cebu City",
+          province: "Cebu",
+          latitude: 10.3,
+          longitude: 123.9,
+        },
+      },
       isLoading: false,
       error: null,
       refetch: businessRefetch,
@@ -112,6 +124,36 @@ describe("JeepneyGuideScreen", () => {
 
     expect(screen.getByText("Finding your current location…")).toBeTruthy();
     expect(useDirectJourneys).toHaveBeenCalledWith(21, null, null);
+  });
+
+  it("shows merchant directions alongside the no-direct-route state", async () => {
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      business: {
+        business_name: "Sugbo Cafe",
+        location: {
+          address: "Market",
+          city: "Cebu City",
+          province: "Cebu",
+          latitude: 10.3,
+          longitude: 123.9,
+        },
+        access_directions: "At the chapel, take a motorcycle to our gate.",
+      },
+      isLoading: false,
+      error: null,
+      refetch: businessRefetch,
+    });
+    const screen = await render(<JeepneyGuideScreen businessId={21} />);
+    expect(screen.getByText("Merchant-provided directions")).toBeTruthy();
+    expect(
+      screen.getByText("At the chapel, take a motorcycle to our gate."),
+    ).toBeTruthy();
+    expect(screen.getByText("No convenient direct route found")).toBeTruthy();
+  });
+
+  it("hides the directions panel for businesses without a note", async () => {
+    const screen = await render(<JeepneyGuideScreen businessId={21} />);
+    expect(screen.queryByText("Merchant-provided directions")).toBeNull();
   });
 
   it("shows a location-specific state when permission is denied", async () => {
@@ -196,8 +238,9 @@ describe("JeepneyGuideScreen", () => {
     expect(screen.getByText("Recommended")).toBeTruthy();
     expect(screen.getByText("14D")).toBeTruthy();
     expect(screen.getByText("Kamputhaw → Colon")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("14D, Kamputhaw → Colon"));
     expect(screen.getByText("Get off at Colon")).toBeTruthy();
-    expect(screen.getByText(/Near Gaisano Capital South/)).toBeTruthy();
+    expect(screen.getByText(/Gaisano Capital South/)).toBeTruthy();
     expect(useDirectJourneys).toHaveBeenCalledWith(21, 10.3, 123.88);
   });
 
@@ -224,7 +267,8 @@ describe("JeepneyGuideScreen", () => {
     });
 
     const screen = await render(<JeepneyGuideScreen businessId={21} />);
-    fireEvent.press(screen.getByText("View on map"));
+    await fireEvent.press(screen.getByLabelText("14D, Kamputhaw → Colon"));
+    await fireEvent.press(screen.getByLabelText("View guide on map"));
 
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]/jeepney-route-map",
