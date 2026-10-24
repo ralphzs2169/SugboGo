@@ -3,6 +3,8 @@ import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import EmailConfirmationLayout from "@/features/auth/components/EmailConfirmationLayout";
 import Toast from "react-native-toast-message";
 import LoadingScreen from "@/shared/components/LoadingScreen";
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
 import { useVerifyEmail } from "@/features/auth/hooks/useVerifyEmail";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
@@ -24,6 +26,7 @@ export default function VerifyEmailScreen() {
 
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
 
   const pendingEmail = useVerificationStore((state) => state.pendingEmail);
 
@@ -32,12 +35,19 @@ export default function VerifyEmailScreen() {
   const { handleVerifyEmail } = useVerifyEmail();
 
   const { uid, token } = useLocalSearchParams();
+  const validLink =
+    typeof uid === "string" && !!uid && typeof token === "string" && !!token;
+  const incompleteLink =
+    (uid !== undefined || token !== undefined) && !validLink;
+  const isVerifying = verifying && validLink;
 
   useEffect(() => {
-    if (!uid || !token) return;
+    if (!validLink) return;
+    let active = true;
 
     const verify = async () => {
       setVerifying(true);
+      setError("");
 
       try {
         const response = await handleVerifyEmail(
@@ -45,35 +55,30 @@ export default function VerifyEmailScreen() {
           token.toString(),
         );
 
+        if (!active) return;
         if (response.success) {
           router.replace("/(auth)/email-verified");
           return;
         }
 
-        if (handleSystemError(response)) {
-          return;
-        }
-
-        setVerifying(false);
-
-        Toast.show({
-          type: "error",
-          text1: "Email verification failed.",
-        });
-      } catch (error) {
-        setVerifying(false);
-
-        console.error("Unexpected email verification error:", error);
-
-        Toast.show({
-          type: "error",
-          text1: "Something went wrong. Please try again.",
-        });
+        setError(
+          response.message ||
+            "Unable to verify this link. Retry, or request a new verification email.",
+        );
+        handleSystemError(response);
+      } catch {
+        if (!active) return;
+        setError("Unable to verify your email. Please try again.");
+      } finally {
+        if (active) setVerifying(false);
       }
     };
 
-    verify();
-  }, [uid, token, handleVerifyEmail, router]);
+    void verify();
+    return () => {
+      active = false;
+    };
+  }, [uid, token, validLink, verificationAttempt, handleVerifyEmail, router]);
 
   const openEmailApp = async () => {
     try {
@@ -110,8 +115,6 @@ export default function VerifyEmailScreen() {
 
       return;
     }
-
-    setError("");
 
     const response = await handleResendVerification(pendingEmail);
 
@@ -153,7 +156,7 @@ export default function VerifyEmailScreen() {
     });
   };
 
-  if (verifying) {
+  if (isVerifying) {
     return (
       <LoadingScreen
         title="Verifying Email"
@@ -167,12 +170,33 @@ export default function VerifyEmailScreen() {
       title="Verify your email"
       description="We've sent a verification email to"
       email={pendingEmail}
-      verifying={verifying}
+      verifying={isVerifying}
       openEmailApp={openEmailApp}
       resendTitle="Resend Email"
       onResend={onResend}
       resendLoading={resending}
     >
+      {/* Persistent recovery remains available after verification failures. */}
+      {(error || incompleteLink) && (
+        <AppText
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+          className="mb-4 text-center text-sm text-text-error"
+        >
+          {incompleteLink
+            ? "This verification link is incomplete. Open the latest link from your email."
+            : error}
+        </AppText>
+      )}
+      {error && validLink && (
+        <Button
+          title="Retry verification"
+          onPress={() => setVerificationAttempt((value) => value + 1)}
+          disabled={isVerifying || resending}
+          rounded="full"
+          className="mb-4"
+        />
+      )}
       <BottomAuthLink
         text=""
         actionText="Back to Login"

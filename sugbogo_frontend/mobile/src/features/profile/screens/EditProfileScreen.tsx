@@ -6,6 +6,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { isStaleAuthSessionError } from "@/shared/api/authSessionGeneration.service";
+import {
+  assertProfileSessionCurrent,
+  captureProfileSession,
+} from "../utils/profileSession";
 
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
@@ -118,6 +123,16 @@ export default function EditProfileScreen() {
   }
 
   async function handleSaveChanges() {
+    try {
+      await saveChangesForCurrentSession();
+    } catch (error) {
+      if (isStaleAuthSessionError(error)) return;
+      setFormError("Unable to save your profile. Please try again.");
+    }
+  }
+
+  async function saveChangesForCurrentSession() {
+    const session = captureProfileSession();
     const validationErrors = validateProfileForm(firstName, lastName);
 
     if (Object.keys(validationErrors).length > 0) {
@@ -140,6 +155,7 @@ export default function EditProfileScreen() {
 
     // Upload a newly selected profile picture.
     if (selectedImage) {
+      assertProfileSessionCurrent(session);
       const pictureResponse = await uploadProfilePicture(selectedImage);
 
       if (!pictureResponse.success) {
@@ -155,6 +171,7 @@ export default function EditProfileScreen() {
       gender !== user?.gender ||
       selectedAvatarKey !== (user?.avatar_key ?? null)
     ) {
+      assertProfileSessionCurrent(session);
       const response = await updateUserProfile({
         first_name: firstName,
         last_name: lastName,
@@ -184,7 +201,13 @@ export default function EditProfileScreen() {
       }
     }
 
+    assertProfileSessionCurrent(session);
     setTimeout(() => {
+      try {
+        assertProfileSessionCurrent(session);
+      } catch {
+        return;
+      }
       Toast.show({
         type: "info",
         text1: "Profile updated successfully.",

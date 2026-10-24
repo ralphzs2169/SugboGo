@@ -4,6 +4,8 @@ import QueryLifecycle from "@/shared/query/QueryLifecycle";
 import RecentExploreReconnect from "@/features/explore/components/RecentExploreReconnect";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import AppSplash from "@/shared/components/AppSplash";
+import ErrorState from "@/shared/components/ErrorState";
+import { View } from "react-native";
 import { toastConfig } from "@/shared/components/ToastConfig";
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
@@ -28,6 +30,7 @@ import {
 import Toast from "react-native-toast-message";
 import NotificationRealtimeSync from "@/features/notifications/components/NotificationRealtimeSync";
 import PocketPickerProvider from "@/features/pockets/providers/PocketPickerProvider";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import OfflinePocketSync from "@/features/offline-pockets/providers/OfflinePocketSync";
 import {
   defaultStackScreenOptions,
@@ -41,7 +44,7 @@ import "../../global.css";
  * restoration, navigation, keyboard handling, and shared UI infrastructure.
  */
 export default function RootLayout() {
-  useRestoreSession();
+  const restoration = useRestoreSession();
 
   const [fontsLoaded] = useFonts({
     // Native map markers snapshot their glyphs before async icon updates.
@@ -55,6 +58,9 @@ export default function RootLayout() {
   });
 
   const isLoading = useAuthStore((state) => state.isLoading);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const offlineOwnerId = useOfflineAccessStore((state) => state.ownerId);
+  const recentExplore = useOfflineAccessStore((state) => state.recentExplore);
 
   if (!fontsLoaded) {
     return null;
@@ -62,6 +68,24 @@ export default function RootLayout() {
 
   if (isLoading) {
     return <AppSplash />;
+  }
+
+  if (restoration.recoveryRequired && !isAuthenticated) {
+    return (
+      <View className="flex-1 bg-background">
+        {/* Retry server validation without discarding saved credentials. */}
+        <ErrorState
+          title="Unable to restore your session"
+          description="Your saved sign-in has been kept. Retry when the service is available, or continue without restoring this session."
+          primaryActionTitle="Retry"
+          onPrimaryAction={restoration.retry}
+          secondaryActionTitle={
+            offlineOwnerId || recentExplore ? "Offline guidance" : "Sign in"
+          }
+          onSecondaryAction={restoration.continueWithoutSession}
+        />
+      </View>
+    );
   }
 
   return (
