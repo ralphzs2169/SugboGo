@@ -18,6 +18,27 @@ const mockSearchState = {
   fetchNextPage: jest.fn(),
 };
 const mockDismiss = jest.fn();
+jest.mock("expo-router", () => ({ useIsFocused: () => true }));
+jest.mock("@/features/explore/hooks/useVisibilityMutations", () => ({
+  useRecordBusinessImpressions: () => ({ mutateAsync: jest.fn() }),
+}));
+jest.mock("react-native-reanimated", () => {
+  const React = jest.requireActual("react");
+  return {
+    useSharedValue: (value: number) =>
+      React.useRef({
+        value,
+        get() {
+          return this.value;
+        },
+        set(next: number) {
+          this.value = next;
+        },
+      }).current,
+    useAnimatedReaction: jest.fn(),
+  };
+});
+jest.mock("react-native-worklets", () => ({ scheduleOnRN: jest.fn() }));
 jest.mock("../../hooks/useMapBusinessSearch", () => ({
   __esModule: true,
   default: jest.fn(() => mockSearchState),
@@ -84,9 +105,13 @@ jest.mock("@gorhom/bottom-sheet", () => {
     }) {
       return (
         <View>
-          {data.length > 0 ? data.map((item) => (
-            <React.Fragment key={item.id}>{renderItem({ item })}</React.Fragment>
-          )) : ListEmptyComponent}
+          {data.length > 0
+            ? data.map((item) => (
+                <React.Fragment key={item.id}>
+                  {renderItem({ item })}
+                </React.Fragment>
+              ))
+            : ListEmptyComponent}
           {ListFooterComponent}
         </View>
       );

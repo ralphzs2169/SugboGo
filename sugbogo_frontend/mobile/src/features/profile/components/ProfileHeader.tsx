@@ -1,8 +1,10 @@
-import { TouchableOpacity, View } from "react-native";
+import { View } from "react-native";
 import { theme } from "@/constants/theme";
+import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 import Avatar from "@/shared/components/Avatar";
 import RoleBadge from "@/shared/components/RoleBadge";
 import AppText from "@/shared/components/AppText";
+import SafePressable from "@/shared/components/SafePressable";
 import { Feather } from "@expo/vector-icons";
 import type { AvatarKey } from "@/shared/constants/avatars";
 import type { ReactNode } from "react";
@@ -32,19 +34,24 @@ export default function ProfileHeader({
 }: ProfileHeaderProps) {
   return (
     <View className="relative rounded-md bg-surface p-5">
-      {onEditProfile && (
-        <TouchableOpacity
-          onPress={onEditProfile}
-          className="absolute right-4 top-4 flex-row items-center rounded-md"
-        >
-          <Feather
-            name="edit"
-            size={20}
-            color={theme.extends.colors.text.secondary}
-            strokeWidth={2}
-          />
-        </TouchableOpacity>
-      )}
+      <View className="mb-2 flex-row items-center justify-end">
+        <NotificationBellButton />
+        {onEditProfile && (
+          <SafePressable
+            onPress={onEditProfile}
+            accessibilityRole="button"
+            accessibilityLabel="Edit profile"
+            className="h-12 w-12 items-center justify-center rounded-full active:bg-background"
+          >
+            <Feather
+              name="edit"
+              size={20}
+              color={theme.extends.colors.text.secondary}
+              strokeWidth={2}
+            />
+          </SafePressable>
+        )}
+      </View>
 
       <View className="items-center px-6">
         <Avatar imageUrl={avatarUrl} avatarKey={avatarKey} size={80} />

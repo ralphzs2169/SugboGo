@@ -26,6 +26,7 @@ import MapSearchOverlay from "../components/MapSearchOverlay";
 import MSMEPreviewCard from "../components/MSMEPreviewCard";
 import MapBusinessSearchSheet from "../components/MapBusinessSearchSheet";
 import useMapDirectory from "../hooks/useMapDirectory";
+import useMapPreviewImpressions from "../hooks/useMapPreviewImpressions";
 import {
   DEFAULT_MAP_FILTERS,
   type MapBounds,
@@ -52,6 +53,8 @@ export default function MapScreen() {
   const searchSheetRef = useRef<BottomSheetModal | null>(null);
   const filterSheetRef = useRef<BottomSheetModal | null>(null);
   const filterSheetOpen = useRef(false);
+  const [searchSheetVisible, setSearchSheetVisible] = useState(false);
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [searchTarget, setSearchTarget] = useState<{
     id: number;
     latitude: number;
@@ -207,6 +210,18 @@ export default function MapScreen() {
   const selectedBusiness = displayedBusinesses.find(
     (business) => business.id === selectedBusinessId,
   );
+  const {
+    viewportRef,
+    previewRef,
+    onViewportLayout,
+    measurePreview,
+    onIdentityGeometryChange,
+  } = useMapPreviewImpressions(
+    selectedBusiness?.id,
+    bottomSpacing,
+    headerBottom,
+    headerBottom > 0 && !searchSheetVisible && !filterSheetVisible,
+  );
 
   // Reset vanished IDs before rendering so a later response cannot reopen them.
   if (
@@ -249,6 +264,7 @@ export default function MapScreen() {
       return;
     }
     filterSheetOpen.current = true;
+    setFilterSheetVisible(true);
     presentBottomSheet(filterSheetRef);
   };
 
@@ -339,7 +355,13 @@ export default function MapScreen() {
   }
 
   return (
-    <View className="flex-1">
+    <View
+      ref={viewportRef}
+      collapsable={false}
+      testID="map-impression-viewport"
+      className="flex-1"
+      onLayout={onViewportLayout}
+    >
       {/* Live clustered map and existing overlays */}
       <BusinessDiscoveryMap
         isScreenFocused={isScreenFocused}
@@ -391,7 +413,10 @@ export default function MapScreen() {
         filters={filters}
         hideQuickFilters={selectedBusinessId !== null}
         filterCount={filterCount}
-        onSearch={() => presentBottomSheet(searchSheetRef)}
+        onSearch={() => {
+          setSearchSheetVisible(true);
+          presentBottomSheet(searchSheetRef);
+        }}
         onFilters={() => void openFilters()}
         onToggleQuick={(key) =>
           setFilters({ ...filters, [key]: !filters[key] })
@@ -410,6 +435,7 @@ export default function MapScreen() {
         className="absolute left-md right-md gap-sm"
         style={{ bottom: bottomSpacing }}
         pointerEvents="box-none"
+        onLayout={measurePreview}
       >
         <View className="mr-16 gap-sm" pointerEvents="box-none">
           {isLoadingFilters && (
@@ -492,12 +518,15 @@ export default function MapScreen() {
         {selectedBusiness && (
           <View
             key={selectedBusiness.id}
+            ref={previewRef}
+            collapsable={false}
             testID="business-preview-anchor"
             onLayout={(event) => {
               setPreviewLayout({
                 id: selectedBusiness.id,
                 height: event.nativeEvent.layout.height,
               });
+              measurePreview();
             }}
           >
             <MSMEPreviewCard
@@ -505,6 +534,7 @@ export default function MapScreen() {
               business={selectedBusiness}
               onClose={clearSelection}
               onViewBusiness={viewBusiness}
+              onIdentityGeometryChange={onIdentityGeometryChange}
             />
           </View>
         )}
@@ -513,6 +543,8 @@ export default function MapScreen() {
       <MapBusinessSearchSheet
         sheetRef={searchSheetRef}
         onBusinessSelect={selectSearchBusiness}
+        onVisibilityChange={setSearchSheetVisible}
+        impressionsEnabled={!filterSheetVisible}
       />
       <SearchFilterBottomSheet
         sheetRef={filterSheetRef}
@@ -521,6 +553,7 @@ export default function MapScreen() {
         onChange={setDraftFilters}
         onDismiss={() => {
           filterSheetOpen.current = false;
+          setFilterSheetVisible(false);
         }}
         onApply={() => {
           setFilters({

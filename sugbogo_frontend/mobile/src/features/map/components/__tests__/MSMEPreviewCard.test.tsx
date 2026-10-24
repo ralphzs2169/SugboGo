@@ -47,7 +47,7 @@ it("shows API identity, concise specialty chips, and working close/profile actio
   expect(screen.getByText("Local Pastries")).toBeTruthy();
   expect(screen.queryByText("+2 more")).toBeNull();
   expect(screen.getByText("Family Friendly")).toBeTruthy();
-  expect(screen.getByText("Hidden Gem")).toBeTruthy();
+  expect(screen.getByLabelText("Hidden Gem")).toBeTruthy();
   await fireEvent.press(
     screen.getByRole("button", { name: "Close business preview" }),
   );

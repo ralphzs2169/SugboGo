@@ -6,7 +6,9 @@ import {
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import LottieView from "lottie-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAnimatedReaction, useSharedValue } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import {
   ActivityIndicator,
   BackHandler,
@@ -26,10 +28,13 @@ import loadingAnimation from "@/shared/assets/animations/loading.json";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
 import useMapBusinessSearch from "../hooks/useMapBusinessSearch";
+import useResultsImpressions from "@/features/explore/hooks/useResultsImpressions";
 
 type Props = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
   onBusinessSelect: (business: ExploreBusiness) => void;
+  onVisibilityChange?: (visible: boolean) => void;
+  impressionsEnabled?: boolean;
 };
 
 /**
@@ -39,15 +44,43 @@ type Props = {
 export default function MapBusinessSearchSheet({
   sheetRef,
   onBusinessSelect,
+  onVisibilityChange,
+  impressionsEnabled = true,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [isSettled, setIsSettled] = useState(false);
+  const animatedPosition = useSharedValue(Number.NaN);
+  const settledPosition = useSharedValue(Number.NaN);
   const isSheetOpen = useRef(false);
   const selectedResult = useRef(false);
   const pendingSelection = useRef<ExploreBusiness | null>(null);
   const endReached = useRef(false);
   const results = useMapBusinessSearch(query, isOpen);
+  const businessIds = useMemo(
+    () => results.businesses.map((business) => business.id),
+    [results.businesses],
+  );
+  const impressions = useResultsImpressions(
+    isOpen && isSettled && impressionsEnabled,
+    businessIds,
+  );
+
+  // Position observation also catches a held drag before a snap animation starts.
+  useAnimatedReaction(
+    () =>
+      Number.isFinite(settledPosition.get()) &&
+      Math.abs(animatedPosition.get() - settledPosition.get()) < 0.5,
+    (settled, previous) => {
+      if (settled !== previous) scheduleOnRN(setIsSettled, settled);
+    },
+  );
+
+  const pauseImpressions = useCallback(() => {
+    settledPosition.set(Number.NaN);
+    setIsSettled(false);
+  }, [settledPosition]);
 
   useQueryErrorNotification({
     error: results.error,
@@ -65,15 +98,17 @@ export default function MapBusinessSearchSheet({
         }
 
         Keyboard.dismiss();
+        pauseImpressions();
         sheetRef.current?.dismiss();
         return true;
       },
     );
 
     return () => subscription.remove();
-  }, [sheetRef]);
+  }, [sheetRef, pauseImpressions]);
 
   const close = () => {
+    pauseImpressions();
     Keyboard.dismiss();
     sheetRef.current?.dismiss();
   };
@@ -81,6 +116,7 @@ export default function MapBusinessSearchSheet({
   return (
     <BottomSheetModal
       ref={sheetRef}
+      animatedPosition={animatedPosition}
       snapPoints={["94%"]}
       topInset={insets.top}
       enableDynamicSizing={false}
@@ -104,16 +140,28 @@ export default function MapBusinessSearchSheet({
           opacity={0.45}
         />
       )}
-      onChange={(index) => {
+      onAnimate={(_fromIndex, toIndex, _fromPosition, toPosition) => {
+        setIsSettled(false);
+        settledPosition.set(
+          toIndex >= 0 ? toPosition + insets.top : Number.NaN,
+        );
+        onVisibilityChange?.(true);
+      }}
+      onChange={(index, position) => {
         const wasOpen = isSheetOpen.current;
         isSheetOpen.current = index >= 0;
         setIsOpen(index >= 0);
+        settledPosition.set(index >= 0 ? position + insets.top : Number.NaN);
+        setIsSettled(index >= 0);
+        if (index >= 0) onVisibilityChange?.(true);
         if (index >= 0 && !wasOpen) {
           selectedResult.current = false;
           pendingSelection.current = null;
         }
       }}
       onDismiss={() => {
+        pauseImpressions();
+        onVisibilityChange?.(false);
         isSheetOpen.current = false;
         setIsOpen(false);
         setQuery("");
@@ -184,7 +232,10 @@ export default function MapBusinessSearchSheet({
 
       {/* Registered businesses and localized recovery */}
       <BottomSheetFlatList<ExploreBusiness>
+        testID="map-business-search-results"
         data={results.businesses}
+        onViewableItemsChanged={impressions.onViewableItemsChanged}
+        viewabilityConfig={impressions.viewabilityConfig}
         keyExtractor={(business) => String(business.id)}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
