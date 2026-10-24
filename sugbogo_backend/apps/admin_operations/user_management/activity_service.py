@@ -36,6 +36,7 @@ class UserActivityService:
         vouches = (
             BusinessVouch.objects
             .filter(
+                VOUCH_WITHDRAWN_AT__isnull=True,
                 USER_ID=user,
             )
             .select_related(

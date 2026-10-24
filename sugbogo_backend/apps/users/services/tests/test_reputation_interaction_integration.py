@@ -259,13 +259,13 @@ class ReputationInteractionIntegrationTests(SafeReviewModerationMixin, TestCase)
         recreated_vouch = self._create_vouch()
         self.explorer.refresh_from_db()
 
-        self.assertNotEqual(
+        self.assertEqual(
             recreated_vouch.VOUCH_ID,
             first_vouch.VOUCH_ID,
         )
         self.assertEqual(
             recreated_vouch.VOUCH_REPUTATION_SNAPSHOT,
-            Decimal("0.21"),
+            Decimal("0.20"),
         )
         self.assertEqual(
             self.explorer.USER_REPUTATION,

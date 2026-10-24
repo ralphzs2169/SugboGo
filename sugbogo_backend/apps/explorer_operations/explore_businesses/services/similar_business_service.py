@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+
 from apps.admin_operations.system_configuration.services import (
     RecommendationAlgorithmConfigurationService,
 )
@@ -35,6 +37,7 @@ class SimilarBusinessService:
             USER_ID=user,
         )
         user_vouch_exists = BusinessVouch.objects.filter(
+            VOUCH_WITHDRAWN_AT__isnull=True,
             BUSN_ID=OuterRef("BUSN_ID"),
             USER_ID=user,
             TAG_ID=OuterRef("TAG_ID"),

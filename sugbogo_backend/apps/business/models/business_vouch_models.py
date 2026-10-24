@@ -152,6 +152,11 @@ class BusinessVouch(models.Model):
         auto_now_add=True,
     )
 
+    VOUCH_WITHDRAWN_AT = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+
     VOUCH_UPDATED_AT = models.DateTimeField(
         auto_now=True,
     )

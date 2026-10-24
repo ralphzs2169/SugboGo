@@ -33,6 +33,11 @@ class VouchNotificationFixtures:
     def setUp(self):
         """Isolate notification behavior from reputation configuration."""
         super().setUp()
+        dispatch = patch(
+            "apps.business.services.vouch_service.VouchService._dispatch_score_refresh",
+        )
+        dispatch.start()
+        self.addCleanup(dispatch.stop)
         reward = patch(
             "apps.business.services.vouch_service.ReputationService.apply_vouch_reward",
         )
@@ -173,7 +178,7 @@ class BusinessVouchNotificationTests(VouchNotificationFixtures, TestCase):
         self.create_vouch()
         notice = Notification.objects.get()
         self.assertEqual(len(notice.NOTF_METADATA["specialties"]), 1)
-        self.assertEqual(len(notice.NOTF_METADATA["vouch_ids"]), 2)
+        self.assertEqual(len(notice.NOTF_METADATA["vouch_ids"]), 1)
 
     def test_legacy_notice_is_not_rewritten_or_duplicated_on_replay(self):
         vouch = self.create_vouch()
@@ -246,7 +251,12 @@ class BusinessVouchNotificationTests(VouchNotificationFixtures, TestCase):
             business_id=self.business.pk,
             tag_id=self.spicy_tag.pk,
         )
-        self.assertFalse(BusinessVouch.objects.exists())
+        self.assertFalse(
+            BusinessVouch.objects.filter(
+                VOUCH_WITHDRAWN_AT__isnull=True,
+            ).exists(),
+        )
+        self.assertEqual(BusinessVouch.objects.count(), 1)
         self.assertEqual(Notification.objects.count(), 1)
 
     def test_rollback_does_not_leave_vouch_or_notification(self):

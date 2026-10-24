@@ -197,6 +197,9 @@ class UserManagementService:
                     ),
                     admin_vouch_count=Count(
                         "business_vouches",
+                        filter=Q(
+                            business_vouches__VOUCH_WITHDRAWN_AT__isnull=True,
+                        ),
                         distinct=True,
                     ),
                     admin_report_count=Count(

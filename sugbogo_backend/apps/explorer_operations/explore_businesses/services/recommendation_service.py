@@ -1,6 +1,8 @@
 import logging
 from collections import Counter, defaultdict
 from decimal import Decimal
+
+from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 from enum import IntEnum
 
 from apps.admin_operations.system_configuration.services import (
@@ -164,6 +166,7 @@ class RecommendationService:
             USER_ID=user,
         )
         user_vouch_exists = BusinessVouch.objects.filter(
+            VOUCH_WITHDRAWN_AT__isnull=True,
             BUSN_ID=OuterRef("BUSN_ID"),
             USER_ID=user,
             TAG_ID=OuterRef("TAG_ID"),
@@ -193,7 +196,7 @@ class RecommendationService:
                 display_cover_photo_url=display_cover_photo_expression(),
                 recommendation_visibility_gap=Coalesce(
                     "discovery_score__DSC_V_SCORE",
-                    Value(Decimal("0.00000")),
+                    Value(Decimal("1.00000")),
                     output_field=DecimalField(
                         max_digits=6,
                         decimal_places=5,
@@ -201,7 +204,7 @@ class RecommendationService:
                 ),
                 recommendation_discovery_score=Coalesce(
                     "discovery_score__DSC_D_SCORE",
-                    Value(Decimal("0.00000")),
+                    DiscoveryScoreRefreshService.missing_score_expression(),
                     output_field=DecimalField(
                         max_digits=6,
                         decimal_places=5,
@@ -287,6 +290,7 @@ class RecommendationService:
             )
 
         valid_vouch_tag_ids = BusinessVouch.objects.filter(
+            VOUCH_WITHDRAWN_AT__isnull=True,
             USER_ID=user,
             VOUCH_EVIDENCE_IS_VALID=True,
         ).values_list(

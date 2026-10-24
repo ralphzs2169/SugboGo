@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+
 from apps.business.models import (
     Business,
     BusinessPocket,
@@ -52,9 +54,7 @@ class DiscoveryFeedService:
             .annotate(
                 discovery_rank_score=Coalesce(
                     "discovery_score__DSC_D_SCORE",
-                    Value(
-                        Decimal("0.00000"),
-                    ),
+                    DiscoveryScoreRefreshService.missing_score_expression(),
                     output_field=DecimalField(
                         max_digits=6,
                         decimal_places=5,
@@ -96,6 +96,7 @@ class DiscoveryFeedService:
         )
 
         user_vouch_exists = BusinessVouch.objects.filter(
+            VOUCH_WITHDRAWN_AT__isnull=True,
             BUSN_ID=OuterRef("BUSN_ID"),
             USER_ID=user,
             TAG_ID=OuterRef("TAG_ID"),

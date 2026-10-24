@@ -302,7 +302,7 @@ class VouchHistoryViewTests(APIResponseAssertionsMixin, APITestCase):
         response = self.client.get(self.url, {"page": 2})
         self.assertEqual(response.status_code, 404)
 
-    def test_removed_vouch_disappears_and_recreation_has_new_identity(self):
+    def test_withdrawn_vouch_disappears_and_reinstatement_preserves_identity(self):
         old_vouch = self.create_vouch()
         self.create_vouch(user=self.other_user)
         response = self.client.delete(self.mutation_url, {"tag_id": self.tags[0].pk}, format="json")
@@ -313,7 +313,7 @@ class VouchHistoryViewTests(APIResponseAssertionsMixin, APITestCase):
         self.assertTrue(BusinessVouch.objects.filter(USER_ID=self.other_user).exists())
         recreated = self.create_vouch()
         history = self.client.get(self.url)
-        self.assertNotEqual(recreated.pk, old_vouch.pk)
+        self.assertEqual(recreated.pk, old_vouch.pk)
         self.assertEqual(history.data["data"]["items"][0]["id"], self.business.pk)
         self.assertEqual(history.data["data"]["items"][0]["vouches"][0]["id"], recreated.pk)
         self.assertEqual(
@@ -471,11 +471,16 @@ class VouchHistoryViewTests(APIResponseAssertionsMixin, APITestCase):
         self.assertEqual(item["last_vouched_at"], earlier_time.isoformat().replace("+00:00", "Z"))
         self.assertEqual([tag["is_vouched"] for tag in item["specialty_tags"]], [True, False, False])
         self.assertEqual([tag["vouch_count"] for tag in item["specialty_tags"]], [1, 0, 0])
-        self.assertFalse(BusinessVouch.objects.filter(pk=latest.pk).exists())
+        self.assertFalse(
+            BusinessVouch.objects.filter(
+                pk=latest.pk,
+                VOUCH_WITHDRAWN_AT__isnull=True,
+            ).exists(),
+        )
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_VOUCH_COUNT, 1)
 
-    def test_revouch_updates_business_order_without_changing_business_identity(self):
+    def test_reinstatement_preserves_original_business_chronology_and_identity(self):
         original = self.create_vouch()
         remaining = self.create_vouch(tag=self.tags[1])
         other_business = self.create_business("Re-vouch Comparison Bistro")
@@ -491,10 +496,20 @@ class VouchHistoryViewTests(APIResponseAssertionsMixin, APITestCase):
         self.assertEqual(recreated.status_code, 200)
         after = self.client.get(self.url)
         self.assert_history_totals(after, 2, 3)
-        item = after.data["data"]["items"][0]
+        self.assertEqual(
+            after.data["data"]["items"][0]["id"],
+            other_business.pk,
+        )
+        item = after.data["data"]["items"][1]
         self.assertEqual(item["id"], self.business.pk)
-        self.assertEqual(item["vouches"][0]["id"], recreated.data["data"]["id"])
-        self.assertNotEqual(item["vouches"][0]["id"], original.pk)
+        self.assertIn(
+            recreated.data["data"]["id"],
+            [
+                vouch["id"]
+                for vouch in item["vouches"]
+            ],
+        )
+        self.assertEqual(recreated.data["data"]["id"], original.pk)
 
     def test_retiring_latest_assignment_excludes_it_from_ordering_and_summary(self):
         older = self.create_vouch()

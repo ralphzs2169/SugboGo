@@ -1,14 +1,18 @@
 import inspect
 import json
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from celery.exceptions import Retry
 from django.test import SimpleTestCase
+from django.db import OperationalError
+from rest_framework.exceptions import NotFound
 
 from apps.business.services.discovery_score_service import (
     DiscoveryScoreBatchResult,
     DiscoveryScoreBusinessFailure,
+    DiscoveryScoreRecomputeStatus,
 )
 from apps.business.services.visibility_event_service import (
     VisibilityTrackingUnavailable,
@@ -16,6 +20,7 @@ from apps.business.services.visibility_event_service import (
 from apps.business.tasks import (
     TRANSIENT_RETRY_LIMIT,
     recompute_discovery_scores,
+    recompute_business_discovery_score,
 )
 
 
@@ -276,3 +281,116 @@ class DiscoveryScoreTaskTests(SimpleTestCase):
 
         retry_mock.assert_not_called()
         exception_mock.assert_called_once()
+
+
+class BusinessDiscoveryScoreTaskTests(SimpleTestCase):
+    """Cover scoped lifecycle refreshes without executing scoring or broker work."""
+
+    def test_refreshes_only_the_requested_business_and_returns_service_status(self):
+        for status in DiscoveryScoreRecomputeStatus:
+            with self.subTest(status=status), patch(
+                "apps.business.tasks.DiscoveryScoreService.recompute_business_score",
+                return_value=SimpleNamespace(status=status),
+            ) as service, patch(
+                "apps.business.tasks.DiscoveryScoreService.recompute_business_scores",
+            ) as batch:
+                result = recompute_business_discovery_score.run(
+                    business_id=12,
+                )
+
+            self.assertEqual(service.call_args.kwargs["business_id"], 12)
+            self.assertIn("reference_time", service.call_args.kwargs)
+            self.assertEqual(result["status"], status.value)
+            batch.assert_not_called()
+
+    def test_missing_or_inactive_business_is_skipped(self):
+        with patch(
+            "apps.business.tasks.DiscoveryScoreService.recompute_business_score",
+            side_effect=NotFound(),
+        ), patch.object(recompute_business_discovery_score, "retry") as retry:
+            result = recompute_business_discovery_score.run(
+                business_id=12,
+            )
+
+        self.assertEqual(result["status"], "SKIPPED_INACTIVE_OR_MISSING")
+        retry.assert_not_called()
+
+    def test_visibility_failure_retries_the_same_business_with_bounded_backoff(self):
+        with patch(
+            "apps.business.tasks.DiscoveryScoreService.recompute_business_score",
+            side_effect=VisibilityTrackingUnavailable(),
+        ), patch.object(
+            recompute_business_discovery_score,
+            "retry",
+            return_value=Retry(),
+        ) as retry, patch(
+            "apps.business.tasks.logger.warning",
+        ), self.assertRaises(Retry):
+            recompute_business_discovery_score.run(
+                business_id=12,
+            )
+
+        self.assertEqual(retry.call_args.kwargs["kwargs"], {"business_id": 12})
+        self.assertEqual(retry.call_args.kwargs["countdown"], 60)
+        self.assertEqual(
+            recompute_business_discovery_score.max_retries,
+            TRANSIENT_RETRY_LIMIT,
+        )
+
+    def test_each_attempt_uses_a_current_reference_time(self):
+        times = [
+            datetime(2026, 10, 24, 0, 0, tzinfo=UTC),
+            datetime(2026, 10, 24, 0, 5, tzinfo=UTC),
+        ]
+        with patch(
+            "apps.business.tasks.timezone.now",
+            side_effect=times,
+        ), patch(
+            "apps.business.tasks.DiscoveryScoreService.recompute_business_score",
+            return_value=SimpleNamespace(status=DiscoveryScoreRecomputeStatus.UPDATED),
+        ) as service:
+            for _ in times:
+                recompute_business_discovery_score.run(
+                    business_id=12,
+                )
+
+        self.assertEqual(
+            [
+                call.kwargs["reference_time"]
+                for call in service.call_args_list
+            ],
+            times,
+        )
+
+    def test_permanent_failure_is_logged_and_raised(self):
+        with patch(
+            "apps.business.tasks.DiscoveryScoreService.recompute_business_score",
+            side_effect=RuntimeError("scoring failure"),
+        ), patch(
+            "apps.business.tasks.logger.exception",
+        ) as logger, patch.object(
+            recompute_business_discovery_score,
+            "retry",
+        ) as retry, self.assertRaises(RuntimeError):
+            recompute_business_discovery_score.run(
+                business_id=12,
+            )
+
+        logger.assert_called_once()
+        retry.assert_not_called()
+
+    def test_transient_database_failure_uses_the_same_bounded_retry(self):
+        with patch(
+            "apps.business.tasks.DiscoveryScoreService.recompute_business_score",
+            side_effect=OperationalError("temporary database outage"),
+        ), patch.object(
+            recompute_business_discovery_score,
+            "retry",
+            return_value=Retry(),
+        ) as retry, patch(
+            "apps.business.tasks.logger.warning",
+        ), self.assertRaises(Retry):
+            recompute_business_discovery_score.run(business_id=12)
+
+        self.assertEqual(retry.call_args.kwargs["kwargs"], {"business_id": 12})
+        self.assertEqual(retry.call_args.kwargs["countdown"], 60)

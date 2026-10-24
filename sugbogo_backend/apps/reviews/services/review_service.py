@@ -729,6 +729,7 @@ class ReviewService:
         vouches = (
             BusinessVouch.objects
             .filter(
+                VOUCH_WITHDRAWN_AT__isnull=True,
                 BUSN_ID_id__in=business_ids,
                 USER_ID__in=user_ids,
             )

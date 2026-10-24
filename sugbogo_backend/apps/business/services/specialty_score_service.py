@@ -174,40 +174,18 @@ class SpecialtyScoreService:
         )
 
     @staticmethod
-    def calculate_evidence_dampening(
-        previous_valid_interactions: int,
-    ) -> Decimal:
-        if previous_valid_interactions < 0:
-            raise ValueError(
-                "Previous valid interactions cannot be negative.",
-            )
-
-        with localcontext() as context:
-            context.prec = SpecialtyScoreService.CALCULATION_PRECISION
-
-            interaction_position = (
-                SpecialtyScoreService.ONE
-                + Decimal(previous_valid_interactions)
-            )
-
-            return (
-                SpecialtyScoreService.ONE
-                / interaction_position.sqrt()
-            )
-
-    @staticmethod
     def calculate_contribution(
         reputation_snapshot: Decimal,
         decay: Decimal,
-        dampening: Decimal,
     ) -> Decimal:
+        """Weights immutable reputation by age independently of other evidence."""
+
         with localcontext() as context:
             context.prec = SpecialtyScoreService.CALCULATION_PRECISION
 
             return (
                 Decimal(reputation_snapshot)
                 * Decimal(decay)
-                * Decimal(dampening)
             )
 
     @staticmethod
@@ -216,6 +194,9 @@ class SpecialtyScoreService:
         decay_rate: Decimal,
         reference_time: datetime,
     ) -> TagScoreCalculation:
+        """Saturates additive evidence so removing a vouch cannot raise its score."""
+
+        # Keep explanation ordering stable without weighting by position.
         ordered_evidence = sorted(
             evidence,
             key=lambda item: (
@@ -230,25 +211,17 @@ class SpecialtyScoreService:
             context.prec = SpecialtyScoreService.CALCULATION_PRECISION
             raw_tag_evidence = SpecialtyScoreService.ZERO
 
-            for evidence_index, evidence_item in enumerate(
-                ordered_evidence,
-            ):
+            for evidence_item in ordered_evidence:
                 decay = SpecialtyScoreService.calculate_decay(
                     vouch_created_at=evidence_item.created_at,
                     reference_time=reference_time,
                     decay_rate=decay_rate,
-                )
-                dampening = (
-                    SpecialtyScoreService.calculate_evidence_dampening(
-                        previous_valid_interactions=evidence_index,
-                    )
                 )
                 contribution = SpecialtyScoreService.calculate_contribution(
                     reputation_snapshot=(
                         evidence_item.reputation_snapshot
                     ),
                     decay=decay,
-                    dampening=dampening,
                 )
 
                 raw_tag_evidence += contribution
@@ -257,7 +230,8 @@ class SpecialtyScoreService:
                     EvidenceContribution(
                         evidence_id=evidence_item.evidence_id,
                         decay=decay,
-                        dampening=dampening,
+                        # Retain the explanation field for existing consumers.
+                        dampening=SpecialtyScoreService.ONE,
                         contribution=contribution,
                     ),
                 )
@@ -381,6 +355,7 @@ class SpecialtyScoreService:
             )
         vouches = list(
             BusinessVouch.objects.filter(
+                VOUCH_WITHDRAWN_AT__isnull=True,
                 BUSN_ID=business_specialty.BUSN_ID_id,
                 TAG_ID=business_specialty.TAG_ID_id,
                 VOUCH_EVIDENCE_IS_VALID=True,
@@ -459,6 +434,7 @@ class SpecialtyScoreService:
 
         valid_vouches = (
             BusinessVouch.objects.filter(
+                VOUCH_WITHDRAWN_AT__isnull=True,
                 BUSN_ID=business,
                 TAG_ID_id__in=specialty_tag_ids,
                 VOUCH_EVIDENCE_IS_VALID=True,

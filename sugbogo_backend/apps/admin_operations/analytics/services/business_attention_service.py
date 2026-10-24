@@ -62,7 +62,11 @@ class BusinessAttentionService:
         )
         # Match maintained evidence validity; suspicion alone is not invalidation.
         rows = (
-            BusinessVouch.objects.filter(BUSN_ID__in=business_ids, VOUCH_EVIDENCE_IS_VALID=True)
+            BusinessVouch.objects.filter(
+                BUSN_ID__in=business_ids,
+                VOUCH_WITHDRAWN_AT__isnull=True,
+                VOUCH_EVIDENCE_IS_VALID=True,
+            )
             .filter(Exists(active_link)).values("BUSN_ID")
             .annotate(valid_vouches=Count("VOUCH_ID"), distinct_supporters=Count("USER_ID", distinct=True))
         )
