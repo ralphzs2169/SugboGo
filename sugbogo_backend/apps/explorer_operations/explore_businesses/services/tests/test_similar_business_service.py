@@ -6,6 +6,9 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
+from apps.admin_operations.system_configuration.models import (
+    DiscoveryAlgorithmConfiguration,
+)
 from apps.admin_operations.system_configuration.services import (
     RecommendationAlgorithmConfigurationService,
 )
@@ -241,6 +244,9 @@ class SimilarBusinessServiceTests(TestCase):
             "No Score Match",
             self.category,
         )
+        DiscoveryAlgorithmConfiguration.objects.filter(
+            pk=1,
+        ).delete()
 
         result = SimilarBusinessService.list_similar_businesses(
             self.current.BUSN_ID,
@@ -250,7 +256,157 @@ class SimilarBusinessServiceTests(TestCase):
         self.assertEqual(result, [match])
         self.assertEqual(
             result[0].similar_discovery_score,
+            Decimal("0.20000"),
+        )
+        self.assertFalse(
+            DiscoveryAlgorithmConfiguration.objects.exists(),
+        )
+        self.assertFalse(
+            DiscoveryScore.objects.filter(
+                BUSN_ID=match,
+            ).exists(),
+        )
+
+    def test_missing_and_provisional_scores_tie_and_persisted_scores_override(self):
+        missing = self._create_business(
+            "Missing Score Candidate",
+            self.category,
+        )
+        provisional = self._create_business(
+            "Provisional Candidate",
+            self.category,
+        )
+        higher = self._create_business(
+            "Higher Persisted Score",
+            self.category,
+        )
+        zero = self._create_business(
+            "Persisted Zero Score",
+            self.category,
+        )
+        DiscoveryScore.objects.create(
+            BUSN_ID=provisional,
+            DSC_S_SCORE=Decimal("0.00000"),
+            DSC_V_SCORE=Decimal("1.00000"),
+            DSC_D_SCORE=Decimal("0.20000"),
+            DSC_IS_PROVISIONAL=True,
+        )
+        self._add_score(
+            higher,
+            Decimal("0.90000"),
+        )
+        self._add_score(
+            zero,
             Decimal("0.00000"),
+        )
+
+        result = SimilarBusinessService.list_similar_businesses(
+            self.current.BUSN_ID,
+            self.explorer,
+        )
+
+        self.assertEqual(
+            [
+                business.BUSN_ID
+                for business in result
+            ],
+            [
+                higher.BUSN_ID,
+                missing.BUSN_ID,
+                provisional.BUSN_ID,
+                zero.BUSN_ID,
+            ],
+        )
+        self.assertEqual(
+            result[1].similar_discovery_score,
+            result[2].similar_discovery_score,
+        )
+        self.assertEqual(
+            result[3].similar_discovery_score,
+            Decimal("0.00000"),
+        )
+
+    def test_missing_score_tracks_configured_visibility_weight(self):
+        configuration, _ = (
+            DiscoveryAlgorithmConfiguration.objects.update_or_create(
+                pk=1,
+                defaults={
+                    "DAC_SPECIALTY_SCORE_WEIGHT": Decimal("0.80"),
+                    "DAC_VISIBILITY_GAP_WEIGHT": Decimal("0.20"),
+                },
+            )
+        )
+        match = self._create_business(
+            "Configured Missing Score",
+            self.category,
+        )
+        initial = SimilarBusinessService.list_similar_businesses(
+            self.current.BUSN_ID,
+            self.explorer,
+        )
+        self.assertEqual(
+            initial[0].similar_discovery_score,
+            Decimal("0.20000"),
+        )
+
+        configuration.DAC_SPECIALTY_SCORE_WEIGHT = Decimal("0.75")
+        configuration.DAC_VISIBILITY_GAP_WEIGHT = Decimal("0.25")
+        configuration.save(
+            update_fields=[
+                "DAC_SPECIALTY_SCORE_WEIGHT",
+                "DAC_VISIBILITY_GAP_WEIGHT",
+            ],
+        )
+        updated = SimilarBusinessService.list_similar_businesses(
+            self.current.BUSN_ID,
+            self.explorer,
+        )
+
+        self.assertEqual(updated, [match])
+        self.assertEqual(
+            updated[0].similar_discovery_score,
+            Decimal("0.25000"),
+        )
+        self.assertEqual(
+            DiscoveryAlgorithmConfiguration.objects.count(),
+            1,
+        )
+        self.assertFalse(
+            DiscoveryScore.objects.filter(
+                BUSN_ID=match,
+            ).exists(),
+        )
+
+    def test_higher_similarity_precedes_higher_discovery_score(self):
+        stronger = self._create_business(
+            "Stronger Similarity",
+            self.category,
+        )
+        weaker = self._create_business(
+            "Weaker Similarity Higher Score",
+            self.category,
+        )
+        self._add_tag(stronger)
+        self._add_score(
+            stronger,
+            Decimal("0.00000"),
+        )
+        self._add_score(
+            weaker,
+            Decimal("1.00000"),
+        )
+
+        result = SimilarBusinessService.list_similar_businesses(
+            self.current.BUSN_ID,
+            self.explorer,
+        )
+
+        self.assertEqual(
+            [
+                business.BUSN_ID
+                for business in result
+            ],
+            [stronger.BUSN_ID, weaker.BUSN_ID],
         )
 
     def test_no_meaningful_match_returns_empty_list(self):

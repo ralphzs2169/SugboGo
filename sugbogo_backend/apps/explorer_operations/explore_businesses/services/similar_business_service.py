@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 
 from apps.admin_operations.system_configuration.services import (
@@ -16,7 +14,7 @@ from apps.explorer_operations.explore_businesses.services.taxonomy_similarity im
     build_business_feature_map,
     cosine_similarity,
 )
-from django.db.models import DecimalField, Exists, OuterRef, Prefetch, Value
+from django.db.models import DecimalField, Exists, OuterRef, Prefetch
 from django.db.models.functions import Coalesce
 
 from .published_review_count import published_review_count
@@ -77,9 +75,7 @@ class SimilarBusinessService:
                 display_cover_photo_url=display_cover_photo_expression(),
                 similar_discovery_score=Coalesce(
                     "discovery_score__DSC_D_SCORE",
-                    Value(
-                        Decimal("0.00000"),
-                    ),
+                    DiscoveryScoreRefreshService.missing_score_expression(),
                     output_field=DecimalField(
                         max_digits=6,
                         decimal_places=5,
