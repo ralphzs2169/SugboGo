@@ -1,4 +1,5 @@
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
+import "@/features/explore/stores/recentSearches.store";
 import QueryPersistenceProvider from "@/shared/query/QueryPersistenceProvider";
 import QueryLifecycle from "@/shared/query/QueryLifecycle";
 import RecentExploreReconnect from "@/features/explore/components/RecentExploreReconnect";

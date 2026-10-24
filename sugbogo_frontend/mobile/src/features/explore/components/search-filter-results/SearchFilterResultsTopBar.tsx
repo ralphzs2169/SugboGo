@@ -12,6 +12,7 @@ type Props = {
   isFilterLoading: boolean;
   topInset: number;
   onSearchChange: (value: string) => void;
+  onSearchSubmit: (value: string) => void;
   onBack: () => void;
   onOpenFilters: () => void;
 };
@@ -29,6 +30,7 @@ export default function ExploreResultsTopBar({
   isFilterLoading,
   topInset,
   onSearchChange,
+  onSearchSubmit,
   onBack,
   onOpenFilters,
 }: Props) {
@@ -63,6 +65,8 @@ export default function ExploreResultsTopBar({
         <TextInput
           value={search}
           onChangeText={onSearchChange}
+          onSubmitEditing={(event) => onSearchSubmit(event.nativeEvent.text)}
+          maxLength={200}
           autoFocus={autoFocus}
           className="ml-2 min-w-0 flex-1 text-sm text-text-primary"
           style={{
@@ -100,7 +104,7 @@ export default function ExploreResultsTopBar({
         accessibilityState={{
           disabled: isFilterLoading,
         }}
-        className="relative h-12 w-12 cursor-pointer items-center justify-center rounded-input border border-border-primary bg-background active:opacity-70 disabled:opacity-50"
+        className="relative h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-border-primary bg-background active:opacity-70 disabled:opacity-50"
       >
         <MaterialCommunityIcons
           name="tune-variant"

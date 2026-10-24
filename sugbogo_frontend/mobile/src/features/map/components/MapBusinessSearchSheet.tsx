@@ -10,10 +10,9 @@ import {
 import LottieView from "lottie-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAnimatedReaction } from "react-native-reanimated";
-import { State } from "react-native-gesture-handler";
+import { State, type TextInput } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import {
-  ActivityIndicator,
   BackHandler,
   Keyboard,
   Pressable,
@@ -25,6 +24,10 @@ import { theme } from "@/constants/theme";
 import BusinessCard from "@/features/explore/components/new-businesses/BusinessCard";
 import type { ExploreBusiness } from "@/features/explore/types/exploreBusiness.types";
 import AppText from "@/shared/components/AppText";
+import RecentSearches from "@/features/explore/components/search-filter-results/RecentSearches";
+import SearchInitialState from "@/features/explore/components/search-filter-results/SearchInitialState";
+import SearchFilterEmptyState from "@/features/explore/components/search-filter-results/SearchFilterEmptyState";
+import { useRecentSearchesStore } from "@/features/explore/stores/recentSearches.store";
 import ErrorState from "@/shared/components/ErrorState";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
@@ -71,7 +74,7 @@ function SearchSheetSettlementObserver({
 }
 
 /**
- * Adapts Registration's near-full-height search interaction for SugboGo businesses.
+ * Shares Explore's search states and history inside the map's search sheet.
  * Search remains global and independent of the camera and applied map filters.
  */
 export default function MapBusinessSearchSheet({
@@ -84,11 +87,13 @@ export default function MapBusinessSearchSheet({
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [isSettled, setIsSettled] = useState(false);
+  const searchInputRef = useRef<TextInput>(null);
   const isSheetOpen = useRef(false);
   const selectedResult = useRef(false);
   const pendingSelection = useRef<ExploreBusiness | null>(null);
   const endReached = useRef(false);
   const results = useMapBusinessSearch(query, isOpen);
+  const history = useRecentSearchesStore();
   const businessIds = useMemo(
     () => results.businesses.map((business) => business.id),
     [results.businesses],
@@ -108,6 +113,18 @@ export default function MapBusinessSearchSheet({
     title: "Could not search businesses",
     fallbackMessage: "Please try again.",
   });
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
@@ -133,6 +150,15 @@ export default function MapBusinessSearchSheet({
     sheetRef.current?.dismiss();
   };
 
+  const shouldShowEndMessage =
+    results.hasQuery &&
+    !results.isPending &&
+    !results.error &&
+    !results.isPaused &&
+    !results.hasNextPage &&
+    !results.isFetchingNextPage &&
+    results.businesses.length >= 5;
+
   return (
     <BottomSheetModal
       ref={sheetRef}
@@ -144,7 +170,7 @@ export default function MapBusinessSearchSheet({
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       backgroundStyle={{
-        backgroundColor: theme.extends.colors.background,
+        backgroundColor: theme.extends.colors.surface,
         borderRadius: 24,
       }}
       handleIndicatorStyle={{
@@ -211,16 +237,20 @@ export default function MapBusinessSearchSheet({
         <AppText className="text-sm text-text-secondary">
           Find registered businesses across Cebu. Map filters do not apply here.
         </AppText>
-        <View className="mt-4 min-h-12 flex-row items-center rounded-xl border border-border-primary bg-surface px-3">
+        <View className="mt-4 min-h-12 flex-row items-center rounded-full border border-border-primary bg-surface px-3">
           <MaterialCommunityIcons
             name="magnify"
             size={21}
             color={theme.extends.colors.text.secondary}
           />
           <BottomSheetTextInput
+            ref={searchInputRef}
             autoFocus
             value={query}
             onChangeText={setQuery}
+            onSubmitEditing={(event) => {
+              void history.addQuery(event.nativeEvent.text);
+            }}
             maxLength={200}
             autoCorrect={false}
             autoCapitalize="none"
@@ -256,52 +286,76 @@ export default function MapBusinessSearchSheet({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         contentContainerStyle={{
-          paddingHorizontal: 16,
           paddingBottom: Math.max(insets.bottom, 32),
           gap: 12,
         }}
         renderItem={({ item }) => (
-          <BusinessCard
-            business={item}
-            variant="compact"
-            distance={null}
-            distanceAccuracy={null}
-            onPress={() => {
-              if (selectedResult.current) {
-                return;
-              }
-              selectedResult.current = true;
-              pendingSelection.current = item;
-              close();
-            }}
-          />
+          <View className="px-4">
+            <BusinessCard
+              business={item}
+              variant="compact"
+              distance={null}
+              distanceAccuracy={null}
+              onPress={() => {
+                if (selectedResult.current) {
+                  return;
+                }
+                selectedResult.current = true;
+                pendingSelection.current = item;
+                close();
+              }}
+            />
+          </View>
         )}
-        ListEmptyComponent={
-          results.isPending ? (
-            <View className="items-center py-8">
-              <ActivityIndicator color={theme.extends.colors.brand} />
-              <AppText className="mt-3 text-sm text-text-secondary">
-                Searching businesses…
+        ListHeaderComponent={
+          results.hasQuery &&
+          !results.isPending &&
+          !results.error &&
+          !results.isPaused ? (
+            <View className="px-4 pb-1">
+              <AppText className="text-sm text-text-secondary">
+                {results.totalItems}{" "}
+                {results.totalItems === 1 ? "place" : "places"}
               </AppText>
             </View>
-          ) : results.error ? (
-            <ErrorState
-              size="section"
-              title="Could not search businesses"
-              description="Try searching again."
-              primaryActionTitle="Retry"
-              onPrimaryAction={() => void results.refetch()}
-            />
+          ) : null
+        }
+        ListEmptyComponent={
+          !results.hasQuery ? (
+            history.queries.length > 0 ? (
+              <View className="px-5 pt-4">
+                <RecentSearches
+                  key={history.scope}
+                  queries={history.queries}
+                  onSelect={(recentQuery) => {
+                    setQuery(recentQuery);
+                    void history.addQuery(recentQuery);
+                  }}
+                  onRemove={history.removeQuery}
+                  onClear={history.clearQueries}
+                />
+              </View>
+            ) : history.isHydrated ? (
+              <SearchInitialState />
+            ) : (
+              <AppText className="px-5 py-8 text-sm text-text-secondary">
+                Loading recent searches…
+              </AppText>
+            )
           ) : (
-            <AppText className="px-4 py-8 text-center text-sm text-text-secondary">
-              {results.hasQuery
-                ? "No businesses found. Try another name, category, or specialty."
-                : "Enter at least two characters to find a business."}
-            </AppText>
+            <SearchFilterEmptyState
+              isLoading={results.isPending}
+              hasError={Boolean(results.error || results.isPaused)}
+              hasSearch
+              onRetry={() => void results.refetch()}
+              onGoBack={close}
+              isRetrying={results.isRefetching && !results.isFetchingNextPage}
+            />
           )
         }
         ListFooterComponent={
-          results.error && results.businesses.length > 0 ? (
+          !results.hasQuery || results.isPending ? null : results.error &&
+            results.businesses.length > 0 ? (
             <ErrorState
               size="section"
               title="Could not load more businesses"
@@ -318,7 +372,7 @@ export default function MapBusinessSearchSheet({
                 style={{ width: 50, height: 50 }}
               />
             </View>
-          ) : results.businesses.length > 0 && !results.hasNextPage ? (
+          ) : shouldShowEndMessage ? (
             <EndOfListMessage description="You've reached the end of these search results." />
           ) : null
         }
@@ -328,6 +382,8 @@ export default function MapBusinessSearchSheet({
         onEndReachedThreshold={0.35}
         onEndReached={() => {
           if (
+            isOpen &&
+            results.hasQuery &&
             !endReached.current &&
             results.hasNextPage &&
             !results.isFetching &&
