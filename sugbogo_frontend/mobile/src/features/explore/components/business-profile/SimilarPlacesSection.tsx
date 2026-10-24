@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 
@@ -15,6 +15,7 @@ import BusinessProfileSection from "./BusinessProfileSection";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import CompactBusinessListSkeleton from "../CompactBusinessListSkeleton";
+import { BusinessProfileImpressionsContext } from "../../hooks/BusinessProfileImpressionsContext";
 
 type Props = {
   businessId: number;
@@ -32,6 +33,25 @@ export default function SimilarPlacesSection({ businessId }: Props) {
   const similarBusinesses = useSimilarBusinesses(businessId);
   const { location: userLocation } = useUserLocation();
   const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(false);
+  const tracking = useContext(BusinessProfileImpressionsContext);
+  const retainBusinesses = tracking?.impressions.retainBusinesses;
+
+  useEffect(() => {
+    retainBusinesses?.(
+      similarBusinesses.isLoading || similarBusinesses.error
+        ? []
+        : similarBusinesses.businesses.map((business) => business.id),
+    );
+  }, [
+    similarBusinesses.businesses,
+    similarBusinesses.isLoading,
+    similarBusinesses.error,
+    retainBusinesses,
+  ]);
+
+  useEffect(() => {
+    return () => retainBusinesses?.([]);
+  }, [retainBusinesses]);
 
   useEffect(() => {
     if (!similarBusinesses.error) {
@@ -111,7 +131,13 @@ export default function SimilarPlacesSection({ businessId }: Props) {
         </View>
       ) : (
         /* Similar business results */
-        <View className="gap-3" testID="similar-places-list">
+        <View
+          ref={tracking?.listRef}
+          collapsable={false}
+          className="gap-3"
+          testID="similar-places-list"
+          onLayout={tracking?.measureList}
+        >
           {similarBusinesses.businesses.map((business) => {
             const distance = userLocation
               ? calculateDistanceInKm(
@@ -123,28 +149,36 @@ export default function SimilarPlacesSection({ businessId }: Props) {
               : null;
 
             return (
-              <BusinessCard
+              <View
                 key={business.id}
-                business={business}
-                distance={distance}
-                distanceAccuracy={userLocation?.coords.accuracy ?? null}
-                variant="compact"
-                onPress={() => {
-                  router.push({
-                    pathname: "/(explorer)/business/[businessId]",
-                    params: {
-                      businessId: String(business.id),
-                      profileSource: "SIMILAR_BUSINESSES",
-                      distance: distance === null ? "" : String(distance),
-                      distanceAccuracy:
-                        userLocation?.coords.accuracy === null ||
-                        userLocation?.coords.accuracy === undefined
-                          ? ""
-                          : String(userLocation.coords.accuracy),
-                    },
-                  });
-                }}
-              />
+                collapsable={false}
+                testID={`similar-place-impression-${business.id}`}
+                onLayout={(event) =>
+                  tracking?.impressions.onCardLayout(business.id, event)
+                }
+              >
+                <BusinessCard
+                  business={business}
+                  distance={distance}
+                  distanceAccuracy={userLocation?.coords.accuracy ?? null}
+                  variant="compact"
+                  onPress={() => {
+                    router.push({
+                      pathname: "/(explorer)/business/[businessId]",
+                      params: {
+                        businessId: String(business.id),
+                        profileSource: "SIMILAR_BUSINESSES",
+                        distance: distance === null ? "" : String(distance),
+                        distanceAccuracy:
+                          userLocation?.coords.accuracy === null ||
+                          userLocation?.coords.accuracy === undefined
+                            ? ""
+                            : String(userLocation.coords.accuracy),
+                      },
+                    });
+                  }}
+                />
+              </View>
             );
           })}
         </View>

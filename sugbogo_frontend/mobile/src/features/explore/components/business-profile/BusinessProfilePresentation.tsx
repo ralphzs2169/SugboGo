@@ -77,6 +77,7 @@ export default function BusinessProfilePresentation({
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <BusinessProfileScrollView
+        impressionsEnabled={!galleryVisible}
         extraBottomPadding={extraBottomPadding}
         business={identity}
         isRefreshing={isPullRefreshing && !detail.isLoading}

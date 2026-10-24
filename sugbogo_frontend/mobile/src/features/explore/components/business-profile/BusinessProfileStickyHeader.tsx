@@ -2,7 +2,12 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Animated, Pressable, View } from "react-native";
+import {
+  Animated,
+  Pressable,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
@@ -23,6 +28,7 @@ type Props = {
   identityOpacity: Animated.Value;
   translateY: Animated.Value;
   onShare: () => void;
+  onIdentityLayout?: (event: LayoutChangeEvent) => void;
 };
 
 /**
@@ -48,6 +54,7 @@ export default function BusinessProfileStickyHeader({
   translateY,
   isOwnBusiness,
   onShare,
+  onIdentityLayout,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [failedCover, setFailedCover] = useState<string | null>(null);
@@ -128,6 +135,7 @@ export default function BusinessProfileStickyHeader({
       {/* Business identity */}
       <Animated.View
         pointerEvents="none"
+        onLayout={onIdentityLayout}
         style={{
           position: "absolute",
           top: navHeight,
