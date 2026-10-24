@@ -30,6 +30,9 @@ from apps.reviews.services.review_sentiment_service import ReviewSentimentServic
 from apps.reviews.services.review_report_service import ReviewReportService
 from apps.reviews.services.review_reply_service import ReviewReplyService
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
+)
 from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatchService
 from apps.reviews.services.tests.test_business_review_summary_service import SummaryFixtureMixin
 from apps.reviews.tasks import (
@@ -106,7 +109,7 @@ class ReviewInsightSchedulingServiceTests(SummaryFixtureMixin, TransactionTestCa
     def test_new_published_review_records_demand_before_any_sentiment_completion(self):
         author = User.objects.create_user(email="new-review@example.com", password=None)
         with patch("apps.reviews.tasks.process_review_sentiment.delay") as sentiment:
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 author,
                 self.business.pk,
                 "A new opinion.",
@@ -137,7 +140,7 @@ class ReviewInsightSchedulingServiceTests(SummaryFixtureMixin, TransactionTestCa
                 email=f"burst-author-{index}@example.com",
                 password=None,
             )
-            ReviewService.create_review(
+            create_and_moderate_review(
                 author,
                 self.business.pk,
                 f"A distinct new review {index}.",
@@ -339,6 +342,45 @@ class ReviewInsightSchedulingServiceTests(SummaryFixtureMixin, TransactionTestCa
         self.assertEqual(self.state().RIRG_FIRST_CHANGED_AT, first)
         self.assertEqual(self.state().RIRG_REQUESTED_REVISION, 1)
         self.assertEqual(self.evaluate(), "updated")
+
+    def test_real_sentiment_aggregate_repair_preserves_pending_narrative_demand(self):
+        self.edit("Committed text awaiting sentiment.")
+        ReviewInsightSchedulingService.recover_and_dispatch()
+        before = ReviewInsightRegeneration.objects.values().get(BUSN_ID=self.business)
+        self.assertEqual(
+            before["RIRG_DUE_AT"],
+            self.clock.return_value + timedelta(seconds=120),
+        )
+        with (
+            patch(
+                "apps.reviews.services.review_sentiment_service.route_sentiment",
+                return_value=(-0.6, "Negative", "vader"),
+            ) as scorer,
+            patch.object(process_review_insight_regeneration, "apply_async") as dispatch,
+        ):
+            with patch(
+                "apps.reviews.services.review_sentiment_service."
+                "BusinessReviewSummaryService.recompute_sentiment",
+                side_effect=RuntimeError("aggregate unavailable"),
+            ):
+                self.assertEqual(
+                    process_review_sentiment.run(self.reviews[0].pk, self.business.pk),
+                    "failed",
+                )
+            self.assertEqual(
+                process_review_sentiment.run(self.reviews[0].pk, self.business.pk),
+                "already_scored",
+            )
+        scorer.assert_called_once()
+        dispatch.assert_not_called()
+        self.provider.assert_not_called()
+        self.assertEqual(
+            ReviewInsightRegeneration.objects.values().get(BUSN_ID=self.business),
+            before,
+        )
+        self.summary.refresh_from_db()
+        self.assertEqual(self.summary.BRSU_CLASSIFIED_REVIEW_COUNT, 5)
+        self.assertEqual(self.summary.BRSU_NEGATIVE_COUNT, 1)
 
     def test_daily_reconciliation_recovers_missed_changes_without_resetting_pending_inputs(self):
         ReviewInsightSchedulingService.reconcile(self.business.pk)

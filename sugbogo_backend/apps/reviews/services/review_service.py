@@ -24,6 +24,7 @@ from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
     ReviewLike,
+    ReviewMediaCleanup,
     ReviewPhoto,
     ReviewReport,
     ReviewReply,
@@ -138,7 +139,7 @@ class ReviewService:
 
     @staticmethod
     def _queue_moderation_retry_after_commit(review_id: int) -> None:
-        """Queue infrastructure recovery without changing submission success."""
+        """Dispatch durable initial or retry moderation after its owning commit."""
 
         def publish():
             try:
@@ -146,12 +147,12 @@ class ReviewService:
 
                 retry_failed_review_moderation.delay(review_id)
                 logger.info(
-                    "Review moderation retry queued.",
+                    "Review moderation work queued.",
                     extra={"review_id": review_id},
                 )
             except Exception as exc:
                 logger.error(
-                    "Review moderation retry enqueue failed.",
+                    "Review moderation enqueue failed; durable work remains recoverable.",
                     extra={
                         "review_id": review_id,
                         "error_type": type(exc).__name__,
@@ -167,10 +168,8 @@ class ReviewService:
             review.REVW_PUBLISHED_AT = timezone.now()
             review.save(update_fields=["REVW_PUBLISHED_AT"])
         NotificationEventService.business_review_received(review)
-        Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
-            BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
-        )
-
+        # Match report decisions: lock the reputation account before the
+        # business counter, then acquire insight policy and demand locks.
         if review.photos.exists():
             ReputationService.apply_review_with_photo_reward(
                 user_id=review.USER_ID_id,
@@ -183,6 +182,10 @@ class ReviewService:
                 source_id=review.REVW_ID,
                 business_id=review.BUSN_ID_id,
             )
+
+        Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
+            BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
+        )
 
         ReviewService._queue_sentiment_after_commit(
             review.REVW_ID,
@@ -388,7 +391,7 @@ class ReviewService:
         installation_id: str | None = None,
         show_in_community: bool = True,
     ) -> Review:
-        """Moderate before atomically creating a published or held review."""
+        """Upload and save a private review before dispatching stored-content moderation."""
         try:
             business = Business.objects.get(
                 BUSN_ID=business_id,
@@ -412,19 +415,6 @@ class ReviewService:
             )
 
         submitted_photos = photos or []
-        moderation = ReviewModerationService.moderate(
-            text=text,
-            photos=submitted_photos,
-        )
-        moderation["retry_attempt"] = 0
-        moderation["retryable"] = moderation["outcome"] == "provider_failure"
-        moderation["retry_exhausted"] = False
-        moderation["last_attempted_at"] = moderation["checked_at"]
-        moderation["last_provider_failure"] = moderation["failure_type"]
-        review_status = Review.ReviewStatus.PUBLISHED
-        if moderation["outcome"] != "safe":
-            review_status = Review.ReviewStatus.UNDER_REVIEW
-
         uploaded_public_ids = []
         uploaded_photos = []
 
@@ -439,10 +429,15 @@ class ReviewService:
                 uploaded_photos.append(upload_result)
 
             with transaction.atomic():
+                from apps.reviews.services.review_moderation_retry_service import (
+                    ReviewModerationRetryService,
+                )
+
                 ReviewService._lock_reliability_creation_keys(
                     user.USER_ID,
                     installation_id,
                 )
+                initial_moderation = ReviewModerationRetryService.initial_metadata()
                 try:
                     review = Review.objects.create(
                         USER_ID=user,
@@ -450,24 +445,21 @@ class ReviewService:
                         REVW_TEXT=text,
                         REVW_INSTALLATION_ID=installation_id,
                         REVW_SHOW_IN_COMMUNITY=show_in_community,
-                        REVW_STATUS=review_status,
+                        REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+                        REVW_MODERATION_DATA=initial_moderation,
                     )
                 except IntegrityError:
                     raise ValidationError(
                         "You have already reviewed this business.",
                     ) from None
 
-                for index, upload_result in enumerate(uploaded_photos):
-                    review_photo = ReviewPhoto.objects.create(
+                for upload_result in uploaded_photos:
+                    ReviewPhoto.objects.create(
                         REVW_ID=review,
                         RPHO_PHOTO_URL=upload_result["secure_url"],
                         RPHO_PHOTO_PUBLIC_ID=upload_result["public_id"],
                     )
-                    for finding in moderation["findings"]:
-                        if finding["photo_index"] == index:
-                            finding["photo_id"] = review_photo.RPHO_ID
 
-                review.REVW_MODERATION_DATA = moderation
                 try:
                     with transaction.atomic():
                         (
@@ -512,30 +504,93 @@ class ReviewService:
                     ],
                 )
 
-                if review_status == Review.ReviewStatus.PUBLISHED:
-                    ReviewService._apply_published_effects(review)
-                elif moderation["outcome"] == "provider_failure":
-                    ReviewService._queue_moderation_retry_after_commit(
-                        review.REVW_ID,
-                    )
-
-        except Exception:
-            for public_id in uploaded_public_ids:
-                CloudinaryService.delete_image(
-                    public_id,
+                ReviewService._queue_moderation_retry_after_commit(
+                    review.REVW_ID,
                 )
 
+        except Exception as exc:
+            ReviewService._compensate_uploaded_photos(
+                public_ids=uploaded_public_ids,
+                operation="create",
+                business_id=business_id,
+                review_id=None,
+                request_error=exc,
+            )
             raise
 
         logger.info(
-            "Review creation moderation decision saved.",
+            "Review saved for initial moderation.",
             extra={
                 "review_id": review.REVW_ID,
-                "outcome": moderation["outcome"],
-                "review_status": review_status,
+                "outcome": review.REVW_MODERATION_DATA["outcome"],
+                "review_status": review.REVW_STATUS,
             },
         )
         return review
+
+    @staticmethod
+    def _compensate_uploaded_photos(
+        public_ids: list[str],
+        operation: str,
+        business_id: int,
+        review_id: int | None,
+        request_error: Exception,
+    ) -> None:
+        """Compensate known request uploads without deleting referenced review photos."""
+        for public_id in dict.fromkeys(public_ids):
+            context = {
+                "operation": operation,
+                "business_id": business_id,
+                "review_id": review_id,
+                "public_id": public_id,
+                "request_error_type": type(request_error).__name__,
+            }
+            try:
+                attached = ReviewPhoto.objects.filter(
+                    RPHO_PHOTO_PUBLIC_ID=public_id,
+                ).exists()
+            except Exception as exc:
+                logger.error(
+                    "Review upload compensation skipped; attachment check failed.",
+                    extra={
+                        **context,
+                        "cleanup_stage": "attachment_check",
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                continue
+
+            if attached:
+                logger.warning(
+                    "Review upload compensation skipped; asset is attached.",
+                    extra=context,
+                )
+                continue
+
+            try:
+                result = CloudinaryService.destroy_asset(
+                    public_id=public_id,
+                    resource_type=ReviewMediaCleanup.ResourceType.IMAGE,
+                )
+                cleanup_result = result["result"]
+            except Exception as exc:
+                logger.error(
+                    "Review upload compensation failed; manual inspection required.",
+                    extra={
+                        **context,
+                        "cleanup_stage": "deletion",
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                continue
+
+            logger.info(
+                "Review upload compensation confirmed.",
+                extra={
+                    **context,
+                    "cleanup_result": cleanup_result,
+                },
+            )
 
     @staticmethod
     def _get_review(
@@ -592,7 +647,10 @@ class ReviewService:
         )
 
         return (
-            Review.objects
+            BusinessReviewSummaryService.annotate_sentiment_source(
+                Review.objects.all(),
+                user,
+            )
             .select_related("USER_ID")
             .annotate(
                 is_liked=Exists(likes),
@@ -968,15 +1026,16 @@ class ReviewService:
             ):
                 raise ReviewEditModerationUnavailable()
 
+        uploaded_public_ids = []
         uploaded_photos = []
         try:
             for photo in new_photos:
-                uploaded_photos.append(
-                    CloudinaryService.upload_image(
-                        photo,
-                        folder="sugbogo/reviews",
-                    ),
+                upload_result = CloudinaryService.upload_image(
+                    photo,
+                    folder="sugbogo/reviews",
                 )
+                uploaded_public_ids.append(upload_result["public_id"])
+                uploaded_photos.append(upload_result)
 
             return ReviewService._save_review_update(
                 user=user,
@@ -989,9 +1048,14 @@ class ReviewService:
                 uploaded_photos=uploaded_photos,
                 moderation=moderation,
             )
-        except Exception:
-            for upload in uploaded_photos:
-                CloudinaryService.delete_image(upload["public_id"])
+        except Exception as exc:
+            ReviewService._compensate_uploaded_photos(
+                public_ids=uploaded_public_ids,
+                operation="update",
+                business_id=source.BUSN_ID_id,
+                review_id=review_id,
+                request_error=exc,
+            )
             raise
 
     @staticmethod
@@ -1153,16 +1217,22 @@ class ReviewService:
             )
 
         if removed_photos:
+            ReviewMediaCleanupService.register_assets(
+                review_id=review.pk,
+                assets={
+                    (
+                        photo.RPHO_PHOTO_PUBLIC_ID,
+                        ReviewMediaCleanup.ResourceType.IMAGE,
+                    )
+                    for photo in removed_photos
+                },
+            )
             ReviewPhoto.objects.filter(
-                RPHO_ID__in=[photo.RPHO_ID for photo in removed_photos],
+                RPHO_ID__in=[
+                    photo.RPHO_ID
+                    for photo in removed_photos
+                ],
             ).delete()
-            for photo in removed_photos:
-                transaction.on_commit(
-                    lambda public_id=photo.RPHO_PHOTO_PUBLIC_ID: (
-                        CloudinaryService.delete_image(public_id)
-                    ),
-                    robust=True,
-                )
 
         if moderation is not None:
             accepted_moderation = deepcopy(moderation)
@@ -1385,6 +1455,7 @@ class ReviewService:
         user: User,
         photo_id: int,
     ) -> None:
+        """Remove an author's photo while retaining durable cleanup intent until success."""
         review_id = (
             ReviewPhoto.objects
             .filter(RPHO_ID=photo_id)
@@ -1416,15 +1487,19 @@ class ReviewService:
                 "This review cannot be edited while it is under review.",
             )
 
-        public_id = photo.RPHO_PHOTO_PUBLIC_ID
+        ReviewMediaCleanupService.register_assets(
+            review_id=review.pk,
+            assets={
+                (
+                    photo.RPHO_PHOTO_PUBLIC_ID,
+                    ReviewMediaCleanup.ResourceType.IMAGE,
+                ),
+            },
+        )
         photo.delete()
         ReviewService._reconcile_removed_photo_findings(
             review,
             set(review.photos.values_list("RPHO_ID", flat=True)),
-        )
-        transaction.on_commit(
-            lambda: CloudinaryService.delete_image(public_id),
-            robust=True,
         )
 
     @staticmethod

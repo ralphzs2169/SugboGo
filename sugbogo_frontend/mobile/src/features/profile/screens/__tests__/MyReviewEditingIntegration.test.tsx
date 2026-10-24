@@ -35,6 +35,7 @@ jest.mock("@/features/explore/api/exploreBusiness.service", () => ({
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
   Stack: { Screen: () => null },
+  useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -361,7 +362,7 @@ describe("My Reviews editing integration", () => {
     );
     await waitFor(() => expect(screen.getByText("Delete review")).toBeTruthy());
     expect(screen.queryByText("Edit my review")).toBeNull();
-    expect(screen.getByText("Under review")).toBeTruthy();
+    expect(screen.getAllByText("Under review").length).toBeGreaterThan(0);
     await screen.unmount();
     client.clear();
   });
@@ -479,6 +480,12 @@ describe("My Reviews editing integration", () => {
       success: true,
       data: {
         items: removed ? [second] : [retained, second],
+        summary: {
+          total: removed ? 1 : 2,
+          published: removed ? 1 : 2,
+          under_review: 0,
+          not_published: 0,
+        },
         pagination: {
           page: 1,
           page_size: 10,
@@ -501,7 +508,7 @@ describe("My Reviews editing integration", () => {
     );
     expect(deleteReview).toHaveBeenCalledWith(17);
     expect(screen.getByText(second.text)).toBeTruthy();
-    expect(screen.getByRole("header", { name: /^1\b/ })).toBeTruthy();
+    expect(screen.getByText("1 total")).toBeTruthy();
     expect(screen.queryByText(originalText)).toBeNull();
     await screen.unmount();
     client.clear();
@@ -514,7 +521,8 @@ describe("My Reviews editing integration", () => {
       screen.getByDisplayValue(originalText),
       changedText,
     );
-    (getMyReviews as jest.Mock).mockResolvedValueOnce({
+    const loadHistory = (getMyReviews as jest.Mock).getMockImplementation();
+    (getMyReviews as jest.Mock).mockResolvedValue({
       success: false,
       code: "NETWORK_ERROR",
       message: "Offline",
@@ -524,6 +532,7 @@ describe("My Reviews editing integration", () => {
     expect(screen.getByText(changedText)).toBeTruthy();
     expect(screen.queryByText(originalText)).toBeNull();
     expect(screen.getByText("Couldn't refresh your reviews")).toBeTruthy();
+    (getMyReviews as jest.Mock).mockImplementation(loadHistory);
     await fireEvent.press(screen.getByText("Tap to retry"));
     await waitFor(() =>
       expect(screen.queryByText("Couldn't refresh your reviews")).toBeNull(),
@@ -614,7 +623,17 @@ describe("My Reviews editing integration", () => {
     }));
     (getBusinessReviewPreview as jest.Mock).mockResolvedValue({
       success: true,
-      data: { reviews: [], user_review: null, total_count: 1 },
+      data: {
+        reviews: [],
+        user_review: {
+          ...retained,
+          text: changedText,
+          sentiment_label: null,
+          sentiment_score: null,
+          sentiment_aggregate_included: false,
+        },
+        total_count: 1,
+      },
     });
     const { screen, client } = await setup();
     await openEditor(screen);
@@ -663,7 +682,7 @@ describe("My Reviews editing integration", () => {
       await fireEvent.press(screen.getByText("Save changes"));
       await waitFor(() => expect(screen.queryByText("Edit review")).toBeNull());
       expect(screen.getByText(changedText)).toBeTruthy();
-      expect(screen.getByText("Not published")).toBeTruthy();
+      expect(screen.getAllByText("Not published").length).toBeGreaterThan(0);
       expect(retained.status).toBe(status);
       expect(getBusinessReviewPreview).not.toHaveBeenCalled();
       await screen.unmount();
@@ -697,7 +716,9 @@ describe("My Reviews editing integration", () => {
     else
       await waitFor(() =>
         expect(Toast.show).toHaveBeenCalledWith(
-          expect.objectContaining({ type: "error" }),
+          expect.objectContaining({
+            type: code === "NETWORK_ERROR" ? "info" : "error",
+          }),
         ),
       );
     expect(invalidate).not.toHaveBeenCalled();

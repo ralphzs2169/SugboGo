@@ -68,7 +68,8 @@ describe("source-bearing profile lifecycle", () => {
       message: "Offline",
     });
     const { rerender } = await renderHook(
-      ({ source }) => useBusinessProfileVisit(1, 1, false, source),
+      ({ source }: { source: Parameters<typeof useBusinessProfileVisit>[3] }) =>
+        useBusinessProfileVisit(1, 1, false, source),
       { wrapper: Wrapper, initialProps: { source: "MAP" } },
     );
     await waitFor(() => expect(record).toHaveBeenCalledTimes(1));

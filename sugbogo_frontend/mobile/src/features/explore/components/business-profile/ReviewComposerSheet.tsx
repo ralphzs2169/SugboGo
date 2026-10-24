@@ -6,7 +6,7 @@ import {
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
@@ -27,6 +27,17 @@ import FormTextArea from "@/shared/components/form/FormTextArea";
 import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
 import type { ApiError, ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
+import { reviewModerationFeedback } from "../../utils/reviewModeration.utils";
+import { useAuthorReviewSubmissions } from "../../hooks/useAuthorReviewSubmissions";
+import {
+  checkReviewSubmissionAgain,
+  isUncertainReviewOutcome,
+  isUncertainReviewSubmissionOutcome,
+} from "../../stores/reviewWorkflow.store";
+import {
+  getAuthSessionGeneration,
+  subscribeAuthSessionChanges,
+} from "@/shared/api/authSessionGeneration.service";
 
 import {
   useCreateReview,
@@ -41,7 +52,7 @@ import type {
 export type EditableReview = Pick<
   BusinessReview,
   "id" | "text" | "photos" | "show_in_community"
->;
+> & { author?: { id: number } };
 
 type Props = {
   businessId: number;
@@ -158,11 +169,21 @@ export default function ReviewComposerSheet({
   businessName,
   coverPhotoUrl,
   sheetRef,
-  review,
+  review: selectedReview,
   onDismiss,
 }: Props) {
+  const authorId = useAuthStore((state) => state.user?.id);
+  const review =
+    selectedReview?.author && selectedReview.author.id !== authorId
+      ? null
+      : selectedReview;
   const insets = useSafeAreaInsets();
   const submissionPending = useRef(false);
+  const dismissedReceiptId = useRef<number | null>(null);
+  const submissionOwner = useRef<{
+    userId: number | undefined;
+    generation: number;
+  } | null>(null);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -198,7 +219,31 @@ export default function ReviewComposerSheet({
     useState<ReviewEditFeedbackCode | null>(null);
 
   const isEditing = Boolean(review);
+  const submission = useAuthorReviewSubmissions(businessId)[0];
   const isPending = isCreatePending || isUpdatePending;
+
+  useEffect(() => {
+    if (
+      isEditing ||
+      !isSheetOpen ||
+      submission?.state !== "acknowledged" ||
+      !submission.result ||
+      dismissedReceiptId.current === submission.result.id
+    ) {
+      return;
+    }
+
+    // Receipt is authoritative; cache refreshes and moderation can finish later.
+    dismissedReceiptId.current = submission.result.id;
+    Toast.show({
+      type: "success",
+      text1: "Review received",
+      ...(submission.result.status === "under_review"
+        ? { text2: reviewModerationFeedback(submission.result).description }
+        : {}),
+    });
+    sheetRef.current?.dismiss();
+  }, [isEditing, isSheetOpen, submission, sheetRef]);
 
   const photoCount = photos.length + existingPhotos.length;
   const canAddMore = photoCount < MAX_REVIEW_PHOTOS;
@@ -215,15 +260,19 @@ export default function ReviewComposerSheet({
 
   const hasChanges =
     !isEditing || textChanged || photosChanged || communityChanged;
-  const canSubmit = !isPending && hasChanges;
+  const canSubmit =
+    !isPending &&
+    hasChanges &&
+    (isEditing || !submission || submission.state === "failed");
 
   function resetForm() {
-    const initialText = review?.text ?? "";
+    const initialText = review?.text ?? submission?.text ?? "";
     const initialPhotos = review?.photos ?? [];
-    const initialCommunity = review?.show_in_community ?? true;
+    const initialCommunity =
+      review?.show_in_community ?? submission?.showInCommunity ?? true;
 
     setText(initialText);
-    setPhotos([]);
+    setPhotos(review ? [] : (submission?.photos ?? []));
     setExistingPhotos(initialPhotos);
     setOriginalText(initialText);
     setOriginalPhotoIds(initialPhotos.map((photo) => photo.id));
@@ -328,8 +377,15 @@ export default function ReviewComposerSheet({
 
     submissionPending.current = true;
     const submittingUserId = useAuthStore.getState().user?.id;
+    const submittingGeneration = getAuthSessionGeneration();
+    submissionOwner.current = {
+      userId: submittingUserId,
+      generation: submittingGeneration,
+    };
     const isCurrentSubmission = () =>
-      mounted.current && useAuthStore.getState().user?.id === submittingUserId;
+      mounted.current &&
+      useAuthStore.getState().user?.id === submittingUserId &&
+      getAuthSessionGeneration() === submittingGeneration;
 
     try {
       if (review) {
@@ -353,18 +409,21 @@ export default function ReviewComposerSheet({
           text: trimmedText,
           photos,
           showInCommunity,
+          businessName,
         });
 
         if (!isCurrentSubmission()) return;
 
+        if (dismissedReceiptId.current === created.id) return;
+
         if (created.status === "under_review") {
           Toast.show({
             type: "success",
-            text1: "Review submitted",
-            text2: "It's being reviewed before it appears publicly.",
+            text1: "Review received",
+            text2: reviewModerationFeedback(created).description,
           });
         } else {
-          Toast.show({ type: "success", text1: "Review added" });
+          Toast.show({ type: "success", text1: "Review received" });
         }
       }
 
@@ -389,7 +448,7 @@ export default function ReviewComposerSheet({
           return false;
         }
 
-        if (!isPending && !submissionPending.current) {
+        if (!isEditing || (!isPending && !submissionPending.current)) {
           sheetRef.current?.dismiss();
         }
         return true;
@@ -399,7 +458,7 @@ export default function ReviewComposerSheet({
     return () => {
       subscription.remove();
     };
-  }, [isSheetOpen, isPending, sheetRef]);
+  }, [isSheetOpen, isPending, isEditing, sheetRef]);
 
   useEffect(() => {
     // The form intentionally mirrors the review selected by the parent screen.
@@ -408,10 +467,60 @@ export default function ReviewComposerSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [review]);
 
+  useLayoutEffect(() => {
+    if (isEditing || isSheetOpen || isPending) {
+      return;
+    }
+
+    // Clear removed submissions while hidden, before the next opening paints.
+    // Session drafts still restore failed or uncertain submissions here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    resetForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submission, isEditing, isSheetOpen, isPending]);
+
+  useEffect(() => {
+    const clearPrivateDraft = () => {
+      sheetRef.current?.dismiss();
+      setText("");
+      setPhotos([]);
+      setExistingPhotos([]);
+      setEditFeedback(null);
+    };
+    const unsubscribeSession = subscribeAuthSessionChanges(clearPrivateDraft);
+    const unsubscribeAuth = useAuthStore.subscribe((current, previous) => {
+      if (current.user?.id !== previous.user?.id) clearPrivateDraft();
+    });
+    return () => {
+      unsubscribeSession();
+      unsubscribeAuth();
+    };
+  }, [sheetRef]);
+
   useEffect(() => {
     const error = createError || updateError;
 
     if (!error) {
+      return;
+    }
+    if (
+      submissionOwner.current &&
+      (submissionOwner.current.userId !== useAuthStore.getState().user?.id ||
+        submissionOwner.current.generation !== getAuthSessionGeneration())
+    )
+      return;
+
+    if (!isEditing && isUncertainReviewSubmissionOutcome(error)) return;
+    if (isEditing && isUncertainReviewOutcome(error)) {
+      Toast.show({
+        type: "info",
+        text1: isEditing
+          ? "Changes haven't been confirmed"
+          : "Still confirming your review",
+        text2: isEditing
+          ? "Your draft is kept here. Check your saved review before trying again."
+          : "Check your review before trying again.",
+      });
       return;
     }
 
@@ -440,7 +549,7 @@ export default function ReviewComposerSheet({
       onDismiss={onDismiss}
       snapPoints={["90%"]}
       enableDynamicSizing={false}
-      enablePanDownToClose={!isPending}
+      enablePanDownToClose={!isPending || !isEditing}
       keyboardBehavior="fillParent"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
@@ -457,7 +566,12 @@ export default function ReviewComposerSheet({
 
         setIsSheetOpen(isOpen);
 
-        if (!isOpen) {
+        if (
+          (!isOpen || (!isSheetOpen && !isEditing)) &&
+          !isPending &&
+          !createError &&
+          !updateError
+        ) {
           resetForm();
         }
       }}
@@ -467,7 +581,7 @@ export default function ReviewComposerSheet({
           appearsOnIndex={0}
           disappearsOnIndex={-1}
           opacity={0.45}
-          pressBehavior={isPending ? "none" : "close"}
+          pressBehavior={isPending && isEditing ? "none" : "close"}
         />
       )}
     >
@@ -493,7 +607,7 @@ export default function ReviewComposerSheet({
 
             <Pressable
               onPress={() => sheetRef.current?.dismiss()}
-              disabled={isPending}
+              disabled={isPending && isEditing}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Close"
@@ -668,7 +782,12 @@ export default function ReviewComposerSheet({
                   checked: showInCommunity,
                   disabled: isPending,
                 }}
-                trackColor={{ true: theme.extends.colors.brand }}
+                trackColor={{
+                  false: theme.extends.colors.surfaceMutedStrong,
+                  true: theme.extends.colors.brand,
+                }}
+                thumbColor={theme.extends.colors.surface}
+                ios_backgroundColor={theme.extends.colors.surfaceMutedStrong}
               />
             </View>
           </View>
@@ -679,6 +798,24 @@ export default function ReviewComposerSheet({
           className="border-t border-border-primary bg-surface px-screen-x pt-3"
           style={{ paddingBottom: insets.bottom + 12 }}
         >
+          {((isPending &&
+            (isEditing || submission?.state !== "acknowledged")) ||
+            (!isEditing && (
+              submission?.state === "confirming" || submission?.state === "unconfirmed"
+            ))) && (
+            <AppText
+              accessibilityLiveRegion="polite"
+              className="mb-2 text-center text-xs text-text-secondary"
+            >
+              {isEditing
+                ? "Saving changes…"
+                : isPending
+                  ? "Submitting · Only you can see this"
+                  : submission?.state === "unconfirmed"
+                    ? "Unable to confirm submission. Your text and photos are kept here."
+                    : "Still confirming…"}
+            </AppText>
+          )}
           {editFeedback && (
             <View
               testID="review-edit-error-banner"
@@ -702,10 +839,27 @@ export default function ReviewComposerSheet({
               </View>
             </View>
           )}
+          {!isEditing && submission?.state === "unconfirmed" && (
+            <Button
+              title="Check again"
+              onPress={() => checkReviewSubmissionAgain(submission.token)}
+              variant="soft"
+              rounded="full"
+              className="mb-2"
+            />
+          )}
           <Button
-            title={isEditing ? "Save changes" : "Submit review"}
+            title={
+              isEditing
+                ? "Save changes"
+                : submission?.state === "acknowledged"
+                  ? "Review received"
+                  : "Submit review"
+            }
             onPress={submit}
-            loading={isPending}
+            loading={
+              isPending && (isEditing || submission?.state !== "acknowledged")
+            }
             disabled={!canSubmit}
             textWeight="bold"
             rounded="full"

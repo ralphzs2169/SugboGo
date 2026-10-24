@@ -162,13 +162,18 @@ describe("action-only route intent", () => {
     expect(submit).toHaveBeenCalledTimes(1);
   });
   it("omits development diagnostics in release builds while still submitting", async () => {
-    jest.replaceProperty(globalThis, "__DEV__", false);
-    const { result } = await renderHook(() => useRoutePlanningIntent(21, false), {
-      wrapper: Wrapper,
-    });
-    await act(async () => result.current("JEEPNEY"));
-    await waitFor(() => expect(submit).toHaveBeenCalledWith(21, "JEEPNEY"));
-    expect(console.debug).not.toHaveBeenCalled();
-    expect(console.warn).not.toHaveBeenCalled();
+    const development = __DEV__;
+    Object.defineProperty(globalThis, "__DEV__", { value: false });
+    try {
+      const { result } = await renderHook(() => useRoutePlanningIntent(21, false), {
+        wrapper: Wrapper,
+      });
+      await act(async () => result.current("JEEPNEY"));
+      await waitFor(() => expect(submit).toHaveBeenCalledWith(21, "JEEPNEY"));
+      expect(console.debug).not.toHaveBeenCalled();
+      expect(console.warn).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(globalThis, "__DEV__", { value: development });
+    }
   });
 });

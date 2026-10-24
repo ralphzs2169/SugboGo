@@ -100,18 +100,26 @@ export default function RecentReviewInsightsSection({
             size={16}
             color={theme.extends.colors.text.secondary}
           />
-          <AppText className="flex-1 text-xs leading-5 text-text-secondary">
-            {updateMessage}
-          </AppText>
+          <View className="flex-1 gap-0.5">
+            <AppText className="text-xs leading-5 text-text-secondary">
+              {updateMessage}
+            </AppText>
+            {tracked && showGeneratedContent && !progress.content_is_current && (
+              <AppText className="text-xs leading-5 text-text-tertiary">
+                Showing the previous summary for now.
+              </AppText>
+            )}
+          </View>
         </View>
       )}
       {!isLoading &&
         !error &&
         tracked &&
         showGeneratedContent &&
+        !updateMessage &&
         !progress.content_is_current && (
           <AppText className="text-xs leading-5 text-text-secondary">
-            Showing previous insights; they may not reflect the latest reviews.
+            Showing the previous summary for now.
           </AppText>
         )}
       {isLoading ? (

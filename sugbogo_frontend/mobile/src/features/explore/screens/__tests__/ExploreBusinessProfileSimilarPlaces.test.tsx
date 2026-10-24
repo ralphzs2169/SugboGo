@@ -365,14 +365,15 @@ it("previews loading, local, recovery and unavailable states without mounting li
 });
 
 it("does not expose the development preview toggle in release", async () => {
-  const dev = jest.replaceProperty(globalThis, "__DEV__", false);
+  const development = __DEV__;
+  Object.defineProperty(globalThis, "__DEV__", { value: false });
   try {
     const view = await render(profile());
     expect(
       view.queryByLabelText("Toggle business profile state preview"),
     ).toBeNull();
   } finally {
-    dev.restore();
+    Object.defineProperty(globalThis, "__DEV__", { value: development });
   }
 });
 

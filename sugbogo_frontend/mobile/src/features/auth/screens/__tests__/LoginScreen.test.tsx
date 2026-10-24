@@ -3,13 +3,15 @@ import { useLogin } from "../../hooks/useLogin";
 import LoginScreen from "../LoginScreen";
 import { useAuthStore } from "../../store/auth.store";
 
+const mockReplace = jest.fn();
+
 jest.mock("../../hooks/useLogin", () => ({ useLogin: jest.fn() }));
 jest.mock("../../store/verification.store", () => ({
   useVerificationStore: (selector: (state: unknown) => unknown) =>
     selector({ setPendingEmail: jest.fn() }),
 }));
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), replace: mockReplace }),
 }));
 jest.mock("../../hooks/useGoogleLogin", () => ({
   useGoogleLogin: () => ({ handleGoogleLogin: jest.fn() }),
@@ -18,6 +20,12 @@ jest.mock("../../hooks/useFacebookLogin", () => ({
   useFacebookLogin: () => ({ handleFacebookLogin: jest.fn() }),
 }));
 jest.mock("../../components/AuthHeader", () => () => null);
+jest.mock("@/shared/components/LoadingScreen", () => {
+  const { Text } = jest.requireActual("react-native");
+  return function Loading({ title }: { title: string }) {
+    return <Text>{title}</Text>;
+  };
+});
 jest.mock("../../components/Divider", () => () => null);
 jest.mock("../../components/BottomAuthLink", () => () => null);
 jest.mock(
@@ -82,7 +90,11 @@ describe("password lockout feedback", () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
-    useAuthStore.setState({ sessionExpired: false, isSigningIn: false });
+    useAuthStore.setState({
+      sessionExpired: false,
+      isSigningIn: false,
+      isAuthenticated: false,
+    });
     jest
       .mocked(useLogin)
       .mockReturnValue({ handleLogin: login, loading: false });
@@ -96,6 +108,50 @@ describe("password lockout feedback", () => {
   afterEach(() => {
     jest.useRealTimers();
   });
+
+  it("retains the filled form during the authenticated navigation handoff", async () => {
+    const screen = await render(<LoginScreen />);
+    await fireEvent.changeText(
+      screen.getByLabelText("EMAIL ADDRESS"),
+      "person@example.com",
+    );
+    await act(async () => {
+      useAuthStore.setState({ isAuthenticated: true });
+    });
+    expect(screen.getByDisplayValue("person@example.com")).toBeTruthy();
+    expect(screen.queryByText("Signing you in...")).toBeNull();
+    await screen.unmount();
+  });
+
+  it.each([
+    [true, "/(explorer)/(tabs)/explore"],
+    [false, "/(setup)/interests"],
+  ])(
+    "navigates directly after login with interest setup completed: %s",
+    async (completed, destination) => {
+      login.mockResolvedValue({
+        success: true,
+        data: {
+          user: {
+            role: "explorer",
+            has_completed_interest_selection: completed,
+          },
+        },
+      });
+      const screen = await render(<LoginScreen />);
+      await fireEvent.changeText(
+        screen.getByLabelText("EMAIL ADDRESS"),
+        "person@example.com",
+      );
+      await fireEvent.changeText(screen.getByLabelText("PASSWORD"), "password");
+      await fireEvent.press(screen.getByRole("button", { name: "Log in" }));
+      expect(mockReplace).toHaveBeenCalledWith(destination);
+      expect(screen.queryByText("Signing you in...")).toBeNull();
+      expect(screen.getByDisplayValue("person@example.com")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Log in" })).toBeDisabled();
+      await screen.unmount();
+    },
+  );
 
   it("blocks only the locked email's password action and preserves social/recovery actions", async () => {
     const screen = await render(<LoginScreen />);

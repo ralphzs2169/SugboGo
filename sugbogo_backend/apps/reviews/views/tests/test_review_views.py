@@ -23,6 +23,7 @@ from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
+    ReviewMediaCleanup,
     ReviewPhoto,
     ReviewReply,
 )
@@ -30,6 +31,10 @@ from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
 from apps.reviews.services.review_service import ReviewService
+from apps.reviews.services.review_moderation_retry_service import ReviewModerationRetryService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
+)
 from apps.users.models import User
 
 
@@ -50,6 +55,9 @@ class ReviewViewTests(APITestCase):
         )
         self.moderate_review = moderation_patcher.start()
         self.addCleanup(moderation_patcher.stop)
+        dispatch_patcher = patch("apps.reviews.tasks.retry_failed_review_moderation.delay")
+        dispatch_patcher.start()
+        self.addCleanup(dispatch_patcher.stop)
 
         self.merchant = User.objects.create_user(
             email="merchant-review@example.com",
@@ -215,14 +223,15 @@ class ReviewViewTests(APITestCase):
 
         self.assertEqual(
             response.data["message"],
-            "Review added successfully.",
+            "Review submitted and is under review.",
         )
 
         self.assertEqual(
             response.data["data"]["business_id"],
             self.business.BUSN_ID,
         )
-        self.assertEqual(response.data["data"]["status"], "published")
+        self.assertEqual(response.data["data"]["status"], "under_review")
+        self.moderate_review.assert_not_called()
         self.assertNotIn("report_count", response.data["data"])
         self.assertNotIn("is_report_flagged", response.data["data"])
         self.assertNotIn("reliability_reasons", response.data["data"])
@@ -260,8 +269,8 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Review.objects.filter(USER_ID=self.explorer).exists())
 
-    def test_flagged_submission_returns_successful_under_review_status(self):
-        """The API reports the held state without exposing moderation evidence."""
+    def test_unchecked_submission_returns_successful_under_review_status(self):
+        """The API acknowledges private content without calling the provider."""
         self.moderate_review.return_value["outcome"] = "flagged"
         response = self.client.post(
             self.preview_url,
@@ -278,6 +287,7 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(preview["user_review"]["id"], review.pk)
         self.assertEqual(preview["reviews"], [])
         self.assertEqual(preview["total_count"], 0)
+        self.moderate_review.assert_not_called()
 
     def test_create_review_can_opt_out_without_hiding_business_review(self):
         response = self.client.post(
@@ -294,6 +304,9 @@ class ReviewViewTests(APITestCase):
         preview = self.client.get(self.preview_url).data["data"]
         self.assertEqual(preview["user_review"]["id"], review.pk)
         self.assertFalse(preview["user_review"]["show_in_community"])
+        self.assertEqual(preview["reviews"], [])
+        self.assertEqual(ReviewModerationRetryService.retry(review.pk), "published")
+        preview = self.client.get(self.preview_url).data["data"]
         self.assertIn(review.pk, [item["id"] for item in preview["reviews"]])
         self.client.force_authenticate(self.merchant)
         public_review = self.client.get(self.preview_url).data["data"]["reviews"][0]
@@ -1023,6 +1036,7 @@ class ReviewViewTests(APITestCase):
             REVW_ID=1,
             BUSN_ID=self.business,
             USER_ID=self.explorer,
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
         )
 
         mock_create_review.return_value = mock_review
@@ -1197,7 +1211,7 @@ class ReviewViewTests(APITestCase):
         )
 
     def test_create_review_rejects_duplicate_review(self):
-        ReviewService.create_review(
+        create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="First review.",
@@ -1321,6 +1335,12 @@ class ReviewDetailViewTests(APITestCase):
     """Tests for the review update/delete endpoint."""
 
     def setUp(self):
+        cleanup_patcher = patch(
+            "apps.reviews.tasks.cleanup_review_media_asset.apply_async",
+        )
+        self.cleanup_enqueue = cleanup_patcher.start()
+        self.addCleanup(cleanup_patcher.stop)
+
         moderation_patcher = patch(
             "apps.reviews.services.review_service.ReviewModerationService.moderate",
             return_value={
@@ -1391,7 +1411,7 @@ class ReviewDetailViewTests(APITestCase):
             LOCT_ID=self.location,
         )
 
-        self.review = ReviewService.create_review(
+        self.review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1433,7 +1453,14 @@ class ReviewDetailViewTests(APITestCase):
                 self.assertEqual(response.data["data"]["photos"], [])
                 self.assertFalse(self.review.photos.exists())
                 for photo in photos:
-                    delete_image.assert_any_call(photo.RPHO_PHOTO_PUBLIC_ID)
+                    self.assertTrue(
+                        ReviewMediaCleanup.objects.filter(
+                            RMCU_REVIEW_ID=self.review.pk,
+                            RMCU_PUBLIC_ID=photo.RPHO_PHOTO_PUBLIC_ID,
+                            RMCU_RESOURCE_TYPE="image",
+                        ).exists(),
+                    )
+                delete_image.assert_not_called()
 
     @patch("apps.reviews.services.review_service.CloudinaryService.delete_image")
     @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
@@ -1466,7 +1493,14 @@ class ReviewDetailViewTests(APITestCase):
                 pk__in=[photo.pk for photo in originals],
             ).exists(),
         )
-        self.assertEqual(delete_image.call_count, 3)
+        delete_image.assert_not_called()
+        self.assertEqual(
+            ReviewMediaCleanup.objects.filter(
+                RMCU_REVIEW_ID=self.review.pk,
+            ).count(),
+            3,
+        )
+        self.assertEqual(self.cleanup_enqueue.call_count, 3)
         self.assertEqual(self.moderate_review.call_args.kwargs["image_urls"], [])
         self.assertEqual(len(self.moderate_review.call_args.kwargs["photos"]), 1)
 
@@ -1500,7 +1534,14 @@ class ReviewDetailViewTests(APITestCase):
             {photo["id"] for photo in response.data["data"]["photos"]},
             {photos[0].pk, photos[2].pk},
         )
-        delete_image.assert_called_once_with(photos[1].RPHO_PHOTO_PUBLIC_ID)
+        delete_image.assert_not_called()
+        cleanup = ReviewMediaCleanup.objects.get(
+            RMCU_PUBLIC_ID=photos[1].RPHO_PHOTO_PUBLIC_ID,
+        )
+        self.cleanup_enqueue.assert_called_once_with(
+            args=[cleanup.pk],
+            retry=False,
+        )
 
     def test_invalid_or_mixed_retention_values_remain_rejected(self):
         photos = self._add_existing_photos(1)
@@ -1586,6 +1627,61 @@ class ReviewDetailViewTests(APITestCase):
         self.assertEqual(self.review.photos.count(), 1)
         delete_image.assert_not_called()
 
+    def test_text_edit_uses_creation_limits_after_trimming(self):
+        """PATCH enforces creation boundaries before invoking edit moderation."""
+        cases = (
+            ("x" * 25, 200, None),
+            ("  " + "y" * 25 + "  ", 200, None),
+            ("x" * 1000, 200, None),
+            ("x" * 24, 400, "Review must be at least 25 characters long."),
+            ("  " + "x" * 24 + "  ", 400, "Review must be at least 25 characters long."),
+            ("x" * 1001, 400, "Review must be 1000 characters or fewer."),
+            (" \t\n ", 400, "Review text is required."),
+        )
+        for text, status_code, message in cases:
+            with self.subTest(length=len(text)):
+                before = Review.objects.values().get(pk=self.review.pk)
+                self.moderate_review.reset_mock()
+                response = self.client.patch(
+                    self.detail_url,
+                    {"text": text},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status_code, response.data)
+                if status_code == 200:
+                    self.assertEqual(response.data["data"]["text"], text.strip())
+                    self.moderate_review.assert_called_once()
+                else:
+                    self.assertFalse(response.data["success"])
+                    self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+                    self.assertEqual(response.data["message"], message)
+                    self.assertEqual(response.data["errors"]["text"], [message])
+                    self.moderate_review.assert_not_called()
+                    self.assertEqual(
+                        Review.objects.values().get(pk=self.review.pk),
+                        before,
+                    )
+
+    def test_photo_only_update_preserves_legacy_short_text(self):
+        """Omitting text does not revalidate or rescore legacy content."""
+        self._add_existing_photos(1)
+        self.moderate_review.reset_mock()
+        with patch(
+            "apps.reviews.services.review_service."
+            "BusinessReviewSummaryService.recompute_sentiment",
+        ) as aggregate:
+            response = self.client.patch(
+                self.detail_url,
+                {"keep_photo_ids": "[]"},
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.REVW_TEXT, "Original review.")
+        self.assertFalse(self.review.photos.exists())
+        self.moderate_review.assert_not_called()
+        aggregate.assert_not_called()
+
     def test_update_review_returns_200_not_500(self):
         """Regression test for the bug where PATCH threw an unhandled
         AttributeError because the object returned by update_review was
@@ -1594,7 +1690,7 @@ class ReviewDetailViewTests(APITestCase):
 
         response = self.client.patch(
             self.detail_url,
-            {"text": "Updated review text."},
+            {"text": "Updated review text with friendly service."},
             format="multipart",
         )
 
@@ -1607,13 +1703,13 @@ class ReviewDetailViewTests(APITestCase):
     def test_update_review_response_contains_all_required_fields(self):
         response = self.client.patch(
             self.detail_url,
-            {"text": "Updated review text."},
+            {"text": "Updated review text with friendly service."},
             format="multipart",
         )
 
         data = response.data["data"]
 
-        self.assertEqual(data["text"], "Updated review text.")
+        self.assertEqual(data["text"], "Updated review text with friendly service.")
         self.assertIn("is_own_review", data)
         self.assertIn("is_liked", data)
         self.assertIn("vouched_specialties", data)
@@ -1622,7 +1718,7 @@ class ReviewDetailViewTests(APITestCase):
     def test_update_review_persists_change(self):
         self.client.patch(
             self.detail_url,
-            {"text": "Persisted update."},
+            {"text": "A persisted update with enough review detail."},
             format="multipart",
         )
 
@@ -1630,7 +1726,7 @@ class ReviewDetailViewTests(APITestCase):
 
         self.assertEqual(
             self.review.REVW_TEXT,
-            "Persisted update.",
+            "A persisted update with enough review detail.",
         )
 
     def test_flagged_edit_returns_stable_code_without_changing_review(self):
@@ -1638,7 +1734,7 @@ class ReviewDetailViewTests(APITestCase):
 
         response = self.client.patch(
             self.detail_url,
-            {"text": "Proposed unsafe update."},
+            {"text": "Proposed unsafe update with enough detail."},
             format="multipart",
         )
 
@@ -1676,7 +1772,7 @@ class ReviewDetailViewTests(APITestCase):
         self.moderate_review.side_effect = concurrent_change
         response = self.client.patch(
             self.detail_url,
-            {"text": "Older proposed update."},
+            {"text": "Older proposed update with enough detail."},
             format="multipart",
         )
 
@@ -1746,7 +1842,7 @@ class ReviewDetailViewTests(APITestCase):
 
         response = self.client.patch(
             self.detail_url,
-            {"text": "Should not be allowed."},
+            {"text": "This proposed edit should not be allowed."},
             format="multipart",
         )
 
@@ -1765,7 +1861,7 @@ class ReviewDetailViewTests(APITestCase):
     def test_update_review_rejects_nonexistent_review(self):
         response = self.client.patch(
             "/api/reviews/999999/",
-            {"text": "Ghost review."},
+            {"text": "A ghost review with enough review detail."},
             format="multipart",
         )
 

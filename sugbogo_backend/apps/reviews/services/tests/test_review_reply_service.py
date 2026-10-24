@@ -1,9 +1,13 @@
+from datetime import timedelta
 from io import BytesIO
 from unittest.mock import patch
 
+from cloudinary.exceptions import AuthorizationRequired
 from django.contrib.gis.geos import Point
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.db import connection, transaction
+from django.test import TestCase, TransactionTestCase
+from django.utils import timezone
 from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
@@ -13,10 +17,14 @@ from apps.business.models import (
     Cluster,
     Location,
 )
-from apps.reviews.models import ReplyPhoto, ReviewReply
-from apps.reviews.services.review_reply_service import ReviewReplyService
-from apps.reviews.services.review_service import ReviewService
+from apps.reviews.models import ReplyPhoto, Review, ReviewMediaCleanup, ReviewReply
+from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
+from apps.reviews.services.review_reply_service import (
+    ReviewReplyEditConflict,
+    ReviewReplyService,
+)
 from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
     SafeReviewModerationMixin,
 )
 from apps.users.models import User
@@ -122,7 +130,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_create_reply(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food and excellent service.",
@@ -154,8 +162,66 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
                 text="Thank you for your feedback.",
             )
 
+    @patch("apps.reviews.services.review_reply_service.CloudinaryService.upload_image")
+    def test_create_reply_rejects_nonpublished_statuses_before_upload(
+        self,
+        upload,
+    ):
+        review = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="Private review content.",
+        )
+        for status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=status):
+                review.REVW_STATUS = status
+                review.save(update_fields=["REVW_STATUS"])
+                with self.assertRaisesMessage(
+                    NotFound,
+                    "The review could not be found.",
+                ):
+                    ReviewReplyService.create_reply(
+                        user=self.merchant,
+                        review_id=review.pk,
+                        text="Thank you for visiting.",
+                        photos=[self.create_test_image("reply.jpg")],
+                    )
+                self.assertFalse(ReviewReply.objects.filter(REVW_ID=review).exists())
+                upload.assert_not_called()
+
+    def test_delete_existing_reply_after_review_is_no_longer_published(self):
+        review = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="Previously published review.",
+        )
+        for status in (
+            Review.ReviewStatus.UNDER_REVIEW,
+            Review.ReviewStatus.FLAGGED,
+            Review.ReviewStatus.REJECTED,
+        ):
+            with self.subTest(status=status):
+                review.REVW_STATUS = Review.ReviewStatus.PUBLISHED
+                review.save(update_fields=["REVW_STATUS"])
+                reply = ReviewReplyService.create_reply(
+                    user=self.merchant,
+                    review_id=review.pk,
+                    text="Thank you for visiting.",
+                )
+                review.REVW_STATUS = status
+                review.save(update_fields=["REVW_STATUS"])
+                ReviewReplyService.delete_reply(
+                    user=self.merchant,
+                    reply_id=reply.pk,
+                )
+                self.assertFalse(ReviewReply.objects.filter(pk=reply.pk).exists())
+
     def test_create_reply_rejects_merchant_from_different_business(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -176,7 +242,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_update_reply_rejects_merchant_from_different_business(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -203,7 +269,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
 
 
     def test_delete_reply_rejects_merchant_from_different_business(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -229,7 +295,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
         
     def test_create_reply_rejects_non_business_owner(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -246,7 +312,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
             )
 
     def test_create_reply_rejects_duplicate_reply(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -276,7 +342,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def test_create_reply_is_available_through_review_relation(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -294,15 +360,40 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     @patch("apps.reviews.services.review_reply_service.CloudinaryService.delete_image")
-    def test_delete_reply_cleans_up_reply_photos(self, mock_delete):
-        review = ReviewService.create_review(user=self.explorer, business_id=self.business.BUSN_ID, text="Great food.")
-        reply = ReviewReplyService.create_reply(user=self.merchant, review_id=review.REVW_ID, text="Thank you.")
-        ReplyPhoto.objects.create(RPLY_ID=reply, RPHO_PHOTO_URL="https://example.com/a.jpg", RPHO_PHOTO_PUBLIC_ID="reply/a")
+    def test_delete_reply_cleans_up_reply_photos(
+        self,
+        mock_delete,
+    ):
+        review = create_and_moderate_review(
+            user=self.explorer,
+            business_id=self.business.BUSN_ID,
+            text="Great food.",
+        )
+        reply = ReviewReplyService.create_reply(
+            user=self.merchant,
+            review_id=review.REVW_ID,
+            text="Thank you.",
+        )
+        ReplyPhoto.objects.create(
+            RPLY_ID=reply,
+            RPHO_PHOTO_URL="https://example.com/a.jpg",
+            RPHO_PHOTO_PUBLIC_ID="reply/a",
+        )
 
-        ReviewReplyService.delete_reply(self.merchant, reply.RPLY_ID)
+        with patch("apps.reviews.tasks.cleanup_review_media_asset.apply_async") as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                ReviewReplyService.delete_reply(
+                    user=self.merchant,
+                    reply_id=reply.RPLY_ID,
+                )
 
-        self.assertFalse(ReviewReply.objects.filter(RPLY_ID=reply.RPLY_ID).exists())
-        mock_delete.assert_called_once_with("reply/a")
+        self.assertFalse(
+            ReviewReply.objects.filter(RPLY_ID=reply.RPLY_ID).exists(),
+        )
+        mock_delete.assert_not_called()
+        record = ReviewMediaCleanup.objects.get()
+        self.assertEqual(record.RMCU_PUBLIC_ID, "reply/a")
+        enqueue.assert_called_once_with(args=[record.pk], retry=False)
 
 
     @patch("apps.reviews.services.review_reply_service.CloudinaryService.delete_image")
@@ -312,7 +403,7 @@ class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
         mock_upload,
         mock_delete,
     ):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -411,7 +502,7 @@ class ReplyPhotoServiceTests(SafeReviewModerationMixin, TestCase):
         )
 
     def _create_reply_with_photo(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.explorer,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -446,9 +537,9 @@ class ReplyPhotoServiceTests(SafeReviewModerationMixin, TestCase):
             ReplyPhoto.objects.filter(RPHO_ID=photo.RPHO_ID).exists(),
         )
 
-        mock_delete.assert_called_once_with(
-            "sugbogo/review-replies/reply",
-        )
+        mock_delete.assert_not_called()
+        record = ReviewMediaCleanup.objects.get()
+        self.assertEqual(record.RMCU_PUBLIC_ID, "sugbogo/review-replies/reply")
 
     def test_delete_photo_rejects_nonexistent_photo(self):
         with self.assertRaisesMessage(
@@ -475,3 +566,476 @@ class ReplyPhotoServiceTests(SafeReviewModerationMixin, TestCase):
         self.assertTrue(
             ReplyPhoto.objects.filter(RPHO_ID=photo.RPHO_ID).exists(),
         )
+
+
+class ReplyMediaTransactionTests(TransactionTestCase):
+    """Exercise reply cleanup using real commits with isolated provider and broker calls."""
+
+    def setUp(self):
+        ReviewReplyServiceTests.setUpTestData.__func__(type(self))
+        self.review = Review.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.business,
+            REVW_TEXT="Great food.",
+        )
+        self.reply = ReviewReplyService.create_reply(
+            user=self.merchant,
+            review_id=self.review.pk,
+            text="Original reply.",
+        )
+        self.photo = ReplyPhoto.objects.create(
+            RPLY_ID=self.reply,
+            RPHO_PHOTO_URL="https://example.com/reply.jpg",
+            RPHO_PHOTO_PUBLIC_ID="reply/original",
+        )
+        self.enqueue_patcher = patch(
+            "apps.reviews.tasks.cleanup_review_media_asset.apply_async",
+        )
+        self.enqueue = self.enqueue_patcher.start()
+        self.addCleanup(self.enqueue_patcher.stop)
+        self.destroy_patcher = patch(
+            "apps.shared.services.cloudinary_service.cloudinary.uploader.destroy",
+            return_value={"result": "ok"},
+        )
+        self.destroy = self.destroy_patcher.start()
+        self.addCleanup(self.destroy_patcher.stop)
+
+    def _remove(
+        self,
+        operation,
+    ):
+        if operation == "update":
+            ReviewReplyService.update_reply(
+                user=self.merchant,
+                reply_id=self.reply.pk,
+                text="Updated reply.",
+                keep_photo_ids=[],
+            )
+        elif operation == "delete_reply":
+            ReviewReplyService.delete_reply(
+                user=self.merchant,
+                reply_id=self.reply.pk,
+            )
+        else:
+            ReviewReplyService.delete_photo(
+                user=self.merchant,
+                photo_id=self.photo.pk,
+            )
+
+    def test_rollback_preserves_reply_photos_and_discards_cleanup(self):
+        for operation in ("update", "delete_reply", "delete_photo"):
+            with self.subTest(operation=operation):
+                with self.assertRaisesMessage(RuntimeError, "Rollback"):
+                    with transaction.atomic():
+                        self._remove(operation)
+                        self.assertEqual(ReviewMediaCleanup.objects.count(), 1)
+                        self.assertFalse(
+                            ReplyPhoto.objects.filter(pk=self.photo.pk).exists(),
+                        )
+                        self.enqueue.assert_not_called()
+                        self.destroy.assert_not_called()
+                        raise RuntimeError("Rollback")
+
+                self.reply.refresh_from_db()
+                self.photo.refresh_from_db()
+                self.assertEqual(self.reply.RPLY_TEXT, "Original reply.")
+                self.assertFalse(ReviewMediaCleanup.objects.exists())
+                self.enqueue.assert_not_called()
+                self.destroy.assert_not_called()
+
+    def test_removal_dispatches_only_after_commit_and_preserves_identifiers(self):
+        observations = []
+
+        def observe_dispatch(
+            *args,
+            **kwargs,
+        ):
+            observations.append(connection.in_atomic_block)
+
+        self.enqueue.side_effect = observe_dispatch
+
+        for operation in ("update", "delete_photo", "delete_reply"):
+            with self.subTest(operation=operation):
+                if operation != "update":
+                    self.photo = ReplyPhoto.objects.create(
+                        RPLY_ID=self.reply,
+                        RPHO_PHOTO_URL="https://example.com/another.jpg",
+                        RPHO_PHOTO_PUBLIC_ID=f"reply/{operation}",
+                    )
+                self.enqueue.reset_mock()
+                with transaction.atomic():
+                    self._remove(operation)
+                    self.enqueue.assert_not_called()
+                    self.destroy.assert_not_called()
+
+                record = ReviewMediaCleanup.objects.get(
+                    RMCU_PUBLIC_ID=self.photo.RPHO_PHOTO_PUBLIC_ID,
+                )
+                self.assertEqual(record.RMCU_REVIEW_ID, self.review.pk)
+                self.assertEqual(record.RMCU_RESOURCE_TYPE, "image")
+                self.enqueue.assert_called_once_with(
+                    args=[record.pk],
+                    retry=False,
+                )
+                self.assertFalse(
+                    ReplyPhoto.objects.filter(pk=self.photo.pk).exists(),
+                )
+                self.assertEqual(
+                    ReviewMediaCleanupService.process(record.pk)["status"],
+                    "succeeded",
+                )
+                self.destroy.assert_called_once_with(
+                    self.photo.RPHO_PHOTO_PUBLIC_ID,
+                    resource_type="image",
+                    type="upload",
+                    timeout=15,
+                )
+                self.destroy.reset_mock()
+
+        self.assertEqual(observations, [False, False, False])
+        self.assertFalse(ReviewReply.objects.filter(pk=self.reply.pk).exists())
+
+    def test_failure_after_commit_retains_work_and_recovers(self):
+        self._remove("delete_reply")
+        record = ReviewMediaCleanup.objects.get()
+        self.destroy.side_effect = TimeoutError("Unavailable")
+
+        outcome = ReviewMediaCleanupService.process(record.pk)
+
+        self.assertEqual(outcome, {"status": "pending", "retry_after": 60})
+        record.refresh_from_db()
+        self.assertEqual(record.RMCU_ATTEMPTS, 1)
+        self.assertEqual(record.RMCU_LAST_ERROR, "TimeoutError")
+        self.assertEqual(record.RMCU_PUBLIC_ID, "reply/original")
+        self.assertFalse(ReviewReply.objects.filter(pk=self.reply.pk).exists())
+        self.assertEqual(ReviewMediaCleanupService.recover_pending(), 0)
+
+        ReviewMediaCleanup.objects.filter(pk=record.pk).update(
+            RMCU_NEXT_ATTEMPT_AT=timezone.now() - timedelta(seconds=1),
+        )
+        self.enqueue.reset_mock()
+        self.assertEqual(ReviewMediaCleanupService.recover_pending(), 1)
+        self.enqueue.assert_called_once_with(args=[record.pk], retry=False)
+        self.destroy.side_effect = None
+        self.assertEqual(
+            ReviewMediaCleanupService.process(record.pk)["status"],
+            "succeeded",
+        )
+        record.refresh_from_db()
+        self.assertEqual(record.RMCU_ATTEMPTS, 2)
+
+    def test_permanent_failure_can_be_requeued_after_intervention(self):
+        self._remove("delete_photo")
+        record = ReviewMediaCleanup.objects.get()
+        self.destroy.side_effect = AuthorizationRequired("Denied")
+        self.assertEqual(
+            ReviewMediaCleanupService.process(record.pk)["status"],
+            "failed",
+        )
+        self.enqueue.reset_mock()
+
+        with transaction.atomic():
+            ReviewMediaCleanupService.requeue_failed(record.pk)
+            self.enqueue.assert_not_called()
+
+        self.enqueue.assert_called_once_with(args=[record.pk], retry=False)
+        self.destroy.side_effect = None
+        self.assertEqual(
+            ReviewMediaCleanupService.process(record.pk)["status"],
+            "succeeded",
+        )
+
+    def test_lost_publication_is_recoverable(self):
+        self.enqueue.side_effect = RuntimeError("Broker unavailable")
+        self._remove("update")
+        record = ReviewMediaCleanup.objects.get()
+        self.assertFalse(ReplyPhoto.objects.filter(pk=self.photo.pk).exists())
+        self.assertEqual(record.RMCU_STATUS, "pending")
+        self.enqueue.side_effect = None
+        self.enqueue.reset_mock()
+        self.assertEqual(ReviewMediaCleanupService.recover_pending(), 1)
+        self.enqueue.assert_called_once_with(args=[record.pk], retry=False)
+
+    def test_duplicate_registration_and_execution_preserve_database_state(self):
+        assets = {("reply/original", "image")}
+        with transaction.atomic():
+            ReviewMediaCleanupService.register_assets(
+                review_id=self.review.pk,
+                assets=assets,
+            )
+            ReviewMediaCleanupService.register_review_assets(self.review)
+            self._remove("update")
+            ReviewMediaCleanupService.register_assets(
+                review_id=self.review.pk,
+                assets=assets,
+            )
+
+        record = ReviewMediaCleanup.objects.get()
+        self.enqueue.assert_called_once_with(args=[record.pk], retry=False)
+        self.assertEqual(
+            ReviewMediaCleanupService.process(record.pk)["status"],
+            "succeeded",
+        )
+        self.assertEqual(
+            ReviewMediaCleanupService.process(record.pk)["status"],
+            "skipped",
+        )
+        ReviewMediaCleanupService.register_assets(
+            review_id=self.review.pk,
+            assets=assets,
+        )
+        self.assertEqual(ReviewMediaCleanup.objects.count(), 1)
+        self.enqueue.assert_called_once()
+        self.destroy.assert_called_once()
+        self.reply.refresh_from_db()
+        self.assertEqual(self.reply.RPLY_TEXT, "Updated reply.")
+        self.assertTrue(Review.objects.filter(pk=self.review.pk).exists())
+
+    @patch("apps.reviews.services.review_reply_service.CloudinaryService.upload_image")
+    def test_update_preserves_kept_photos_and_uploads_replacements(
+        self,
+        upload,
+    ):
+        upload.return_value = {
+            "public_id": "reply/new",
+            "secure_url": "https://example.com/new.jpg",
+        }
+        ReviewReplyService.update_reply(
+            user=self.merchant,
+            reply_id=self.reply.pk,
+            text="Edited reply.",
+            keep_photo_ids=[self.photo.pk],
+            photos=[object()],
+        )
+        self.assertEqual(self.reply.photos.count(), 2)
+        self.reply.refresh_from_db()
+        self.assertEqual(self.reply.RPLY_TEXT, "Edited reply.")
+        self.assertTrue(ReplyPhoto.objects.filter(pk=self.photo.pk).exists())
+        self.assertFalse(ReviewMediaCleanup.objects.exists())
+        self.enqueue.assert_not_called()
+        self.destroy.assert_not_called()
+
+        ReviewReplyService.update_reply(
+            user=self.merchant,
+            reply_id=self.reply.pk,
+            keep_photo_ids=[self.photo.pk],
+        )
+        self.assertEqual(self.reply.photos.count(), 1)
+        self.assertEqual(ReviewMediaCleanup.objects.get().RMCU_PUBLIC_ID, "reply/new")
+
+    @patch("apps.reviews.services.review_reply_service.CloudinaryService.upload_image")
+    def test_invalid_photo_selection_or_limit_creates_no_cleanup(
+        self,
+        upload,
+    ):
+        for keep_ids, photos in (
+            ([self.photo.pk + 999999], []),
+            ([self.photo.pk], [object(), object(), object()]),
+        ):
+            with self.subTest(keep_ids=keep_ids):
+                with self.assertRaises(ValidationError):
+                    ReviewReplyService.update_reply(
+                        user=self.merchant,
+                        reply_id=self.reply.pk,
+                        keep_photo_ids=keep_ids,
+                        photos=photos,
+                    )
+
+        self.assertTrue(ReplyPhoto.objects.filter(pk=self.photo.pk).exists())
+        self.assertFalse(ReviewMediaCleanup.objects.exists())
+        upload.assert_not_called()
+        self.enqueue.assert_not_called()
+        self.destroy.assert_not_called()
+
+    @patch("apps.reviews.services.review_reply_service.CloudinaryService.upload_image")
+    def test_partial_update_upload_failure_compensates_known_assets(
+        self,
+        upload,
+    ):
+        upload.side_effect = [
+            {"public_id": "reply/new", "secure_url": "https://example.com/new.jpg"},
+            RuntimeError("upload failed"),
+        ]
+        with self.assertRaisesMessage(RuntimeError, "upload failed"):
+            ReviewReplyService.update_reply(
+                user=self.merchant,
+                reply_id=self.reply.pk,
+                text="Uncommitted reply.",
+                photos=[object(), object()],
+            )
+        self.reply.refresh_from_db()
+        self.assertEqual(self.reply.RPLY_TEXT, "Original reply.")
+        self.assertEqual(self.reply.photos.count(), 1)
+        self.assertFalse(ReviewMediaCleanup.objects.exists())
+        self.destroy.assert_called_once_with(
+            "reply/new",
+            resource_type="image",
+            type="upload",
+            timeout=15,
+        )
+
+    def _assert_failed_persistence(
+        self,
+        compensation_fails=False,
+    ):
+        """Rollback attachment and cleanup registration before compensating uploads."""
+        register = ReviewMediaCleanupService.register_assets
+
+        def fail_after_registration(**kwargs):
+            register(**kwargs)
+            raise RuntimeError("persistence failed")
+
+        if compensation_fails:
+            self.destroy.side_effect = TimeoutError("deletion unavailable")
+        with (
+            patch(
+                "apps.reviews.services.review_reply_service.CloudinaryService.upload_image",
+                return_value={
+                    "public_id": "reply/new",
+                    "secure_url": "https://example.com/new.jpg",
+                },
+            ),
+            patch.object(
+                ReviewMediaCleanupService,
+                "register_assets",
+                side_effect=fail_after_registration,
+            ),
+            patch("apps.reviews.services.review_reply_service.logger.error") as log,
+        ):
+            with self.assertRaisesMessage(RuntimeError, "persistence failed"):
+                ReviewReplyService.update_reply(
+                    user=self.merchant,
+                    reply_id=self.reply.pk,
+                    text="Uncommitted edit.",
+                    keep_photo_ids=[],
+                    photos=[object()],
+                )
+        self.reply.refresh_from_db()
+        self.assertEqual(self.reply.RPLY_TEXT, "Original reply.")
+        self.assertEqual(list(self.reply.photos.all()), [self.photo])
+        self.assertFalse(ReviewMediaCleanup.objects.exists())
+        self.enqueue.assert_not_called()
+        self.destroy.assert_called_once()
+        if compensation_fails:
+            context = log.call_args.kwargs["extra"]
+            self.assertEqual(context["reply_id"], self.reply.pk)
+            self.assertEqual(context["public_id"], "reply/new")
+            self.assertEqual(context["request_error_type"], "RuntimeError")
+            self.assertEqual(context["error_type"], "TimeoutError")
+        else:
+            log.assert_not_called()
+
+    def test_failed_persistence_rolls_back_and_compensates_new_upload(self):
+        self._assert_failed_persistence()
+
+    def test_failed_compensation_preserves_original_persistence_error(self):
+        self._assert_failed_persistence(compensation_fails=True)
+
+    @patch("apps.reviews.services.review_reply_service.CloudinaryService.upload_image")
+    def test_stale_photo_source_conflicts_and_compensates_new_upload(
+        self,
+        upload,
+    ):
+        def change_photo(
+            *args,
+            **kwargs,
+        ):
+            self.assertFalse(connection.in_atomic_block)
+            ReplyPhoto.objects.filter(pk=self.photo.pk).update(
+                RPHO_PHOTO_URL="https://example.com/newer-source.jpg",
+            )
+            return {
+                "public_id": "reply/abandoned",
+                "secure_url": "https://example.com/abandoned.jpg",
+            }
+
+        upload.side_effect = change_photo
+        with self.assertRaises(ReviewReplyEditConflict):
+            ReviewReplyService.update_reply(
+                user=self.merchant,
+                reply_id=self.reply.pk,
+                photos=[object()],
+            )
+        self.photo.refresh_from_db()
+        self.assertEqual(self.photo.RPHO_PHOTO_URL, "https://example.com/newer-source.jpg")
+        self.assertEqual(self.reply.photos.count(), 1)
+        self.assertFalse(ReviewMediaCleanup.objects.exists())
+        self.destroy.assert_called_once()
+
+    @patch("apps.reviews.services.review_reply_service.CloudinaryService.upload_image")
+    def test_same_text_with_newer_timestamp_conflicts(
+        self,
+        upload,
+    ):
+        def change_version(
+            *args,
+            **kwargs,
+        ):
+            ReviewReply.objects.filter(pk=self.reply.pk).update(
+                RPLY_UPDATED_AT=timezone.now() + timedelta(seconds=1),
+            )
+            return {
+                "public_id": "reply/abandoned",
+                "secure_url": "https://example.com/abandoned.jpg",
+            }
+
+        upload.side_effect = change_version
+        with self.assertRaises(ReviewReplyEditConflict):
+            ReviewReplyService.update_reply(
+                user=self.merchant,
+                reply_id=self.reply.pk,
+                text="Older proposed edit.",
+                photos=[object()],
+            )
+        self.reply.refresh_from_db()
+        self.assertEqual(self.reply.RPLY_TEXT, "Original reply.")
+        self.assertEqual(self.reply.photos.count(), 1)
+        self.destroy.assert_called_once()
+
+    def test_compensation_protects_attached_assets(self):
+        with patch("apps.reviews.services.review_reply_service.logger.warning") as log:
+            ReviewReplyService._compensate_uploads(
+                [self.photo.RPHO_PHOTO_PUBLIC_ID],
+                self.reply.pk,
+                ReviewReplyEditConflict(),
+            )
+        log.assert_called_once()
+        self.destroy.assert_not_called()
+        self.assertTrue(ReplyPhoto.objects.filter(pk=self.photo.pk).exists())
+
+    @patch("apps.reviews.services.review_reply_service.CloudinaryService.upload_image")
+    def test_final_photo_validation_holds_lock_and_upload_does_not(
+        self,
+        upload,
+    ):
+        validation_transactions = []
+        validate = ReviewReplyService._validate_photo_selection
+
+        def validate_selection(*args):
+            validation_transactions.append(connection.in_atomic_block)
+            return validate(*args)
+
+        def upload_photo(
+            *args,
+            **kwargs,
+        ):
+            self.assertFalse(connection.in_atomic_block)
+            return {
+                "public_id": "reply/new",
+                "secure_url": "https://example.com/new.jpg",
+            }
+
+        upload.side_effect = upload_photo
+        with patch.object(
+            ReviewReplyService,
+            "_validate_photo_selection",
+            side_effect=validate_selection,
+        ):
+            ReviewReplyService.update_reply(
+                user=self.merchant,
+                reply_id=self.reply.pk,
+                photos=[object()],
+            )
+        self.assertEqual(validation_transactions, [False, True])
+        self.assertEqual(self.reply.photos.count(), 2)
+        self.destroy.assert_not_called()

@@ -79,6 +79,7 @@ export function LiveBusinessQuickInfo({
   return (
     <BusinessProfileQuickInfo
       reviewCount={totalCount}
+      overallVibe={business.overall_vibe}
       statusLabel={status.statusLabel}
       statusDetail={status.statusDetail}
       isOpenNow={status.isOpen}

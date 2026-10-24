@@ -683,6 +683,10 @@ class BusinessReviewSummary(models.Model):
         null=True,
         blank=True,
     )
+    BRSU_SENTIMENT_SOURCES = models.JSONField(
+        default=dict,
+        blank=True,
+    )
     BRSU_KEYWORDS_PROCESSED_AT = models.DateTimeField(
         null=True,
         blank=True,

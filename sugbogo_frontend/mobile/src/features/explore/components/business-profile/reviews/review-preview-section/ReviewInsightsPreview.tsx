@@ -11,7 +11,6 @@ import {
   resolveReviewInsightRegeneration,
   reviewInsightUpdateMessage,
 } from "../../../../utils/reviewInsightRegeneration.utils";
-import ReviewInsightsStateCard from "../ReviewInsightsStateCard";
 import ReviewInsightsSummaryCard from "../ReviewInsightsSummaryCard";
 
 type Props = {
@@ -22,15 +21,13 @@ type Props = {
 /**
  * Shows the business profile's compact Review Insights preview.
  *
- * Keeps Reviews as the profile's main section heading while making unavailable,
- * insufficient, and updating states explicitly identifiable as Review Insights.
+ * Shows useful generated content without empty or unavailable status panels.
  */
 export default function ReviewInsightsPreview({
   insights,
   regeneration,
 }: Props) {
   const recentCount = insights?.eligible_review_count ?? 0;
-  const hasRecentReviews = recentCount > 0;
   const progress = resolveReviewInsightRegeneration(regeneration, insights);
   const tracked = isTrackedReviewInsightRegeneration(progress);
   const updateMessage = reviewInsightUpdateMessage(progress);
@@ -41,12 +38,14 @@ export default function ReviewInsightsPreview({
     insights.narrative,
   );
 
-  const isUpdating = Boolean(
-    !tracked &&
-    insights &&
-    (insights.state === "pending" || insights.state === "outdated") &&
-    !insights.content_available,
-  );
+  if (
+    !insights ||
+    !hasGeneratedSummary ||
+    recentCount === 0 ||
+    insights.state === "insufficient_reviews"
+  ) {
+    return null;
+  }
 
   const overallVibe =
     insights?.has_sufficient_sentiment_data && insights.overall_vibe
@@ -55,78 +54,39 @@ export default function ReviewInsightsPreview({
 
   return (
     <View className="mb-5">
-      {updateMessage && (
-        <AppText className="mb-2 text-xs leading-5 text-text-secondary">
-          {updateMessage}
-        </AppText>
-      )}
       {tracked && hasGeneratedSummary && !progress.content_is_current && (
-        <AppText className="mb-2 text-xs leading-5 text-text-secondary">
-          Showing previous insights; they may not reflect the latest reviews.
-        </AppText>
+        <View className="mb-2 gap-0.5">
+          {updateMessage && (
+            <AppText className="text-xs leading-5 text-text-secondary">
+              {updateMessage}
+            </AppText>
+          )}
+          <AppText className="text-xs leading-5 text-text-tertiary">
+            Showing the previous summary for now.
+          </AppText>
+        </View>
       )}
-      {/* Review Insights availability and generation states */}
-      {!insights ? (
-        <ReviewInsightsStateCard
-          icon="chart-box-outline"
-          title="Review Insights aren't available yet"
-          description="Insights will appear after recent reviews are processed."
-        />
-      ) : !hasRecentReviews && !isUpdating ? (
-        <ReviewInsightsStateCard
-          icon="chart-box-outline"
-          title="No Review Insights yet"
-          description={`At least ${insights.minimum_eligible_review_count} eligible reviews from the past 30 days are needed to generate insights.`}
-        />
-      ) : insights.state === "insufficient_reviews" ? (
-        <ReviewInsightsStateCard
-          icon="chart-box-outline"
-          title="Not enough reviews for Review Insights"
-          description={insights.state_message ?? ""}
-        />
-      ) : isUpdating ? (
-        <ReviewInsightsStateCard
-          icon="refresh"
-          title="Updating Review Insights…"
-          description={
-            insights.state_message ||
-            "Recent reviews changed, so we’re refreshing this summary."
-          }
-        />
-      ) : hasGeneratedSummary ? (
-        /* Generated Vibe Summary */
-        <ReviewInsightsSummaryCard
-          narrative={insights.narrative!}
-          overallVibe={overallVibe}
-          footer={
-            <View>
-              <AppText className="text-xs leading-5 text-text-tertiary">
-                Based on {recentCount} eligible{" "}
-                {recentCount === 1 ? "review" : "reviews"} from the past 30
-                days.
-              </AppText>
+      {/* Generated Vibe Summary */}
+      <ReviewInsightsSummaryCard
+        narrative={insights.narrative!}
+        overallVibe={overallVibe}
+        footer={
+          <View>
+            <AppText className="text-xs leading-5 text-text-tertiary">
+              Based on {recentCount} eligible{" "}
+              {recentCount === 1 ? "review" : "reviews"} from the past 30 days.
+            </AppText>
 
-              {!tracked &&
-                insights.state === "outdated" &&
-                insights.state_message && (
-                  <AppText className="mt-1 text-xs leading-5 text-text-tertiary">
-                    {insights.state_message}
-                  </AppText>
-                )}
-            </View>
-          }
-        />
-      ) : (
-        /* Fallback Review Insights state */
-        <ReviewInsightsStateCard
-          icon="chart-box-outline"
-          title="Review Insights aren't available yet"
-          description={
-            insights.state_message ||
-            "Insights will appear after recent reviews are processed."
-          }
-        />
-      )}
+            {!tracked &&
+              insights.state === "outdated" &&
+              insights.state_message && (
+                <AppText className="mt-1 text-xs leading-5 text-text-tertiary">
+                  {insights.state_message}
+                </AppText>
+              )}
+          </View>
+        }
+      />
     </View>
   );
 }

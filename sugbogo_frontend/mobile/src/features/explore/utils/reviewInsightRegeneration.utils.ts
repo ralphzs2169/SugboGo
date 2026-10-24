@@ -33,11 +33,11 @@ export function reviewInsightUpdateMessage(
   if (!progress?.is_outstanding) return null;
   switch (progress.status) {
     case "scheduled":
-      return "Review insights will be refreshed shortly.";
+      return "Review Insights will refresh shortly.";
     case "processing":
       return "Updating insights with the latest reviews.";
     case "retry_wait":
-      return "Insights are taking longer to update. Please check back later.";
+      return "Insights are taking longer to update.";
     default:
       return null;
   }

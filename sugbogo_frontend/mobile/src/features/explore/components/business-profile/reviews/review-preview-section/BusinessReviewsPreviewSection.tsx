@@ -1,12 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
+import SafePressable from "@/shared/components/SafePressable";
 
 import { useBusinessReviewPreview } from "../../../../hooks/useBusinessReviews";
 import type {
@@ -16,6 +17,7 @@ import type {
 import type { BusinessReview } from "../../../../types/review.types";
 import BusinessReviewCardSkeleton from "../../state/BusinessReviewCardSkeleton";
 import BusinessReviewCard from "../BusinessReviewCard";
+import AuthorReviewSubmissions from "../AuthorReviewSubmission";
 import ReviewInsightsPreview from "./ReviewInsightsPreview";
 
 const MASCOT_EMPTY_REVIEWS = require("@/shared/assets/mascot/mascot-empty-reviews.webp");
@@ -55,11 +57,15 @@ export default function BusinessReviewsPreviewSection({
     refetch,
     totalCount,
     hasOwnReview: previewHasOwnReview,
+    hasResolvedOwnership,
     userReview,
   } = useBusinessReviewPreview(businessId);
 
   const reviewCount = totalCount ?? 0;
-  const hasOwnReview = businessHasOwnReview || previewHasOwnReview;
+  // The private review source can clear ownership before business detail refreshes.
+  const hasOwnReview = hasResolvedOwnership
+    ? previewHasOwnReview
+    : businessHasOwnReview || previewHasOwnReview;
   const canWriteReview = !isOwnBusiness && !hasOwnReview;
 
   const openReviews = () => {
@@ -84,7 +90,7 @@ export default function BusinessReviewsPreviewSection({
         {!isLoading && !error && (
           <>
             {reviewCount > 0 ? (
-              <Pressable
+              <SafePressable
                 onPress={openReviews}
                 className="cursor-pointer flex-row items-center active:opacity-70"
               >
@@ -97,7 +103,7 @@ export default function BusinessReviewsPreviewSection({
                   size={16}
                   color={theme.extends.colors.brand}
                 />
-              </Pressable>
+              </SafePressable>
             ) : (
               <MaterialCommunityIcons
                 name="message-text-outline"
@@ -116,6 +122,14 @@ export default function BusinessReviewsPreviewSection({
       />
 
       {/* Loading state */}
+      <AuthorReviewSubmissions
+        businessId={businessId}
+        representedIds={[
+          ...reviews.map((review) => review.id),
+          ...(userReview ? [userReview.id] : []),
+        ]}
+        onResume={onWriteReview}
+      />
       {isLoading && <BusinessReviewCardSkeleton />}
 
       {/* Error state */}
@@ -163,13 +177,16 @@ export default function BusinessReviewsPreviewSection({
       )}
 
       {/* Review preview */}
-      {!isLoading && !error && userReview?.status === "under_review" && (
-        <BusinessReviewCard
-          businessId={businessId}
-          review={userReview}
-          onEdit={onEditReview}
-        />
-      )}
+      {!isLoading &&
+        !error &&
+        userReview &&
+        userReview.status !== "published" && (
+          <BusinessReviewCard
+            businessId={businessId}
+            review={userReview}
+            onEdit={onEditReview}
+          />
+        )}
 
       {!isLoading && !error && reviews.length > 0 && (
         <View>
@@ -185,21 +202,21 @@ export default function BusinessReviewsPreviewSection({
               />
             ))}
           </View>
+        </View>
+      )}
 
-          {/* Review creation action */}
-          {canWriteReview && (
-            <View className="items-center">
-              <Button
-                title="Write a review"
-                onPress={onWriteReview}
-                variant="soft"
-                rounded="full"
-                size="sm"
-                className="min-w-40 cursor-pointer py-2.5"
-                fontClassName="text-sm"
-              />
-            </View>
-          )}
+      {/* Keep creation available after the last loaded card is deleted. */}
+      {!isLoading && !error && reviewCount > 0 && canWriteReview && (
+        <View className="items-center">
+          <Button
+            title="Write a review"
+            onPress={onWriteReview}
+            variant="soft"
+            rounded="full"
+            size="sm"
+            className="min-w-40 cursor-pointer py-2.5"
+            fontClassName="text-sm"
+          />
         </View>
       )}
     </View>

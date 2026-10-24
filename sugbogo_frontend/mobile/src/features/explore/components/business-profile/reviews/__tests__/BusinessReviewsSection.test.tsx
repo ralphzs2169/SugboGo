@@ -7,6 +7,10 @@ import type { BusinessReview } from "../../../../types/review.types";
 import BusinessReviewsSection from "../review-preview-section/BusinessReviewsPreviewSection";
 
 jest.setTimeout(15_000);
+jest.mock("@/shared/components/modals/FullScreenPhotoViewer", () => ({
+  __esModule: true,
+  default: () => null,
+}));
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
@@ -71,6 +75,7 @@ function mockPreview(reviews: BusinessReview[]) {
     refetch: jest.fn(),
     totalCount: reviews.length,
     hasOwnReview: reviews.some((item) => item.is_own_review),
+    hasResolvedOwnership: true,
   });
 }
 
@@ -159,7 +164,7 @@ describe("BusinessReviewsSection", () => {
   });
 
   it("does not offer duplicate or owner review creation", async () => {
-    mockPreview([review]);
+    mockPreview([{ ...review, is_own_review: true }]);
     const existingReviewScreen = await render(
       <BusinessReviewsSection {...defaultProps} hasOwnReview />,
     );
@@ -172,6 +177,52 @@ describe("BusinessReviewsSection", () => {
       <BusinessReviewsSection {...defaultProps} isOwnBusiness />,
     );
     expect(ownerScreen.queryByText("Write a review")).toBeNull();
+  });
+
+  it.each([0, 1])(
+    "restores Write a review after deletion with cached count %s and a stale business flag",
+    async (totalCount) => {
+      mockPreview([{ ...review, is_own_review: true }]);
+      const screen = await render(
+        <BusinessReviewsSection {...defaultProps} hasOwnReview />,
+      );
+      expect(screen.queryByText("Write a review")).toBeNull();
+
+      mockPreview([]);
+      (useBusinessReviewPreview as jest.Mock).mockReturnValue({
+        reviews: [],
+        userReview: null,
+        hasOwnReview: false,
+        hasResolvedOwnership: true,
+        totalCount,
+        isLoading: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+      await screen.rerender(
+        <BusinessReviewsSection {...defaultProps} hasOwnReview />,
+      );
+      expect(screen.getAllByText("Write a review")).toHaveLength(1);
+      await fireEvent.press(screen.getByText("Write a review"));
+      expect(defaultProps.onWriteReview).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("keeps the business ownership fallback until preview ownership is known", async () => {
+    (useBusinessReviewPreview as jest.Mock).mockReturnValue({
+      reviews: [],
+      userReview: null,
+      totalCount: 0,
+      hasOwnReview: false,
+      hasResolvedOwnership: false,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const screen = await render(
+      <BusinessReviewsSection {...defaultProps} hasOwnReview />,
+    );
+    expect(screen.queryByText("Write a review")).toBeNull();
   });
 
   it("uses Explorer copy in preview while retaining owner review restrictions", async () => {

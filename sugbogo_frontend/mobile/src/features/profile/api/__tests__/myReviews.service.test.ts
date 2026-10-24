@@ -14,7 +14,7 @@ describe("getMyReviews", () => {
       (apiClient.get as jest.Mock).mockResolvedValue({ data: envelope });
       expect(await getMyReviews(page)).toEqual(envelope);
       expect(apiClient.get).toHaveBeenLastCalledWith("/reviews/mine/", {
-        params: { page },
+        params: { page, status: "all", ordering: "newest" },
       });
     },
   );

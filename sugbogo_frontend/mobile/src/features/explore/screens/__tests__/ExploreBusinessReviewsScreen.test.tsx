@@ -13,6 +13,10 @@ import ExploreBusinessReviewsScreen from "../ReviewsCollectionScreen";
 const mockSetOptions = jest.fn();
 
 jest.setTimeout(15_000);
+jest.mock("@/shared/components/modals/FullScreenPhotoViewer", () => ({
+  __esModule: true,
+  default: () => null,
+}));
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
@@ -62,6 +66,17 @@ jest.mock("../../components/business-profile/ReviewComposerSheet", () => ({
     return review ? <Text>Editing review {review.id}</Text> : null;
   },
 }));
+jest.mock(
+  "../../components/business-profile/reviews/AuthorReviewSubmission",
+  () => ({
+    __esModule: true,
+    default: () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Text } = require("react-native");
+      return <Text>Your private review</Text>;
+    },
+  }),
+);
 jest.mock(
   "../../components/business-profile/state/BusinessReviewsSkeleton",
   () => ({
@@ -196,15 +211,31 @@ describe("ExploreBusinessReviewsScreen", () => {
     });
   });
 
-  it("uses the skeleton for the initial load", async () => {
-    (useBusinessReviews as jest.Mock).mockReturnValue(
-      reviewQuery({ isInitialLoading: true, reviews: [] }),
-    );
+  it.each(["ownership", "reviews"])(
+    "shows only the skeleton during initial %s loading",
+    async (source) => {
+      (useBusinessReviewPreview as jest.Mock).mockReturnValue(
+        preview({ isLoading: source === "ownership", hasOwnReview: true }),
+      );
+      (useBusinessReviews as jest.Mock).mockReturnValue(
+        reviewQuery({ isInitialLoading: source === "reviews", reviews: [] }),
+      );
+      const screen = await render(
+        <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+      );
+
+      expect(screen.getByText("Reviews loading")).toBeTruthy();
+      expect(screen.queryByText("Your private review")).toBeNull();
+      expect(screen.queryByTestId("review-card")).toBeNull();
+    },
+  );
+
+  it("shows the author's submission after initial loading finishes", async () => {
     const screen = await render(
       <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
     );
-
-    expect(screen.getByText("Reviews loading")).toBeTruthy();
+    expect(screen.getByText("Your private review")).toBeTruthy();
+    expect(screen.queryByText("Reviews loading")).toBeNull();
   });
 
   it("keeps the initial retry and Go Back error state", async () => {
@@ -351,7 +382,7 @@ describe("ExploreBusinessReviewsScreen", () => {
     );
   });
 
-  it("keeps previous reviews visible during a filter update", async () => {
+  it("shows review skeletons below the controls during a filter update", async () => {
     (useBusinessReviews as jest.Mock).mockImplementation(
       (_businessId, filters) =>
         filters?.sentiment
@@ -363,15 +394,10 @@ describe("ExploreBusinessReviewsScreen", () => {
     );
 
     await press(screen.getByText("Negative filter"));
-    expect(screen.getAllByTestId("review-card")).toHaveLength(3);
+    expect(screen.queryByTestId("review-card")).toBeNull();
     expect(screen.queryByText("Reviews loading")).toBeNull();
     expect(screen.getByTestId("reviews-filter-update-loader")).toBeTruthy();
-    expect(screen.getByTestId("review-result-row-1").props.pointerEvents).toBe(
-      "none",
-    );
-    expect(screen.getByTestId("review-result-row-1").props.className).toContain(
-      "opacity-60",
-    );
+    expect(screen.getByText("Negative filter")).toBeTruthy();
   });
 
   it("uses the same transition state when sorting changes", async () => {
@@ -388,9 +414,7 @@ describe("ExploreBusinessReviewsScreen", () => {
     await press(screen.getByText("Oldest sort"));
 
     expect(screen.getByTestId("reviews-filter-update-loader")).toBeTruthy();
-    expect(screen.getByTestId("review-result-row-2").props.pointerEvents).toBe(
-      "none",
-    );
+    expect(screen.queryByTestId("review-card")).toBeNull();
   });
 
   it("does not treat a like-driven same-key refetch as a filter update", async () => {
@@ -402,12 +426,7 @@ describe("ExploreBusinessReviewsScreen", () => {
     );
 
     expect(screen.queryByTestId("reviews-filter-update-loader")).toBeNull();
-    expect(screen.getByTestId("review-result-row-1").props.pointerEvents).toBe(
-      "auto",
-    );
-    expect(screen.getByTestId("review-result-row-1").props.className).toContain(
-      "opacity-100",
-    );
+    expect(screen.getAllByTestId("review-card")).toHaveLength(3);
   });
 
   it("does not show filter-transition feedback during pull-to-refresh", async () => {
@@ -486,6 +505,43 @@ describe("ExploreBusinessReviewsScreen", () => {
     expect(screen.queryByLabelText("Edit your review")).toBeNull();
     expect(screen.queryByText("Write a review")).toBeNull();
   });
+
+  it.each([0, 3])(
+    "restores Write a review after deletion with %s public reviews remaining",
+    async (totalCount) => {
+      (useBusinessReviewPreview as jest.Mock).mockReturnValue(
+        preview({
+          hasOwnReview: true,
+          userReview: {
+            ...reviews[0],
+            status: "published",
+            is_own_review: true,
+          },
+        }),
+      );
+      const screen = await render(
+        <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+      );
+      expect(screen.queryByLabelText("Write a review")).toBeNull();
+      (useBusinessReviewPreview as jest.Mock).mockReturnValue(
+        preview({
+          hasOwnReview: false,
+          userReview: null,
+          totalCount,
+        }),
+      );
+      (useBusinessReviews as jest.Mock).mockReturnValue(
+        reviewQuery({
+          reviews: totalCount === 0 ? [] : reviews,
+          totalCount,
+        }),
+      );
+      await screen.rerender(
+        <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+      );
+      expect(screen.getAllByLabelText("Write a review")).toHaveLength(1);
+    },
+  );
 
   it("shows the floating review action for an eligible nonempty business", async () => {
     const screen = await render(

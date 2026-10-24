@@ -26,10 +26,12 @@ import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import BusinessProfileFooter from "../components/business-profile/BusinessProfileFooter";
 import ReviewComposerSheet from "../components/business-profile/ReviewComposerSheet";
 import BusinessReviewCard from "../components/business-profile/reviews/BusinessReviewCard";
+import AuthorReviewSubmissions from "../components/business-profile/reviews/AuthorReviewSubmission";
 import ReviewFilterBottomSheet from "../components/business-profile/reviews/review-collection/ReviewFilterBottomSheet";
 import ReviewFiltersSection from "../components/business-profile/reviews/review-collection/ReviewFiltersSection";
 
 import BusinessReviewsSkeleton from "../components/business-profile/state/BusinessReviewsSkeleton";
+import BusinessReviewCardSkeleton from "../components/business-profile/state/BusinessReviewCardSkeleton";
 import ReviewCollectionEmptyState from "../components/business-profile/state/ReviewCollectionEmptyState";
 import {
   useBusinessReviewPreview,
@@ -105,7 +107,7 @@ function ReviewsCollectionScreenContent({
     filters.merchantReplied,
   );
 
-  const canWriteReview = !isOwnBusiness && !ownership.userReview;
+  const canWriteReview = !isOwnBusiness && !ownership.hasOwnReview;
   const showWriteReviewFab = canWriteReview && totalCount > 0;
 
   const isInitialLoading = ownership.isLoading || reviewQuery.isInitialLoading;
@@ -130,9 +132,11 @@ function ReviewsCollectionScreenContent({
     reviewQuery.error && !reviewQuery.isFetchNextPageError,
   );
 
-  const displayedReviews = hasListError ? [] : reviewQuery.reviews;
+  const displayedReviews =
+    hasListError || isUpdatingResults ? [] : reviewQuery.reviews;
 
   const shouldShowEndMessage =
+    !isUpdatingResults &&
     !reviewQuery.isInitialLoading &&
     !reviewQuery.error &&
     !reviewQuery.hasNextPage &&
@@ -261,13 +265,7 @@ function ReviewsCollectionScreenContent({
     item,
     index,
   }: ListRenderItemInfo<BusinessReview>) => (
-    <View
-      testID={`review-result-row-${item.id}`}
-      pointerEvents={isUpdatingResults ? "none" : "auto"}
-      className={`bg-surface px-4 ${
-        isUpdatingResults ? "opacity-60" : "opacity-100"
-      }`}
-    >
+    <View testID={`review-result-row-${item.id}`} className="bg-surface px-4">
       <BusinessReviewCard
         businessId={businessId}
         review={item}
@@ -279,12 +277,21 @@ function ReviewsCollectionScreenContent({
   );
 
   if (isInitialLoading) {
-    return <BusinessReviewsSkeleton bottomInset={insets.bottom} />;
+    return (
+      <BusinessReviewsSkeleton
+        bottomInset={insets.bottom}
+        showOwnerFooter={isOwnBusiness && !previewAsExplorer}
+      />
+    );
   }
 
   if (isInitialError) {
     return (
       <View className="flex-1 bg-surface">
+        <AuthorReviewSubmissions
+          businessId={businessId}
+          onResume={createReview}
+        />
         <ErrorState
           size="small"
           icon="comment-off-outline"
@@ -319,17 +326,15 @@ function ReviewsCollectionScreenContent({
       {/* Paginated reviews and inline controls */}
       <FlatList
         testID="reviews-list"
+        className={shouldShowEndMessage ? "bg-background" : "bg-surface"}
+        contentContainerClassName={
+          shouldShowEndMessage ? "bg-background" : "bg-surface"
+        }
         data={displayedReviews}
         keyExtractor={(review) => String(review.id)}
         renderItem={renderReview}
         ListHeaderComponent={
-          <View className="gap-3 px-4">
-            {ownership.userReview?.status === "under_review" && (
-              <BusinessReviewCard
-                businessId={businessId}
-                review={ownership.userReview}
-              />
-            )}
+          <View className="gap-3 bg-surface px-4">
             <ReviewFiltersSection
               insights={business?.review_insights}
               regeneration={business?.review_insight_regeneration}
@@ -343,19 +348,45 @@ function ReviewsCollectionScreenContent({
               onFilterControlsLayout={captureFilterControlsOffset}
               showReviewControls={totalCount > 0}
             />
+            <AuthorReviewSubmissions
+              businessId={businessId}
+              representedIds={
+                ownership.userReview ? [ownership.userReview.id] : []
+              }
+              onResume={createReview}
+            />
+            {ownership.userReview &&
+              ownership.userReview.status !== "published" && (
+                <BusinessReviewCard
+                  businessId={businessId}
+                  review={ownership.userReview}
+                />
+              )}
           </View>
         }
         ListEmptyComponent={
-          <ReviewCollectionEmptyState
-            totalCount={totalCount}
-            hasListError={hasListError}
-            hasContentFilters={hasContentFilters}
-            canWriteReview={canWriteReview}
-            isOwnBusiness={isOwnBusiness && !previewAsExplorer}
-            onCreateReview={createReview}
-            onClearFilters={clearFilters}
-            onRetry={() => void reviewQuery.refetch()}
-          />
+          isUpdatingResults ? (
+            <View
+              testID="reviews-filter-update-loader"
+              accessibilityLabel="Updating reviews"
+              accessibilityState={{ busy: true }}
+              className="bg-surface px-4"
+            >
+              <BusinessReviewCardSkeleton />
+              <BusinessReviewCardSkeleton />
+            </View>
+          ) : (
+            <ReviewCollectionEmptyState
+              totalCount={totalCount}
+              hasListError={hasListError}
+              hasContentFilters={hasContentFilters}
+              canWriteReview={canWriteReview}
+              isOwnBusiness={isOwnBusiness && !previewAsExplorer}
+              onCreateReview={createReview}
+              onClearFilters={clearFilters}
+              onRetry={() => void reviewQuery.refetch()}
+            />
+          )
         }
         ListFooterComponent={
           reviewQuery.isFetchingNextPage && !isRefreshing ? (
@@ -399,24 +430,6 @@ function ReviewsCollectionScreenContent({
           />
         }
       />
-
-      {/* Lightweight filter update feedback */}
-      {isUpdatingResults && (
-        <View
-          testID="reviews-filter-update-loader"
-          pointerEvents="none"
-          className="absolute left-0 right-0 top-1/2 z-20 items-center"
-        >
-          <View className="rounded-full bg-surface/90 p-2">
-            <LottieView
-              source={loadingAnimation}
-              autoPlay
-              loop
-              style={{ width: 36, height: 36 }}
-            />
-          </View>
-        </View>
-      )}
 
       {/* Review creation action */}
       {showWriteReviewFab && (

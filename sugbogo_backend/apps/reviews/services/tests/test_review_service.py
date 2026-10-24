@@ -43,6 +43,9 @@ from apps.reviews.services.review_service import (
     ReviewService,
 )
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
+from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
+)
 from apps.reviews.services.tests.test_review_moderation_service import (
     provider_response,
 )
@@ -79,6 +82,15 @@ class ReviewServiceTests(TestCase):
         )
         self.moderate_review = moderation_patcher.start()
         self.addCleanup(moderation_patcher.stop)
+
+        cleanup_patcher = patch(
+            "apps.reviews.tasks.cleanup_review_media_asset.apply_async",
+        )
+        self.cleanup_enqueue = cleanup_patcher.start()
+        self.addCleanup(cleanup_patcher.stop)
+        moderation_enqueue = patch("apps.reviews.tasks.retry_failed_review_moderation.delay")
+        moderation_enqueue.start()
+        self.addCleanup(moderation_enqueue.stop)
 
     def test_under_review_lifecycle_and_public_count(self):
         """A held review can be published once and counted only after approval."""
@@ -332,16 +344,19 @@ class ReviewServiceTests(TestCase):
 
         self.assertEqual(
             self.business.BUSN_REVIEW_COUNT,
-            1,
+            0,
         )
 
         mock_upload.assert_not_called()
+        self.moderate_review.assert_not_called()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(review.REVW_MODERATION_DATA["outcome"], "pending_initial")
 
     def test_flagged_text_is_held_without_publication_effects(self):
         """A flagged submission is retained for its author but stays private."""
         self.moderate_review.return_value["outcome"] = "flagged"
         with patch.object(ReviewService, "_queue_sentiment_after_commit") as queue:
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 user=self.user,
                 business_id=self.business.pk,
                 text="A review requiring moderation.",
@@ -387,7 +402,7 @@ class ReviewServiceTests(TestCase):
                 {"source": "image", "photo_index": 1, "flagged": True},
             ],
         }
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.pk,
             text="A review with attached photos.",
@@ -410,7 +425,7 @@ class ReviewServiceTests(TestCase):
         self.moderate_review.return_value["outcome"] = "provider_failure"
         self.moderate_review.return_value["failure_type"] = "TimeoutError"
         with patch.object(ReviewService, "_queue_sentiment_after_commit") as queue:
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 user=self.user,
                 business_id=self.business.pk,
                 text="A review awaiting a provider decision.",
@@ -445,7 +460,7 @@ class ReviewServiceTests(TestCase):
                 provider_response()
             )
             with self.captureOnCommitCallbacks(execute=True):
-                review = ReviewService.create_review(
+                review = create_and_moderate_review(
                     user=self.user,
                     business_id=self.business.pk,
                     text="Patyon nako ang mga customer.",
@@ -461,7 +476,7 @@ class ReviewServiceTests(TestCase):
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
         sentiment.assert_not_called()
-        retry.assert_not_called()
+        retry.assert_called_once_with(review.pk)
 
     @override_settings(OPENAI_API_KEY="test-key")
     def test_provider_failure_with_local_finding_still_schedules_retry(self):
@@ -483,7 +498,7 @@ class ReviewServiceTests(TestCase):
                 TimeoutError()
             )
             with self.captureOnCommitCallbacks(execute=True):
-                review = ReviewService.create_review(
+                review = create_and_moderate_review(
                     user=self.user,
                     business_id=self.business.pk,
                     text="Patyon nako ang mga customer.",
@@ -516,8 +531,8 @@ class ReviewServiceTests(TestCase):
         self.assertTrue(review.REVW_MODERATION_DATA["retryable"])
         self.assertEqual(review.REVW_MODERATION_DATA["retry_attempt"], 0)
 
-    def test_safe_and_flagged_reviews_do_not_queue_retry(self):
-        """Only infrastructure holds enter automatic recovery."""
+    def test_all_new_reviews_queue_initial_moderation(self):
+        """Submission never assumes the as-yet-unexecuted moderation result."""
         with patch(
             "apps.reviews.tasks.retry_failed_review_moderation.delay",
         ) as delay:
@@ -527,8 +542,8 @@ class ReviewServiceTests(TestCase):
                     business_id=self.business.pk,
                     text="A safe review that can publish immediately.",
                 )
-        self.assertEqual(safe_review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
-        delay.assert_not_called()
+        self.assertEqual(safe_review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        delay.assert_called_once_with(safe_review.pk)
 
         self.moderate_review.return_value["outcome"] = "flagged"
         with patch(
@@ -544,7 +559,8 @@ class ReviewServiceTests(TestCase):
             flagged_review.REVW_STATUS,
             Review.ReviewStatus.UNDER_REVIEW,
         )
-        delay.assert_not_called()
+        delay.assert_called_once_with(flagged_review.pk)
+        self.moderate_review.assert_not_called()
 
     def test_retry_enqueue_failure_keeps_submission_successful(self):
         """Broker failure cannot turn a saved technical hold into an API error."""
@@ -570,7 +586,7 @@ class ReviewServiceTests(TestCase):
             "apps.reviews.services.review_service.ReviewModerationService.moderate",
             self.real_moderate,
         ):
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 user=self.user,
                 business_id=self.business.pk,
                 text="A review awaiting moderation configuration.",
@@ -659,11 +675,12 @@ class ReviewServiceTests(TestCase):
 
         self.assertEqual(
             self.business.BUSN_REVIEW_COUNT,
-            1,
+            0,
         )
 
     @patch(
-        "apps.reviews.services.review_service.CloudinaryService.delete_image",
+        "apps.shared.services.cloudinary_service.cloudinary.uploader.destroy",
+        return_value={"result": "ok"},
     )
     @patch(
         "apps.reviews.services.review_service.CloudinaryService.upload_image",
@@ -705,6 +722,9 @@ class ReviewServiceTests(TestCase):
 
         mock_delete.assert_called_once_with(
             "sugbogo/reviews/review-1",
+            resource_type="image",
+            type="upload",
+            timeout=15,
         )
 
         self.assertFalse(
@@ -762,11 +782,11 @@ class ReviewServiceTests(TestCase):
 
         self.assertEqual(
             self.business.BUSN_REVIEW_COUNT,
-            1,
+            0,
         )
 
     def test_get_review_preview_includes_author_vouched_specialties(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -820,7 +840,7 @@ class ReviewServiceTests(TestCase):
 
                 review_users.append(user)
 
-            ReviewService.create_review(
+            create_and_moderate_review(
                 user=review_users[index],
                 business_id=self.business.BUSN_ID,
                 text=f"Review {index + 1}.",
@@ -836,7 +856,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(len(reviews), 2)
 
     def test_list_reviews_excludes_non_published_reviews(self):
-        published_review = ReviewService.create_review(
+        published_review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Published review.",
@@ -860,13 +880,13 @@ class ReviewServiceTests(TestCase):
             USER_STATUS=User.UserStatus.ACTIVE,
         )
 
-        flagged_review = ReviewService.create_review(
+        flagged_review = create_and_moderate_review(
             user=flagged_user,
             business_id=self.business.BUSN_ID,
             text="Flagged review.",
         )
 
-        rejected_review = ReviewService.create_review(
+        rejected_review = create_and_moderate_review(
             user=rejected_user,
             business_id=self.business.BUSN_ID,
             text="Rejected review.",
@@ -908,7 +928,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_get_review_preview_excludes_non_published_reviews(self):
-        published_review = ReviewService.create_review(
+        published_review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Published review.",
@@ -932,13 +952,13 @@ class ReviewServiceTests(TestCase):
             USER_STATUS=User.UserStatus.ACTIVE,
         )
 
-        flagged_review = ReviewService.create_review(
+        flagged_review = create_and_moderate_review(
             user=flagged_user,
             business_id=self.business.BUSN_ID,
             text="Flagged review.",
         )
 
-        rejected_review = ReviewService.create_review(
+        rejected_review = create_and_moderate_review(
             user=rejected_user,
             business_id=self.business.BUSN_ID,
             text="Rejected review.",
@@ -981,7 +1001,7 @@ class ReviewServiceTests(TestCase):
 
 
     def test_list_reviews_includes_author_vouched_specialties(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great local restaurant.",
@@ -1052,7 +1072,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_inactive_specialty_vouch_is_hidden_from_review_responses(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great local restaurant.",
@@ -1125,7 +1145,7 @@ class ReviewServiceTests(TestCase):
             ValidationError,
             "You cannot review your own business.",
         ):
-            ReviewService.create_review(
+            create_and_moderate_review(
                 user=self.user,
                 business_id=self.business.BUSN_ID,
                 text="I am reviewing my own business.",
@@ -1139,7 +1159,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_list_reviews_excludes_vouches_from_other_businesses(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -1199,7 +1219,7 @@ class ReviewServiceTests(TestCase):
     def test_list_reviews_returns_empty_vouched_specialties_when_author_has_none(
         self,
     ):
-        ReviewService.create_review(
+        create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -1221,7 +1241,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_update_review_text(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1247,7 +1267,7 @@ class ReviewServiceTests(TestCase):
         self.assertIsNotNone(review.REVW_EDITED_AT)
 
     def test_update_review_without_changes_does_not_mark_edited(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1264,7 +1284,7 @@ class ReviewServiceTests(TestCase):
         self.moderate_review.assert_called_once()
 
     def test_safe_text_edit_replaces_current_moderation_evidence(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1292,7 +1312,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_MODERATION_DATA["outcome"], "safe")
 
     def test_flagged_text_edit_preserves_published_review(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1341,7 +1361,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_unavailable_edit_preserves_published_review(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1362,7 +1382,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.PUBLISHED)
 
     def test_moderation_exception_blocks_edit(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1380,7 +1400,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_TEXT, "Original review.")
 
     def test_stale_moderation_cannot_overwrite_newer_text(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1426,7 +1446,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.REJECTED)
 
     def test_update_review_rejects_non_owner(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1450,7 +1470,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_update_review_rejects_nonexistent_photo_id(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1470,7 +1490,7 @@ class ReviewServiceTests(TestCase):
         "apps.reviews.services.review_service.CloudinaryService.upload_image",
     )
     def test_update_review_adds_photos(self, mock_upload):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1518,7 +1538,7 @@ class ReviewServiceTests(TestCase):
         mock_upload,
         mock_reward,
     ):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1546,7 +1566,7 @@ class ReviewServiceTests(TestCase):
         mock_upload,
         mock_delete,
     ):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1572,7 +1592,7 @@ class ReviewServiceTests(TestCase):
 
     @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
     def test_unavailable_photo_assessment_preserves_original(self, mock_upload):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1594,7 +1614,7 @@ class ReviewServiceTests(TestCase):
 
     @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
     def test_safe_combined_edit_links_image_finding_to_new_photo(self, mock_upload):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1634,7 +1654,7 @@ class ReviewServiceTests(TestCase):
         mock_upload,
         mock_delete,
     ):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1685,10 +1705,17 @@ class ReviewServiceTests(TestCase):
             ],
             [replacement_record.pk, retained.pk],
         )
-        mock_delete.assert_called_once_with("sugbogo/reviews/removed")
+        mock_delete.assert_not_called()
+        cleanup = ReviewMediaCleanup.objects.get(
+            RMCU_PUBLIC_ID="sugbogo/reviews/removed",
+        )
+        self.cleanup_enqueue.assert_called_once_with(
+            args=[cleanup.pk],
+            retry=False,
+        )
 
     def test_photo_removal_skips_ai_and_removes_stale_photo_finding(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1725,7 +1752,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_visibility_only_edit_skips_ai(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1751,7 +1778,7 @@ class ReviewServiceTests(TestCase):
         mock_upload,
         mock_delete,
     ):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1798,12 +1825,17 @@ class ReviewServiceTests(TestCase):
             ).exists(),
         )
 
-        mock_delete.assert_called_once_with(
-            "sugbogo/reviews/second",
+        mock_delete.assert_not_called()
+        cleanup = ReviewMediaCleanup.objects.get(
+            RMCU_PUBLIC_ID="sugbogo/reviews/second",
+        )
+        self.cleanup_enqueue.assert_called_once_with(
+            args=[cleanup.pk],
+            retry=False,
         )
 
     def test_update_review_rejects_more_than_three_photos(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -1864,7 +1896,7 @@ class ReviewServiceTests(TestCase):
         "apps.reviews.services.review_service.CloudinaryService.delete_image",
     )
     def test_delete_review(self, mock_delete):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -2180,7 +2212,7 @@ class ReviewServiceTests(TestCase):
         generate.assert_not_called()
 
     def test_delete_review_rejects_non_owner(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -2215,7 +2247,7 @@ class ReviewServiceTests(TestCase):
         "apps.reviews.services.review_service.CloudinaryService.delete_image",
     )
     def test_delete_photo(self, mock_delete):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -2243,8 +2275,13 @@ class ReviewServiceTests(TestCase):
             ).exists(),
         )
 
-        mock_delete.assert_called_once_with(
-            "sugbogo/reviews/review",
+        mock_delete.assert_not_called()
+        cleanup = ReviewMediaCleanup.objects.get(
+            RMCU_PUBLIC_ID="sugbogo/reviews/review",
+        )
+        self.cleanup_enqueue.assert_called_once_with(
+            args=[cleanup.pk],
+            retry=False,
         )
 
     def test_delete_photo_rejects_nonexistent_photo(self):
@@ -2258,7 +2295,7 @@ class ReviewServiceTests(TestCase):
             )
 
     def test_delete_photo_rejects_non_owner(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -2303,7 +2340,7 @@ class ReviewServiceTests(TestCase):
             )
 
             reviews.append(
-                ReviewService.create_review(
+                create_and_moderate_review(
                     user=user,
                     business_id=self.business.BUSN_ID,
                     text=f"Review {index}.",
@@ -2337,7 +2374,7 @@ class ReviewServiceTests(TestCase):
 
 
     def test_get_review_preview_does_not_prioritize_current_users_review(self):
-        ReviewService.create_review(
+        create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="My older review.",
@@ -2356,7 +2393,7 @@ class ReviewServiceTests(TestCase):
             )
 
             recent_reviews.append(
-                ReviewService.create_review(
+                create_and_moderate_review(
                     user=user,
                     business_id=self.business.BUSN_ID,
                     text=f"Recent review {index}.",
@@ -2377,7 +2414,7 @@ class ReviewServiceTests(TestCase):
 
 
     def test_list_reviews_marks_current_users_review(self):
-        own_review = ReviewService.create_review(
+        own_review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="My review.",
@@ -2392,7 +2429,7 @@ class ReviewServiceTests(TestCase):
             USER_STATUS=User.UserStatus.ACTIVE,
         )
 
-        ReviewService.create_review(
+        create_and_moderate_review(
             user=other_user,
             business_id=self.business.BUSN_ID,
             text="Someone else's review.",
@@ -2427,7 +2464,7 @@ class ReviewServiceTests(TestCase):
 
 
     def test_get_review_detail_returns_full_response_fields(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -2480,7 +2517,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_get_review_detail_reflects_is_liked_for_viewer(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Great food.",
@@ -2521,7 +2558,7 @@ class ReviewServiceTests(TestCase):
         ReviewResponseSerializer requires. This mirrors the exact call
         sequence ReviewDetailView.patch performs."""
 
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             user=self.user,
             business_id=self.business.BUSN_ID,
             text="Original review.",
@@ -2566,7 +2603,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_sentiment_creation_and_text_edit(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user, self.business.BUSN_ID, "Wonderful food and excellent service.",
         )
         review.refresh_from_db()
@@ -2591,7 +2628,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
         self.score_review.assert_called_with("Bad")
 
-    def test_creation_queues_sentiment_only_after_commit(self):
+    def test_creation_does_not_queue_sentiment_before_publication(self):
         with patch("apps.reviews.tasks.process_review_sentiment.delay") as enqueue:
             with self.captureOnCommitCallbacks(execute=True) as callbacks:
                 review = ReviewService.create_review(
@@ -2602,11 +2639,8 @@ class ReviewServiceTests(TestCase):
                 enqueue.assert_not_called()
                 self.score_review.assert_not_called()
 
-        self.assertEqual(len(callbacks), 3)
-        enqueue.assert_called_once_with(
-            review.pk,
-            self.business.pk,
-        )
+        self.assertEqual(len(callbacks), 1)
+        enqueue.assert_not_called()
         review.refresh_from_db()
         self.assertIsNone(review.REVW_SENTIMENT_SCORE)
         self.assertIsNone(review.REVW_SENTIMENT_LABEL)
@@ -2761,7 +2795,7 @@ class ReviewServiceTests(TestCase):
                 level="ERROR",
             ) as logs:
                 with self.captureOnCommitCallbacks(execute=True):
-                    review = ReviewService.create_review(
+                    review = create_and_moderate_review(
                         self.user,
                         self.business.pk,
                         "Original text.",
@@ -2802,7 +2836,7 @@ class ReviewServiceTests(TestCase):
     def test_blank_direct_service_calls_are_validation_errors(self):
         for text in ["", " \n\t"]:
             with self.subTest(text=text), self.assertRaises(ValidationError):
-                ReviewService.create_review(self.user, self.business.BUSN_ID, text)
+                create_and_moderate_review(self.user, self.business.BUSN_ID, text)
         review = Review.objects.create(
             USER_ID=self.user, BUSN_ID=self.business, REVW_TEXT="Original text.",
         )
@@ -2815,7 +2849,7 @@ class ReviewServiceTests(TestCase):
         self.business.refresh_from_db()
         business_count_before = self.business.BUSN_REVIEW_COUNT
         self.score_review.side_effect = RuntimeError("Model unavailable")
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.BUSN_ID,
             "Valid review text.",
@@ -2844,7 +2878,7 @@ class ReviewServiceTests(TestCase):
         with patch("apps.reviews.services.review_service.CloudinaryService.upload_image",
                    side_effect=RuntimeError("Upload failed")):
             with self.assertRaisesRegex(RuntimeError, "Upload failed"):
-                ReviewService.create_review(
+                create_and_moderate_review(
                     self.user, self.business.BUSN_ID, "Valid text.", photos=[object()],
                 )
             self.assertFalse(Review.objects.filter(USER_ID=self.user).exists())
@@ -3025,7 +3059,7 @@ class ReviewServiceTests(TestCase):
         for _ in range(5):
             self._create_signal_review(score=0.75)
         self.score_review.return_value = (-0.9, "Negative", "vader")
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user, self.business.pk, "A very disappointing experience.",
         )
         self.assertFalse(review.REVW_IS_OUTLIER_SENTIMENT)
@@ -3075,7 +3109,7 @@ class ReviewServiceTests(TestCase):
         self.assertTrue(review.REVW_IS_DEVICE_ABUSE_FLAGGED)
 
     def test_no_reliability_signal_records_empty_reasons(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "A unique and useful review.",
@@ -3092,7 +3126,7 @@ class ReviewServiceTests(TestCase):
     def test_third_normalized_match_from_same_user_flags_only_duplicate(self):
         prior_ids = []
         for text in ["Great place!", "  GREAT   PLACE! "]:
-            prior = ReviewService.create_review(
+            prior = create_and_moderate_review(
                 self.user,
                 self._create_signal_business().pk,
                 text,
@@ -3100,7 +3134,7 @@ class ReviewServiceTests(TestCase):
             self.assertEqual(prior.REVW_RELIABILITY_REASONS, [])
             prior_ids.append(prior.pk)
 
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "great place!",
@@ -3126,13 +3160,13 @@ class ReviewServiceTests(TestCase):
     def test_edit_to_third_same_user_match_records_duplicate_once(self):
         prior_ids = []
         for text in ("Great place!", "  GREAT   PLACE! "):
-            prior = ReviewService.create_review(
+            prior = create_and_moderate_review(
                 self.user,
                 self._create_signal_business().pk,
                 text,
             )
             prior_ids.append(prior.pk)
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Originally different text.",
@@ -3173,7 +3207,7 @@ class ReviewServiceTests(TestCase):
                 REVW_TEXT="Repeated words.",
             )
             prior_ids.append(prior.pk)
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Originally different text.",
@@ -3197,12 +3231,12 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(evidence["detected_during"], "edit")
 
     def test_edit_with_one_prior_match_does_not_count_itself(self):
-        ReviewService.create_review(
+        create_and_moderate_review(
             self.user,
             self._create_signal_business().pk,
             "Repeated words.",
         )
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Originally different text.",
@@ -3220,12 +3254,12 @@ class ReviewServiceTests(TestCase):
 
     def test_later_edits_preserve_first_duplicate_detection(self):
         for _ in range(2):
-            ReviewService.create_review(
+            create_and_moderate_review(
                 self.user,
                 self._create_signal_business().pk,
                 "Repeated words.",
             )
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Originally different text.",
@@ -3266,7 +3300,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_unchanged_text_edit_does_not_check_duplicate(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Text that remains unchanged.",
@@ -3291,7 +3325,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_photo_only_edit_does_not_check_duplicate(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Text that remains unchanged.",
@@ -3322,12 +3356,12 @@ class ReviewServiceTests(TestCase):
 
     def test_edit_preserves_duplicate_detected_during_creation(self):
         for _ in range(2):
-            ReviewService.create_review(
+            create_and_moderate_review(
                 self.user,
                 self._create_signal_business().pk,
                 "Repeated words.",
             )
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Repeated words.",
@@ -3353,7 +3387,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, original_evidence)
 
     def test_text_edit_does_not_add_installation_signals(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Originally different text.",
@@ -3382,12 +3416,12 @@ class ReviewServiceTests(TestCase):
 
     def test_edit_duplicate_preserves_existing_installation_evidence(self):
         for _ in range(2):
-            ReviewService.create_review(
+            create_and_moderate_review(
                 self.user,
                 self._create_signal_business().pk,
                 "Repeated words.",
             )
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Originally different text.",
@@ -3423,14 +3457,14 @@ class ReviewServiceTests(TestCase):
 
     def test_reliability_evidence_survives_related_review_changes(self):
         prior_reviews = [
-            ReviewService.create_review(
+            create_and_moderate_review(
                 self.user,
                 self._create_signal_business().pk,
                 "Repeated review text.",
             )
             for _ in range(2)
         ]
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Repeated review text.",
@@ -3459,7 +3493,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_duplicate_requires_exact_normalized_text_and_recent_history(self):
-        first = ReviewService.create_review(
+        first = create_and_moderate_review(
             self.user,
             self._create_signal_business().pk,
             "Great place!",
@@ -3467,19 +3501,19 @@ class ReviewServiceTests(TestCase):
         Review.objects.filter(pk=first.pk).update(
             REVW_CREATED_AT=timezone.now() - timedelta(days=31),
         )
-        ReviewService.create_review(
+        create_and_moderate_review(
             self.user,
             self._create_signal_business().pk,
             "  GREAT   PLACE! ",
         )
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "great place!",
         )
         self.assertEqual(review.REVW_RELIABILITY_REASONS, [])
 
-        different = ReviewService.create_review(
+        different = create_and_moderate_review(
             self.second_user,
             self._create_signal_business().pk,
             "Really great place!",
@@ -3498,7 +3532,7 @@ class ReviewServiceTests(TestCase):
             )
             prior_ids.append(prior.pk)
 
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "  REPEATED   WORDS. ",
@@ -3523,7 +3557,7 @@ class ReviewServiceTests(TestCase):
                 REVW_TEXT="Common phrase.",
             )
 
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Common phrase.",
@@ -3549,7 +3583,7 @@ class ReviewServiceTests(TestCase):
             BUSN_ID=self._create_signal_business(),
             REVW_TEXT="Retained phrase.",
         )
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Retained phrase.",
@@ -3562,7 +3596,7 @@ class ReviewServiceTests(TestCase):
 
     def test_rapid_and_duplicate_reasons_can_coexist(self):
         self._create_bulk_history(10, "bulk-installation")
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.second_user,
             self.business.pk,
             "A review used to check moderation signals.",
@@ -3591,7 +3625,7 @@ class ReviewServiceTests(TestCase):
             "_reliability_reasons",
             side_effect=RuntimeError("Query failed"),
         ):
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 self.user,
                 self.business.pk,
                 "A safe review despite a signal outage.",
@@ -3612,7 +3646,7 @@ class ReviewServiceTests(TestCase):
             "_reliability_reasons",
             side_effect=RuntimeError("Query failed"),
         ):
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 self.user,
                 self.business.pk,
                 "A held review despite a reliability outage.",
@@ -3637,7 +3671,7 @@ class ReviewServiceTests(TestCase):
                 "review_count": 11,
             },
         }
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Original review text.",
@@ -3688,7 +3722,7 @@ class ReviewServiceTests(TestCase):
         self.assertEqual(review.REVW_RELIABILITY_EVIDENCE, evidence)
 
     def test_non_detection_edit_preserves_unknown_outcome(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Review with no new text.",
@@ -3715,7 +3749,7 @@ class ReviewServiceTests(TestCase):
         )
 
     def test_existing_duplicate_skips_reevaluation_and_preserves_outcome(self):
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user,
             self.business.pk,
             "Review with a historical duplicate finding.",
@@ -3760,7 +3794,7 @@ class ReviewServiceTests(TestCase):
             ReviewService,
             "_queue_moderation_retry_after_commit",
         ) as retry:
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 self.user,
                 self.business.pk,
                 "A held review after rapid activity.",
@@ -3771,14 +3805,14 @@ class ReviewServiceTests(TestCase):
             review.REVW_RELIABILITY_REASONS,
             [Review.ReliabilityReason.RAPID_SUBMISSION],
         )
-        retry.assert_not_called()
+        retry.assert_called_once_with(review.pk)
 
     def test_fourth_distinct_user_on_device_flags_only_new_review(self):
         prior_reviews = [
             self._create_signal_review(installation_id="shared-device")
             for _ in range(3)
         ]
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user, self.business.pk, "A new review from a shared device.",
             installation_id="shared-device",
         )
@@ -3803,7 +3837,7 @@ class ReviewServiceTests(TestCase):
     def test_third_distinct_user_on_device_is_not_flagged(self):
         for _ in range(2):
             self._create_signal_review(installation_id="shared-device")
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user, self.business.pk, "A third user sharing one device.",
             installation_id="shared-device",
         )
@@ -3814,7 +3848,7 @@ class ReviewServiceTests(TestCase):
     def test_sockpuppet_detection_counts_rejected_and_flagged_reviews(self):
         for status in Review.ReviewStatus.values:
             self._create_signal_review(installation_id="shared-device", status=status)
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user, self.business.pk, "Another review on the same device.",
             installation_id="shared-device",
         )
@@ -3825,7 +3859,7 @@ class ReviewServiceTests(TestCase):
         other_business = self._create_signal_business()
         for _ in range(3):
             self._create_signal_review(installation_id="shared-device", business=other_business)
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user, self.business.pk, "A review of a different business.",
             installation_id="shared-device",
         )
@@ -3840,7 +3874,7 @@ class ReviewServiceTests(TestCase):
                 author = self._create_signal_review(
                     business=self._create_signal_business(),
                 ).USER_ID
-                review = ReviewService.create_review(
+                review = create_and_moderate_review(
                     author, self.business.pk, "A review without a usable device ID.",
                     installation_id=installation_id,
                 )
@@ -3851,7 +3885,7 @@ class ReviewServiceTests(TestCase):
 
     def test_bulk_spam_flags_eleventh_review_across_businesses(self):
         self._create_bulk_history(10, "bulk-device")
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.second_user, self.business.pk, "An eleventh review across businesses.",
             installation_id="bulk-device",
         )
@@ -3873,7 +3907,7 @@ class ReviewServiceTests(TestCase):
 
     def test_bulk_spam_does_not_flag_tenth_review(self):
         self._create_bulk_history(9, "bulk-device")
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.second_user, self.business.pk, "A tenth review across businesses.",
             installation_id="bulk-device",
         )
@@ -3887,7 +3921,7 @@ class ReviewServiceTests(TestCase):
             10, "bulk-device", created_at=now - timedelta(hours=24),
         )
         with patch("apps.reviews.services.review_service.timezone.now", return_value=now):
-            review = ReviewService.create_review(
+            review = create_and_moderate_review(
                 self.second_user, self.business.pk, "A review at the window boundary.",
                 installation_id="bulk-device",
             )
@@ -3902,7 +3936,7 @@ class ReviewServiceTests(TestCase):
         self._create_bulk_history(
             10, "bulk-device", created_at=timezone.now() - timedelta(hours=25),
         )
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.second_user, self.business.pk, "A review after old activity expired.",
             installation_id="bulk-device",
         )
@@ -3912,7 +3946,7 @@ class ReviewServiceTests(TestCase):
     def test_two_devices_do_not_combine_for_bulk_threshold(self):
         self._create_bulk_history(5, "device-a")
         self._create_bulk_history(5, "device-b")
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user, self.business.pk, "Another review from only one device.",
             installation_id="device-a",
         )
@@ -3923,7 +3957,7 @@ class ReviewServiceTests(TestCase):
         for installation_id in ("device-a", "device-b"):
             for _ in range(2):
                 self._create_signal_review(installation_id=installation_id)
-        review = ReviewService.create_review(
+        review = create_and_moderate_review(
             self.user, self.business.pk, "A third user on the first device.",
             installation_id="device-a",
         )
@@ -3938,7 +3972,7 @@ class ReviewServiceTests(TestCase):
             "apps.reviews.services.review_service.CloudinaryService.upload_image",
             side_effect=RuntimeError("Upload failed"),
         ), self.assertRaisesRegex(RuntimeError, "Upload failed"):
-            ReviewService.create_review(
+            create_and_moderate_review(
                 self.user, self.business.pk, "A flagged review that fails to save.",
                 installation_id="shared-device", photos=[object()],
             )

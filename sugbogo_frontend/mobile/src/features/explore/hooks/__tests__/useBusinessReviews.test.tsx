@@ -42,6 +42,7 @@ import { myReviewsKey } from "@/features/profile/hooks/myReviewQueryKeys";
 
 const mockStartSentimentSync = jest.fn();
 const mockStartGeneratedInsightsSync = jest.fn();
+const mockObserveReviewSubmission = jest.fn();
 
 jest.mock("../../api/reviewBusiness.service", () => ({
   createReview: jest.fn(),
@@ -56,6 +57,7 @@ jest.mock("../../api/reviewBusiness.service", () => ({
 
 jest.mock("../ReviewDerivedDataSyncProvider", () => ({
   useReviewDerivedDataSyncActions: () => ({
+    observeReviewSubmission: mockObserveReviewSubmission,
     startSentimentSync: mockStartSentimentSync,
     startGeneratedInsightsSync: mockStartGeneratedInsightsSync,
   }),
@@ -196,7 +198,7 @@ describe("useBusinessReviews", () => {
     client.clear();
   });
 
-  it("refreshes public queries when a held review receives a decision", async () => {
+  it("reads a decision without duplicating the shared provider's polling or invalidation", async () => {
     const heldReview = {
       id: 1,
       status: "under_review",
@@ -229,13 +231,9 @@ describe("useBusinessReviews", () => {
     });
 
     await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith({
-        queryKey: businessReviewsKey(20),
-      }),
+      expect(result.current.userReview?.status).toBe("published"),
     );
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: exploreBusinessDetailKey(20),
-    });
+    expect(invalidate).not.toHaveBeenCalled();
     unmount();
     client.clear();
   });
@@ -346,6 +344,7 @@ describe("useBusinessReviews", () => {
 
     expect(mockStartSentimentSync).toHaveBeenCalledWith({
       reviewId: 18,
+      reviewText: "A detailed review for sentiment processing.",
       baselineComputedAt: null,
       baselineGeneratedAt: null,
       baselineInsightsUpdatedAt: null,
@@ -388,6 +387,7 @@ describe("useBusinessReviews", () => {
     });
 
     expect(created?.status).toBe("under_review");
+    expect(mockObserveReviewSubmission).toHaveBeenCalledWith(19);
     expect(mockStartSentimentSync).not.toHaveBeenCalled();
     unmount();
     client.clear();
@@ -396,7 +396,12 @@ describe("useBusinessReviews", () => {
   it("starts sentiment synchronization only when edited text changed", async () => {
     (updateReview as jest.Mock).mockResolvedValue({
       success: true,
-      data: { id: 8, status: "published" },
+      data: {
+        id: 8,
+        status: "published",
+        text: "A changed review text for new sentiment.",
+        updated_at: "2026-10-23T01:00:00Z",
+      },
     });
     const { client, Wrapper } = setupClient();
     const invalidate = jest.spyOn(client, "invalidateQueries");
@@ -427,6 +432,8 @@ describe("useBusinessReviews", () => {
 
     expect(mockStartSentimentSync).toHaveBeenCalledWith({
       reviewId: 8,
+      reviewText: "A changed review text for new sentiment.",
+      minimumReviewUpdatedAt: "2026-10-23T01:00:00Z",
       baselineComputedAt: null,
       baselineGeneratedAt: null,
       baselineInsightsUpdatedAt: null,
@@ -490,7 +497,7 @@ describe("useBusinessReviews", () => {
     client.clear();
   });
 
-  it("invalidates the mutation author's history if the active account changes while saving", async () => {
+  it("ignores the mutation response if the active account changes while saving", async () => {
     useAuthStore.setState({ user: { id: 10 } as never });
     let finishUpdate!: (value: unknown) => void;
     (updateReview as jest.Mock).mockImplementationOnce(
@@ -518,7 +525,7 @@ describe("useBusinessReviews", () => {
       finishUpdate({ success: true, data: { id: 8, status: "published" } });
       await saving;
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: myReviewsKey(10) });
+    expect(invalidate).not.toHaveBeenCalled();
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: myReviewsKey(99) });
     await unmount();
     client.clear();

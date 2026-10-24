@@ -1,6 +1,8 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.reviews.models import BusinessReviewSummary, Review
 from apps.reviews.services.business_review_insights_service import (
@@ -15,13 +17,194 @@ from apps.reviews.services.review_summary_batch_service import ReviewSummaryBatc
 from apps.reviews.services.tests.test_business_review_summary_service import (
     SummaryFixtureMixin,
 )
-from apps.reviews.tasks import reconcile_business_review_sentiment
+from apps.reviews.tasks import (
+    process_review_sentiment,
+    reconcile_business_review_sentiment,
+)
 
 
 class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.business = cls.create_business()
+
+    def test_redelivery_repairs_failed_aggregation_without_repeating_inference(self):
+        review = self.create_review(
+            self.business,
+            REVW_SENTIMENT_SCORE=None,
+            REVW_SENTIMENT_LABEL=None,
+        )
+        summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
+        with patch(
+            "apps.reviews.services.review_sentiment_service.route_sentiment",
+            return_value=(0.5, "Positive", "vader"),
+        ) as scorer:
+            with patch.object(
+                BusinessReviewSummaryService,
+                "recompute_sentiment",
+                side_effect=RuntimeError("aggregate unavailable"),
+            ):
+                self.assertEqual(
+                    process_review_sentiment.run(review.pk, self.business.pk),
+                    "failed",
+                )
+            review.refresh_from_db()
+            self.assertEqual(review.REVW_SENTIMENT_LABEL, "positive")
+            summary.refresh_from_db()
+            self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
+            self.assertEqual(
+                process_review_sentiment.run(review.pk, self.business.pk),
+                "already_scored",
+            )
+            scorer.assert_called_once()
+        summary.refresh_from_db()
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
+
+    def test_duplicate_scored_deliveries_preserve_scores_and_current_aggregate(self):
+        review = self.create_review(self.business)
+        with patch(
+            "apps.reviews.services.review_sentiment_service.route_sentiment",
+        ) as scorer:
+            for delivery in range(2):
+                with self.subTest(delivery=delivery):
+                    self.assertEqual(
+                        process_review_sentiment.run(review.pk, self.business.pk),
+                        "already_scored",
+                    )
+                    summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
+                    self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+                    self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
+            scorer.assert_not_called()
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.75)
+        self.assertEqual(review.REVW_SENTIMENT_LABEL, "positive")
+
+    def test_reconciliation_can_defer_aggregate_repair_for_complete_score(self):
+        review = self.create_review(self.business)
+        with (
+            patch(
+                "apps.reviews.services.review_sentiment_service.route_sentiment",
+            ) as scorer,
+            patch.object(BusinessReviewSummaryService, "recompute_sentiment") as aggregate,
+        ):
+            self.assertEqual(
+                ReviewSentimentService.process_review(
+                    review.pk,
+                    recompute_summary=False,
+                ),
+                "already_scored",
+            )
+        scorer.assert_not_called()
+        aggregate.assert_not_called()
+
+    def test_nonpublished_reviews_are_not_classified(self):
+        review = self.create_review(
+            self.business,
+            REVW_SENTIMENT_SCORE=None,
+            REVW_SENTIMENT_LABEL=None,
+        )
+        with patch(
+            "apps.reviews.services.review_sentiment_service.route_sentiment",
+        ) as scorer:
+            for status in (
+                Review.ReviewStatus.UNDER_REVIEW,
+                Review.ReviewStatus.FLAGGED,
+                Review.ReviewStatus.REJECTED,
+            ):
+                with self.subTest(status=status):
+                    Review.objects.filter(pk=review.pk).update(REVW_STATUS=status)
+                    self.assertEqual(
+                        ReviewSentimentService.process_review(review.pk),
+                        "ineligible",
+                    )
+            scorer.assert_not_called()
+        review.refresh_from_db()
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
+
+    def test_rejection_during_inference_discards_score(self):
+        review = self.create_review(
+            self.business,
+            REVW_SENTIMENT_SCORE=None,
+            REVW_SENTIMENT_LABEL=None,
+        )
+
+        def reject_during_scoring(text):
+            Review.objects.filter(pk=review.pk).update(
+                REVW_STATUS=Review.ReviewStatus.REJECTED,
+            )
+            BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
+            return 0.5, "Positive", "vader"
+
+        with patch(
+            "apps.reviews.services.review_sentiment_service.route_sentiment",
+            side_effect=reject_during_scoring,
+        ):
+            self.assertEqual(
+                ReviewSentimentService.process_review(review.pk),
+                "ineligible",
+            )
+        review.refresh_from_db()
+        self.assertIsNone(review.REVW_SENTIMENT_LABEL)
+        summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
+
+    def test_scored_redelivery_repairs_from_current_eligible_population(self):
+        review = self.create_review(self.business)
+        rejected = self.create_review(self.business, 1)
+        expired = self.create_review(self.business, 2)
+        self.create_review(
+            self.business,
+            3,
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        self.create_review(
+            self.business,
+            4,
+            REVW_SENTIMENT_SCORE=None,
+            REVW_SENTIMENT_LABEL=None,
+        )
+        Review.objects.filter(pk=rejected.pk).update(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        Review.objects.filter(pk=expired.pk).update(
+            REVW_CREATED_AT=timezone.now() - timedelta(days=31),
+        )
+        with patch(
+            "apps.reviews.services.review_sentiment_service.route_sentiment",
+        ) as scorer:
+            self.assertEqual(
+                ReviewSentimentService.process_review(review.pk),
+                "already_scored",
+            )
+        scorer.assert_not_called()
+        summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
+        self.assertEqual(summary.BRSU_REVIEW_COUNT, 2)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertIsNone(summary.overall_vibe)
+
+    def test_daily_reconciliation_repairs_aggregates_with_only_stored_scores(self):
+        self.create_review(self.business)
+        summary = BusinessReviewSummary.objects.create(BUSN_ID=self.business)
+        with (
+            patch(
+                "apps.reviews.services.review_sentiment_service.route_sentiment",
+            ) as scorer,
+            patch(
+                "apps.reviews.services.review_insight_scheduling_service."
+                "ReviewInsightSchedulingService.reconcile",
+                return_value="unchanged",
+            ),
+        ):
+            result = ReviewSummaryBatchService.recompute()
+        scorer.assert_not_called()
+        summary.refresh_from_db()
+        self.assertEqual(result["sentiment_updated"], 1)
+        self.assertEqual(result["failed_business_ids"], [])
+        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(len(summary.BRSU_SENTIMENT_SOURCES), 1)
 
     def test_scores_review_and_recomputes_summary_without_keywords(self):
         review = self.create_review(
@@ -153,6 +336,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(result["attempted"], 2)
         self.assertEqual(result["updated"], 1)
         self.assertEqual(result["failed"], 1)
+        self.assertEqual(result["failed_review_ids"], [failed.pk])
         self.assertEqual(scorer.call_count, 2)
         self.assertIsNone(failed.REVW_SENTIMENT_LABEL)
         self.assertEqual(recovered.REVW_SENTIMENT_LABEL, "negative")
@@ -214,7 +398,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
 
     def test_failed_review_does_not_block_another_business(self):
         other_business = self.create_business(2)
-        self.create_review(
+        failed = self.create_review(
             self.business,
             1,
             REVW_TEXT="Failed review.",
@@ -244,7 +428,13 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
             result = ReviewSummaryBatchService.recompute()
 
         self.assertEqual(result["sentiment_updated"], 2)
-        self.assertEqual(result["failed_business_ids"], [])
+        self.assertEqual(result["failed_business_ids"], [self.business.pk])
+        self.assertEqual(result["classification_failed"], 1)
+        self.assertEqual(
+            result["sentiment_results"][0]["classification"]["failed_review_ids"],
+            [failed.pk],
+        )
+        self.assertTrue(result["sentiment_results"][0]["aggregate_updated"])
         self.assertEqual(
             BusinessReviewSummary.objects.get(BUSN_ID=self.business).BRSU_REVIEW_COUNT,
             1,

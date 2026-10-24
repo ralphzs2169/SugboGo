@@ -19,6 +19,7 @@ from apps.business.services.vouch_service import VouchService
 from apps.reviews.models import Review, ReviewPhoto
 from apps.reviews.services.review_service import ReviewEditConflict, ReviewService
 from apps.reviews.services.tests.review_moderation_test_mixin import (
+    create_and_moderate_review,
     SafeReviewModerationMixin,
 )
 from apps.users.models import ReputationEvent, User
@@ -156,7 +157,7 @@ class ReputationInteractionIntegrationTests(SafeReviewModerationMixin, TestCase)
     ):
         selected_business = business or self.first_business
 
-        return ReviewService.create_review(
+        return create_and_moderate_review(
             user=self.explorer,
             business_id=selected_business.BUSN_ID,
             text="The experience was detailed and worthwhile.",
@@ -417,7 +418,7 @@ class ReputationInteractionIntegrationTests(SafeReviewModerationMixin, TestCase)
     @patch(
         "apps.reviews.services.review_service.CloudinaryService.upload_image",
     )
-    def test_review_and_photo_roll_back_when_reward_fails(
+    def test_publication_reward_failure_keeps_committed_review_and_photo_held(
         self,
         mock_upload,
         mock_delete,
@@ -437,19 +438,15 @@ class ReputationInteractionIntegrationTests(SafeReviewModerationMixin, TestCase)
 
         self.first_business.refresh_from_db()
 
-        self.assertFalse(
-            self.first_business.reviews.exists(),
-        )
-        self.assertFalse(
-            ReviewPhoto.objects.exists(),
-        )
+        review = self.first_business.reviews.get()
+        self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.UNDER_REVIEW)
+        self.assertEqual(review.REVW_MODERATION_DATA["outcome"], "pending_initial")
+        self.assertEqual(review.photos.count(), 1)
         self.assertEqual(
             self.first_business.BUSN_REVIEW_COUNT,
             0,
         )
-        mock_delete.assert_called_once_with(
-            "sugbogo/reviews/rollback-photo",
-        )
+        mock_delete.assert_not_called()
         mock_reward.assert_called_once()
 
     @patch(

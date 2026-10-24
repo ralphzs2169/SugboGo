@@ -35,12 +35,8 @@ class ReviewModerationConsistencyService:
 
         review.REVW_STATUS = Review.ReviewStatus.REJECTED
         review.save(update_fields=["REVW_STATUS", "REVW_UPDATED_AT"])
-        ReviewInsightSchedulingService.review_changed(
-            review.BUSN_ID_id,
-            previous_input,
-            None,
-        )
-
+        # Match publication and deletion: lock the business counter before
+        # scheduling acquires the analytics policy, demand, and summary locks.
         if previous_status == Review.ReviewStatus.PUBLISHED:
             Business.objects.filter(BUSN_ID=review.BUSN_ID_id).update(
                 BUSN_REVIEW_COUNT=Greatest(
@@ -48,6 +44,12 @@ class ReviewModerationConsistencyService:
                     0,
                 ),
             )
+
+        ReviewInsightSchedulingService.review_changed(
+            review.BUSN_ID_id,
+            previous_input,
+            None,
+        )
 
         ReviewReportService.recompute_report_flag(review)
         ReviewModerationConsistencyService.refresh_excluded_review(

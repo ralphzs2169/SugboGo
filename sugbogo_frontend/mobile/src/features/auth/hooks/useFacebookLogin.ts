@@ -1,5 +1,4 @@
 import { router } from "expo-router";
-import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 import { LoginManager, AccessToken } from "react-native-fbsdk-next";
 
@@ -7,6 +6,8 @@ import { facebookLogin } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
 import { useAuthStore } from "../store/auth.store";
 import { showOAuthError } from "../utils/oauthError";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import { resolvePostLoginRoute } from "@/features/app-mode/utils/resolveAppModeRoute";
 /**
  * Handles Facebook OAuth login.
  *
@@ -48,7 +49,12 @@ export function useFacebookLogin() {
 
       await establishSession(response.data);
 
-      router.replace("/");
+      router.replace(
+        resolvePostLoginRoute(
+          response.data.user,
+          useAppModeStore.getState().activeMode,
+        ),
+      );
     } catch (error) {
       console.error("Facebook login error:", error);
 
