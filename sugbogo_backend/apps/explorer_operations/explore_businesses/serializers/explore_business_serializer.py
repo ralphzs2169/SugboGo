@@ -406,6 +406,11 @@ class ExploreReviewSerializer(serializers.ModelSerializer):
 class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
     """Serializes the complete public business profile for Explorer."""
 
+    access_directions = serializers.CharField(
+        source="BUSN_ACCESS_DIRECTIONS",
+        read_only=True,
+    )
+
     review_insights = BusinessReviewInsightsSerializer(
         source="review_summary",
         read_only=True,
@@ -489,6 +494,7 @@ class ExploreBusinessDetailSerializer(ExploreBusinessSerializer):
     class Meta(ExploreBusinessSerializer.Meta):
         fields = ExploreBusinessSerializer.Meta.fields + (
             "description",
+            "access_directions",
             "contact_number",
             "email",
             "website",

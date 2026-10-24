@@ -243,6 +243,7 @@ export default function BusinessProfilePresentation({
                   contactNumber={business?.contact_number ?? ""}
                   email={business?.email ?? null}
                   website={business?.website ?? null}
+                  accessDirections={business?.access_directions}
                   isOwnBusiness={ownerPresentation}
                   readOnly={!live}
                   transportActions={

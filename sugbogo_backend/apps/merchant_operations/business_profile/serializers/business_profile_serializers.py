@@ -115,6 +115,14 @@ class BusinessCoverPhotoSerializer(serializers.Serializer):
 class BusinessInformationSerializer(serializers.Serializer):
     """Validates the merchant-editable business information allowlist."""
 
+    access_directions = serializers.CharField(
+        source="BUSN_ACCESS_DIRECTIONS",
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+        max_length=1000,
+    )
+
     description = serializers.CharField(
         source="BUSN_DESCRIPTION",
         trim_whitespace=True,
@@ -349,6 +357,7 @@ class BusinessProfileResponseSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     description = serializers.CharField(source="BUSN_DESCRIPTION")
+    access_directions = serializers.CharField(source="BUSN_ACCESS_DIRECTIONS")
     contact_number = serializers.CharField(source="BUSN_CONTACT_NUMBER")
     business_email = serializers.EmailField(source="BUSN_EMAIL")
     website = serializers.URLField(source="BUSN_WEBSITE")
@@ -380,6 +389,7 @@ class BusinessProfileResponseSerializer(serializers.ModelSerializer):
             "id",
             "business_name",
             "description",
+            "access_directions",
             "contact_number",
             "business_email",
             "website",

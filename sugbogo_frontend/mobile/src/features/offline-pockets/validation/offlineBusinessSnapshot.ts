@@ -22,6 +22,7 @@ export type OfflineBusinessData = Pick<
   | "cluster"
   | "category"
   | "description"
+  | "access_directions"
   | "location"
   | "contact_number"
   | "email"
@@ -68,6 +69,7 @@ const businessSchema: z.ZodType<OfflineBusinessData> = z.object({
     )
     .max(100),
   description: z.string().max(500_000).nullable(),
+  access_directions: z.string().max(1000).optional(),
   location: z.object({
     address: z.string().max(2000),
     city: z.string().max(500),

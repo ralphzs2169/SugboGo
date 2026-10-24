@@ -41,7 +41,7 @@ type BusinessInformationForm = z.infer<
 >;
 
 /**
- * Allows merchants to edit their business description and contact details.
+ * Allows merchants to edit their business description, access directions and contact details.
  *
  * Displays full-width guidance for direct updates, initializes the form
  * with existing business information, validates changes, and handles
@@ -70,6 +70,7 @@ export default function MerchantBusinessInformationEditScreen() {
     resolver: zodResolver(merchantBusinessInformationSchema),
     defaultValues: {
       businessDescription: business?.description ?? "",
+      accessDirections: business?.access_directions ?? "",
       contactNumber: business?.contact_number ?? "",
       businessEmail: business?.business_email ?? "",
       website: business?.website ?? "",
@@ -88,6 +89,7 @@ export default function MerchantBusinessInformationEditScreen() {
 
     reset({
       businessDescription: business.description ?? "",
+      accessDirections: business.access_directions ?? "",
       contactNumber: business.contact_number,
       businessEmail: business.business_email ?? "",
       website: business.website ?? "",
@@ -141,6 +143,7 @@ export default function MerchantBusinessInformationEditScreen() {
     try {
       await updateInformation({
         description: values.businessDescription,
+        access_directions: values.accessDirections,
         contact_number: values.contactNumber,
         business_email: values.businessEmail,
         website: values.website,
@@ -159,6 +162,7 @@ export default function MerchantBusinessInformationEditScreen() {
       if (response.code === "VALIDATION_ERROR") {
         const fields = {
           description: "businessDescription",
+          access_directions: "accessDirections",
           contact_number: "contactNumber",
           business_email: "businessEmail",
           website: "website",
@@ -269,9 +273,9 @@ export default function MerchantBusinessInformationEditScreen() {
               </AppText>
 
               <AppText className="mt-1 text-sm leading-5 text-text-secondary">
-                You can update your business description and contact details
-                without administrator approval. Changes will appear on your
-                business listing after saving.
+                You can update your business description, access directions and
+                contact details without administrator approval. Changes will
+                appear on your business listing after saving.
               </AppText>
             </View>
           </View>
@@ -291,6 +295,25 @@ export default function MerchantBusinessInformationEditScreen() {
                 showCharacterCount
                 maxLength={500}
                 placeholder="Tell explorers about your business..."
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+                error={fieldState.error?.message}
+              />
+            )}
+          />
+
+          {/* Optional landmark and transfer instructions */}
+          <Controller
+            control={form.control}
+            name="accessDirections"
+            render={({ field, fieldState }) => (
+              <FormTextArea
+                label="How to reach us (optional)"
+                accessibilityLabel="How to reach us"
+                maxLength={1000}
+                helperText="Up to 1,000 characters. Add familiar landmarks, walking access or vehicle changes you know. These appear as merchant-provided directions. Leave blank to remove."
+                placeholder="Example: Get off at the public market, then take a motorcycle to our entrance beside the chapel."
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}

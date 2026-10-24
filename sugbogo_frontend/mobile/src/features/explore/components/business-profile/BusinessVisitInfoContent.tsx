@@ -19,6 +19,7 @@ import {
 } from "../../utils/businessHours.utils";
 import { getBusinessAddressDisplay } from "../../utils/businessLocation.utils";
 import BusinessVisitMapPreview from "./BusinessVisitMapPreview";
+import MerchantAccessDirections from "../getting-there/MerchantAccessDirections";
 
 type Props = {
   businessId?: number;
@@ -27,6 +28,7 @@ type Props = {
   contactNumber: string;
   email: string | null;
   website: string | null;
+  accessDirections?: string;
   onViewRoute?: () => void;
   onJeepneyGuide?: () => void;
   onRide?: () => void;
@@ -48,6 +50,7 @@ export default function BusinessVisitInfoContent({
   contactNumber,
   email,
   website,
+  accessDirections,
   onViewRoute,
   onJeepneyGuide,
   onRide,
@@ -166,6 +169,9 @@ export default function BusinessVisitInfoContent({
           </View>
         )}
       </View>
+
+      {/* Optional merchant guidance is also readable without route matching. */}
+      <MerchantAccessDirections directions={accessDirections} />
 
       {/* Operating hours */}
       <View className="mt-4 border-t border-border-primary/60 pt-4">

@@ -216,6 +216,7 @@ describe("MerchantBusinessInformationEditScreen", () => {
     await waitFor(() => {
       expect(mockUpdateInformation).toHaveBeenCalledWith({
         description: "Updated business description",
+        access_directions: "",
         contact_number: business.contact_number,
         business_email: business.business_email,
         website: business.website,
@@ -225,6 +226,43 @@ describe("MerchantBusinessInformationEditScreen", () => {
         expect.objectContaining({ type: "success" }),
       );
     });
+  });
+
+  it("loads, edits and clears merchant access directions", async () => {
+    mockProfile.mockReturnValue({
+      business: { ...business, access_directions: "Use the market entrance." },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    await fireEvent.changeText(
+      screen.getByDisplayValue("Use the market entrance."),
+      "",
+    );
+    await fireEvent.press(screen.getByText("Save Changes"));
+    await waitFor(() =>
+      expect(mockUpdateInformation).toHaveBeenCalledWith(
+        expect.objectContaining({ access_directions: "" }),
+      ),
+    );
+  });
+
+  it("shows server validation against the directions field", async () => {
+    mockUpdateInformation.mockRejectedValue({
+      code: "VALIDATION_ERROR",
+      errors: { access_directions: ["Directions are too long."] },
+    });
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    await fireEvent.changeText(
+      screen.getByLabelText("How to reach us"),
+      "Walk from the chapel.",
+    );
+    await fireEvent.press(screen.getByText("Save Changes"));
+    await waitFor(() =>
+      expect(screen.getByText("Directions are too long.")).toBeTruthy(),
+    );
+    expect(router.back).not.toHaveBeenCalled();
   });
 
   it("disables Save again when an edit is reverted", async () => {

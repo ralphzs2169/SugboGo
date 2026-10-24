@@ -5,6 +5,7 @@ import useUserLocation from "@/shared/hooks/useUserLocation";
 import useDirectJourneys from "../../../hooks/useDirectJourneys";
 
 jest.mock("@/shared/hooks/useUserLocation");
+jest.mock("../BusinessVisitMapPreview", () => () => null);
 jest.mock("../../../hooks/useDirectJourneys");
 jest.mock("expo-router", () => ({
   useNavigation: () => ({ isFocused: () => true }),
@@ -83,6 +84,23 @@ describe("BusinessVisitInfoContent", () => {
     expect(screen.queryByLabelText("View road route")).toBeNull();
     expect(screen.queryByLabelText("Open jeepney guide")).toBeNull();
     expect(screen.queryByLabelText("Choose a ride provider")).toBeNull();
+  });
+
+  it("keeps merchant notes readable in saved visit details with transport disabled", async () => {
+    const screen = await render(
+      <BusinessVisitInfoContent
+        {...defaultProps}
+        readOnly
+        accessDirections="Walk behind the chapel."
+      />,
+    );
+    expect(screen.getByText("Walk behind the chapel.")).toBeTruthy();
+    expect(screen.getByText("Merchant-provided directions")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Open jeepney guide").props.accessibilityState
+        .disabled,
+    ).toBe(true);
+    expect(useDirectJourneys).not.toHaveBeenCalled();
   });
 
   it("keeps saved visit information while disabling transport and avoiding a current-status claim", async () => {

@@ -75,6 +75,11 @@ class BusinessInformationViewTests(TestCase):
             ("contact_number", "+639181234567", "BUSN_CONTACT_NUMBER"),
             ("business_email", "new@example.com", "BUSN_EMAIL"),
             ("website", "https://new.example.com", "BUSN_WEBSITE"),
+            (
+                "access_directions",
+                "Walk from the chapel to our blue gate.",
+                "BUSN_ACCESS_DIRECTIONS",
+            ),
         )
 
         for field, value, model_field in cases:
@@ -104,6 +109,8 @@ class BusinessInformationViewTests(TestCase):
         )
 
     def test_partial_patch_preserves_unspecified_information(self):
+        self.business.BUSN_ACCESS_DIRECTIONS = "Use the entrance beside the market."
+        self.business.save(update_fields=["BUSN_ACCESS_DIRECTIONS"])
         response = self.client.patch(
             self.url,
             {"description": "Updated description"},
@@ -115,6 +122,88 @@ class BusinessInformationViewTests(TestCase):
         self.assertEqual(self.business.BUSN_CONTACT_NUMBER, "09171234567")
         self.assertEqual(self.business.BUSN_EMAIL, "original@example.com")
         self.assertEqual(self.business.BUSN_WEBSITE, "https://example.com")
+        self.assertEqual(
+            self.business.BUSN_ACCESS_DIRECTIONS,
+            "Use the entrance beside the market.",
+        )
+
+    def test_directions_round_trip_through_owner_and_explorer_profiles(self):
+        note = "At the market, change to a motorcycle.\nWalk to the blue gate."
+        response = self.client.patch(
+            self.url,
+            {"access_directions": f"  {note}  "},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["access_directions"], note)
+        owner = self.client.get("/api/merchant/business-profile/")
+        self.assertEqual(owner.status_code, 200)
+        self.assertEqual(owner.data["data"]["access_directions"], note)
+        self.client.force_authenticate(self.explorer)
+        public = self.client.get(
+            f"/api/explorer/explore/businesses/{self.business.pk}/",
+        )
+        self.assertEqual(public.status_code, 200)
+        self.assertEqual(public.data["data"]["access_directions"], note)
+        self.identity.refresh_from_db()
+        self.assertEqual(
+            self.identity.MIDN_BUSINESS_DESCRIPTION,
+            "Original description",
+        )
+
+    def test_directions_can_be_cleared_and_remain_optional(self):
+        self.assertEqual(self.business.BUSN_ACCESS_DIRECTIONS, "")
+        for note in ("Use the side gate.", "", "   "):
+            response = self.client.patch(
+                self.url,
+                {"access_directions": note},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200)
+            self.business.refresh_from_db()
+            self.assertEqual(self.business.BUSN_ACCESS_DIRECTIONS, note.strip())
+
+    def test_direction_length_limit_and_invalid_values_do_not_partially_save(self):
+        accepted = self.client.patch(
+            self.url,
+            {"access_directions": "a" * 1000},
+            format="json",
+        )
+        self.assertEqual(accepted.status_code, 200)
+        for note in ("a" * 1001, None, ["Use the market"]):
+            response = self.client.patch(
+                self.url,
+                {
+                    "access_directions": note,
+                    "description": "Should not be saved",
+                },
+                format="json",
+            )
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("access_directions", response.data["errors"])
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_ACCESS_DIRECTIONS, "a" * 1000)
+        self.assertEqual(self.business.BUSN_DESCRIPTION, "Original description")
+
+    def test_directions_cannot_be_written_by_explorer_or_suspended_owner(self):
+        self.client.force_authenticate(self.explorer)
+        response = self.client.patch(
+            self.url,
+            {"access_directions": "Other note"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.client.force_authenticate(self.merchant)
+        self.business.BUSN_STATUS = Business.BusinessStatus.SUSPENDED
+        self.business.save(update_fields=["BUSN_STATUS"])
+        response = self.client.patch(
+            self.url,
+            {"access_directions": "Other note"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.BUSN_ACCESS_DIRECTIONS, "")
 
     def test_optional_email_and_website_can_be_cleared(self):
         response = self.client.patch(
