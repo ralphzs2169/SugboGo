@@ -54,6 +54,7 @@ urlpatterns = [
     path('api/admin/review-reports/', include('apps.admin_operations.moderation.report_urls')),
     path('api/admin/under-review/', include('apps.admin_operations.moderation.under_review_urls')),
     path('api/admin/suspicious-reviews/', include('apps.admin_operations.moderation.suspicious_review_urls')),
+    path('api/admin/suspicious-vouches/', include('apps.admin_operations.moderation.suspicious_vouch_urls')),
     path('api/admin/transit/', include('apps.admin_operations.transit_management.urls')),
 
 

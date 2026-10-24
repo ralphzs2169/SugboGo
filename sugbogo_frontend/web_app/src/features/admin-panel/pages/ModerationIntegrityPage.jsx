@@ -7,7 +7,7 @@ import TableTabs from "../components/data-table/TableTabs";
 import useModerationTabCounts from "../moderation/hooks/useModerationTabCounts";
 import ReviewDisputeWorkspace from "../review-disputes/components/ReviewDisputeWorkspace";
 import UnderReviewWorkspace from "../under-review/components/UnderReviewWorkspace";
-import SuspiciousReviewWorkspace from "../suspicious-reviews/components/SuspiciousReviewWorkspace";
+import SuspiciousActivityWorkspace from "../moderation/components/SuspiciousActivityWorkspace";
 import ReportedReviewWorkspace from "../reported-reviews/components/ReportedReviewWorkspace";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
@@ -89,7 +89,7 @@ export default function ModerationIntegrityPage() {
           {activeTab === "under-review" ? (
             <UnderReviewWorkspace />
           ) : activeTab === "suspicious" ? (
-            <SuspiciousReviewWorkspace />
+            <SuspiciousActivityWorkspace />
           ) : activeTab === "reported" ? (
             <ReportedReviewWorkspace />
           ) : (

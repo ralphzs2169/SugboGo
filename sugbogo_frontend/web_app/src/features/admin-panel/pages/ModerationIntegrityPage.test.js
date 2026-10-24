@@ -68,6 +68,10 @@ function renderPage(url, {
   suspiciousDetail,
   suspiciousError,
   suspiciousDetailError,
+  vouchList,
+  vouchDetail,
+  vouchError,
+  vouchDetailError,
   reportedList,
   reportedDetail,
   reportedBusinessDetails,
@@ -82,6 +86,28 @@ function renderPage(url, {
   };
 
   const queryClient = new QueryClient();
+  const vouchListKey = ["admin", "suspicious-vouches", "list", {
+    page: 1,
+    page_size: 10,
+    search: "",
+    ordering: "newest",
+  }];
+  if (vouchList) {
+    queryClient.setQueryData(vouchListKey, vouchList);
+  }
+  if (vouchDetail) {
+    queryClient.setQueryData(["admin", "suspicious-vouches", "detail", vouchDetail.id], vouchDetail);
+  }
+  if (vouchError || vouchDetailError) {
+    const queryKey = vouchError
+      ? vouchListKey
+      : ["admin", "suspicious-vouches", "detail", vouchDetailError];
+    queryClient.getQueryCache().build(queryClient, { queryKey }).setState({
+      status: "error",
+      fetchStatus: "idle",
+      error: new Error("Vouch unavailable"),
+    });
+  }
   for (const [tabId, count] of Object.entries(tabCounts ?? {})) {
     queryClient.setQueryData(["admin", "moderation-counts", tabId], count);
   }
@@ -244,6 +270,54 @@ test("sidebar has one Trust & Safety destination", () => {
       "/admin-panel/review-disputes/[disputeId]",
     ),
   );
+});
+
+test("vouch selector preserves default review links and uses separate selection", () => {
+  const reviews = renderPage("/admin-panel/moderation-integrity?tab=suspicious&suspicious_id=83");
+  assert.match(reviews, /Suspicious Reviews/);
+  assert.match(reviews, /aria-label="Suspicious activity type"/);
+  assert.match(reviews, /aria-pressed="true"[^>]*>Reviews/);
+  assert.doesNotMatch(reviews, /Suspicious Vouches/);
+
+  const vouches = renderPage("/admin-panel/moderation-integrity?tab=suspicious&suspicious_type=vouches&suspicious_id=83");
+  assert.match(vouches, /Suspicious Vouches/);
+  assert.match(vouches, /Select a vouch/);
+  assert.doesNotMatch(vouches, /Suspicious Reviews/);
+});
+
+test("vouch workspace presents read-only findings pagination and historical context", () => {
+  const vouch = {
+    id: 9,
+    author: { id: 2, first_name: "Vouch", last_name: "Explorer" },
+    business: { id: 3, name: "Sugbo Bistro" },
+    specialty: { id: 4, name: "Spicy" },
+    submitted_at: "2026-10-24T00:00:00Z",
+    withdrawn_at: "2026-10-24T01:00:00Z",
+    evidence_is_valid: false,
+    reasons: ["unknown_reason"],
+    detection_evidence: {},
+    current_related_activity: { items: [], window_unavailable: true },
+  };
+  const html = renderPage("/admin-panel/moderation-integrity?tab=suspicious&suspicious_type=vouches&suspicious_vouch_id=9", {
+    vouchList: {
+      items: [vouch],
+      pagination: { page: 1, total_pages: 2, has_next: true, has_previous: false },
+    },
+    vouchDetail: vouch,
+  });
+  const visibleHtml = html.replace(/<!--.*?-->/g, "");
+  for (const label of ["Vouch Explorer", "Sugbo Bistro", "Spicy", "Reason not recorded", "Invalid evidence", "Withdrawn", "Page 1 of 2", "Next", "original detection window is unavailable"]) {
+    assert.ok(visibleHtml.includes(label), label);
+  }
+  assert.doesNotMatch(html, />Approve<|>Reject<|>Publish<|Review Content/);
+});
+
+test("vouch workspace renders loading empty list error and detail error states", () => {
+  const url = "/admin-panel/moderation-integrity?tab=suspicious&suspicious_type=vouches";
+  assert.match(renderPage(url), /Loading suspicious vouches/);
+  assert.match(renderPage(url, { vouchList: { items: [], pagination: { total_pages: 0 } } }), /No suspicious vouches found/);
+  assert.match(renderPage(url, { vouchError: true }), /Unable to load suspicious vouches/);
+  assert.match(renderPage(`${url}&suspicious_vouch_id=9`, { vouchDetailError: 9 }), /Unable to load this vouch/);
 });
 
 test("legacy list URLs redirect to the correct tab and retain dispute filters", () => {

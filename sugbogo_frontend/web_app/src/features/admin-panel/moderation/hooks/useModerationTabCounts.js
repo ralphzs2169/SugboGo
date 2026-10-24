@@ -17,7 +17,7 @@ export default function useModerationTabCounts() {
   return Object.fromEntries(TAB_IDS.map((tabId, index) => [
     tabId,
     {
-      count: results[index].data,
+      count: results[index].isError ? undefined : results[index].data,
       isLoading: results[index].isPending && !results[index].isError,
     },
   ]));

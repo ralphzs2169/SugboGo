@@ -30,7 +30,7 @@ after(async () => {
 
 test("tab counts use each queue's unfiltered paginated total", async () => {
   const calls = [];
-  const totals = [8, 12, 2, 3];
+  const totals = [8, 12, 5, 2, 3];
   apiClient.get = async (url, options) => {
     calls.push([url, options.params]);
     return {
@@ -48,13 +48,28 @@ test("tab counts use each queue's unfiltered paginated total", async () => {
     counts.push(await fetchModerationTabCount(tab));
   }
 
-  assert.deepEqual(counts, totals);
+  assert.deepEqual(counts, [8, 17, 2, 3]);
   assert.deepEqual(calls, [
     ["/admin/under-review/", { page: 1, page_size: 1 }],
     ["/admin/suspicious-reviews/", { page: 1, page_size: 1 }],
+    ["/admin/suspicious-vouches/", { page: 1, page_size: 1 }],
     ["/admin/review-reports/reviews/", { page: 1, page_size: 1 }],
     ["/admin/review-disputes/", { page: 1, page_size: 1, status: "pending" }],
   ]);
+});
+
+test("suspicious combined count rejects unavailable or invalid vouch totals", async () => {
+  apiClient.get = async (url) => {
+    if (url === "/admin/suspicious-vouches/") {
+      throw new Error("Vouch count unavailable");
+    }
+    return { data: { data: { pagination: { total_items: 12 } } } };
+  };
+  await assert.rejects(fetchModerationTabCount("suspicious"), /unavailable/);
+  apiClient.get = async (url) => ({
+    data: { data: { pagination: { total_items: url.includes("vouches") ? undefined : 12 } } },
+  });
+  await assert.rejects(fetchModerationTabCount("suspicious"), /unavailable/);
 });
 
 test("zero is a valid queue count and missing totals are errors", async () => {
