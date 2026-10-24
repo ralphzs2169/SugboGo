@@ -131,29 +131,45 @@ describe("ReviewsSubmittedScreen", () => {
         state({ reviews: [review(1, status)] }),
       );
       const screen = await render(<ReviewsSubmittedScreen />);
-      expect(
-        within(screen.getByTestId("my-review-1")).getByText(label),
-      ).toBeTruthy();
+      const item = within(screen.getByTestId("my-review-1"));
+      if (status === "published") {
+        expect(item.queryByText(label)).toBeNull();
+      } else {
+        expect(item.getByText(label)).toBeTruthy();
+      }
       expect(screen.getByText("Review content 1")).toBeTruthy();
     },
   );
 
-  it("shows routine checking distinctly from team moderation", async () => {
-    (useMyReviews as jest.Mock).mockReturnValue(
-      state({
-        reviews: [
-          {
-            ...review(1, "under_review"),
-            moderation_progress: { state: "pending" },
-          },
-        ],
-      }),
-    );
-    const screen = await render(<ReviewsSubmittedScreen />);
-    const item = within(screen.getByTestId("my-review-1"));
-    expect(item.getByText("Checking")).toBeTruthy();
-    expect(item.queryByText("Under review")).toBeNull();
-  });
+  it.each(["pending", "processing", "awaiting_retry"] as const)(
+    "shows %s checks inline with the You badge",
+    async (progress) => {
+      (useMyReviews as jest.Mock).mockReturnValue(
+        state({
+          reviews: [
+            {
+              ...review(1, "under_review"),
+              moderation_progress: { state: progress },
+            },
+          ],
+        }),
+      );
+      const screen = await render(<ReviewsSubmittedScreen />);
+      const item = within(screen.getByTestId("my-review-1"));
+      expect(
+        item.getByText(
+          progress === "awaiting_retry"
+            ? "Taking a little longer than usual · Only you can see this"
+            : "Checking before publishing · Only you can see this",
+        ),
+      ).toBeTruthy();
+      expect(item.getByText("You")).toBeTruthy();
+      expect(item.queryByText("Checking")).toBeNull();
+      expect(item.queryByText("Delayed")).toBeNull();
+      expect(item.queryByText("Under review")).toBeNull();
+      expect(item.queryByLabelText("Like this review")).toBeNull();
+    },
+  );
 
   it("opens shared review photos and expands the merchant response", async () => {
     const screen = await render(<ReviewsSubmittedScreen />);

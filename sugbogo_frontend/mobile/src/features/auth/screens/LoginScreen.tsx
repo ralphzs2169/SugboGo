@@ -42,6 +42,7 @@ export default function LoginScreen() {
   );
 
   const signingIn = useAuthStore((state) => state.isSigningIn);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const [navigating, setNavigating] = useState(false);
   const [retryAfter, setRetryAfter] = useState(0);
@@ -186,7 +187,8 @@ export default function LoginScreen() {
     }
   };
 
-  if (signingIn) {
+  // Session-scoped providers can remount this route before navigation completes.
+  if (signingIn || navigating || isAuthenticated) {
     return (
       <LoadingScreen
         title="Signing you in..."

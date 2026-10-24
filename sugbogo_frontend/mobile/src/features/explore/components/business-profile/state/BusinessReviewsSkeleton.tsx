@@ -4,132 +4,148 @@ import Skeleton from "@/shared/components/Skeleton";
 
 type Props = {
   bottomInset: number;
+  showOwnerFooter?: boolean;
 };
-/**
- * Mirrors the complete business reviews page while reviews are loading.
- *
- * Matches the review card structure and reserves space for the fixed action
- * footer so the loading state does not shift when the reviews arrive.
- */
 
-export default function BusinessReviewsSkeleton({ bottomInset }: Props) {
+/** Mirrors the collection's insights, filters, and reviews during initial loading. */
+export default function BusinessReviewsSkeleton({
+  bottomInset,
+  showOwnerFooter = false,
+}: Props) {
   return (
-    <View className="flex-1 bg-surface">
+    <View
+      className="flex-1 bg-surface"
+      accessible
+      accessibilityLabel="Loading reviews"
+      accessibilityState={{ busy: true }}
+    >
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="gap-3 px-4 pb-32 pt-5"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        contentContainerStyle={{
+          paddingBottom: showOwnerFooter ? 128 : bottomInset + 32,
+        }}
       >
-        {/* Review card */}
-        <View className="border-b border-border-primary px-4 py-4">
-          {/* Review author */}
-          <View className="flex-row items-center">
-            <Skeleton className="h-[38px] w-[38px] rounded-full" />
-            <View className="ml-3 flex-1">
-              <Skeleton className="h-4 w-28 rounded-md" />
-              <Skeleton className="mt-1.5 h-3 w-16 rounded-md" />
+        <View className="gap-5 px-4 pb-4 pt-5">
+          {/* Insights heading and rolling-window context */}
+          <View>
+            <View className="flex-row items-center justify-between gap-3">
+              <Skeleton className="h-5 w-44 rounded-md" />
+              <Skeleton className="h-6 w-24 rounded-full" />
             </View>
-            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="mt-2 h-3 w-64 rounded-md" />
           </View>
-          {/* Review content */}
-          <View className="mt-3 gap-2">
-            <Skeleton className="h-4 w-full rounded-md" />
-            <Skeleton className="h-4 w-[92%] rounded-md" />
-            <Skeleton className="h-4 w-[68%] rounded-md" />
-          </View>
-          {/* Review photos */}
-          <View className="mt-3 flex-row gap-2">
-            <Skeleton className="aspect-square flex-1 rounded-lg" />
-            <Skeleton className="aspect-square flex-1 rounded-lg" />
-            <Skeleton className="aspect-square flex-1 rounded-lg" />
-          </View>
-          {/* Specialty vouches */}
-          <View className="mt-4">
-            <View className="mb-2 flex-row items-center">
-              <Skeleton className="h-4 w-4 rounded-full" />
-              <Skeleton className="ml-1.5 h-3 w-20 rounded-md" />
+
+          {/* Generated summary */}
+          <View className="rounded-xl bg-background px-4 py-3">
+            <View className="flex-row items-center gap-2">
+              <Skeleton className="h-4 w-20 rounded-md" />
+              <Skeleton className="h-3 w-20 rounded-md" />
             </View>
-            <View className="flex-row flex-wrap gap-2">
-              <Skeleton className="h-7 w-24 rounded-full" />
-              <Skeleton className="h-7 w-28 rounded-full" />
+            <View className="mt-3 gap-2">
+              <Skeleton className="h-3 w-full rounded-md" />
+              <Skeleton className="h-3 w-full rounded-md" />
+              <Skeleton className="h-3 w-3/4 rounded-md" />
             </View>
           </View>
-          {/* Like action */}
-          <View className="mt-3 flex-row items-center">
-            <Skeleton className="h-[21px] w-[21px] rounded-full" />
-            <Skeleton className="ml-1.5 h-3 w-5 rounded-md" />
+
+          {/* Compact sentiment rows */}
+          <View className="gap-1.5">
+            {[0, 1, 2].map((row) => (
+              <View key={row} className="flex-row items-center px-2 py-2">
+                <View className="w-[92px] flex-row items-center gap-2">
+                  <Skeleton className="h-[22px] w-[22px] rounded-full" />
+                  <View className="gap-1">
+                    <Skeleton className="h-3 w-14 rounded-md" />
+                    <Skeleton className="h-2 w-10 rounded-md" />
+                  </View>
+                </View>
+                <Skeleton className="mx-3 h-2 flex-1 rounded-full" />
+                <Skeleton className="h-3 w-8 rounded-md" />
+              </View>
+            ))}
           </View>
-        </View>
-        {/* Review card */}
-        <View className="border-b border-border-primary px-4 py-4">
-          {/* Review author */}
-          <View className="flex-row items-center">
-            <Skeleton className="h-[38px] w-[38px] rounded-full" />
-            <View className="ml-3 flex-1">
-              <Skeleton className="h-4 w-36 rounded-md" />
-              <Skeleton className="mt-1.5 h-3 w-20 rounded-md" />
-            </View>
-            <Skeleton className="h-5 w-5 rounded-full" />
-          </View>
-          {/* Review content */}
-          <View className="mt-3 gap-2">
-            <Skeleton className="h-4 w-full rounded-md" />
-            <Skeleton className="h-4 w-[85%] rounded-md" />
-          </View>
-          {/* Like action */}
-          <View className="mt-3 flex-row items-center">
-            <Skeleton className="h-[21px] w-[21px] rounded-full" />
-            <Skeleton className="ml-1.5 h-3 w-5 rounded-md" />
-          </View>
-        </View>
-        {/* Review card */}
-        <View className="border-b border-border-primary px-4 py-4">
-          {/* Review author */}
-          <View className="flex-row items-center">
-            <Skeleton className="h-[38px] w-[38px] rounded-full" />
-            <View className="ml-3 flex-1">
-              <Skeleton className="h-4 w-24 rounded-md" />
-              <Skeleton className="mt-1.5 h-3 w-16 rounded-md" />
-            </View>
-            <Skeleton className="h-5 w-5 rounded-full" />
-          </View>
-          {/* Review content */}
-          <View className="mt-3 gap-2">
-            <Skeleton className="h-4 w-full rounded-md" />
-            <Skeleton className="h-4 w-[94%] rounded-md" />
-            <Skeleton className="h-4 w-[72%] rounded-md" />
-          </View>
-          {/* Specialty vouches */}
-          <View className="mt-4">
-            <View className="mb-2 flex-row items-center">
-              <Skeleton className="h-4 w-4 rounded-full" />
-              <Skeleton className="ml-1.5 h-3 w-20 rounded-md" />
-            </View>
+
+          {/* Frequently mentioned topics */}
+          <View>
+            <Skeleton className="mb-3 h-4 w-36 rounded-md" />
             <View className="flex-row gap-2">
-              <Skeleton className="h-7 w-28 rounded-full" />
+              <Skeleton className="h-8 w-28 rounded-full" />
+              <Skeleton className="h-8 w-32 rounded-full" />
             </View>
           </View>
-          {/* Like action */}
-          <View className="mt-3 flex-row items-center">
-            <Skeleton className="h-[21px] w-[21px] rounded-full" />
-            <Skeleton className="ml-1.5 h-3 w-5 rounded-md" />
+
+          {/* Inline filtering and sorting controls */}
+          <View className="flex-row gap-2 overflow-hidden py-2">
+            <Skeleton className="h-8 w-20 rounded-full" />
+            <Skeleton className="h-8 w-28 rounded-full" />
+            <Skeleton className="h-8 w-24 rounded-full" />
+            <Skeleton className="h-8 w-20 rounded-full" />
           </View>
+        </View>
+
+        {/* Review rows use the same outer and inner insets as the live list. */}
+        <View className="px-4">
+          <ReviewRowSkeleton showPhotos />
+          <ReviewRowSkeleton />
         </View>
       </ScrollView>
 
-      {/* Fixed action footer placeholder */}
-      <View
-        className="absolute bottom-0 left-0 right-0 border-t border-border-primary bg-surface px-4 pt-3"
-        style={{ paddingBottom: Math.max(bottomInset, 12) }}
-      >
-        <View className="flex-row gap-3">
-          {/* Secondary CTA */}
-          <Skeleton className="h-11 flex-1 rounded-full" />
-
-          {/* Primary CTA */}
-          <View className="flex-1 overflow-hidden rounded-full">
-            <View className="h-11 bg-brand/30" />
-          </View>
+      {/* Only business owners have a fixed management footer. */}
+      {showOwnerFooter && (
+        <View
+          className="absolute bottom-0 left-0 right-0 border-t border-border-primary bg-surface px-4 pt-3"
+          style={{ paddingBottom: Math.max(bottomInset, 12) }}
+        >
+          <Skeleton className="h-11 w-full rounded-full" />
         </View>
+      )}
+    </View>
+  );
+}
+
+/** Matches the current compact review identity, content, photos, and engagement. */
+function ReviewRowSkeleton({ showPhotos = false }: { showPhotos?: boolean }) {
+  return (
+    <View className="border-t border-border-primary px-4 py-5">
+      {/* Reviewer identity */}
+      <View className="flex-row items-center">
+        <Skeleton className="h-9 w-9 rounded-full" />
+        <View className="ml-2.5 flex-1">
+          <Skeleton className="h-4 w-28 rounded-md" />
+          <Skeleton className="mt-1 h-3 w-16 rounded-md" />
+        </View>
+        <Skeleton className="h-5 w-5 rounded-full" />
+      </View>
+
+      {/* Review text */}
+      <View className="mt-3 gap-2">
+        <Skeleton className="h-3 w-full rounded-md" />
+        <Skeleton className="h-3 w-full rounded-md" />
+        <Skeleton className="h-3 w-2/3 rounded-md" />
+      </View>
+
+      {/* Optional photo grid */}
+      {showPhotos && (
+        <View className="mt-3 flex-row gap-1.5">
+          <Skeleton className="aspect-square w-[32%] rounded-lg" />
+          <Skeleton className="aspect-square w-[32%] rounded-lg" />
+          <Skeleton className="aspect-square w-[32%] rounded-lg" />
+        </View>
+      )}
+
+      {/* Specialty tags and engagement */}
+      <View className="mt-3">
+        <Skeleton className="mb-1.5 h-3 w-20 rounded-md" />
+        <View className="flex-row gap-1">
+          <Skeleton className="h-6 w-24 rounded-full" />
+          <Skeleton className="h-6 w-28 rounded-full" />
+        </View>
+      </View>
+      <View className="mt-3 flex-row items-center gap-1.5 py-1">
+        <Skeleton className="h-[18px] w-[18px] rounded-full" />
+        <Skeleton className="h-3 w-5 rounded-md" />
       </View>
     </View>
   );

@@ -10,17 +10,30 @@ import {
 } from "../../../hooks/useBusinessReviews";
 import type { BusinessReview } from "../../../types/review.types";
 import ReviewComposerSheet from "../ReviewComposerSheet";
+import {
+  useReviewWorkflowStore,
+  type ReviewSubmissionDraft,
+} from "../../../stores/reviewWorkflow.store";
+import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 
 let mockSubmitHandler: () => void;
+let mockSheetChange: (index: number) => void;
 
 jest.mock("@gorhom/bottom-sheet", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View, TextInput } = require("react-native");
   return {
     BottomSheetBackdrop: () => null,
-    BottomSheetModal: ({ children }: { children: React.ReactNode }) => (
-      <View>{children}</View>
-    ),
+    BottomSheetModal: ({
+      children,
+      onChange,
+    }: {
+      children: React.ReactNode;
+      onChange: (index: number) => void;
+    }) => {
+      mockSheetChange = onChange;
+      return <View>{children}</View>;
+    },
     BottomSheetScrollView: ({ children }: { children: React.ReactNode }) => (
       <View>{children}</View>
     ),
@@ -130,6 +143,12 @@ async function settleForm() {
 }
 
 describe("ReviewComposerSheet Community visibility", () => {
+  afterEach(async () => {
+    await act(async () => {
+      useReviewWorkflowStore.setState({ submissions: [] });
+    });
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     create.mockResolvedValue({ id: 9 });
@@ -157,6 +176,72 @@ describe("ReviewComposerSheet Community visibility", () => {
     await fireEvent.press(screen.getByLabelText("Close"));
     expect(sheetRef.current.dismiss).toHaveBeenCalled();
   });
+
+  it.each<ReviewSubmissionDraft["state"]>([
+    "acknowledged",
+    "confirming",
+    "unconfirmed",
+    "failed",
+  ])(
+    "only auto-dismisses confirmed receipt while refreshes are pending: %s",
+    async (state) => {
+      useAuthStore.setState({
+        user: { id: 10 } as never,
+        isAuthenticated: true,
+      });
+      (useCreateReview as jest.Mock).mockReturnValue({
+        mutateAsync: create,
+        isPending: true,
+        error: null,
+      });
+      const screen = await showReview();
+      await act(async () => mockSheetChange(0));
+      await act(async () => {
+        useReviewWorkflowStore.setState({
+          submissions: [
+            {
+              token: 100,
+              userId: 10,
+              generation: getAuthSessionGeneration(),
+              businessId: 20,
+              businessName: "Sugbo Cafe",
+              text: "A lovely visit with friendly staff.",
+              showInCommunity: true,
+              photos: [],
+              author: {
+                id: 10,
+                first_name: "Ana",
+                last_name: "Cruz",
+                avatar_url: null,
+              },
+              createdAt: new Date().toISOString(),
+              state,
+              ...(state === "acknowledged"
+                ? {
+                    result: {
+                      id: 9,
+                      business_id: 20,
+                      user_id: 10,
+                      status: "under_review" as const,
+                      moderation_progress: { state: "pending" as const },
+                    },
+                  }
+                : {}),
+            },
+          ],
+        });
+      });
+      expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(
+        state === "acknowledged" ? 1 : 0,
+      );
+      expect(
+        screen.queryByText("Review received. You can close this screen."),
+      ).toBeNull();
+      await act(async () =>
+        useAuthStore.setState({ user: null, isAuthenticated: false }),
+      );
+    },
+  );
 
   it("shows saving feedback while retaining proposed edit content", async () => {
     (useUpdateReview as jest.Mock).mockReturnValue({

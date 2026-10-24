@@ -3,10 +3,16 @@ import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import {
+  OVERALL_REVIEW_VIBE_LABELS,
+  REVIEW_VIBE_COLORS,
+} from "@/shared/constants/reviewVibe";
+import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
 import { shadows } from "@/shared/styles/shadows";
 
 type Props = {
   reviewCount: number | null;
+  overallVibe?: ReviewVibe | null;
   statusLabel: string;
   statusDetail: string;
   distance: string | null;
@@ -22,12 +28,14 @@ type Props = {
  */
 export default function BusinessProfileQuickInfo({
   reviewCount,
+  overallVibe,
   statusLabel,
   statusDetail,
   distance,
   isOpenNow,
   unavailable = false,
 }: Props) {
+  const vibe = !unavailable && overallVibe ? overallVibe : null;
   const statusColor =
     isOpenNow === null
       ? theme.extends.colors.text.secondary
@@ -51,12 +59,29 @@ export default function BusinessProfileQuickInfo({
             color={theme.extends.colors.text.secondary}
           />
 
-          <AppText
-            weight="bold"
-            className="mt-0.5 text-center text-[13px] text-text-primary"
+          <View
+            className="mt-0.5 flex-row items-center justify-center gap-1.5"
+            accessible={vibe ? true : undefined}
+            accessibilityLabel={
+              vibe
+                ? `${reviewCount ?? "—"} reviews. Customer feedback: ${OVERALL_REVIEW_VIBE_LABELS[vibe]}`
+                : undefined
+            }
           >
-            {unavailable ? "—" : (reviewCount ?? "—")}
-          </AppText>
+            {vibe && (
+              <View
+                accessible={false}
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: REVIEW_VIBE_COLORS[vibe].dot }}
+              />
+            )}
+            <AppText
+              weight="bold"
+              className="text-center text-[13px] text-text-primary"
+            >
+              {unavailable ? "—" : (reviewCount ?? "—")}
+            </AppText>
+          </View>
 
           <AppText className="text-[11px] text-text-secondary">
             {unavailable ? "Reviews" : reviewCount === 1 ? "review" : "reviews"}

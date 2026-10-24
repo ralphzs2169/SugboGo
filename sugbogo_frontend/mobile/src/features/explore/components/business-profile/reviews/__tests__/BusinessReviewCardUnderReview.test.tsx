@@ -78,6 +78,72 @@ const heldReview = {
 } as BusinessReview;
 
 describe("BusinessReviewCard held review", () => {
+  it.each(["pending", "processing", "awaiting_retry"] as const)(
+    "keeps %s checks inline and private",
+    async (state) => {
+      const message =
+        state === "awaiting_retry"
+          ? "Taking a little longer than usual · Only you can see this"
+          : "Checking before publishing · Only you can see this";
+      const screen = await render(
+        <BusinessReviewCard
+          businessId={20}
+          review={{ ...heldReview, moderation_progress: { state } }}
+        />,
+      );
+      expect(screen.getByText(message)).toBeTruthy();
+      expect(screen.queryByText("Checking")).toBeNull();
+      expect(screen.queryByText("Delayed")).toBeNull();
+      expect(
+        screen.queryByText(
+          "We're checking your review before it appears publicly.",
+        ),
+      ).toBeNull();
+
+      await screen.rerender(
+        <BusinessReviewCard
+          businessId={20}
+          review={{
+            ...heldReview,
+            is_own_review: false,
+            moderation_progress: { state },
+          }}
+        />,
+      );
+      expect(screen.queryByText(message)).toBeNull();
+    },
+  );
+
+  it.each([
+    ["flagged", "awaiting_admin_review", "Under review"],
+    ["under_review", "retries_exhausted", "Needs review"],
+    ["rejected", "rejected", "Not published"],
+  ] as const)("preserves %s / %s feedback", async (status, state, label) => {
+    const screen = await render(
+      <BusinessReviewCard
+        businessId={20}
+        review={{ ...heldReview, status, moderation_progress: { state } }}
+      />,
+    );
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(
+      screen.queryByText("Checking before publishing · Only you can see this"),
+    ).toBeNull();
+  });
+
+  it("does not add a status badge to a published review", async () => {
+    const screen = await render(
+      <BusinessReviewCard
+        businessId={20}
+        review={{ ...heldReview, status: "published" }}
+      />,
+    );
+    expect(screen.queryByText("Published")).toBeNull();
+    expect(
+      screen.queryByText("Checking before publishing · Only you can see this"),
+    ).toBeNull();
+  });
+
   it("shows the publication state and keeps delete without edit", async () => {
     const onEdit = jest.fn();
     const screen = await render(

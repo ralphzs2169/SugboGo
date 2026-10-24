@@ -34,7 +34,7 @@ export default function ReviewInsightsHeader({
             compact ? "text-sm" : "text-base"
           }`}
         >
-          Recent Review Insights
+          Review Insights
         </AppText>
 
         <ReviewVibeBadge

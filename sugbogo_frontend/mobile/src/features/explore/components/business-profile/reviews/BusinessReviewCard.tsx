@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ComponentProps } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
@@ -20,7 +20,7 @@ import { useReviewWorkflowStore } from "../../../stores/reviewWorkflow.store";
 import type { BusinessReview } from "../../../types/review.types";
 import MerchantReviewResponse from "./MerchantReviewResponse";
 import ReviewContent from "./ReviewContent";
-import { reviewModerationFeedback } from "../../../utils/reviewModeration.utils";
+import AuthorReviewStatus from "./AuthorReviewStatus";
 import ReportReviewSheet from "./ReportReviewSheet";
 import ReviewReportReceiptSheet from "./ReviewReportReceiptSheet";
 import {
@@ -35,6 +35,36 @@ type Props = {
   isLast?: boolean;
   highlightedTopic?: string | null;
 };
+
+/** Presents review content with author progress and merchant responses. */
+function ReviewCardContent({
+  review,
+  saving = false,
+  ...contentProps
+}: Omit<ComponentProps<typeof ReviewContent>, "showEngagement" | "review"> & {
+  review: BusinessReview;
+  saving?: boolean;
+}) {
+  return (
+    <>
+      <ReviewContent
+        {...contentProps}
+        review={review}
+        showEngagement={review.status === "published"}
+      />
+      {review.is_own_review && saving && (
+        <AppText
+          accessibilityLiveRegion="polite"
+          className="mt-2 text-xs text-text-secondary"
+        >
+          Saving changes…
+        </AppText>
+      )}
+      {review.is_own_review && <AuthorReviewStatus review={review} />}
+      {review.reply && <MerchantReviewResponse reply={review.reply} />}
+    </>
+  );
+}
 
 /**
  * Presents a customer review in the explorer business profile.
@@ -67,7 +97,6 @@ export default function BusinessReviewCard({
   const [receiptOpen, setReceiptOpen] = useState(false);
   const userId = useAuthStore((state) => state.user?.id);
   const queryClient = useQueryClient();
-  const moderation = reviewModerationFeedback(review);
   const hasReported = review.has_reported || reportedByUserId === userId;
 
   const actionSheetRef = useRef<BottomSheetModal | null>(null);
@@ -139,37 +168,14 @@ export default function BusinessReviewCard({
       }`}
     >
       {/* Shared review content */}
-      <ReviewContent
+      <ReviewCardContent
         review={review}
         onLike={toggleLike}
         isLikePending={isLikePending}
         onActions={() => presentBottomSheet(actionSheetRef)}
         highlightedTopic={highlightedTopic}
-        showEngagement={review.status === "published"}
+        saving={saving}
       />
-
-      {review.is_own_review && saving && (
-        <AppText
-          accessibilityLiveRegion="polite"
-          className="mt-2 text-xs text-text-secondary"
-        >
-          Saving changes…
-        </AppText>
-      )}
-
-      {review.is_own_review && review.status !== "published" && (
-        <View className="mt-3 rounded-lg bg-surface-secondary px-3 py-2">
-          <AppText weight="semibold" className="text-xs text-text-primary">
-            {moderation.label}
-          </AppText>
-          <AppText className="mt-1 text-xs text-text-secondary">
-            {moderation.description}
-          </AppText>
-        </View>
-      )}
-
-      {/* Merchant response */}
-      {review.reply && <MerchantReviewResponse reply={review.reply} />}
 
       {/* Review actions */}
       <ActionBottomSheet

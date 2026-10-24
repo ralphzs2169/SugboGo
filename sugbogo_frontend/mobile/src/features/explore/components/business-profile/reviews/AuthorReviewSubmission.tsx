@@ -1,11 +1,10 @@
 import { router } from "expo-router";
 import { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
-import Button from "@/shared/components/Button";
+import type { BusinessReview } from "../../../types/review.types";
 import { useCachedReviewPreview } from "../../../hooks/useAuthorReviewSource";
 import { useAuthorReviewSubmissions } from "../../../hooks/useAuthorReviewSubmissions";
 import {
@@ -15,8 +14,8 @@ import {
   useReviewWorkflowStore,
   type ReviewSubmissionDraft,
 } from "../../../stores/reviewWorkflow.store";
-import { reviewModerationFeedback } from "../../../utils/reviewModeration.utils";
 import ReviewContent from "./ReviewContent";
+import AuthorReviewStatus from "./AuthorReviewStatus";
 
 type Props = {
   businessId?: number;
@@ -81,33 +80,39 @@ function Submission({
   if (server && representedIds.includes(server.id)) return null;
   if (draft.result && representedIds.includes(draft.result.id)) return null;
 
-  const feedback = server
-    ? reviewModerationFeedback(server)
-    : draft.result
-      ? reviewModerationFeedback(draft.result)
-      : draft.state === "submitting"
-        ? {
-            label: "Submitting",
-            description:
-              "Only you can see this. Your review hasn't been confirmed yet.",
-          }
-        : draft.state === "failed"
-          ? {
-              label: "Not submitted",
-              description:
-                "Your draft is kept here. Open the review to try again.",
-            }
-          : draft.state === "unconfirmed"
-            ? {
-                label: "Unable to confirm submission",
-                description:
-                  "Your text and photos are kept here. Check again without uploading them again.",
-              }
-            : {
-                label: "Still confirming",
-                description:
-                  "We're checking for your review. You don't need to submit it again.",
-              };
+  return (
+    <ReviewSubmissionCard
+      draft={draft}
+      server={server}
+      showBusiness={showBusiness}
+      onResume={
+        onResume ??
+        (() =>
+          router.push({
+            pathname: "/(explorer)/business/[businessId]",
+            params: { businessId: String(draft.businessId) },
+          }))
+      }
+      onCheckAgain={() => checkReviewSubmissionAgain(draft.token)}
+    />
+  );
+}
+
+/** Renders submission feedback without subscribing to or changing workflow state. */
+export function ReviewSubmissionCard({
+  draft,
+  server = null,
+  showBusiness = false,
+  onResume,
+  onCheckAgain,
+}: {
+  draft: ReviewSubmissionDraft;
+  server?: BusinessReview | null;
+  showBusiness?: boolean;
+  onResume?: () => void;
+  onCheckAgain?: () => void;
+}) {
+  const moderatedReview = server ?? draft.result;
   const content = server ?? {
     author: draft.author,
     text: draft.text,
@@ -147,48 +152,13 @@ function Submission({
         showEngagement={false}
         showSpecialtyVouches={false}
       />
-      {/* Quiet private status; ordinary published reviews have no badge. */}
-      {(server?.status ?? draft.result?.status) !== "published" && (
-        <View
-          accessibilityLiveRegion="polite"
-          className="mt-3 rounded-lg bg-surface-secondary px-3 py-2"
-        >
-          <View className="flex-row items-center gap-2">
-            {draft.state === "submitting" && !server && (
-              <ActivityIndicator
-                size="small"
-                color={theme.extends.colors.text.secondary}
-              />
-            )}
-            <AppText weight="semibold" className="text-xs text-text-primary">
-              {feedback.label}
-            </AppText>
-          </View>
-          <AppText className="mt-1 text-xs text-text-secondary">
-            {feedback.description}
-          </AppText>
-          {draft.state === "failed" && !server && onResume && (
-            <Button
-              title="Continue review"
-              onPress={onResume}
-              variant="soft"
-              size="sm"
-              rounded="full"
-              className="mt-2 self-start"
-            />
-          )}
-          {draft.state === "unconfirmed" && !server && (
-            <Button
-              title="Check again"
-              onPress={() => checkReviewSubmissionAgain(draft.token)}
-              variant="soft"
-              size="sm"
-              rounded="full"
-              className="mt-2 self-start"
-            />
-          )}
-        </View>
-      )}
+      {/* Author-only status and recovery actions */}
+      <AuthorReviewStatus
+        review={moderatedReview}
+        submissionState={draft.state}
+        onResume={onResume}
+        onCheckAgain={onCheckAgain}
+      />
     </View>
   );
 }

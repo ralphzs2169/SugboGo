@@ -18,6 +18,12 @@ jest.mock("../../hooks/useFacebookLogin", () => ({
   useFacebookLogin: () => ({ handleFacebookLogin: jest.fn() }),
 }));
 jest.mock("../../components/AuthHeader", () => () => null);
+jest.mock("@/shared/components/LoadingScreen", () => {
+  const { Text } = jest.requireActual("react-native");
+  return function Loading({ title }: { title: string }) {
+    return <Text>{title}</Text>;
+  };
+});
 jest.mock("../../components/Divider", () => () => null);
 jest.mock("../../components/BottomAuthLink", () => () => null);
 jest.mock(
@@ -82,7 +88,11 @@ describe("password lockout feedback", () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
-    useAuthStore.setState({ sessionExpired: false, isSigningIn: false });
+    useAuthStore.setState({
+      sessionExpired: false,
+      isSigningIn: false,
+      isAuthenticated: false,
+    });
     jest
       .mocked(useLogin)
       .mockReturnValue({ handleLogin: login, loading: false });
@@ -95,6 +105,39 @@ describe("password lockout feedback", () => {
   });
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it("keeps the loading screen when session setup remounts the login route", async () => {
+    const screen = await render(<LoginScreen />);
+    await fireEvent.changeText(
+      screen.getByLabelText("EMAIL ADDRESS"),
+      "person@example.com",
+    );
+    await act(async () => {
+      useAuthStore.setState({ isAuthenticated: true });
+    });
+    expect(screen.getByText("Signing you in...")).toBeTruthy();
+    expect(screen.queryByLabelText("EMAIL ADDRESS")).toBeNull();
+    await screen.unmount();
+
+    const remounted = await render(<LoginScreen />);
+    expect(remounted.getByText("Signing you in...")).toBeTruthy();
+    expect(remounted.queryByLabelText("EMAIL ADDRESS")).toBeNull();
+    await remounted.unmount();
+  });
+
+  it("keeps loading after successful login until navigation unmounts the route", async () => {
+    login.mockResolvedValue({ success: true });
+    const screen = await render(<LoginScreen />);
+    await fireEvent.changeText(
+      screen.getByLabelText("EMAIL ADDRESS"),
+      "person@example.com",
+    );
+    await fireEvent.changeText(screen.getByLabelText("PASSWORD"), "password");
+    await fireEvent.press(screen.getByRole("button", { name: "Log in" }));
+    expect(screen.getByText("Signing you in...")).toBeTruthy();
+    expect(screen.queryByLabelText("PASSWORD")).toBeNull();
+    await screen.unmount();
   });
 
   it("blocks only the locked email's password action and preserves social/recovery actions", async () => {

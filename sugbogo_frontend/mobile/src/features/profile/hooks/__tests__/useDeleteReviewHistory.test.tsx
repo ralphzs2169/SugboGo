@@ -7,8 +7,18 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { deleteReview } from "@/features/explore/api/reviewBusiness.service";
-import { useDeleteReview } from "@/features/explore/hooks/useBusinessReviews";
+import {
+  deleteReview,
+  getBusinessReviewPreview,
+} from "@/features/explore/api/reviewBusiness.service";
+import {
+  useBusinessReviewPreview,
+  useDeleteReview,
+} from "@/features/explore/hooks/useBusinessReviews";
+import type {
+  BusinessReview,
+  BusinessReviewPreview,
+} from "@/features/explore/types/review.types";
 import {
   businessReviewPreviewKey,
   businessReviewsKey,
@@ -22,6 +32,7 @@ import { useMyReviews } from "../useMyReviews";
 jest.mock("../../api/myReviews.service", () => ({ getMyReviews: jest.fn() }));
 jest.mock("@/features/explore/api/reviewBusiness.service", () => ({
   deleteReview: jest.fn(),
+  getBusinessReviewPreview: jest.fn(),
 }));
 jest.mock("@/features/explore/hooks/ReviewDerivedDataSyncProvider", () => ({
   useReviewDerivedDataSyncActions: () => ({
@@ -81,6 +92,66 @@ describe("confirmed deletion and private infinite history", () => {
       retainedIds = retainedIds.filter((current) => current !== id);
       return { success: true, data: { review_id: id } };
     });
+  });
+
+  it("clears resolved ownership after confirmed deletion even if the preview refresh fails", async () => {
+    const ownReview: BusinessReview = {
+      id: 5,
+      text: "My published review",
+      status: "published",
+      author: {
+        id: 10,
+        first_name: "Ana",
+        last_name: "Cruz",
+        avatar_url: null,
+      },
+      created_at: "2026-10-01T12:00:00Z",
+      updated_at: "2026-10-01T12:00:00Z",
+      photos: [],
+      vouched_specialties: [],
+      reply: null,
+      like_count: 0,
+      sentiment_label: null,
+      sentiment_score: null,
+      is_liked: false,
+      is_liked_by_owner: false,
+      is_own_review: true,
+      has_reported: false,
+      active_dispute_id: null,
+    };
+    jest.mocked(getBusinessReviewPreview).mockResolvedValue({
+      success: true,
+      message: "Review preview retrieved.",
+      data: { reviews: [ownReview], user_review: ownReview, total_count: 1 },
+    });
+    const { client, Wrapper } = setup();
+    const { result, unmount } = await renderHook(
+      () => ({
+        preview: useBusinessReviewPreview(20),
+        deletion: useDeleteReview(20),
+      }),
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(result.current.preview.hasOwnReview).toBe(true));
+    expect(result.current.preview.hasResolvedOwnership).toBe(true);
+    jest
+      .mocked(getBusinessReviewPreview)
+      .mockRejectedValue(new Error("Offline"));
+    await act(async () => {
+      await result.current.deletion.mutateAsync({ reviewId: 5 });
+    });
+    expect(result.current.preview.hasOwnReview).toBe(false);
+    expect(result.current.preview.hasResolvedOwnership).toBe(true);
+    expect(result.current.preview.userReview).toBeNull();
+    expect(
+      client.getQueryData<BusinessReviewPreview>(businessReviewPreviewKey(20)),
+    ).toEqual({
+      reviews: [],
+      user_review: null,
+      total_count: 1,
+    });
+    await unmount();
+    client.clear();
   });
 
   it("refetches a shortened collection without requesting an obsolete last page", async () => {

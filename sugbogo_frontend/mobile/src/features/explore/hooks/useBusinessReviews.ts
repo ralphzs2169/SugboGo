@@ -475,6 +475,7 @@ export function useBusinessReviewPreview(businessId: number) {
     totalCount: query.error ? null : (query.data?.total_count ?? 0),
     userReview,
     hasOwnReview: Boolean(userReview) || submissions.length > 0,
+    hasResolvedOwnership: query.data !== undefined,
     submission: submissions[0] ?? null,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,

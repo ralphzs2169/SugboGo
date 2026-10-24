@@ -227,7 +227,10 @@ export default function ReviewsSubmittedScreen() {
     history.isAuthLoading || (isEnabled && history.isPending);
   const hasReviews = history.reviews.length > 0;
   const showEndMessage =
-    hasReviews && !history.error && !history.hasNextPage && !history.isFetching;
+    history.reviews.length >= 5 &&
+    !history.error &&
+    !history.hasNextPage &&
+    !history.isFetching;
   const reviewCounts = history.summary;
   const filteredEmptyLabel =
     reviewFilter === "under_review"
@@ -268,18 +271,7 @@ export default function ReviewsSubmittedScreen() {
         ItemSeparatorComponent={ReviewSeparator}
         ListHeaderComponent={
           isEnabled ? (
-            <View className="gap-2 px-4 pb-3 pt-4">
-              <View className="mb-1 flex-row items-center justify-between gap-3">
-                <AppText
-                  weight="semibold"
-                  className="text-sm text-text-primary"
-                >
-                  Your reviews
-                </AppText>
-                <AppText className="text-sm text-text-secondary">
-                  {reviewCounts?.total.toLocaleString() ?? "—"} total
-                </AppText>
-              </View>
+            <View className="gap-1 px-4 pb-1 pt-4">
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}

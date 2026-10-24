@@ -6,7 +6,7 @@ import {
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   BackHandler,
@@ -179,6 +179,7 @@ export default function ReviewComposerSheet({
       : selectedReview;
   const insets = useSafeAreaInsets();
   const submissionPending = useRef(false);
+  const dismissedReceiptId = useRef<number | null>(null);
   const submissionOwner = useRef<{
     userId: number | undefined;
     generation: number;
@@ -220,6 +221,29 @@ export default function ReviewComposerSheet({
   const isEditing = Boolean(review);
   const submission = useAuthorReviewSubmissions(businessId)[0];
   const isPending = isCreatePending || isUpdatePending;
+
+  useEffect(() => {
+    if (
+      isEditing ||
+      !isSheetOpen ||
+      submission?.state !== "acknowledged" ||
+      !submission.result ||
+      dismissedReceiptId.current === submission.result.id
+    ) {
+      return;
+    }
+
+    // Receipt is authoritative; cache refreshes and moderation can finish later.
+    dismissedReceiptId.current = submission.result.id;
+    Toast.show({
+      type: "success",
+      text1: "Review received",
+      ...(submission.result.status === "under_review"
+        ? { text2: reviewModerationFeedback(submission.result).description }
+        : {}),
+    });
+    sheetRef.current?.dismiss();
+  }, [isEditing, isSheetOpen, submission, sheetRef]);
 
   const photoCount = photos.length + existingPhotos.length;
   const canAddMore = photoCount < MAX_REVIEW_PHOTOS;
@@ -390,6 +414,8 @@ export default function ReviewComposerSheet({
 
         if (!isCurrentSubmission()) return;
 
+        if (dismissedReceiptId.current === created.id) return;
+
         if (created.status === "under_review") {
           Toast.show({
             type: "success",
@@ -440,6 +466,18 @@ export default function ReviewComposerSheet({
     resetForm();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [review]);
+
+  useLayoutEffect(() => {
+    if (isEditing || isSheetOpen || isPending) {
+      return;
+    }
+
+    // Clear removed submissions while hidden, before the next opening paints.
+    // Session drafts still restore failed or uncertain submissions here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    resetForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submission, isEditing, isSheetOpen, isPending]);
 
   useEffect(() => {
     const clearPrivateDraft = () => {
@@ -744,7 +782,12 @@ export default function ReviewComposerSheet({
                   checked: showInCommunity,
                   disabled: isPending,
                 }}
-                trackColor={{ true: theme.extends.colors.brand }}
+                trackColor={{
+                  false: theme.extends.colors.surfaceMutedStrong,
+                  true: theme.extends.colors.brand,
+                }}
+                thumbColor={theme.extends.colors.surface}
+                ios_backgroundColor={theme.extends.colors.surfaceMutedStrong}
               />
             </View>
           </View>
@@ -771,14 +814,6 @@ export default function ReviewComposerSheet({
                   : submission?.state === "unconfirmed"
                     ? "Unable to confirm submission. Your text and photos are kept here."
                     : "Still confirming…"}
-            </AppText>
-          )}
-          {!isEditing && submission?.state === "acknowledged" && (
-            <AppText
-              accessibilityLiveRegion="polite"
-              className="mb-2 text-center text-xs text-text-secondary"
-            >
-              Review received. You can close this screen.
             </AppText>
           )}
           {editFeedback && (
