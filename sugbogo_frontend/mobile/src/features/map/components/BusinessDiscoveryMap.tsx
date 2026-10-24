@@ -2,15 +2,14 @@ import type { LocationObject } from "expo-location";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type ComponentRef,
 } from "react";
-import { Platform, View } from "react-native";
+import { Image, Platform, View } from "react-native";
 import ClusteredMapView from "react-native-map-clustering";
 import MapView, {
-  Marker,
   PROVIDER_GOOGLE,
   type MapMarker as NativeMapMarker,
   type Region,
@@ -18,7 +17,9 @@ import MapView, {
 
 import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 import MapClusterMarker from "@/shared/components/map-related/MapClusterMarker";
+import SnapshotMapMarker from "@/shared/components/map-related/SnapshotMapMarker";
 import MapMarker from "@/shared/components/MapMarker";
+import { MAP_MARKER_FALLBACK_IMAGE } from "@/shared/constants/mapMarkerSnapshot";
 
 import type { MapBounds } from "../types/mapDiscovery.types";
 import { regionToBounds } from "../utils/mapViewport";
@@ -107,15 +108,84 @@ export default function BusinessDiscoveryMap({
   isScreenFocused,
 }: Props) {
   const mapRef = useRef<MapView>(null);
-  const markerRefs = useRef(new Map<string, ComponentRef<typeof Marker>>());
+  const markerRefs = useRef(new Map<string, NativeMapMarker>());
   const superClusterRef = useRef<SuperClusterHandle | null>(null);
 
   const [isReady, setIsReady] = useState(false);
+  const [isMarkerFallbackReady, setIsMarkerFallbackReady] = useState(
+    Platform.OS !== "android",
+  );
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
 
   const dispatchedFocus = useRef<typeof focusTarget>(null);
   const boundaryReadId = useRef(0);
   const isMounted = useRef(true);
+  const businessPressRef = useRef(onBusinessPress);
+
+  useLayoutEffect(() => {
+    businessPressRef.current = onBusinessPress;
+  }, [onBusinessPress]);
+
+  // Keep event updates out of the marker tree's identity. The clustering wrapper
+  // rebuilds its entire index whenever its children array changes.
+  const businessMarkers = useMemo(() => {
+    if (!isMarkerFallbackReady) {
+      return [];
+    }
+
+    return businesses.map((business) => {
+      const isSelected = selectedBusinessId === business.id;
+
+      return (
+        <SnapshotMapMarker
+          key={`business-${business.id}`}
+          markerRef={(marker) => {
+            const key = `business-${business.id}`;
+
+            if (marker) {
+              markerRefs.current.set(key, marker);
+            } else {
+              markerRefs.current.delete(key);
+            }
+          }}
+          snapshotKey={`${isSelected}-${business.is_hidden_gem === true}-${useClusterIcons ? (business.cluster_icon ?? "") : ""}`}
+          identifier={String(business.id)}
+          {...(isSelected ? { cluster: false } : {})}
+          anchor={{ x: 0.5, y: 1 }}
+          zIndex={isSelected ? 1 : 0}
+          opacity={
+            dimUnselectedMarkers && selectedBusinessId !== null && !isSelected
+              ? 0.55
+              : 1
+          }
+          accessibilityState={{ selected: isSelected }}
+          coordinate={{
+            latitude: business.latitude,
+            longitude: business.longitude,
+          }}
+          tracksViewChanges={trackMarkerUpdates}
+          onPress={() => businessPressRef.current?.(business.id)}
+        >
+          <MapMarker
+            variant={
+              business.is_hidden_gem === true ? "hidden-gem" : "business"
+            }
+            selected={isSelected}
+            clusterIcon={
+              useClusterIcons ? (business.cluster_icon ?? null) : undefined
+            }
+          />
+        </SnapshotMapMarker>
+      );
+    });
+  }, [
+    businesses,
+    dimUnselectedMarkers,
+    isMarkerFallbackReady,
+    selectedBusinessId,
+    trackMarkerUpdates,
+    useClusterIcons,
+  ]);
 
   const mapPadding = useMemo(
     () => ({ top: 0, left: 0, right: 0, bottom: previewBottomInset }),
@@ -166,7 +236,7 @@ export default function BusinessDiscoveryMap({
         return leaves.filter((leaf) =>
           gemIds.has(String(leaf.properties?.identifier)),
         ).length;
-      } catch (error) {
+      } catch {
         // Fall back to a regular cluster if its members cannot be resolved.
         return 0;
       }
@@ -312,6 +382,16 @@ export default function BusinessDiscoveryMap({
 
   return (
     <View className="flex-1 overflow-hidden">
+      {/* Decode and retain the tiny transparent fallback before markers mount. */}
+      {Platform.OS === "android" && (
+        <Image
+          source={MAP_MARKER_FALLBACK_IMAGE}
+          accessible={false}
+          onLoad={() => setIsMarkerFallbackReady(true)}
+          onError={() => setIsMarkerFallbackReady(true)}
+          style={{ position: "absolute", width: 1, height: 1 }}
+        />
+      )}
       <ClusteredMapView
         mapRef={captureMap}
         superClusterRef={superClusterRef}
@@ -382,7 +462,7 @@ export default function BusinessDiscoveryMap({
 
           return (
             <MapClusterMarker
-              key={`cluster-${cluster.id}-${cluster.properties.point_count}-${gemCount}`}
+              key={`cluster-${cluster.id}`}
               {...cluster}
               gemCount={gemCount}
               markerRef={(marker) => {
@@ -394,56 +474,7 @@ export default function BusinessDiscoveryMap({
           );
         }}
       >
-        {businesses.map((business) => {
-          const isSelected = selectedBusinessId === business.id;
-
-          return (
-            <Marker
-              ref={(marker) => {
-                const key = `business-${business.id}`;
-                if (marker) markerRefs.current.set(key, marker);
-                else markerRefs.current.delete(key);
-              }}
-              key={`${business.id}-${isSelected}-${business.is_hidden_gem === true}${useClusterIcons ? `-${business.cluster_icon ?? ""}` : ""}`}
-              identifier={String(business.id)}
-              {...(isSelected ? { cluster: false } : {})}
-              anchor={{ x: 0.5, y: 1 }}
-              zIndex={isSelected ? 1 : 0}
-              opacity={
-                dimUnselectedMarkers &&
-                selectedBusinessId !== null &&
-                !isSelected
-                  ? 0.55
-                  : 1
-              }
-              accessibilityState={{
-                selected: isSelected,
-              }}
-              coordinate={{
-                latitude: business.latitude,
-                longitude: business.longitude,
-              }}
-              tracksViewChanges={trackMarkerUpdates}
-              onPress={() => {
-                onBusinessPress?.(business.id);
-              }}
-            >
-              <View collapsable={false}>
-                <MapMarker
-                  variant={
-                    business.is_hidden_gem === true ? "hidden-gem" : "business"
-                  }
-                  selected={isSelected}
-                  clusterIcon={
-                    useClusterIcons
-                      ? (business.cluster_icon ?? null)
-                      : undefined
-                  }
-                />
-              </View>
-            </Marker>
-          );
-        })}
+        {businessMarkers}
       </ClusteredMapView>
     </View>
   );

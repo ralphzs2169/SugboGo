@@ -1,11 +1,12 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState, type Ref } from "react";
+import { type Ref } from "react";
 import { View } from "react-native";
-import { Marker, type MapMarker } from "react-native-maps";
+import { type MapMarker } from "react-native-maps";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import { GEM_ACCENT, GEM_FILL, GEM_ICON } from "@/shared/styles/hiddenGems";
+import SnapshotMapMarker from "./SnapshotMapMarker";
 
 /**
  * Shape of the object react-native-map-clustering passes to `renderCluster`.
@@ -70,24 +71,20 @@ export default function MapClusterMarker({
         }. Double tap to zoom in.`
       : `${count} businesses. Double tap to zoom in.`;
 
-  // Android needs one tracked render to capture the bitmap, then stops.
-  const [tracksViewChanges, setTracksViewChanges] = useState(true);
-
   const [longitude, latitude] = geometry.coordinates;
 
   return (
-    <Marker
-      ref={markerRef}
+    <SnapshotMapMarker
+      markerRef={markerRef}
+      snapshotKey={`${count}-${gemCount}`}
       coordinate={{ latitude, longitude }}
       anchor={{ x: 0.5, y: 0.5 }}
       onPress={onPress}
-      tracksViewChanges={tracksViewChanges}
       zIndex={2}
       accessibilityLabel={label}
     >
       <View
         collapsable={false}
-        onLayout={() => setTracksViewChanges(false)}
         style={{
           width: BOX_SIZE,
           height: BOX_SIZE,
@@ -157,6 +154,6 @@ export default function MapClusterMarker({
           </View>
         )}
       </View>
-    </Marker>
+    </SnapshotMapMarker>
   );
 }
