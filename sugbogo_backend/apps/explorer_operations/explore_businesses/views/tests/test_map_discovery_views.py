@@ -83,7 +83,7 @@ class MapDiscoveryViewTests(
                             "icon": "coffee",
                         },
                     ],
-                    "is_hidden_gem": True,
+                    "is_hidden_gem": False,
                 },
             ],
         )
@@ -252,7 +252,9 @@ class MapDiscoveryViewTests(
                 score=str((100 - index) / 100),
             )
 
-        homepage = self.client.get(reverse("discovery-feed"))
+        homepage = self.client.get(
+            "/api/explorer/explore/collections/hidden-gems/",
+        )
         homepage_ids = {
             item["id"]
             for item in homepage.data["data"]["items"]

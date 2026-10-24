@@ -27,7 +27,7 @@ export async function getNewBusinesses(): Promise<
 export async function getDiscoveryFeed(): Promise<
   ApiResponse<ExploreBusinessListResponse>
 > {
-  return request(apiClient.get("/explorer/explore/discovery/"));
+  return request(apiClient.get("/explorer/explore/collections/hidden-gems/"));
 }
 
 export async function getDiscoveryResults(

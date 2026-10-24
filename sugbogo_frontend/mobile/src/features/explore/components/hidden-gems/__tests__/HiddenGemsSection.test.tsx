@@ -213,9 +213,9 @@ describe("HiddenGemsSection", () => {
     expect(
       screen.getByText("Great local places that deserve more discovery."),
     ).toBeTruthy();
-    expect(screen.getByText("No places to show yet")).toBeTruthy();
+    expect(screen.getByText("No Hidden Gems yet")).toBeTruthy();
     expect(
-      screen.getByText("Check back as more local businesses join SugboGo."),
+      screen.getByText("Check back as more places earn community recognition."),
     ).toBeTruthy();
     expect(screen.queryByTestId("discovery-retry")).toBeNull();
     expect(screen.queryByTestId("hidden-gems-scroll")).toBeNull();

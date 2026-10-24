@@ -193,6 +193,10 @@ class ExploreCollectionViewTests(TestCase):
         cafe_without_tag = self._create_business("Cafe Without Coffee")
 
         for business in (cafe, restaurant, trail):
+            self._add_score(
+                business,
+                Decimal("0.50000"),
+            )
             self._add_specialty(
                 business,
                 self.coffee_tag,
@@ -349,6 +353,11 @@ class ExploreCollectionViewTests(TestCase):
     def test_active_status_is_required_but_verification_is_not(self):
         unverified = self._create_business("Unverified Active")
         verified = self._create_business("Verified Active")
+        for business in (unverified, verified):
+            self._add_score(
+                business,
+                Decimal("0.50000"),
+            )
         suspended = self._create_business("Suspended")
         Business.objects.filter(
             BUSN_ID=verified.BUSN_ID,
@@ -374,6 +383,10 @@ class ExploreCollectionViewTests(TestCase):
     def test_hidden_gems_page_query_count_does_not_scale_with_items(self):
         for index in range(10):
             business = self._create_business(f"Query Business {index}")
+            self._add_score(
+                business,
+                Decimal("0.50000"),
+            )
             self._add_specialty(
                 business,
                 self.coffee_tag,

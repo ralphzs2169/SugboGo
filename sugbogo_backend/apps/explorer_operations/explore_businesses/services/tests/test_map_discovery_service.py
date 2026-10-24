@@ -92,7 +92,7 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
 
         self.assertEqual(len(businesses), 1)
         self.assertEqual(businesses[0].BUSN_ID, active.BUSN_ID)
-        self.assertTrue(businesses[0].is_hidden_gem)
+        self.assertFalse(businesses[0].is_hidden_gem)
         self.assertFalse(active.BUSN_IS_VERIFIED)
 
     def test_global_top_ten_matches_homepage_including_both_tie_breakers(self):
@@ -119,7 +119,7 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
             *[business.BUSN_ID for business in businesses[:9]],
         ]
         homepage_ids = list(
-            DiscoveryFeedService.list_discovery_businesses(
+            DiscoveryFeedService.list_hidden_gems(
                 user=self.explorer,
             ).values_list(
                 "BUSN_ID",
@@ -176,7 +176,12 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
         )
 
         self.assertEqual(
-            list(DiscoveryFeedService.list_global_hidden_gem_ids()),
+            list(
+                DiscoveryFeedService.list_ranked_businesses().values_list(
+                    "BUSN_ID",
+                    flat=True,
+                ),
+            ),
             [missing.BUSN_ID, scored.BUSN_ID, zero.BUSN_ID],
         )
         self.assertEqual(
@@ -189,8 +194,8 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
             [Decimal("0.20"), Decimal("0.10"), Decimal("0.00")],
         )
 
-    def test_configured_missing_score_changes_global_gem_membership_not_viewport_order(self):
-        """Apply configured fallback to global membership and retain gem-first ID order."""
+    def test_missing_score_never_gets_gem_membership_when_fallback_weight_changes(self):
+        """Keep missing rows ineligible while retaining gem-first viewport ID ordering."""
         leaders = [
             self.create_business(
                 score="0.90000",
@@ -203,7 +208,7 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
         missing = self.create_business()
         for visibility_weight, specialty_weight, last_gem in (
             ("0.20", "0.80", persisted),
-            ("0.25", "0.75", missing),
+            ("0.25", "0.75", persisted),
         ):
             with self.subTest(visibility_weight=visibility_weight):
                 DiscoveryAlgorithmConfiguration.objects.update_or_create(

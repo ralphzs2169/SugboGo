@@ -79,6 +79,14 @@ const metadataKeys = [
   keys.EXPLORE_SPECIALTIES_QUERY_KEY,
   keys.EXPLORE_FILTER_OPTIONS_QUERY_KEY,
 ];
+
+it("versions the homepage Hidden Gems policy to reject old general-discovery snapshots", () => {
+  const policy = QUERY_PERSISTENCE_POLICIES.find((candidate) =>
+    candidate.matches(keys.DISCOVERY_FEED_QUERY_KEY),
+  );
+
+  expect(policy?.version).toBe(2);
+});
 const cluster = { id: 1, name: "Food", icon: "food" };
 const specialty = { id: 1, name: "Coffee", color: "blue", icon: "coffee" };
 

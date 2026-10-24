@@ -43,6 +43,18 @@ class DiscoveryAlgorithmConfigurationSerializer(serializers.ModelSerializer):
         max_digits=6,
         decimal_places=5,
     )
+    hidden_gem_minimum_specialty_score = serializers.DecimalField(
+        source="DAC_HIDDEN_GEM_MIN_SPECIALTY_SCORE",
+        label="Minimum Hidden Gem Specialty Score",
+        max_digits=6,
+        decimal_places=5,
+    )
+    hidden_gem_minimum_visibility_gap = serializers.DecimalField(
+        source="DAC_HIDDEN_GEM_MIN_VISIBILITY_GAP",
+        label="Minimum Hidden Gem Visibility Gap",
+        max_digits=6,
+        decimal_places=5,
+    )
     decay_rate = serializers.DecimalField(
         source="DAC_DECAY_RATE",
         max_digits=6,
@@ -113,6 +125,8 @@ class DiscoveryAlgorithmConfigurationSerializer(serializers.ModelSerializer):
         fields = (
             "specialty_score_weight",
             "visibility_gap_weight",
+            "hidden_gem_minimum_specialty_score",
+            "hidden_gem_minimum_visibility_gap",
             "decay_rate",
             "reputation_baseline",
             "vouch_reputation_reward",

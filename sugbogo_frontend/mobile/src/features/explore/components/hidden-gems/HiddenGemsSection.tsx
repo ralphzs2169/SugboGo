@@ -111,8 +111,8 @@ export default function HiddenGemsSection({
 
         {/* Empty discovery state */}
         <ExploreSectionEmptyState
-          title="No places to show yet"
-          description="Check back as more local businesses join SugboGo."
+          title="No Hidden Gems yet"
+          description="Check back as more places earn community recognition."
           icon="compass-outline"
         />
       </View>

@@ -92,7 +92,7 @@ function policy(
 ): QueryPersistencePolicy {
   return {
     id: key[0],
-    version: 1,
+    version: key[0] === DISCOVERY_FEED_QUERY_KEY[0] ? 2 : 1,
     kind: "query",
     // Exact identity excludes filtered/paginated variants, even with this prefix.
     matches: (candidate) => candidate.length === 1 && candidate[0] === key[0],
