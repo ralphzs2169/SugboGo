@@ -432,6 +432,8 @@ class VisibilityGapService:
         business_ids: Iterable[int] | None = None,
         reference_time: datetime | None = None,
         configuration: DiscoveryAlgorithmConfiguration | None = None,
+        *,
+        read_only: bool = False,
     ) -> tuple[VisibilityGapResult, ...]:
         """Calculates Visibility Gap results for active businesses."""
 
@@ -486,6 +488,9 @@ class VisibilityGapService:
         )
         groups_by_target_business_id = {}
         metrics_by_group_key = {}
+        metrics_options = {}
+        if read_only:
+            metrics_options["read_only"] = True
 
         for business_id in target_business_ids:
             business = businesses_by_id[
@@ -518,6 +523,7 @@ class VisibilityGapService:
                         business_ids=comparison_group.business_ids,
                         start_time=window_start,
                         end_time=window_end,
+                        **metrics_options,
                     )
                 )
 
@@ -554,15 +560,21 @@ class VisibilityGapService:
         business_id: int,
         reference_time: datetime | None = None,
         configuration: DiscoveryAlgorithmConfiguration | None = None,
+        *,
+        read_only: bool = False,
     ) -> VisibilityGapResult:
         """Calculates Visibility Gap for one active business."""
 
+        calculation_options = {}
+        if read_only:
+            calculation_options["read_only"] = True
         results = cls.calculate_visibility_gaps(
             business_ids=[
                 business_id,
             ],
             reference_time=reference_time,
             configuration=configuration,
+            **calculation_options,
         )
 
         return results[0]

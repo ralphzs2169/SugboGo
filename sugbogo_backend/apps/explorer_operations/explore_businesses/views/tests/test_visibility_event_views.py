@@ -318,31 +318,201 @@ class VisibilityEventViewTests(APITestCase):
         )
 
     def test_impression_endpoint_validates_request_structure(self):
-        missing_response = self.client.post(
-            self.impression_url,
+        payloads = [
             {},
-            format="json",
-        )
-        invalid_response = self.client.post(
-            self.impression_url,
-            {
-                "business_ids": "not-a-list",
-            },
-            format="json",
-        )
+            [],
+            {"business_ids": "not-a-list"},
+            {"business_ids": []},
+            {"business_ids": None},
+            {"business_ids": [self.business.pk, "invalid"]},
+            {"business_ids": [self.business.pk, 0]},
+            {"business_ids": [self.business.pk, 1.5]},
+        ]
+        with patch.object(
+            VisibilityEventService,
+            "record_impressions",
+        ) as record_impressions:
+            for payload in payloads:
+                with self.subTest(payload=payload):
+                    response = self.client.post(
+                        self.impression_url,
+                        payload,
+                        format="json",
+                    )
+                    self.assertEqual(
+                        response.status_code,
+                        status.HTTP_400_BAD_REQUEST,
+                    )
+                    self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+                    self.assertNotIn("retry_after", response.data)
 
+        record_impressions.assert_not_called()
+
+    def test_mixed_impression_batch_filters_ineligible_targets_and_deduplicates(self):
+        inactive_business = Business.objects.create(
+            BUSN_NAME="Inactive batch target",
+            BUSN_STATUS=Business.BusinessStatus.SUSPENDED,
+            USER_ID=self.other_explorer,
+            CTGRY_ID=self.category,
+            LOCT_ID=self.location,
+        )
+        owned_business = Business.objects.create(
+            BUSN_NAME="Owned batch target",
+            BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            USER_ID=self.explorer,
+            CTGRY_ID=self.category,
+            LOCT_ID=self.location,
+        )
+        payload = {
+            "business_ids": [
+                self.business.pk,
+                inactive_business.pk,
+                owned_business.pk,
+                999999,
+                self.business.pk,
+            ],
+        }
+        collection = FakeVisibilityCollection()
+        with (
+            patch.object(VisibilityEventService, "_indexes_initialized", False),
+            patch.object(VisibilityEventService, "_unavailable_until", 0.0),
+            patch.object(
+                VisibilityEventService,
+                "_get_collection",
+                return_value=collection,
+            ),
+        ):
+            first = self.client.post(
+                self.impression_url,
+                payload,
+                format="json",
+            )
+            repeated = self.client.post(
+                self.impression_url,
+                payload,
+                format="json",
+            )
+
+        for response in (first, repeated):
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertTrue(response.data["success"])
+            self.assertNotIn("retry_after", response.data)
         self.assertEqual(
-            missing_response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-        self.assertIn(
-            "business_ids",
-            missing_response.data["errors"],
+            first.data["data"],
+            {
+                "business_ids": [self.business.pk],
+                "recorded_count": 1,
+                "duplicate_count": 0,
+            },
         )
         self.assertEqual(
-            invalid_response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+            repeated.data["data"],
+            {
+                "business_ids": [self.business.pk],
+                "recorded_count": 0,
+                "duplicate_count": 1,
+            },
         )
+        self.assertEqual(len(collection.documents), 1)
+        document = next(iter(collection.documents.values()))
+        self.assertEqual(document["business_id"], self.business.pk)
+        self.assertEqual(document["explorer_id"], self.explorer.pk)
+
+    def test_all_ineligible_impression_targets_succeed_during_mongo_cooldown(self):
+        inactive_business = Business.objects.create(
+            BUSN_NAME="Inactive batch target",
+            BUSN_STATUS=Business.BusinessStatus.SUSPENDED,
+            USER_ID=self.other_explorer,
+            CTGRY_ID=self.category,
+            LOCT_ID=self.location,
+        )
+        self.client.force_authenticate(self.owner)
+        with (
+            patch.object(VisibilityEventService, "_unavailable_until", 200.0),
+            patch.object(
+                VisibilityEventService,
+                "_get_monotonic_time",
+                return_value=100.0,
+            ),
+            patch.object(VisibilityEventService, "_get_collection") as collection,
+        ):
+            response = self.client.post(
+                self.impression_url,
+                {
+                    "business_ids": [
+                        self.business.pk,
+                        inactive_business.pk,
+                        999999,
+                    ],
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["data"],
+            {
+                "business_ids": [],
+                "recorded_count": 0,
+                "duplicate_count": 0,
+            },
+        )
+        self.assertNotIn("retry_after", response.data)
+        collection.assert_not_called()
+
+    @override_settings(MONGODB_VISIBILITY_FAILURE_COOLDOWN_SECONDS=30)
+    def test_partial_batch_mongo_failure_retains_retry_timing_and_recovery(self):
+        collection = FakeVisibilityCollection()
+        collection.bulk_write_error = AutoReconnect("Unavailable")
+        payload = {"business_ids": [self.business.pk, 999999]}
+        with (
+            patch.object(VisibilityEventService, "_indexes_initialized", True),
+            patch.object(VisibilityEventService, "_unavailable_until", 0.0),
+            patch.object(
+                VisibilityEventService,
+                "_get_monotonic_time",
+                return_value=100.0,
+            ) as clock,
+            patch.object(
+                VisibilityEventService,
+                "_get_collection",
+                return_value=collection,
+            ) as get_collection,
+        ):
+            failed = self.client.post(
+                self.impression_url,
+                payload,
+                format="json",
+            )
+            cooldown = self.client.post(
+                self.impression_url,
+                payload,
+                format="json",
+            )
+            self.assertEqual(get_collection.call_count, 1)
+            collection.bulk_write_error = None
+            clock.return_value = 130.0
+            recovered = self.client.post(
+                self.impression_url,
+                payload,
+                format="json",
+            )
+
+        for response in (failed, cooldown):
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+            self.assertEqual(
+                response.data["code"],
+                "VISIBILITY_TRACKING_UNAVAILABLE",
+            )
+            self.assertEqual(response.data["retry_after"], 30)
+            self.assertEqual(response["Retry-After"], "30")
+        self.assertEqual(recovered.status_code, status.HTTP_200_OK)
+        self.assertEqual(recovered.data["data"]["recorded_count"], 1)
+        self.assertEqual(recovered.data["data"]["business_ids"], [self.business.pk])
+        self.assertEqual(len(collection.documents), 1)
 
     def test_profile_visit_endpoint_uses_permission_and_response_conventions(self):
         result = SimpleNamespace(

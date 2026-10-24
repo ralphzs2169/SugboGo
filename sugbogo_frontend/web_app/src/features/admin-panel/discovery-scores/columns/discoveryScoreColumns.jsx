@@ -2,6 +2,8 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { Image } from "lucide-react";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { formatDateTime } from "@/shared/utils/dateUtils";
+import Button from "@/shared/components/Button";
+import DiscoveryScoreContext from "../components/DiscoveryScoreContext";
 
 const columnHelper = createColumnHelper();
 
@@ -10,7 +12,7 @@ function scoreValue(value) {
 }
 
 /** Defines score columns using the shared Admin DataTable cell conventions. */
-export default function getDiscoveryScoreColumns() {
+export default function getDiscoveryScoreColumns(onViewDiagnostics) {
   return [
     columnHelper.accessor((row) => row.business.business_name, {
       id: "business_name",
@@ -98,6 +100,28 @@ export default function getDiscoveryScoreColumns() {
         <span className="text-sm text-text-secondary">
           {formatDateTime(info.getValue())}
         </span>
+      ),
+    }),
+    columnHelper.display({
+      id: "score_context",
+      header: "Score context",
+      size: 280,
+      meta: { skeleton: "longText" },
+      cell: ({ row }) => <DiscoveryScoreContext score={row.original} />,
+    }),
+    columnHelper.display({
+      id: "visibility_diagnostics",
+      header: "Diagnostics",
+      size: 190,
+      cell: ({ row }) => (
+        <Button
+          variant="action"
+          size="sm"
+          disabled={row.original.business.status !== "active"}
+          onClick={() => onViewDiagnostics(row.original.business)}
+        >
+          View visibility diagnostics
+        </Button>
       ),
     }),
   ];

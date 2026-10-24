@@ -16,6 +16,7 @@ import PageHeader from "../components/PageHeader";
 import getDiscoveryScoreColumns from "../discovery-scores/columns/discoveryScoreColumns";
 import useDiscoveryScores from "../discovery-scores/hooks/useDiscoveryScores";
 import { recomputeDiscoveryScores } from "../discovery-scores/services/discoveryScoreService";
+import VisibilityDiagnosticsModal from "../discovery-scores/components/VisibilityDiagnosticsModal";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -27,6 +28,7 @@ export default function DiscoveryScoresPage() {
   useDocumentTitle("Discovery Scores | SugboGo Admin");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isRecomputing, setIsRecomputing] = useState(false);
+  const [diagnosticBusiness, setDiagnosticBusiness] = useState(null);
   const {
     globalFilter,
     setGlobalFilter,
@@ -147,13 +149,15 @@ export default function DiscoveryScoresPage() {
         title="Discovery Scores"
       />
       <p className="mb-6 text-sm text-text-secondary">
-        Monitor the scores used to surface businesses in Hidden Gems.
+        Monitor the scores used to surface businesses in Hidden Gems. Freshness
+        describes score computation; telemetry coverage remains unverified. Zero
+        recorded activity does not establish zero exposure.
       </p>
 
       {/* The shared table owns search, skeleton, empty, error, and pagination UI. */}
       <DataTable
         data={scores}
-        columns={getDiscoveryScoreColumns()}
+        columns={getDiscoveryScoreColumns(setDiagnosticBusiness)}
         isLoading={isLoading}
         isFetching={isFetching}
         isSearching={isSearching}
@@ -196,6 +200,14 @@ export default function DiscoveryScoresPage() {
           ),
         }}
       />
+
+      {diagnosticBusiness && (
+        <VisibilityDiagnosticsModal
+          key={diagnosticBusiness.id}
+          business={diagnosticBusiness}
+          onClose={() => setDiagnosticBusiness(null)}
+        />
+      )}
 
       {/* Confirmation keeps the batch action deliberate and prevents duplicates. */}
       <Modal

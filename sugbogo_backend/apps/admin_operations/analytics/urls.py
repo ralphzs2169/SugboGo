@@ -5,6 +5,7 @@ from .operations_views import AttentionQueueView, OnboardingAnalyticsView
 
 from .views import DiscoveryScoreListView, DiscoveryScoreRecomputeView, DiscoveryTrendView
 from .views import get_analytics_data
+from .views import VisibilityGapDiagnosticView
 from .views import BusinessAttentionView, CoverageAnalyticsView, LowExposureView
 
 urlpatterns = [
@@ -29,5 +30,10 @@ urlpatterns = [
         "discovery-scores/recompute/",
         DiscoveryScoreRecomputeView.as_view(),
         name="discovery-score-recompute",
+    ),
+    path(
+        "discovery-scores/<int:business_id>/visibility-diagnostics/",
+        VisibilityGapDiagnosticView.as_view(),
+        name="discovery-score-visibility-diagnostics",
     ),
 ]
