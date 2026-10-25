@@ -45,11 +45,13 @@ export default function ExploreScreen() {
   const queryClient = useQueryClient();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshingNearby, setIsRefreshingNearby] = useState(false);
   const refreshInProgress = useRef(false);
   const [openNowLocation, setOpenNowLocation] = useState<LocationObject | null>(
     null,
   );
   const [isUsingLastLocation, setIsUsingLastLocation] = useState(false);
+  const appliedUserLocation = useRef<LocationObject | null>(null);
 
   const bottomSpacing = useTabBarSpacing();
 
@@ -64,18 +66,29 @@ export default function ExploreScreen() {
     status: locationStatus,
     isRefreshingLocation,
     refreshLocation,
-  } = useUserLocation();
+  } = useUserLocation({ mode: "recent" });
   const nearbyLocation = openNowLocation;
 
   useEffect(() => {
-    if (userLocation !== null && !refreshInProgress.current) {
-      setOpenNowLocation((currentLocation) => currentLocation ?? userLocation);
+    if (refreshInProgress.current) return;
+    if (locationStatus === "denied") {
+      setOpenNowLocation(null);
+      setIsUsingLastLocation(false);
+    } else if (
+      userLocation !== null &&
+      userLocation !== appliedUserLocation.current
+    ) {
+      appliedUserLocation.current = userLocation;
+      setOpenNowLocation(userLocation);
+      setIsUsingLastLocation(false);
+    } else if (userLocation === null && locationStatus !== "loading") {
+      setIsUsingLastLocation(openNowLocation !== null);
     }
-  }, [userLocation]);
+  }, [locationStatus, openNowLocation, userLocation]);
 
   const openNow = useOpenNowBusinesses(
     nearbyLocation,
-    !isRefreshing && !isRefreshingLocation,
+    !isRefreshingNearby && !isRefreshingLocation,
   );
 
   const discoveryFeed = useDiscoveryFeed();
@@ -88,26 +101,11 @@ export default function ExploreScreen() {
 
     refreshInProgress.current = true;
     setIsRefreshing(true);
+    setIsRefreshingNearby(true);
 
     try {
-      await queryClient.cancelQueries({
-        queryKey: OPEN_NOW_BUSINESSES_QUERY_KEY,
-      });
-
-      // Resolve the device location before choosing this section's query key.
-      const result = await refreshLocation();
-      const nextLocation = result.location ?? openNowLocation;
-      setOpenNowLocation(nextLocation);
-      setIsUsingLastLocation(
-        result.status !== "available" && nextLocation !== null,
-      );
-
-      await Promise.all([
-        nextLocation !== null
-          ? openNow.refreshAtLocation(nextLocation).catch(() => {
-              // The section exposes this query's persistent error and Retry.
-            })
-          : Promise.resolve(),
+      // These sections do not depend on GPS or the Open Now query key.
+      const independentRefreshes = Promise.allSettled([
         queryClient.refetchQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
@@ -124,6 +122,33 @@ export default function ExploreScreen() {
           queryKey: DISCOVERY_SHORTCUTS_QUERY_KEY,
         }),
       ]);
+
+      const refreshNearby = async () => {
+        try {
+          await queryClient.cancelQueries({
+            queryKey: OPEN_NOW_BUSINESSES_QUERY_KEY,
+          });
+          // Only Open Now waits for the coordinates used by its query key.
+          const result = await refreshLocation();
+          const nextLocation =
+            result.status === "denied"
+              ? null
+              : (result.location ?? openNowLocation);
+          setOpenNowLocation(nextLocation);
+          setIsUsingLastLocation(
+            result.status !== "available" && nextLocation !== null,
+          );
+
+          if (nextLocation !== null) {
+            await openNow.refreshAtLocation(nextLocation);
+          }
+        } finally {
+          setIsRefreshingNearby(false);
+        }
+      };
+
+      // Each query retains its own error/Retry state; the spinner covers both branches.
+      await Promise.allSettled([independentRefreshes, refreshNearby()]);
     } finally {
       refreshInProgress.current = false;
       setIsRefreshing(false);

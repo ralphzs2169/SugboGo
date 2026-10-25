@@ -1,7 +1,13 @@
-import { onlineManager, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  focusManager,
+  hashKey,
+  onlineManager,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { LocationObject } from "expo-location";
 import { useIsFocused } from "expo-router";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
@@ -41,20 +47,39 @@ export default function useOpenNowBusinesses(
 ) {
   const queryClient = useQueryClient();
   const isFocused = useIsFocused();
+  const [failedRefresh, setFailedRefresh] = useState<string | null>(null);
   const query = useQuery({
     ...openNowQueryOptions(location),
-    enabled: enabled && isFocused && location !== null,
+    enabled: (current) =>
+      enabled &&
+      isFocused &&
+      location !== null &&
+      !(failedRefresh === current.queryHash && current.state.error !== null),
     refetchInterval: enabled && isFocused ? 60_000 : false,
     refetchOnWindowFocus: "always",
   });
 
   useEffect(() => {
     if (isFocused) {
+      setFailedRefresh(null);
       void queryClient.invalidateQueries({
         queryKey: OPEN_NOW_BUSINESSES_QUERY_KEY,
       });
     }
   }, [isFocused, queryClient]);
+
+  useEffect(() => {
+    if (!failedRefresh || !enabled || !isFocused) return;
+    // Retain Retry and the normal minute cadence, without retrying on re-enable.
+    const timeout = setTimeout(() => setFailedRefresh(null), 60_000);
+    const unsubscribe = focusManager.subscribe((focused) => {
+      if (focused) setFailedRefresh(null);
+    });
+    return () => {
+      clearTimeout(timeout);
+      unsubscribe();
+    };
+  }, [enabled, failedRefresh, isFocused]);
 
   const refreshAtLocation = useCallback(
     async (nextLocation: LocationObject) => {
@@ -63,10 +88,16 @@ export default function useOpenNowBusinesses(
         return;
       }
 
-      await queryClient.fetchQuery({
-        ...openNowQueryOptions(nextLocation),
-        staleTime: 0,
-      });
+      const options = openNowQueryOptions(nextLocation);
+      try {
+        await queryClient.fetchQuery({
+          ...options,
+          staleTime: 0,
+        });
+      } catch (error) {
+        setFailedRefresh(hashKey(options.queryKey));
+        throw error;
+      }
     },
     [queryClient],
   );

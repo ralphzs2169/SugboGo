@@ -61,7 +61,7 @@ export default function OpenNowBusinessesSection({
   }
 
   const locationNotice =
-    isUsingLastLocation && userLocation !== null ? (
+    hasContent && isUsingLastLocation && userLocation !== null ? (
       <View className="mb-3 px-4" accessibilityLiveRegion="polite">
         <InfoBanner
           title="Using your last known location"

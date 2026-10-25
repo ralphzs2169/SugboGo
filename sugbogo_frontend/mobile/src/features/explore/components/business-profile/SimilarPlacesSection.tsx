@@ -31,7 +31,7 @@ const SKELETON_DELAY_MS = 200;
  */
 export default function SimilarPlacesSection({ businessId }: Props) {
   const similarBusinesses = useSimilarBusinesses(businessId);
-  const { location: userLocation } = useUserLocation();
+  const { location: userLocation } = useUserLocation({ mode: "cached" });
   const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(false);
   const tracking = useContext(BusinessProfileImpressionsContext);
   const retainBusinesses = tracking?.impressions.retainBusinesses;
