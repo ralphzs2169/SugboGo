@@ -84,6 +84,7 @@ jest.mock("../../components/new-businesses/BusinessCard", () => {
   const { Text } = require("react-native");
   return {
     __esModule: true,
+    getBusinessCardWidth: () => 226,
     default: ({
       business,
       onPress,

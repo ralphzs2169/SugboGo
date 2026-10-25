@@ -165,15 +165,28 @@ describe("JeepneyRouteMapScreen", () => {
     );
     expect(screen.queryByText(directions.trim())).toBeNull();
     const disclosure = screen.getByRole("button", {
-      name: "View merchant directions",
+      name: "Access notes",
     });
     expect(disclosure.props.accessibilityState.expanded).toBe(false);
     await fireEvent.press(disclosure);
     expect(screen.getByText(directions.trim())).toBeTruthy();
-    expect(screen.getByText("Merchant-provided directions")).toBeTruthy();
-    expect(screen.getByText("Final approach")).toBeTruthy();
+    expect(screen.getAllByText("Merchant-provided")).toHaveLength(2);
+    expect(
+      screen.getAllByRole("header", { name: "Access notes" }),
+    ).toHaveLength(1);
+    expect(screen.queryByText("Final approach")).toBeNull();
+    expect(screen.queryByText("How to reach us")).toBeNull();
+    expect(
+      screen.getByText(directions.trim()).props.numberOfLines,
+    ).toBeUndefined();
+    expect(screen.queryByText("Read more")).toBeNull();
+    let scrollContainer = screen.getByText(directions.trim()).parent;
+    while (scrollContainer && scrollContainer.type !== "RCTScrollView") {
+      scrollContainer = scrollContainer.parent;
+    }
+    expect(scrollContainer).not.toBeNull();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Close merchant directions" }),
+      screen.getByRole("button", { name: "Close access notes" }),
     );
     expect(screen.queryByText(directions.trim())).toBeNull();
   });
@@ -195,9 +208,7 @@ describe("JeepneyRouteMapScreen", () => {
           alightingTransitPointId={4}
         />,
       );
-      expect(
-        screen.queryByRole("button", { name: "View merchant directions" }),
-      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Access notes" })).toBeNull();
     },
   );
 
@@ -216,9 +227,7 @@ describe("JeepneyRouteMapScreen", () => {
         alightingTransitPointId={4}
       />,
     );
-    await fireEvent.press(
-      screen.getByRole("button", { name: "View merchant directions" }),
-    );
+    await fireEvent.press(screen.getByRole("button", { name: "Access notes" }));
     (useExploreBusinessProfile as jest.Mock).mockReturnValue({
       business: { business_name: "Sugbo Cafe", access_directions: "" },
     });
@@ -231,9 +240,7 @@ describe("JeepneyRouteMapScreen", () => {
       />,
     );
     expect(screen.queryByText("Use the gate.")).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "View merchant directions" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Access notes" })).toBeNull();
     (useExploreBusinessProfile as jest.Mock).mockReturnValue({
       business: { business_name: "Sugbo Cafe", access_directions: "New gate." },
     });
@@ -247,7 +254,7 @@ describe("JeepneyRouteMapScreen", () => {
     );
     expect(screen.queryByText("New gate.")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "View merchant directions" }).props
+      screen.getByRole("button", { name: "Access notes" }).props
         .accessibilityState.expanded,
     ).toBe(false);
   });

@@ -229,6 +229,8 @@ export default function OfflineRoutesScreen({
             </View>
             <MerchantAccessDirections
               directions={snapshot.business.access_directions}
+              presentation="inline"
+              className=""
             />
             <InfoBanner
               title={
@@ -242,8 +244,8 @@ export default function OfflineRoutesScreen({
             >
               <AppText className="text-xs leading-5 text-text-secondary">
                 {needsJourneyReview(snapshot.savedAt)
-                  ? "Saved over a week ago. Check this journey and any merchant directions online before your next trip."
-                  : "Stops, service and merchant directions may change. Confirm current guidance when online."}
+                  ? "Saved over a week ago. Check this journey and any access notes online before your next trip."
+                  : "Stops, service and access notes may change. Confirm current guidance when online."}
               </AppText>
               <AppText className="text-xs text-text-tertiary">
                 Saved {new Date(snapshot.savedAt).toLocaleString()}

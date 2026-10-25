@@ -262,9 +262,11 @@ it.each([
     await waitFor(() => expect(view.getByText("Sugbo Cafe")).toBeTruthy());
     if (directions?.trim()) {
       expect(view.getByText(directions)).toBeTruthy();
-      expect(view.getByText("Merchant-provided directions")).toBeTruthy();
+      expect(view.getByText("Merchant-provided")).toBeTruthy();
+      expect(view.getByRole("header", { name: "Access notes" })).toBeTruthy();
+      expect(view.queryByText("How to reach us")).toBeNull();
     } else {
-      expect(view.queryByText("Merchant-provided directions")).toBeNull();
+      expect(view.queryByText("Merchant-provided")).toBeNull();
     }
     expect(
       view.getByText(/Showing previously loaded information/),

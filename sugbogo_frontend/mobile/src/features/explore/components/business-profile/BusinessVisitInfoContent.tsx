@@ -36,6 +36,7 @@ type Props = {
   readOnly?: boolean;
   transportActions?: ReactNode;
 };
+
 /**
  * Displays practical visit information, transportation shortcuts, business
  * hours, and contact details for an Explorer viewing a business.
@@ -96,7 +97,21 @@ export default function BusinessVisitInfoContent({
     <View>
       {/* Location and transportation */}
       <View>
-        <View className="flex-row">
+        <AppText
+          accessibilityRole="header"
+          weight="semibold"
+          className="text-base text-text-primary"
+        >
+          Location
+        </AppText>
+        {location && (
+          <BusinessVisitMapPreview
+            businessId={businessId}
+            location={location}
+            readOnly={readOnly}
+          />
+        )}
+        <View className="mt-3 flex-row">
           <MaterialCommunityIcons
             name="map-marker-outline"
             size={19}
@@ -122,13 +137,11 @@ export default function BusinessVisitInfoContent({
           </View>
         </View>
 
-        {location && (
-          <BusinessVisitMapPreview
-            businessId={businessId}
-            location={location}
-            readOnly={readOnly}
-          />
-        )}
+        {/* Access context stays between the location and transport choices. */}
+        <MerchantAccessDirections
+          directions={accessDirections}
+          presentation="inline"
+        />
 
         {!isOwnBusiness && (
           <View className="mt-4">
@@ -169,9 +182,6 @@ export default function BusinessVisitInfoContent({
           </View>
         )}
       </View>
-
-      {/* Optional merchant guidance is also readable without route matching. */}
-      <MerchantAccessDirections directions={accessDirections} />
 
       {/* Operating hours */}
       <View className="mt-4 border-t border-border-primary/60 pt-4">

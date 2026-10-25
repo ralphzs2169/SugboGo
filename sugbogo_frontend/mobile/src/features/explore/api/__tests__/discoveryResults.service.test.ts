@@ -4,6 +4,7 @@ import {
   getDiscoveryResults,
   getExploreCollection,
   getExploreFilterOptions,
+  getOpenNowBusinesses,
 } from "../exploreBusiness.service";
 
 jest.mock("@/shared/api/apiClient.service", () => ({
@@ -21,6 +22,19 @@ describe("Explore discovery results transport", () => {
         data: {},
       },
     });
+  });
+
+  it("sends current coordinates and cancellation to the bounded open-now endpoint", async () => {
+    const controller = new AbortController();
+    await getOpenNowBusinesses(10.33, 123.9, controller.signal);
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/explorer/explore/open-now/",
+      {
+        params: { latitude: 10.33, longitude: 123.9 },
+        signal: controller.signal,
+      },
+    );
   });
 
   it("sends repeated authoritative category IDs with all active filters", async () => {

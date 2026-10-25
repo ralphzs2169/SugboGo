@@ -144,13 +144,10 @@ describe("JeepneyGuideScreen", () => {
       refetch: businessRefetch,
     });
     const screen = await render(<JeepneyGuideScreen businessId={21} />);
-    expect(screen.getByText("Merchant-provided directions")).toBeTruthy();
-    expect(screen.getByText("Final approach")).toBeTruthy();
-    expect(
-      screen.getByText(
-        /For the entrance, landmarks, or last part of your trip/,
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText("Merchant-provided")).toBeTruthy();
+    expect(screen.getAllByText("Access notes")).toHaveLength(1);
+    expect(screen.queryByText("Final approach")).toBeNull();
+    expect(screen.queryByText("How to reach us")).toBeNull();
     expect(
       screen.getByText("At the chapel, take a motorcycle to our gate."),
     ).toBeTruthy();
@@ -159,7 +156,7 @@ describe("JeepneyGuideScreen", () => {
 
   it("hides the directions panel for businesses without a note", async () => {
     const screen = await render(<JeepneyGuideScreen businessId={21} />);
-    expect(screen.queryByText("Merchant-provided directions")).toBeNull();
+    expect(screen.queryByText("Merchant-provided")).toBeNull();
   });
 
   it("shows a location-specific state when permission is denied", async () => {
@@ -218,6 +215,13 @@ describe("JeepneyGuideScreen", () => {
   });
 
   it("renders the recommended journey and optional landmark in backend order", async () => {
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      business: {
+        business_name: "Sugbo Cafe",
+        location: { address: "Market", city: "Cebu City", province: "Cebu" },
+        access_directions: "Use the chapel entrance.",
+      },
+    });
     mockJourneyQuery({
       result: {
         route_options: [
@@ -242,6 +246,19 @@ describe("JeepneyGuideScreen", () => {
     const screen = await render(<JeepneyGuideScreen businessId={21} />);
 
     expect(screen.getByText("Recommended")).toBeTruthy();
+    expect(screen.getAllByText("Access notes")).toHaveLength(1);
+    expect(screen.getByText("Merchant-provided")).toBeTruthy();
+    expect(screen.queryByText("Final approach")).toBeNull();
+    expect(screen.queryByText("How to reach us")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "14D, Kamputhaw → Colon" }).parent,
+    ).not.toContainElement(
+      screen.getByRole("header", { name: "Access notes" }),
+    );
+    const content = JSON.stringify(screen.toJSON());
+    expect(content.indexOf("Route options")).toBeLessThan(
+      content.indexOf("Access notes"),
+    );
     expect(screen.getByText("14D")).toBeTruthy();
     expect(screen.getByText("Kamputhaw → Colon")).toBeTruthy();
     await fireEvent.press(screen.getByLabelText("14D, Kamputhaw → Colon"));

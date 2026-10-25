@@ -41,6 +41,9 @@ from apps.explorer_operations.explore_businesses.views.map_discovery_views impor
 from apps.explorer_operations.explore_businesses.views.new_businesses_views import (
     NewBusinessesView,
 )
+from apps.explorer_operations.explore_businesses.views.open_now_businesses_views import (
+    OpenNowBusinessesView,
+)
 from apps.explorer_operations.explore_businesses.views.recommendation_views import (
     RecommendationView,
 )
@@ -140,6 +143,11 @@ urlpatterns = [
     path("collections/<str:collection_type>/",ExploreCollectionView.as_view(),name="explore-collection",),
     
     path("new-businesses/", NewBusinessesView.as_view(), name="new-businesses", ),
+    path(
+        "open-now/",
+        OpenNowBusinessesView.as_view(),
+        name="open-now-businesses",
+    ),
     path("discovery/", DiscoveryFeedView.as_view(), name="discovery-feed", ),
     path("filter-options/", ExploreFilterOptionsView.as_view(), name="filter-options", ),
     path("specialties/",ExploreSpecialtyView.as_view(),name="explore-specialties"),

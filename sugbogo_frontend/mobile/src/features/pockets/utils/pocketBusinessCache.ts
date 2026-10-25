@@ -1,4 +1,5 @@
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
+import { OPEN_NOW_BUSINESSES_QUERY_KEY } from "@/features/explore/constants/exploreHomepageQueries";
 
 import { DISCOVERY_FEED_QUERY_KEY } from "@/features/explore/hooks/useDiscoveryFeed";
 import { DISCOVERY_RESULTS_QUERY_KEY } from "@/features/explore/hooks/useDiscoveryResults";
@@ -20,6 +21,7 @@ type CachedBusinesses =
 const prefixes = [
   ["explore-business-detail"],
   ["explore-new-businesses"],
+  OPEN_NOW_BUSINESSES_QUERY_KEY,
   DISCOVERY_FEED_QUERY_KEY,
   DISCOVERY_RESULTS_QUERY_KEY,
   EXPLORE_COLLECTIONS_QUERY_KEY,

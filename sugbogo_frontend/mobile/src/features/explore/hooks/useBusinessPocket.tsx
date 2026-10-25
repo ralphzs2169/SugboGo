@@ -15,6 +15,7 @@ import {
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
 import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
+import { OPEN_NOW_BUSINESSES_QUERY_KEY } from "../constants/exploreHomepageQueries";
 import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
 import { SIMILAR_BUSINESSES_QUERY_KEY } from "./useSimilarBusinesses";
 import { EXPLORE_COLLECTIONS_QUERY_KEY } from "./useExploreCollection";
@@ -276,6 +277,9 @@ export default function useBusinessPocket({ businessId }: Props) {
 
     onSettled: async (_data, _error, _variables, context) => {
       const invalidations = [
+        queryClient.invalidateQueries({
+          queryKey: OPEN_NOW_BUSINESSES_QUERY_KEY,
+        }),
         queryClient.invalidateQueries({
           queryKey: ACTIVITY_TIMELINE_QUERY_KEY,
         }),

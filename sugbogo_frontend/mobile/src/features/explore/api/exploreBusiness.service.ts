@@ -25,6 +25,20 @@ export async function getNewBusinesses(): Promise<
   return request(apiClient.get("/explorer/explore/new-businesses/"));
 }
 
+/** Retrieves the server-ranked six-place preview around the supplied location. */
+export async function getOpenNowBusinesses(
+  latitude: number,
+  longitude: number,
+  signal?: AbortSignal,
+): Promise<ApiResponse<ExploreBusiness[]>> {
+  return request(
+    apiClient.get("/explorer/explore/open-now/", {
+      params: { latitude, longitude },
+      signal,
+    }),
+  );
+}
+
 export async function getDiscoveryFeed(): Promise<
   ApiResponse<ExploreBusinessListResponse>
 > {

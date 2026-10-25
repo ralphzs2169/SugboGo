@@ -13,6 +13,7 @@ import { getInstallationId } from "@/shared/api/storage.service";
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import { DISCOVERY_FEED_QUERY_KEY } from "./useDiscoveryFeed";
 import { RECOMMENDATIONS_QUERY_KEY } from "./useRecommendations";
+import { OPEN_NOW_BUSINESSES_QUERY_KEY } from "../constants/exploreHomepageQueries";
 import { DISCOVERY_RESULTS_QUERY_KEY } from "./useDiscoveryResults";
 import { SIMILAR_BUSINESSES_QUERY_KEY } from "./useSimilarBusinesses";
 import { EXPLORE_COLLECTIONS_QUERY_KEY } from "./useExploreCollection";
@@ -328,6 +329,9 @@ export default function useBusinessVouch({ businessId }: Props) {
     onSettled: () => {
       // Reconcile caches in the background without extending the write lock.
       void Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: OPEN_NOW_BUSINESSES_QUERY_KEY,
+        }),
         queryClient.invalidateQueries({
           queryKey: ACTIVITY_TIMELINE_QUERY_KEY,
         }),

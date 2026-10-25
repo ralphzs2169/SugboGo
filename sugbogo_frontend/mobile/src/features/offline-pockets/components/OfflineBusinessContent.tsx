@@ -104,7 +104,10 @@ export default function OfflineBusinessContent({
               .join(", ") || "No address was provided."}
           </AppText>
         </View>
-        <MerchantAccessDirections directions={business.access_directions} />
+        <MerchantAccessDirections
+          directions={business.access_directions}
+          presentation="inline"
+        />
       </BusinessProfileSection>
       <BusinessProfileSection title="Operating hours">
         <View className="gap-3">

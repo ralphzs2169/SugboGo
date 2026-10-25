@@ -72,9 +72,10 @@ describe("saved guidance reader", () => {
     });
     const screen = await render(<OfflineRoutesScreen journeyKey="21:8:2:4" />);
     expect(screen.getByText(directions)).toBeTruthy();
-    expect(screen.getByText("Merchant-provided directions")).toBeTruthy();
-    expect(screen.getByText("How to reach us")).toBeTruthy();
-    expect(screen.getByText(/merchant directions.*online/)).toBeTruthy();
+    expect(screen.getByText("Merchant-provided")).toBeTruthy();
+    expect(screen.getByText("Access notes")).toBeTruthy();
+    expect(screen.queryByText("How to reach us")).toBeNull();
+    expect(screen.getByText(/access notes.*online/)).toBeTruthy();
   });
 
   it.each([undefined, "", "  \n "])(
@@ -98,7 +99,7 @@ describe("saved guidance reader", () => {
       const screen = await render(
         <OfflineRoutesScreen journeyKey="21:8:2:4" />,
       );
-      expect(screen.queryByText("Merchant-provided directions")).toBeNull();
+      expect(screen.queryByText("Merchant-provided")).toBeNull();
     },
   );
 

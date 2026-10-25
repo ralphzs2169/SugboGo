@@ -1,4 +1,5 @@
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
+import { OPEN_NOW_BUSINESSES_QUERY_KEY } from "../constants/exploreHomepageQueries";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
@@ -25,6 +26,7 @@ import { SIMILAR_BUSINESSES_QUERY_KEY } from "../hooks/useSimilarBusinesses";
 const BUSINESS_CARD_COLLECTION_QUERY_KEYS = [
   DISCOVERY_FEED_QUERY_KEY,
   ["explore-new-businesses"] as const,
+  OPEN_NOW_BUSINESSES_QUERY_KEY,
   RECOMMENDATIONS_QUERY_KEY,
   DISCOVERY_RESULTS_QUERY_KEY,
   SIMILAR_BUSINESSES_QUERY_KEY,

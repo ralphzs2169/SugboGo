@@ -34,6 +34,7 @@ type Props = {
   variant?: "default" | "featured" | "compact";
   recommendationReason?: RecommendationReason | null;
   highlightQuery?: string;
+  availabilityLabel?: string;
 };
 
 const CARD_WIDTH = 226;
@@ -80,6 +81,7 @@ export default function BusinessCard({
   variant = "default",
   recommendationReason = null,
   highlightQuery,
+  availabilityLabel,
 }: Props) {
   const [failedCover, setFailedCover] = useState<string | null>(null);
   const cover =
@@ -420,6 +422,16 @@ export default function BusinessCard({
           >
             {business.business_name}
           </AppText>
+
+          {/* Listed availability */}
+          {availabilityLabel && (
+            <AppText
+              weight="semibold"
+              className="mt-2 text-xs text-text-primary"
+            >
+              {availabilityLabel}
+            </AppText>
+          )}
 
           {/* Specialty tags */}
           {displayTags.length > 0 && (
