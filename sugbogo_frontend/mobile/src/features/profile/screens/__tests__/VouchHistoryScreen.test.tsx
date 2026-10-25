@@ -62,6 +62,15 @@ jest.mock("@/features/auth/store/auth.store", () => ({
 jest.mock("@/shared/api/storage.service", () => ({
   getInstallationId: jest.fn().mockResolvedValue("installation"),
 }));
+// Persistence is outside these screen interactions; keep detail API fetching real.
+jest.mock("@/features/explore/services/recentBusinessDetails.service", () => ({
+  recentBusinessDetails: {
+    capture: () => ({
+      isCurrent: () => false,
+      isAuthorized: () => false,
+    }),
+  },
+}));
 jest.mock("../../api/vouchHistory.service", () => ({
   getVouchHistory: jest.fn(),
 }));
@@ -143,7 +152,9 @@ jest.mock(
           accessibilityLabel={"Toggle " + name}
           accessibilityState={{ selected: isVouched, disabled }}
           disabled={disabled}
-          onPress={onPress}
+          onPress={() => {
+            void onPress();
+          }}
         >
           <Text>{name + ": " + vouchCount}</Text>
         </Pressable>
@@ -607,32 +618,85 @@ describe("production Vouch History screen", () => {
     expect(screen.getByTestId("manage-vouch-sheet")).toBeTruthy();
   });
 
-  it("blocks repeated specialty presses while the mutation is pending", async () => {
-    let resolve!: (value: unknown) => void;
-    (removeBusinessSpecialtyVouch as jest.Mock).mockReturnValue(
-      new Promise((done) => {
-        resolve = done;
-      }),
+  it("rapid vouch input keeps three specialties interactive with no success toasts", async () => {
+    const removeOnServer = (
+      removeBusinessSpecialtyVouch as jest.Mock
+    ).getMockImplementation()!;
+    let finish!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    (removeBusinessSpecialtyVouch as jest.Mock).mockImplementation(
+      (businessId, tagId) =>
+        ready.then(() => removeOnServer(businessId, tagId)),
     );
     const screen = await renderScreen();
     await openManage(screen);
-    const reaction = screen.getByLabelText("Toggle Specialty 1");
-    await fireEvent.press(reaction);
-    await fireEvent.press(reaction);
+    await fireEvent.press(screen.getByLabelText("Toggle Specialty 1"));
+    await fireEvent.press(screen.getByLabelText("Toggle Specialty 2"));
+    await fireEvent.press(screen.getByLabelText("Toggle Specialty 3"));
+    await waitFor(() => {
+      expect(removeBusinessSpecialtyVouch).toHaveBeenCalledTimes(2);
+      expect(vouchForBusinessSpecialty).toHaveBeenCalledTimes(1);
+    });
+    for (const id of [1, 2, 3]) {
+      expect(
+        screen.getByLabelText("Toggle Specialty " + id).props.accessibilityState
+          .disabled,
+      ).toBe(false);
+    }
+    expect(Toast.show).not.toHaveBeenCalled();
+    await act(async () => finish());
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("Toggle Specialty 1").props.accessibilityState,
+      ).toMatchObject({ selected: false, disabled: false });
+      expect(
+        screen.getByLabelText("Toggle Specialty 2").props.accessibilityState,
+      ).toMatchObject({ selected: false, disabled: false });
+      expect(
+        screen.getByLabelText("Toggle Specialty 3").props.accessibilityState,
+      ).toMatchObject({ selected: true, disabled: false });
+    });
+    expect(Toast.show).not.toHaveBeenCalled();
+  });
+
+  it("rapid vouch input reverses the same specialty while its removal is pending", async () => {
+    const removeOnServer = (
+      removeBusinessSpecialtyVouch as jest.Mock
+    ).getMockImplementation()!;
+    let finish!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    (removeBusinessSpecialtyVouch as jest.Mock).mockImplementation(
+      (businessId, tagId) =>
+        ready.then(() => removeOnServer(businessId, tagId)),
+    );
+    const screen = await renderScreen();
+    await openManage(screen);
+    await fireEvent.press(screen.getByLabelText("Toggle Specialty 1"));
     await waitFor(() =>
       expect(removeBusinessSpecialtyVouch).toHaveBeenCalledTimes(1),
     );
     expect(
-      screen.getByLabelText("Toggle Specialty 2").props.accessibilityState
-        .disabled,
-    ).toBe(true);
-    await act(async () => resolve({ success: true, data: {} }));
+      screen.getByLabelText("Toggle Specialty 1").props.accessibilityState,
+    ).toMatchObject({ selected: false, disabled: false });
+    await fireEvent.press(screen.getByLabelText("Toggle Specialty 1"));
     await waitFor(() =>
       expect(
-        screen.getByLabelText("Toggle Specialty 1").props.accessibilityState
-          .disabled,
-      ).toBe(false),
+        screen.getByLabelText("Toggle Specialty 1").props.accessibilityState,
+      ).toMatchObject({ selected: true, disabled: false }),
     );
+    expect(vouchForBusinessSpecialty).not.toHaveBeenCalled();
+    await act(async () => finish());
+    await waitFor(() =>
+      expect(vouchForBusinessSpecialty).toHaveBeenCalledTimes(1),
+    );
+    expect(
+      screen.getByLabelText("Toggle Specialty 1").props.accessibilityState,
+    ).toMatchObject({ selected: true, disabled: false });
+    expect(Toast.show).not.toHaveBeenCalled();
   });
 
   it.each(["success", "failure"] as const)(
@@ -672,8 +736,11 @@ describe("production Vouch History screen", () => {
       expect(
         screen.getByLabelText("Toggle Specialty 3").props.accessibilityState
           .disabled,
-      ).toBe(true);
-      await fireEvent.press(screen.getByLabelText("Toggle Specialty 3"));
+      ).toBe(false);
+      expect(
+        screen.getByLabelText("Toggle Specialty 1").props.accessibilityState
+          .disabled,
+      ).toBe(false);
       expect(vouchForBusinessSpecialty).not.toHaveBeenCalled();
       expect(removeBusinessSpecialtyVouch).toHaveBeenCalledTimes(1);
 

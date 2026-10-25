@@ -13,6 +13,7 @@ import {
   vouchForBusinessSpecialty,
 } from "../../api/exploreBusiness.service";
 import useBusinessVouch from "../useBusinessVouch";
+import type { ExploreBusinessDetail } from "../../types/exploreBusiness.types";
 
 jest.mock("../../api/exploreBusiness.service", () => ({
   vouchForBusinessSpecialty: jest.fn(),
@@ -74,6 +75,190 @@ describe("vouch history and existing cache synchronization", () => {
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
   }
+
+  it.each([1, 2, 3])(
+    "keeps the other tags intact when concurrent tag %s fails out of order",
+    async (failedTagId) => {
+      const responses = new Map<number, (value: unknown) => void>();
+      const deferred = (_businessId: number, tagId: number) =>
+        new Promise((resolve) => {
+          responses.set(tagId, resolve);
+        });
+      (vouchForBusinessSpecialty as jest.Mock).mockImplementation(deferred);
+      (removeBusinessSpecialtyVouch as jest.Mock).mockImplementation(deferred);
+      const invalidate = jest.spyOn(client, "invalidateQueries");
+      const { result } = await renderHook(
+        () => useBusinessVouch({ businessId: 1 }),
+        { wrapper: Wrapper },
+      );
+      const requests = new Map<number, Promise<unknown>>();
+      await act(async () => {
+        for (const tagId of [1, 2, 3]) {
+          requests.set(
+            tagId,
+            result.current
+              .vouch({
+                tagId,
+                isVouched: tagId === 1,
+              })
+              .catch((error) => error),
+          );
+        }
+      });
+      await waitFor(() => expect(responses.size).toBe(3));
+      await waitFor(() =>
+        expect(result.current.pendingTagIds).toEqual([1, 2, 3]),
+      );
+
+      const firstSuccess = [1, 2, 3].find((id) => id !== failedTagId)!;
+      const lastSuccess = [1, 2, 3].find(
+        (id) => id !== failedTagId && id !== firstSuccess,
+      )!;
+      await act(async () => {
+        responses.get(firstSuccess)!({ success: true, data: {} });
+        await requests.get(firstSuccess);
+      });
+      expect(invalidate).not.toHaveBeenCalled();
+      await act(async () => {
+        responses.get(failedTagId)!({
+          success: false,
+          code: "VALIDATION_ERROR",
+          message: "Rejected",
+        });
+        await requests.get(failedTagId);
+      });
+      expect(invalidate).not.toHaveBeenCalled();
+      await waitFor(() =>
+        expect(result.current.pendingTagIds).toEqual([lastSuccess]),
+      );
+
+      // Check detail, flat feeds, paginated feeds and similar-business caches.
+      const businesses = [
+        client.getQueryData<ExploreBusinessDetail>(detailKey),
+        ...flatKeys.map(
+          (key) =>
+            (client.getQueryData(key) as { items: ExploreBusinessDetail[] })
+              .items[0],
+        ),
+        ...infiniteKeys.map(
+          (key) =>
+            (
+              client.getQueryData(key) as {
+                pages: { items: ExploreBusinessDetail[] }[];
+              }
+            ).pages[0].items[0],
+        ),
+        (client.getQueryData(similarKey) as ExploreBusinessDetail[])[0],
+      ];
+      for (const business of businesses) {
+        for (const tagId of [1, 2, 3]) {
+          const selected = tagId === failedTagId ? tagId === 1 : tagId !== 1;
+          expect(
+            business?.specialty_tags.find((tag) => tag.id === tagId),
+          ).toMatchObject({
+            is_vouched: selected,
+            vouch_count: selected ? 1 : 0,
+          });
+        }
+      }
+      await act(async () => {
+        responses.get(lastSuccess)!({ success: true, data: {} });
+        await requests.get(lastSuccess);
+      });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: detailKey });
+      await waitFor(() => expect(result.current.pendingTagIds).toEqual([]));
+    },
+  );
+
+  it("reconciles once when all three responses settle simultaneously", async () => {
+    let finish!: (value: unknown) => void;
+    const response = new Promise((resolve) => {
+      finish = resolve;
+    });
+    (vouchForBusinessSpecialty as jest.Mock).mockReturnValue(response);
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result } = await renderHook(
+      () => useBusinessVouch({ businessId: 1 }),
+      { wrapper: Wrapper },
+    );
+    const requests: Promise<unknown>[] = [];
+    await act(async () => {
+      for (const tagId of [2, 3, 4]) {
+        requests.push(result.current.vouch({ tagId, isVouched: false }));
+      }
+    });
+    await waitFor(() =>
+      expect(vouchForBusinessSpecialty).toHaveBeenCalledTimes(3),
+    );
+    await act(async () => {
+      finish({ success: true, data: {} });
+      await Promise.all(requests);
+    });
+    expect(
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(detailKey),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("pins concurrent requests and reconciliation to their original businesses", async () => {
+    client.setQueryData(
+      ["explore-business-detail", 2],
+      businessDetail(historyBusiness(2, [])),
+    );
+    const responses = new Map<number, (value: unknown) => void>();
+    (vouchForBusinessSpecialty as jest.Mock).mockImplementation(
+      (id) =>
+        new Promise((resolve) => {
+          responses.set(id, resolve);
+        }),
+    );
+    let activeBusinessId = 1;
+    const { result, rerender } = await renderHook(
+      () => useBusinessVouch({ businessId: activeBusinessId }),
+      { wrapper: Wrapper },
+    );
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    let first!: Promise<unknown>;
+    let second!: Promise<unknown>;
+    await act(async () => {
+      first = result.current
+        .vouch({ tagId: 2, isVouched: false })
+        .catch((error) => error);
+    });
+    await waitFor(() => expect(responses.has(1)).toBe(true));
+    activeBusinessId = 2;
+    await rerender(undefined);
+    await act(async () => {
+      second = result.current.vouch({ tagId: 3, isVouched: false });
+    });
+    await waitFor(() => expect(responses.has(2)).toBe(true));
+    await act(async () => {
+      responses.get(1)!({
+        success: false,
+        code: "VALIDATION_ERROR",
+        message: "Rejected",
+      });
+      await first;
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(
+      client
+        .getQueryData<ExploreBusinessDetail>(["explore-business-detail", 2])
+        ?.specialty_tags.find((tag) => tag.id === 3)?.is_vouched,
+    ).toBe(true);
+    await act(async () => {
+      responses.get(2)!({ success: true, data: {} });
+      await second;
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["explore-business-detail", 1],
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["explore-business-detail", 2],
+    });
+  });
 
   it("invalidates all history orderings and review variants without fabricating history records", async () => {
     const before = client.getQueryData(vouchHistoryQueryKey(1, "newest"));

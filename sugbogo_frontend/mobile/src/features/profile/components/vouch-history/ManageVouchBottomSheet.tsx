@@ -23,8 +23,10 @@ import type { VouchHistoryBusiness } from "../../types/vouchHistory.types";
 
 type Props = {
   selectedBusiness: VouchHistoryBusiness;
-  isMutationPending: boolean;
-  onToggleSpecialty: (tag: ExploreBusinessSpecialtyTag) => Promise<void>;
+  onToggleSpecialty: (
+    tag: ExploreBusinessSpecialtyTag,
+    onAccepted?: () => void,
+  ) => Promise<unknown>;
   onDismiss: () => void;
 };
 
@@ -35,7 +37,6 @@ type Props = {
  */
 export default function ManageVouchBottomSheet({
   selectedBusiness,
-  isMutationPending,
   onToggleSpecialty,
   onDismiss,
 }: Props) {
@@ -72,15 +73,12 @@ export default function ManageVouchBottomSheet({
     return () => subscription.remove();
   }, [isOpen]);
 
-  function toggleSpecialty(tag: ExploreBusinessSpecialtyTag) {
-    if (
-      isMutationPending ||
-      !business ||
-      business.is_own_business ||
-      detail.error
-    )
-      return;
-    void onToggleSpecialty(tag);
+  function toggleSpecialty(
+    tag: ExploreBusinessSpecialtyTag,
+    onAccepted?: () => void,
+  ) {
+    if (!business || business.is_own_business || detail.error) return;
+    return onToggleSpecialty(tag, onAccepted);
   }
 
   return (
@@ -89,6 +87,9 @@ export default function ManageVouchBottomSheet({
       enablePanDownToClose
       enableDynamicSizing
       onChange={(index) => setIsOpen(index >= 0)}
+      onAnimate={(_fromIndex, toIndex) => {
+        if (toIndex < 0) setIsOpen(false);
+      }}
       onDismiss={onDismiss}
       backgroundStyle={{
         backgroundColor: theme.extends.colors.surface,
@@ -185,10 +186,7 @@ export default function ManageVouchBottomSheet({
                   ? "You cannot vouch for your own business."
                   : "Tap each specialty to add or remove your vouch."}
               </AppText>
-              <View
-                className="flex-row flex-wrap items-start"
-                accessibilityState={{ busy: isMutationPending }}
-              >
+              <View className="flex-row flex-wrap items-start">
                 {business.specialty_tags.map((tag) => (
                   <BusinessSpecialtyVouchCard
                     key={tag.id}
@@ -197,8 +195,9 @@ export default function ManageVouchBottomSheet({
                     icon={tag.icon}
                     vouchCount={tag.vouch_count}
                     isVouched={tag.is_vouched}
-                    disabled={business.is_own_business || isMutationPending}
-                    onPress={() => void toggleSpecialty(tag)}
+                    celebrationEnabled={isOpen}
+                    disabled={business.is_own_business}
+                    onPress={(onAccepted) => toggleSpecialty(tag, onAccepted)}
                   />
                 ))}
               </View>

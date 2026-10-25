@@ -1,6 +1,5 @@
 import Toast from "react-native-toast-message";
 import { onlineManager } from "@tanstack/react-query";
-import { useRef } from "react";
 
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -28,39 +27,28 @@ export default function BusinessSpecialtiesSection({
   isOwnBusiness,
   displayAsExplorer = false,
 }: Props) {
-  const { vouch, pendingTagId } = useBusinessVouch({
+  const { vouch } = useBusinessVouch({
     businessId,
   });
-  const isSubmitting = useRef(false);
 
   if (specialtyTags.length === 0) {
     return null;
   }
 
-  const handleVouch = async (tag: ExploreBusinessSpecialtyTag) => {
-    if (
-      isSubmitting.current ||
-      pendingTagId !== null ||
-      !onlineManager.isOnline()
-    ) {
-      return;
-    }
-
-    isSubmitting.current = true;
+  const handleVouch = async (
+    tag: ExploreBusinessSpecialtyTag,
+    onAccepted?: () => void,
+  ) => {
+    if (isOwnBusiness || !onlineManager.isOnline()) return;
 
     try {
-      const request = vouch({
-        tagId: tag.id,
-        isVouched: tag.is_vouched,
-      });
-
-      Toast.show({
-        type: "info",
-        text1: tag.is_vouched ? "Vouch removed" : `Vouched for ${tag.name}`,
-        visibilityTime: 1500,
-      });
-
-      await request;
+      await vouch(
+        {
+          tagId: tag.id,
+          isVouched: tag.is_vouched,
+        },
+        onAccepted,
+      );
     } catch (error) {
       const response = error as ApiResponse<unknown>;
 
@@ -75,8 +63,6 @@ export default function BusinessSpecialtiesSection({
           text2: response.message || "Something went wrong. Please try again.",
         });
       }
-    } finally {
-      isSubmitting.current = false;
     }
   };
 
@@ -85,9 +71,9 @@ export default function BusinessSpecialtiesSection({
       tags={specialtyTags}
       disabled={isOwnBusiness}
       ownerPresentation={isOwnBusiness && !displayAsExplorer}
-      onVouch={(tagId) => {
+      onVouch={(tagId, onAccepted) => {
         const tag = specialtyTags.find((item) => item.id === tagId);
-        if (tag) void handleVouch(tag);
+        if (tag) return handleVouch(tag, onAccepted);
       }}
     />
   );

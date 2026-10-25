@@ -1,3 +1,4 @@
+import { onlineManager } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useCallback, useRef, useState } from "react";
@@ -75,17 +76,12 @@ export default function VouchHistoryScreen() {
   const [selectedBusiness, setSelectedBusiness] =
     useState<VouchHistoryBusiness | null>(null);
 
-  const [pendingBusinessId, setPendingBusinessId] = useState<number | null>(
-    null,
-  );
-
-  const requestPendingRef = useRef(false);
   const nextPagePendingRef = useRef(false);
   const listRef = useRef<FlatList<VouchHistoryBusiness>>(null);
 
-  // Pin the mutation target until settlement, even if selection changes.
+  // The hook captures each request's business independently of later selections.
   const { vouch } = useBusinessVouch({
-    businessId: pendingBusinessId ?? selectedBusiness?.business_id ?? 0,
+    businessId: selectedBusiness?.business_id ?? 0,
   });
 
   const history = useVouchHistory(ordering);
@@ -113,23 +109,20 @@ export default function VouchHistoryScreen() {
   );
 
   // Add or remove a specialty vouch for the selected business.
-  async function toggleSpecialty(tag: ExploreBusinessSpecialtyTag) {
-    if (requestPendingRef.current || !selectedBusiness) return;
-
-    requestPendingRef.current = true;
-    setPendingBusinessId(selectedBusiness.business_id);
-
+  async function toggleSpecialty(
+    tag: ExploreBusinessSpecialtyTag,
+    onAccepted?: () => void,
+  ) {
+    if (!selectedBusiness) return;
+    if (!onlineManager.isOnline()) return;
     try {
-      await vouch({
-        tagId: tag.id,
-        isVouched: tag.is_vouched,
-      });
-
-      Toast.show({
-        type: "info",
-        text1: tag.is_vouched ? "Vouch removed" : `Vouched for ${tag.name}`,
-        visibilityTime: 1500,
-      });
+      await vouch(
+        {
+          tagId: tag.id,
+          isVouched: tag.is_vouched,
+        },
+        onAccepted,
+      );
     } catch (error) {
       const response = error as ApiResponse<unknown>;
 
@@ -140,9 +133,6 @@ export default function VouchHistoryScreen() {
           text2: response.message || "Please try again.",
         });
       }
-    } finally {
-      requestPendingRef.current = false;
-      setPendingBusinessId(null);
     }
   }
 
@@ -331,7 +321,6 @@ export default function VouchHistoryScreen() {
         <ManageVouchBottomSheet
           key={selectedBusiness.business_id}
           selectedBusiness={selectedBusiness}
-          isMutationPending={pendingBusinessId !== null}
           onToggleSpecialty={toggleSpecialty}
           onDismiss={() => setSelectedBusiness(null)}
         />
