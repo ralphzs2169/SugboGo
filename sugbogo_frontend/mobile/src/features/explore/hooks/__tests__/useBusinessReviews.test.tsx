@@ -100,6 +100,46 @@ function page(
 }
 
 describe("useBusinessReviews", () => {
+  it("keeps unresolved or failed preview counts unknown so detail can supply the count, and accepts a confirmed zero", async () => {
+    let resolve!: (value: unknown) => void;
+    (getBusinessReviewPreview as jest.Mock).mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    const { client, Wrapper } = setupClient();
+    const { result, unmount } = await renderHook(
+      () => useBusinessReviewPreview(20),
+      { wrapper: Wrapper },
+    );
+    expect(result.current.totalCount).toBeNull();
+    await act(async () => {
+      resolve({
+        success: true,
+        data: { reviews: [], total_count: 7, user_review: null },
+      });
+    });
+    await waitFor(() => expect(result.current.totalCount).toBe(7));
+    (getBusinessReviewPreview as jest.Mock).mockRejectedValueOnce(
+      new Error("Offline"),
+    );
+    await act(async () => {
+      await result.current.refetch();
+    });
+    expect(result.current.error).toBeTruthy();
+    expect(result.current.totalCount).toBeNull();
+    await act(() => {
+      client.setQueryData(businessReviewPreviewKey(20), {
+        reviews: [],
+        total_count: 0,
+        user_review: null,
+      });
+    });
+    await waitFor(() => expect(result.current.totalCount).toBe(0));
+    unmount();
+    client.clear();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
   });

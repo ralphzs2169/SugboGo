@@ -28,6 +28,7 @@ type Props = {
   isOwnBusiness: boolean;
   displayAsExplorer?: boolean;
   hasOwnReview: boolean;
+  reviewCount?: number;
   reviewInsights?: BusinessReviewInsights | null;
   regeneration?: ReviewInsightRegeneration | null;
   onWriteReview: () => void;
@@ -45,6 +46,7 @@ export default function BusinessReviewsPreviewSection({
   isOwnBusiness,
   displayAsExplorer = false,
   hasOwnReview: businessHasOwnReview,
+  reviewCount: detailReviewCount,
   reviewInsights,
   regeneration,
   onWriteReview,
@@ -61,7 +63,7 @@ export default function BusinessReviewsPreviewSection({
     userReview,
   } = useBusinessReviewPreview(businessId);
 
-  const reviewCount = totalCount ?? 0;
+  const reviewCount = totalCount ?? detailReviewCount ?? 0;
   // The private review source can clear ownership before business detail refreshes.
   const hasOwnReview = hasResolvedOwnership
     ? previewHasOwnReview
@@ -92,7 +94,9 @@ export default function BusinessReviewsPreviewSection({
             {reviewCount > 0 ? (
               <SafePressable
                 onPress={openReviews}
-                className="cursor-pointer flex-row items-center active:opacity-70"
+                accessibilityRole="button"
+                accessibilityLabel="See more business reviews"
+                className="min-h-12 cursor-pointer flex-row items-center active:opacity-70"
               >
                 <AppText weight="semibold" className="text-sm text-brand">
                   See more

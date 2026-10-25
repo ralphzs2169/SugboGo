@@ -4,6 +4,9 @@ from unittest.mock import patch
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from apps.admin_operations.system_configuration.models import (
+    AnalyticsPolicyConfiguration,
+)
 from apps.business.models import (
     BusinessOperatingHours,
     BusinessPhoto,
@@ -61,12 +64,15 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
     }
 
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(
+            APC_ID=1,
+        )
         self.business = self.create_business()
         self.client.force_authenticate(self.business.USER_ID)
         self.url = f"/api/explorer/explore/businesses/{self.business.pk}/"
 
-    def test_business_detail_excludes_non_published_review_content(self):
-        """Exclude private reviews and their nested content from the API response."""
+    def test_detail_omits_reviews_while_preview_preserves_public_content(self):
+        """Keep nested public review content exclusively in the bounded preview."""
         published = self.create_review(
             self.business,
             REVW_TEXT="Public review content.",
@@ -118,13 +124,44 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
                 RPHO_PHOTO_PUBLIC_ID=f"{marker}-reply",
             )
 
-        response = self.client.get(self.url)
+        with (
+            patch.object(
+                Review,
+                "from_db",
+                side_effect=AssertionError("Detail must not load review rows."),
+            ),
+            patch.object(
+                ReviewPhoto,
+                "from_db",
+                side_effect=AssertionError("Detail must not load review photos."),
+            ),
+            patch.object(
+                ReviewReply,
+                "from_db",
+                side_effect=AssertionError("Detail must not load review replies."),
+            ),
+            patch.object(
+                ReplyPhoto,
+                "from_db",
+                side_effect=AssertionError("Detail must not load reply photos."),
+            ),
+        ):
+            response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["success"])
         data = response.data["data"]
-        self.assertEqual(len(data["reviews"]), 1)
-        item = data["reviews"][0]
+        self.assertNotIn("reviews", data)
+        self.assertEqual(data["review_count"], 1)
+        self.assertNotIn(published.REVW_TEXT, response.content.decode())
+
+        preview = self.client.get(
+            f"/api/reviews/business/{self.business.pk}/",
+        )
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.data["data"]["total_count"], 1)
+        self.assertEqual(len(preview.data["data"]["reviews"]), 1)
+        item = preview.data["data"]["reviews"][0]
         self.assertEqual(item["id"], published.pk)
         self.assertEqual(item["text"], published.REVW_TEXT)
         self.assertEqual(item["status"], Review.ReviewStatus.PUBLISHED)
@@ -139,14 +176,13 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             "id": reply_photo.pk,
             "photo_url": reply_photo.RPHO_PHOTO_URL,
         }])
-        self.assertEqual(data["review_count"], 1)
-        rendered = response.content.decode()
+        rendered = response.content.decode() + preview.content.decode()
         for marker in private_markers:
             with self.subTest(marker=marker):
                 self.assertNotIn(marker, rendered)
 
-    def test_published_reviews_with_advisory_flags_remain_visible(self):
-        """Advisory flags do not change publication eligibility or ordering."""
+    def test_published_reviews_with_advisory_flags_remain_counted(self):
+        """Advisory flags preserve detail counts and bounded preview ordering."""
         reviews = []
         flags = (
             "REVW_IS_REPORT_FLAGGED",
@@ -169,12 +205,24 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
 
         self.assertEqual(response.status_code, 200)
         data = response.data["data"]
-        self.assertEqual(
-            [item["id"] for item in data["reviews"]],
-            [review.pk for review in reversed(reviews)],
-        )
+        self.assertNotIn("reviews", data)
         self.assertEqual(data["review_count"], 3)
-        for item in data["reviews"]:
+        preview = self.client.get(
+            f"/api/reviews/business/{self.business.pk}/",
+        )
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.data["data"]["total_count"], 3)
+        self.assertEqual(
+            [
+                item["id"]
+                for item in preview.data["data"]["reviews"]
+            ],
+            [
+                review.pk
+                for review in reversed(reviews)
+            ][:2],
+        )
+        for item in preview.data["data"]["reviews"]:
             self.assertEqual(item["status"], Review.ReviewStatus.PUBLISHED)
 
     def test_author_private_reviews_remain_outside_public_business_detail(self):
@@ -197,7 +245,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
 
                 self.assertEqual(response.status_code, 200)
                 data = response.data["data"]
-                self.assertEqual(data["reviews"], [])
+                self.assertNotIn("reviews", data)
                 self.assertEqual(data["review_count"], 0)
                 self.assertTrue(data["has_own_review"])
                 preview = self.client.get(
@@ -396,10 +444,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["review_count"], 5)
-        self.assertEqual(
-            {item["id"] for item in response.data["data"]["reviews"]},
-            {review.pk for review in reviews},
-        )
+        self.assertNotIn("reviews", response.data["data"])
         insights = response.data["data"]["review_insights"]
         self.assertEqual(insights["review_count"], 4)
         self.assertEqual(insights["eligible_review_count"], 4)
@@ -631,6 +676,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
                     self.business.pk,
                     self.business.USER_ID,
                 )
+                self.assertNotIn("reviews", business._prefetched_objects_cache)
                 with self.assertNumQueries(0):
                     self.assertEqual(
                         getattr(business, "review_summary", None) is not None,

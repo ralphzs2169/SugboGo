@@ -1,11 +1,16 @@
+from decimal import Decimal
+
 from django.contrib.gis.geos import Point
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.business.models import (
     Business,
+    BusinessPocket,
     BusinessSpecialtyTag,
+    BusinessVouch,
     Category,
     Cluster,
     Location,
@@ -116,3 +121,51 @@ class SimilarBusinessViewTests(TestCase):
             response.data["message"],
             "The business could not be found.",
         )
+
+    def test_pocket_and_active_vouch_states_remain_account_specific(self):
+        tag = self.similar.specialty_tag_links.get().TAG_ID
+        BusinessPocket.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.similar,
+        )
+        vouch = BusinessVouch.objects.create(
+            USER_ID=self.explorer,
+            BUSN_ID=self.similar,
+            TAG_ID=tag,
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("0.50000"),
+        )
+        other = User.objects.create_user(
+            email="similar-other-explorer@example.com",
+            password=None,
+            USER_FNAME="Other",
+            USER_LNAME="Explorer",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        url = f"/api/explorer/explore/businesses/{self.current.pk}/similar/"
+        first = self.client.get(url)
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertTrue(first.data["data"][0]["is_pocketed"])
+        self.assertTrue(first.data["data"][0]["specialty_tags"][0]["is_vouched"])
+
+        self.client.force_authenticate(other)
+        second = self.client.get(url)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.data["data"][0]["id"], self.similar.pk)
+        self.assertFalse(second.data["data"][0]["is_pocketed"])
+        self.assertFalse(second.data["data"][0]["specialty_tags"][0]["is_vouched"])
+
+        vouch.VOUCH_WITHDRAWN_AT = timezone.now()
+        vouch.save(update_fields=["VOUCH_WITHDRAWN_AT"])
+        self.client.force_authenticate(self.explorer)
+        withdrawn = self.client.get(url)
+        self.assertEqual(withdrawn.status_code, status.HTTP_200_OK)
+        self.assertTrue(withdrawn.data["data"][0]["is_pocketed"])
+        self.assertFalse(withdrawn.data["data"][0]["specialty_tags"][0]["is_vouched"])
+
+    def test_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(
+            f"/api/explorer/explore/businesses/{self.current.pk}/similar/",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

@@ -7,6 +7,9 @@ const mockPush = jest.fn();
 jest.mock("../../api/exploreBusiness.service", () => ({}));
 
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
   router: {
     push: (...args: unknown[]) => mockPush(...args),
   },
@@ -68,16 +71,16 @@ jest.mock(
 );
 
 it("opens the reusable screen from the homepage collection actions", async () => {
-  const screen = await render(<ExploreScreen />);
-
   for (const [title, collectionType] of [
     ["Open Interests", "interests"],
     ["Open New", "new-businesses"],
   ]) {
+    const screen = await render(<ExploreScreen />);
     await fireEvent.press(screen.getByText(title));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/(explorer)/explore-collection/[collectionType]",
       params: { collectionType },
     });
+    await screen.unmount();
   }
 });

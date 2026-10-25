@@ -6,10 +6,8 @@ import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import { getBusinessAddressDisplay } from "@/features/explore/utils/businessLocation.utils";
-import {
-  formatTime,
-  getBusinessHoursSummary,
-} from "@/features/explore/utils/businessHours.utils";
+import { formatTime } from "@/features/explore/utils/businessHours.utils";
+import useBusinessHours from "@/features/explore/hooks/useBusinessHours";
 import AppText from "@/shared/components/AppText";
 import FullScreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 
@@ -48,7 +46,7 @@ function formatHours(hours: MerchantBusinessOperatingHours | undefined) {
   if (hours.is_24_hours) return "Open 24 hours";
   if (!hours.open_time || !hours.close_time) return "Hours unavailable";
 
-  const overnight = hours.close_time <= hours.open_time;
+  const overnight = hours.close_time < hours.open_time;
 
   return `${formatTime(hours.open_time)} – ${formatTime(hours.close_time)}${
     overnight ? " (next day)" : ""
@@ -93,24 +91,16 @@ export default function MerchantBusinessDetails({
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [photoViewerVisible, setPhotoViewerVisible] = useState(false);
 
-  const today = new Date()
-    .toLocaleDateString("en-US", { weekday: "long" })
-    .toLowerCase();
+  const hoursSummary = useBusinessHours(business.operating_hours);
+  const today = hoursSummary.currentDay;
 
   const todayHours = business.operating_hours.find(
     (hours) => hours.day.toLowerCase() === today,
   );
 
-  const hoursSummary = getBusinessHoursSummary(
-    business.operating_hours.map((hours, index) => ({
-      ...hours,
-      id: index,
-    })),
-  );
-
   const hasOperatingHours = business.operating_hours.length > 0;
 
-  const hoursStatusLabel = !hasOperatingHours
+  const hoursStatusLabel = hoursSummary.status === "unavailable"
     ? "Hours unavailable"
     : hoursSummary.isOpen
       ? "Open now"

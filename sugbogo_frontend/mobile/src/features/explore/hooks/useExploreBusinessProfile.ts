@@ -4,6 +4,7 @@ import { useState } from "react";
 import { getExploreBusinessDetail } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { exploreBusinessDetailKey } from "./reviewQueryKeys";
+import { exploreBusinessDetailStaleTime } from "./exploreBusinessDetailQueryPolicy";
 import { recentBusinessDetails } from "../services/recentBusinessDetails.service";
 import { isBusinessDetailDenied } from "../utils/businessDetailAvailability";
 
@@ -42,6 +43,9 @@ export default function useExploreBusinessProfile(businessId: number) {
       }
     },
     enabled: Boolean(businessId),
+    staleTime: (query) => exploreBusinessDetailStaleTime(query.state.data),
+    // Offline source recovery requires a new authoritative response receipt.
+    refetchOnReconnect: "always",
     retry: (failureCount, error) =>
       !isBusinessDetailDenied(error) && failureCount < 1,
   });

@@ -1,7 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -27,7 +26,9 @@ type Props = {
       })
     | null;
   isOwnBusiness: boolean;
+  identityOnly?: boolean;
   onShare: () => void;
+  onGoBack: () => void;
 };
 
 /**
@@ -39,7 +40,9 @@ type Props = {
 export default function ExploreBusinessHero({
   business,
   isOwnBusiness,
+  identityOnly = false,
   onShare,
+  onGoBack,
 }: Props) {
   const [failedCover, setFailedCover] = useState<string | null>(null);
   if (!business) {
@@ -47,7 +50,8 @@ export default function ExploreBusinessHero({
       <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
         <Skeleton className="h-full w-full rounded-none" />
         <Pressable
-          onPress={() => router.back()}
+          onPress={onGoBack}
+          hitSlop={4}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           className="absolute left-4 top-4 h-10 w-10 items-center justify-center rounded-full bg-white/95"
@@ -112,10 +116,11 @@ export default function ExploreBusinessHero({
       />
 
       {/* Navigation and business actions */}
-      <View className="absolute left-4 right-4 top-4 flex-row items-center justify-between">
+      <View className="absolute left-3 right-3 top-3 h-12 flex-row items-center justify-between px-1">
         {/* Back */}
         <Pressable
-          onPress={() => router.back()}
+          onPress={onGoBack}
+          hitSlop={4}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           className="relative h-10 w-10 items-center justify-center rounded-full active:opacity-80"
@@ -138,37 +143,49 @@ export default function ExploreBusinessHero({
         </Pressable>
 
         {/* Business actions */}
-        <View className="flex-row items-center gap-2">
-          {/* Share */}
-          <Pressable
-            onPress={onShare}
-            accessibilityRole="button"
-            accessibilityLabel={`Share ${business.business_name}`}
-            className="relative h-10 w-10 items-center justify-center rounded-full active:opacity-80"
-            android_ripple={{
-              color: "rgba(0,0,0,0.08)",
-              borderless: true,
-            }}
+        {identityOnly ? (
+          <View
+            className="h-12 flex-row items-center gap-2"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
           >
-            {/* White button surface */}
-            <View
-              pointerEvents="none"
-              className="absolute h-10 w-10 rounded-full bg-white/95"
-            />
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <Skeleton className="h-10 w-10 rounded-full" />
+          </View>
+        ) : (
+          <View className="-mx-1 h-12 flex-row items-center gap-2 px-1">
+            {/* Share */}
+            <Pressable
+              onPress={onShare}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={`Share ${business.business_name}`}
+              className="relative h-10 w-10 items-center justify-center rounded-full active:opacity-80"
+              android_ripple={{
+                color: "rgba(0,0,0,0.08)",
+                borderless: true,
+              }}
+            >
+              {/* White button surface */}
+              <View
+                pointerEvents="none"
+                className="absolute h-10 w-10 rounded-full bg-white/95"
+              />
 
-            <MaterialCommunityIcons
-              name="share-variant"
-              size={20}
-              color={theme.extends.colors.text.primary}
-            />
-          </Pressable>
+              <MaterialCommunityIcons
+                name="share-variant"
+                size={20}
+                color={theme.extends.colors.text.primary}
+              />
+            </Pressable>
 
-          {/* Pocket */}
-          <BusinessPocketButton
-            businessId={business.id}
-            isPocketed={business.is_pocketed ?? null}
-          />
-        </View>
+            {/* Pocket */}
+            <BusinessPocketButton
+              businessId={business.id}
+              isPocketed={business.is_pocketed ?? null}
+            />
+          </View>
+        )}
       </View>
 
       {/* Business identity */}

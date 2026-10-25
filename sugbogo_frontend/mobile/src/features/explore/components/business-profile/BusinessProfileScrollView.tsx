@@ -34,9 +34,11 @@ type Props = {
   ownerFooterHeight?: number;
   extraBottomPadding?: number;
   impressionsEnabled?: boolean;
+  onShare: () => void;
+  onGoBack: () => void;
 };
 
-// Calibrated against the hero's fixed h-80 (320px) height.
+// The navigation and identity retain the profile's existing reveal thresholds.
 const NAV_THRESHOLD = 40;
 const IDENTITY_THRESHOLD = 260;
 
@@ -53,9 +55,13 @@ export default function BusinessProfileScrollView({
   ownerFooterHeight = 0,
   extraBottomPadding = 0,
   impressionsEnabled = true,
+  onShare,
+  onGoBack,
 }: Props) {
   const { bottom } = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [navigationVisible, setNavigationVisible] = useState(false);
+  const [identityVisible, setIdentityVisible] = useState(false);
   const contentRef = useRef<View>(null);
   const listRef = useRef<View>(null);
   const measurementVersion = useRef(0);
@@ -128,6 +134,7 @@ export default function BusinessProfileScrollView({
 
     if (isPastNavThreshold !== wasPastNavThreshold.current) {
       wasPastNavThreshold.current = isPastNavThreshold;
+      if (!isPastNavThreshold) setNavigationVisible(false);
 
       animations.push(
         Animated.timing(navOpacity, {
@@ -145,6 +152,7 @@ export default function BusinessProfileScrollView({
 
     if (isPastIdentityThreshold !== wasPastIdentityThreshold.current) {
       wasPastIdentityThreshold.current = isPastIdentityThreshold;
+      if (!isPastIdentityThreshold) setIdentityVisible(false);
 
       animations.push(
         Animated.timing(identityOpacity, {
@@ -156,7 +164,15 @@ export default function BusinessProfileScrollView({
     }
 
     if (animations.length > 0) {
-      Animated.parallel(animations).start();
+      Animated.parallel(animations).start(({ finished }) => {
+        if (!finished) return;
+        if (isPastNavThreshold === wasPastNavThreshold.current) {
+          setNavigationVisible(isPastNavThreshold);
+        }
+        if (isPastIdentityThreshold === wasPastIdentityThreshold.current) {
+          setIdentityVisible(isPastIdentityThreshold);
+        }
+      });
     }
   }
 
@@ -179,7 +195,10 @@ export default function BusinessProfileScrollView({
           identityOpacity={identityOpacity}
           translateY={stickyHeaderTranslateY}
           isOwnBusiness={isOwnBusiness}
-          onShare={() => {}}
+          onShare={onShare}
+          onGoBack={onGoBack}
+          navigationVisible={navigationVisible}
+          identityVisible={identityVisible}
           onIdentityLayout={(event) => {
             setHeaderHeight(
               event.nativeEvent.layout.y + event.nativeEvent.layout.height,

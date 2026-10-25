@@ -17,7 +17,10 @@ export default function BusinessSpecialtiesPresentation({
   tags: Tag[];
   disabled?: boolean;
   ownerPresentation?: boolean;
-  onVouch?: (tagId: number) => void;
+  onVouch?: (
+    tagId: number,
+    onAccepted?: () => void,
+  ) => Promise<unknown> | undefined;
 }) {
   if (!tags.length) return null;
   return (
@@ -41,8 +44,12 @@ export default function BusinessSpecialtiesPresentation({
               icon={tag.icon}
               vouchCount={tag.vouch_count ?? null}
               isVouched={tag.is_vouched ?? null}
-              disabled={disabled || !onVouch}
-              onPress={onVouch ? () => onVouch(tag.id) : undefined}
+              disabled={disabled || !onVouch || tag.is_vouched == null}
+              onPress={
+                onVouch
+                  ? (onAccepted) => onVouch(tag.id, onAccepted)
+                  : undefined
+              }
             />
           ))}
         </View>

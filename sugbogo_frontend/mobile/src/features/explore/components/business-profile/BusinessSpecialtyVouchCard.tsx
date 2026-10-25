@@ -1,6 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { AppState, Pressable, View } from "react-native";
+import { useNavigation } from "expo-router";
+
+import ParticleBurst, {
+  type ParticleBurstHandle,
+} from "@/shared/components/ParticleBurst";
 
 import AppText from "@/shared/components/AppText";
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
@@ -16,8 +21,9 @@ type Props = {
   icon?: SpecialtyTagIcon | null;
   vouchCount: number | null;
   isVouched: boolean | null;
-  onPress?: () => void;
+  onPress?: (onAccepted?: () => void) => Promise<unknown> | undefined;
   disabled?: boolean;
+  celebrationEnabled?: boolean;
 };
 
 const REACTION_SIZE = 54;
@@ -37,81 +43,65 @@ export default function BusinessSpecialtyVouchCard({
   isVouched,
   onPress,
   disabled = false,
+  celebrationEnabled = true,
 }: Props) {
   const styles = getSpecialtyTagColor(color);
   const iconName = getSpecialtyTagIcon(icon);
 
-  const [reactionScale] = useState(() => new Animated.Value(1));
-  const [heartScale] = useState(() => new Animated.Value(1));
-  const [pulseScale] = useState(() => new Animated.Value(1));
-  const [pulseOpacity] = useState(() => new Animated.Value(0));
-  const previousVouched = useRef(isVouched);
-
+  const celebration = useRef<ParticleBurstHandle>(null);
+  const navigation = useNavigation();
+  const generation = useRef(0);
   const foregroundColor = isVouched ? "#FFFFFF" : styles.borderColor;
 
   useEffect(() => {
-    const justVouched = isVouched && !previousVouched.current;
+    const cancel = () => {
+      generation.current += 1;
+      celebration.current?.cancel();
+    };
+    const unsubscribe = navigation.addListener("blur", cancel);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") cancel();
+    });
+    return () => {
+      unsubscribe();
+      subscription.remove();
+      cancel();
+    };
+  }, [navigation]);
 
-    previousVouched.current = isVouched;
-
-    if (!justVouched) {
-      return;
+  useEffect(() => {
+    if (!celebrationEnabled) {
+      generation.current += 1;
+      celebration.current?.cancel();
     }
+  }, [celebrationEnabled]);
 
-    reactionScale.setValue(1);
-    heartScale.setValue(1);
-    pulseScale.setValue(1);
-    pulseOpacity.setValue(0.24);
-
-    Animated.parallel([
-      Animated.sequence([
-        Animated.spring(reactionScale, {
-          toValue: 1.1,
-          speed: 24,
-          bounciness: 8,
-          useNativeDriver: true,
-        }),
-        Animated.spring(reactionScale, {
-          toValue: 1,
-          speed: 20,
-          bounciness: 6,
-          useNativeDriver: true,
-        }),
-      ]),
-
-      Animated.sequence([
-        Animated.spring(heartScale, {
-          toValue: 1.25,
-          speed: 25,
-          bounciness: 9,
-          useNativeDriver: true,
-        }),
-        Animated.spring(heartScale, {
-          toValue: 1,
-          speed: 20,
-          bounciness: 7,
-          useNativeDriver: true,
-        }),
-      ]),
-
-      Animated.parallel([
-        Animated.timing(pulseScale, {
-          toValue: 1.5,
-          duration: 360,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseOpacity, {
-          toValue: 0,
-          duration: 360,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, [heartScale, isVouched, pulseOpacity, pulseScale, reactionScale]);
+  async function handlePress() {
+    if (disabled || !onPress || !navigation.isFocused()) return;
+    const requestGeneration = generation.current;
+    let celebrated = false;
+    const celebrate = () => {
+      if (
+        !celebrated &&
+        celebrationEnabled &&
+        generation.current === requestGeneration &&
+        navigation.isFocused()
+      ) {
+        celebrated = true;
+        celebration.current?.play();
+      }
+    };
+    // Every accepted add is optimistic; responses never start another burst.
+    await onPress(celebrate);
+  }
 
   return (
     <Pressable
-      onPress={disabled ? undefined : onPress}
+      onPressIn={() => {
+        celebration.current?.setPressed(true);
+      }}
+      onPressOut={() => celebration.current?.setPressed(false)}
+      onPress={() => void handlePress()}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={
@@ -146,38 +136,26 @@ export default function BusinessSpecialtyVouchCard({
           />
         )}
 
-        <Animated.View
-          pointerEvents="none"
-          className="absolute rounded-full"
-          style={{
-            width: REACTION_SIZE,
-            height: REACTION_SIZE,
-            borderWidth: 2,
-            borderColor: styles.borderColor,
-            opacity: pulseOpacity,
-            transform: [{ scale: pulseScale }],
-          }}
-        />
-
-        <Animated.View
-          className="items-center justify-center rounded-full"
-          style={{
-            width: REACTION_SIZE,
-            height: REACTION_SIZE,
-            borderWidth: isVouched ? 0 : 1.5,
-            borderColor: isVouched ? "transparent" : styles.borderColor,
-            backgroundColor: isVouched ? styles.borderColor : "#FFFFFF",
-            transform: [{ scale: reactionScale }],
-          }}
-        >
-          <MaterialCommunityIcons
-            name={iconName}
-            size={24}
-            color={foregroundColor}
-            accessibilityElementsHidden
-            importantForAccessibility="no"
-          />
-        </Animated.View>
+        <ParticleBurst ref={celebration} color={styles.borderColor}>
+          <View
+            className="items-center justify-center rounded-full"
+            style={{
+              width: REACTION_SIZE,
+              height: REACTION_SIZE,
+              borderWidth: isVouched ? 0 : 1.5,
+              borderColor: isVouched ? "transparent" : styles.borderColor,
+              backgroundColor: isVouched ? styles.borderColor : "#FFFFFF",
+            }}
+          >
+            <MaterialCommunityIcons
+              name={iconName}
+              size={24}
+              color={foregroundColor}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+          </View>
+        </ParticleBurst>
       </View>
 
       {/* Specialty label */}
@@ -200,17 +178,13 @@ export default function BusinessSpecialtyVouchCard({
             : `${styles.borderColor}14`,
         }}
       >
-        <Animated.View
-          style={{
-            transform: [{ scale: heartScale }],
-          }}
-        >
+        <View>
           <MaterialCommunityIcons
             name={isVouched ? "heart" : "heart-outline"}
             size={14}
             color={isVouched ? "#FFFFFF" : styles.borderColor}
           />
-        </Animated.View>
+        </View>
 
         <AppText
           weight="bold"

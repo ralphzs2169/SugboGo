@@ -91,6 +91,23 @@ it("hides the section when location is unavailable", async () => {
   expect(screen.toJSON()).toBeNull();
 });
 
+it.each([
+  {},
+  { isLoading: true },
+  { error: new Error("Offline") },
+  { isPaused: true },
+])("hides the last-location banner when no businesses are displayed: %s", async (state) => {
+  const screen = await render(
+    <OpenNowBusinessesSection
+      {...props}
+      isUsingLastLocation
+      feed={{ ...feed, ...state }}
+    />,
+  );
+  expect(screen.queryByText("Using your last known location")).toBeNull();
+  expect(screen.queryByText(/Showing places near your last location/)).toBeNull();
+});
+
 it("replaces the initial skeleton with the empty state when no places match", async () => {
   const screen = await render(
     <OpenNowBusinessesSection {...props} feed={{ ...feed, isLoading: true }} />,
@@ -150,7 +167,7 @@ it("labels retained location and removes the open claim after an availability fa
   expect(
     screen.getByText(/Showing places near your last location/),
   ).toBeTruthy();
-  expect(screen.getByText(/Availability may have changed/)).toBeTruthy();
+  expect(screen.getByText(/Opening status may have changed/)).toBeTruthy();
   expect(mockCarousel.mock.calls[0][0].availabilityLabel).toBeUndefined();
   await fireEvent.press(screen.getByLabelText("Retry nearby open places"));
   expect(refetch).toHaveBeenCalledTimes(1);

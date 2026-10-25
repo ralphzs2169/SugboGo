@@ -2,6 +2,10 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { onlineManager } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { Share } from "react-native";
+
+// Native screen initialization can exceed Jest's default timeout on Windows.
+jest.setTimeout(20000);
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
@@ -14,6 +18,7 @@ import PocketPickerSheet from "@/features/pockets/components/PocketPickerSheet";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import ExploreBusinessProfileScreen from "../ExploreBusinessProfileScreen";
 import useBusinessDetailSource from "../../hooks/useBusinessDetailSource";
+import useBusinessProfilePreview from "../../hooks/useBusinessProfilePreview";
 import useBusinessProfileVisit from "../../hooks/useBusinessProfileVisit";
 import useRoutePlanningIntent from "../../hooks/useRoutePlanningIntent";
 import useBusinessVouch from "../../hooks/useBusinessVouch";
@@ -27,6 +32,10 @@ import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoVie
 
 const mockRecordRouteIntent = jest.fn();
 const mockVouch = jest.fn();
+jest.mock("../../hooks/useBusinessProfilePreview", () => ({
+  __esModule: true,
+  default: jest.fn(() => null),
+}));
 jest.mock("../../hooks/useBusinessDetailSource", () => ({
   __esModule: true,
   default: jest.fn(),
@@ -119,8 +128,11 @@ jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),
 }));
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
   useIsFocused: () => true,
-  router: { back: jest.fn(), push: jest.fn() },
+  router: { back: jest.fn(), canGoBack: () => true, push: jest.fn() },
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -196,6 +208,10 @@ function profile() {
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.mocked(useBusinessProfilePreview).mockReturnValue(null);
+  jest
+    .mocked(useBusinessReviewPreview)
+    .mockReturnValue({ totalCount: 12 } as never);
   beginAuthSession();
   useAuthStore.setState({
     user: { id: 7 } as never,
@@ -205,6 +221,59 @@ beforeEach(() => {
   onlineManager.setOnline(true);
   jest.mocked(useBusinessDetailSource).mockReturnValue(source("live") as never);
   jest.mocked(Image.getCachePathAsync).mockResolvedValue(null);
+});
+
+it("uses the detail review count until preview resolves, including a confirmed zero", async () => {
+  jest
+    .mocked(useBusinessReviewPreview)
+    .mockReturnValue({ totalCount: null } as never);
+  const view = await render(profile());
+  expect(view.getByText(String(business.review_count))).toBeTruthy();
+  expect(view.queryByText("0")).toBeNull();
+  jest
+    .mocked(useBusinessReviewPreview)
+    .mockReturnValue({ totalCount: 0 } as never);
+  await view.rerender(profile());
+  expect(view.getByText("0")).toBeTruthy();
+});
+
+it("shares from both visible headers and hides sticky controls at the top", async () => {
+  const share = jest
+    .spyOn(Share, "share")
+    .mockResolvedValue({ action: Share.dismissedAction });
+  const view = await render(profile());
+  expect(
+    view.getAllByRole("button", { name: "Share Sugbo Cafe" }),
+  ).toHaveLength(1);
+  await fireEvent.press(view.getByRole("button", { name: "Share Sugbo Cafe" }));
+  expect(share).toHaveBeenCalledTimes(1);
+  await fireEvent.scroll(view.getByTestId("business-profile-scroll"), {
+    nativeEvent: { contentOffset: { y: 300 } },
+  });
+  await waitFor(() =>
+    expect(
+      view.getAllByRole("button", { name: "Share Sugbo Cafe" }),
+    ).toHaveLength(2),
+  );
+  await fireEvent.press(
+    view.getAllByRole("button", { name: "Share Sugbo Cafe" })[0],
+  );
+  expect(share).toHaveBeenCalledTimes(2);
+  await fireEvent.scroll(view.getByTestId("business-profile-scroll"), {
+    nativeEvent: { contentOffset: { y: 0 } },
+  });
+  expect(
+    view.getAllByRole("button", { name: "Share Sugbo Cafe" }),
+  ).toHaveLength(1);
+  share.mockRestore();
+});
+
+it("dispatches Back only once before the current route loses focus", async () => {
+  const view = await render(profile());
+  const back = view.getByRole("button", { name: "Go back" });
+  await fireEvent.press(back);
+  await fireEvent.press(back);
+  expect(router.back).toHaveBeenCalledTimes(1);
 });
 afterEach(() => {
   onlineManager.setOnline(true);
@@ -255,6 +324,105 @@ it("renders the existing skeleton on initial online loading, then the interactiv
     view.getByLabelText("View road route").props.accessibilityState.disabled,
   ).toBe(false);
   expect(view.getByTestId("profile-reviews")).toBeTruthy();
+});
+
+const listingPreview = {
+  id: 21,
+  business_name: "Earlier listing name",
+  display_cover_photo_url: "https://example.test/preview-cover.jpg",
+  cluster: business.cluster,
+  category: business.category,
+};
+
+it("shows preview identity with unresolved sections and no live actions, then replaces it with detail", async () => {
+  jest.mocked(useBusinessProfilePreview).mockReturnValue(listingPreview);
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("unavailable"),
+    isLoading: true,
+    isInitialLoading: true,
+  } as never);
+  const view = await render(profile());
+  expect(view.getByText(listingPreview.business_name)).toBeTruthy();
+  expect(
+    view.getByText(`${business.cluster.name} · ${business.category.name}`),
+  ).toBeTruthy();
+  expect(view.getByTestId("profile-image").props.source.uri).toBe(
+    listingPreview.display_cover_photo_url,
+  );
+  expect(view.getByText("Vouch for what this place gets right")).toBeTruthy();
+  expect(view.getAllByRole("button")).toHaveLength(1);
+  expect(view.getByRole("button", { name: "Go back" })).toBeTruthy();
+  expect(useBusinessVouch).not.toHaveBeenCalled();
+  expect(useBusinessProfileVisit).not.toHaveBeenCalled();
+  expect(ReviewDerivedDataSyncProvider).not.toHaveBeenCalled();
+  expect(SimilarPlacesSection).not.toHaveBeenCalled();
+  expect(BusinessReviewsSection).not.toHaveBeenCalled();
+  expect(useBusinessReviewPreview).not.toHaveBeenCalled();
+
+  jest.mocked(useBusinessDetailSource).mockReturnValue(source("live") as never);
+  await view.rerender(profile());
+  expect(view.queryByText(listingPreview.business_name)).toBeNull();
+  expect(view.getByText(business.business_name)).toBeTruthy();
+  expect(view.getByTestId("profile-reviews")).toBeTruthy();
+  expect(
+    view.getByRole("button", { name: `Share ${business.business_name}` }),
+  ).toBeTruthy();
+});
+
+it.each(["live", "recent", "offline-pocket"] as const)(
+  "keeps %s detail ahead of stale preview identity",
+  async (mode) => {
+    jest.mocked(useBusinessProfilePreview).mockReturnValue(listingPreview);
+    jest.mocked(useBusinessDetailSource).mockReturnValue(source(mode) as never);
+    const view = await render(profile());
+    expect(view.queryByText(listingPreview.business_name)).toBeNull();
+    expect(view.getByText(business.business_name)).toBeTruthy();
+  },
+);
+
+it.each(["NOT_FOUND", "PERMISSION_DENIED", "NOT_AUTHENTICATED"])(
+  "removes preview after definitive %s response",
+  async (code) => {
+    jest.mocked(useBusinessProfilePreview).mockReturnValue(listingPreview);
+    jest.mocked(useBusinessDetailSource).mockReturnValue({
+      ...source("unavailable"),
+      isLoading: true,
+      isInitialLoading: true,
+    } as never);
+    const view = await render(profile());
+    expect(view.getByText(listingPreview.business_name)).toBeTruthy();
+    jest.mocked(useBusinessDetailSource).mockReturnValue({
+      ...source("unavailable"),
+      error: { code },
+      denied: true,
+    } as never);
+    await view.rerender(profile());
+    expect(view.queryByText(listingPreview.business_name)).toBeNull();
+    expect(view.getByTestId("business-profile-error")).toBeTruthy();
+    expect(ReviewDerivedDataSyncProvider).not.toHaveBeenCalled();
+  },
+);
+
+it("never renders another business preview or a preview while offline sources resolve", async () => {
+  jest
+    .mocked(useBusinessProfilePreview)
+    .mockReturnValue({ ...listingPreview, id: 22 });
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("unavailable"),
+    isLoading: true,
+    isInitialLoading: true,
+  } as never);
+  const view = await render(profile());
+  expect(view.queryByText(listingPreview.business_name)).toBeNull();
+  jest.mocked(useBusinessProfilePreview).mockReturnValue(listingPreview);
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("unavailable"),
+    isLoading: true,
+    isInitialLoading: false,
+  } as never);
+  await view.rerender(profile());
+  expect(view.queryByText(listingPreview.business_name)).toBeNull();
+  expect(view.getByText("Vouch for what this place gets right")).toBeTruthy();
 });
 
 it.each(["recent", "offline-pocket"] as const)(
@@ -316,7 +484,7 @@ it("shows loading while offline sources resolve, then a viewport-filling error w
   );
   expect(
     view.getByTestId("business-profile-error-hero").props.className,
-  ).toContain("h-80");
+  ).toContain("h-[21.5rem]");
   expect(
     view.getByTestId("business-profile-error-body").props.className,
   ).toContain("flex-1");
@@ -444,7 +612,7 @@ it.each(["recent", "offline-pocket"] as const)(
     await fireEvent.press(vouch);
     expect(
       view.getAllByRole("button", { name: "Pocket unavailable offline" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     for (const hook of [
       useBusinessProfileVisit,
       useBusinessReviewPreview,
@@ -467,7 +635,7 @@ it.each(["recent", "offline-pocket"] as const)(
     if (mode === "offline-pocket") {
       expect(view.getByText(/^Saved for offline/)).toBeTruthy();
     } else {
-      expect(view.getByText(/^Previously loaded/)).toBeTruthy();
+      expect(view.getByText("Previously loaded")).toBeTruthy();
     }
   },
 );
@@ -535,5 +703,5 @@ it("revokes an open Pocket workflow when live authority is lost", async () => {
   expect(previous.isCurrent?.()).toBe(false);
   expect(
     view.getAllByRole("button", { name: "Pocket unavailable offline" }),
-  ).toHaveLength(2);
+  ).toHaveLength(1);
 });

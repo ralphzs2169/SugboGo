@@ -1,22 +1,19 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 
 import BusinessVisitInfoContent from "../BusinessVisitInfoContent";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useDirectJourneys from "../../../hooks/useDirectJourneys";
+import { Linking } from "react-native";
+import Toast from "react-native-toast-message";
+
+jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 
 jest.mock("@/shared/hooks/useUserLocation");
 jest.mock("../BusinessVisitMapPreview", () => () => null);
 jest.mock("../../../hooks/useDirectJourneys");
 jest.mock("expo-router", () => ({
+  useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
-}));
-
-jest.mock("../../../utils/businessHours.utils", () => ({
-  getBusinessHoursSummary: () => ({
-    isOpen: true,
-    label: "Open now · Until 8 PM",
-  }),
-  formatTime: (value: string) => value,
 }));
 jest.mock("../../../assets/getting-there-icons/jeep-route-option.svg", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -54,6 +51,79 @@ const defaultProps = {
 };
 
 describe("BusinessVisitInfoContent", () => {
+  it.each(["success", "failure"])(
+    "guards overlapping website presses and releases after %s",
+    async (outcome) => {
+      let succeed!: () => void;
+      let fail!: (error: Error) => void;
+      const firstHandoff = new Promise<void>((resolve, reject) => {
+        succeed = resolve;
+        fail = reject;
+      });
+      const open = jest
+        .spyOn(Linking, "openURL")
+        .mockImplementationOnce(() => firstHandoff)
+        .mockResolvedValue(undefined);
+      try {
+        const screen = await render(
+          <BusinessVisitInfoContent {...defaultProps} website="example.com" />,
+        );
+        const link = screen.getByRole("link", {
+          name: "Open website: example.com",
+        });
+        await fireEvent.press(link);
+        await fireEvent.press(link);
+        expect(open).toHaveBeenCalledTimes(1);
+        await act(async () => {
+          if (outcome === "success") {
+            succeed();
+          } else {
+            fail(new Error("Browser unavailable"));
+          }
+          await firstHandoff.catch(() => undefined);
+        });
+        expect(Toast.show).toHaveBeenCalledTimes(outcome === "failure" ? 1 : 0);
+        await fireEvent.press(link);
+        expect(open).toHaveBeenCalledTimes(2);
+        expect(open).toHaveBeenLastCalledWith("https://example.com/");
+      } finally {
+        open.mockRestore();
+      }
+    },
+  );
+
+  it("opens a normalized merchant website and rejects unsupported schemes", async () => {
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    const screen = await render(
+      <BusinessVisitInfoContent {...defaultProps} website="example.com/menu" />,
+    );
+    await fireEvent.press(
+      screen.getByRole("link", { name: "Open website: example.com/menu" }),
+    );
+    expect(open).toHaveBeenCalledWith("https://example.com/menu");
+    await screen.rerender(
+      <BusinessVisitInfoContent
+        {...defaultProps}
+        website="javascript:alert(1)"
+      />,
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(open).toHaveBeenCalledTimes(1);
+    open.mockRestore();
+  });
+
+  it("announces the hours expansion state", async () => {
+    const screen = await render(<BusinessVisitInfoContent {...defaultProps} />);
+    const toggle = screen.getByRole("button", {
+      name: "Show full business hours",
+    });
+    expect(toggle.props.accessibilityState.expanded).toBe(false);
+    await fireEvent.press(toggle);
+    expect(
+      screen.getByRole("button", { name: "Hide full business hours" }).props
+        .accessibilityState.expanded,
+    ).toBe(true);
+  });
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -84,6 +154,14 @@ describe("BusinessVisitInfoContent", () => {
     expect(screen.queryByLabelText("View road route")).toBeNull();
     expect(screen.queryByLabelText("Open jeepney guide")).toBeNull();
     expect(screen.queryByLabelText("Choose a ride provider")).toBeNull();
+  });
+
+  it("shows missing hours without claiming the business is closed", async () => {
+    const screen = await render(<BusinessVisitInfoContent {...defaultProps} />);
+
+    expect(screen.getByText("Hours unavailable")).toBeTruthy();
+    expect(screen.queryByText("Closed")).toBeNull();
+    expect(screen.queryByText("Open")).toBeNull();
   });
 
   it("places access context after location and before the three transport options", async () => {

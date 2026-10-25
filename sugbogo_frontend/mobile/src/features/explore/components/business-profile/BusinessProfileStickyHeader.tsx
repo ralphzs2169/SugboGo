@@ -1,6 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { router } from "expo-router";
 import { useState } from "react";
 import {
   Animated,
@@ -28,6 +27,9 @@ type Props = {
   identityOpacity: Animated.Value;
   translateY: Animated.Value;
   onShare: () => void;
+  onGoBack: () => void;
+  navigationVisible: boolean;
+  identityVisible: boolean;
   onIdentityLayout?: (event: LayoutChangeEvent) => void;
 };
 
@@ -54,13 +56,16 @@ export default function BusinessProfileStickyHeader({
   translateY,
   isOwnBusiness,
   onShare,
+  onGoBack,
+  navigationVisible,
+  identityVisible,
   onIdentityLayout,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [failedCover, setFailedCover] = useState<string | null>(null);
   const cover = coverPhotoUrl !== failedCover ? coverPhotoUrl : null;
 
-  const navHeight = insets.top + 40;
+  const navHeight = insets.top + 48;
 
   return (
     <Animated.View
@@ -77,6 +82,12 @@ export default function BusinessProfileStickyHeader({
     >
       {/* Navigation */}
       <Animated.View
+        testID="business-profile-sticky-navigation"
+        pointerEvents={navigationVisible ? "auto" : "none"}
+        accessibilityElementsHidden={!navigationVisible}
+        importantForAccessibility={
+          navigationVisible ? "auto" : "no-hide-descendants"
+        }
         style={{
           height: navHeight,
           opacity: navOpacity,
@@ -84,10 +95,11 @@ export default function BusinessProfileStickyHeader({
           backgroundColor: "#ffffff",
         }}
       >
-        <View className="h-10 flex-row items-center justify-between px-4">
+        <View className="h-12 flex-row items-center justify-between px-4">
           {/* Back */}
           <Pressable
-            onPress={() => router.back()}
+            onPress={onGoBack}
+            hitSlop={4}
             accessibilityRole="button"
             accessibilityLabel="Go back"
             className="h-10 w-10 cursor-pointer items-center justify-center rounded-full active:opacity-80"
@@ -104,10 +116,11 @@ export default function BusinessProfileStickyHeader({
           </Pressable>
 
           {/* Business actions */}
-          <View className="flex-row items-center gap-2">
+          <View className="-mx-1 h-12 flex-row items-center gap-2 px-1">
             {/* Share */}
             <Pressable
               onPress={onShare}
+              hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel={`Share ${businessName}`}
               className="h-10 w-10 cursor-pointer items-center justify-center rounded-full active:opacity-80"
@@ -135,6 +148,11 @@ export default function BusinessProfileStickyHeader({
       {/* Business identity */}
       <Animated.View
         pointerEvents="none"
+        testID="business-profile-sticky-identity"
+        accessibilityElementsHidden={!identityVisible}
+        importantForAccessibility={
+          identityVisible ? "auto" : "no-hide-descendants"
+        }
         onLayout={onIdentityLayout}
         style={{
           position: "absolute",

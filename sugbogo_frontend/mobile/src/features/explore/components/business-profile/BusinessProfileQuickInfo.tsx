@@ -114,7 +114,7 @@ export default function BusinessProfileQuickInfo({
                   ? "text-success"
                   : "text-text-error"
             }`}
-            numberOfLines={unavailable ? undefined : 1}
+            numberOfLines={unavailable || isOpenNow === null ? undefined : 1}
           >
             {unavailable ? "—" : statusLabel}
           </AppText>

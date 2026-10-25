@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Animated, LayoutAnimation, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -13,13 +13,15 @@ import type {
   ExploreBusinessLocation,
   ExploreOperatingHours,
 } from "../../types/exploreBusiness.types";
-import {
-  formatTime,
-  getBusinessHoursSummary,
-} from "../../utils/businessHours.utils";
+import { formatTime } from "../../utils/businessHours.utils";
+import useBusinessHours from "../../hooks/useBusinessHours";
 import { getBusinessAddressDisplay } from "../../utils/businessLocation.utils";
 import BusinessVisitMapPreview from "./BusinessVisitMapPreview";
 import MerchantAccessDirections from "../getting-there/MerchantAccessDirections";
+import {
+  normalizeBusinessWebsite,
+  openBusinessWebsite,
+} from "../../utils/businessProfileActions";
 
 type Props = {
   businessId?: number;
@@ -59,7 +61,8 @@ export default function BusinessVisitInfoContent({
   readOnly = false,
   transportActions,
 }: Props) {
-  const summary = readOnly ? null : getBusinessHoursSummary(operatingHours);
+  const hours = useBusinessHours(operatingHours, !readOnly);
+  const summary = readOnly ? null : hours;
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [rotation] = useState(() => new Animated.Value(0));
@@ -68,11 +71,19 @@ export default function BusinessVisitInfoContent({
     ? getBusinessAddressDisplay(location)
     : { addressLine: "", cityLine: "" };
 
-  const currentDay = new Date()
-    .toLocaleDateString("en-US", {
-      weekday: "long",
-    })
-    .toLowerCase();
+  const currentDay = hours.currentDay;
+  const websiteUrl = normalizeBusinessWebsite(website);
+  const websiteOpening = useRef(false);
+
+  async function openWebsite() {
+    if (!websiteUrl || websiteOpening.current) return;
+    websiteOpening.current = true;
+    try {
+      await openBusinessWebsite(websiteUrl);
+    } finally {
+      websiteOpening.current = false;
+    }
+  }
 
   const toggleHours = () => {
     const nextExpanded = !isExpanded;
@@ -193,7 +204,11 @@ export default function BusinessVisitInfoContent({
           />
 
           <View className="ml-3 flex-1 flex-row flex-wrap items-center">
-            {summary ? (
+            {summary?.status === "unavailable" ? (
+              <AppText weight="medium" className="text-sm text-text-secondary">
+                Hours unavailable
+              </AppText>
+            ) : summary ? (
               <>
                 <AppText
                   weight="semibold"
@@ -232,7 +247,8 @@ export default function BusinessVisitInfoContent({
                 ? "Hide full business hours"
                 : "Show full business hours"
             }
-            className="ml-3 cursor-pointer flex-row items-center active:opacity-70"
+            accessibilityState={{ expanded: isExpanded }}
+            className="ml-3 min-h-12 cursor-pointer flex-row items-center active:opacity-70"
           >
             <AppText weight="semibold" className="text-xs text-brand">
               {isExpanded ? "Hide hours" : "Full hours"}
@@ -364,7 +380,16 @@ export default function BusinessVisitInfoContent({
 
         {/* Website */}
         {website && (
-          <View className="min-h-14 flex-row items-center">
+          <Pressable
+            onPress={() => void openWebsite()}
+            disabled={!websiteUrl}
+            accessibilityRole={websiteUrl ? "link" : undefined}
+            accessibilityLabel={
+              websiteUrl ? `Open website: ${website}` : website
+            }
+            accessibilityHint={websiteUrl ? "Opens in your browser" : undefined}
+            className="min-h-14 cursor-pointer flex-row items-center active:opacity-70"
+          >
             <MaterialCommunityIcons
               name="web"
               size={18}
@@ -378,7 +403,7 @@ export default function BusinessVisitInfoContent({
             >
               {website}
             </AppText>
-          </View>
+          </Pressable>
         )}
       </View>
     </View>

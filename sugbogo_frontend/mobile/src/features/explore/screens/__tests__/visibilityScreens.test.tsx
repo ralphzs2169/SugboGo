@@ -17,7 +17,10 @@ import {
 jest.setTimeout(20000);
 
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn(), back: jest.fn() },
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
+  router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true },
   useIsFocused: () => true,
 }));
 jest.mock("expo-location", () => ({

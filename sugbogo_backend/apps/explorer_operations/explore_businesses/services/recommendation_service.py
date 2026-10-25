@@ -55,6 +55,14 @@ class RecommendationResult:
     is_personalized: bool
 
 
+@dataclass(frozen=True)
+class RecommendationRanking(RecommendationResult):
+    """Retain request-local ranking inputs until the selected page is hydrated."""
+
+    explorer_features: FeatureMap
+    configuration: object
+
+
 class RelevanceGroup(IntEnum):
     NO_MATCH = 0
     LOW = 1
@@ -174,8 +182,56 @@ class RecommendationService:
         return None
 
     @staticmethod
+    def _ranking_queryset():
+        """Load only active-business taxonomy identifiers and ranking scores."""
+
+        return (
+            Business.objects
+            .filter(
+                BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            )
+            .select_related(
+                "CTGRY_ID",
+            )
+            .only(
+                "BUSN_ID",
+                "CTGRY_ID__CLUS_ID",
+            )
+            .annotate(
+                recommendation_visibility_gap=Coalesce(
+                    "discovery_score__DSC_V_SCORE",
+                    Value(Decimal("1.00000")),
+                    output_field=DecimalField(
+                        max_digits=6,
+                        decimal_places=5,
+                    ),
+                ),
+                recommendation_discovery_score=Coalesce(
+                    "discovery_score__DSC_D_SCORE",
+                    DiscoveryScoreRefreshService.missing_score_expression(),
+                    output_field=DecimalField(
+                        max_digits=6,
+                        decimal_places=5,
+                    ),
+                ),
+            )
+            .prefetch_related(
+                Prefetch(
+                    "specialty_tag_links",
+                    queryset=BusinessSpecialtyTag.objects.filter(
+                        BST_IS_ACTIVE=True,
+                    ).only(
+                        "BUSN_ID",
+                        "TAG_ID",
+                    ),
+                    to_attr="active_specialty_tag_links",
+                ),
+            )
+        )
+
+    @staticmethod
     def _candidate_queryset(user):
-        """Build the optimized active-business queryset used for recommendations."""
+        """Hydrate selected businesses with serializer data and account-specific flags."""
 
         user_pocket_exists = BusinessPocket.objects.filter(
             BUSN_ID=OuterRef("BUSN_ID"),
@@ -203,29 +259,12 @@ class RecommendationService:
                 "CTGRY_ID",
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
-                "discovery_score",
                 "review_summary",
             )
             .annotate(
                 is_pocketed=Exists(user_pocket_exists),
                 published_review_count=published_review_count(),
                 display_cover_photo_url=display_cover_photo_expression(),
-                recommendation_visibility_gap=Coalesce(
-                    "discovery_score__DSC_V_SCORE",
-                    Value(Decimal("1.00000")),
-                    output_field=DecimalField(
-                        max_digits=6,
-                        decimal_places=5,
-                    ),
-                ),
-                recommendation_discovery_score=Coalesce(
-                    "discovery_score__DSC_D_SCORE",
-                    DiscoveryScoreRefreshService.missing_score_expression(),
-                    output_field=DecimalField(
-                        max_digits=6,
-                        decimal_places=5,
-                    ),
-                ),
             )
             .prefetch_related(
                 Prefetch(
@@ -382,14 +421,37 @@ class RecommendationService:
         user,
         allow_discovery_fallback=True,
     ):
-        """Expose whether the existing ranking used personalization or discovery."""
+        """Return fully hydrated recommendations for callers requesting the whole list."""
+
+        ranking = RecommendationService.get_recommendation_ranking(
+            user=user,
+            allow_discovery_fallback=allow_discovery_fallback,
+        )
+        return RecommendationResult(
+            businesses=RecommendationService.hydrate_recommendations(
+                user=user,
+                businesses=ranking.businesses,
+                ranking=ranking,
+            ),
+            is_personalized=ranking.is_personalized,
+        )
+
+    @staticmethod
+    def get_recommendation_ranking(
+        user,
+        allow_discovery_fallback=True,
+        category_ids=None,
+        cluster_id=None,
+        specialty_tag_id=None,
+    ):
+        """Globally rank lightweight candidates before page selection and hydration."""
 
         configuration = (
             RecommendationAlgorithmConfigurationService
             .get_current_configuration()
         )
         businesses = list(
-            RecommendationService._candidate_queryset(user),
+            RecommendationService._ranking_queryset(),
         )
         explorer_features = RecommendationService.build_explorer_feature_map(
             user,
@@ -399,21 +461,34 @@ class RecommendationService:
 
         if not explorer_features:
             if allow_discovery_fallback:
-                return RecommendationResult(
+                return RecommendationRanking(
                     businesses=DiscoveryFeedService.list_discovery_businesses(
                         user,
                     ),
                     is_personalized=False,
+                    explorer_features=explorer_features,
+                    configuration=configuration,
                 )
 
-            return RecommendationResult(
+            return RecommendationRanking(
                 businesses=[],
                 is_personalized=False,
+                explorer_features=explorer_features,
+                configuration=configuration,
             )
 
         ranked_businesses = []
 
         for business in businesses:
+            # Collection filters must not remove businesses from learned preferences.
+            if not business_matches_taxonomy(
+                business,
+                category_ids=category_ids,
+                cluster_id=cluster_id,
+                specialty_tag_id=specialty_tag_id,
+            ):
+                continue
+
             business_features = (
                 RecommendationService.build_business_feature_map(
                     business,
@@ -432,14 +507,6 @@ class RecommendationService:
             if relevance_group == RelevanceGroup.NO_MATCH:
                 continue
 
-            business.recommendation_reason = (
-                RecommendationService.build_recommendation_reason(
-                    explorer_features=explorer_features,
-                    business=business,
-                    business_features=business_features,
-                )
-            )
-
             ranked_businesses.append(
                 (
                     business,
@@ -452,13 +519,67 @@ class RecommendationService:
             key=recommendation_sort_key,
         )
 
-        return RecommendationResult(
+        return RecommendationRanking(
             businesses=[
                 business
                 for business, _, _ in ranked_businesses
             ],
             is_personalized=True,
+            explorer_features=explorer_features,
+            configuration=configuration,
         )
+
+    @staticmethod
+    def hydrate_recommendations(
+        user,
+        businesses,
+        ranking,
+    ):
+        """Hydrate only selected matches and restore their exact global ranking order."""
+
+        if not ranking.is_personalized:
+            return businesses
+
+        ranked_ids = [
+            business.BUSN_ID
+            for business in businesses
+        ]
+        if not ranked_ids:
+            return []
+
+        selected_businesses = RecommendationService._candidate_queryset(user).filter(
+            BUSN_ID__in=ranked_ids,
+        )
+        hydrated = {
+            business.BUSN_ID: business
+            for business in selected_businesses
+        }
+        result = []
+
+        for candidate in businesses:
+            business = hydrated.get(candidate.BUSN_ID)
+            if business is None:
+                continue
+
+            business.recommendation_visibility_gap = (
+                candidate.recommendation_visibility_gap
+            )
+            business.recommendation_discovery_score = (
+                candidate.recommendation_discovery_score
+            )
+            business.recommendation_reason = (
+                RecommendationService.build_recommendation_reason(
+                    explorer_features=ranking.explorer_features,
+                    business=business,
+                    business_features=RecommendationService.build_business_feature_map(
+                        business,
+                        ranking.configuration,
+                    ),
+                )
+            )
+            result.append(business)
+
+        return result
 
     @staticmethod
     def list_recommendation_collection(
@@ -469,18 +590,15 @@ class RecommendationService:
     ):
         """Return genuine recommendation matches narrowed by taxonomy."""
 
-        recommendations = RecommendationService.list_recommendations(
-            user,
+        ranking = RecommendationService.get_recommendation_ranking(
+            user=user,
             allow_discovery_fallback=False,
+            category_ids=category_ids,
+            cluster_id=cluster_id,
+            specialty_tag_id=specialty_tag_id,
         )
-
-        return [
-            business
-            for business in recommendations
-            if business_matches_taxonomy(
-                business,
-                category_ids=category_ids,
-                cluster_id=cluster_id,
-                specialty_tag_id=specialty_tag_id,
-            )
-        ]
+        return RecommendationService.hydrate_recommendations(
+            user=user,
+            businesses=ranking.businesses,
+            ranking=ranking,
+        )

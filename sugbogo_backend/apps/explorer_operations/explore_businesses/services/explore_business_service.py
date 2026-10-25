@@ -5,10 +5,6 @@ from apps.business.models import (
     BusinessVouch,
 )
 from apps.business.services.display_cover_photo import display_cover_photo_expression
-from apps.reviews.models import (
-    Review,
-    ReviewLike,
-)
 from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework.exceptions import NotFound
 
@@ -34,11 +30,6 @@ class ExploreBusinessService:
             USER_ID=user,
         )
 
-        user_review_like_exists = ReviewLike.objects.filter(
-            REVW_ID=OuterRef("REVW_ID"),
-            USER_ID=user,
-        )
-
         specialty_tags = (
             BusinessSpecialtyTag.objects
             .filter(
@@ -51,28 +42,6 @@ class ExploreBusinessService:
                 is_vouched=Exists(
                     user_vouch_exists,
                 ),
-            )
-        )
-
-        reviews = (
-            Review.objects
-            .filter(
-                REVW_STATUS=Review.ReviewStatus.PUBLISHED,
-            )
-            .select_related(
-                "USER_ID",
-            )
-            .annotate(
-                is_liked=Exists(
-                    user_review_like_exists,
-                ),
-            )
-            .prefetch_related(
-                "photos",
-                "reply__photos",
-            )
-            .order_by(
-                "-REVW_CREATED_AT",
             )
         )
 
@@ -101,10 +70,6 @@ class ExploreBusinessService:
                     ),
                     "photos",
                     "operating_hours",
-                    Prefetch(
-                        "reviews",
-                        queryset=reviews,
-                    ),
                 )
                 .get(
                     BUSN_ID=business_id,

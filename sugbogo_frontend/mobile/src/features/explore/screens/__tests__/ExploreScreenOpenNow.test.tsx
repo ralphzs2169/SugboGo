@@ -17,24 +17,35 @@ const mockLocation = {
 const nextLocation = {
   coords: { latitude: 10.328, longitude: 123.907, accuracy: 10 },
 } as LocationObject;
+let mockCurrentLocation: LocationObject | null = mockLocation;
+let mockLocationStatus = "available";
 
 jest.mock("../../api/exploreBusiness.service", () => ({}));
 
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 jest.mock("@tanstack/react-query", () => ({
+  hashKey: jest.requireActual("@tanstack/react-query").hashKey,
   useQueryClient: () => mockQueryClient,
 }));
 jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
   useTabBarSpacing: () => 0,
 }));
 jest.mock("@/shared/hooks/useUserLocation", () => () => ({
-  location: mockLocation,
-  status: "available",
+  location: mockCurrentLocation,
+  status: mockLocationStatus,
   isRefreshingLocation: false,
   refreshLocation: mockRefreshLocation,
 }));
+
+beforeEach(() => {
+  mockCurrentLocation = mockLocation;
+  mockLocationStatus = "available";
+});
 jest.mock("../../hooks/useOpenNowBusinesses", () => ({
   __esModule: true,
   default: jest.fn(() => ({
@@ -116,6 +127,14 @@ it("waits for fresh coordinates before requesting nearby businesses", async () =
       .props.refreshControl.props.onRefresh();
   });
   expect(mockRefreshAtLocation).not.toHaveBeenCalled();
+  expect(mockQueryClient.refetchQueries).toHaveBeenCalledTimes(6);
+  expect(mockQueryClient.refetchQueries).toHaveBeenCalledWith({
+    queryKey: ["explore-filter-options"],
+  });
+  expect(
+    screen.getByTestId("explore-discovery-scroll").props.refreshControl.props
+      .refreshing,
+  ).toBe(true);
 
   await act(async () => {
     resolveLocation({
@@ -129,6 +148,103 @@ it("waits for fresh coordinates before requesting nearby businesses", async () =
   expect(mockRefreshAtLocation).toHaveBeenCalledWith(nextLocation);
   expect(screen.getByText("10.328")).toBeTruthy();
   expect(useOpenNowBusinesses).toHaveBeenLastCalledWith(nextLocation, true);
+  expect(mockRefreshAtLocation).toHaveBeenCalledTimes(1);
+  expect(
+    screen.getByTestId("explore-discovery-scroll").props.refreshControl.props
+      .refreshing,
+  ).toBe(false);
+});
+
+it("updates nearby coordinates when a shared location changes while Explore remains mounted", async () => {
+  const screen = await render(<ExploreScreen />);
+  await waitFor(() =>
+    expect(useOpenNowBusinesses).toHaveBeenLastCalledWith(mockLocation, true),
+  );
+  mockCurrentLocation = nextLocation;
+  await screen.rerender(<ExploreScreen />);
+  await waitFor(() =>
+    expect(useOpenNowBusinesses).toHaveBeenLastCalledWith(nextLocation, true),
+  );
+  expect(mockRefreshAtLocation).not.toHaveBeenCalled();
+});
+
+it("resumes nearby updates without waiting for a slower independent refresh", async () => {
+  let resolveIndependent!: () => void;
+  mockQueryClient.refetchQueries.mockReturnValueOnce(
+    new Promise<void>((resolve) => {
+      resolveIndependent = resolve;
+    }),
+  );
+  mockRefreshLocation.mockResolvedValue({
+    status: "available",
+    location: nextLocation,
+    error: null,
+  });
+  const screen = await render(<ExploreScreen />);
+  let refresh!: Promise<void>;
+  await act(async () => {
+    refresh = screen
+      .getByTestId("explore-discovery-scroll")
+      .props.refreshControl.props.onRefresh();
+  });
+  await waitFor(() =>
+    expect(useOpenNowBusinesses).toHaveBeenLastCalledWith(nextLocation, true),
+  );
+  expect(mockRefreshAtLocation).toHaveBeenCalledTimes(1);
+  expect(
+    screen.getByTestId("explore-discovery-scroll").props.refreshControl.props
+      .refreshing,
+  ).toBe(true);
+  await act(async () => {
+    resolveIndependent();
+    await refresh;
+  });
+  expect(
+    screen.getByTestId("explore-discovery-scroll").props.refreshControl.props
+      .refreshing,
+  ).toBe(false);
+});
+
+it("clears retained nearby coordinates if explicit refresh reports permission denied", async () => {
+  mockRefreshLocation.mockResolvedValue({
+    status: "denied",
+    location: null,
+    error: null,
+  });
+  const screen = await render(<ExploreScreen />);
+  await act(async () => {
+    await screen
+      .getByTestId("explore-discovery-scroll")
+      .props.refreshControl.props.onRefresh();
+  });
+  expect(useOpenNowBusinesses).toHaveBeenLastCalledWith(null, true);
+  expect(mockRefreshAtLocation).not.toHaveBeenCalled();
+  expect(screen.queryByText("Using last location")).toBeNull();
+});
+
+it("finishes refresh after independent and nearby failures and allows another refresh", async () => {
+  mockQueryClient.refetchQueries.mockRejectedValueOnce(new Error("Offline"));
+  mockRefreshAtLocation.mockRejectedValueOnce(
+    new Error("Availability unavailable"),
+  );
+  mockRefreshLocation.mockResolvedValue({
+    status: "unavailable",
+    location: null,
+    error: new Error("GPS"),
+  });
+  const screen = await render(<ExploreScreen />);
+  for (let index = 0; index < 2; index += 1) {
+    await act(async () => {
+      await screen
+        .getByTestId("explore-discovery-scroll")
+        .props.refreshControl.props.onRefresh();
+    });
+    expect(
+      screen.getByTestId("explore-discovery-scroll").props.refreshControl.props
+        .refreshing,
+    ).toBe(false);
+  }
+  expect(mockRefreshLocation).toHaveBeenCalledTimes(2);
 });
 
 it("keeps the last successful location and labels it after a location failure", async () => {
@@ -152,11 +268,14 @@ it("keeps the last successful location and labels it after a location failure", 
 it("opens the existing business profile with discovery source and distance", async () => {
   const screen = await render(<ExploreScreen />);
   await fireEvent.press(screen.getByText("Open nearby place"));
+  await fireEvent.press(screen.getByText("Open nearby place"));
+  expect(mockPush).toHaveBeenCalledTimes(1);
   expect(mockPush).toHaveBeenCalledWith({
     pathname: "/(explorer)/business/[businessId]",
     params: {
       businessId: "42",
       profileSource: "EXPLORE_DISCOVERY",
+      previewQueryHash: '["explore-open-now",10.33,123.9]',
       distance: "0.65",
       distanceAccuracy: "15",
     },

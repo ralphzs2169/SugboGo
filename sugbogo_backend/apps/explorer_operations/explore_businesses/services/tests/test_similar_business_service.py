@@ -2,7 +2,9 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
@@ -27,6 +29,10 @@ from apps.business.services.discovery_score_service import (
 from apps.business.services.visibility_event_service import (
     VisibilityEventService,
 )
+from apps.explorer_operations.explore_businesses.serializers.explore_business_serializer import (
+    ExploreBusinessSerializer,
+)
+from ..discovery_feed_service import DiscoveryFeedService
 from ..recommendation_service import (
     RecommendationService,
 )
@@ -35,6 +41,7 @@ from ..similar_business_service import (
 )
 from ..taxonomy_similarity import (
     build_business_feature_map,
+    cosine_similarity,
 )
 from apps.users.models import User
 
@@ -462,7 +469,7 @@ class SimilarBusinessServiceTests(TestCase):
 
         RecommendationAlgorithmConfigurationService.get_current_configuration()
 
-        with self.assertNumQueries(7):
+        with self.assertNumQueries(9):
             result = SimilarBusinessService.list_similar_businesses(
                 self.current.BUSN_ID,
                 self.explorer,
@@ -471,3 +478,243 @@ class SimilarBusinessServiceTests(TestCase):
         self.assertEqual(len(result), 4)
         profile_visits.assert_not_called()
         recompute_scores.assert_not_called()
+
+    def _legacy_ranked_ids(
+        self,
+        configuration=None,
+    ):
+        """Keep the original full-catalogue scoring and sort as a regression oracle."""
+        current = SimilarBusinessService._business_queryset(self.explorer).get(
+            pk=self.current.pk,
+        )
+        if configuration is None:
+            configuration = (
+                RecommendationAlgorithmConfigurationService
+                .get_current_configuration()
+            )
+        features = build_business_feature_map(
+            current,
+            configuration,
+        )
+        ranked = []
+        candidates = SimilarBusinessService._business_queryset(self.explorer).exclude(
+            pk=current.pk,
+        )
+        for business in candidates:
+            similarity = cosine_similarity(
+                features,
+                build_business_feature_map(
+                    business,
+                    configuration,
+                ),
+            )
+            if similarity >= float(configuration.RAC_MODERATE_MATCH_THRESHOLD):
+                ranked.append((business, similarity))
+        ranked.sort(
+            key=lambda item: (
+                -item[1],
+                -item[0].similar_discovery_score,
+                item[0].pk,
+            ),
+        )
+        return [
+            business.pk
+            for business, _ in ranked[:4]
+        ]
+
+    def test_matches_original_rankings_across_weights_thresholds_and_tag_norms(self):
+        extra = SpecialtyTag.objects.create(TAG_NAME="Unmatched specialty")
+        inactive = SpecialtyTag.objects.create(TAG_NAME="Inactive current specialty")
+        self._add_tag(
+            self.current,
+            inactive,
+            is_active=False,
+        )
+        for index, category in enumerate([
+            self.category,
+            self.other_category,
+            self.unrelated_category,
+        ]):
+            for variant in range(4):
+                business = self._create_business(
+                    f"Equivalent {index} {variant}",
+                    category,
+                )
+                if variant in (1, 2):
+                    self._add_tag(business)
+                if variant == 2:
+                    self._add_tag(business, extra)
+                if variant == 3:
+                    self._add_tag(business, is_active=False)
+                    self._add_tag(business, inactive)
+                if variant != 0:
+                    if variant == 1:
+                        score = Decimal("0.00000")
+                    else:
+                        score = Decimal("0.90000")
+                    self._add_score(
+                        business,
+                        score,
+                    )
+        suspended = self._create_business(
+            "Suspended Equivalent",
+            self.category,
+            status_value=Business.BusinessStatus.SUSPENDED,
+        )
+        self._add_tag(suspended)
+        configuration = (
+            RecommendationAlgorithmConfigurationService
+            .get_current_configuration()
+        )
+        cases = [
+            ("1", "2", "3", "0.4"),
+            ("2", "1", "0.5", "0.4"),
+            ("1", "2", "3", "1"),
+            ("1", "2", "3", "0"),
+            ("0", "0", "0", "0.4"),
+        ]
+        for cluster, category, tag, threshold in cases:
+            with self.subTest(
+                weights=(cluster, category, tag),
+                threshold=threshold,
+            ):
+                configuration.RAC_CLUSTER_WEIGHT = Decimal(cluster)
+                configuration.RAC_CATEGORY_WEIGHT = Decimal(category)
+                configuration.RAC_SPECIALTY_TAG_WEIGHT = Decimal(tag)
+                configuration.RAC_MODERATE_MATCH_THRESHOLD = Decimal(threshold)
+                expected = self._legacy_ranked_ids(configuration)
+                with patch.object(
+                    RecommendationAlgorithmConfigurationService,
+                    "get_current_configuration",
+                    return_value=configuration,
+                ):
+                    actual = SimilarBusinessService.list_similar_businesses(
+                        self.current.pk,
+                        self.explorer,
+                    )
+                self.assertEqual(
+                    [business.pk for business in actual],
+                    expected,
+                )
+
+    def test_hydrates_only_winners_and_uses_batched_ranking_queries(self):
+        for index in range(10):
+            business = self._create_business(
+                f"Hydration Match {index}",
+                self.category,
+            )
+            self._add_tag(business)
+            self._add_score(
+                business,
+                Decimal(index) / Decimal(10),
+            )
+        for index in range(6):
+            self._create_business(
+                f"Disjoint Hydration {index}",
+                self.unrelated_category,
+            )
+        RecommendationAlgorithmConfigurationService.get_current_configuration()
+        original_from_db = Business.from_db
+        full_ids = []
+        lightweight_ids = []
+
+        def record_hydration(
+            database,
+            fields,
+            values,
+        ):
+            business_id = values[fields.index("BUSN_ID")]
+            if "BUSN_NAME" in fields:
+                full_ids.append(business_id)
+            else:
+                lightweight_ids.append(business_id)
+            return original_from_db(
+                database,
+                fields,
+                values,
+            )
+
+        with (
+            patch.object(Business, "from_db", side_effect=record_hydration),
+            CaptureQueriesContext(connection) as baseline_queries,
+        ):
+            expected = self._legacy_ranked_ids()
+        self.assertEqual(len(baseline_queries), 7)
+        self.assertEqual(len(full_ids), 17)
+        full_ids.clear()
+        lightweight_ids.clear()
+
+        with (
+            patch.object(Business, "from_db", side_effect=record_hydration),
+            CaptureQueriesContext(connection) as optimized_queries,
+        ):
+            actual = SimilarBusinessService.list_similar_businesses(
+                self.current.pk,
+                self.explorer,
+            )
+        self.assertEqual([business.pk for business in actual], expected)
+        self.assertEqual(len(optimized_queries), 9)
+        self.assertCountEqual(full_ids, expected)
+        self.assertEqual(len(lightweight_ids), 11)
+
+        with (
+            patch.object(
+                DiscoveryFeedService,
+                "list_global_hidden_gem_ids",
+                return_value=[],
+            ),
+            self.assertNumQueries(0),
+        ):
+            serialized = ExploreBusinessSerializer(actual, many=True).data
+        self.assertEqual(
+            [item["id"] for item in serialized],
+            expected,
+        )
+
+        with (
+            patch.object(SimilarBusinessService, "RANKING_CHUNK_SIZE", 2),
+            self.assertNumQueries(13),
+        ):
+            chunked = SimilarBusinessService.list_similar_businesses(
+                self.current.pk,
+                self.explorer,
+            )
+        self.assertEqual([business.pk for business in chunked], expected)
+
+    def test_cross_cluster_specialty_match_is_kept_but_inactive_overlap_is_not(self):
+        matching = self._create_business(
+            "Cross Cluster Match",
+            self.unrelated_category,
+        )
+        inactive = self._create_business(
+            "Inactive Cross Cluster Match",
+            self.unrelated_category,
+        )
+        self._add_tag(matching)
+        self._add_tag(inactive, is_active=False)
+        actual = SimilarBusinessService.list_similar_businesses(
+            self.current.pk,
+            self.explorer,
+        )
+        self.assertEqual(actual, [matching])
+
+    def test_zero_threshold_preserves_disjoint_candidates(self):
+        disjoint = self._create_business(
+            "Zero Threshold Disjoint",
+            self.unrelated_category,
+        )
+        configuration = (
+            RecommendationAlgorithmConfigurationService
+            .get_current_configuration()
+        )
+        configuration.RAC_MODERATE_MATCH_THRESHOLD = Decimal("0")
+        with patch.object(
+            RecommendationAlgorithmConfigurationService,
+            "get_current_configuration",
+            return_value=configuration,
+        ):
+            actual = SimilarBusinessService.list_similar_businesses(
+                self.current.pk,
+                self.explorer,
+            )
+        self.assertEqual(actual, [disjoint])

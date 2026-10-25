@@ -5,6 +5,7 @@ import Toast from "react-native-toast-message";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import useSimilarBusinesses from "../../../hooks/useSimilarBusinesses";
+import useUserLocation from "@/shared/hooks/useUserLocation";
 import type { ExploreBusiness } from "../../../types/exploreBusiness.types";
 import SimilarPlacesSection from "../SimilarPlacesSection";
 
@@ -30,14 +31,21 @@ const mockBusinessCard = jest.fn(
   },
 );
 
-jest.mock("../../../hooks/useSimilarBusinesses");
+jest.mock("../../../hooks/useSimilarBusinesses", () => ({
+  ...jest.requireActual("../../../hooks/useSimilarBusinesses"),
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock("@/shared/hooks/useUserLocation", () => ({
   __esModule: true,
-  default: () => ({
+  default: jest.fn(() => ({
     location: null,
-  }),
+  })),
 }));
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
   router: {
     push: jest.fn(),
   },
@@ -48,7 +56,7 @@ jest.mock("@/shared/utils/apiErrors", () => ({
 jest.mock("react-native-toast-message", () => ({
   show: jest.fn(),
 }));
-jest.mock("../../new-businesses/BusinessCard", () => ({
+jest.mock("@/features/pockets/components/PocketBusinessCard", () => ({
   __esModule: true,
   default: (props: unknown) => mockBusinessCard(props as never),
 }));
@@ -113,6 +121,7 @@ describe("Similar Places", () => {
 
     expect(screen.getByText("Similar Places")).toBeTruthy();
     expect(screen.getAllByTestId(/shared-business-card-/)).toHaveLength(4);
+    expect(useUserLocation).toHaveBeenCalledWith({ mode: "cached" });
     expect(mockBusinessCard).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -120,6 +129,28 @@ describe("Similar Places", () => {
         variant: "compact",
       }),
     );
+    await screen.unmount();
+  });
+
+  it("uses eligible cached coordinates only for kilometre distances", async () => {
+    jest.mocked(useUserLocation).mockReturnValueOnce({
+      location: { coords: { latitude: 10.3, longitude: 123.88, accuracy: 20 } },
+    } as never);
+    jest.mocked(useSimilarBusinesses).mockReturnValue({
+      businesses: [createBusiness(42)],
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    const screen = await render(<SimilarPlacesSection businessId={20} />);
+    const props = mockBusinessCard.mock.calls[0][0] as unknown as {
+      distance: number;
+      distanceAccuracy: number;
+    };
+    expect(props.distance).toBeGreaterThan(1);
+    expect(props.distance).toBeLessThan(2);
+    expect(props.distanceAccuracy).toBe(20);
+    expect(useSimilarBusinesses).toHaveBeenCalledWith(20);
     await screen.unmount();
   });
 
@@ -139,6 +170,7 @@ describe("Similar Places", () => {
       params: {
         businessId: "42",
         profileSource: "SIMILAR_BUSINESSES",
+        previewQueryHash: '["similar-businesses",20]',
         distance: "",
         distanceAccuracy: "",
       },

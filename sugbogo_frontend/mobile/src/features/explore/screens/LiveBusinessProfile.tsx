@@ -25,10 +25,8 @@ import type { ExploreBusinessDetail } from "../types/exploreBusiness.types";
 import useRoutePlanningIntent from "../hooks/useRoutePlanningIntent";
 import { ReviewDerivedDataSyncProvider } from "../hooks/ReviewDerivedDataSyncProvider";
 import type { BusinessReview } from "../types/review.types";
-import {
-  getBusinessHoursSummary,
-  getQuickInfoStatus,
-} from "../utils/businessHours.utils";
+import { getQuickInfoStatus } from "../utils/businessHours.utils";
+import useBusinessHours from "../hooks/useBusinessHours";
 
 export type BusinessProfileProps = {
   businessId: number;
@@ -36,6 +34,7 @@ export type BusinessProfileProps = {
   distanceAccuracy: number | null;
   previewAsExplorer?: boolean;
   profileSource?: DiscoverySource;
+  previewQueryHash?: string;
 };
 
 type LiveProps = BusinessProfileProps & { business: ExploreBusinessDetail };
@@ -73,12 +72,11 @@ export function LiveBusinessQuickInfo({
   distanceAccuracy,
 }: LiveProps) {
   const { totalCount } = useBusinessReviewPreview(business.id);
-  const status = getQuickInfoStatus(
-    getBusinessHoursSummary(business.operating_hours),
-  );
+  const hours = useBusinessHours(business.operating_hours);
+  const status = getQuickInfoStatus(hours);
   return (
     <BusinessProfileQuickInfo
-      reviewCount={totalCount}
+      reviewCount={totalCount ?? business.review_count}
       overallVibe={business.overall_vibe}
       statusLabel={status.statusLabel}
       statusDetail={status.statusDetail}
@@ -169,6 +167,7 @@ function LiveReviews({
           isOwnBusiness={business.is_own_business}
           displayAsExplorer={previewAsExplorer}
           hasOwnReview={business.has_own_review}
+          reviewCount={business.review_count}
           reviewInsights={business.review_insights}
           regeneration={business.review_insight_regeneration}
           onWriteReview={() => {

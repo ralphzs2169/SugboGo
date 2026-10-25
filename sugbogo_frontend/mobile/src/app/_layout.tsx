@@ -11,6 +11,7 @@ import { View } from "react-native";
 import { toastConfig } from "@/shared/components/ToastConfig";
 import { ActionSheetProvider } from "@expo/react-native-action-sheet";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { ParticleBurstHost } from "@/shared/components/ParticleBurst";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import {
   NunitoSans_400Regular,
@@ -172,6 +173,7 @@ export default function RootLayout() {
                     />
                   </Stack>
                 </PocketPickerProvider>
+                <ParticleBurstHost />
               </BottomSheetModalProvider>
 
               {/* Logout feedback survives authentication redirects. */}

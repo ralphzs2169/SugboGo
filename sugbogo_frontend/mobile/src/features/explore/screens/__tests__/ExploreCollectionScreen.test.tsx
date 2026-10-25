@@ -11,8 +11,12 @@ const mockOnViewableItemsChanged = jest.fn();
 let mockCollectionType = "hidden-gems";
 
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
   router: {
     back: jest.fn(),
+    canGoBack: () => true,
     push: (...args: unknown[]) => mockPush(...args),
   },
   useLocalSearchParams: () => ({ collectionType: mockCollectionType }),
@@ -120,7 +124,11 @@ jest.mock("../../components/new-businesses/BusinessCard", () => ({
     );
   },
 }));
-jest.mock("../../hooks/useExploreCollection");
+jest.mock("../../hooks/useExploreCollection", () => ({
+  ...jest.requireActual("../../hooks/useExploreCollection"),
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock("../../hooks/useExploreFilterOptions", () => () => ({
   options: {
     clusters: [{ id: 1, name: "Food", icon: "food" }],
@@ -210,6 +218,7 @@ describe("ExploreCollectionScreen", () => {
         params: expect.objectContaining({
           businessId: "42",
           profileSource: "COLLECTION",
+          previewQueryHash: '["explore-collections","hidden-gems",null,[],null]',
         }),
       }),
     );
