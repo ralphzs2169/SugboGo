@@ -203,6 +203,12 @@ export default function ProfileScreen() {
               icon="shield-lock-outline"
               onPress={() => router.push("/privacy-policy")}
             />
+
+            <ProfileMenuItem
+              title="Contact Support"
+              icon="headset"
+              onPress={() => router.push("/contact-support")}
+            />
           </ProfileMenuSection>
 
           {/* Session action */}
