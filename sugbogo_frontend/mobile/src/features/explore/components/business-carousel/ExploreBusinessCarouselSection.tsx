@@ -23,6 +23,7 @@ type Props = {
   userLocation: LocationObject | null;
   cardVariant?: "default" | "featured";
   availabilityLabel?: string;
+  hiddenGemsOnly?: boolean;
   headerContent?: ReactNode;
   sectionTestID: string;
   scrollTestID: string;
@@ -53,6 +54,7 @@ export default function ExploreBusinessCarousel({
   userLocation,
   cardVariant = "default",
   availabilityLabel,
+  hiddenGemsOnly = false,
   headerContent,
   sectionTestID,
   scrollTestID,
@@ -109,7 +111,7 @@ export default function ExploreBusinessCarousel({
         scrollEventThrottle={16}
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerClassName="gap-3 px-4"
+        contentContainerClassName={`gap-3 px-4 ${hiddenGemsOnly || businesses.some((business) => business.is_hidden_gem) ? "pt-3" : ""}`}
       >
         {businesses.map((business) => {
           const distance =
@@ -135,6 +137,7 @@ export default function ExploreBusinessCarousel({
                 distanceAccuracy={userLocation?.coords.accuracy ?? null}
                 variant={cardVariant}
                 availabilityLabel={availabilityLabel}
+                isHiddenGem={hiddenGemsOnly || business.is_hidden_gem === true}
                 onPress={() =>
                   onBusinessPress(
                     business.id,

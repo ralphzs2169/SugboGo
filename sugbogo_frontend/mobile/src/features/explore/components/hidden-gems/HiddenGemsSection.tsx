@@ -147,6 +147,7 @@ export default function HiddenGemsSection({
             spotlight ? "" : "Great local places that deserve more discovery."
           }
           businesses={remainingBusinesses}
+          hiddenGemsOnly
           impressions={impressions}
           userLocation={userLocation}
           cardVariant={spotlight ? "default" : "featured"}

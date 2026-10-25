@@ -46,11 +46,6 @@ jest.mock("../../hooks/useBusinessImpressions", () => () => ({
   onViewportLayout: jest.fn(),
   onVerticalScroll: jest.fn(),
 }));
-jest.mock("../../hooks/useMapPreviewBusinesses", () => ({
-  __esModule: true,
-  default: () => ({ businesses: [] }),
-  MAP_PREVIEW_QUERY_KEY: ["map-preview"],
-}));
 jest.mock("../../hooks/useDiscoveryFeed", () => ({
   __esModule: true,
   default: () => ({ businesses: [] }),
@@ -74,17 +69,18 @@ jest.mock(
   "../../components/discovery-shortcuts/DiscoveryShortcutsSection",
   () => () => null,
 );
-jest.mock("../../components/explore-map/ExploreMapSection", () => () => null);
 jest.mock("../../components/open-now/OpenNowBusinessesSection", () => {
   const { Text } = jest.requireActual("react-native");
   return function MockSection({
     userLocation,
     isUsingLastLocation,
     onBusinessPress,
+    onExploreMap,
   }: {
     userLocation: LocationObject | null;
     isUsingLastLocation: boolean;
     onBusinessPress: (id: number, distance: number, accuracy: number) => void;
+    onExploreMap: () => void;
   }) {
     return (
       <>
@@ -93,9 +89,16 @@ jest.mock("../../components/open-now/OpenNowBusinessesSection", () => {
         <Text onPress={() => onBusinessPress(42, 0.65, 15)}>
           Open nearby place
         </Text>
+        <Text onPress={onExploreMap}>Explore the map</Text>
       </>
     );
   };
+});
+
+it("opens the existing map from the empty-state action", async () => {
+  const screen = await render(<ExploreScreen />);
+  await fireEvent.press(screen.getByText("Explore the map"));
+  expect(mockPush).toHaveBeenCalledWith("/(explorer)/(tabs)/map");
 });
 
 it("waits for fresh coordinates before requesting nearby businesses", async () => {

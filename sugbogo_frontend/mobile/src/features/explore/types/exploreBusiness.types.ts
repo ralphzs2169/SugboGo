@@ -33,6 +33,7 @@ export type ExploreBusinessLocation = {
 };
 
 export type ExploreBusiness = {
+  is_hidden_gem?: boolean;
   id: number;
   business_name: string;
   cover_photo_url: string | null;
@@ -216,13 +217,6 @@ export type BusinessReviewInsights = {
   generated_at: string | null;
   sentiment_computed_at: string | null;
   updated_at: string | null;
-};
-
-export type ExploreMapPreviewBusiness = {
-  id: number;
-  cluster_icon: string;
-  latitude: number;
-  longitude: number;
 };
 
 export type ExploreMapBusiness = {

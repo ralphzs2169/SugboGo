@@ -63,8 +63,9 @@ hours, not holiday exceptions or live merchant presence.
 
 Requires an authenticated active Explorer or Merchant, matching the existing
 discovery feed. Only businesses eligible for that feed are returned: the business
-must be active; verification is not required. The existing `map-preview/` endpoint
-and Explore response contracts are unchanged.
+must be active; verification is not required. The Explore homepage map preview
+and its `map-preview/` endpoint have been retired; the map tab uses these dedicated
+map discovery endpoints.
 
 ## Request
 

@@ -4,7 +4,6 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
-import { MAP_PREVIEW_QUERY_KEY } from "@/features/explore/hooks/useMapPreviewBusinesses";
 import { ROAD_ROUTE_QUERY_KEY } from "@/features/explore/hooks/useRoadRoute";
 import { DIRECT_JOURNEYS_QUERY_KEY } from "@/features/explore/hooks/useDirectJourneys";
 import { DIRECT_JOURNEY_MAP_QUERY_KEY } from "@/features/explore/hooks/useDirectJourneyMap";
@@ -207,15 +206,12 @@ describe("merchant location change queries", () => {
     await waitFor(() =>
       expect(result.current.latestRequest?.status).toBe("approved"),
     );
-    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(6));
+    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(5));
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: merchantBusinessProfileKey(42),
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: exploreBusinessDetailKey(10),
-    });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: MAP_PREVIEW_QUERY_KEY,
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: [...ROAD_ROUTE_QUERY_KEY, 10],

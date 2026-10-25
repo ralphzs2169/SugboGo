@@ -29,11 +29,6 @@ jest.mock("../../hooks/useOpenNowBusinesses", () => () => ({
   businesses: [],
   refreshAtLocation: jest.fn(),
 }));
-jest.mock("../../hooks/useMapPreviewBusinesses", () => ({
-  __esModule: true,
-  default: () => ({ businesses: [] }),
-  MAP_PREVIEW_QUERY_KEY: ["map-preview"],
-}));
 jest.mock("../../hooks/useDiscoveryFeed", () => ({
   __esModule: true,
   default: () => ({
@@ -71,7 +66,6 @@ jest.mock(
   "../../components/discovery-shortcuts/DiscoveryShortcutsSection",
   () => () => null,
 );
-jest.mock("../../components/explore-map/ExploreMapSection", () => () => null);
 
 it("opens the reusable screen from the homepage collection actions", async () => {
   const screen = await render(<ExploreScreen />);

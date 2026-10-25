@@ -109,10 +109,10 @@ class OpenNowBusinessesViewTests(
 
     def test_serialization_query_count_does_not_grow_with_preview_size(self):
         self.create_open_business()
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(3):
             self.client.get(self.url, self.params)
 
         for _ in range(5):
             self.create_open_business()
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(3):
             self.client.get(self.url, self.params)

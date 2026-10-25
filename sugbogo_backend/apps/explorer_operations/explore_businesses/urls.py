@@ -20,9 +20,6 @@ from apps.explorer_operations.explore_businesses.views.discovery_feed_views impo
 from apps.explorer_operations.explore_businesses.views.explore_collection_views import (
     ExploreCollectionView,
 )
-from apps.explorer_operations.explore_businesses.views.explore_map_preview_views import (
-    ExploreMapPreviewView,
-)
 from apps.explorer_operations.explore_businesses.views.explore_specialty_tag_views import (
     ExploreSpecialtyView,
 )
@@ -154,7 +151,6 @@ urlpatterns = [
     path("recommendations/", RecommendationView.as_view(), name="recommendations", ),
     path("discovery-shortcuts/", ClusterDiscoveryShortcutView.as_view(), name="discovery-shortcuts", ),
 
-    path("map-preview/",ExploreMapPreviewView.as_view(),name="explore-map-preview"),
     path(
         "map/businesses/",
         MapDirectoryView.as_view(),

@@ -22,16 +22,12 @@ import OpenNowBusinessesSection from "../components/open-now/OpenNowBusinessesSe
 import useOpenNowBusinesses from "../hooks/useOpenNowBusinesses";
 import { OPEN_NOW_BUSINESSES_QUERY_KEY } from "../constants/exploreHomepageQueries";
 import useBusinessImpressions from "../hooks/useBusinessImpressions";
-import useMapPreviewBusinesses, {
-  MAP_PREVIEW_QUERY_KEY,
-} from "../hooks/useMapPreviewBusinesses";
 import useDiscoveryFeed, {
   DISCOVERY_FEED_QUERY_KEY,
 } from "../hooks/useDiscoveryFeed";
 
 import { RECOMMENDATIONS_QUERY_KEY } from "../hooks/useRecommendations";
 import DiscoveryShortcutsSection from "../components/discovery-shortcuts/DiscoveryShortcutsSection";
-import ExploreMapSection from "../components/explore-map/ExploreMapSection";
 import { EXPLORE_SPECIALTIES_QUERY_KEY } from "../hooks/useExploreSpecialties";
 import { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../hooks/useDiscoveryShortcuts";
 import useUserLocation from "@/shared/hooks/useUserLocation";
@@ -50,16 +46,17 @@ export default function ExploreScreen() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshInProgress = useRef(false);
-  const [openNowLocation, setOpenNowLocation] =
-    useState<LocationObject | null>(null);
+  const [openNowLocation, setOpenNowLocation] = useState<LocationObject | null>(
+    null,
+  );
   const [isUsingLastLocation, setIsUsingLastLocation] = useState(false);
 
   const bottomSpacing = useTabBarSpacing();
 
-  const discoveryImpressions = useBusinessImpressions(bottomSpacing);
-  const spotlightImpressions = useBusinessImpressions(bottomSpacing);
-  const newBusinessImpressions = useBusinessImpressions(bottomSpacing);
-  const recommendationImpressions = useBusinessImpressions(bottomSpacing);
+  const discoveryImpressions = useBusinessImpressions(bottomSpacing, 0);
+  const spotlightImpressions = useBusinessImpressions(bottomSpacing, 0);
+  const newBusinessImpressions = useBusinessImpressions(bottomSpacing, 0);
+  const recommendationImpressions = useBusinessImpressions(bottomSpacing, 0);
   const openNowImpressions = useBusinessImpressions(bottomSpacing);
 
   const {
@@ -68,6 +65,7 @@ export default function ExploreScreen() {
     isRefreshingLocation,
     refreshLocation,
   } = useUserLocation();
+  const nearbyLocation = openNowLocation;
 
   useEffect(() => {
     if (userLocation !== null && !refreshInProgress.current) {
@@ -76,13 +74,8 @@ export default function ExploreScreen() {
   }, [userLocation]);
 
   const openNow = useOpenNowBusinesses(
-    openNowLocation,
+    nearbyLocation,
     !isRefreshing && !isRefreshingLocation,
-  );
-
-  const mapPreview = useMapPreviewBusinesses(
-    userLocation?.coords.latitude ?? null,
-    userLocation?.coords.longitude ?? null,
   );
 
   const discoveryFeed = useDiscoveryFeed();
@@ -129,9 +122,6 @@ export default function ExploreScreen() {
         }),
         queryClient.refetchQueries({
           queryKey: DISCOVERY_SHORTCUTS_QUERY_KEY,
-        }),
-        queryClient.refetchQueries({
-          queryKey: MAP_PREVIEW_QUERY_KEY,
         }),
       ]);
     } finally {
@@ -235,7 +225,7 @@ export default function ExploreScreen() {
         {/* Nearby businesses open according to their listed hours */}
         <OpenNowBusinessesSection
           feed={openNow}
-          userLocation={openNowLocation}
+          userLocation={nearbyLocation}
           isLocating={locationStatus === "loading" && openNowLocation === null}
           isUsingLastLocation={isUsingLastLocation}
           impressions={openNowImpressions}
@@ -270,19 +260,6 @@ export default function ExploreScreen() {
           onShortcutPress={(clusterId) =>
             navigateToExploreResults({ clusterId })
           }
-        />
-
-        {/* Map discovery preview */}
-        <ExploreMapSection
-          businesses={mapPreview.businesses}
-          isLoading={mapPreview.isLoading}
-          isPaused={mapPreview.isPaused}
-          error={mapPreview.error}
-          refetch={mapPreview.refetch}
-          userLocation={userLocation}
-          onOpenMap={() => {
-            router.push("/(explorer)/(tabs)/map");
-          }}
         />
       </ScrollView>
     </View>

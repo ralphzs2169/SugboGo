@@ -118,7 +118,7 @@ JOURNEY_ORIGIN_SEARCH_AREA = {
     },
 }
 
-# Bound marker payloads and spatial scans without changing the map-preview API.
+# Bound marker payloads and spatial scans for map discovery.
 MAP_DISCOVERY_MAX_MARKERS = int(
     os.getenv("MAP_DISCOVERY_MAX_MARKERS", "200"),
 )

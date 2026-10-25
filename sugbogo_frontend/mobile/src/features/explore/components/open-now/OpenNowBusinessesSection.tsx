@@ -3,6 +3,7 @@ import { View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
+import InfoBanner from "@/shared/components/InfoBanner";
 import SafePressable from "@/shared/components/SafePressable";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
@@ -11,6 +12,7 @@ import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpre
 import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
 import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
 import ExploreSectionHeader from "../ExploreSectionHeader";
+import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 
 type Props = {
   feed: ReturnType<typeof useOpenNowBusinesses>;
@@ -31,7 +33,7 @@ const SUBTITLE = "Discover places open within 3 km, based on listed hours.";
 /**
  * Presents up to six nearby open places using Explore's existing carousel.
  *
- * Hides successful empty results and explains retained location or availability
+ * Explains empty results and retained location or availability
  * after refresh failures while preserving retry access.
  */
 export default function OpenNowBusinessesSection({
@@ -54,18 +56,24 @@ export default function OpenNowBusinessesSection({
     fallbackMessage: "Please try again.",
   });
 
-  if (!showLoading && (userLocation === null || (!hasContent && !hasError))) {
+  if (!showLoading && userLocation === null) {
     return null;
   }
 
   const locationNotice =
     isUsingLastLocation && userLocation !== null ? (
-      <AppText
-        accessibilityLiveRegion="polite"
-        className="mb-3 px-4 text-sm text-text-secondary"
-      >
-        Couldn’t update your location. Showing places near your last location.
-      </AppText>
+      <View className="mb-3 px-4" accessibilityLiveRegion="polite">
+        <InfoBanner
+          title="Using your last known location"
+          icon="map-marker-outline"
+          variant="info"
+        >
+          <AppText className="text-sm leading-5 text-text-secondary">
+            Couldn’t update your location. Showing places near your last
+            location.
+          </AppText>
+        </InfoBanner>
+      </View>
     ) : null;
 
   if (showLoading || !hasContent) {
@@ -75,10 +83,10 @@ export default function OpenNowBusinessesSection({
         <ExploreSectionHeader title={TITLE} subtitle={SUBTITLE} />
         {locationNotice}
 
-        {/* Initial loading and localized recovery */}
+        {/* Initial loading, request recovery, and empty availability */}
         {showLoading ? (
           <ExploreBusinessCarouselSkeleton variant="default" />
-        ) : (
+        ) : hasError ? (
           <ErrorState
             title="Unable to load nearby open places"
             description="We couldn't check which places are open nearby."
@@ -86,6 +94,12 @@ export default function OpenNowBusinessesSection({
             onPrimaryAction={() => void feed.refetch()}
             size="section"
             icon="store-off-outline"
+          />
+        ) : (
+          <ExploreSectionEmptyState
+            title="No places listed as open nearby"
+            description="Check back later for places listed as open within 3 km."
+            icon="clock-outline"
           />
         )}
       </View>
@@ -111,19 +125,31 @@ export default function OpenNowBusinessesSection({
           {locationNotice}
           {hasError && (
             <View className="mb-3 px-4">
-              <AppText className="text-sm text-text-secondary">
-                Couldn’t refresh opening hours. Availability may have changed.
-              </AppText>
-              <SafePressable
-                accessibilityRole="button"
-                accessibilityLabel="Retry nearby open places"
-                disabled={feed.isFetching}
-                accessibilityState={{ disabled: feed.isFetching }}
-                onPress={() => void feed.refetch()}
-                className="min-h-12 cursor-pointer justify-center py-3 active:opacity-80"
+              <InfoBanner
+                title={
+                  feed.isPaused
+                    ? "You’re offline"
+                    : "Couldn’t update availability"
+                }
+                variant="info"
               >
-                <AppText className="text-sm text-brand">Retry</AppText>
-              </SafePressable>
+                <AppText className="text-sm leading-5 text-text-secondary">
+                  Showing previously loaded places. Opening status may have
+                  changed.
+                </AppText>
+                <SafePressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry nearby open places"
+                  disabled={feed.isFetching}
+                  accessibilityState={{ disabled: feed.isFetching }}
+                  onPress={() => void feed.refetch()}
+                  className="min-h-12 cursor-pointer justify-center self-start py-3 active:opacity-80"
+                >
+                  <AppText weight="semibold" className="text-sm text-text-info">
+                    Retry
+                  </AppText>
+                </SafePressable>
+              </InfoBanner>
             </View>
           )}
         </>

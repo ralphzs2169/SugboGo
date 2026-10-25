@@ -73,15 +73,34 @@ const props = {
   isUsingLastLocation: false,
   impressions: {} as never,
   onBusinessPress: jest.fn(),
+  onExploreMap: jest.fn(),
 };
 
-it("hides successful empty results and unavailable location", async () => {
+it("shows a compact empty state with a working map action", async () => {
   const screen = await render(<OpenNowBusinessesSection {...props} />);
-  expect(screen.toJSON()).toBeNull();
-  await screen.rerender(
+  expect(screen.getByText("No places listed as open nearby")).toBeTruthy();
+  expect(screen.queryByText("Retry")).toBeNull();
+  await fireEvent.press(screen.getByText("Explore the map"));
+  expect(props.onExploreMap).toHaveBeenCalledTimes(1);
+});
+
+it("hides the section when location is unavailable", async () => {
+  const screen = await render(
     <OpenNowBusinessesSection {...props} userLocation={null} />,
   );
   expect(screen.toJSON()).toBeNull();
+});
+
+it("replaces the initial skeleton with the empty state when no places match", async () => {
+  const screen = await render(
+    <OpenNowBusinessesSection {...props} feed={{ ...feed, isLoading: true }} />,
+  );
+  expect(screen.getByText("Loading nearby places")).toBeTruthy();
+  await screen.rerender(
+    <OpenNowBusinessesSection {...props} />,
+  );
+  expect(screen.queryByText("Loading nearby places")).toBeNull();
+  expect(screen.getByText("No places listed as open nearby")).toBeTruthy();
 });
 
 it("shows loading while resolving an initial location", async () => {
@@ -99,6 +118,7 @@ it.each([{ error: new Error("Offline") }, { isPaused: true }])(
     );
     await fireEvent.press(screen.getByText("Retry"));
     expect(refetch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("No places listed as open nearby")).toBeNull();
   },
 );
 

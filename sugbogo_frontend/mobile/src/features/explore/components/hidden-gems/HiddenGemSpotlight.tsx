@@ -7,6 +7,7 @@ import { StyleSheet, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import HiddenGemBadge from "@/shared/components/HiddenGemBadge";
 import SafePressable from "@/shared/components/SafePressable";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
@@ -147,8 +148,8 @@ export default function HiddenGemSpotlight({
                 </View>
               </View>
             </View>
-            {/* Classification uses the regular business card metadata background. */}
-            <View className="absolute right-3 top-3 max-w-[85%] flex-row items-center gap-1.5 rounded-full bg-black/65 px-2.5 py-2">
+            {/* Leave room for the gem badge at the opposite photo corner. */}
+            <View className="absolute right-3 top-3 max-w-[70%] flex-row items-center gap-1.5 rounded-full bg-black/65 px-2.5 py-2">
               <MaterialCommunityIcons
                 name={CLUSTER_ICONS[business.cluster.icon] ?? "store"}
                 size={13}
@@ -165,6 +166,7 @@ export default function HiddenGemSpotlight({
               </AppText>
             </View>
           </SafePressable>
+          <HiddenGemBadge />
         </View>
       </View>
     </View>

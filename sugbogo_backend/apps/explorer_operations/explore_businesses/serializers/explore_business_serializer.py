@@ -102,6 +102,8 @@ class ExploreLocationSerializer(serializers.Serializer):
 class ExploreBusinessSerializer(serializers.ModelSerializer):
     """Serializes the public business information used by Explorer."""
 
+    is_hidden_gem = serializers.SerializerMethodField()
+
     id = serializers.IntegerField(
         source="BUSN_ID",
         read_only=True,
@@ -148,6 +150,23 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
         """Returns the total currently published reviews for the business."""
         return instance.published_review_count
 
+    def get_is_hidden_gem(
+        self,
+        instance,
+    ):
+        """Reuse global map gem membership with one bounded lookup per response."""
+        from apps.explorer_operations.explore_businesses.services.discovery_feed_service import (
+            DiscoveryFeedService,
+        )
+
+        # DRF reuses this child serializer across list items; never query per card.
+        if not hasattr(self, "_hidden_gem_ids"):
+            self._hidden_gem_ids = set(
+                DiscoveryFeedService.list_global_hidden_gem_ids(),
+            )
+
+        return instance.BUSN_ID in self._hidden_gem_ids
+
     @staticmethod
     def get_overall_vibe(instance):
         """Returns the derived overall vibe when the summary has enough data."""
@@ -158,6 +177,7 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
         model = Business
         fields = (
             "id",
+            "is_hidden_gem",
             "business_name",
             "cover_photo_url",
             "display_cover_photo_url",

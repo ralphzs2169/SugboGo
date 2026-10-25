@@ -9,6 +9,7 @@ import useNewBusinesses from "../../hooks/useNewBusinesses";
 import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
 import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
 import ExploreSectionHeader from "../ExploreSectionHeader";
+import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 
 type Props = {
   impressions: BusinessImpressionObservation;
@@ -85,7 +86,20 @@ export default function NewBusinessesSection({
   }
 
   if (businesses.length === 0) {
-    return null;
+    return (
+      <View className="py-6" testID="new-businesses-empty">
+        {/* Section identity stays visible after loading completes. */}
+        <ExploreSectionHeader
+          title="New to SugboGo"
+          subtitle="Recently added places waiting to be discovered."
+        />
+        <ExploreSectionEmptyState
+          title="No new places yet"
+          description="Check back soon for the latest additions to SugboGo."
+          icon="storefront-outline"
+        />
+      </View>
+    );
   }
 
   return (

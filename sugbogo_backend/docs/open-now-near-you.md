@@ -31,8 +31,9 @@ recomputation during this endpoint's request.
 
 Explore displays the existing carousel after Hidden Gems without a See all
 action. Cards open the existing business profile and use the existing impression
-tracking and save interactions. Successful empty results and unavailable initial
-locations hide the section. Loading and request recovery remain separate states.
+tracking and save interactions. Successful empty results show a compact message
+and an Explore the map action. Unavailable initial locations hide the section.
+Loading and request recovery remain separate states.
 
 Pull-to-refresh waits for device location resolution before requesting this
 preview with the returned coordinates. A failed location refresh retains the

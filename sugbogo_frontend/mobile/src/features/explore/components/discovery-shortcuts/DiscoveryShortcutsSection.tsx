@@ -88,15 +88,21 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
 
       {/* Discovery shortcuts */}
       {!showLoading && hasContent && (
-        <View className="gap-3 px-4">
-          {shortcuts.map((shortcut) => (
+        <View className="mx-4 border-y border-border-primary">
+          {shortcuts.map((shortcut, index) => (
             <SafePressable
               key={shortcut.id}
               onPress={() => onShortcutPress?.(shortcut.cluster.id)}
               disabled={!onShortcutPress}
               accessibilityRole={onShortcutPress ? "button" : undefined}
               accessibilityLabel={onShortcutPress ? shortcut.title : undefined}
-              className="cursor-pointer flex-row items-center rounded-card border border-border-primary bg-surface px-4 py-3.5 active:opacity-80"
+              accessibilityHint={
+                onShortcutPress
+                  ? `Browse ${shortcut.business_count} ${shortcut.business_count === 1 ? "place" : "places"} in ${shortcut.cluster.name}`
+                  : undefined
+              }
+              accessibilityState={{ disabled: !onShortcutPress }}
+              className={`min-h-20 cursor-pointer flex-row items-center bg-surface py-4 active:bg-background ${index > 0 ? "border-t border-border-primary" : ""}`}
               android_ripple={{
                 color: "rgba(0,0,0,0.04)",
               }}
@@ -107,6 +113,8 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
                   name={CLUSTER_ICONS[shortcut.cluster.icon] ?? "store"}
                   size={22}
                   color={theme.extends.colors.brand}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
                 />
               </View>
 
@@ -115,16 +123,24 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
                 <AppText
                   weight="semibold"
                   className="text-[15px] text-text-primary"
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
                   {shortcut.title}
                 </AppText>
 
-                <AppText
-                  className="mt-0.5 text-xs leading-5 text-text-secondary"
-                  numberOfLines={1}
-                >
-                  {shortcut.subtitle}
+                {shortcut.subtitle.trim() !== "" && (
+                  <AppText
+                    className="mt-1 text-sm leading-5 text-text-secondary"
+                    numberOfLines={2}
+                  >
+                    {shortcut.subtitle}
+                  </AppText>
+                )}
+
+                <AppText className="mt-1.5 text-xs leading-4 text-text-secondary">
+                  {shortcut.business_count}{" "}
+                  {shortcut.business_count === 1 ? "place" : "places"} to
+                  explore
                 </AppText>
               </View>
 
@@ -133,6 +149,9 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
                 name="chevron-right"
                 size={21}
                 color={theme.extends.colors.text.tertiary}
+                style={{ marginLeft: 12 }}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
               />
             </SafePressable>
           ))}

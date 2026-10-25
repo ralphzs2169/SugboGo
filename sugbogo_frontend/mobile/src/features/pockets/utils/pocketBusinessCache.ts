@@ -4,7 +4,6 @@ import { OPEN_NOW_BUSINESSES_QUERY_KEY } from "@/features/explore/constants/expl
 import { DISCOVERY_FEED_QUERY_KEY } from "@/features/explore/hooks/useDiscoveryFeed";
 import { DISCOVERY_RESULTS_QUERY_KEY } from "@/features/explore/hooks/useDiscoveryResults";
 import { EXPLORE_COLLECTIONS_QUERY_KEY } from "@/features/explore/hooks/useExploreCollection";
-import { MAP_PREVIEW_QUERY_KEY } from "@/features/explore/hooks/useMapPreviewBusinesses";
 import { RECOMMENDATIONS_QUERY_KEY } from "@/features/explore/hooks/useRecommendations";
 import { SIMILAR_BUSINESSES_QUERY_KEY } from "@/features/explore/hooks/useSimilarBusinesses";
 import type {
@@ -25,7 +24,6 @@ const prefixes = [
   DISCOVERY_FEED_QUERY_KEY,
   DISCOVERY_RESULTS_QUERY_KEY,
   EXPLORE_COLLECTIONS_QUERY_KEY,
-  MAP_PREVIEW_QUERY_KEY,
   RECOMMENDATIONS_QUERY_KEY,
   SIMILAR_BUSINESSES_QUERY_KEY,
 ];

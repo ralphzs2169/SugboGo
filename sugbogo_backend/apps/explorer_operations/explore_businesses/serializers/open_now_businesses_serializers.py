@@ -2,10 +2,10 @@ from math import isfinite
 
 from rest_framework import serializers
 
-from .business_map_serializers import ExploreMapPreviewQuerySerializer
+from .business_map_serializers import ExploreCoordinatesQuerySerializer
 
 
-class OpenNowBusinessesQuerySerializer(ExploreMapPreviewQuerySerializer):
+class OpenNowBusinessesQuerySerializer(ExploreCoordinatesQuerySerializer):
     """Validate finite device coordinates for the nearby open-business preview."""
 
     def validate(

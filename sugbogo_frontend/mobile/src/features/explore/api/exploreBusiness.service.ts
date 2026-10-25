@@ -11,7 +11,6 @@ import type {
   DiscoveryShortcut,
   ExploreSpecialty,
   RecommendationBusinessListResponse,
-  ExploreMapPreviewBusiness,
   ExploreFilterOptions,
   ExploreResultsCriteria,
   ExploreCollectionCriteria,
@@ -242,19 +241,5 @@ export async function recordBusinessProfileVisit(
   }
   return request(
     apiClient.post(`/explorer/explore/businesses/${businessId}/profile-visit/`),
-  );
-}
-
-export async function getMapPreviewBusinesses(
-  latitude: number,
-  longitude: number,
-): Promise<ApiResponse<ExploreMapPreviewBusiness[]>> {
-  return request(
-    apiClient.get("/explorer/explore/map-preview/", {
-      params: {
-        latitude,
-        longitude,
-      },
-    }),
   );
 }
