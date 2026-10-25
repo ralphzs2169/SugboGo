@@ -930,6 +930,7 @@ class DiscoveryFeedTests(TestCase):
         """Word-aware similarity recovers typos inside longer business names."""
 
         examples = (
+            ("advventre", "Cebu Adventure Outdoor Center"),
             ("cofee", "Cebu Coffee Collective"),
             ("barbrshop", "Neighborhood Barbershop Studio"),
             ("restarant", "Family Restaurant Kitchen"),
@@ -951,6 +952,89 @@ class DiscoveryFeedTests(TestCase):
                 self.assertEqual(
                     self._response_ids(response),
                     [business.BUSN_ID],
+                )
+
+    def test_long_typo_tolerance_applies_to_names_but_not_taxonomy_labels(self):
+        """A long name typo cannot expand through weaker category or specialty matches."""
+
+        intended = self._create_business(
+            "Adventure",
+        )
+        category = Category.objects.create(
+            CTGRY_NAME="Adventure",
+            CLUS_ID=self.cluster,
+        )
+        self._create_business(
+            "Outdoor Activities",
+            category=category,
+        )
+        specialty_business = self._create_business(
+            "Coastal Activities",
+        )
+        tag = SpecialtyTag.objects.create(
+            TAG_NAME="Adventure",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=specialty_business,
+            TAG_ID=tag,
+        )
+
+        response = self.client.get(
+            self.url,
+            {"search": "advventre"},
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            self._response_ids(response),
+            [intended.BUSN_ID],
+        )
+
+    def test_fuzzy_names_reject_short_common_words_and_unrelated_near_matches(self):
+        """Long-query tolerance and word boundaries still exclude weak name matches."""
+
+        for name in (
+            "Cebu",
+            "Coffin",
+            "Advantage",
+            "Advertising",
+            "Venture",
+            "Dental Clinic",
+            "Hardware Shop",
+            "Restoration",
+            "Leisure",
+            "Car Rental",
+        ):
+            self._create_business(
+                name,
+            )
+
+        for query in (
+            "cebuanoo",
+            "cofee",
+            "advventre",
+            "barbrshop",
+            "restarant",
+            "lechonn",
+            "carinderiaa",
+            "zzzzzz",
+        ):
+            with self.subTest(query=query):
+                response = self.client.get(
+                    self.url,
+                    {"search": query},
+                )
+
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_200_OK,
+                )
+                self.assertEqual(
+                    self._response_ids(response),
+                    [],
                 )
 
     def test_short_queries_do_not_attempt_fuzzy_fallback(self):

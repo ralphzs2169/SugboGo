@@ -20,6 +20,7 @@ from django.db.models import (
     Case,
     DecimalField,
     Exists,
+    F,
     IntegerField,
     OuterRef,
     Prefetch,
@@ -40,6 +41,8 @@ class DiscoveryFeedService:
     FUZZY_MIN_QUERY_LENGTH = 4
     FUZZY_SHORT_QUERY_THRESHOLD = 0.55
     FUZZY_QUERY_THRESHOLD = 0.50
+    FUZZY_LONG_NAME_QUERY_LENGTH = 8
+    FUZZY_LONG_NAME_QUERY_THRESHOLD = 0.42
     DISCOVERY_ORDERING = (
         "-discovery_rank_score",
         "-BUSN_CREATED_AT",
@@ -127,10 +130,17 @@ class DiscoveryFeedService:
     ):
         """Match names and active taxonomy labels only after normal search misses."""
 
-        threshold = DiscoveryFeedService.FUZZY_QUERY_THRESHOLD
+        taxonomy_threshold = DiscoveryFeedService.FUZZY_QUERY_THRESHOLD
 
         if len(search) == DiscoveryFeedService.FUZZY_MIN_QUERY_LENGTH:
-            threshold = DiscoveryFeedService.FUZZY_SHORT_QUERY_THRESHOLD
+            taxonomy_threshold = DiscoveryFeedService.FUZZY_SHORT_QUERY_THRESHOLD
+
+        name_threshold = taxonomy_threshold
+
+        # Longer misspellings can lose several trigrams; retain word boundaries
+        # and stricter taxonomy thresholds to avoid broad category expansion.
+        if len(search) >= DiscoveryFeedService.FUZZY_LONG_NAME_QUERY_LENGTH:
+            name_threshold = DiscoveryFeedService.FUZZY_LONG_NAME_QUERY_THRESHOLD
 
         # Select one strongest active label rather than multiplying business rows.
         specialty_similarity = (
@@ -154,11 +164,7 @@ class DiscoveryFeedService:
         )
 
         return queryset.annotate(
-            search_similarity=Greatest(
-                TrigramStrictWordSimilarity(
-                    search,
-                    "BUSN_NAME",
-                ),
+            taxonomy_similarity=Greatest(
                 TrigramStrictWordSimilarity(
                     search,
                     "CTGRY_ID__CTGRY_NAME",
@@ -170,8 +176,23 @@ class DiscoveryFeedService:
                     Value(0.0),
                 ),
             ),
+        ).annotate(
+            search_similarity=Greatest(
+                TrigramStrictWordSimilarity(
+                    search,
+                    "BUSN_NAME",
+                ),
+                # An unqualified taxonomy label must not boost name confidence.
+                Case(
+                    When(
+                        taxonomy_similarity__gte=taxonomy_threshold,
+                        then=F("taxonomy_similarity"),
+                    ),
+                    default=Value(0.0),
+                ),
+            ),
         ).filter(
-            search_similarity__gte=threshold,
+            search_similarity__gte=name_threshold,
         )
 
     @staticmethod
