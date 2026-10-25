@@ -25,10 +25,8 @@ import type { ExploreBusinessDetail } from "../types/exploreBusiness.types";
 import useRoutePlanningIntent from "../hooks/useRoutePlanningIntent";
 import { ReviewDerivedDataSyncProvider } from "../hooks/ReviewDerivedDataSyncProvider";
 import type { BusinessReview } from "../types/review.types";
-import {
-  getBusinessHoursSummary,
-  getQuickInfoStatus,
-} from "../utils/businessHours.utils";
+import { getQuickInfoStatus } from "../utils/businessHours.utils";
+import useBusinessHours from "../hooks/useBusinessHours";
 
 export type BusinessProfileProps = {
   businessId: number;
@@ -73,9 +71,8 @@ export function LiveBusinessQuickInfo({
   distanceAccuracy,
 }: LiveProps) {
   const { totalCount } = useBusinessReviewPreview(business.id);
-  const status = getQuickInfoStatus(
-    getBusinessHoursSummary(business.operating_hours),
-  );
+  const hours = useBusinessHours(business.operating_hours);
+  const status = getQuickInfoStatus(hours);
   return (
     <BusinessProfileQuickInfo
       reviewCount={totalCount}

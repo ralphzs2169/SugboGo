@@ -8,15 +8,8 @@ jest.mock("@/shared/hooks/useUserLocation");
 jest.mock("../BusinessVisitMapPreview", () => () => null);
 jest.mock("../../../hooks/useDirectJourneys");
 jest.mock("expo-router", () => ({
+  useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
-}));
-
-jest.mock("../../../utils/businessHours.utils", () => ({
-  getBusinessHoursSummary: () => ({
-    isOpen: true,
-    label: "Open now · Until 8 PM",
-  }),
-  formatTime: (value: string) => value,
 }));
 jest.mock("../../../assets/getting-there-icons/jeep-route-option.svg", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -84,6 +77,14 @@ describe("BusinessVisitInfoContent", () => {
     expect(screen.queryByLabelText("View road route")).toBeNull();
     expect(screen.queryByLabelText("Open jeepney guide")).toBeNull();
     expect(screen.queryByLabelText("Choose a ride provider")).toBeNull();
+  });
+
+  it("shows missing hours without claiming the business is closed", async () => {
+    const screen = await render(<BusinessVisitInfoContent {...defaultProps} />);
+
+    expect(screen.getByText("Hours unavailable")).toBeTruthy();
+    expect(screen.queryByText("Closed")).toBeNull();
+    expect(screen.queryByText("Open")).toBeNull();
   });
 
   it("places access context after location and before the three transport options", async () => {

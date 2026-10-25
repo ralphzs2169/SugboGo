@@ -13,10 +13,8 @@ import type {
   ExploreBusinessLocation,
   ExploreOperatingHours,
 } from "../../types/exploreBusiness.types";
-import {
-  formatTime,
-  getBusinessHoursSummary,
-} from "../../utils/businessHours.utils";
+import { formatTime } from "../../utils/businessHours.utils";
+import useBusinessHours from "../../hooks/useBusinessHours";
 import { getBusinessAddressDisplay } from "../../utils/businessLocation.utils";
 import BusinessVisitMapPreview from "./BusinessVisitMapPreview";
 import MerchantAccessDirections from "../getting-there/MerchantAccessDirections";
@@ -59,7 +57,8 @@ export default function BusinessVisitInfoContent({
   readOnly = false,
   transportActions,
 }: Props) {
-  const summary = readOnly ? null : getBusinessHoursSummary(operatingHours);
+  const hours = useBusinessHours(operatingHours, !readOnly);
+  const summary = readOnly ? null : hours;
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [rotation] = useState(() => new Animated.Value(0));
@@ -68,11 +67,7 @@ export default function BusinessVisitInfoContent({
     ? getBusinessAddressDisplay(location)
     : { addressLine: "", cityLine: "" };
 
-  const currentDay = new Date()
-    .toLocaleDateString("en-US", {
-      weekday: "long",
-    })
-    .toLowerCase();
+  const currentDay = hours.currentDay;
 
   const toggleHours = () => {
     const nextExpanded = !isExpanded;
@@ -193,7 +188,11 @@ export default function BusinessVisitInfoContent({
           />
 
           <View className="ml-3 flex-1 flex-row flex-wrap items-center">
-            {summary ? (
+            {summary?.status === "unavailable" ? (
+              <AppText weight="medium" className="text-sm text-text-secondary">
+                Hours unavailable
+              </AppText>
+            ) : summary ? (
               <>
                 <AppText
                   weight="semibold"
