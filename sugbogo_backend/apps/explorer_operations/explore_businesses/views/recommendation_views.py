@@ -23,8 +23,13 @@ class RecommendationView(APIView):
         ),
     )
 
-    def get(self, request):
-        result = RecommendationService.get_recommendation_result(
+    def get(
+        self,
+        request,
+    ):
+        """Paginate the complete ranking before hydrating response businesses."""
+
+        result = RecommendationService.get_recommendation_ranking(
             request.user,
         )
         paginator = StandardPagination()
@@ -32,8 +37,13 @@ class RecommendationView(APIView):
             result.businesses,
             request,
         )
+        businesses = RecommendationService.hydrate_recommendations(
+            user=request.user,
+            businesses=page,
+            ranking=result,
+        )
         serializer = RecommendationBusinessSerializer(
-            page,
+            businesses,
             many=True,
         )
 

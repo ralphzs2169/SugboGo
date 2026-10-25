@@ -62,10 +62,12 @@ class ExploreCollectionView(APIView):
             )
             serializer_class = ExploreBusinessSerializer
         elif collection_type == self.INTERESTS:
-            businesses = RecommendationService.list_recommendation_collection(
+            ranking = RecommendationService.get_recommendation_ranking(
                 user=request.user,
+                allow_discovery_fallback=False,
                 **filters,
             )
+            businesses = ranking.businesses
             serializer_class = RecommendationBusinessSerializer
         elif collection_type == self.NEW_BUSINESSES:
             businesses = NewBusinessesService.list_new_businesses(
@@ -83,6 +85,13 @@ class ExploreCollectionView(APIView):
             businesses,
             request,
         )
+        if collection_type == self.INTERESTS:
+            page = RecommendationService.hydrate_recommendations(
+                user=request.user,
+                businesses=page,
+                ranking=ranking,
+            )
+
         serializer = serializer_class(
             page,
             many=True,

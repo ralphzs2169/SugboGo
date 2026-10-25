@@ -276,7 +276,9 @@ class RecommendationViewTests(TestCase):
         for index in range(5):
             self._create_business(f"Query Pattern {index}")
 
-        with self.assertNumQueries(9):
+        # Two lightweight ranking reads, two page hydration reads, and one
+        # bounded Hidden Gem membership lookup are independent of item count.
+        with self.assertNumQueries(12):
             response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
