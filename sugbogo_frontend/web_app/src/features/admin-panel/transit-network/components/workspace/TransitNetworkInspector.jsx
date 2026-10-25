@@ -88,11 +88,11 @@ function RouteContextInspector({
   if (isRouteTransitPointCreationMode(mode)) {
     const roleDescription = {
       origin:
-        "After saving, this reusable Transit Point will become the route origin.",
+        "After saving, this stop will become the starting stop for this direction.",
       destination:
-        "After saving, this reusable Transit Point will become the route destination.",
+        "After saving, this stop will become the last stop for this direction.",
       "transit-point":
-        "After saving, this reusable Transit Point will be added before the destination.",
+        "After saving, this stop will be added before the last stop.",
     }[routePointCreationRole];
 
     return (

@@ -38,18 +38,18 @@ export default function OrderedTransitPointPanel({
     originId && {
       id: originId,
       point: pointById.get(originId),
-      role: "Origin",
+      role: "Starting stop",
     },
     ...intermediatePointIds.map((pointId, index) => ({
       id: pointId,
       point: pointById.get(pointId),
-      role: "Transit point",
+      role: "Stop",
       intermediateIndex: index,
     })),
     destinationId && {
       id: destinationId,
       point: pointById.get(destinationId),
-      role: "Destination",
+      role: "Last stop",
     },
   ].filter(Boolean);
 
@@ -58,11 +58,11 @@ export default function OrderedTransitPointPanel({
       {/* Panel heading */}
       <div className="mb-4">
         <h2 className="text-sm font-semibold text-text-primary">
-          Ordered Transit Points
+          1. Choose stops
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-          These named points define meaningful stops and transfer locations, not
-          route geometry vertices.
+          Select where passengers can board and get off. Add intermediate stops
+          in travel order so users can find a route near them.
         </p>
       </div>
 
@@ -70,24 +70,24 @@ export default function OrderedTransitPointPanel({
       <div className="space-y-4">
         <TransitPointSearchSelect
           id="variant-origin"
-          label="Origin"
+          label="Starting stop"
           transitPoints={transitPoints}
           value={originId}
           excludedIds={destinationId ? [destinationId] : []}
           onChange={onOriginChange}
           error={errors.origin_transit_point_id}
-          placeholder="Search for an origin"
+          placeholder="Search for the starting stop"
           onCreateNew={() => onCreateTransitPoint("origin")}
         />
         <TransitPointSearchSelect
           id="variant-destination"
-          label="Destination"
+          label="Last stop"
           transitPoints={transitPoints}
           value={destinationId}
           excludedIds={originId ? [originId] : []}
           onChange={onDestinationChange}
           error={errors.destination_transit_point_id}
-          placeholder="Search for a destination"
+          placeholder="Search for the last stop"
           onCreateNew={() => onCreateTransitPoint("destination")}
         />
       </div>
@@ -99,7 +99,7 @@ export default function OrderedTransitPointPanel({
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-text-primary">
-                  Choose a Transit Point
+                  Choose a stop
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-text-secondary">
                   Select an eligible marker on the map or search by name.
@@ -110,8 +110,8 @@ export default function OrderedTransitPointPanel({
                 size="sm"
                 icon={X}
                 iconOnly
-                tooltipMessage="Cancel Transit Point selection"
-                aria-label="Cancel Transit Point selection"
+                tooltipMessage="Cancel stop selection"
+                aria-label="Cancel stop selection"
                 onClick={onCancelTransitPointSelection}
               />
             </div>
@@ -121,8 +121,8 @@ export default function OrderedTransitPointPanel({
               onChange={onSelectTransitPoint}
               alwaysOpen
               autoFocus
-              placeholder="Search available Transit Points"
-              emptyMessage="No additional Transit Points are available."
+              placeholder="Search available stops"
+              emptyMessage="No additional stops are available."
               onCreateNew={() => onCreateTransitPoint("transit-point")}
             />
           </>
@@ -135,20 +135,20 @@ export default function OrderedTransitPointPanel({
             disabled={!originId || !destinationId}
             disabledTooltip={
               !originId || !destinationId
-                ? "Select an origin and destination first."
+                ? "Choose the starting and last stops first."
                 : undefined
             }
             onClick={onBeginTransitPointSelection}
           >
-            Add transit point
+            Add stop along the way
           </Button>
         )}
       </div>
 
-      {/* Traversal order */}
+      {/* Stops in travel order */}
       <div className="mt-5">
         <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
-          Traversal Order
+          Stops in travel order
         </h3>
         {orderedRows.length ? (
           <ol className="space-y-2">
@@ -224,7 +224,7 @@ export default function OrderedTransitPointPanel({
           </ol>
         ) : (
           <p className="rounded-lg border border-dashed border-stroke-strong px-3 py-6 text-center text-xs text-text-secondary">
-            Select an origin and destination to establish traversal order.
+            Choose the starting and last stops to see their travel order.
           </p>
         )}
         {errors.transit_point_ids && (

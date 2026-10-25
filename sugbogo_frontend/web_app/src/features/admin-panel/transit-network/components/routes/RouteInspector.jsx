@@ -26,7 +26,7 @@ export default function RouteInspector({
           Select a route
         </p>
         <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-          Choose a route code to inspect its directional variants on the map.
+          Choose a route code to inspect its travel directions on the map.
         </p>
       </div>
     );
@@ -43,14 +43,14 @@ export default function RouteInspector({
           {variant.origin.name} → {variant.destination.name}
         </h2>
         <dl className="mt-5 space-y-3 text-sm">
-          <InspectorField label="Origin" value={variant.origin.name} />
-          <InspectorField label="Destination" value={variant.destination.name} />
+          <InspectorField label="Starting stop" value={variant.origin.name} />
+          <InspectorField label="Last stop" value={variant.destination.name} />
           <InspectorField
-            label="Ordered Transit Points"
+            label="Stops in travel order"
             value={`${variant.transit_points?.length ?? 0}`}
           />
           <InspectorField
-            label="Geometry Vertices"
+            label="Path drawing points"
             value={`${variant.geometry?.length ?? 0}`}
           />
         </dl>
@@ -75,8 +75,10 @@ export default function RouteInspector({
             {route.code}
           </h2>
           <p className="mt-1 text-sm text-text-secondary">
-            {route.variant_count ?? route.variants?.length ?? 0} directional
-            variants
+            {route.variant_count ?? route.variants?.length ?? 0} travel
+            {(route.variant_count ?? route.variants?.length ?? 0) === 1
+              ? " direction"
+              : " directions"}
           </p>
         </div>
         <Button
@@ -91,11 +93,12 @@ export default function RouteInspector({
 
       {/* Route actions */}
       <Button className="mt-5 w-full" icon={Plus} onClick={onAddVariant}>
-        Add Variant
+        {route.variants?.length ? "Add Direction" : "Add First Direction"}
       </Button>
       {!route.variants?.length && (
         <p className="mt-3 rounded-lg border border-dashed border-stroke-strong px-3 py-4 text-center text-xs text-text-secondary">
-          No variants yet. Add the first directional path for this route.
+          This route has no directions yet. Add its starting stop, last stop and
+          road path before it can provide jeepney guidance.
         </p>
       )}
     </section>

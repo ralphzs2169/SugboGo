@@ -705,7 +705,6 @@ export default function TransitNetworkWorkspace() {
               onVariantSelect={selectVariant}
               onRetry={routesQuery.refetch}
               onDetailRetry={routeDetailQuery.refetch}
-              onAddRoute={startCreateRoute}
             />
           )}
           {context === TRANSIT_CONTEXTS.POINTS && (

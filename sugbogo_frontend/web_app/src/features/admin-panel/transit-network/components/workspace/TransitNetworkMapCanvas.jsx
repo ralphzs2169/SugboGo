@@ -424,7 +424,7 @@ export default function TransitNetworkMapCanvas({
                 position={position}
                 title={
                   context === TRANSIT_CONTEXTS.ROUTES
-                    ? `${point.name} Ã‚Â· ${routePointLabel}`
+                    ? `${point.name} · ${routePointLabel}`
                     : point.name
                 }
                 clickable={canSelect}
@@ -498,12 +498,12 @@ export default function TransitNetworkMapCanvas({
             )}
             <TransferPointMarker
               position={alightingPosition}
-              label={`Alight Ã‚Â· ${transfer.alighting_transit_point?.name}`}
+              label={`Alight · ${transfer.alighting_transit_point?.name}`}
               className="bg-primary"
             />
             <TransferPointMarker
               position={boardingPosition}
-              label={`Board Ã‚Â· ${transfer.boarding_transit_point?.name}`}
+              label={`Board · ${transfer.boarding_transit_point?.name}`}
               className="bg-info"
             />
           </>
@@ -562,8 +562,8 @@ function getMapHelpText(
   }
   if (isRouteDrawingMode(mode)) {
     return {
-      title: "Drawing route geometry",
-      description: "Click the map to add LineString vertices in travel order.",
+      title: "Drawing route path",
+      description: "Click along the roads in travel order to draw this direction.",
     };
   }
   if (isPointEditingMode(mode) || isRouteTransitPointCreationMode(mode)) {

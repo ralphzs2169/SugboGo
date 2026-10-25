@@ -31,11 +31,11 @@ export default function GeometryEditorControls({
       {/* Geometry heading */}
       <div>
         <h2 className="text-sm font-semibold text-text-primary">
-          Route Geometry
+          2. Draw the route path
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-          Small numbered vertices define the detailed LineString. They do not
-          create or change Transit Points.
+          Click along the roads the jeepney uses, from the starting stop to the
+          last stop. Each click adds a drawing point, not a boarding stop.
         </p>
       </div>
 
@@ -55,7 +55,7 @@ export default function GeometryEditorControls({
           size="sm"
           icon={RotateCcw}
           disabled={!canUndo}
-          tooltipMessage="Undo the most recent geometry edit (Ctrl/Cmd+Z)"
+          tooltipMessage="Undo the most recent path edit (Ctrl/Cmd+Z)"
           aria-keyshortcuts="Control+Z Meta+Z"
           onClick={onUndo}
         >
@@ -88,7 +88,7 @@ export default function GeometryEditorControls({
       <div className="mt-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold text-text-secondary">
-            Vertices:{" "}
+            Drawing points:{" "}
             <span className="tabular-nums text-text-primary">
               {geometry.length}
             </span>
@@ -166,8 +166,8 @@ export default function GeometryEditorControls({
                   size="sm"
                   icon={Trash2}
                   iconOnly
-                  tooltipMessage="Remove geometry vertex"
-                  aria-label={`Remove geometry vertex ${index + 1}`}
+                  tooltipMessage="Remove drawing point"
+                  aria-label={`Remove drawing point ${index + 1}`}
                   className="hover:text-danger"
                   onClick={() => onRemoveVertex(index)}
                 />
@@ -179,10 +179,10 @@ export default function GeometryEditorControls({
         {!geometry.length && (
           <div className="rounded-lg border border-dashed border-stroke-strong px-3 py-6 text-center">
             <p className="text-xs font-medium text-text-primary">
-              No route geometry yet
+              No route path yet
             </p>
             <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-              Choose Draw Route, then click the map to add vertices in order.
+              Choose Draw Route, then click along the roads in travel order.
             </p>
           </div>
         )}
