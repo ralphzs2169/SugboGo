@@ -18,14 +18,13 @@ import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
-import { useLogout } from "@/features/auth/hooks/useLogout";
+import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import ProfileMenuItem from "@/features/profile/components/ProfileMenuItem";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import SafePressable from "@/shared/components/SafePressable";
 import Skeleton from "@/shared/components/Skeleton";
-import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
@@ -57,7 +56,7 @@ export default function MerchantProfileScreen() {
   const { width, fontScale } = useWindowDimensions();
   const stackOverview = width < 360 || fontScale >= 1.35;
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
-  const { logout } = useLogout();
+  const openLogoutConfirmation = useLogoutConfirmationStore((state) => state.open);
   const merchantAvatarUrl = useAuthStore(
     (state) => state.user?.avatar_url ?? null,
   );
@@ -97,7 +96,6 @@ export default function MerchantProfileScreen() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const heroHeightRef = useRef(0);
   const stickyVisibleRef = useRef(false);
   const [isStickyVisible, setIsStickyVisible] = useState(false);
@@ -559,23 +557,12 @@ export default function MerchantProfileScreen() {
               title="Logout"
               icon="logout"
               variant="danger"
-              onPress={() => setShowLogoutModal(true)}
+              onPress={openLogoutConfirmation}
               showChevron={false}
             />
           </View>
         </ScrollView>
       </SafeAreaView>
-
-      {/* Logout confirmation */}
-      <ConfirmModal
-        visible={showLogoutModal}
-        title="Log out?"
-        message="Are you sure you want to log out of your account?"
-        confirmText="Logout"
-        destructive
-        onCancel={() => setShowLogoutModal(false)}
-        onConfirm={logout}
-      />
 
       {/* Collapsed business identity on scroll */}
       <MerchantProfileStickyHeader

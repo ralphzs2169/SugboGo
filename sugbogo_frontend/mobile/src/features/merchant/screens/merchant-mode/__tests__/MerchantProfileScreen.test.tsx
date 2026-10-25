@@ -5,6 +5,8 @@ import * as WebBrowser from "expo-web-browser";
 import Toast from "react-native-toast-message";
 
 import MerchantProfileScreen from "../MerchantProfileScreen";
+import LogoutConfirmationModal from "@/features/auth/components/LogoutConfirmationModal";
+import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
 
 const mockRefetch = jest.fn();
 const mockProfile = jest.fn();
@@ -28,6 +30,7 @@ jest.mock(
 jest.mock("../../../assets/icons/hours-card.svg", () => "HoursCardIcon");
 
 jest.mock("@tanstack/react-query", () => ({
+  ...jest.requireActual("@tanstack/react-query"),
   useMutation: () => mockDocumentAccess(),
 }));
 jest.mock("expo-web-browser", () => ({
@@ -252,6 +255,7 @@ function showLoadedBusiness() {
 describe("MerchantProfileScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    useLogoutConfirmationStore.setState({ isOpen: false });
     mockDocumentAccess.mockReturnValue({
       isPending: false,
       variables: undefined,
@@ -400,7 +404,12 @@ describe("MerchantProfileScreen", () => {
       refetch: mockRefetch,
     });
 
-    const screen = await render(<MerchantProfileScreen />);
+    const screen = await render(
+      <>
+        <MerchantProfileScreen />
+        <LogoutConfirmationModal />
+      </>,
+    );
     await fireEvent.press(screen.getByText("Logout"));
     expect(screen.getByText("Log out?")).toBeTruthy();
 
