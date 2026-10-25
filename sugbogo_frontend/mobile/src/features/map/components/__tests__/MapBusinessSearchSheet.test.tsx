@@ -13,6 +13,9 @@ const mockSearchState = {
   highlightQuery: "",
   usedFuzzyFallback: false,
   isPending: false,
+  isInitialLoading: false,
+  isUpdating: false,
+  isCurrentData: true,
   isFetching: false,
   isFetchingNextPage: false,
   hasNextPage: false,
@@ -149,6 +152,9 @@ beforeEach(() => {
   mockSearchState.businesses = [];
   mockSearchState.error = null;
   mockSearchState.isPending = false;
+  mockSearchState.isInitialLoading = false;
+  mockSearchState.isUpdating = false;
+  mockSearchState.isCurrentData = true;
   mockSearchState.hasQuery = false;
   mockSearchState.highlightQuery = "";
   mockSearchState.usedFuzzyFallback = false;
@@ -198,10 +204,12 @@ it("dismisses before selecting a registered business and guards repeat taps", as
 it("keeps loading, empty, and retryable failure states distinct", async () => {
   mockSearchState.hasQuery = true;
   mockSearchState.isPending = true;
+  mockSearchState.isInitialLoading = true;
   const { screen, sheetRef, onBusinessSelect } = await setup();
   expect(screen.getByTestId("search-filter-results-loading")).toBeTruthy();
   expect(screen.queryByText("No places found")).toBeNull();
   mockSearchState.isPending = false;
+  mockSearchState.isInitialLoading = false;
   await screen.rerender(
     <MapBusinessSearchSheet
       sheetRef={sheetRef}
@@ -218,6 +226,19 @@ it("keeps loading, empty, and retryable failure states distinct", async () => {
   );
   await fireEvent.press(screen.getByRole("button", { name: "Retry" }));
   expect(mockSearchState.refetch).toHaveBeenCalledTimes(1);
+});
+
+it("retains selectable cards with compact feedback during background search", async () => {
+  mockSearchState.hasQuery = true;
+  mockSearchState.businesses = [{ id: 42, business_name: "Existing Coffee" }];
+  mockSearchState.isPending = true;
+  mockSearchState.isUpdating = true;
+  mockSearchState.isCurrentData = false;
+  const { screen } = await setup();
+  expect(screen.getByText("Existing Coffee")).toBeTruthy();
+  expect(screen.getByLabelText("Updating search results")).toBeTruthy();
+  expect(screen.queryByTestId("search-filter-results-loading")).toBeNull();
+  expect(screen.queryByText("Showing similar matches")).toBeNull();
 });
 
 it("shares settled highlighting and shows the cue only for confirmed populated fuzzy results", async () => {

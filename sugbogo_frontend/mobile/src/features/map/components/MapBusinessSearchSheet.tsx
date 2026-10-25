@@ -12,12 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAnimatedReaction } from "react-native-reanimated";
 import { State, type TextInput } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
-import {
-  BackHandler,
-  Keyboard,
-  Pressable,
-  View,
-} from "react-native";
+import { BackHandler, Keyboard, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
@@ -100,7 +95,7 @@ export default function MapBusinessSearchSheet({
     [results.businesses],
   );
   const impressions = useResultsImpressions(
-    isOpen && isSettled && impressionsEnabled,
+    isOpen && isSettled && impressionsEnabled && results.isCurrentData,
     businessIds,
   );
 
@@ -310,18 +305,36 @@ export default function MapBusinessSearchSheet({
           </View>
         )}
         ListHeaderComponent={
-          results.hasQuery &&
-          !results.isPending &&
-          !results.error &&
-          !results.isPaused ? (
+          results.hasQuery ? (
             <View className="px-4 pb-1">
-              <AppText className="text-sm text-text-secondary">
-                {results.totalItems}{" "}
-                {results.totalItems === 1 ? "place" : "places"}
-              </AppText>
-              {isOpen &&
-                results.businesses.length > 0 &&
-                results.usedFuzzyFallback && <SimilarMatchesNotice />}
+              {!results.isPending && !results.error && !results.isPaused && (
+                <>
+                  <AppText className="text-sm text-text-secondary">
+                    {results.totalItems}{" "}
+                    {results.totalItems === 1 ? "place" : "places"}
+                  </AppText>
+                  {isOpen &&
+                    results.businesses.length > 0 &&
+                    results.usedFuzzyFallback && <SimilarMatchesNotice />}
+                </>
+              )}
+              {results.isUpdating && (
+                <View
+                  className="flex-row items-center gap-2 pb-2"
+                  accessibilityRole="progressbar"
+                  accessibilityLabel="Updating search results"
+                >
+                  <LottieView
+                    source={loadingAnimation}
+                    autoPlay
+                    loop
+                    style={{ width: 24, height: 24 }}
+                  />
+                  <AppText className="text-xs text-text-secondary">
+                    Updating results…
+                  </AppText>
+                </View>
+              )}
             </View>
           ) : null
         }
@@ -347,9 +360,9 @@ export default function MapBusinessSearchSheet({
                 Loading recent searches…
               </AppText>
             )
-          ) : (
+          ) : results.isUpdating ? null : (
             <SearchFilterEmptyState
-              isLoading={results.isPending}
+              isLoading={results.isInitialLoading}
               hasError={Boolean(results.error || results.isPaused)}
               hasSearch
               onRetry={() => void results.refetch()}

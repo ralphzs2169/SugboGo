@@ -129,12 +129,23 @@ export default function SearchFilterResultsScreen() {
   );
 
   const results = useDiscoveryResults(queryCriteria, resultsEnabled);
+  const isInitialLoading = resultsEnabled && results.isLoading;
+  const isUpdating =
+    !isInitialSearch &&
+    !isInitialLoading &&
+    !results.isPaused &&
+    (!resultsEnabled ||
+      results.isPlaceholderData ||
+      (results.isFetching && !results.isFetchingNextPage));
   const taxonomy = useExploreFilterOptions();
   const resultBusinessIds = useMemo(
     () => results.businesses.map((business) => business.id),
     [results.businesses],
   );
-  const impressions = useResultsImpressions(resultsEnabled, resultBusinessIds);
+  const impressions = useResultsImpressions(
+    resultsEnabled && results.isCurrentData,
+    resultBusinessIds,
+  );
   const { location: userLocation } = useUserLocation();
 
   const replaySearch = (query: string) => {
@@ -286,6 +297,7 @@ export default function SearchFilterResultsScreen() {
   const loadNextPage = (retryFailedPage = false) => {
     if (
       !resultsEnabled ||
+      !results.isCurrentData ||
       isEndReachedRef.current ||
       (!retryFailedPage && results.isFetchNextPageError) ||
       !results.hasNextPage ||
@@ -303,6 +315,7 @@ export default function SearchFilterResultsScreen() {
   };
 
   const shouldShowEndMessage =
+    !isUpdating &&
     !results.isLoading &&
     !results.error &&
     !results.hasNextPage &&
@@ -378,7 +391,7 @@ export default function SearchFilterResultsScreen() {
                   selectedCategories={selectedCategories}
                   selectedSpecialty={selectedSpecialty}
                   totalItems={results.totalItems}
-                  isLoading={!resultsEnabled || results.isLoading}
+                  isLoading={isInitialLoading}
                   usedFuzzyFallback={
                     resultsEnabled && results.usedFuzzyFallback
                   }
@@ -387,20 +400,40 @@ export default function SearchFilterResultsScreen() {
                   onRemoveSpecialty={removeSpecialty}
                 />
               )}
+              {isUpdating && (
+                <View
+                  className="flex-row items-center gap-2 px-4 pb-3"
+                  accessibilityRole="progressbar"
+                  accessibilityLabel="Updating search results"
+                >
+                  <LottieView
+                    source={loadingAnimation}
+                    autoPlay
+                    loop
+                    style={{ width: 24, height: 24 }}
+                  />
+                  <AppText className="text-xs text-text-secondary">
+                    Updating results…
+                  </AppText>
+                </View>
+              )}
             </>
           }
           ListEmptyComponent={
-            <SearchFilterEmptyState
-              isLoading={!resultsEnabled || results.isLoading}
-              hasError={Boolean(results.error || results.isPaused)}
-              hasSearch={debouncedSearch.length > 0}
-              onRetry={() => void results.refetch()}
-              onGoBack={() => router.back()}
-              isRetrying={results.isRefetching && !results.isFetchingNextPage}
-            />
+            isUpdating ? null : (
+              <SearchFilterEmptyState
+                isLoading={isInitialLoading}
+                hasError={Boolean(results.error || results.isPaused)}
+                hasSearch={debouncedSearch.length > 0}
+                onRetry={() => void results.refetch()}
+                onGoBack={() => router.back()}
+                isRetrying={results.isRefetching && !results.isFetchingNextPage}
+              />
+            )
           }
           ListFooterComponent={
-            !resultsEnabled ? null : results.isFetchingNextPage ? (
+            !resultsEnabled ||
+            !results.isCurrentData ? null : results.isFetchingNextPage ? (
               <View
                 className="items-center py-5"
                 testID="search-filter-results-page-loader"
@@ -439,7 +472,7 @@ export default function SearchFilterResultsScreen() {
           onViewableItemsChanged={impressions.onViewableItemsChanged}
           viewabilityConfig={impressions.viewabilityConfig}
           refreshControl={
-            resultsEnabled ? (
+            resultsEnabled && results.isCurrentData ? (
               <RefreshControl
                 refreshing={results.isRefetching && !results.isFetchingNextPage}
                 onRefresh={() => void results.refetch()}

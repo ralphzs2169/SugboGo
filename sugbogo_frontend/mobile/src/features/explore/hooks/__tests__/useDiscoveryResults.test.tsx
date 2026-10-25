@@ -38,6 +38,74 @@ const criteria = {
 };
 
 describe("useDiscoveryResults", () => {
+  it.each(["text", "taxonomy"])(
+    "retains rows during a %s update without stale attribution",
+    async (change) => {
+      let finishUpdate: (value: unknown) => void = () => {};
+      (getDiscoveryResults as jest.Mock)
+        .mockResolvedValueOnce({
+          success: true,
+          data: {
+            items: [{ id: 42 }],
+            used_fuzzy_fallback: true,
+            pagination: { page: 1, total_items: 2, has_next: true },
+          },
+        })
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishUpdate = resolve;
+            }),
+        );
+      const { result, rerender, unmount } = await renderHook(
+        ({ search, clusterId }: { search: string; clusterId: number }) =>
+          useDiscoveryResults({ ...criteria, search, clusterId }),
+        {
+          initialProps: { search: "coffee", clusterId: 3 },
+          wrapper: setupClient(),
+        },
+      );
+      await waitFor(() => expect(result.current.isCurrentData).toBe(true));
+      expect(result.current.usedFuzzyFallback).toBe(true);
+      await rerender({
+        search: change === "text" ? "pastry" : "coffee",
+        clusterId: change === "taxonomy" ? 4 : 3,
+      });
+      await waitFor(() => expect(result.current.isPlaceholderData).toBe(true));
+      expect(result.current.businesses).toEqual([{ id: 42 }]);
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.isCurrentData).toBe(false);
+      expect(result.current.highlightQuery).toBe("");
+      expect(result.current.usedFuzzyFallback).toBe(false);
+      expect(result.current.hasNextPage).toBe(false);
+      const items = change === "text" ? [] : [{ id: 43 }];
+      await act(async () => {
+        finishUpdate({
+          success: true,
+          data: {
+            items,
+            used_fuzzy_fallback: false,
+            pagination: { page: 1, total_items: items.length, has_next: false },
+          },
+        });
+      });
+      await waitFor(() => expect(result.current.isCurrentData).toBe(true));
+      expect(result.current.businesses).toEqual(items);
+      expect(result.current.isPlaceholderData).toBe(false);
+      expect(result.current.highlightQuery).toBe(
+        change === "text" ? "pastry" : "coffee",
+      );
+      expect(getDiscoveryResults).toHaveBeenCalledTimes(2);
+      await rerender({
+        search: change === "text" ? "pastry" : "coffee",
+        clusterId: change === "taxonomy" ? 4 : 3,
+      });
+      expect(getDiscoveryResults).toHaveBeenCalledTimes(2);
+      expect(result.current.isFetching).toBe(false);
+      await unmount();
+    },
+  );
+
   it("uses only backend metadata and hides presentation state while the query is disabled", async () => {
     (getDiscoveryResults as jest.Mock).mockResolvedValue({
       success: true,
