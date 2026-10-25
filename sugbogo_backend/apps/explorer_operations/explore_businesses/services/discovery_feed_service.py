@@ -15,6 +15,7 @@ from apps.business.services.display_cover_photo import display_cover_photo_expre
 from apps.explorer_operations.explore_businesses.services.taxonomy_filter_service import (
     apply_taxonomy_filters,
 )
+from django.contrib.postgres.search import TrigramStrictWordSimilarity
 from django.db.models import (
     Case,
     DecimalField,
@@ -27,7 +28,7 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Greatest
 
 from .published_review_count import published_review_count
 
@@ -36,6 +37,9 @@ class DiscoveryFeedService:
     """Builds the ranked business feed shown to Explorer users."""
 
     HIDDEN_GEM_LIMIT = 10
+    FUZZY_MIN_QUERY_LENGTH = 4
+    FUZZY_SHORT_QUERY_THRESHOLD = 0.55
+    FUZZY_QUERY_THRESHOLD = 0.50
     DISCOVERY_ORDERING = (
         "-discovery_rank_score",
         "-BUSN_CREATED_AT",
@@ -114,6 +118,60 @@ class DiscoveryFeedService:
                 "BUSN_ID",
                 flat=True,
             )[:DiscoveryFeedService.HIDDEN_GEM_LIMIT]
+        )
+
+    @staticmethod
+    def _fuzzy_search_businesses(
+        queryset,
+        search,
+    ):
+        """Match names and active taxonomy labels only after normal search misses."""
+
+        threshold = DiscoveryFeedService.FUZZY_QUERY_THRESHOLD
+
+        if len(search) == DiscoveryFeedService.FUZZY_MIN_QUERY_LENGTH:
+            threshold = DiscoveryFeedService.FUZZY_SHORT_QUERY_THRESHOLD
+
+        # Select one strongest active label rather than multiplying business rows.
+        specialty_similarity = (
+            BusinessSpecialtyTag.objects
+            .filter(
+                BUSN_ID=OuterRef("BUSN_ID"),
+                BST_IS_ACTIVE=True,
+            )
+            .annotate(
+                similarity=TrigramStrictWordSimilarity(
+                    search,
+                    "TAG_ID__TAG_NAME",
+                ),
+            )
+            .order_by(
+                "-similarity",
+            )
+            .values(
+                "similarity",
+            )[:1]
+        )
+
+        return queryset.annotate(
+            search_similarity=Greatest(
+                TrigramStrictWordSimilarity(
+                    search,
+                    "BUSN_NAME",
+                ),
+                TrigramStrictWordSimilarity(
+                    search,
+                    "CTGRY_ID__CTGRY_NAME",
+                ),
+                Coalesce(
+                    Subquery(
+                        specialty_similarity,
+                    ),
+                    Value(0.0),
+                ),
+            ),
+        ).filter(
+            search_similarity__gte=threshold,
         )
 
     @staticmethod
@@ -220,7 +278,7 @@ class DiscoveryFeedService:
         ordering = []
 
         if normalized_search:
-            queryset = queryset.annotate(
+            normal_matches = queryset.annotate(
                 active_specialty_search_match=Exists(
                     active_specialty_search,
                 ),
@@ -258,9 +316,23 @@ class DiscoveryFeedService:
             ).filter(
                 search_relevance__gt=0,
             )
-            ordering.append(
-                "-search_relevance",
-            )
+            # Check the complete filtered query before pagination, not its page.
+            if (
+                len(normalized_search) >= DiscoveryFeedService.FUZZY_MIN_QUERY_LENGTH
+                and not normal_matches.exists()
+            ):
+                queryset = DiscoveryFeedService._fuzzy_search_businesses(
+                    queryset,
+                    normalized_search,
+                )
+                ordering.append(
+                    "-search_similarity",
+                )
+            else:
+                queryset = normal_matches
+                ordering.append(
+                    "-search_relevance",
+                )
 
         if specialty_tag_id is not None and rank_specialty_by_tag_score:
             ordering.append(

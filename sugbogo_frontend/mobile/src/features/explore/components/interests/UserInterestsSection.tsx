@@ -68,7 +68,7 @@ export default function UserInterestsSection({
   );
 
   const showSetup =
-    recommendations.isPersonalized === false &&
+    !recommendations.isPersonalized &&
     !recommendations.isLoading &&
     !isRetrying &&
     !recommendations.isPaused &&
@@ -147,18 +147,6 @@ export default function UserInterestsSection({
             size="section"
           />
         </View>
-      ) : recommendations.isPersonalized === undefined ? (
-        /* An older API or cached response cannot establish personalization. */
-        <View testID="recommendations-state-unavailable">
-          <ErrorState
-            title="Refresh your recommendations"
-            description="We couldn't confirm your recommendation settings. Please refresh."
-            icon="refresh"
-            primaryActionTitle="Refresh"
-            onPrimaryAction={() => void handleRetry()}
-            size="section"
-          />
-        </View>
       ) : showSetup ? (
         /* Personalization setup */
         <View className="mx-4 rounded-card border border-border-primary bg-surface p-4">
@@ -196,7 +184,7 @@ export default function UserInterestsSection({
                 importantForAccessibility="no"
               />
             }
-            variant="secondary"
+            variant="outline"
             className="mt-4 min-h-11 self-start"
             onPress={() =>
               router.push({
