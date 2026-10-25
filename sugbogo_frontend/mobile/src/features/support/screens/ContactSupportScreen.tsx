@@ -1,6 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -11,20 +10,22 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import InputContainer from "@/shared/components/form/InputContainer";
 
-import { SUPPORT_FAQS } from "../constants/supportFaqDraft";
+import SupportFaqAnswer from "../components/SupportFaqAnswer";
+import { SUPPORT_FAQ_CONTENT } from "../constants/supportFaqDraft";
 
 const GREETING_MASCOT = require("@/shared/assets/mascot/mascot-greeting.webp");
 
-/** Offers temporary concern editing and navigation to approved FAQs; submission is unavailable. */
+/** Offers local concern editing, unavailable-submission feedback and single-open approved FAQs. */
 export default function ContactSupportScreen() {
-  const router = useRouter();
   const [concern, setConcern] = useState("");
+  const [openFaqId, setOpenFaqId] = useState<string | null>(null);
 
   return (
     <SafeAreaView
@@ -65,7 +66,7 @@ export default function ContactSupportScreen() {
           </View>
 
           {/* UI-only concern: no persistence, logging, network, or email handoff. */}
-          <InputContainer label="Tell us your concern">
+          <InputContainer label="Tell us your concern" showLabel={false}>
             <TextInput
               accessibilityLabel="Tell us your concern"
               accessibilityHint="Temporary text only. Submission is not available yet."
@@ -81,19 +82,16 @@ export default function ContactSupportScreen() {
           </InputContainer>
           <Button
             title="Submit"
-            disabled
-            // The shared button requires a callback; this disabled preview has no action.
-            onPress={() => undefined}
+            onPress={() =>
+              Toast.show({
+                type: "info",
+                text1: "Support submissions aren't available yet. Your message hasn't been sent.",
+              })
+            }
             rounded="full"
           />
-          <AppText className="mt-2 text-center text-sm text-text-secondary">
-            Submission coming soon
-          </AppText>
-          <AppText className="mt-1 text-center text-sm text-text-secondary">
-            Your text is not submitted or saved.
-          </AppText>
 
-          {/* Approved questions open their dedicated detail pages. */}
+          {/* Approved answers expand inline, one at a time. */}
           <View className="mt-6">
             <AppText
               accessibilityRole="header"
@@ -103,38 +101,38 @@ export default function ContactSupportScreen() {
               Frequently Asked Questions
             </AppText>
             <View className="mt-3 overflow-hidden rounded-xl border border-border-primary bg-surface">
-              {SUPPORT_FAQS.map((faq, index) => (
-                <View
-                  key={faq.id}
-                  className={index > 0 ? "border-t border-border-primary" : ""}
-                >
-                  <Pressable
-                    accessibilityRole="link"
-                    accessibilityLabel={faq.question}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/contact-support/faq/[faqId]",
-                        params: { faqId: faq.id },
-                      })
-                    }
-                    className="min-h-14 cursor-pointer flex-row items-center gap-3 px-4 py-4 active:opacity-70"
+              {SUPPORT_FAQ_CONTENT.map((faq, index) => {
+                const expanded = openFaqId === faq.id;
+                return (
+                  <View
+                    key={faq.id}
+                    className={index > 0 ? "border-t border-border-primary" : ""}
                   >
-                    <AppText
-                      weight="semibold"
-                      className="min-w-0 flex-1 text-base text-text-primary"
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={faq.question}
+                      accessibilityState={{ expanded }}
+                      onPress={() => setOpenFaqId(expanded ? null : faq.id)}
+                      className="min-h-14 cursor-pointer flex-row items-center gap-3 px-4 py-4 active:opacity-70"
                     >
-                      {faq.question}
-                    </AppText>
-                    <MaterialCommunityIcons
-                      name="chevron-right"
-                      size={24}
-                      color={theme.extends.colors.text.secondary}
-                      accessible={false}
-                      importantForAccessibility="no"
-                    />
-                  </Pressable>
-                </View>
-              ))}
+                      <AppText
+                        weight="semibold"
+                        className="min-w-0 flex-1 text-base text-text-primary"
+                      >
+                        {faq.question}
+                      </AppText>
+                      <MaterialCommunityIcons
+                        name={expanded ? "chevron-up" : "chevron-down"}
+                        size={24}
+                        color={theme.extends.colors.text.secondary}
+                        accessible={false}
+                        importantForAccessibility="no"
+                      />
+                    </Pressable>
+                    {expanded && <SupportFaqAnswer faq={faq} />}
+                  </View>
+                );
+              })}
             </View>
           </View>
         </ScrollView>

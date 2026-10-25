@@ -38,7 +38,7 @@ describe("Public FAQ detail pages", () => {
   it("provides exactly the five approved destinations with their expected step counts", () => {
     expect(SUPPORT_FAQS.map((faq) => [faq.id, faq.question, faq.steps.length])).toEqual([
       ["what-is-sugbogo", "What is SugboGo?", 0],
-      ["find-businesses", "How can I find businesses on SugboGo?", 4],
+      ["find-businesses", "How can I register my business on SugboGo?", 6],
       ["vouch-for-business", "How do I vouch for a business?", 4],
       ["my-pockets", "How do I save businesses to My Pockets?", 5],
       ["get-directions", "How can I get directions to a business?", 5],
