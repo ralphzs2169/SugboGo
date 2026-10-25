@@ -275,11 +275,12 @@ export default function SearchFilterResultsScreen() {
             distanceAccuracy={userLocation?.coords.accuracy ?? null}
             onPress={() => openBusiness(item, distance)}
             variant="compact"
+            highlightQuery={resultsEnabled ? results.highlightQuery : ""}
           />
         </View>
       );
     },
-    [openBusiness, userLocation],
+    [openBusiness, userLocation, resultsEnabled, results.highlightQuery],
   );
 
   const loadNextPage = (retryFailedPage = false) => {
@@ -378,6 +379,9 @@ export default function SearchFilterResultsScreen() {
                   selectedSpecialty={selectedSpecialty}
                   totalItems={results.totalItems}
                   isLoading={!resultsEnabled || results.isLoading}
+                  usedFuzzyFallback={
+                    resultsEnabled && results.usedFuzzyFallback
+                  }
                   onSelectCluster={selectCluster}
                   onRemoveCategory={removeCategory}
                   onRemoveSpecialty={removeSpecialty}

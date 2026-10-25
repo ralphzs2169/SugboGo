@@ -5,6 +5,7 @@ import { Animated, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import HighlightedText from "@/shared/components/HighlightedText";
 import Avatar from "@/shared/components/Avatar";
 import FullScreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
@@ -68,35 +69,6 @@ function relativeDate(value: string) {
 
   const years = Math.floor(days / 365);
   return `${years} year${years === 1 ? "" : "s"} ago`;
-}
-
-function escapeRegularExpression(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function renderReviewText(text: string, highlightedTopic?: string | null) {
-  const topic = highlightedTopic?.trim();
-
-  if (!topic) {
-    return text;
-  }
-
-  const matcher = new RegExp(`(${escapeRegularExpression(topic)})`, "gi");
-
-  return text.split(matcher).map((part, index) =>
-    part.toLocaleLowerCase() === topic.toLocaleLowerCase() ? (
-      <AppText
-        key={`${index}-${part}`}
-        testID="review-topic-highlight"
-        weight="semibold"
-        className="rounded-sm bg-brand/15 text-text-primary"
-      >
-        {part}
-      </AppText>
-    ) : (
-      part
-    ),
-  );
 }
 
 /**
@@ -221,7 +193,11 @@ export default function ReviewContent({
             }
           }}
         >
-          {renderReviewText(review.text, highlightedTopic)}
+          <HighlightedText
+            text={review.text}
+            query={highlightedTopic}
+            highlightTestID="review-topic-highlight"
+          />
         </AppText>
 
         {isTruncated && (

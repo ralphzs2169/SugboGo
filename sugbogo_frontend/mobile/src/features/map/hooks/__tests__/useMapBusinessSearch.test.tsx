@@ -41,11 +41,11 @@ function setup(search = "", isOpen = false) {
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
-it("debounces global search, ignores short/closed input, and reuses Explore's cache", async () => {
+it("debounces global search, ignores empty/closed input, and reuses Explore's cache", async () => {
   (getDiscoveryResults as jest.Mock).mockResolvedValue(response(42));
   const { client, hook } = setup();
   const { result, rerender, unmount } = await hook;
-  await rerender({ search: "c", isOpen: true });
+  await rerender({ search: "   ", isOpen: true });
   await act(async () => {
     jest.advanceTimersByTime(350);
   });
@@ -73,6 +73,28 @@ it("debounces global search, ignores short/closed input, and reuses Explore's ca
   await rerender({ search: "coffee", isOpen: true });
   expect(result.current.businesses[0]?.id).toBe(42);
   expect(getDiscoveryResults).toHaveBeenCalledTimes(1);
+  await unmount();
+  client.clear();
+});
+
+it("clears fuzzy metadata and highlighting during a new draft or sheet closure", async () => {
+  (getDiscoveryResults as jest.Mock).mockResolvedValue({
+    ...response(42),
+    data: { ...response(42).data, used_fuzzy_fallback: true },
+  });
+  const { client, hook } = setup("advventre", true);
+  const { result, rerender, unmount } = await hook;
+  await act(async () => jest.advanceTimersByTime(350));
+  await waitFor(() => expect(result.current.usedFuzzyFallback).toBe(true));
+  expect(result.current.highlightQuery).toBe("advventre");
+
+  await rerender({ search: "coffee", isOpen: true });
+  expect(result.current.usedFuzzyFallback).toBe(false);
+  expect(result.current.highlightQuery).toBe("");
+  expect(result.current.businesses).toEqual([]);
+  await rerender({ search: "advventre", isOpen: false });
+  expect(result.current.usedFuzzyFallback).toBe(false);
+  expect(result.current.highlightQuery).toBe("");
   await unmount();
   client.clear();
 });

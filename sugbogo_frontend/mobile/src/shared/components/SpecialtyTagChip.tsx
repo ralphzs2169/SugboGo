@@ -3,6 +3,7 @@ import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import HighlightedText from "@/shared/components/HighlightedText";
 import { getSpecialtyTagColor } from "@/shared/constants/specialtyTagColors";
 import { getSpecialtyTagIcon } from "@/shared/constants/specialtyTagIcons";
 import type { SpecialtyTag } from "@/shared/types/specialtyTag.types";
@@ -21,6 +22,7 @@ type SpecialtyTagChipProps = {
   showVouchCount?: boolean;
   showVouchIndicator?: boolean;
   showSelectionIndicator?: boolean;
+  highlightQuery?: string;
 };
 
 /**
@@ -44,6 +46,7 @@ export default function SpecialtyTagChip({
   showVouchCount = false,
   showVouchIndicator = false,
   showSelectionIndicator = false,
+  highlightQuery,
 }: SpecialtyTagChipProps) {
   const styles = getSpecialtyTagColor(tag.color);
   const specialtyIcon = getSpecialtyTagIcon(tag.icon);
@@ -138,7 +141,7 @@ export default function SpecialtyTagChip({
         className={`${textSizeClassName} ${textColor}`}
         numberOfLines={2}
       >
-        {tag.name}
+        <HighlightedText text={tag.name} query={highlightQuery} />
       </AppText>
 
       {/* Selected-state indicator */}

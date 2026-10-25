@@ -26,6 +26,7 @@ import type { ExploreBusiness } from "@/features/explore/types/exploreBusiness.t
 import AppText from "@/shared/components/AppText";
 import RecentSearches from "@/features/explore/components/search-filter-results/RecentSearches";
 import SearchInitialState from "@/features/explore/components/search-filter-results/SearchInitialState";
+import SimilarMatchesNotice from "@/features/explore/components/search-filter-results/SimilarMatchesNotice";
 import SearchFilterEmptyState from "@/features/explore/components/search-filter-results/SearchFilterEmptyState";
 import { useRecentSearchesStore } from "@/features/explore/stores/recentSearches.store";
 import ErrorState from "@/shared/components/ErrorState";
@@ -294,6 +295,7 @@ export default function MapBusinessSearchSheet({
             <BusinessCard
               business={item}
               variant="compact"
+              highlightQuery={results.highlightQuery}
               distance={null}
               distanceAccuracy={null}
               onPress={() => {
@@ -317,6 +319,9 @@ export default function MapBusinessSearchSheet({
                 {results.totalItems}{" "}
                 {results.totalItems === 1 ? "place" : "places"}
               </AppText>
+              {isOpen &&
+                results.businesses.length > 0 &&
+                results.usedFuzzyFallback && <SimilarMatchesNotice />}
             </View>
           ) : null
         }

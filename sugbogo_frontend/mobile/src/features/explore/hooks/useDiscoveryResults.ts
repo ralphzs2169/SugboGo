@@ -56,6 +56,10 @@ export default function useDiscoveryResults(
   return {
     businesses: query.data?.pages.flatMap((page) => page.items) ?? [],
     totalItems: query.data?.pages[0]?.pagination.total_items ?? 0,
+    // Presentation belongs to the settled query, never to a newer input draft.
+    highlightQuery: enabled && query.data ? normalizedCriteria.search : "",
+    usedFuzzyFallback:
+      enabled && query.data?.pages[0]?.used_fuzzy_fallback === true,
     hasNextPage: query.hasNextPage,
     fetchNextPage: query.fetchNextPage,
     isFetchingNextPage: query.isFetchingNextPage,

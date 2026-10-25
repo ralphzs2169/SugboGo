@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from decimal import Decimal
 
 from apps.admin_operations.system_configuration.models import (
@@ -25,6 +26,7 @@ from django.db.models import (
     OuterRef,
     Prefetch,
     Q,
+    QuerySet,
     Subquery,
     Value,
     When,
@@ -32,6 +34,14 @@ from django.db.models import (
 from django.db.models.functions import Coalesce, Greatest
 
 from .published_review_count import published_review_count
+
+
+@dataclass(frozen=True)
+class DiscoveryFeedResult:
+    """Pair ranked businesses with the actual search path used for this request."""
+
+    businesses: QuerySet
+    used_fuzzy_fallback: bool
 
 
 class DiscoveryFeedService:
@@ -204,9 +214,30 @@ class DiscoveryFeedService:
         specialty_tag_id=None,
         rank_specialty_by_tag_score=True,
     ):
-        """Returns active businesses ordered by their current discovery score."""
+        """Return ranked businesses while retaining the queryset-only service contract."""
+
+        return DiscoveryFeedService.get_discovery_result(
+            user=user,
+            search=search,
+            category_ids=category_ids,
+            cluster_id=cluster_id,
+            specialty_tag_id=specialty_tag_id,
+            rank_specialty_by_tag_score=rank_specialty_by_tag_score,
+        ).businesses
+
+    @staticmethod
+    def get_discovery_result(
+        user,
+        search="",
+        category_ids=None,
+        cluster_id=None,
+        specialty_tag_id=None,
+        rank_specialty_by_tag_score=True,
+    ):
+        """Return the ordered queryset and explicit metadata without changing ranking."""
 
         normalized_search = search.strip()
+        used_fuzzy_fallback = False
 
         user_pocket_exists = BusinessPocket.objects.filter(
             BUSN_ID=OuterRef("BUSN_ID"),
@@ -346,6 +377,7 @@ class DiscoveryFeedService:
                     queryset,
                     normalized_search,
                 )
+                used_fuzzy_fallback = True
                 ordering.append(
                     "-search_similarity",
                 )
@@ -364,8 +396,11 @@ class DiscoveryFeedService:
             DiscoveryFeedService.DISCOVERY_ORDERING,
         )
 
-        return queryset.order_by(
-            *ordering,
+        return DiscoveryFeedResult(
+            businesses=queryset.order_by(
+                *ordering,
+            ),
+            used_fuzzy_fallback=used_fuzzy_fallback,
         )
 
     @staticmethod

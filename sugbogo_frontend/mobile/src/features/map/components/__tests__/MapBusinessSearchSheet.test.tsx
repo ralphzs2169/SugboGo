@@ -9,6 +9,9 @@ import MapBusinessSearchSheet from "../MapBusinessSearchSheet";
 const mockSearchState = {
   businesses: [] as { id: number; business_name: string }[],
   hasQuery: false,
+  totalItems: 0,
+  highlightQuery: "",
+  usedFuzzyFallback: false,
   isPending: false,
   isFetching: false,
   isFetchingNextPage: false,
@@ -18,7 +21,21 @@ const mockSearchState = {
   fetchNextPage: jest.fn(),
 };
 const mockDismiss = jest.fn();
-jest.mock("expo-router", () => ({ useIsFocused: () => true }));
+const mockCardHighlight = jest.fn();
+jest.mock("expo-router", () => ({
+  useIsFocused: () => true,
+  useNavigation: () => ({ isFocused: () => true }),
+}));
+jest.mock("@/features/explore/stores/recentSearches.store", () => ({
+  useRecentSearchesStore: () => ({
+    queries: [],
+    scope: "test",
+    isHydrated: true,
+    addQuery: jest.fn(),
+    removeQuery: jest.fn(),
+    clearQueries: jest.fn(),
+  }),
+}));
 jest.mock("@/features/explore/hooks/useVisibilityMutations", () => ({
   useRecordBusinessImpressions: () => ({ mutateAsync: jest.fn() }),
 }));
@@ -54,10 +71,13 @@ jest.mock("@/features/explore/components/new-businesses/BusinessCard", () => {
   return function MockBusinessCard({
     business,
     onPress,
+    highlightQuery,
   }: {
     business: { business_name: string };
     onPress: () => void;
+    highlightQuery?: string;
   }) {
+    mockCardHighlight(highlightQuery);
     return (
       <Pressable onPress={onPress}>
         <Text>{business.business_name}</Text>
@@ -99,14 +119,17 @@ jest.mock("@gorhom/bottom-sheet", () => {
       renderItem,
       ListEmptyComponent,
       ListFooterComponent,
+      ListHeaderComponent,
     }: {
       data: { id: number }[];
       renderItem: (info: { item: { id: number } }) => React.ReactNode;
       ListEmptyComponent: React.ReactNode;
       ListFooterComponent: React.ReactNode;
+      ListHeaderComponent: React.ReactNode;
     }) {
       return (
         <View>
+          {ListHeaderComponent}
           {data.length > 0
             ? data.map((item) => (
                 <React.Fragment key={item.id}>
@@ -127,6 +150,9 @@ beforeEach(() => {
   mockSearchState.error = null;
   mockSearchState.isPending = false;
   mockSearchState.hasQuery = false;
+  mockSearchState.highlightQuery = "";
+  mockSearchState.usedFuzzyFallback = false;
+  mockSearchState.totalItems = 0;
 });
 
 async function setup() {
@@ -173,8 +199,8 @@ it("keeps loading, empty, and retryable failure states distinct", async () => {
   mockSearchState.hasQuery = true;
   mockSearchState.isPending = true;
   const { screen, sheetRef, onBusinessSelect } = await setup();
-  expect(screen.getByText("Searching businesses…")).toBeTruthy();
-  expect(screen.queryByText(/No businesses found/)).toBeNull();
+  expect(screen.getByTestId("search-filter-results-loading")).toBeTruthy();
+  expect(screen.queryByText("No places found")).toBeNull();
   mockSearchState.isPending = false;
   await screen.rerender(
     <MapBusinessSearchSheet
@@ -182,7 +208,7 @@ it("keeps loading, empty, and retryable failure states distinct", async () => {
       onBusinessSelect={onBusinessSelect}
     />,
   );
-  expect(screen.getByText(/No businesses found/)).toBeTruthy();
+  expect(screen.getByText("No places found")).toBeTruthy();
   mockSearchState.error = { code: "NETWORK_ERROR" };
   await screen.rerender(
     <MapBusinessSearchSheet
@@ -190,8 +216,54 @@ it("keeps loading, empty, and retryable failure states distinct", async () => {
       onBusinessSelect={onBusinessSelect}
     />,
   );
-  await fireEvent.press(screen.getByRole("button", { name: /Tap to retry/i }));
+  await fireEvent.press(screen.getByRole("button", { name: "Retry" }));
   expect(mockSearchState.refetch).toHaveBeenCalledTimes(1);
+});
+
+it("shares settled highlighting and shows the cue only for confirmed populated fuzzy results", async () => {
+  mockSearchState.hasQuery = true;
+  mockSearchState.totalItems = 1;
+  mockSearchState.businesses = [{ id: 42, business_name: "Adventure" }];
+  mockSearchState.highlightQuery = "advventre";
+  mockSearchState.usedFuzzyFallback = true;
+  const { screen, sheetRef, onBusinessSelect } = await setup();
+  expect(screen.getByText("Showing similar matches")).toBeTruthy();
+  expect(mockCardHighlight).toHaveBeenLastCalledWith("advventre");
+
+  mockSearchState.isPending = true;
+  mockSearchState.highlightQuery = "";
+  await screen.rerender(
+    <MapBusinessSearchSheet
+      sheetRef={sheetRef}
+      onBusinessSelect={onBusinessSelect}
+    />,
+  );
+  expect(screen.queryByText("Showing similar matches")).toBeNull();
+  expect(mockCardHighlight).toHaveBeenLastCalledWith("");
+
+  mockSearchState.isPending = false;
+  mockSearchState.usedFuzzyFallback = false;
+  mockSearchState.highlightQuery = "coffee";
+  await screen.rerender(
+    <MapBusinessSearchSheet
+      sheetRef={sheetRef}
+      onBusinessSelect={onBusinessSelect}
+    />,
+  );
+  expect(screen.queryByText("Showing similar matches")).toBeNull();
+  expect(mockCardHighlight).toHaveBeenLastCalledWith("coffee");
+
+  mockSearchState.usedFuzzyFallback = true;
+  mockSearchState.businesses = [];
+  mockSearchState.totalItems = 0;
+  await screen.rerender(
+    <MapBusinessSearchSheet
+      sheetRef={sheetRef}
+      onBusinessSelect={onBusinessSelect}
+    />,
+  );
+  expect(screen.queryByText("Showing similar matches")).toBeNull();
+  expect(screen.getByText("No places found")).toBeTruthy();
 });
 
 it("consumes Android Back only while search is open", async () => {

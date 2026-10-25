@@ -38,6 +38,49 @@ const criteria = {
 };
 
 describe("useDiscoveryResults", () => {
+  it("uses only backend metadata and hides presentation state while the query is disabled", async () => {
+    (getDiscoveryResults as jest.Mock).mockResolvedValue({
+      success: true,
+      data: {
+        items: [{ id: 42 }],
+        used_fuzzy_fallback: true,
+        pagination: { page: 1, total_items: 1, has_next: false },
+      },
+    });
+    const { result, rerender, unmount } = await renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useDiscoveryResults({ ...criteria, search: "advventre" }, enabled),
+      { initialProps: { enabled: true }, wrapper: setupClient() },
+    );
+    await waitFor(() => expect(result.current.usedFuzzyFallback).toBe(true));
+    expect(result.current.highlightQuery).toBe("advventre");
+    await rerender({ enabled: false });
+    expect(result.current.usedFuzzyFallback).toBe(false);
+    expect(result.current.highlightQuery).toBe("");
+    await unmount();
+  });
+
+  it.each([false, undefined])(
+    "does not infer fuzzy results when metadata is %s",
+    async (flag) => {
+      (getDiscoveryResults as jest.Mock).mockResolvedValue({
+        success: true,
+        data: {
+          items: [{ id: 42, business_name: "Adventure" }],
+          used_fuzzy_fallback: flag,
+          pagination: { page: 1, total_items: 1, has_next: false },
+        },
+      });
+      const { result, unmount } = await renderHook(
+        () => useDiscoveryResults({ ...criteria, search: "advventre" }),
+        { wrapper: setupClient() },
+      );
+      await waitFor(() => expect(result.current.businesses).toHaveLength(1));
+      expect(result.current.usedFuzzyFallback).toBe(false);
+      await unmount();
+    },
+  );
+
   it.each(["refresh", "next-page"])(
     "preserves loaded pages after %s failure",
     async (operation) => {

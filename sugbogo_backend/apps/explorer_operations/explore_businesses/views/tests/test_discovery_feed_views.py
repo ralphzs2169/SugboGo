@@ -924,6 +924,7 @@ class DiscoveryFeedTests(TestCase):
                     self._response_ids(response),
                     [business.BUSN_ID for business in expected],
                 )
+                self.assertIs(response.data["data"]["used_fuzzy_fallback"], False)
                 fuzzy_search.assert_not_called()
 
     def test_fuzzy_fallback_recovers_misspellings_inside_long_business_names(self):
@@ -953,6 +954,7 @@ class DiscoveryFeedTests(TestCase):
                     self._response_ids(response),
                     [business.BUSN_ID],
                 )
+                self.assertIs(response.data["data"]["used_fuzzy_fallback"], True)
 
     def test_long_typo_tolerance_applies_to_names_but_not_taxonomy_labels(self):
         """A long name typo cannot expand through weaker category or specialty matches."""
@@ -1056,6 +1058,7 @@ class DiscoveryFeedTests(TestCase):
                 )
 
                 self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertIs(response.data["data"]["used_fuzzy_fallback"], False)
                 fuzzy_search.assert_not_called()
 
                 if query == "cfe":
@@ -1352,6 +1355,7 @@ class DiscoveryFeedTests(TestCase):
 
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertEqual(response.data["data"]["pagination"]["total_items"], 3)
+            self.assertIs(response.data["data"]["used_fuzzy_fallback"], True)
             actual_ids.extend(self._response_ids(response))
 
         self.assertEqual(

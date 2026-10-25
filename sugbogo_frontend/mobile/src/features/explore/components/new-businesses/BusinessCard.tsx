@@ -6,6 +6,7 @@ import { StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import HighlightedText from "@/shared/components/HighlightedText";
 import SafePressable from "@/shared/components/SafePressable";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
@@ -32,6 +33,7 @@ type Props = {
   compactTrailingAction?: ReactNode;
   variant?: "default" | "featured" | "compact";
   recommendationReason?: RecommendationReason | null;
+  highlightQuery?: string;
 };
 
 const CARD_WIDTH = 226;
@@ -77,6 +79,7 @@ export default function BusinessCard({
   compactTrailingAction,
   variant = "default",
   recommendationReason = null,
+  highlightQuery,
 }: Props) {
   const [failedCover, setFailedCover] = useState<string | null>(null);
   const cover =
@@ -219,7 +222,10 @@ export default function BusinessCard({
                 }
                 numberOfLines={2}
               >
-                {business.business_name}
+                <HighlightedText
+                  text={business.business_name}
+                  query={highlightQuery}
+                />
               </AppText>
 
               <View className="mt-1 flex-row items-center">
@@ -234,7 +240,10 @@ export default function BusinessCard({
                   className="ml-1 min-w-0 flex-1 text-[10px] text-text-secondary"
                   numberOfLines={1}
                 >
-                  {business.category.name}
+                  <HighlightedText
+                    text={business.category.name}
+                    query={highlightQuery}
+                  />
                 </AppText>
 
                 {distance !== null && (
@@ -284,6 +293,7 @@ export default function BusinessCard({
                     key={tag.id}
                     tag={tag}
                     size="xs"
+                    highlightQuery={highlightQuery}
                     isSelected={tag.is_vouched}
                     showVouchIndicator={tag.is_vouched}
                     showIcon

@@ -86,6 +86,10 @@ export type ExploreBusinessListResponse = {
   pagination: ExploreBusinessPagination;
 };
 
+export type DiscoveryResultsResponse = ExploreBusinessListResponse & {
+  used_fuzzy_fallback?: boolean;
+};
+
 export type ExploreResultsCriteria = {
   search: string;
   clusterId: number | null;
