@@ -84,6 +84,7 @@ jest.mock("../../components/new-businesses/BusinessCard", () => {
   const { Text } = require("react-native");
   return {
     __esModule: true,
+    getBusinessCardWidth: () => 226,
     default: ({
       business,
       onPress,
@@ -110,7 +111,6 @@ jest.mock(
   "../../components/discovery-shortcuts/DiscoveryShortcutsSection",
   () => () => null,
 );
-jest.mock("../../components/explore-map/ExploreMapSection", () => () => null);
 jest.mock("../../components/hidden-gems/HiddenGemsSection", () => {
   const { Pressable, Text, View } = require("react-native");
 

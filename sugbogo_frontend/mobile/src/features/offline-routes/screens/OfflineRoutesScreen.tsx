@@ -13,6 +13,7 @@ import {
   isAuthSessionGenerationCurrent,
 } from "@/shared/api/authSessionGeneration.service";
 import JourneyStep from "@/features/explore/components/getting-there/jeepney-guidance/JourneyStep";
+import MerchantAccessDirections from "@/features/explore/components/getting-there/MerchantAccessDirections";
 import InfoBanner from "@/shared/components/InfoBanner";
 import { formatJourneyDistance } from "@/features/explore/utils/directJourney.utils";
 import AppText from "@/shared/components/AppText";
@@ -226,6 +227,11 @@ export default function OfflineRoutesScreen({
                 starting point.
               </AppText>
             </View>
+            <MerchantAccessDirections
+              directions={snapshot.business.access_directions}
+              presentation="inline"
+              className=""
+            />
             <InfoBanner
               title={
                 needsJourneyReview(snapshot.savedAt)
@@ -238,8 +244,8 @@ export default function OfflineRoutesScreen({
             >
               <AppText className="text-xs leading-5 text-text-secondary">
                 {needsJourneyReview(snapshot.savedAt)
-                  ? "Saved over a week ago. Check this journey online before your next trip."
-                  : "Stops and service may change. Confirm current guidance when online."}
+                  ? "Saved over a week ago. Check this journey and any access notes online before your next trip."
+                  : "Stops, service and access notes may change. Confirm current guidance when online."}
               </AppText>
               <AppText className="text-xs text-text-tertiary">
                 Saved {new Date(snapshot.savedAt).toLocaleString()}

@@ -21,6 +21,27 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 jest.mock("@/shared/hooks/useQueryErrorNotification", () => jest.fn());
 jest.mock("../../hooks/useDirectJourneyMap");
+jest.mock("@gorhom/bottom-sheet", () => {
+  const React = jest.requireActual("react");
+  const { View, ScrollView } = jest.requireActual("react-native");
+  return {
+    BottomSheetModal: React.forwardRef(function MockSheet(
+      {
+        children,
+        onDismiss,
+      }: { children: React.ReactNode; onDismiss: () => void },
+      ref: React.Ref<unknown>,
+    ) {
+      React.useImperativeHandle(ref, () => ({
+        present: jest.fn(),
+        dismiss: onDismiss,
+      }));
+      return <View>{children}</View>;
+    }),
+    BottomSheetBackdrop: () => null,
+    BottomSheetScrollView: ScrollView,
+  };
+});
 jest.mock("../../hooks/useExploreBusinessProfile", () => ({
   __esModule: true,
   default: jest.fn(),
@@ -127,6 +148,115 @@ describe("JeepneyRouteMapScreen", () => {
       error: null,
       refetch,
     });
+  });
+
+  it("keeps long multiline merchant context collapsed until requested", async () => {
+    const directions = "Use the entrance behind the chapel.\n".repeat(25);
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      business: { business_name: "Sugbo Cafe", access_directions: directions },
+    });
+    const screen = await render(
+      <JeepneyRouteMapScreen
+        businessId={21}
+        routeVariantId={8}
+        boardingTransitPointId={2}
+        alightingTransitPointId={4}
+      />,
+    );
+    expect(screen.queryByText(directions.trim())).toBeNull();
+    const disclosure = screen.getByRole("button", {
+      name: "Access notes",
+    });
+    expect(disclosure.props.accessibilityState.expanded).toBe(false);
+    await fireEvent.press(disclosure);
+    expect(screen.getByText(directions.trim())).toBeTruthy();
+    expect(screen.getAllByText("Merchant-provided")).toHaveLength(2);
+    expect(
+      screen.getAllByRole("header", { name: "Access notes" }),
+    ).toHaveLength(1);
+    expect(screen.queryByText("Final approach")).toBeNull();
+    expect(screen.queryByText("How to reach us")).toBeNull();
+    expect(
+      screen.getByText(directions.trim()).props.numberOfLines,
+    ).toBeUndefined();
+    expect(screen.queryByText("Read more")).toBeNull();
+    let scrollContainer = screen.getByText(directions.trim()).parent;
+    while (scrollContainer && scrollContainer.type !== "RCTScrollView") {
+      scrollContainer = scrollContainer.parent;
+    }
+    expect(scrollContainer).not.toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Close access notes" }),
+    );
+    expect(screen.queryByText(directions.trim())).toBeNull();
+  });
+
+  it.each([undefined, null, "", " \n "])(
+    "hides the merchant disclosure for blank context (%s)",
+    async (directions) => {
+      (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+        business: {
+          business_name: "Sugbo Cafe",
+          access_directions: directions,
+        },
+      });
+      const screen = await render(
+        <JeepneyRouteMapScreen
+          businessId={21}
+          routeVariantId={8}
+          boardingTransitPointId={2}
+          alightingTransitPointId={4}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: "Access notes" })).toBeNull();
+    },
+  );
+
+  it("dismisses revealed merchant context when the business note is cleared", async () => {
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      business: {
+        business_name: "Sugbo Cafe",
+        access_directions: "Use the gate.",
+      },
+    });
+    const screen = await render(
+      <JeepneyRouteMapScreen
+        businessId={21}
+        routeVariantId={8}
+        boardingTransitPointId={2}
+        alightingTransitPointId={4}
+      />,
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "Access notes" }));
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      business: { business_name: "Sugbo Cafe", access_directions: "" },
+    });
+    await screen.rerender(
+      <JeepneyRouteMapScreen
+        businessId={21}
+        routeVariantId={8}
+        boardingTransitPointId={2}
+        alightingTransitPointId={4}
+      />,
+    );
+    expect(screen.queryByText("Use the gate.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Access notes" })).toBeNull();
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      business: { business_name: "Sugbo Cafe", access_directions: "New gate." },
+    });
+    await screen.rerender(
+      <JeepneyRouteMapScreen
+        businessId={21}
+        routeVariantId={8}
+        boardingTransitPointId={2}
+        alightingTransitPointId={4}
+      />,
+    );
+    expect(screen.queryByText("New gate.")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Access notes" }).props
+        .accessibilityState.expanded,
+    ).toBe(false);
   });
 
   it("loads and presents the selected journey map context", async () => {

@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import ErrorState from "@/shared/components/ErrorState";
 import MerchantPortalCard from "../../components/MerchantPortalCard";
 import ProfileScreen from "../ProfileScreen";
+import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
 
 const mockRefetchApplicationStatus = jest.fn();
 
@@ -94,6 +95,17 @@ jest.mock("../../components/ProfileScrollView", () => ({
 }));
 
 describe("ProfileScreen merchant status", () => {
+  it("opens the shared logout confirmation from the explorer profile", async () => {
+    useLogoutConfirmationStore.setState({ isOpen: false });
+    const screen = await render(<ProfileScreen />);
+
+    await fireEvent.press(screen.getByText("Logout"));
+
+    expect(useLogoutConfirmationStore.getState().isOpen).toBe(true);
+    useLogoutConfirmationStore.getState().close();
+    screen.unmount();
+  });
+
   const mockMerchantPortalCard = MerchantPortalCard as jest.Mock;
   const mockErrorState = ErrorState as jest.Mock;
 

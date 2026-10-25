@@ -86,6 +86,66 @@ describe("BusinessVisitInfoContent", () => {
     expect(screen.queryByLabelText("Choose a ride provider")).toBeNull();
   });
 
+  it("places access context after location and before the three transport options", async () => {
+    const screen = await render(
+      <BusinessVisitInfoContent
+        {...defaultProps}
+        accessDirections="Use the blue gate."
+      />,
+    );
+    expect(screen.getByRole("header", { name: "Access notes" })).toBeTruthy();
+    expect(screen.getByText("Merchant-provided")).toBeTruthy();
+    expect(screen.getByText("Use the blue gate.")).toBeTruthy();
+    expect(screen.queryByText("How to reach us")).toBeNull();
+    expect(
+      screen.getAllByRole("button", {
+        name: /View road route|Open jeepney guide|Choose a ride provider/,
+      }),
+    ).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: "Access notes" })).toBeNull();
+    const content = JSON.stringify(screen.toJSON());
+    expect(content.indexOf("123 Colon Street")).toBeLessThan(
+      content.indexOf("Access notes"),
+    );
+    expect(content.indexOf("Access notes")).toBeLessThan(
+      content.indexOf("How to get there"),
+    );
+  });
+
+  it.each([undefined, "", " \n "])(
+    "hides blank access context (%s)",
+    async (directions) => {
+      const screen = await render(
+        <BusinessVisitInfoContent
+          {...defaultProps}
+          accessDirections={directions}
+        />,
+      );
+      expect(screen.queryByText("Access notes")).toBeNull();
+      expect(
+        screen.getAllByRole("button", {
+          name: /View road route|Open jeepney guide|Choose a ride provider/,
+        }),
+      ).toHaveLength(3);
+    },
+  );
+
+  it("offers Read more only when access notes exceed the line preview", async () => {
+    const directions = "Walk behind the chapel.\nUse the side gate.";
+    const screen = await render(
+      <BusinessVisitInfoContent
+        {...defaultProps}
+        accessDirections={directions}
+      />,
+    );
+    expect(screen.queryByText("Read more")).toBeNull();
+    await fireEvent(screen.getByText(directions), "textLayout", {
+      nativeEvent: { lines: Array(5).fill({ text: "A rendered line" }) },
+    });
+    await fireEvent.press(screen.getByText("Read more"));
+    expect(screen.getByText(directions).props.numberOfLines).toBeUndefined();
+  });
+
   it("keeps merchant notes readable in saved visit details with transport disabled", async () => {
     const screen = await render(
       <BusinessVisitInfoContent
@@ -95,7 +155,7 @@ describe("BusinessVisitInfoContent", () => {
       />,
     );
     expect(screen.getByText("Walk behind the chapel.")).toBeTruthy();
-    expect(screen.getByText("Merchant-provided directions")).toBeTruthy();
+    expect(screen.getByText("Merchant-provided")).toBeTruthy();
     expect(
       screen.getByLabelText("Open jeepney guide").props.accessibilityState
         .disabled,

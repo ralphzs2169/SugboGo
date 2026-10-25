@@ -1,5 +1,6 @@
 export const DISCOVERY_FEED_QUERY_KEY = ["explore-discovery"] as const;
 export const NEW_BUSINESSES_QUERY_KEY = ["explore-new-businesses"] as const;
+export const OPEN_NOW_BUSINESSES_QUERY_KEY = ["explore-open-now"] as const;
 export const RECOMMENDATIONS_QUERY_KEY = ["explore-recommendations"] as const;
 export const DISCOVERY_SHORTCUTS_QUERY_KEY = ["discovery-shortcuts"] as const;
 export const EXPLORE_SPECIALTIES_QUERY_KEY = ["explore-specialties"] as const;

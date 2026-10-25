@@ -65,7 +65,10 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
   return (
     <View className="py-6">
       {/* Section heading */}
-      <ExploreSectionHeader title="Explore by Specialty" />
+      <ExploreSectionHeader
+        title="Explore by Specialty"
+        subtitle="Discover local places by what they’re known for."
+      />
 
       {/* Loading state */}
       {showLoading && <ExploreBySpecialtySkeleton />}

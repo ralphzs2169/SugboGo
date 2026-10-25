@@ -3,6 +3,7 @@ import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import BusinessProfileSection from "@/features/explore/components/business-profile/BusinessProfileSection";
+import MerchantAccessDirections from "@/features/explore/components/getting-there/MerchantAccessDirections";
 import { formatTime } from "@/features/explore/utils/businessHours.utils";
 import AppText from "@/shared/components/AppText";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
@@ -103,6 +104,10 @@ export default function OfflineBusinessContent({
               .join(", ") || "No address was provided."}
           </AppText>
         </View>
+        <MerchantAccessDirections
+          directions={business.access_directions}
+          presentation="inline"
+        />
       </BusinessProfileSection>
       <BusinessProfileSection title="Operating hours">
         <View className="gap-3">

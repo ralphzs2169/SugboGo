@@ -8,7 +8,6 @@ import {
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
-import { MAP_PREVIEW_QUERY_KEY } from "@/features/explore/hooks/useMapPreviewBusinesses";
 import { ROAD_ROUTE_QUERY_KEY } from "@/features/explore/hooks/useRoadRoute";
 import { DIRECT_JOURNEYS_QUERY_KEY } from "@/features/explore/hooks/useDirectJourneys";
 import { DIRECT_JOURNEY_MAP_QUERY_KEY } from "@/features/explore/hooks/useDirectJourneyMap";
@@ -69,7 +68,6 @@ function useRefreshApprovedLocation(
           queryClient.invalidateQueries({
             queryKey: exploreBusinessDetailKey(profile.id),
           }),
-          queryClient.invalidateQueries({ queryKey: MAP_PREVIEW_QUERY_KEY }),
           queryClient.invalidateQueries({
             queryKey: [...ROAD_ROUTE_QUERY_KEY, profile.id],
           }),

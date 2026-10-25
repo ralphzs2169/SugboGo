@@ -1,8 +1,17 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { router, useNavigation } from "expo-router";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
+  Pressable,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   View,
@@ -17,13 +26,14 @@ import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import useUserLocation from "@/shared/hooks/useUserLocation";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import DirectJourneyList from "../components/getting-there/jeepney-guidance/DirectJourneyList";
 import JeepneyDestinationHeader from "../components/getting-there/jeepney-guidance/JeepneyDestinationHeader";
 import JeepneyDestinationStickyHeader from "../components/getting-there/jeepney-guidance/JeepneyDestinationStickyHeader";
 import JourneyOriginSelector from "../components/getting-there/jeepney-guidance/JourneyOriginSelector";
 import GettingThereEmptyState from "../components/getting-there/GettingThereEmptyState";
-import MerchantAccessDirections from "../components/getting-there/MerchantAccessDirections";
+import MerchantAccessNotesSheet from "../components/getting-there/MerchantAccessNotesSheet";
 import GettingThereLoadingState from "../components/getting-there/GettingThereLoadingState";
 import LocationUnavailableState from "../components/getting-there/LocationUnavailableState";
 import useDirectJourneys from "../hooks/useDirectJourneys";
@@ -53,9 +63,44 @@ const DESTINATION_STICKY_THRESHOLD = 44;
  */
 export default function JeepneyGuideScreen({ businessId }: Props) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+  const accessNotesSheet = useRef<BottomSheetModal>(null);
+  const [accessNotesOpen, setAccessNotesOpen] = useState(false);
 
   const businessQuery = useExploreBusinessProfile(businessId);
+  const accessDirections = businessQuery.business?.access_directions?.trim();
   const userLocation = useUserLocation();
+
+  const openAccessNotes = useCallback(() => {
+    if (!accessDirections) {
+      return;
+    }
+    setAccessNotesOpen(true);
+    presentBottomSheet(accessNotesSheet);
+  }, [accessDirections]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: accessDirections
+        ? () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open access notes"
+              accessibilityHint="Opens merchant-provided access information"
+              onPress={openAccessNotes}
+              className="h-12 w-12 cursor-pointer items-center justify-center active:opacity-70"
+            >
+              <MaterialCommunityIcons
+                name="format-quote-open"
+                size={20}
+                color={theme.extends.colors.text.secondary}
+                accessible={false}
+              />
+            </Pressable>
+          )
+        : undefined,
+    });
+  }, [accessDirections, navigation, openAccessNotes]);
 
   const originBusinessId = useJourneyOriginStore((state) => state.businessId);
   const confirmedOrigin = useJourneyOriginStore(
@@ -277,8 +322,38 @@ export default function JeepneyGuideScreen({ businessId }: Props) {
             />
           ) : null}
 
-          {/* Merchant guidance remains readable for successful and empty searches. */}
-          <MerchantAccessDirections directions={business?.access_directions} />
+          {/* This opens merchant context without suggesting an alternative calculated route. */}
+          {accessDirections &&
+            activeOrigin &&
+            journeyQuery.result &&
+            !journeyQuery.error &&
+            journeyQuery.routeOptions.length === 0 && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="View merchant-provided access notes"
+                onPress={openAccessNotes}
+                className="mt-4 min-h-12 cursor-pointer flex-row items-center gap-2 border-t border-border-primary/60 py-3 active:opacity-70"
+              >
+                <MaterialCommunityIcons
+                  name="format-quote-open"
+                  size={20}
+                  color={theme.extends.colors.text.secondary}
+                  accessible={false}
+                />
+                <AppText
+                  weight="semibold"
+                  className="min-w-0 flex-1 text-sm leading-5 text-text-primary"
+                >
+                  View merchant-provided access notes
+                </AppText>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={20}
+                  color={theme.extends.colors.text.secondary}
+                  accessible={false}
+                />
+              </Pressable>
+            )}
 
           {/* Approximate-distance clarification */}
           {journeyQuery.routeOptions.length > 0 && (
@@ -312,6 +387,12 @@ export default function JeepneyGuideScreen({ businessId }: Props) {
           onPress={openStartingPointPicker}
         />
       </View>
+      <MerchantAccessNotesSheet
+        sheetRef={accessNotesSheet}
+        directions={accessDirections}
+        isOpen={accessNotesOpen}
+        onDismiss={() => setAccessNotesOpen(false)}
+      />
     </View>
   );
 }

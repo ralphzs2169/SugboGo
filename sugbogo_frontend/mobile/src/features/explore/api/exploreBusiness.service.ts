@@ -11,7 +11,6 @@ import type {
   DiscoveryShortcut,
   ExploreSpecialty,
   RecommendationBusinessListResponse,
-  ExploreMapPreviewBusiness,
   ExploreFilterOptions,
   ExploreResultsCriteria,
   ExploreCollectionCriteria,
@@ -23,6 +22,20 @@ export async function getNewBusinesses(): Promise<
   ApiResponse<ExploreBusinessListResponse>
 > {
   return request(apiClient.get("/explorer/explore/new-businesses/"));
+}
+
+/** Retrieves the server-ranked six-place preview around the supplied location. */
+export async function getOpenNowBusinesses(
+  latitude: number,
+  longitude: number,
+  signal?: AbortSignal,
+): Promise<ApiResponse<ExploreBusiness[]>> {
+  return request(
+    apiClient.get("/explorer/explore/open-now/", {
+      params: { latitude, longitude },
+      signal,
+    }),
+  );
 }
 
 export async function getDiscoveryFeed(): Promise<
@@ -228,19 +241,5 @@ export async function recordBusinessProfileVisit(
   }
   return request(
     apiClient.post(`/explorer/explore/businesses/${businessId}/profile-visit/`),
-  );
-}
-
-export async function getMapPreviewBusinesses(
-  latitude: number,
-  longitude: number,
-): Promise<ApiResponse<ExploreMapPreviewBusiness[]>> {
-  return request(
-    apiClient.get("/explorer/explore/map-preview/", {
-      params: {
-        latitude,
-        longitude,
-      },
-    }),
   );
 }

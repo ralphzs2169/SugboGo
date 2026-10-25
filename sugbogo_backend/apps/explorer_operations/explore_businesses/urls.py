@@ -20,9 +20,6 @@ from apps.explorer_operations.explore_businesses.views.discovery_feed_views impo
 from apps.explorer_operations.explore_businesses.views.explore_collection_views import (
     ExploreCollectionView,
 )
-from apps.explorer_operations.explore_businesses.views.explore_map_preview_views import (
-    ExploreMapPreviewView,
-)
 from apps.explorer_operations.explore_businesses.views.explore_specialty_tag_views import (
     ExploreSpecialtyView,
 )
@@ -40,6 +37,9 @@ from apps.explorer_operations.explore_businesses.views.map_discovery_views impor
 )
 from apps.explorer_operations.explore_businesses.views.new_businesses_views import (
     NewBusinessesView,
+)
+from apps.explorer_operations.explore_businesses.views.open_now_businesses_views import (
+    OpenNowBusinessesView,
 )
 from apps.explorer_operations.explore_businesses.views.recommendation_views import (
     RecommendationView,
@@ -140,13 +140,17 @@ urlpatterns = [
     path("collections/<str:collection_type>/",ExploreCollectionView.as_view(),name="explore-collection",),
     
     path("new-businesses/", NewBusinessesView.as_view(), name="new-businesses", ),
+    path(
+        "open-now/",
+        OpenNowBusinessesView.as_view(),
+        name="open-now-businesses",
+    ),
     path("discovery/", DiscoveryFeedView.as_view(), name="discovery-feed", ),
     path("filter-options/", ExploreFilterOptionsView.as_view(), name="filter-options", ),
     path("specialties/",ExploreSpecialtyView.as_view(),name="explore-specialties"),
     path("recommendations/", RecommendationView.as_view(), name="recommendations", ),
     path("discovery-shortcuts/", ClusterDiscoveryShortcutView.as_view(), name="discovery-shortcuts", ),
 
-    path("map-preview/",ExploreMapPreviewView.as_view(),name="explore-map-preview"),
     path(
         "map/businesses/",
         MapDirectoryView.as_view(),

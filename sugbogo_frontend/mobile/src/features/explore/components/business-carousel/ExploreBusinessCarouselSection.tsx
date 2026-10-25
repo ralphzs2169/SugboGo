@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { LocationObject } from "expo-location";
 import { useEffect } from "react";
 import { ScrollView, View } from "react-native";
@@ -22,6 +22,9 @@ type Props = {
   impressions: BusinessImpressionObservation;
   userLocation: LocationObject | null;
   cardVariant?: "default" | "featured";
+  availabilityLabel?: string;
+  hiddenGemsOnly?: boolean;
+  headerContent?: ReactNode;
   sectionTestID: string;
   scrollTestID: string;
   impressionTestIDPrefix: string;
@@ -50,6 +53,9 @@ export default function ExploreBusinessCarousel({
   impressions,
   userLocation,
   cardVariant = "default",
+  availabilityLabel,
+  hiddenGemsOnly = false,
+  headerContent,
   sectionTestID,
   scrollTestID,
   impressionTestIDPrefix,
@@ -95,6 +101,8 @@ export default function ExploreBusinessCarousel({
         />
       )}
 
+      {headerContent}
+
       {/* Business carousel */}
       <ScrollView
         testID={scrollTestID}
@@ -103,7 +111,7 @@ export default function ExploreBusinessCarousel({
         scrollEventThrottle={16}
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerClassName="gap-3 px-4"
+        contentContainerClassName={`gap-3 px-4 ${hiddenGemsOnly || businesses.some((business) => business.is_hidden_gem) ? "pt-3" : ""}`}
       >
         {businesses.map((business) => {
           const distance =
@@ -128,6 +136,8 @@ export default function ExploreBusinessCarousel({
                 distance={distance}
                 distanceAccuracy={userLocation?.coords.accuracy ?? null}
                 variant={cardVariant}
+                availabilityLabel={availabilityLabel}
+                isHiddenGem={hiddenGemsOnly || business.is_hidden_gem === true}
                 onPress={() =>
                   onBusinessPress(
                     business.id,

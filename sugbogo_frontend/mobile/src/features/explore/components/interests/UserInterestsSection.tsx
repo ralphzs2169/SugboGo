@@ -179,12 +179,12 @@ export default function UserInterestsSection({
               <MaterialCommunityIcons
                 name="chevron-right"
                 size={18}
-                color="#FFFFFF"
+                color={theme.extends.colors.brand}
                 accessibilityElementsHidden
                 importantForAccessibility="no"
               />
             }
-            variant="outline"
+            variant="soft"
             className="mt-4 min-h-11 self-start"
             onPress={() =>
               router.push({

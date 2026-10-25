@@ -274,6 +274,8 @@ describe("Pocket membership queries and replacements", () => {
     const second = { id: 7, is_pocketed: true };
     const feed = { items: [second, first], pagination: { total_items: 2 } };
     client.setQueryData(RECOMMENDATIONS_QUERY_KEY, feed);
+    const nearbyKey = ["explore-open-now", 10.33, 123.9];
+    client.setQueryData(nearbyKey, [second, first]);
     client.setQueryData(["explore-business-detail", 42], first);
     client.setQueryData([...DISCOVERY_RESULTS_QUERY_KEY, "criteria"], {
       pages: [feed],
@@ -313,6 +315,10 @@ describe("Pocket membership queries and replacements", () => {
       ...feed,
       items: [second, { ...first, is_pocketed: true }],
     });
+    expect(client.getQueryData(nearbyKey)).toEqual([
+      second,
+      { ...first, is_pocketed: true },
+    ]);
     for (const key of [
       [...DISCOVERY_RESULTS_QUERY_KEY, "criteria"],
       [...EXPLORE_COLLECTIONS_QUERY_KEY, "hidden-gems"],

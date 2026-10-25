@@ -17,7 +17,8 @@ import SafePressable from "@/shared/components/SafePressable";
 import MerchantContentSection from "../../layout/MerchantContentSection";
 import type { MerchantBusinessProfileResponse } from "../../types/merchantBusinessProfile.types";
 
-type SuggestionKind = "email" | "website" | "products" | "landmarks";
+type SuggestionKind =
+  "email" | "website" | "products" | "landmarks" | "access-notes";
 
 type SuggestionItem = {
   key: SuggestionKind;
@@ -37,6 +38,7 @@ const TIP_IMAGES: Record<SuggestionKind, number> = {
   website: require("../../assets/icons/add-website.webp"),
   products: require("../../assets/icons/add-photos.webp"),
   landmarks: require("../../assets/icons/add-landmarks.webp"),
+  "access-notes": require("../../assets/icons/add-access-notes.webp"),
 };
 
 /** Displays each bundled illustration without cropping its transparent edges. */
@@ -322,11 +324,22 @@ export default function MerchantListingSuggestion({
   if (business.location.landmarks.length === 0) {
     suggestions.push({
       key: "landmarks",
-      title: "Help explorers find your business",
+      title: "Help explorers recognize their stop",
       description:
-        "Add nearby landmarks to make your location easier to recognize. Changes require SugboGo approval.",
-      action: "Add nearby landmarks",
+        "Add nearby landmarks as reference points for Jeepney guidance.",
+      action: "Add landmarks",
       onOpen: onAddLandmarks,
+    });
+  }
+
+  if (!business.access_directions?.trim()) {
+    suggestions.push({
+      key: "access-notes",
+      title: "Make your entrance easier to find",
+      description:
+        "Share entrance details, walking access, or extra instructions for reaching your business.",
+      action: "Add access notes",
+      onOpen: onEditInformation,
     });
   }
 

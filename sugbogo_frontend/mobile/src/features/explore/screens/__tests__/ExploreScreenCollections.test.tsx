@@ -4,6 +4,8 @@ import ExploreScreen from "../ExploreScreen";
 
 const mockPush = jest.fn();
 
+jest.mock("../../api/exploreBusiness.service", () => ({}));
+
 jest.mock("expo-router", () => ({
   router: {
     push: (...args: unknown[]) => mockPush(...args),
@@ -23,10 +25,9 @@ jest.mock("../../hooks/useBusinessImpressions", () => () => ({
   onViewportLayout: jest.fn(),
   onVerticalScroll: jest.fn(),
 }));
-jest.mock("../../hooks/useMapPreviewBusinesses", () => ({
-  __esModule: true,
-  default: () => ({ businesses: [] }),
-  MAP_PREVIEW_QUERY_KEY: ["map-preview"],
+jest.mock("../../hooks/useOpenNowBusinesses", () => () => ({
+  businesses: [],
+  refreshAtLocation: jest.fn(),
 }));
 jest.mock("../../hooks/useDiscoveryFeed", () => ({
   __esModule: true,
@@ -42,13 +43,7 @@ jest.mock("../../hooks/useExploreFilterOptions", () => () => ({
   options: { clusters: [] },
 }));
 jest.mock("../../components/ExploreTopBar", () => () => null);
-jest.mock("../../components/hidden-gems/HiddenGemsSection", () => ({
-  __esModule: true,
-  default: ({ onSeeAll }: { onSeeAll: () => void }) => {
-    const { Button } = jest.requireActual("react-native");
-    return <Button title="Open Hidden Gems" onPress={onSeeAll} />;
-  },
-}));
+jest.mock("../../components/hidden-gems/HiddenGemsSection", () => () => null);
 jest.mock("../../components/interests/UserInterestsSection", () => ({
   __esModule: true,
   default: ({ onSeeAll }: { onSeeAll: () => void }) => {
@@ -71,17 +66,15 @@ jest.mock(
   "../../components/discovery-shortcuts/DiscoveryShortcutsSection",
   () => () => null,
 );
-jest.mock("../../components/explore-map/ExploreMapSection", () => () => null);
 
-it("opens the reusable screen with each supported collection type", async () => {
+it("opens the reusable screen from the homepage collection actions", async () => {
   const screen = await render(<ExploreScreen />);
 
   for (const [title, collectionType] of [
-    ["Open Hidden Gems", "hidden-gems"],
     ["Open Interests", "interests"],
     ["Open New", "new-businesses"],
   ]) {
-    fireEvent.press(screen.getByText(title));
+    await fireEvent.press(screen.getByText(title));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/(explorer)/explore-collection/[collectionType]",
       params: { collectionType },

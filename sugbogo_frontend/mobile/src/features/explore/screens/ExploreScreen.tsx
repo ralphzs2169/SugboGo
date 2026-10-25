@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useState } from "react";
+import type { LocationObject } from "expo-location";
+import { useEffect, useRef, useState } from "react";
 import {
   RefreshControl,
   ScrollView,
@@ -17,17 +18,16 @@ import ExploreTopBar from "../components/ExploreTopBar";
 import UserInterestsSection from "../components/interests/UserInterestsSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
 import HiddenGemsSection from "../components/hidden-gems/HiddenGemsSection";
+import OpenNowBusinessesSection from "../components/open-now/OpenNowBusinessesSection";
+import useOpenNowBusinesses from "../hooks/useOpenNowBusinesses";
+import { OPEN_NOW_BUSINESSES_QUERY_KEY } from "../constants/exploreHomepageQueries";
 import useBusinessImpressions from "../hooks/useBusinessImpressions";
-import useMapPreviewBusinesses, {
-  MAP_PREVIEW_QUERY_KEY,
-} from "../hooks/useMapPreviewBusinesses";
 import useDiscoveryFeed, {
   DISCOVERY_FEED_QUERY_KEY,
 } from "../hooks/useDiscoveryFeed";
 
 import { RECOMMENDATIONS_QUERY_KEY } from "../hooks/useRecommendations";
 import DiscoveryShortcutsSection from "../components/discovery-shortcuts/DiscoveryShortcutsSection";
-import ExploreMapSection from "../components/explore-map/ExploreMapSection";
 import { EXPLORE_SPECIALTIES_QUERY_KEY } from "../hooks/useExploreSpecialties";
 import { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../hooks/useDiscoveryShortcuts";
 import useUserLocation from "@/shared/hooks/useUserLocation";
@@ -45,30 +45,69 @@ export default function ExploreScreen() {
   const queryClient = useQueryClient();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshInProgress = useRef(false);
+  const [openNowLocation, setOpenNowLocation] = useState<LocationObject | null>(
+    null,
+  );
+  const [isUsingLastLocation, setIsUsingLastLocation] = useState(false);
 
   const bottomSpacing = useTabBarSpacing();
 
-  const discoveryImpressions = useBusinessImpressions(bottomSpacing);
-  const spotlightImpressions = useBusinessImpressions(bottomSpacing);
-  const newBusinessImpressions = useBusinessImpressions(bottomSpacing);
-  const recommendationImpressions = useBusinessImpressions(bottomSpacing);
+  const discoveryImpressions = useBusinessImpressions(bottomSpacing, 0);
+  const spotlightImpressions = useBusinessImpressions(bottomSpacing, 0);
+  const newBusinessImpressions = useBusinessImpressions(bottomSpacing, 0);
+  const recommendationImpressions = useBusinessImpressions(bottomSpacing, 0);
+  const openNowImpressions = useBusinessImpressions(bottomSpacing);
 
-  const { location: userLocation, refreshLocation } = useUserLocation();
+  const {
+    location: userLocation,
+    status: locationStatus,
+    isRefreshingLocation,
+    refreshLocation,
+  } = useUserLocation();
+  const nearbyLocation = openNowLocation;
 
-  const mapPreview = useMapPreviewBusinesses(
-    userLocation?.coords.latitude ?? null,
-    userLocation?.coords.longitude ?? null,
+  useEffect(() => {
+    if (userLocation !== null && !refreshInProgress.current) {
+      setOpenNowLocation((currentLocation) => currentLocation ?? userLocation);
+    }
+  }, [userLocation]);
+
+  const openNow = useOpenNowBusinesses(
+    nearbyLocation,
+    !isRefreshing && !isRefreshingLocation,
   );
 
   const discoveryFeed = useDiscoveryFeed();
   const filterOptions = useExploreFilterOptions();
 
   const handleRefresh = async () => {
+    if (refreshInProgress.current) {
+      return;
+    }
+
+    refreshInProgress.current = true;
     setIsRefreshing(true);
 
     try {
+      await queryClient.cancelQueries({
+        queryKey: OPEN_NOW_BUSINESSES_QUERY_KEY,
+      });
+
+      // Resolve the device location before choosing this section's query key.
+      const result = await refreshLocation();
+      const nextLocation = result.location ?? openNowLocation;
+      setOpenNowLocation(nextLocation);
+      setIsUsingLastLocation(
+        result.status !== "available" && nextLocation !== null,
+      );
+
       await Promise.all([
-        refreshLocation(),
+        nextLocation !== null
+          ? openNow.refreshAtLocation(nextLocation).catch(() => {
+              // The section exposes this query's persistent error and Retry.
+            })
+          : Promise.resolve(),
         queryClient.refetchQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
@@ -84,11 +123,9 @@ export default function ExploreScreen() {
         queryClient.refetchQueries({
           queryKey: DISCOVERY_SHORTCUTS_QUERY_KEY,
         }),
-        queryClient.refetchQueries({
-          queryKey: MAP_PREVIEW_QUERY_KEY,
-        }),
       ]);
     } finally {
+      refreshInProgress.current = false;
       setIsRefreshing(false);
     }
   };
@@ -98,6 +135,7 @@ export default function ExploreScreen() {
     spotlightImpressions.onViewportLayout(event);
     newBusinessImpressions.onViewportLayout(event);
     recommendationImpressions.onViewportLayout(event);
+    openNowImpressions.onViewportLayout(event);
   };
 
   const handleVerticalScroll = (
@@ -107,6 +145,7 @@ export default function ExploreScreen() {
     spotlightImpressions.onVerticalScroll(event);
     newBusinessImpressions.onVerticalScroll(event);
     recommendationImpressions.onVerticalScroll(event);
+    openNowImpressions.onVerticalScroll(event);
   };
 
   const handleBusinessPress = (
@@ -183,6 +222,16 @@ export default function ExploreScreen() {
           onBusinessPress={handleBusinessPress}
         />
 
+        {/* Nearby businesses open according to their listed hours */}
+        <OpenNowBusinessesSection
+          feed={openNow}
+          userLocation={nearbyLocation}
+          isLocating={locationStatus === "loading" && openNowLocation === null}
+          isUsingLastLocation={isUsingLastLocation}
+          impressions={openNowImpressions}
+          onBusinessPress={handleBusinessPress}
+        />
+
         {/* Specialty discovery preview */}
         <ExploreBySpecialtySection
           onSpecialtyPress={(specialtyTagId) =>
@@ -211,19 +260,6 @@ export default function ExploreScreen() {
           onShortcutPress={(clusterId) =>
             navigateToExploreResults({ clusterId })
           }
-        />
-
-        {/* Map discovery preview */}
-        <ExploreMapSection
-          businesses={mapPreview.businesses}
-          isLoading={mapPreview.isLoading}
-          isPaused={mapPreview.isPaused}
-          error={mapPreview.error}
-          refetch={mapPreview.refetch}
-          userLocation={userLocation}
-          onOpenMap={() => {
-            router.push("/(explorer)/(tabs)/map");
-          }}
         />
       </ScrollView>
     </View>

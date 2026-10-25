@@ -1,4 +1,5 @@
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
+import LogoutConfirmationModal from "@/features/auth/components/LogoutConfirmationModal";
 import "@/features/explore/stores/recentSearches.store";
 import QueryPersistenceProvider from "@/shared/query/QueryPersistenceProvider";
 import QueryLifecycle from "@/shared/query/QueryLifecycle";
@@ -172,6 +173,9 @@ export default function RootLayout() {
                   </Stack>
                 </PocketPickerProvider>
               </BottomSheetModalProvider>
+
+              {/* Logout feedback survives authentication redirects. */}
+              <LogoutConfirmationModal />
 
               {/* Global toast notifications */}
               <Toast config={toastConfig} />

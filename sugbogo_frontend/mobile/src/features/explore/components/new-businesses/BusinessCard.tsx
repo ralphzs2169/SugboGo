@@ -6,6 +6,7 @@ import { StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import HiddenGemBadge from "@/shared/components/HiddenGemBadge";
 import HighlightedText from "@/shared/components/HighlightedText";
 import SafePressable from "@/shared/components/SafePressable";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
@@ -34,6 +35,8 @@ type Props = {
   variant?: "default" | "featured" | "compact";
   recommendationReason?: RecommendationReason | null;
   highlightQuery?: string;
+  availabilityLabel?: string;
+  isHiddenGem?: boolean;
 };
 
 const CARD_WIDTH = 226;
@@ -80,6 +83,8 @@ export default function BusinessCard({
   variant = "default",
   recommendationReason = null,
   highlightQuery,
+  availabilityLabel,
+  isHiddenGem = business.is_hidden_gem === true,
 }: Props) {
   const [failedCover, setFailedCover] = useState<string | null>(null);
   const cover =
@@ -304,6 +309,7 @@ export default function BusinessCard({
           </View>
         </SafePressable>
         {pocketAction}
+        {isHiddenGem && <HiddenGemBadge />}
         {compactTrailingAction && (
           <View className="absolute right-1 top-1">
             {compactTrailingAction}
@@ -421,6 +427,16 @@ export default function BusinessCard({
             {business.business_name}
           </AppText>
 
+          {/* Listed availability */}
+          {availabilityLabel && (
+            <AppText
+              weight="semibold"
+              className="mt-2 text-xs text-text-primary"
+            >
+              {availabilityLabel}
+            </AppText>
+          )}
+
           {/* Specialty tags */}
           {displayTags.length > 0 && (
             <View
@@ -477,7 +493,7 @@ export default function BusinessCard({
                 {overallVibeLabel && overallVibeStyle && (
                   <View className="ml-2 min-w-0 shrink flex-row items-center">
                     <View
-                      className={`h-2 w-2 shrink-0 rounded-full ${overallVibeStyle.containerClassName}`}
+                      className={`h-2 w-2 shrink-0 rounded-full ${overallVibeStyle.dotClassName}`}
                     />
 
                     <AppText
@@ -495,6 +511,7 @@ export default function BusinessCard({
         </View>
       </SafePressable>
       {pocketAction}
+      {isHiddenGem && <HiddenGemBadge />}
     </View>
   );
 }

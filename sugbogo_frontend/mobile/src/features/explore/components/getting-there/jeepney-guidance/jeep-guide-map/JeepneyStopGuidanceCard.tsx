@@ -1,11 +1,14 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { View } from "react-native";
-import type { ReactNode } from "react";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { Pressable, View } from "react-native";
+import { useRef, useState, type ReactNode } from "react";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import DottedTimelineConnector from "@/shared/components/DottedTimelineConnector";
 import { shadows } from "@/shared/styles/shadows";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
+import MerchantAccessNotesSheet from "../../MerchantAccessNotesSheet";
 
 type Props = {
   boardingPointName: string;
@@ -13,6 +16,7 @@ type Props = {
   alightingPointName: string;
   destinationDistance: string;
   landmarkName?: string | null;
+  accessDirections?: string | null;
   headerAction?: ReactNode;
 };
 
@@ -34,8 +38,13 @@ export default function JeepneyStopGuidanceCard({
   alightingPointName,
   destinationDistance,
   landmarkName,
+  accessDirections,
   headerAction,
 }: Props) {
+  const directionsSheet = useRef<BottomSheetModal>(null);
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const directions = accessDirections?.trim();
+
   return (
     <View
       className="rounded-t-3xl border-t border-border-primary bg-surface px-4 pb-3 pt-3.5"
@@ -174,6 +183,41 @@ export default function JeepneyStopGuidanceCard({
           </View>
         </View>
       </View>
+      {/* Merchant context is separate from calculated stops and opens outside the footer. */}
+      {directions && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Access notes"
+          accessibilityHint="Opens merchant-provided access information"
+          accessibilityState={{ expanded: directionsOpen }}
+          onPress={() => {
+            setDirectionsOpen(true);
+            presentBottomSheet(directionsSheet);
+          }}
+          className="mt-3 min-h-12 cursor-pointer flex-row items-center px-1 py-2 active:opacity-70"
+        >
+          <View className="min-w-0 flex-1">
+            <AppText weight="semibold" className="text-sm text-text-primary">
+              Access notes
+            </AppText>
+            <AppText className="mt-0.5 text-xs text-text-secondary">
+              Merchant-provided
+            </AppText>
+          </View>
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={20}
+            color={theme.extends.colors.text.secondary}
+            accessible={false}
+          />
+        </Pressable>
+      )}
+      <MerchantAccessNotesSheet
+        sheetRef={directionsSheet}
+        directions={directions}
+        isOpen={directionsOpen}
+        onDismiss={() => setDirectionsOpen(false)}
+      />
     </View>
   );
 }

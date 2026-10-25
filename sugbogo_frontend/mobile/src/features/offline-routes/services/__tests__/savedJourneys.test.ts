@@ -68,6 +68,23 @@ describe("saved journey device repository", () => {
     await expect(saveJourney(snapshot)).rejects.toThrow("Sign in");
   });
 
+  it("persists and reads merchant context as part of the existing business snapshot", async () => {
+    const directions = "Use the chapel entrance.\nWalk to the blue gate.";
+    const saved = {
+      ...snapshot,
+      business: { ...snapshot.business, access_directions: directions },
+    };
+    await saveJourney(saved);
+    const args = mockDb.runAsync.mock.calls[0];
+    expect(JSON.parse(args[4]).business.access_directions).toBe(directions);
+    mockDb.getAllAsync.mockResolvedValue([
+      { journey_key: "21:8:2:4", snapshot: args[4] },
+    ]);
+    expect(
+      (await listSavedJourneys(7))[0].snapshot?.business.access_directions,
+    ).toBe(directions);
+  });
+
   it("rejects another owner and operations after local access is revoked", async () => {
     await expect(listSavedJourneys(8)).rejects.toThrow("unavailable");
     await expect(deleteSavedJourney(8, "21:8:2:4")).rejects.toThrow(

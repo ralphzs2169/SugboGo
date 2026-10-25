@@ -20,6 +20,7 @@ import { saveJourney } from "../services/savedJourneys.service";
 type Props = {
   businessId: number;
   businessName: string | null;
+  accessDirections?: string | null;
   journey: DirectJourneyMapGuidance;
   origin: { latitude: number; longitude: number; label: string };
 };
@@ -28,6 +29,7 @@ type Props = {
 export default function SaveOfflineJourneyButton({
   businessId,
   businessName,
+  accessDirections,
   journey,
   origin,
 }: Props) {
@@ -81,7 +83,13 @@ export default function SaveOfflineJourneyButton({
       await saveJourney({
         formatVersion: 1,
         savedAt: new Date().toISOString(),
-        business: { id: businessId, name: businessName },
+        business: {
+          id: businessId,
+          name: businessName,
+          ...(accessDirections?.trim() && {
+            access_directions: accessDirections.trim(),
+          }),
+        },
         origin: savedOrigin,
         journey,
       });

@@ -2,10 +2,7 @@ import * as Location from "expo-location";
 import { useCallback, useEffect, useState } from "react";
 
 export type UserLocationStatus =
-  | "loading"
-  | "available"
-  | "denied"
-  | "unavailable";
+  "loading" | "available" | "denied" | "unavailable";
 
 type UserLocationResult =
   | {
@@ -60,15 +57,24 @@ async function requestCurrentLocation(): Promise<UserLocationResult> {
  * Requests foreground location permission on initial use and supports manually
  * refreshing the location without requiring continuous location tracking.
  */
-export default function useUserLocation() {
+export default function useUserLocation({ enabled = true } = {}) {
   const [location, setLocation] = useState<Location.LocationObject | null>(
     null,
   );
-  const [status, setStatus] = useState<UserLocationStatus>("loading");
+  const [status, setStatus] = useState<UserLocationStatus>(
+    enabled ? "loading" : "unavailable",
+  );
   const [error, setError] = useState<unknown>(null);
-  const [isRefreshingLocation, setIsRefreshingLocation] = useState(true);
+  const [isRefreshingLocation, setIsRefreshingLocation] = useState(enabled);
 
   const refreshLocation = useCallback(async () => {
+    if (!enabled) {
+      return {
+        status: "unavailable",
+        location: null,
+        error: null,
+      } as const;
+    }
     setIsRefreshingLocation(true);
     setStatus("loading");
     setError(null);
@@ -81,9 +87,13 @@ export default function useUserLocation() {
     setIsRefreshingLocation(false);
 
     return result;
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     let isActive = true;
 
     void requestCurrentLocation().then((result) => {
@@ -100,16 +110,16 @@ export default function useUserLocation() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [enabled]);
 
   return {
-    location,
-    latitude: location?.coords.latitude ?? null,
-    longitude: location?.coords.longitude ?? null,
-    accuracy: location?.coords.accuracy ?? null,
-    status,
-    error,
-    isRefreshingLocation,
+    location: enabled ? location : null,
+    latitude: enabled ? (location?.coords.latitude ?? null) : null,
+    longitude: enabled ? (location?.coords.longitude ?? null) : null,
+    accuracy: enabled ? (location?.coords.accuracy ?? null) : null,
+    status: enabled ? status : ("unavailable" as const),
+    error: enabled ? error : null,
+    isRefreshingLocation: enabled && isRefreshingLocation,
     refreshLocation,
   };
 }

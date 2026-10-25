@@ -113,6 +113,7 @@ let mockProfilePhotos: { category: string; url: string }[] = [];
 let mockLandmarks: { id: number }[] = [{ id: 1 }];
 let mockBusinessEmail: string | null = "hello@example.com";
 let mockBusinessWebsite: string | null = "https://example.com";
+let mockAccessDirections: string | undefined = "Use the side entrance.";
 
 jest.mock("@/features/notifications/hooks/useNotifications", () => ({
   useNotificationUnreadCount: () => ({ unreadCount: 4 }),
@@ -129,6 +130,7 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
       location: { landmarks: mockLandmarks },
       business_email: mockBusinessEmail,
       website: mockBusinessWebsite,
+      access_directions: mockAccessDirections,
       display_cover_photo_url: "https://example.com/business-cover.jpg",
       specialty_tags: [
         { id: 2, name: "Friendly service", color: "green", icon: "heart" },
@@ -324,6 +326,7 @@ describe("MerchantDashboardScreen", () => {
     mockLandmarks = [{ id: 1 }];
     mockBusinessEmail = "hello@example.com";
     mockBusinessWebsite = "https://example.com";
+    mockAccessDirections = "Use the side entrance.";
   });
 
   afterEach(async () => {
@@ -741,10 +744,12 @@ describe("MerchantDashboardScreen", () => {
       { category: "products", url: "https://example.com/product.jpg" },
     ];
     const screen = await renderScreen();
-    await screen.findByRole("button", { name: "Add nearby landmarks" });
-    expect(screen.getByText(/Changes require SugboGo approval/)).toBeTruthy();
+    await screen.findByRole("button", { name: "Add landmarks" });
+    expect(
+      screen.getByText(/reference points for Jeepney guidance/),
+    ).toBeTruthy();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Add nearby landmarks" }),
+      screen.getByRole("button", { name: "Add landmarks" }),
     );
     expect(mockNavigate).toHaveBeenLastCalledWith(
       "/(merchant)/location-change",
@@ -760,6 +765,54 @@ describe("MerchantDashboardScreen", () => {
     ).toBeNull();
   });
 
+  it.each([undefined, "", "  \n "])(
+    "offers blank access notes independently of configured landmarks (%s)",
+    async (directions) => {
+      mockAccessDirections = directions;
+      mockProfilePhotos = [
+        { category: "products", url: "https://example.com/product.jpg" },
+      ];
+      const screen = await renderScreen();
+      await screen.findByRole("button", { name: "Add access notes" });
+      expect(
+        screen.getByText("Make your entrance easier to find"),
+      ).toBeTruthy();
+      expect(
+        screen.getByTestId("listing-tip-illustration").props.recyclingKey,
+      ).toBe("access-notes");
+      await fireEvent.press(
+        screen.getByRole("button", { name: "Add access notes" }),
+      );
+      expect(mockNavigate).toHaveBeenLastCalledWith(
+        "/(merchant)/business-information",
+      );
+
+      mockAccessDirections = "  Use the side gate.  ";
+      await screen.rerender(
+        <QueryClientProvider client={client}>
+          <MerchantDashboardScreen />
+        </QueryClientProvider>,
+      );
+      expect(
+        screen.queryByRole("header", { name: "Improve your listing" }),
+      ).toBeNull();
+    },
+  );
+
+  it("offers access notes even when Jeepney landmarks are also missing", async () => {
+    mockAccessDirections = "";
+    mockLandmarks = [];
+    mockProfilePhotos = [
+      { category: "products", url: "https://example.com/product.jpg" },
+    ];
+    const screen = await renderScreen();
+    await screen.findByRole("button", { name: "Add landmarks" });
+    await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
+    expect(
+      screen.getByRole("button", { name: "Add access notes" }),
+    ).toBeTruthy();
+  });
+
   it("includes missing landmarks as the fourth applicable tip", async () => {
     mockBusinessEmail = null;
     mockBusinessWebsite = null;
@@ -770,9 +823,7 @@ describe("MerchantDashboardScreen", () => {
       await fireEvent.press(screen.getByRole("button", { name: "Next tip" }));
     }
     expect(screen.getByLabelText("Tip 4 of 4")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Add nearby landmarks" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add landmarks" })).toBeTruthy();
   });
   it("previews all four illustrated tips without changing profile data", async () => {
     mockProfilePhotos = [

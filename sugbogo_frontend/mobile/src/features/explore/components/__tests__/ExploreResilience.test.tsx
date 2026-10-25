@@ -3,7 +3,6 @@ import { fireEvent, render } from "@testing-library/react-native";
 import NewBusinessesSection from "../new-businesses/NewBusinessesSection";
 import ExploreBySpecialtySection from "../explore-by-specialty/ExploreBySpecialtySection";
 import DiscoveryShortcutsSection from "../discovery-shortcuts/DiscoveryShortcutsSection";
-import ExploreMapSection from "../explore-map/ExploreMapSection";
 import useNewBusinesses from "../../hooks/useNewBusinesses";
 import useExploreSpecialties from "../../hooks/useExploreSpecialties";
 import useDiscoveryShortcuts from "../../hooks/useDiscoveryShortcuts";
@@ -132,27 +131,3 @@ it.each(cases)(
     expect(screen.getByText("Retry failed section")).toBeTruthy();
   },
 );
-
-it("keeps the loaded map preview after refresh failure, but offers retry without places", async () => {
-  const mapProps = {
-    ...state,
-    userLocation: null,
-    onOpenMap: jest.fn(),
-    businesses: [{ id: 1 }] as never,
-  };
-  const screen = await render(<ExploreMapSection {...mapProps} />);
-  await screen.rerender(
-    <ExploreMapSection {...mapProps} error={new Error("Offline")} />,
-  );
-  expect(screen.getByText("1 loaded map places")).toBeTruthy();
-  expect(screen.queryByText("Retry failed section")).toBeNull();
-  await screen.rerender(
-    <ExploreMapSection
-      {...mapProps}
-      businesses={[]}
-      error={new Error("Offline")}
-    />,
-  );
-  await fireEvent.press(screen.getByText("Retry failed section"));
-  expect(refetch).toHaveBeenCalledTimes(1);
-});

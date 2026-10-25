@@ -22,7 +22,16 @@ const geometry = z.array(coordinate).min(2).max(10000);
 export const savedJourneySchema = z.object({
   formatVersion: z.literal(1),
   savedAt: z.string().datetime(),
-  business: z.object({ id, name }),
+  business: z.object({
+    id,
+    name,
+    access_directions: z
+      .string()
+      .trim()
+      .max(1000)
+      .transform((value) => value || undefined)
+      .optional(),
+  }),
   origin: coordinate.extend({ label: name }),
   journey: z
     .object({

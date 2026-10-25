@@ -4,10 +4,9 @@ import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
-import { useLogout } from "@/features/auth/hooks/useLogout";
+import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import ErrorState from "@/shared/components/ErrorState";
-import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 
 import AppVersion from "../components/AppVersion";
 import MerchantPortalCard from "../components/MerchantPortalCard";
@@ -32,10 +31,9 @@ export default function ProfileScreen() {
 
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
 
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
 
-  const { logout } = useLogout();
+  const openLogoutConfirmation = useLogoutConfirmationStore((state) => state.open);
 
   const {
     status: applicationStatus,
@@ -217,24 +215,13 @@ export default function ProfileScreen() {
               title="Logout"
               icon="logout"
               variant="danger"
-              onPress={() => setShowLogoutModal(true)}
+              onPress={openLogoutConfirmation}
               showChevron={false}
             />
           </ProfileMenuSection>
 
           <AppVersion />
         </ProfileScrollView>
-
-        {/* Logout confirmation */}
-        <ConfirmModal
-          visible={showLogoutModal}
-          title="Log out?"
-          message="Are you sure you want to log out of your account?"
-          confirmText="Logout"
-          destructive
-          onCancel={() => setShowLogoutModal(false)}
-          onConfirm={logout}
-        />
       </View>
     </SafeAreaView>
   );

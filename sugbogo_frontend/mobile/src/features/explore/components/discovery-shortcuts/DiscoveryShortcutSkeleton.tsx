@@ -14,12 +14,12 @@ type Props = {
  */
 export default function DiscoveryShortcutsSkeleton({ count = 3 }: Props) {
   return (
-    <View className="gap-3 px-4">
+    <View className="mx-4 border-y border-border-primary">
       {/* Shortcut placeholders */}
       {Array.from({ length: count }).map((_, index) => (
         <View
           key={index}
-          className="flex-row items-center rounded-card border border-border-primary bg-surface px-4 py-3.5"
+          className={`min-h-20 flex-row items-center bg-surface py-4 ${index > 0 ? "border-t border-border-primary" : ""}`}
         >
           {/* Shortcut icon */}
           <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
@@ -28,6 +28,7 @@ export default function DiscoveryShortcutsSkeleton({ count = 3 }: Props) {
           <View className="ml-3 min-w-0 flex-1">
             <Skeleton className="h-4 w-2/3 rounded-md" />
             <Skeleton className="mt-2 h-3 w-1/2 rounded-md" />
+            <Skeleton className="mt-2 h-3 w-24 rounded-md" />
           </View>
 
           {/* Navigation affordance */}

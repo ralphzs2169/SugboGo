@@ -45,12 +45,12 @@ export default function ExploreTopBar({
 
   return (
     <View
-      className="bg-surface px-4 pb-4"
+      className="bg-surface px-4 pb-2"
       style={{ paddingTop: insets.top + 8 }}
     >
       {/* Exploration context */}
-      <View className="mb-4 flex-row items-center justify-between">
-        <View className="flex-1">
+      <View className="mb-3 flex-row items-center justify-between">
+        <View className="min-w-0 flex-1">
           <AppText weight="superbold" className="text-2xl text-text-primary">
             Sugbo
             <AppText weight="superbold" className="text-2xl text-brand">
@@ -95,7 +95,7 @@ export default function ExploreTopBar({
           onPress={onPressSearch}
           accessibilityRole="button"
           accessibilityLabel="Search businesses or places"
-          className="cursor-pointer flex-1 flex-row items-center rounded-full border border-border-primary bg-background px-3.5 active:opacity-80"
+          className="min-h-12 cursor-pointer flex-1 flex-row items-center rounded-full border border-border-primary bg-background px-3.5 active:opacity-80"
         >
           <MaterialCommunityIcons
             name="magnify"
@@ -113,7 +113,7 @@ export default function ExploreTopBar({
           hitSlop={6}
           accessibilityRole="button"
           accessibilityLabel="Open discovery filters"
-          className="relative cursor-pointer items-center justify-center rounded-full border border-border-primary bg-background px-3.5 active:opacity-70"
+          className="relative min-h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-border-primary bg-background active:opacity-70"
         >
           <MaterialCommunityIcons
             name="tune-variant"
