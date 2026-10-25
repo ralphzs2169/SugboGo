@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { hashKey } from "@tanstack/react-query";
 import { useContext, useEffect, useState } from "react";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
@@ -10,7 +11,9 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 
-import useSimilarBusinesses from "../../hooks/useSimilarBusinesses";
+import useSimilarBusinesses, {
+  SIMILAR_BUSINESSES_QUERY_KEY,
+} from "../../hooks/useSimilarBusinesses";
 import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
 import BusinessProfileSection from "./BusinessProfileSection";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -171,6 +174,10 @@ export default function SimilarPlacesSection({ businessId }: Props) {
                         params: {
                           businessId: String(business.id),
                           profileSource: "SIMILAR_BUSINESSES",
+                          previewQueryHash: hashKey([
+                            ...SIMILAR_BUSINESSES_QUERY_KEY,
+                            businessId,
+                          ]),
                           distance: distance === null ? "" : String(distance),
                           distanceAccuracy:
                             userLocation?.coords.accuracy === null ||

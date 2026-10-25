@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { hashKey, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import type { LocationObject } from "expo-location";
 import { useEffect, useRef, useState } from "react";
@@ -191,6 +191,15 @@ export default function ExploreScreen() {
         params: {
           businessId: String(businessId),
           profileSource: "EXPLORE_DISCOVERY",
+          ...(nearbyLocation
+            ? {
+                previewQueryHash: hashKey([
+                  ...OPEN_NOW_BUSINESSES_QUERY_KEY,
+                  nearbyLocation.coords.latitude,
+                  nearbyLocation.coords.longitude,
+                ]),
+              }
+            : {}),
           distance: distance !== null ? String(distance) : "",
           distanceAccuracy:
             distanceAccuracy !== null ? String(distanceAccuracy) : "",

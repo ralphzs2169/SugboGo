@@ -10,12 +10,14 @@ export default function BusinessDetailRoute() {
     distanceAccuracy,
     previewAsExplorer,
     profileSource,
+    previewQueryHash,
   } = useLocalSearchParams<{
     businessId: string;
     distance?: string;
     distanceAccuracy?: string;
     previewAsExplorer?: string;
     profileSource?: string | string[];
+    previewQueryHash?: string | string[];
   }>();
 
   return (
@@ -25,6 +27,9 @@ export default function BusinessDetailRoute() {
       distanceAccuracy={distanceAccuracy ? Number(distanceAccuracy) : null}
       previewAsExplorer={previewAsExplorer === "1"}
       profileSource={normalizeDiscoverySource(profileSource)}
+      previewQueryHash={
+        typeof previewQueryHash === "string" ? previewQueryHash : undefined
+      }
     />
   );
 }

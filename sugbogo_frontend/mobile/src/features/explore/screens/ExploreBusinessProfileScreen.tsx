@@ -14,6 +14,7 @@ export default function ExploreBusinessProfileScreen(
   const preview = useBusinessProfilePreview(
     props.businessId,
     detail.isInitialLoading,
+    props.previewQueryHash,
   );
   const picker = usePocketPicker();
   const closePicker = picker?.closePocketPicker;

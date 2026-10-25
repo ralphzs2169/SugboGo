@@ -124,7 +124,11 @@ jest.mock("../../components/new-businesses/BusinessCard", () => ({
     );
   },
 }));
-jest.mock("../../hooks/useExploreCollection");
+jest.mock("../../hooks/useExploreCollection", () => ({
+  ...jest.requireActual("../../hooks/useExploreCollection"),
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock("../../hooks/useExploreFilterOptions", () => () => ({
   options: {
     clusters: [{ id: 1, name: "Food", icon: "food" }],
@@ -214,6 +218,7 @@ describe("ExploreCollectionScreen", () => {
         params: expect.objectContaining({
           businessId: "42",
           profileSource: "COLLECTION",
+          previewQueryHash: '["explore-collections","hidden-gems",null,[],null]',
         }),
       }),
     );

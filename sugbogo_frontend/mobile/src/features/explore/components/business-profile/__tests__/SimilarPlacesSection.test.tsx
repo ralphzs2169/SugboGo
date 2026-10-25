@@ -31,7 +31,11 @@ const mockBusinessCard = jest.fn(
   },
 );
 
-jest.mock("../../../hooks/useSimilarBusinesses");
+jest.mock("../../../hooks/useSimilarBusinesses", () => ({
+  ...jest.requireActual("../../../hooks/useSimilarBusinesses"),
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock("@/shared/hooks/useUserLocation", () => ({
   __esModule: true,
   default: jest.fn(() => ({
@@ -166,6 +170,7 @@ describe("Similar Places", () => {
       params: {
         businessId: "42",
         profileSource: "SIMILAR_BUSINESSES",
+        previewQueryHash: '["similar-businesses",20]',
         distance: "",
         distanceAccuracy: "",
       },

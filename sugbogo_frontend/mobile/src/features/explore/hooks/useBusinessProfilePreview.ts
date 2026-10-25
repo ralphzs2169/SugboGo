@@ -17,6 +17,7 @@ function subscribeSession(notify: () => void) {
 export default function useBusinessProfilePreview(
   businessId: number,
   enabled: boolean,
+  sourceQueryHash?: string,
 ) {
   const client = useQueryClient();
   useAuthStore((state) => state.user?.id);
@@ -36,9 +37,14 @@ export default function useBusinessProfilePreview(
   const preview = useMemo(
     () =>
       enabled && session.isAuthorized() && session.ownerId != null
-        ? resolveBusinessProfilePreview(client, businessId, session.ownerId)
+        ? resolveBusinessProfilePreview(
+            client,
+            businessId,
+            session.ownerId,
+            sourceQueryHash,
+          )
         : null,
-    [businessId, client, enabled, session],
+    [businessId, client, enabled, session, sourceQueryHash],
   );
   return enabled && session.isAuthorized() ? preview : null;
 }

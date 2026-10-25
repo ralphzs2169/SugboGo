@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { hashKey } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
@@ -31,6 +32,7 @@ import PocketBusinessRemovalConfirmation from "../components/PocketBusinessRemov
 import PocketBusinessActions from "../components/PocketBusinessActions";
 import usePocketCollection from "../hooks/usePocketCollection";
 import usePocketCollectionBusinesses from "../hooks/usePocketCollectionBusinesses";
+import { pocketCollectionBusinessesQueryKey } from "../hooks/pocketQueryKeys";
 import type { PocketCollection } from "../types/pockets.types";
 
 type Props = { collectionId: number | null };
@@ -311,7 +313,15 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
               onPress={() =>
                 router.push({
                   pathname: "/(explorer)/business/[businessId]",
-                  params: { businessId: String(item.id) },
+                  params: {
+                    businessId: String(item.id),
+                    previewQueryHash: hashKey(
+                      pocketCollectionBusinessesQueryKey(
+                        contents.userId,
+                        collectionId,
+                      ),
+                    ),
+                  },
                 })
               }
               compactTrailingAction={

@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Animated, LayoutAnimation, Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -73,6 +73,17 @@ export default function BusinessVisitInfoContent({
 
   const currentDay = hours.currentDay;
   const websiteUrl = normalizeBusinessWebsite(website);
+  const websiteOpening = useRef(false);
+
+  async function openWebsite() {
+    if (!websiteUrl || websiteOpening.current) return;
+    websiteOpening.current = true;
+    try {
+      await openBusinessWebsite(websiteUrl);
+    } finally {
+      websiteOpening.current = false;
+    }
+  }
 
   const toggleHours = () => {
     const nextExpanded = !isExpanded;
@@ -370,7 +381,7 @@ export default function BusinessVisitInfoContent({
         {/* Website */}
         {website && (
           <Pressable
-            onPress={() => websiteUrl && void openBusinessWebsite(websiteUrl)}
+            onPress={() => void openWebsite()}
             disabled={!websiteUrl}
             accessibilityRole={websiteUrl ? "link" : undefined}
             accessibilityLabel={

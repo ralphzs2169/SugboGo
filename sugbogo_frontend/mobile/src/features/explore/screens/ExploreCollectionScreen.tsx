@@ -1,4 +1,5 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { hashKey } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useEffect, useRef, useState } from "react";
@@ -24,7 +25,9 @@ import ExploreCollectionResultsHeader, {
 } from "../components/explore-collection/ExploreCollectionResultsHeader";
 import ExploreCollectionTopBar from "../components/explore-collection/ExploreCollectionTopBar";
 import SearchFilterBottomSheet from "../components/search-filter-results/SearchFilterBottomSheet";
-import useExploreCollection from "../hooks/useExploreCollection";
+import useExploreCollection, {
+  getExploreCollectionQueryKey,
+} from "../hooks/useExploreCollection";
 import useExploreFilterOptions from "../hooks/useExploreFilterOptions";
 import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import ExploreFilterOptionsFeedback from "../components/ExploreFilterOptionsFeedback";
@@ -226,6 +229,9 @@ export default function ExploreCollectionScreen() {
         params: {
           businessId: String(business.id),
           profileSource: "COLLECTION",
+          previewQueryHash: hashKey(
+            getExploreCollectionQueryKey(collectionType, appliedCriteria),
+          ),
           distance: distance === null ? "" : String(distance),
           distanceAccuracy:
             userLocation?.coords.accuracy === null ||

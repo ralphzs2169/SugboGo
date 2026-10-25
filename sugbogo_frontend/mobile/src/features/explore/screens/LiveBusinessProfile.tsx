@@ -34,6 +34,7 @@ export type BusinessProfileProps = {
   distanceAccuracy: number | null;
   previewAsExplorer?: boolean;
   profileSource?: DiscoverySource;
+  previewQueryHash?: string;
 };
 
 type LiveProps = BusinessProfileProps & { business: ExploreBusinessDetail };

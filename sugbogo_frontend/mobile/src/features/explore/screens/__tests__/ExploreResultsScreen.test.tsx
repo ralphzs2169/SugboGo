@@ -85,7 +85,11 @@ jest.mock("../../components/new-businesses/BusinessCard", () => {
     return <Text onPress={onPress}>Open search result</Text>;
   };
 });
-jest.mock("../../hooks/useDiscoveryResults");
+jest.mock("../../hooks/useDiscoveryResults", () => ({
+  ...jest.requireActual("../../hooks/useDiscoveryResults"),
+  __esModule: true,
+  default: jest.fn(),
+}));
 jest.mock("../../hooks/useExploreFilterOptions", () => () => ({
   options: {
     clusters: [],
@@ -266,6 +270,7 @@ it("attributes a filtered-result opening to SEARCH_RESULTS while preserving busi
       distance: "",
       distanceAccuracy: "",
       profileSource: "SEARCH_RESULTS",
+      previewQueryHash: '["explore-discovery-results","",null,[],12]',
     },
   });
 });

@@ -1,4 +1,9 @@
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import {
+  hashKey,
+  type Query,
+  type QueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { z } from "zod";
 
 import {
@@ -18,6 +23,16 @@ const previewSchema = z.object({
 
 /** Listing identity only. This cannot stand in for business detail or permission state. */
 export type BusinessProfilePreview = z.infer<typeof previewSchema>;
+
+// Exact lookups avoid QueryCache.getAll/findAll, which copy the entire cache.
+// One source hint plus five fixed keys means at most six queries are inspected.
+export const BUSINESS_PROFILE_PREVIEW_LIMITS = {
+  queries: 6,
+  pagesPerQuery: 4,
+  itemsPerPage: 50,
+  itemsPerQuery: 200,
+  queryHashLength: 2048,
+} as const;
 
 const listingFamilies = new Set<unknown>([
   DISCOVERY_FEED_QUERY_KEY[0],
@@ -42,30 +57,67 @@ function isListingKey(key: QueryKey, ownerId: number) {
 }
 
 function* listingItems(data: unknown): Generator<unknown> {
+  const limits = BUSINESS_PROFILE_PREVIEW_LIMITS;
+  let items: unknown = null;
   if (Array.isArray(data)) {
-    yield* data;
-  } else if (data && typeof data === "object") {
-    if ("items" in data && Array.isArray(data.items)) {
-      yield* data.items;
-    } else if ("pages" in data && Array.isArray(data.pages)) {
-      for (const page of data.pages) {
-        if (page && Array.isArray(page.items)) yield* page.items;
+    items = data;
+  } else if (data && typeof data === "object" && "items" in data) {
+    items = data.items;
+  }
+
+  if (Array.isArray(items)) {
+    const count = Math.min(items.length, limits.itemsPerQuery);
+    for (let index = 0; index < count; index += 1) {
+      yield items[index];
+    }
+  } else if (
+    data &&
+    typeof data === "object" &&
+    "pages" in data &&
+    Array.isArray(data.pages)
+  ) {
+    // Prefer recently reached pages without walking earlier, possibly huge histories.
+    const start = Math.max(0, data.pages.length - limits.pagesPerQuery);
+    for (let index = start; index < data.pages.length; index += 1) {
+      const page = data.pages[index];
+      if (!page || !Array.isArray(page.items)) continue;
+      const count = Math.min(page.items.length, limits.itemsPerPage);
+      for (let item = 0; item < count; item += 1) {
+        yield page.items[item];
       }
     }
   }
 }
 
-/** Reads known listing shapes once per profile opening, newest matching cache first. */
+/** Reads a fixed set of known listing shapes, newest matching cache first. */
 export function resolveBusinessProfilePreview(
   client: QueryClient,
   businessId: number,
   ownerId: number,
+  sourceQueryHash?: string,
 ): BusinessProfilePreview | null {
   if (!Number.isSafeInteger(businessId) || businessId <= 0) return null;
 
-  const queries = client
-    .getQueryCache()
-    .findAll({ predicate: (query) => isListingKey(query.queryKey, ownerId) })
+  const hashes = new Set([
+    hashKey(DISCOVERY_FEED_QUERY_KEY),
+    hashKey(NEW_BUSINESSES_QUERY_KEY),
+    hashKey(RECOMMENDATIONS_QUERY_KEY),
+    hashKey(["map-discovery-directory", "all"]),
+    hashKey(["map-discovery-directory", "business", businessId]),
+  ]);
+  if (
+    typeof sourceQueryHash === "string" &&
+    sourceQueryHash.length <= BUSINESS_PROFILE_PREVIEW_LIMITS.queryHashLength
+  ) {
+    hashes.add(sourceQueryHash);
+  }
+  const cache = client.getQueryCache();
+  const queries = [...hashes]
+    .map((hash) => cache.get(hash))
+    .filter(
+      (query): query is Query =>
+        query !== undefined && isListingKey(query.queryKey, ownerId),
+    )
     .sort(
       (left, right) => right.state.dataUpdatedAt - left.state.dataUpdatedAt,
     );

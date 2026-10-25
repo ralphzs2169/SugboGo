@@ -1,4 +1,5 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { hashKey } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -25,7 +26,9 @@ import SearchFilterResultsHeader from "../components/search-filter-results/Searc
 import SearchFilterResultsTopBar from "../components/search-filter-results/SearchFilterResultsTopBar";
 import RecentSearches from "../components/search-filter-results/RecentSearches";
 import SearchInitialState from "../components/search-filter-results/SearchInitialState";
-import useDiscoveryResults from "../hooks/useDiscoveryResults";
+import useDiscoveryResults, {
+  getDiscoveryResultsQueryKey,
+} from "../hooks/useDiscoveryResults";
 import useExploreFilterOptions from "../hooks/useExploreFilterOptions";
 import ExploreFilterOptionsFeedback from "../components/ExploreFilterOptionsFeedback";
 import useResultsImpressions from "../hooks/useResultsImpressions";
@@ -247,6 +250,9 @@ export default function SearchFilterResultsScreen() {
           params: {
             businessId: String(business.id),
             profileSource: "SEARCH_RESULTS",
+            previewQueryHash: hashKey(
+              getDiscoveryResultsQueryKey(queryCriteria),
+            ),
             distance: distance === null ? "" : String(distance),
             distanceAccuracy:
               userLocation?.coords.accuracy === null ||
@@ -257,7 +263,7 @@ export default function SearchFilterResultsScreen() {
         }),
       );
     },
-    [navigate, userLocation],
+    [navigate, queryCriteria, userLocation],
   );
 
   const renderBusiness = useCallback(

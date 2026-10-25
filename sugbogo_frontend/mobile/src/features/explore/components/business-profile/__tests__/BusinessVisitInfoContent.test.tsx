@@ -1,9 +1,12 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 
 import BusinessVisitInfoContent from "../BusinessVisitInfoContent";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useDirectJourneys from "../../../hooks/useDirectJourneys";
 import { Linking } from "react-native";
+import Toast from "react-native-toast-message";
+
+jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 
 jest.mock("@/shared/hooks/useUserLocation");
 jest.mock("../BusinessVisitMapPreview", () => () => null);
@@ -48,6 +51,47 @@ const defaultProps = {
 };
 
 describe("BusinessVisitInfoContent", () => {
+  it.each(["success", "failure"])(
+    "guards overlapping website presses and releases after %s",
+    async (outcome) => {
+      let succeed!: () => void;
+      let fail!: (error: Error) => void;
+      const firstHandoff = new Promise<void>((resolve, reject) => {
+        succeed = resolve;
+        fail = reject;
+      });
+      const open = jest
+        .spyOn(Linking, "openURL")
+        .mockImplementationOnce(() => firstHandoff)
+        .mockResolvedValue(undefined);
+      try {
+        const screen = await render(
+          <BusinessVisitInfoContent {...defaultProps} website="example.com" />,
+        );
+        const link = screen.getByRole("link", {
+          name: "Open website: example.com",
+        });
+        await fireEvent.press(link);
+        await fireEvent.press(link);
+        expect(open).toHaveBeenCalledTimes(1);
+        await act(async () => {
+          if (outcome === "success") {
+            succeed();
+          } else {
+            fail(new Error("Browser unavailable"));
+          }
+          await firstHandoff.catch(() => undefined);
+        });
+        expect(Toast.show).toHaveBeenCalledTimes(outcome === "failure" ? 1 : 0);
+        await fireEvent.press(link);
+        expect(open).toHaveBeenCalledTimes(2);
+        expect(open).toHaveBeenLastCalledWith("https://example.com/");
+      } finally {
+        open.mockRestore();
+      }
+    },
+  );
+
   it("opens a normalized merchant website and rejects unsupported schemes", async () => {
     const open = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
     const screen = await render(

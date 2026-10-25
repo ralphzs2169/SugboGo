@@ -29,6 +29,7 @@ jest.mock("expo-router", () => ({
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 jest.mock("@tanstack/react-query", () => ({
+  hashKey: jest.requireActual("@tanstack/react-query").hashKey,
   useQueryClient: () => mockQueryClient,
 }));
 jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
@@ -274,6 +275,7 @@ it("opens the existing business profile with discovery source and distance", asy
     params: {
       businessId: "42",
       profileSource: "EXPLORE_DISCOVERY",
+      previewQueryHash: '["explore-open-now",10.33,123.9]',
       distance: "0.65",
       distanceAccuracy: "15",
     },

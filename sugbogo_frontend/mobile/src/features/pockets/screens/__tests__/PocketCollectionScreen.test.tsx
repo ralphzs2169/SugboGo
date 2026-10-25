@@ -337,6 +337,20 @@ describe("PocketCollectionScreen", () => {
     expect(screen.queryByTestId("pocket-detail-loading")).toBeNull();
   }, 15000);
 
+  it("passes the current account's Pocket query hint when opening a profile", async () => {
+    const screen = await loaded();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Open Business 81 business profile" }),
+    );
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: "/(explorer)/business/[businessId]",
+      params: {
+        businessId: "81",
+        previewQueryHash: '["pockets",1,"collections",20,"businesses"]',
+      },
+    });
+  });
+
   it("renders metadata and business order and opens the existing business profile", async () => {
     const screen = await loaded();
     expect(screen.getByText("Favorites")).toBeTruthy();
@@ -350,7 +364,10 @@ describe("PocketCollectionScreen", () => {
     );
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]",
-      params: { businessId: "81" },
+      params: {
+        businessId: "81",
+        previewQueryHash: '["pockets",1,"collections",20,"businesses"]',
+      },
     });
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     expect(screen.queryByPlaceholderText(/search/i)).toBeNull();
@@ -812,7 +829,10 @@ describe("PocketCollectionScreen", () => {
     );
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]",
-      params: { businessId: "7" },
+      params: {
+        businessId: "7",
+        previewQueryHash: '["pockets",1,"collections",20,"businesses"]',
+      },
     });
   });
 
