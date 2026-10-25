@@ -886,6 +886,483 @@ class DiscoveryFeedTests(TestCase):
             ],
         )
 
+    def test_normal_matches_never_expand_to_fuzzy_candidates(self):
+        """Exact, prefix, substring, and taxonomy hits bypass fuzzy scoring entirely."""
+
+        category = Category.objects.create(
+            CTGRY_NAME="Coffee Roastery",
+            CLUS_ID=self.cluster,
+        )
+        normal_businesses = [
+            self._create_business("Coffee"),
+            self._create_business("Coffee Corner"),
+            self._create_business("Local Coffee House"),
+            self._create_business("Morning Place", category=category),
+        ]
+        self._create_business("Cofee Garden")
+
+        for query in ("Coffee", "Coffe", "offee", "Roastery"):
+            with (
+                self.subTest(query=query),
+                patch.object(
+                    DiscoveryFeedService,
+                    "_fuzzy_search_businesses",
+                ) as fuzzy_search,
+            ):
+                response = self.client.get(
+                    self.url,
+                    {"search": query},
+                )
+
+                expected = normal_businesses
+
+                if query == "Roastery":
+                    expected = [normal_businesses[-1]]
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertCountEqual(
+                    self._response_ids(response),
+                    [business.BUSN_ID for business in expected],
+                )
+                self.assertIs(response.data["data"]["used_fuzzy_fallback"], False)
+                fuzzy_search.assert_not_called()
+
+    def test_fuzzy_fallback_recovers_misspellings_inside_long_business_names(self):
+        """Word-aware similarity recovers typos inside longer business names."""
+
+        examples = (
+            ("advventre", "Cebu Adventure Outdoor Center"),
+            ("cofee", "Cebu Coffee Collective"),
+            ("barbrshop", "Neighborhood Barbershop Studio"),
+            ("restarant", "Family Restaurant Kitchen"),
+            ("lechonn", "Traditional Lechon House"),
+        )
+        businesses = {
+            query: self._create_business(name)
+            for query, name in examples
+        }
+
+        for query, business in businesses.items():
+            with self.subTest(query=query):
+                response = self.client.get(
+                    self.url,
+                    {"search": f"  {query}  "},
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(
+                    self._response_ids(response),
+                    [business.BUSN_ID],
+                )
+                self.assertIs(response.data["data"]["used_fuzzy_fallback"], True)
+
+    def test_long_typo_tolerance_applies_to_names_but_not_taxonomy_labels(self):
+        """A long name typo cannot expand through weaker category or specialty matches."""
+
+        intended = self._create_business(
+            "Adventure",
+        )
+        category = Category.objects.create(
+            CTGRY_NAME="Adventure",
+            CLUS_ID=self.cluster,
+        )
+        self._create_business(
+            "Outdoor Activities",
+            category=category,
+        )
+        specialty_business = self._create_business(
+            "Coastal Activities",
+        )
+        tag = SpecialtyTag.objects.create(
+            TAG_NAME="Adventure",
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=specialty_business,
+            TAG_ID=tag,
+        )
+
+        response = self.client.get(
+            self.url,
+            {"search": "advventre"},
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            self._response_ids(response),
+            [intended.BUSN_ID],
+        )
+
+    def test_fuzzy_names_reject_short_common_words_and_unrelated_near_matches(self):
+        """Long-query tolerance and word boundaries still exclude weak name matches."""
+
+        for name in (
+            "Cebu",
+            "Coffin",
+            "Advantage",
+            "Advertising",
+            "Venture",
+            "Dental Clinic",
+            "Hardware Shop",
+            "Restoration",
+            "Leisure",
+            "Car Rental",
+        ):
+            self._create_business(
+                name,
+            )
+
+        for query in (
+            "cebuanoo",
+            "cofee",
+            "advventre",
+            "barbrshop",
+            "restarant",
+            "lechonn",
+            "carinderiaa",
+            "zzzzzz",
+        ):
+            with self.subTest(query=query):
+                response = self.client.get(
+                    self.url,
+                    {"search": query},
+                )
+
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_200_OK,
+                )
+                self.assertEqual(
+                    self._response_ids(response),
+                    [],
+                )
+
+    def test_short_queries_do_not_attempt_fuzzy_fallback(self):
+        """Queries below four characters retain the existing literal search behavior."""
+
+        self._create_business("Coffee")
+
+        for query in ("c", "co", "cfe"):
+            with (
+                self.subTest(query=query),
+                patch.object(
+                    DiscoveryFeedService,
+                    "_fuzzy_search_businesses",
+                ) as fuzzy_search,
+            ):
+                response = self.client.get(
+                    self.url,
+                    {"search": query},
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertIs(response.data["data"]["used_fuzzy_fallback"], False)
+                fuzzy_search.assert_not_called()
+
+                if query == "cfe":
+                    self.assertEqual(self._response_ids(response), [])
+
+    def test_four_character_fallback_rejects_low_confidence_matches(self):
+        """Four-character typos require stronger similarity than longer queries."""
+
+        self._create_business("Coffee")
+        queryset = DiscoveryFeedService.list_discovery_businesses(
+            user=self.explorer,
+            search="cofe",
+        )
+
+        self.assertIn("search_similarity", queryset.query.annotations)
+        self.assertEqual(list(queryset), [])
+
+    def test_weak_unrelated_queries_return_no_businesses(self):
+        """Weak queries do not return arbitrary popular businesses."""
+
+        business = self._create_business("Cebu Coffee House")
+        self._create_business("Lechon Kitchen")
+        self._create_score(business, Decimal("1.00000"))
+
+        for query in ("zzzzzz", "copper", "qwerty"):
+            with self.subTest(query=query):
+                response = self.client.get(
+                    self.url,
+                    {"search": query},
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(self._response_ids(response), [])
+
+    def test_fuzzy_fallback_preserves_eligibility_and_each_taxonomy_filter(self):
+        """Out-of-scope normal hits cannot block or escape a filtered fuzzy search."""
+
+        intended = self._create_business("Central Coffee Collective")
+        self._create_business(
+            "Outside Coffee House",
+            category=self.other_category,
+        )
+        self._create_business(
+            "Cofee Literal Outside",
+            category=self.other_category,
+        )
+        self._create_business(
+            "Cofee Suspended",
+            status=Business.BusinessStatus.SUSPENDED,
+        )
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=intended,
+            TAG_ID=self.active_tag,
+        )
+
+        filters = (
+            {"category": self.category.CTGRY_ID},
+            {"cluster": self.cluster.CLUS_ID},
+            {"specialty_tag": self.active_tag.TAG_ID},
+        )
+
+        for criteria in filters:
+            with self.subTest(criteria=criteria):
+                response = self.client.get(
+                    self.url,
+                    {"search": "cofee", **criteria},
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(
+                    self._response_ids(response),
+                    [intended.BUSN_ID],
+                )
+
+    def test_fuzzy_taxonomy_uses_category_and_only_active_specialty_labels(self):
+        """Active taxonomy labels match without duplicating business results."""
+
+        category = Category.objects.create(
+            CTGRY_NAME="Coffee Roastery",
+            CLUS_ID=self.cluster,
+        )
+        category_match = self._create_business(
+            "Morning Kitchen",
+            category=category,
+        )
+        specialty_match = self._create_business("Neighborhood Gathering")
+        inactive_match = self._create_business("Retired Workshop")
+
+        for name in ("Coffee Tasting", "Coffee Brewing"):
+            tag = SpecialtyTag.objects.create(TAG_NAME=name)
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=specialty_match,
+                TAG_ID=tag,
+            )
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=inactive_match,
+                TAG_ID=tag,
+                BST_IS_ACTIVE=False,
+                BST_DEACTIVATED_AT=timezone.now(),
+            )
+
+        response = self.client.get(self.url, {"search": "cofee"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertCountEqual(
+            self._response_ids(response),
+            [category_match.BUSN_ID, specialty_match.BUSN_ID],
+        )
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 2)
+
+    def test_fuzzy_search_ignores_cluster_names_and_descriptions(self):
+        """Broad clusters and descriptive fields never expand fuzzy candidates."""
+
+        cluster = Cluster.objects.create(CLUS_NAME="Coffee District")
+        category = Category.objects.create(
+            CTGRY_NAME="Hardware",
+            CTGRY_DESCRIPTION="Coffee",
+            CLUS_ID=cluster,
+        )
+        business = self._create_business("Tools Workshop", category=category)
+        Business.objects.filter(
+            pk=business.pk,
+        ).update(
+            BUSN_DESCRIPTION="Coffee",
+        )
+
+        response = self.client.get(self.url, {"search": "cofee"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._response_ids(response), [])
+
+    def test_fuzzy_similarity_precedes_selected_tag_and_discovery_scores(self):
+        """Stronger text similarity precedes specialty and discovery scores."""
+
+        stronger = self._create_business("Central Coffee")
+        weaker = self._create_business("Central Cofe")
+
+        for business, score in (
+            (stronger, Decimal("0.10000")),
+            (weaker, Decimal("0.90000")),
+        ):
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=business,
+                TAG_ID=self.active_tag,
+                BST_TAG_SCORE=score,
+            )
+            self._create_score(business, score)
+
+        similarities = dict(
+            DiscoveryFeedService.list_discovery_businesses(
+                user=self.explorer,
+                search="cofee",
+                specialty_tag_id=self.active_tag.TAG_ID,
+            ).values_list(
+                "BUSN_ID",
+                "search_similarity",
+            ),
+        )
+        self.assertGreater(
+            similarities[stronger.BUSN_ID],
+            similarities[weaker.BUSN_ID],
+        )
+
+        response = self.client.get(
+            self.url,
+            {"search": "cofee", "specialty_tag": self.active_tag.TAG_ID},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self._response_ids(response),
+            [stronger.BUSN_ID, weaker.BUSN_ID],
+        )
+
+    def test_equal_fuzzy_similarity_orders_tag_score_then_discovery(self):
+        """Equal text confidence retains tag-score then Discovery Score ordering."""
+
+        high_tag = self._create_business("North Coffee")
+        high_discovery = self._create_business("South Coffee")
+        low_discovery = self._create_business("East Coffee")
+
+        for business, tag_score, discovery_score in (
+            (high_tag, Decimal("0.90000"), Decimal("0.10000")),
+            (high_discovery, Decimal("0.50000"), Decimal("0.90000")),
+            (low_discovery, Decimal("0.50000"), Decimal("0.10000")),
+        ):
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=business,
+                TAG_ID=self.active_tag,
+                BST_TAG_SCORE=tag_score,
+            )
+            self._create_score(business, discovery_score)
+
+        response = self.client.get(
+            self.url,
+            {"search": "cofee", "specialty_tag": self.active_tag.TAG_ID},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self._response_ids(response),
+            [high_tag.BUSN_ID, high_discovery.BUSN_ID, low_discovery.BUSN_ID],
+        )
+
+    def test_equal_fuzzy_similarity_without_specialty_uses_discovery_score(self):
+        """Discovery Score breaks similarity ties without a selected specialty."""
+
+        low = self._create_business("North Coffee")
+        high = self._create_business("South Coffee")
+        self._create_score(low, Decimal("0.10000"))
+        self._create_score(high, Decimal("0.90000"))
+
+        response = self.client.get(self.url, {"search": "cofee"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._response_ids(response), [high.BUSN_ID, low.BUSN_ID])
+
+    def test_fuzzy_ordering_retains_creation_time_and_id_tie_breakers(self):
+        """Equal fuzzy and numeric scores retain newest-first and lower-ID ordering."""
+
+        shared_time = timezone.now() - timedelta(days=1)
+        older_low_id = self._create_business(
+            "North Coffee",
+            created_at=shared_time,
+        )
+        older_high_id = self._create_business(
+            "South Coffee",
+            created_at=shared_time,
+        )
+        newer = self._create_business(
+            "East Coffee",
+            created_at=timezone.now(),
+        )
+
+        for business in (older_low_id, older_high_id, newer):
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=business,
+                TAG_ID=self.active_tag,
+                BST_TAG_SCORE=Decimal("0.50000"),
+            )
+            self._create_score(business, Decimal("0.50000"))
+
+        response = self.client.get(
+            self.url,
+            {"search": "cofee", "specialty_tag": self.active_tag.TAG_ID},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self._response_ids(response),
+            [newer.BUSN_ID, older_low_id.BUSN_ID, older_high_id.BUSN_ID],
+        )
+
+    def test_normal_match_decision_is_independent_of_requested_page(self):
+        """A later or invalid page cannot activate fuzzy expansion of normal results."""
+
+        self._create_business("Coffee North")
+        self._create_business("Coffee South")
+        self._create_business("Cofee Garden")
+
+        with patch.object(
+            DiscoveryFeedService,
+            "_fuzzy_search_businesses",
+        ) as fuzzy_search:
+            second_page = self.client.get(
+                self.url,
+                {"search": "Coffee", "page_size": 1, "page": 2},
+            )
+            missing_page = self.client.get(
+                self.url,
+                {"search": "Coffee", "page_size": 1, "page": 3},
+            )
+
+        self.assertEqual(second_page.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_page.data["data"]["pagination"]["total_items"], 2)
+        self.assertEqual(missing_page.status_code, status.HTTP_404_NOT_FOUND)
+        fuzzy_search.assert_not_called()
+
+    def test_fuzzy_results_paginate_without_changing_membership(self):
+        """Each fallback page uses the same eligible candidate set and stable order."""
+
+        businesses = [
+            self._create_business("North Coffee"),
+            self._create_business("South Coffee"),
+            self._create_business("East Coffee"),
+        ]
+        actual_ids = []
+
+        for page in (1, 2, 3):
+            response = self.client.get(
+                self.url,
+                {"search": "cofee", "page_size": 1, "page": page},
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.data["data"]["pagination"]["total_items"], 3)
+            self.assertIs(response.data["data"]["used_fuzzy_fallback"], True)
+            actual_ids.extend(self._response_ids(response))
+
+        self.assertEqual(
+            actual_ids,
+            [business.BUSN_ID for business in reversed(businesses)],
+        )
+
     def test_filter_options_returns_authoritative_taxonomy(self):
         """The Explorer filter endpoint exposes shared taxonomy identifiers."""
 

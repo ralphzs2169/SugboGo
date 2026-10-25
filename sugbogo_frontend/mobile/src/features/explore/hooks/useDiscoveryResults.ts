@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
@@ -51,12 +51,22 @@ export default function useDiscoveryResults(
       return lastPage.pagination.page + 1;
     },
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
+
+  const isCurrentData =
+    enabled && query.data !== undefined && !query.isPlaceholderData;
 
   return {
     businesses: query.data?.pages.flatMap((page) => page.items) ?? [],
     totalItems: query.data?.pages[0]?.pagination.total_items ?? 0,
-    hasNextPage: query.hasNextPage,
+    // Presentation belongs to the settled query, never to a newer input draft.
+    highlightQuery: isCurrentData ? normalizedCriteria.search : "",
+    usedFuzzyFallback:
+      isCurrentData && query.data?.pages[0]?.used_fuzzy_fallback === true,
+    isCurrentData,
+    isPlaceholderData: query.isPlaceholderData,
+    hasNextPage: isCurrentData && query.hasNextPage,
     fetchNextPage: query.fetchNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
     isFetchNextPageError: query.isFetchNextPageError,

@@ -28,11 +28,27 @@ export default function useMapBusinessSearch(search: string, isOpen: boolean) {
     enabled,
   );
 
+  const isActive = isOpen && hasQuery;
+  const isInitialLoading = enabled && results.isLoading;
+  const isUpdating =
+    isActive &&
+    !isInitialLoading &&
+    !results.isPaused &&
+    (isDebouncing ||
+      results.isPlaceholderData ||
+      (results.isFetching && !results.isFetchingNextPage));
+
   return {
     ...results,
-    businesses: enabled ? results.businesses : [],
+    businesses: isActive ? results.businesses : [],
     error: enabled ? results.error : null,
-    isPending: hasQuery && (isDebouncing || results.isLoading),
+    isInitialLoading,
+    isUpdating,
+    isPending:
+      isActive &&
+      (isDebouncing ||
+        (!results.isPaused &&
+          (results.isLoading || results.isPlaceholderData))),
     hasQuery,
   };
 }

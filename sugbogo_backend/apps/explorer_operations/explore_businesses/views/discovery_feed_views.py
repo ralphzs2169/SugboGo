@@ -36,7 +36,7 @@ class DiscoveryFeedView(APIView):
             raise_exception=True,
         )
 
-        queryset = DiscoveryFeedService.list_discovery_businesses(
+        result = DiscoveryFeedService.get_discovery_result(
             user=request.user,
             search=query_serializer.validated_data.get(
                 "search",
@@ -55,7 +55,7 @@ class DiscoveryFeedView(APIView):
 
         paginator = StandardPagination()
         page = paginator.paginate_queryset(
-            queryset,
+            result.businesses,
             request,
         )
 
@@ -64,6 +64,8 @@ class DiscoveryFeedView(APIView):
             many=True,
         )
 
-        return paginator.get_paginated_response(
+        response = paginator.get_paginated_response(
             serializer.data,
         )
+        response.data["data"]["used_fuzzy_fallback"] = result.used_fuzzy_fallback
+        return response

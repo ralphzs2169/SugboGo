@@ -1,16 +1,35 @@
 import React from "react";
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 import { router } from "expo-router";
 
 import ExploreResultsScreen from "../SearchFilterResultScreen";
 import useDiscoveryResults from "../../hooks/useDiscoveryResults";
 
 const mockOnViewableItemsChanged = jest.fn();
+const mockCardHighlight = jest.fn();
+const mockImpressionState = jest.fn();
+const mockAddQuery = jest.fn();
+let mockRouteParams: Record<string, string> = { specialtyTagId: "12" };
+
+jest.mock("../../stores/recentSearches.store", () => ({
+  useRecentSearchesStore: () => ({
+    queries: [],
+    scope: "test",
+    isHydrated: true,
+    addQuery: mockAddQuery,
+    removeQuery: jest.fn(),
+    clearQueries: jest.fn(),
+  }),
+}));
+
+beforeEach(() => {
+  mockRouteParams = { specialtyTagId: "12" };
+});
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn(), push: jest.fn() },
   useNavigation: () => ({ isFocused: () => true }),
-  useLocalSearchParams: () => ({ specialtyTagId: "12" }),
+  useLocalSearchParams: () => mockRouteParams,
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -52,7 +71,14 @@ jest.mock(
 );
 jest.mock("../../components/new-businesses/BusinessCard", () => {
   const { Text } = jest.requireActual("react-native");
-  return function MockBusinessCard({ onPress }: { onPress: () => void }) {
+  return function MockBusinessCard({
+    onPress,
+    highlightQuery,
+  }: {
+    onPress: () => void;
+    highlightQuery?: string;
+  }) {
+    mockCardHighlight(highlightQuery);
     return <Text onPress={onPress}>Open search result</Text>;
   };
 });
@@ -67,18 +93,26 @@ jest.mock("../../hooks/useExploreFilterOptions", () => () => ({
   error: null,
   refetch: jest.fn(),
 }));
-jest.mock("../../hooks/useResultsImpressions", () => () => ({
-  onViewableItemsChanged: mockOnViewableItemsChanged,
-  viewabilityConfig: {
-    itemVisiblePercentThreshold: 50,
-    minimumViewTime: 500,
-  },
-}));
+jest.mock("../../hooks/useResultsImpressions", () => (enabled: boolean) => {
+  mockImpressionState(enabled);
+  return {
+    onViewableItemsChanged: mockOnViewableItemsChanged,
+    viewabilityConfig: {
+      itemVisiblePercentThreshold: 50,
+      minimumViewTime: 500,
+    },
+  };
+});
 
 function resultState(isLoading: boolean) {
   return {
     businesses: [],
     totalItems: 0,
+    highlightQuery: "",
+    usedFuzzyFallback: false,
+    isCurrentData: !isLoading,
+    isPlaceholderData: false,
+    isFetching: isLoading,
     isLoading,
     error: null,
     hasNextPage: false,
@@ -88,6 +122,114 @@ function resultState(isLoading: boolean) {
     refetch: jest.fn(async () => undefined),
   };
 }
+
+it("shows the backend-confirmed cue and suppresses stale presentation during debounce", async () => {
+  jest.useFakeTimers();
+  mockRouteParams = { search: "advventre" };
+  (useDiscoveryResults as jest.Mock).mockReturnValue({
+    ...resultState(false),
+    businesses: [{ id: 42 }],
+    totalItems: 1,
+    highlightQuery: "advventre",
+    usedFuzzyFallback: true,
+  });
+  const screen = await render(<ExploreResultsScreen />);
+  expect(screen.getByText("Showing similar matches")).toBeTruthy();
+  expect(mockCardHighlight).toHaveBeenLastCalledWith("advventre");
+
+  await fireEvent.changeText(
+    screen.getByLabelText("Search businesses or places"),
+    "coffee",
+  );
+  expect(screen.queryByText("Showing similar matches")).toBeNull();
+  expect(mockCardHighlight).toHaveBeenLastCalledWith("");
+  (useDiscoveryResults as jest.Mock).mockReturnValue({
+    ...resultState(false),
+    businesses: [{ id: 42 }],
+    totalItems: 1,
+    highlightQuery: "coffee",
+    usedFuzzyFallback: false,
+  });
+  await act(async () => jest.advanceTimersByTime(350));
+  expect(screen.queryByText("Showing similar matches")).toBeNull();
+  expect(mockCardHighlight).toHaveBeenLastCalledWith("coffee");
+  await screen.unmount();
+  jest.useRealTimers();
+});
+
+it("retains cards with compact updating feedback and pauses placeholder attribution", async () => {
+  mockRouteParams = { search: "coffee" };
+  const state = {
+    ...resultState(false),
+    businesses: [{ id: 42 }],
+    totalItems: 1,
+  };
+  (useDiscoveryResults as jest.Mock).mockReturnValue(state);
+  const screen = await render(<ExploreResultsScreen />);
+  (useDiscoveryResults as jest.Mock).mockReturnValue({
+    ...state,
+    isPlaceholderData: true,
+    isCurrentData: false,
+    isFetching: true,
+  });
+  await screen.rerender(<ExploreResultsScreen />);
+  expect(screen.getByText("Open search result")).toBeTruthy();
+  expect(screen.getByLabelText("Updating search results")).toBeTruthy();
+  expect(screen.queryByTestId("search-filter-results-loading")).toBeNull();
+  expect(mockImpressionState).toHaveBeenLastCalledWith(false);
+  await fireEvent(
+    screen.getByTestId("search-filter-results-list"),
+    "endReached",
+  );
+  expect(state.fetchNextPage).not.toHaveBeenCalled();
+  (useDiscoveryResults as jest.Mock).mockReturnValue(resultState(false));
+  await screen.rerender(<ExploreResultsScreen />);
+  expect(screen.queryByText("Open search result")).toBeNull();
+  expect(screen.getByText("No places found")).toBeTruthy();
+  expect(screen.queryByLabelText("Updating search results")).toBeNull();
+});
+
+it("does not show another loader when the unchanged query is submitted", async () => {
+  mockRouteParams = { search: "coffee" };
+  const state = {
+    ...resultState(false),
+    businesses: [{ id: 42 }],
+    totalItems: 1,
+  };
+  (useDiscoveryResults as jest.Mock).mockReturnValue(state);
+  const screen = await render(<ExploreResultsScreen />);
+  await fireEvent(
+    screen.getByLabelText("Search businesses or places"),
+    "submitEditing",
+    {
+      nativeEvent: { text: "coffee" },
+    },
+  );
+  expect(mockAddQuery).toHaveBeenCalledWith("coffee");
+  expect(screen.getByText("Open search result")).toBeTruthy();
+  expect(screen.queryByTestId("search-filter-results-loading")).toBeNull();
+  expect(screen.queryByLabelText("Updating search results")).toBeNull();
+  expect(state.refetch).not.toHaveBeenCalled();
+});
+
+it.each(["initial", "empty", "normal"])(
+  "omits the fuzzy cue in the %s state",
+  async (state) => {
+    mockRouteParams = state === "initial" ? {} : { search: "coffee" };
+    (useDiscoveryResults as jest.Mock).mockReturnValue({
+      ...resultState(false),
+      businesses: state === "normal" ? [{ id: 42 }] : [],
+      totalItems: state === "normal" ? 1 : 0,
+      usedFuzzyFallback: state !== "normal",
+    });
+    const screen = await render(<ExploreResultsScreen />);
+    expect(screen.queryByText("Showing similar matches")).toBeNull();
+    if (state === "initial")
+      expect(screen.getByText("Find your next Cebu favorite")).toBeTruthy();
+    if (state === "empty")
+      expect(screen.getByText("No places found")).toBeTruthy();
+  },
+);
 
 it("keeps the result list viewability callback mounted while loading changes", async () => {
   (useDiscoveryResults as jest.Mock).mockReturnValue(resultState(true));

@@ -7,6 +7,7 @@ import type {
   ExploreBusiness,
   ExploreBusinessDetail,
   ExploreBusinessListResponse,
+  DiscoveryResultsResponse,
   DiscoveryShortcut,
   ExploreSpecialty,
   RecommendationBusinessListResponse,
@@ -33,7 +34,7 @@ export async function getDiscoveryFeed(): Promise<
 export async function getDiscoveryResults(
   criteria: ExploreResultsCriteria,
   page: number,
-): Promise<ApiResponse<ExploreBusinessListResponse>> {
+): Promise<ApiResponse<DiscoveryResultsResponse>> {
   const params = new URLSearchParams();
 
   if (criteria.search.trim()) {

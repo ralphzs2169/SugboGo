@@ -10,6 +10,7 @@ import type {
 } from "../../types/exploreBusiness.types";
 import AppliedFilterChip from "../AppliedFilterChip";
 import ExploreClusterFilters from "../ExploreClusterFilters";
+import SimilarMatchesNotice from "./SimilarMatchesNotice";
 
 type Props = {
   clusters: ExploreFilterCluster[];
@@ -18,6 +19,7 @@ type Props = {
   selectedSpecialty: ExploreFilterSpecialty | undefined;
   totalItems: number;
   isLoading: boolean;
+  usedFuzzyFallback?: boolean;
   onSelectCluster: (clusterId: number | null) => void;
   onRemoveCategory: (categoryId: number) => void;
   onRemoveSpecialty: () => void;
@@ -36,6 +38,7 @@ export default function SearchFilterResultsHeader({
   selectedSpecialty,
   totalItems,
   isLoading,
+  usedFuzzyFallback = false,
   onSelectCluster,
   onRemoveCategory,
   onRemoveSpecialty,
@@ -89,6 +92,9 @@ export default function SearchFilterResultsHeader({
             </AppText>
           )}
         </View>
+        {!isLoading && totalItems > 0 && usedFuzzyFallback && (
+          <SimilarMatchesNotice />
+        )}
       </View>
     </View>
   );
