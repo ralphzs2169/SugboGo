@@ -1,3 +1,4 @@
+from apps.admin_operations.transit_management.services.tests import TransitBoundaryTestMixin
 from django.contrib.gis.geos import LineString
 from django.test import TestCase
 
@@ -19,7 +20,7 @@ from apps.admin_operations.transit_management.services.transfer_candidate_detect
 from apps.transit.models import JeepneyRouteVariant, TransitTransfer
 
 
-class TransferCandidateDetectionServiceTests(TestCase):
+class TransferCandidateDetectionServiceTests(TransitBoundaryTestMixin, TestCase):
     """Test PostGIS transfer candidate detection and persistence."""
 
     def _create_point(
@@ -301,15 +302,23 @@ class TransferCandidateDetectionServiceTests(TestCase):
         destination_start = self._create_point("B Start", 123.9200, 10.3100)
         destination_end = self._create_point("B End", 123.9210, 10.3100)
 
-        self._create_variant(
+        source_variant = self._create_variant(
             self._create_route("14D"),
             [source_start, source_end],
-            [(123.8900, 10.3000), (123.8920, 10.3000)],
+            [(123.8700, 10.2900), (123.8710, 10.2900)],
         )
-        self._create_variant(
+        destination_variant = self._create_variant(
             self._create_route("08G"),
             [destination_start, destination_end],
-            [(123.8910, 10.2990), (123.8910, 10.3010)],
+            [(123.9200, 10.3100), (123.9210, 10.3100)],
+        )
+
+        # Inject legacy data directly to test detection independently of guarded saves.
+        JeepneyRouteVariant.objects.filter(pk=source_variant.pk).update(
+            JRV_GEOMETRY=LineString((123.8900, 10.3000), (123.8920, 10.3000), srid=4326),
+        )
+        JeepneyRouteVariant.objects.filter(pk=destination_variant.pk).update(
+            JRV_GEOMETRY=LineString((123.8910, 10.2990), (123.8910, 10.3010), srid=4326),
         )
 
         summary = TransferCandidateDetectionService.detect_candidates()

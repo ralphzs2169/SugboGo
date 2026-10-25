@@ -1,3 +1,4 @@
+from apps.admin_operations.transit_management.services.tests import TransitBoundaryTestMixin
 from django.test import TestCase
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -16,7 +17,7 @@ from apps.admin_operations.transit_management.services.transit_transfer_service 
 from apps.transit.models import TransitTransfer
 
 
-class TransitTransferServiceTests(TestCase):
+class TransitTransferServiceTests(TransitBoundaryTestMixin, TestCase):
     """Test directed transit-transfer management operations."""
 
     def setUp(self):

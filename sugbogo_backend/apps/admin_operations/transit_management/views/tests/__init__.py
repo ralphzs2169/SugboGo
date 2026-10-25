@@ -1,3 +1,4 @@
+from apps.admin_operations.transit_management.services.tests import TransitBoundaryTestMixin
 from apps.admin_operations.transit_management.services.jeepney_route_service import (
     JeepneyRouteService,
 )
@@ -10,7 +11,7 @@ from apps.admin_operations.transit_management.services.transit_point_service imp
 from apps.users.models import User
 
 
-class TransitManagementViewTestMixin:
+class TransitManagementViewTestMixin(TransitBoundaryTestMixin):
     """Provide shared authenticated transit-management API fixtures."""
 
     def setUp(self):
@@ -120,13 +121,10 @@ class TransitManagementViewTestMixin:
                 "JRV_DESTINATION_ID": destination,
                 "geometry": [
                     {
-                        "longitude": origin.TRPT_POINT.x,
-                        "latitude": origin.TRPT_POINT.y,
-                    },
-                    {
-                        "longitude": destination.TRPT_POINT.x,
-                        "latitude": destination.TRPT_POINT.y,
-                    },
+                        "longitude": point.TRPT_POINT.x,
+                        "latitude": point.TRPT_POINT.y,
+                    }
+                    for point in transit_points
                 ],
                 "ordered_transit_points": transit_points,
             },
@@ -147,13 +145,10 @@ class TransitManagementViewTestMixin:
             "destination_transit_point_id": destination.TRPT_ID,
             "geometry": [
                 {
-                    "longitude": origin.TRPT_POINT.x,
-                    "latitude": origin.TRPT_POINT.y,
-                },
-                {
-                    "longitude": destination.TRPT_POINT.x,
-                    "latitude": destination.TRPT_POINT.y,
-                },
+                    "longitude": point.TRPT_POINT.x,
+                    "latitude": point.TRPT_POINT.y,
+                }
+                for point in transit_points
             ],
             "transit_point_ids": [
                 transit_point.TRPT_ID

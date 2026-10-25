@@ -1,3 +1,4 @@
+from apps.admin_operations.transit_management.services.tests import TransitBoundaryTestMixin
 from django.test import TestCase
 from rest_framework.exceptions import NotFound
 
@@ -12,7 +13,7 @@ from apps.admin_operations.transit_management.services.transit_point_service imp
 )
 
 
-class JeepneyRouteServiceTests(TestCase):
+class JeepneyRouteServiceTests(TransitBoundaryTestMixin, TestCase):
     """Test administrator jeepney-route operations."""
 
     def setUp(self):

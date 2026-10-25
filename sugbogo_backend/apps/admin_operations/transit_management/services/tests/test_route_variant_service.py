@@ -1,3 +1,4 @@
+from apps.admin_operations.transit_management.services.tests import TransitBoundaryTestMixin
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -15,7 +16,7 @@ from apps.admin_operations.transit_management.services.transit_point_service imp
 from apps.transit.models import JeepneyRouteVariant
 
 
-class RouteVariantServiceTests(TestCase):
+class RouteVariantServiceTests(TransitBoundaryTestMixin, TestCase):
     """Test coordinated route-variant persistence operations."""
 
     def setUp(self):
@@ -50,6 +51,10 @@ class RouteVariantServiceTests(TestCase):
                     {
                         "longitude": self.kamputhaw.TRPT_POINT.x,
                         "latitude": self.kamputhaw.TRPT_POINT.y,
+                    },
+                    {
+                        "longitude": self.capitol.TRPT_POINT.x,
+                        "latitude": self.capitol.TRPT_POINT.y,
                     },
                     {
                         "longitude": self.colon.TRPT_POINT.x,

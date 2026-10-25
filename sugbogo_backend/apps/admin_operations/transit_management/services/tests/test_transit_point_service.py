@@ -1,3 +1,4 @@
+from apps.admin_operations.transit_management.services.tests import TransitBoundaryTestMixin
 from django.contrib.gis.geos import Point
 from django.test import TestCase
 from rest_framework.exceptions import NotFound
@@ -7,7 +8,7 @@ from apps.admin_operations.transit_management.services.transit_point_service imp
 )
 
 
-class TransitPointServiceTests(TestCase):
+class TransitPointServiceTests(TransitBoundaryTestMixin, TestCase):
     """Test administrator Transit Point operations."""
 
     def test_transit_point_create_list_detail_and_update(self):
