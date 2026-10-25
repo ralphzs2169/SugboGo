@@ -4,6 +4,8 @@ import { Pressable, View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Skeleton from "@/shared/components/Skeleton";
+import type { BusinessProfilePreview } from "../../../utils/businessProfilePreview";
+import ExploreBusinessHero from "../ExploreBusinessHero";
 
 import BusinessReviewCardSkeleton from "./BusinessReviewCardSkeleton";
 
@@ -16,45 +18,57 @@ import BusinessReviewCardSkeleton from "./BusinessReviewCardSkeleton";
  */
 export default function BusinessProfileSkeletonContent({
   onGoBack,
+  preview,
 }: {
   onGoBack: () => void;
+  preview?: BusinessProfilePreview | null;
 }) {
   return (
     <>
       {/* Business hero and overlapping quick info */}
       <View className="bg-surface">
         {/* Hero */}
-        <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
-          <Skeleton className="h-full w-full rounded-none" />
+        {preview ? (
+          <ExploreBusinessHero
+            business={preview}
+            identityOnly
+            isOwnBusiness={false}
+            onShare={() => undefined}
+            onGoBack={onGoBack}
+          />
+        ) : (
+          <View className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary">
+            <Skeleton className="h-full w-full rounded-none" />
 
-          {/* Navigation controls */}
-          <View className="absolute left-3 right-3 top-3 h-12 flex-row items-center justify-between px-1">
-            <Pressable
-              onPress={onGoBack}
-              hitSlop={4}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              className="h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
-              android_ripple={{
-                color: "rgba(0,0,0,0.08)",
-              }}
-            >
-              <MaterialCommunityIcons
-                name="chevron-left"
-                size={26}
-                color={theme.extends.colors.text.primary}
-              />
-            </Pressable>
+            {/* Navigation controls */}
+            <View className="absolute left-3 right-3 top-3 h-12 flex-row items-center justify-between px-1">
+              <Pressable
+                onPress={onGoBack}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                className="h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
+                android_ripple={{
+                  color: "rgba(0,0,0,0.08)",
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="chevron-left"
+                  size={26}
+                  color={theme.extends.colors.text.primary}
+                />
+              </Pressable>
 
-            <Skeleton className="h-10 w-10 rounded-full bg-white/95" />
+              <Skeleton className="h-10 w-10 rounded-full bg-white/95" />
+            </View>
+
+            {/* Business identity */}
+            <View className="absolute bottom-12 left-5 right-5">
+              <Skeleton className="h-7 w-3/4 rounded-md" />
+              <Skeleton className="mt-2 h-4 w-2/3 rounded-md" />
+            </View>
           </View>
-
-          {/* Business identity */}
-          <View className="absolute bottom-12 left-5 right-5">
-            <Skeleton className="h-7 w-3/4 rounded-md" />
-            <Skeleton className="mt-2 h-4 w-2/3 rounded-md" />
-          </View>
-        </View>
+        )}
 
         {/* Overlapping quick info */}
         <View className="relative z-10 -mt-8 px-4">

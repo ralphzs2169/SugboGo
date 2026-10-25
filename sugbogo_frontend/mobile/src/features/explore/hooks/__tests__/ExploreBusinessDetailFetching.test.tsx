@@ -17,6 +17,7 @@ import { EXPLORE_BUSINESS_DETAIL_STALE_TIME_MS } from "../exploreBusinessDetailQ
 import { ReviewDerivedDataSyncProvider } from "../ReviewDerivedDataSyncProvider";
 import { exploreBusinessDetailKey } from "../reviewQueryKeys";
 import useExploreBusinessProfile from "../useExploreBusinessProfile";
+import useBusinessProfilePreview from "../useBusinessProfilePreview";
 
 let mockFocused = true;
 jest.mock("expo-router", () => ({ useIsFocused: () => mockFocused }));
@@ -72,7 +73,9 @@ describe("Explore business detail request lifecycle", () => {
   });
 
   function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
   }
 
   async function settle() {
@@ -132,6 +135,53 @@ describe("Explore business detail request lifecycle", () => {
     await profile.unmount();
   });
 
+  it("keeps a listing preview separate from pending detail and reuses the completed detail on return", async () => {
+    const detail = {
+      ...businessFixture(),
+      business_name: "Authoritative name",
+    };
+    client.setQueryData(["explore-discovery"], {
+      items: [{ ...detail, business_name: "Earlier listing name" }],
+    });
+    let finish!: (
+      value: Awaited<ReturnType<typeof getExploreBusinessDetail>>,
+    ) => void;
+    jest.mocked(getExploreBusinessDetail).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    function useProgressiveProfile() {
+      const profile = useExploreBusinessProfile(21);
+      const preview = useBusinessProfilePreview(21, profile.isLoading);
+      return { profile, preview };
+    }
+    const view = await renderHook(useProgressiveProfile, { wrapper: Wrapper });
+    expect(view.result.current.preview?.business_name).toBe(
+      "Earlier listing name",
+    );
+    expect(view.result.current.profile.business).toBeNull();
+    expect(client.getQueryData(exploreBusinessDetailKey(21))).toBeUndefined();
+    expect(getExploreBusinessDetail).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      finish({ success: true, message: "Loaded", data: detail }),
+    );
+    await settle();
+    expect(view.result.current.preview).toBeNull();
+    expect(view.result.current.profile.business?.business_name).toBe(
+      "Authoritative name",
+    );
+    await view.unmount();
+    const reopened = await renderHook(useProgressiveProfile, {
+      wrapper: Wrapper,
+    });
+    expect(reopened.result.current.profile.business).toEqual(detail);
+    expect(reopened.result.current.preview).toBeNull();
+    expect(getExploreBusinessDetail).toHaveBeenCalledTimes(1);
+    await reopened.unmount();
+  });
+
   it("refreshes invalidated fresh detail without touching another business", async () => {
     const otherBusiness = { ...businessFixture(), id: 22 };
     client.setQueryData(exploreBusinessDetailKey(22), otherBusiness);
@@ -145,12 +195,16 @@ describe("Explore business detail request lifecycle", () => {
     await settle();
     expect(getExploreBusinessDetail).toHaveBeenCalledTimes(1);
     await act(async () => {
-      await client.invalidateQueries({ queryKey: exploreBusinessDetailKey(21) });
+      await client.invalidateQueries({
+        queryKey: exploreBusinessDetailKey(21),
+      });
     });
     await settle();
     expect(getExploreBusinessDetail).toHaveBeenCalledTimes(2);
     expect(getExploreBusinessDetail).toHaveBeenLastCalledWith(21);
-    expect(client.getQueryData(exploreBusinessDetailKey(22))).toBe(otherBusiness);
+    expect(client.getQueryData(exploreBusinessDetailKey(22))).toBe(
+      otherBusiness,
+    );
     expect(
       client.getQueryState(exploreBusinessDetailKey(22))?.isInvalidated,
     ).toBe(false);

@@ -11,6 +11,7 @@ import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoVie
 import useLocalBusinessProfileMedia from "../../hooks/useLocalBusinessProfileMedia";
 import useBusinessProfileShare from "../../hooks/useBusinessProfileShare";
 import type useBusinessDetailSource from "../../hooks/useBusinessDetailSource";
+import type { BusinessProfilePreview } from "../../utils/businessProfilePreview";
 import LiveBusinessProfile, {
   LiveBusinessQuickInfo,
   LiveBusinessVisitActions,
@@ -30,6 +31,7 @@ import BusinessProfileErrorState from "./state/BusinessProfileErrorState";
 import BusinessProfileSkeletonContent from "./state/BusinessProfileSkeletonContent";
 
 type Props = BusinessProfileProps & {
+  preview?: BusinessProfilePreview | null;
   sourceLabel?: string;
   extraBottomPadding?: number;
   detail: Omit<ReturnType<typeof useBusinessDetailSource>, "refetch"> & {
@@ -40,6 +42,7 @@ type Props = BusinessProfileProps & {
 /** Keeps the normal scroll, hero and information shell mounted across source changes. */
 export default function BusinessProfilePresentation({
   detail,
+  preview,
   sourceLabel,
   extraBottomPadding,
   ...props
@@ -104,7 +107,19 @@ export default function BusinessProfilePresentation({
           />
         ) : (
           <>
-            {!business && <BusinessProfileSkeletonContent onGoBack={goBack} />}
+            {!business && (
+              <BusinessProfileSkeletonContent
+                onGoBack={goBack}
+                preview={
+                  detail.isInitialLoading &&
+                  !detail.denied &&
+                  !detail.error &&
+                  preview?.id === props.businessId
+                    ? preview
+                    : null
+                }
+              />
+            )}
             <View
               style={!business ? { display: "none" } : undefined}
               accessibilityElementsHidden={!business}

@@ -18,6 +18,7 @@ import PocketPickerSheet from "@/features/pockets/components/PocketPickerSheet";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import ExploreBusinessProfileScreen from "../ExploreBusinessProfileScreen";
 import useBusinessDetailSource from "../../hooks/useBusinessDetailSource";
+import useBusinessProfilePreview from "../../hooks/useBusinessProfilePreview";
 import useBusinessProfileVisit from "../../hooks/useBusinessProfileVisit";
 import useRoutePlanningIntent from "../../hooks/useRoutePlanningIntent";
 import useBusinessVouch from "../../hooks/useBusinessVouch";
@@ -31,6 +32,10 @@ import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoVie
 
 const mockRecordRouteIntent = jest.fn();
 const mockVouch = jest.fn();
+jest.mock("../../hooks/useBusinessProfilePreview", () => ({
+  __esModule: true,
+  default: jest.fn(() => null),
+}));
 jest.mock("../../hooks/useBusinessDetailSource", () => ({
   __esModule: true,
   default: jest.fn(),
@@ -203,6 +208,7 @@ function profile() {
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.mocked(useBusinessProfilePreview).mockReturnValue(null);
   jest
     .mocked(useBusinessReviewPreview)
     .mockReturnValue({ totalCount: 12 } as never);
@@ -318,6 +324,105 @@ it("renders the existing skeleton on initial online loading, then the interactiv
     view.getByLabelText("View road route").props.accessibilityState.disabled,
   ).toBe(false);
   expect(view.getByTestId("profile-reviews")).toBeTruthy();
+});
+
+const listingPreview = {
+  id: 21,
+  business_name: "Earlier listing name",
+  display_cover_photo_url: "https://example.test/preview-cover.jpg",
+  cluster: business.cluster,
+  category: business.category,
+};
+
+it("shows preview identity with unresolved sections and no live actions, then replaces it with detail", async () => {
+  jest.mocked(useBusinessProfilePreview).mockReturnValue(listingPreview);
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("unavailable"),
+    isLoading: true,
+    isInitialLoading: true,
+  } as never);
+  const view = await render(profile());
+  expect(view.getByText(listingPreview.business_name)).toBeTruthy();
+  expect(
+    view.getByText(`${business.cluster.name} · ${business.category.name}`),
+  ).toBeTruthy();
+  expect(view.getByTestId("profile-image").props.source.uri).toBe(
+    listingPreview.display_cover_photo_url,
+  );
+  expect(view.getByText("Vouch for what this place gets right")).toBeTruthy();
+  expect(view.getAllByRole("button")).toHaveLength(1);
+  expect(view.getByRole("button", { name: "Go back" })).toBeTruthy();
+  expect(useBusinessVouch).not.toHaveBeenCalled();
+  expect(useBusinessProfileVisit).not.toHaveBeenCalled();
+  expect(ReviewDerivedDataSyncProvider).not.toHaveBeenCalled();
+  expect(SimilarPlacesSection).not.toHaveBeenCalled();
+  expect(BusinessReviewsSection).not.toHaveBeenCalled();
+  expect(useBusinessReviewPreview).not.toHaveBeenCalled();
+
+  jest.mocked(useBusinessDetailSource).mockReturnValue(source("live") as never);
+  await view.rerender(profile());
+  expect(view.queryByText(listingPreview.business_name)).toBeNull();
+  expect(view.getByText(business.business_name)).toBeTruthy();
+  expect(view.getByTestId("profile-reviews")).toBeTruthy();
+  expect(
+    view.getByRole("button", { name: `Share ${business.business_name}` }),
+  ).toBeTruthy();
+});
+
+it.each(["live", "recent", "offline-pocket"] as const)(
+  "keeps %s detail ahead of stale preview identity",
+  async (mode) => {
+    jest.mocked(useBusinessProfilePreview).mockReturnValue(listingPreview);
+    jest.mocked(useBusinessDetailSource).mockReturnValue(source(mode) as never);
+    const view = await render(profile());
+    expect(view.queryByText(listingPreview.business_name)).toBeNull();
+    expect(view.getByText(business.business_name)).toBeTruthy();
+  },
+);
+
+it.each(["NOT_FOUND", "PERMISSION_DENIED", "NOT_AUTHENTICATED"])(
+  "removes preview after definitive %s response",
+  async (code) => {
+    jest.mocked(useBusinessProfilePreview).mockReturnValue(listingPreview);
+    jest.mocked(useBusinessDetailSource).mockReturnValue({
+      ...source("unavailable"),
+      isLoading: true,
+      isInitialLoading: true,
+    } as never);
+    const view = await render(profile());
+    expect(view.getByText(listingPreview.business_name)).toBeTruthy();
+    jest.mocked(useBusinessDetailSource).mockReturnValue({
+      ...source("unavailable"),
+      error: { code },
+      denied: true,
+    } as never);
+    await view.rerender(profile());
+    expect(view.queryByText(listingPreview.business_name)).toBeNull();
+    expect(view.getByTestId("business-profile-error")).toBeTruthy();
+    expect(ReviewDerivedDataSyncProvider).not.toHaveBeenCalled();
+  },
+);
+
+it("never renders another business preview or a preview while offline sources resolve", async () => {
+  jest
+    .mocked(useBusinessProfilePreview)
+    .mockReturnValue({ ...listingPreview, id: 22 });
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("unavailable"),
+    isLoading: true,
+    isInitialLoading: true,
+  } as never);
+  const view = await render(profile());
+  expect(view.queryByText(listingPreview.business_name)).toBeNull();
+  jest.mocked(useBusinessProfilePreview).mockReturnValue(listingPreview);
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("unavailable"),
+    isLoading: true,
+    isInitialLoading: false,
+  } as never);
+  await view.rerender(profile());
+  expect(view.queryByText(listingPreview.business_name)).toBeNull();
+  expect(view.getByText("Vouch for what this place gets right")).toBeTruthy();
 });
 
 it.each(["recent", "offline-pocket"] as const)(
