@@ -45,6 +45,7 @@ import {
   useReviewWorkflowStore,
 } from "../stores/reviewWorkflow.store";
 import { useAuthorReviewSubmissions } from "./useAuthorReviewSubmissions";
+import { exploreBusinessDetailStaleTime } from "./exploreBusinessDetailQueryPolicy";
 import type {
   BusinessReviewInsights,
   ExploreBusinessDetail,
@@ -391,9 +392,8 @@ export function shouldStopGeneratedInsightsSync(
 /**
  * Observes independent sentiment and durable narrative work through existing queries.
  *
- * Polling uses existing React Query resources and remains active only while this
  * Narrative polling has a bounded foreground budget and stops on navigation.
- * Ordinary mount/focus/reconnect refetches recover work completed later.
+ * Stale reads and outstanding work recover on mount/focus/reconnect.
  */
 export function ReviewDerivedDataSyncProvider({
   businessId,
@@ -594,9 +594,13 @@ export function ReviewDerivedDataSyncProvider({
     queryKey: exploreBusinessDetailKey(businessId),
     queryFn: () => fetchSyncDetail(businessId, ownerId, ownerGeneration),
     enabled: Boolean(businessId && authorized && isFocused),
-    refetchOnMount: "always",
-    refetchOnWindowFocus: "always",
-    refetchOnReconnect: "always",
+    staleTime: (query) => {
+      if (sentimentSession || generatedSession) {
+        return 0;
+      }
+
+      return exploreBusinessDetailStaleTime(query.state.data);
+    },
     refetchInterval: (query) => {
       if (!ownsPolling) return false;
       if (sentimentSession) return POLL_INTERVAL_MS;
@@ -613,7 +617,6 @@ export function ReviewDerivedDataSyncProvider({
     },
     refetchIntervalInBackground: false,
   });
-  const { refetch: refetchDetail } = detailQuery;
 
   const startSentimentSync = useCallback(
     (session: StartSentimentSync) => {
@@ -1001,8 +1004,7 @@ export function ReviewDerivedDataSyncProvider({
       exhausted.current = false;
       return;
     }
-    void refetchDetail();
-  }, [authorized, isFocused, refetchDetail]);
+  }, [authorized, isFocused]);
 
   useEffect(() => {
     if (!authorized || !isFocused || generatedSession || exhausted.current)
