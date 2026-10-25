@@ -27,7 +27,10 @@ beforeEach(() => {
 });
 
 jest.mock("expo-router", () => ({
-  router: { back: jest.fn(), push: jest.fn() },
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
+  router: { back: jest.fn(), canGoBack: () => true, push: jest.fn() },
   useNavigation: () => ({ isFocused: () => true }),
   useLocalSearchParams: () => mockRouteParams,
 }));

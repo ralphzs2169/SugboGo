@@ -18,6 +18,10 @@ import useBusinessHours from "../../hooks/useBusinessHours";
 import { getBusinessAddressDisplay } from "../../utils/businessLocation.utils";
 import BusinessVisitMapPreview from "./BusinessVisitMapPreview";
 import MerchantAccessDirections from "../getting-there/MerchantAccessDirections";
+import {
+  normalizeBusinessWebsite,
+  openBusinessWebsite,
+} from "../../utils/businessProfileActions";
 
 type Props = {
   businessId?: number;
@@ -68,6 +72,7 @@ export default function BusinessVisitInfoContent({
     : { addressLine: "", cityLine: "" };
 
   const currentDay = hours.currentDay;
+  const websiteUrl = normalizeBusinessWebsite(website);
 
   const toggleHours = () => {
     const nextExpanded = !isExpanded;
@@ -231,7 +236,8 @@ export default function BusinessVisitInfoContent({
                 ? "Hide full business hours"
                 : "Show full business hours"
             }
-            className="ml-3 cursor-pointer flex-row items-center active:opacity-70"
+            accessibilityState={{ expanded: isExpanded }}
+            className="ml-3 min-h-12 cursor-pointer flex-row items-center active:opacity-70"
           >
             <AppText weight="semibold" className="text-xs text-brand">
               {isExpanded ? "Hide hours" : "Full hours"}
@@ -363,7 +369,16 @@ export default function BusinessVisitInfoContent({
 
         {/* Website */}
         {website && (
-          <View className="min-h-14 flex-row items-center">
+          <Pressable
+            onPress={() => websiteUrl && void openBusinessWebsite(websiteUrl)}
+            disabled={!websiteUrl}
+            accessibilityRole={websiteUrl ? "link" : undefined}
+            accessibilityLabel={
+              websiteUrl ? `Open website: ${website}` : website
+            }
+            accessibilityHint={websiteUrl ? "Opens in your browser" : undefined}
+            className="min-h-14 cursor-pointer flex-row items-center active:opacity-70"
+          >
             <MaterialCommunityIcons
               name="web"
               size={18}
@@ -377,7 +392,7 @@ export default function BusinessVisitInfoContent({
             >
               {website}
             </AppText>
-          </View>
+          </Pressable>
         )}
       </View>
     </View>

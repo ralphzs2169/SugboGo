@@ -27,13 +27,14 @@ export default function BusinessProfileErrorState({
         {/* Hero placeholder */}
         <View
           testID="business-profile-error-hero"
-          className="relative h-80 w-full bg-surface-secondary"
+          className="relative h-[21.5rem] w-full overflow-hidden rounded-b-3xl bg-surface-secondary"
         >
           <Skeleton className="h-full w-full rounded-none" />
 
           {/* Back navigation */}
           <Pressable
             onPress={onGoBack}
+            hitSlop={4}
             accessibilityRole="button"
             accessibilityLabel="Go back"
             className="absolute left-4 top-4 h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"

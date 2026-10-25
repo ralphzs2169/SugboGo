@@ -12,6 +12,7 @@ import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import Button from "@/shared/components/Button";
 import AppText from "@/shared/components/AppText";
 import useUserLocation from "@/shared/hooks/useUserLocation";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
@@ -26,6 +27,7 @@ import RecentSearches from "../components/search-filter-results/RecentSearches";
 import SearchInitialState from "../components/search-filter-results/SearchInitialState";
 import useDiscoveryResults from "../hooks/useDiscoveryResults";
 import useExploreFilterOptions from "../hooks/useExploreFilterOptions";
+import ExploreFilterOptionsFeedback from "../components/ExploreFilterOptionsFeedback";
 import useResultsImpressions from "../hooks/useResultsImpressions";
 import { useRecentSearchesStore } from "../stores/recentSearches.store";
 import type {
@@ -73,6 +75,12 @@ function parseCategoryIds(value: string | string[] | undefined) {
 export default function SearchFilterResultsScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const navigate = useNavigationAction();
+  const goBack = () =>
+    navigate(() => {
+      if (!router.canGoBack()) return false;
+      router.back();
+    });
 
   const filterSheetRef = useRef<BottomSheetModal | null>(null);
   const didOpenInitialFilters = useRef(false);
@@ -170,22 +178,6 @@ export default function SearchFilterResultsScreen() {
   }, [results.error, resultsEnabled]);
 
   useEffect(() => {
-    if (!taxonomy.error) {
-      return;
-    }
-
-    const response = taxonomy.error as unknown as ApiResponse<unknown>;
-
-    if (!response.success && !handleSystemError(response)) {
-      Toast.show({
-        type: "error",
-        text1: "Unable to load filters",
-        text2: response.message || "Please try again.",
-      });
-    }
-  }, [taxonomy.error]);
-
-  useEffect(() => {
     if (
       params.openFilters !== "1" ||
       taxonomy.isLoading ||
@@ -249,21 +241,23 @@ export default function SearchFilterResultsScreen() {
 
   const openBusiness = useCallback(
     (business: ExploreBusiness, distance: number | null) => {
-      router.push({
-        pathname: "/(explorer)/business/[businessId]",
-        params: {
-          businessId: String(business.id),
-          profileSource: "SEARCH_RESULTS",
-          distance: distance === null ? "" : String(distance),
-          distanceAccuracy:
-            userLocation?.coords.accuracy === null ||
-            userLocation?.coords.accuracy === undefined
-              ? ""
-              : String(userLocation.coords.accuracy),
-        },
-      });
+      navigate(() =>
+        router.push({
+          pathname: "/(explorer)/business/[businessId]",
+          params: {
+            businessId: String(business.id),
+            profileSource: "SEARCH_RESULTS",
+            distance: distance === null ? "" : String(distance),
+            distanceAccuracy:
+              userLocation?.coords.accuracy === null ||
+              userLocation?.coords.accuracy === undefined
+                ? ""
+                : String(userLocation.coords.accuracy),
+          },
+        }),
+      );
     },
-    [userLocation],
+    [navigate, userLocation],
   );
 
   const renderBusiness = useCallback(
@@ -332,9 +326,10 @@ export default function SearchFilterResultsScreen() {
         topInset={insets.top}
         onSearchChange={setSearch}
         onSearchSubmit={(query) => void history.addQuery(query)}
-        onBack={() => router.back()}
+        onBack={goBack}
         onOpenFilters={openFilters}
       />
+      <ExploreFilterOptionsFeedback state={taxonomy} />
 
       {/* Empty search is an invitation/history surface, never an unfiltered feed. */}
       {isInitialSearch ? (
@@ -426,7 +421,7 @@ export default function SearchFilterResultsScreen() {
                 hasError={Boolean(results.error || results.isPaused)}
                 hasSearch={debouncedSearch.length > 0}
                 onRetry={() => void results.refetch()}
-                onGoBack={() => router.back()}
+                onGoBack={goBack}
                 isRetrying={results.isRefetching && !results.isFetchingNextPage}
               />
             )
@@ -489,6 +484,7 @@ export default function SearchFilterResultsScreen() {
       <SearchFilterBottomSheet
         sheetRef={filterSheetRef}
         options={taxonomy.options}
+        taxonomyState={taxonomy}
         draft={draftCriteria}
         onChange={setDraftCriteria}
         onApply={applyFilters}

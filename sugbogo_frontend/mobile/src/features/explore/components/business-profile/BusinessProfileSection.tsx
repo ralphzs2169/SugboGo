@@ -23,11 +23,23 @@ export default function BusinessProfileSection({
       {/* Section title */}
       {title && (
         <View className="mb-3 flex-row items-center justify-between border-b border-border-primary">
-          <AppText weight="bold" className="mb-3 text-base text-text-primary">
+          <AppText
+            accessibilityRole="header"
+            weight="bold"
+            className="mb-3 text-base text-text-primary"
+          >
             {title}
           </AppText>
 
-          {icon && <View className="mb-3">{icon}</View>}
+          {icon && (
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              className="mb-3"
+            >
+              {icon}
+            </View>
+          )}
         </View>
       )}
 

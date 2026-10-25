@@ -30,6 +30,8 @@ export default function useExploreFilterOptions() {
       specialty_tags: [],
     },
     isLoading: query.isLoading,
+    hasOptions: query.data !== undefined,
+    isPaused: query.fetchStatus === "paused",
     error: query.error,
     refetch: query.refetch,
   };

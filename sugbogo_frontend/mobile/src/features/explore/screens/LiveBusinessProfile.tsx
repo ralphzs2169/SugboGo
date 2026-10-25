@@ -75,7 +75,7 @@ export function LiveBusinessQuickInfo({
   const status = getQuickInfoStatus(hours);
   return (
     <BusinessProfileQuickInfo
-      reviewCount={totalCount}
+      reviewCount={totalCount ?? business.review_count}
       overallVibe={business.overall_vibe}
       statusLabel={status.statusLabel}
       statusDetail={status.statusDetail}
@@ -166,6 +166,7 @@ function LiveReviews({
           isOwnBusiness={business.is_own_business}
           displayAsExplorer={previewAsExplorer}
           hasOwnReview={business.has_own_review}
+          reviewCount={business.review_count}
           reviewInsights={business.review_insights}
           regeneration={business.review_insight_regeneration}
           onWriteReview={() => {

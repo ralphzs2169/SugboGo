@@ -5,6 +5,7 @@ import Toast from "react-native-toast-message";
 
 import ErrorState from "@/shared/components/ErrorState";
 import useUserLocation from "@/shared/hooks/useUserLocation";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
@@ -30,6 +31,7 @@ const SKELETON_DELAY_MS = 200;
  * skeleton. Successful empty responses remove the optional section entirely.
  */
 export default function SimilarPlacesSection({ businessId }: Props) {
+  const navigate = useNavigationAction();
   const similarBusinesses = useSimilarBusinesses(businessId);
   const { location: userLocation } = useUserLocation({ mode: "cached" });
   const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(false);
@@ -163,19 +165,21 @@ export default function SimilarPlacesSection({ businessId }: Props) {
                   distanceAccuracy={userLocation?.coords.accuracy ?? null}
                   variant="compact"
                   onPress={() => {
-                    router.push({
-                      pathname: "/(explorer)/business/[businessId]",
-                      params: {
-                        businessId: String(business.id),
-                        profileSource: "SIMILAR_BUSINESSES",
-                        distance: distance === null ? "" : String(distance),
-                        distanceAccuracy:
-                          userLocation?.coords.accuracy === null ||
-                          userLocation?.coords.accuracy === undefined
-                            ? ""
-                            : String(userLocation.coords.accuracy),
-                      },
-                    });
+                    navigate(() =>
+                      router.push({
+                        pathname: "/(explorer)/business/[businessId]",
+                        params: {
+                          businessId: String(business.id),
+                          profileSource: "SIMILAR_BUSINESSES",
+                          distance: distance === null ? "" : String(distance),
+                          distanceAccuracy:
+                            userLocation?.coords.accuracy === null ||
+                            userLocation?.coords.accuracy === undefined
+                              ? ""
+                              : String(userLocation.coords.accuracy),
+                        },
+                      }),
+                    );
                   }}
                 />
               </View>

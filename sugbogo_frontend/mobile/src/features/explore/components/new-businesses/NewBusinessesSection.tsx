@@ -10,6 +10,7 @@ import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouse
 import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
 import ExploreSectionHeader from "../ExploreSectionHeader";
 import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
+import ExploreQueryNotice from "../ExploreQueryNotice";
 
 type Props = {
   impressions: BusinessImpressionObservation;
@@ -103,20 +104,29 @@ export default function NewBusinessesSection({
   }
 
   return (
-    /* Recently added business carousel */
-    <ExploreBusinessCarousel
-      title="New to SugboGo"
-      subtitle="Recently added places waiting to be discovered."
-      businesses={businesses}
-      impressions={impressions}
-      userLocation={userLocation}
-      cardVariant="default"
-      sectionTestID="new-businesses-section"
-      scrollTestID="new-businesses-scroll"
-      impressionTestIDPrefix="business-impression"
-      onBusinessPress={onBusinessPress}
-      onSeeAll={onSeeAll}
-      seeAllAccessibilityLabel="See all new businesses"
-    />
+    <>
+      {Boolean(error) && (
+        <ExploreQueryNotice
+          message="Couldn't refresh new businesses. Showing previously loaded places."
+          retryLabel="Retry refreshing new businesses"
+          onRetry={refetch}
+        />
+      )}
+      {/* Recently added business carousel */}
+      <ExploreBusinessCarousel
+        title="New to SugboGo"
+        subtitle="Recently added places waiting to be discovered."
+        businesses={businesses}
+        impressions={impressions}
+        userLocation={userLocation}
+        cardVariant="default"
+        sectionTestID="new-businesses-section"
+        scrollTestID="new-businesses-scroll"
+        impressionTestIDPrefix="business-impression"
+        onBusinessPress={onBusinessPress}
+        onSeeAll={onSeeAll}
+        seeAllAccessibilityLabel="See all new businesses"
+      />
+    </>
   );
 }

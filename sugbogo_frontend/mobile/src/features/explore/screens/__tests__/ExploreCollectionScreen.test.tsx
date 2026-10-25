@@ -11,8 +11,12 @@ const mockOnViewableItemsChanged = jest.fn();
 let mockCollectionType = "hidden-gems";
 
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
   router: {
     back: jest.fn(),
+    canGoBack: () => true,
     push: (...args: unknown[]) => mockPush(...args),
   },
   useLocalSearchParams: () => ({ collectionType: mockCollectionType }),

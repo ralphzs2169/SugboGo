@@ -106,6 +106,12 @@ it.each(cases)("preserves $name when refresh fails", async (test) => {
   await screen.rerender(test.render());
   expect(screen.getByText(test.label)).toBeTruthy();
   expect(screen.queryByText("Retry failed section")).toBeNull();
+  if (test.name === "new businesses") {
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Retry refreshing new businesses" }),
+    );
+    expect(refetch).toHaveBeenCalledTimes(1);
+  }
 });
 
 it.each(cases)("retains initial error recovery for $name", async (test) => {

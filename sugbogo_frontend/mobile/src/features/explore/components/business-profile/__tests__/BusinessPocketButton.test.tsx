@@ -116,6 +116,7 @@ describe("Business Profile Pocket controls", () => {
           business={business}
           isOwnBusiness={false}
           onShare={jest.fn()}
+          onGoBack={jest.fn()}
         />
         <BusinessProfileStickyHeader
           businessId={business.id}
@@ -127,9 +128,12 @@ describe("Business Profile Pocket controls", () => {
           categoryName="Cafe"
           isOwnBusiness={false}
           navOpacity={new Animated.Value(1)}
+          navigationVisible
+          identityVisible
           identityOpacity={new Animated.Value(1)}
           translateY={new Animated.Value(0)}
           onShare={jest.fn()}
+          onGoBack={jest.fn()}
         />
       </PocketPickerProvider>,
     );

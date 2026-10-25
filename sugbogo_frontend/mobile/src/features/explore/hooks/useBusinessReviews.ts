@@ -472,7 +472,7 @@ export function useBusinessReviewPreview(businessId: number) {
 
   return {
     reviews,
-    totalCount: query.error ? null : (query.data?.total_count ?? 0),
+    totalCount: query.error ? null : (query.data?.total_count ?? null),
     userReview,
     hasOwnReview: Boolean(userReview) || submissions.length > 0,
     hasResolvedOwnership: query.data !== undefined,

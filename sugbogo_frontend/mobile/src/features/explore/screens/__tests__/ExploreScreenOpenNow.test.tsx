@@ -23,6 +23,9 @@ let mockLocationStatus = "available";
 jest.mock("../../api/exploreBusiness.service", () => ({}));
 
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 jest.mock("@tanstack/react-query", () => ({
@@ -123,7 +126,10 @@ it("waits for fresh coordinates before requesting nearby businesses", async () =
       .props.refreshControl.props.onRefresh();
   });
   expect(mockRefreshAtLocation).not.toHaveBeenCalled();
-  expect(mockQueryClient.refetchQueries).toHaveBeenCalledTimes(5);
+  expect(mockQueryClient.refetchQueries).toHaveBeenCalledTimes(6);
+  expect(mockQueryClient.refetchQueries).toHaveBeenCalledWith({
+    queryKey: ["explore-filter-options"],
+  });
   expect(
     screen.getByTestId("explore-discovery-scroll").props.refreshControl.props
       .refreshing,
@@ -261,6 +267,8 @@ it("keeps the last successful location and labels it after a location failure", 
 it("opens the existing business profile with discovery source and distance", async () => {
   const screen = await render(<ExploreScreen />);
   await fireEvent.press(screen.getByText("Open nearby place"));
+  await fireEvent.press(screen.getByText("Open nearby place"));
+  expect(mockPush).toHaveBeenCalledTimes(1);
   expect(mockPush).toHaveBeenCalledWith({
     pathname: "/(explorer)/business/[businessId]",
     params: {

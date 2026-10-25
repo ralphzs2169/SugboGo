@@ -57,7 +57,14 @@ export default function BusinessAboutContent({ description }: Props) {
       {shouldTruncate && (
         <Pressable
           onPress={() => setIsExpanded((current) => !current)}
-          className="mt-2 flex-row items-center self-start cursor-pointer active:opacity-70"
+          accessibilityRole="button"
+          accessibilityLabel={
+            isExpanded
+              ? "Show less about this place"
+              : "Read more about this place"
+          }
+          accessibilityState={{ expanded: isExpanded }}
+          className="mt-2 min-h-12 flex-row items-center self-start cursor-pointer active:opacity-70"
         >
           <AppText weight="semibold" className="text-sm text-brand">
             {isExpanded ? "Show less" : "Read more"}

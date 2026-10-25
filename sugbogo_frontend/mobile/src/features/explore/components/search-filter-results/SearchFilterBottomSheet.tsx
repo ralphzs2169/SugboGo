@@ -18,6 +18,8 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import TaxonomyFilterControls from "@/shared/components/filters/TaxonomyFilterControls";
 import { TAXONOMY_SEARCH_THRESHOLD } from "@/shared/utils/taxonomyFilters";
+import ExploreFilterOptionsFeedback from "../ExploreFilterOptionsFeedback";
+import type useExploreFilterOptions from "../../hooks/useExploreFilterOptions";
 
 import type {
   ExploreFilterOptions,
@@ -44,6 +46,7 @@ type Props = {
   resultCount?: number | null;
   /** True while `resultCount` is being refreshed for the latest draft. */
   isCountLoading?: boolean;
+  taxonomyState?: ReturnType<typeof useExploreFilterOptions>;
 };
 
 const SNAP_POINTS = ["88%"];
@@ -76,6 +79,7 @@ export default function ExploreFiltersSheet({
   onDismiss,
   resultCount,
   isCountLoading = false,
+  taxonomyState,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
@@ -171,6 +175,8 @@ export default function ExploreFiltersSheet({
 
   const hasCount = typeof resultCount === "number" && !isCountLoading;
   const hasNoResults = hasCount && resultCount === 0;
+  const cannotApply =
+    hasNoResults || Boolean(taxonomyState && !taxonomyState.hasOptions);
 
   const applyLabel = hasCount
     ? hasNoResults
@@ -263,17 +269,22 @@ export default function ExploreFiltersSheet({
           </View>
 
           {/* Shared controls keep the feature's draft selection rules. */}
-          <TaxonomyFilterControls
-            options={options}
-            clusterId={draft.clusterId}
-            categoryIds={draft.categoryIds}
-            specialtyTagId={draft.specialtyTagId}
-            query={showSearch ? query : ""}
-            onQueryChange={changeQuery}
-            onClusterSelect={selectCluster}
-            onCategoryToggle={toggleCategory}
-            onSpecialtySelect={selectSpecialty}
-          />
+          {taxonomyState && (
+            <ExploreFilterOptionsFeedback state={taxonomyState} />
+          )}
+          {(!taxonomyState || taxonomyState.hasOptions) && (
+            <TaxonomyFilterControls
+              options={options}
+              clusterId={draft.clusterId}
+              categoryIds={draft.categoryIds}
+              specialtyTagId={draft.specialtyTagId}
+              query={showSearch ? query : ""}
+              onQueryChange={changeQuery}
+              onClusterSelect={selectCluster}
+              onCategoryToggle={toggleCategory}
+              onSpecialtySelect={selectSpecialty}
+            />
+          )}
         </BottomSheetScrollView>
 
         {/* Fixed filter actions */}
@@ -298,15 +309,15 @@ export default function ExploreFiltersSheet({
 
           <Pressable
             onPress={onApply}
-            disabled={hasNoResults}
+            disabled={cannotApply}
             accessibilityRole="button"
             accessibilityLabel={applyLabel}
             accessibilityState={{
-              disabled: hasNoResults,
+              disabled: cannotApply,
               busy: isCountLoading,
             }}
             className={`min-h-12 flex-[2] flex-row items-center justify-center gap-2 rounded-full bg-brand active:opacity-80 ${
-              hasNoResults ? "opacity-40" : ""
+              cannotApply ? "opacity-40" : ""
             }`}
           >
             {isCountLoading ? (

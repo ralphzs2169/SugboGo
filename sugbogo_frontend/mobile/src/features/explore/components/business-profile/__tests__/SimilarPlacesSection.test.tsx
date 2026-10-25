@@ -39,6 +39,9 @@ jest.mock("@/shared/hooks/useUserLocation", () => ({
   })),
 }));
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
   router: {
     push: jest.fn(),
   },

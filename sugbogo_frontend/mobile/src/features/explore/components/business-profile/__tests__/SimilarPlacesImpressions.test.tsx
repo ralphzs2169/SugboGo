@@ -16,6 +16,14 @@ let tracking: React.ContextType<typeof BusinessProfileImpressionsContext>;
 let changeAppState: (state: AppStateStatus) => void;
 
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest
+      .requireActual("react")
+      .useEffect(
+        () => (mockFocused ? effect() : undefined),
+        [effect, mockFocused],
+      );
+  },
   useIsFocused: () => mockFocused,
   router: { push: jest.fn() },
 }));
@@ -88,6 +96,8 @@ function Profile({
   return (
     <>
       <BusinessProfileScrollView
+        onShare={() => {}}
+        onGoBack={() => {}}
         business={business}
         isRefreshing={false}
         onRefresh={() => undefined}

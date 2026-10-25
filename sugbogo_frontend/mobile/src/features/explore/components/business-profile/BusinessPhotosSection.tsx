@@ -35,12 +35,18 @@ export default function BusinessPhotosSection({ photos, onPhotoPress }: Props) {
         {/* Featured photo */}
         <Pressable
           onPress={() => onPhotoPress?.(0)}
+          disabled={!onPhotoPress}
+          accessibilityRole="button"
+          accessibilityLabel={`View photo 1 of ${photos.length}: ${featuredPhoto.category}`}
+          accessibilityHint="Opens the photo gallery"
+          accessibilityState={{ disabled: !onPhotoPress }}
           className="aspect-[4/3] flex-[2] overflow-hidden rounded-card bg-surface-secondary cursor-pointer active:opacity-90"
         >
           <Image
             source={{ uri: featuredPhoto.photo_url }}
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
+            accessible={false}
             transition={150}
           />
         </Pressable>
@@ -56,18 +62,32 @@ export default function BusinessPhotosSection({ photos, onPhotoPress }: Props) {
               <Pressable
                 key={photo.id}
                 onPress={() => onPhotoPress?.(photoIndex)}
+                disabled={!onPhotoPress}
+                accessibilityRole="button"
+                accessibilityLabel={`View photo ${photoIndex + 1} of ${photos.length}: ${photo.category}`}
+                accessibilityHint={
+                  isLastPreview && hasMorePhotos
+                    ? `Opens the photo gallery with ${additionalPhotoCount} additional photos`
+                    : "Opens the photo gallery"
+                }
+                accessibilityState={{ disabled: !onPhotoPress }}
                 className="min-h-0 flex-1 overflow-hidden rounded-card bg-surface-secondary cursor-pointer active:opacity-90"
               >
                 <Image
                   source={{ uri: photo.photo_url }}
                   style={{ width: "100%", height: "100%" }}
                   contentFit="cover"
+                  accessible={false}
                   transition={150}
                 />
 
                 {/* More photos overlay */}
                 {isLastPreview && hasMorePhotos && (
-                  <View className="absolute inset-0 items-center justify-center bg-black/45">
+                  <View
+                    pointerEvents="none"
+                    accessible={false}
+                    className="absolute inset-0 items-center justify-center bg-black/45"
+                  >
                     <AppText weight="bold" className="text-xl text-white">
                       +{additionalPhotoCount}
                     </AppText>

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
 
 import ExploreBySpecialtySection from "../components/explore-by-specialty/ExploreBySpecialtySection";
 import ExploreTopBar from "../components/ExploreTopBar";
@@ -32,6 +33,8 @@ import { EXPLORE_SPECIALTIES_QUERY_KEY } from "../hooks/useExploreSpecialties";
 import { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../hooks/useDiscoveryShortcuts";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useExploreFilterOptions from "../hooks/useExploreFilterOptions";
+import { EXPLORE_FILTER_OPTIONS_QUERY_KEY } from "../constants/exploreHomepageQueries";
+import ExploreFilterOptionsFeedback from "../components/ExploreFilterOptionsFeedback";
 import { navigateToExploreResults } from "../utils/exploreResultsNavigation";
 import type { ExploreCollectionType } from "../types/exploreBusiness.types";
 
@@ -43,6 +46,7 @@ import type { ExploreCollectionType } from "../types/exploreBusiness.types";
  */
 export default function ExploreScreen() {
   const queryClient = useQueryClient();
+  const navigate = useNavigationAction();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRefreshingNearby, setIsRefreshingNearby] = useState(false);
@@ -106,6 +110,9 @@ export default function ExploreScreen() {
     try {
       // These sections do not depend on GPS or the Open Now query key.
       const independentRefreshes = Promise.allSettled([
+        queryClient.refetchQueries({
+          queryKey: EXPLORE_FILTER_OPTIONS_QUERY_KEY,
+        }),
         queryClient.refetchQueries({
           queryKey: DISCOVERY_FEED_QUERY_KEY,
         }),
@@ -178,29 +185,33 @@ export default function ExploreScreen() {
     distance: number | null,
     distanceAccuracy: number | null,
   ) => {
-    router.push({
-      pathname: "/(explorer)/business/[businessId]",
-      params: {
-        businessId: String(businessId),
-        profileSource: "EXPLORE_DISCOVERY",
-        distance: distance !== null ? String(distance) : "",
-        distanceAccuracy:
-          distanceAccuracy !== null ? String(distanceAccuracy) : "",
-      },
-    });
+    navigate(() =>
+      router.push({
+        pathname: "/(explorer)/business/[businessId]",
+        params: {
+          businessId: String(businessId),
+          profileSource: "EXPLORE_DISCOVERY",
+          distance: distance !== null ? String(distance) : "",
+          distanceAccuracy:
+            distanceAccuracy !== null ? String(distanceAccuracy) : "",
+        },
+      }),
+    );
   };
 
   const openCollection = (
     collectionType: ExploreCollectionType,
     source?: "recommendations",
   ) => {
-    router.push({
-      pathname: "/(explorer)/explore-collection/[collectionType]",
-      params: {
-        collectionType,
-        ...(source ? { source } : {}),
-      },
-    });
+    navigate(() =>
+      router.push({
+        pathname: "/(explorer)/explore-collection/[collectionType]",
+        params: {
+          collectionType,
+          ...(source ? { source } : {}),
+        },
+      }),
+    );
   };
 
   return (
@@ -212,12 +223,17 @@ export default function ExploreScreen() {
         isLoadingClusters={filterOptions.isLoading}
         onSelectCluster={(clusterId) => {
           if (clusterId !== null) {
-            navigateToExploreResults({ clusterId });
+            navigate(() => navigateToExploreResults({ clusterId }));
           }
         }}
-        onPressSearch={() => navigateToExploreResults({}, false, true)}
-        onPressFilters={() => navigateToExploreResults({}, true)}
+        onPressSearch={() =>
+          navigate(() => navigateToExploreResults({}, false, true))
+        }
+        onPressFilters={() =>
+          navigate(() => navigateToExploreResults({}, true))
+        }
       />
+      <ExploreFilterOptionsFeedback state={filterOptions} />
 
       {/* Discovery content */}
       <ScrollView
@@ -260,7 +276,7 @@ export default function ExploreScreen() {
         {/* Specialty discovery preview */}
         <ExploreBySpecialtySection
           onSpecialtyPress={(specialtyTagId) =>
-            navigateToExploreResults({ specialtyTagId })
+            navigate(() => navigateToExploreResults({ specialtyTagId }))
           }
         />
 
@@ -283,7 +299,7 @@ export default function ExploreScreen() {
         {/* Intent-based discovery shortcuts */}
         <DiscoveryShortcutsSection
           onShortcutPress={(clusterId) =>
-            navigateToExploreResults({ clusterId })
+            navigate(() => navigateToExploreResults({ clusterId }))
           }
         />
       </ScrollView>

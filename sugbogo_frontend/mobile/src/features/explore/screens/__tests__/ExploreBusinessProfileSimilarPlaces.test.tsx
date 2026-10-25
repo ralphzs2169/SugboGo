@@ -2,6 +2,10 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { onlineManager } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { Share } from "react-native";
+
+// Native screen initialization can exceed Jest's default timeout on Windows.
+jest.setTimeout(20000);
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
@@ -119,8 +123,11 @@ jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: jest.fn(),
 }));
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
   useIsFocused: () => true,
-  router: { back: jest.fn(), push: jest.fn() },
+  router: { back: jest.fn(), canGoBack: () => true, push: jest.fn() },
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -196,6 +203,9 @@ function profile() {
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  jest
+    .mocked(useBusinessReviewPreview)
+    .mockReturnValue({ totalCount: 12 } as never);
   beginAuthSession();
   useAuthStore.setState({
     user: { id: 7 } as never,
@@ -205,6 +215,59 @@ beforeEach(() => {
   onlineManager.setOnline(true);
   jest.mocked(useBusinessDetailSource).mockReturnValue(source("live") as never);
   jest.mocked(Image.getCachePathAsync).mockResolvedValue(null);
+});
+
+it("uses the detail review count until preview resolves, including a confirmed zero", async () => {
+  jest
+    .mocked(useBusinessReviewPreview)
+    .mockReturnValue({ totalCount: null } as never);
+  const view = await render(profile());
+  expect(view.getByText(String(business.review_count))).toBeTruthy();
+  expect(view.queryByText("0")).toBeNull();
+  jest
+    .mocked(useBusinessReviewPreview)
+    .mockReturnValue({ totalCount: 0 } as never);
+  await view.rerender(profile());
+  expect(view.getByText("0")).toBeTruthy();
+});
+
+it("shares from both visible headers and hides sticky controls at the top", async () => {
+  const share = jest
+    .spyOn(Share, "share")
+    .mockResolvedValue({ action: Share.dismissedAction });
+  const view = await render(profile());
+  expect(
+    view.getAllByRole("button", { name: "Share Sugbo Cafe" }),
+  ).toHaveLength(1);
+  await fireEvent.press(view.getByRole("button", { name: "Share Sugbo Cafe" }));
+  expect(share).toHaveBeenCalledTimes(1);
+  await fireEvent.scroll(view.getByTestId("business-profile-scroll"), {
+    nativeEvent: { contentOffset: { y: 300 } },
+  });
+  await waitFor(() =>
+    expect(
+      view.getAllByRole("button", { name: "Share Sugbo Cafe" }),
+    ).toHaveLength(2),
+  );
+  await fireEvent.press(
+    view.getAllByRole("button", { name: "Share Sugbo Cafe" })[0],
+  );
+  expect(share).toHaveBeenCalledTimes(2);
+  await fireEvent.scroll(view.getByTestId("business-profile-scroll"), {
+    nativeEvent: { contentOffset: { y: 0 } },
+  });
+  expect(
+    view.getAllByRole("button", { name: "Share Sugbo Cafe" }),
+  ).toHaveLength(1);
+  share.mockRestore();
+});
+
+it("dispatches Back only once before the current route loses focus", async () => {
+  const view = await render(profile());
+  const back = view.getByRole("button", { name: "Go back" });
+  await fireEvent.press(back);
+  await fireEvent.press(back);
+  expect(router.back).toHaveBeenCalledTimes(1);
 });
 afterEach(() => {
   onlineManager.setOnline(true);
@@ -316,7 +379,7 @@ it("shows loading while offline sources resolve, then a viewport-filling error w
   );
   expect(
     view.getByTestId("business-profile-error-hero").props.className,
-  ).toContain("h-80");
+  ).toContain("h-[21.5rem]");
   expect(
     view.getByTestId("business-profile-error-body").props.className,
   ).toContain("flex-1");
@@ -444,7 +507,7 @@ it.each(["recent", "offline-pocket"] as const)(
     await fireEvent.press(vouch);
     expect(
       view.getAllByRole("button", { name: "Pocket unavailable offline" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     for (const hook of [
       useBusinessProfileVisit,
       useBusinessReviewPreview,
@@ -467,7 +530,7 @@ it.each(["recent", "offline-pocket"] as const)(
     if (mode === "offline-pocket") {
       expect(view.getByText(/^Saved for offline/)).toBeTruthy();
     } else {
-      expect(view.getByText(/^Previously loaded/)).toBeTruthy();
+      expect(view.getByText("Previously loaded")).toBeTruthy();
     }
   },
 );
@@ -535,5 +598,5 @@ it("revokes an open Pocket workflow when live authority is lost", async () => {
   expect(previous.isCurrent?.()).toBe(false);
   expect(
     view.getAllByRole("button", { name: "Pocket unavailable offline" }),
-  ).toHaveLength(2);
+  ).toHaveLength(1);
 });

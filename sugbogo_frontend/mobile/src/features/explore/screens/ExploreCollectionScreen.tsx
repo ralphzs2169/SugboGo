@@ -26,6 +26,8 @@ import ExploreCollectionTopBar from "../components/explore-collection/ExploreCol
 import SearchFilterBottomSheet from "../components/search-filter-results/SearchFilterBottomSheet";
 import useExploreCollection from "../hooks/useExploreCollection";
 import useExploreFilterOptions from "../hooks/useExploreFilterOptions";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
+import ExploreFilterOptionsFeedback from "../components/ExploreFilterOptionsFeedback";
 import useResultsImpressions from "../hooks/useResultsImpressions";
 
 import { applyClusterSelection } from "../utils/exploreResultsCriteria";
@@ -69,6 +71,12 @@ export function isExploreCollectionType(
  * delegating collection presentation states to focused child components.
  */
 export default function ExploreCollectionScreen() {
+  const navigate = useNavigationAction();
+  const goBack = () =>
+    navigate(() => {
+      if (!router.canGoBack()) return false;
+      router.back();
+    });
   const params = useLocalSearchParams<{
     collectionType?: string;
     source?: string;
@@ -113,22 +121,6 @@ export default function ExploreCollectionScreen() {
     }
   }, [collection.error]);
 
-  useEffect(() => {
-    if (!taxonomy.error) {
-      return;
-    }
-
-    const response = taxonomy.error as unknown as ApiResponse<unknown>;
-
-    if (!response.success && !handleSystemError(response)) {
-      Toast.show({
-        type: "error",
-        text1: "Unable to load filters",
-        text2: response.message || "Please try again.",
-      });
-    }
-  }, [taxonomy.error]);
-
   if (collectionType === null) {
     return (
       <View className="flex-1 bg-surface" style={{ paddingTop: insets.top }}>
@@ -137,7 +129,7 @@ export default function ExploreCollectionScreen() {
           title="Collection not found"
           description="Return to Explore and choose another collection."
           primaryActionTitle="Go back"
-          onPrimaryAction={() => router.back()}
+          onPrimaryAction={goBack}
         />
       </View>
     );
@@ -228,19 +220,21 @@ export default function ExploreCollectionScreen() {
       : "Check back later for more places to discover.";
 
   const openBusiness = (business: ExploreBusiness, distance: number | null) => {
-    router.push({
-      pathname: "/(explorer)/business/[businessId]",
-      params: {
-        businessId: String(business.id),
-        profileSource: "COLLECTION",
-        distance: distance === null ? "" : String(distance),
-        distanceAccuracy:
-          userLocation?.coords.accuracy === null ||
-          userLocation?.coords.accuracy === undefined
-            ? ""
-            : String(userLocation.coords.accuracy),
-      },
-    });
+    navigate(() =>
+      router.push({
+        pathname: "/(explorer)/business/[businessId]",
+        params: {
+          businessId: String(business.id),
+          profileSource: "COLLECTION",
+          distance: distance === null ? "" : String(distance),
+          distanceAccuracy:
+            userLocation?.coords.accuracy === null ||
+            userLocation?.coords.accuracy === undefined
+              ? ""
+              : String(userLocation.coords.accuracy),
+        },
+      }),
+    );
   };
 
   const renderBusiness = ({ item }: { item: ExploreCollectionBusiness }) => {
@@ -299,9 +293,10 @@ export default function ExploreCollectionScreen() {
         activeFilterCount={activeFilterCount}
         isFilterLoading={taxonomy.isLoading}
         topInset={insets.top}
-        onBack={() => router.back()}
+        onBack={goBack}
         onOpenFilters={openFilters}
       />
+      <ExploreFilterOptionsFeedback state={taxonomy} />
 
       {/* Paginated collection results */}
       <FlatList
@@ -343,7 +338,7 @@ export default function ExploreCollectionScreen() {
             isLoading={collection.isLoading}
             hasError={Boolean(collection.error || collection.isPaused)}
             onRetry={() => void collection.refetch()}
-            onGoBack={() => router.back()}
+            onGoBack={goBack}
             emptyTitle={emptyTitle}
             emptyDescription={emptyDescription}
           />
@@ -398,6 +393,7 @@ export default function ExploreCollectionScreen() {
       <SearchFilterBottomSheet
         sheetRef={filterSheetRef}
         options={taxonomy.options}
+        taxonomyState={taxonomy}
         draft={draftCriteria}
         onChange={setDraftCriteria}
         onApply={applyFilters}

@@ -1,5 +1,4 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -15,7 +14,11 @@ import BusinessReviewCardSkeleton from "./BusinessReviewCardSkeleton";
  * current hero overlap, quick-info card, specialty tiles, and review layout
  * to minimize visual shifting when real business data becomes available.
  */
-export default function BusinessProfileSkeletonContent() {
+export default function BusinessProfileSkeletonContent({
+  onGoBack,
+}: {
+  onGoBack: () => void;
+}) {
   return (
     <>
       {/* Business hero and overlapping quick info */}
@@ -25,9 +28,10 @@ export default function BusinessProfileSkeletonContent() {
           <Skeleton className="h-full w-full rounded-none" />
 
           {/* Navigation controls */}
-          <View className="absolute left-4 right-4 top-4 flex-row items-center justify-between">
+          <View className="absolute left-3 right-3 top-3 h-12 flex-row items-center justify-between px-1">
             <Pressable
-              onPress={() => router.back()}
+              onPress={onGoBack}
+              hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel="Go back"
               className="h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/95 active:opacity-80"
@@ -150,6 +154,23 @@ export default function BusinessProfileSkeletonContent() {
         </View>
       </View>
 
+      {/* Photos */}
+      <View className="mt-2 bg-surface px-4 py-5">
+        <View className="mb-3 flex-row items-center justify-between border-b border-border-primary">
+          <AppText weight="bold" className="mb-3 text-base text-text-primary">
+            See What&apos;s Here
+          </AppText>
+        </View>
+
+        <View className="flex-row gap-2">
+          <Skeleton className="aspect-[4/3] flex-[2] rounded-card" />
+          <View className="flex-1 gap-2">
+            <Skeleton className="min-h-0 flex-1 rounded-card" />
+            <Skeleton className="min-h-0 flex-1 rounded-card" />
+          </View>
+        </View>
+      </View>
+
       {/* Plan your visit */}
       <View className="mt-2 bg-surface px-4 py-5">
         <View className="mb-3 flex-row items-center justify-between border-b border-border-primary">
@@ -158,8 +179,12 @@ export default function BusinessProfileSkeletonContent() {
           </AppText>
         </View>
 
-        {/* Location */}
-        <View className="flex-row">
+        {/* Location and map preview */}
+        <AppText weight="semibold" className="text-base text-text-primary">
+          Location
+        </AppText>
+        <Skeleton className="mt-4 h-[150px] w-full rounded-card" />
+        <View className="mt-3 flex-row">
           <Skeleton className="h-5 w-5 rounded-full" />
 
           <View className="ml-3 flex-1 gap-2">
@@ -167,9 +192,6 @@ export default function BusinessProfileSkeletonContent() {
             <Skeleton className="h-4 w-3/5 rounded-md" />
           </View>
         </View>
-
-        {/* Map preview */}
-        <Skeleton className="mt-4 h-[150px] w-full rounded-card" />
 
         {/* Getting there options */}
         <AppText
@@ -209,21 +231,6 @@ export default function BusinessProfileSkeletonContent() {
             <Skeleton className="h-5 w-5 rounded-full" />
             <Skeleton className="ml-3 h-4 w-3/4 rounded-md" />
           </View>
-        </View>
-      </View>
-
-      {/* Photos */}
-      <View className="mt-2 bg-surface px-4 py-5">
-        <View className="mb-3 flex-row items-center justify-between border-b border-border-primary">
-          <AppText weight="bold" className="mb-3 text-base text-text-primary">
-            See What&apos;s Here
-          </AppText>
-        </View>
-
-        <View className="flex-row gap-3">
-          <Skeleton className="h-24 flex-1 rounded-lg" />
-          <Skeleton className="h-24 flex-1 rounded-lg" />
-          <Skeleton className="h-24 flex-1 rounded-lg" />
         </View>
       </View>
 

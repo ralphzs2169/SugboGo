@@ -88,7 +88,7 @@ describe("HiddenGemsSection", () => {
       businesses: [createBusiness(1, "Previously loaded gem", 10.31)],
       isLoading: false,
       error: null as Error | null,
-      refetch: jest.fn(),
+      refetch: jest.fn(async () => undefined),
       impressions: createImpressions(),
       spotlightImpressions: createImpressions(),
       userLocation: null,
@@ -100,6 +100,10 @@ describe("HiddenGemsSection", () => {
     );
     expect(screen.getByText("Previously loaded gem")).toBeTruthy();
     expect(screen.queryByTestId("hidden-gems-error")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Retry refreshing Hidden Gems" }),
+    );
+    expect(props.refetch).toHaveBeenCalledTimes(1);
   });
   beforeEach(() => {
     mockBusinessCard.mockClear();

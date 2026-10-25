@@ -11,6 +11,7 @@ import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouse
 import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 import ExploreSectionHeader from "../ExploreSectionHeader";
 import HiddenGemSpotlight from "./HiddenGemSpotlight";
+import ExploreQueryNotice from "../ExploreQueryNotice";
 
 type Props = {
   businesses: ExploreBusiness[];
@@ -129,6 +130,13 @@ export default function HiddenGemsSection({
 
   return (
     <>
+      {Boolean(error) && (
+        <ExploreQueryNotice
+          message="Couldn't refresh Hidden Gems. Showing previously loaded places."
+          retryLabel="Retry refreshing Hidden Gems"
+          onRetry={refetch}
+        />
+      )}
       {spotlight && (
         <HiddenGemSpotlight
           business={spotlight}

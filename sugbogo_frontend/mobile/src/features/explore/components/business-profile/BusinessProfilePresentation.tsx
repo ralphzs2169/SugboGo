@@ -3,11 +3,13 @@ import { useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 import useLocalBusinessProfileMedia from "../../hooks/useLocalBusinessProfileMedia";
+import useBusinessProfileShare from "../../hooks/useBusinessProfileShare";
 import type useBusinessDetailSource from "../../hooks/useBusinessDetailSource";
 import LiveBusinessProfile, {
   LiveBusinessQuickInfo,
@@ -44,6 +46,13 @@ export default function BusinessProfilePresentation({
 }: Props) {
   const live = detail.source === "live" ? detail.business : null;
   const business = live ?? detail.snapshot?.business ?? null;
+  const shareProfile = useBusinessProfileShare(business);
+  const navigate = useNavigationAction();
+  const goBack = () =>
+    navigate(() => {
+      if (!router.canGoBack()) return false;
+      router.back();
+    });
   const media = useLocalBusinessProfileMedia(
     business,
     !live,
@@ -85,15 +94,17 @@ export default function BusinessProfilePresentation({
         onRefresh={() => void refreshProfile()}
         isOwnBusiness={ownerPresentation}
         ownerFooterHeight={ownerFooterHeight}
+        onShare={shareProfile}
+        onGoBack={goBack}
       >
         {!business && !detail.isLoading ? (
           <BusinessProfileErrorState
             onRetry={() => void detail.refetch()}
-            onGoBack={() => router.back()}
+            onGoBack={goBack}
           />
         ) : (
           <>
-            {!business && <BusinessProfileSkeletonContent />}
+            {!business && <BusinessProfileSkeletonContent onGoBack={goBack} />}
             <View
               style={!business ? { display: "none" } : undefined}
               accessibilityElementsHidden={!business}
@@ -106,7 +117,8 @@ export default function BusinessProfilePresentation({
                 <ExploreBusinessHero
                   business={identity}
                   isOwnBusiness={ownerPresentation}
-                  onShare={() => {}}
+                  onShare={shareProfile}
+                  onGoBack={goBack}
                 />
                 <View className="relative z-10 -mt-8 px-4">
                   {live ? (

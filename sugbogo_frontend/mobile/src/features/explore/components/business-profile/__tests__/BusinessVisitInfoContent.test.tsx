@@ -3,6 +3,7 @@ import { fireEvent, render } from "@testing-library/react-native";
 import BusinessVisitInfoContent from "../BusinessVisitInfoContent";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useDirectJourneys from "../../../hooks/useDirectJourneys";
+import { Linking } from "react-native";
 
 jest.mock("@/shared/hooks/useUserLocation");
 jest.mock("../BusinessVisitMapPreview", () => () => null);
@@ -47,6 +48,38 @@ const defaultProps = {
 };
 
 describe("BusinessVisitInfoContent", () => {
+  it("opens a normalized merchant website and rejects unsupported schemes", async () => {
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    const screen = await render(
+      <BusinessVisitInfoContent {...defaultProps} website="example.com/menu" />,
+    );
+    await fireEvent.press(
+      screen.getByRole("link", { name: "Open website: example.com/menu" }),
+    );
+    expect(open).toHaveBeenCalledWith("https://example.com/menu");
+    await screen.rerender(
+      <BusinessVisitInfoContent
+        {...defaultProps}
+        website="javascript:alert(1)"
+      />,
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(open).toHaveBeenCalledTimes(1);
+    open.mockRestore();
+  });
+
+  it("announces the hours expansion state", async () => {
+    const screen = await render(<BusinessVisitInfoContent {...defaultProps} />);
+    const toggle = screen.getByRole("button", {
+      name: "Show full business hours",
+    });
+    expect(toggle.props.accessibilityState.expanded).toBe(false);
+    await fireEvent.press(toggle);
+    expect(
+      screen.getByRole("button", { name: "Hide full business hours" }).props
+        .accessibilityState.expanded,
+    ).toBe(true);
+  });
   beforeEach(() => {
     jest.clearAllMocks();
   });
