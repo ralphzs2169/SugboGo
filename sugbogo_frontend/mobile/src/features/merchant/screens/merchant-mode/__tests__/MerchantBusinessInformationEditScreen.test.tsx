@@ -214,7 +214,7 @@ describe("MerchantBusinessInformationEditScreen", () => {
   it("preserves dirty directions when newer same-business data arrives", async () => {
     const screen = await render(<MerchantBusinessInformationEditScreen />);
     await fireEvent.changeText(
-      screen.getByLabelText("How to reach us"),
+      screen.getByLabelText("Access notes"),
       "My entrance draft",
     );
     mockProfile.mockReturnValue({
@@ -315,7 +315,7 @@ describe("MerchantBusinessInformationEditScreen", () => {
     });
     const screen = await render(<MerchantBusinessInformationEditScreen />);
     await fireEvent.changeText(
-      screen.getByLabelText("How to reach us"),
+      screen.getByLabelText("Access notes"),
       "Walk from the chapel.",
     );
     await fireEvent.press(screen.getByText("Save Changes"));

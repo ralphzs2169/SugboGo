@@ -315,17 +315,17 @@ export default function MerchantBusinessInformationEditScreen() {
             )}
           />
 
-          {/* Optional landmark and transfer instructions */}
+          {/* Optional business access notes */}
           <Controller
             control={form.control}
             name="accessDirections"
             render={({ field, fieldState }) => (
               <FormTextArea
-                label="How to reach us (optional)"
-                accessibilityLabel="How to reach us"
+                label="Access notes (optional)"
+                accessibilityLabel="Access notes"
                 maxLength={1000}
-                helperText="Up to 1,000 characters. Add familiar landmarks, walking access or vehicle changes you know. These appear as merchant-provided directions. Leave blank to remove."
-                placeholder="Example: Get off at the public market, then take a motorcycle to our entrance beside the chapel."
+                helperText="Help visitors find your entrance or understand the last part of their visit. Shown to Explorers as merchant-provided Access notes."
+                placeholder="e.g. Use the side entrance beside the bakery. Our shop is upstairs on the second floor."
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}

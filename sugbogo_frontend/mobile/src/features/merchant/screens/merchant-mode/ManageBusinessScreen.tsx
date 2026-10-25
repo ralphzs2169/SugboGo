@@ -63,7 +63,7 @@ export default function ManageBusinessScreen() {
   }[] = [
     {
       title: "Business information",
-      detail: "Description & contact details",
+      detail: "Description, access notes & contact details",
       route: "/(merchant)/business-information",
       icon: "store-edit-outline",
     },
