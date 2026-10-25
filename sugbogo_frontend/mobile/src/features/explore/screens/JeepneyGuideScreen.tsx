@@ -278,6 +278,20 @@ export default function JeepneyGuideScreen({ businessId }: Props) {
           ) : null}
 
           {/* Merchant guidance remains readable for successful and empty searches. */}
+          {business?.access_directions?.trim() && (
+            <View className="mt-5">
+              <AppText
+                weight="semibold"
+                className="text-base text-text-primary"
+              >
+                Final approach
+              </AppText>
+              <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+                For the entrance, landmarks, or last part of your trip, see the
+                merchant’s directions.
+              </AppText>
+            </View>
+          )}
           <MerchantAccessDirections directions={business?.access_directions} />
 
           {/* Approximate-distance clarification */}

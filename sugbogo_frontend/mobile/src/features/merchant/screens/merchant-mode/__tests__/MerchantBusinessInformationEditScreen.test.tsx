@@ -188,7 +188,71 @@ describe("MerchantBusinessInformationEditScreen", () => {
     expect(screen.queryByText("Save Changes")).toBeNull();
   });
 
-  it("prefills and submits the four current information fields", async () => {
+  it("synchronizes newer same-business data while pristine without resubmitting untouched directions", async () => {
+    mockProfile.mockReturnValue({
+      business: { ...business, access_directions: "Old entrance" },
+    });
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    mockProfile.mockReturnValue({
+      business: { ...business, access_directions: "New entrance" },
+    });
+    await screen.rerender(<MerchantBusinessInformationEditScreen />);
+    expect(screen.getByDisplayValue("New entrance")).toBeTruthy();
+    expect(screen.queryByDisplayValue("Old entrance")).toBeNull();
+    await fireEvent.changeText(
+      screen.getByDisplayValue(business.description),
+      "Updated description",
+    );
+    await fireEvent.press(screen.getByText("Save Changes"));
+    await waitFor(() =>
+      expect(mockUpdateInformation).toHaveBeenCalledWith({
+        description: "Updated description",
+      }),
+    );
+  });
+
+  it("preserves dirty directions when newer same-business data arrives", async () => {
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    await fireEvent.changeText(
+      screen.getByLabelText("How to reach us"),
+      "My entrance draft",
+    );
+    mockProfile.mockReturnValue({
+      business: { ...business, access_directions: "New server directions" },
+    });
+    await screen.rerender(<MerchantBusinessInformationEditScreen />);
+    expect(screen.getByDisplayValue("My entrance draft")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Save Changes"));
+    await waitFor(() =>
+      expect(mockUpdateInformation).toHaveBeenCalledWith({
+        access_directions: "My entrance draft",
+      }),
+    );
+  });
+
+  it("does not write stale untouched directions when a dirty form refetches", async () => {
+    mockProfile.mockReturnValue({
+      business: { ...business, access_directions: "Old entrance" },
+    });
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    await fireEvent.changeText(
+      screen.getByDisplayValue(business.description),
+      "My description draft",
+    );
+    mockProfile.mockReturnValue({
+      business: { ...business, access_directions: "New entrance" },
+    });
+    await screen.rerender(<MerchantBusinessInformationEditScreen />);
+    expect(screen.getByDisplayValue("My description draft")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Save Changes"));
+    await waitFor(() =>
+      expect(mockUpdateInformation).toHaveBeenCalledWith({
+        description: "My description draft",
+      }),
+    );
+  });
+
+  it("prefills current information and submits only edited fields", async () => {
     const screen = await render(<MerchantBusinessInformationEditScreen />);
 
     expect(screen.getByDisplayValue(business.description)).toBeTruthy();
@@ -216,10 +280,6 @@ describe("MerchantBusinessInformationEditScreen", () => {
     await waitFor(() => {
       expect(mockUpdateInformation).toHaveBeenCalledWith({
         description: "Updated business description",
-        access_directions: "",
-        contact_number: business.contact_number,
-        business_email: business.business_email,
-        website: business.website,
       });
       expect(router.back).toHaveBeenCalledTimes(1);
       expect(Toast.show).toHaveBeenCalledWith(

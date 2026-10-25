@@ -238,6 +238,40 @@ it.each(["recent", "offline-pocket"])(
   },
 );
 
+it.each([
+  undefined,
+  "",
+  "  \n  ",
+  "Use the blue gate.\nWalk behind the chapel.",
+])(
+  "displays only nonblank merchant directions from recent details (%s)",
+  async (directions) => {
+    jest
+      .mocked(recentBusinessDetails.readLocal)
+      .mockResolvedValue(
+        projectRecentBusinessDetail(
+          { ...businessFixture(), access_directions: directions },
+          Date.now(),
+        ),
+      );
+    const view = await render(
+      <QueryClientProvider client={client}>
+        <RecentExploreBusinessScreen businessId={21} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(view.getByText("Sugbo Cafe")).toBeTruthy());
+    if (directions?.trim()) {
+      expect(view.getByText(directions)).toBeTruthy();
+      expect(view.getByText("Merchant-provided directions")).toBeTruthy();
+    } else {
+      expect(view.queryByText("Merchant-provided directions")).toBeNull();
+    }
+    expect(
+      view.getByText(/Showing previously loaded information/),
+    ).toBeTruthy();
+  },
+);
+
 it("shows unavailable when neither detail source is readable", async () => {
   const view = await render(
     <QueryClientProvider client={client}>

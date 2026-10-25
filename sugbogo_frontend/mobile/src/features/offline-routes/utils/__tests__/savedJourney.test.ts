@@ -6,6 +6,49 @@ import {
 import { snapshot } from "./savedJourney.fixture";
 
 describe("saved journey validation", () => {
+  it("preserves optional merchant context without changing the snapshot version or identity", () => {
+    const saved = {
+      ...snapshot,
+      business: {
+        ...snapshot.business,
+        access_directions: "  Use the gate.\nWalk inside.  ",
+      },
+    };
+    const parsed = parseSavedJourney(JSON.stringify(saved));
+    expect(parsed?.business.access_directions).toBe(
+      "Use the gate.\nWalk inside.",
+    );
+    expect(parsed?.formatVersion).toBe(1);
+    expect(savedJourneyKey(parsed!)).toBe(savedJourneyKey(snapshot));
+  });
+
+  it.each(["", "   \n "])(
+    "normalizes blank merchant context (%s)",
+    (directions) => {
+      const parsed = parseSavedJourney(
+        JSON.stringify({
+          ...snapshot,
+          business: { ...snapshot.business, access_directions: directions },
+        }),
+      );
+      expect(parsed).not.toBeNull();
+      expect(parsed?.business.access_directions).toBeUndefined();
+    },
+  );
+
+  it("rejects oversized merchant context", () => {
+    expect(
+      parseSavedJourney(
+        JSON.stringify({
+          ...snapshot,
+          business: {
+            ...snapshot.business,
+            access_directions: "x".repeat(1001),
+          },
+        }),
+      ),
+    ).toBeNull();
+  });
   it("round trips the selected journey and uses stable identity across repeated saves", () => {
     expect(parseSavedJourney(JSON.stringify(snapshot))).toEqual(snapshot);
     expect(

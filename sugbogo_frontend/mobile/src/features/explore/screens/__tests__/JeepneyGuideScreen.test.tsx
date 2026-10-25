@@ -145,6 +145,12 @@ describe("JeepneyGuideScreen", () => {
     });
     const screen = await render(<JeepneyGuideScreen businessId={21} />);
     expect(screen.getByText("Merchant-provided directions")).toBeTruthy();
+    expect(screen.getByText("Final approach")).toBeTruthy();
+    expect(
+      screen.getByText(
+        /For the entrance, landmarks, or last part of your trip/,
+      ),
+    ).toBeTruthy();
     expect(
       screen.getByText("At the chapel, take a motorcycle to our gate."),
     ).toBeTruthy();

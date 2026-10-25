@@ -78,10 +78,13 @@ export default function MerchantBusinessInformationEditScreen() {
   });
 
   const { reset } = form;
-  const hasChanges = form.formState.isDirty;
+  const { isDirty: hasChanges, dirtyFields } = form.formState;
 
   useEffect(() => {
-    if (!business || initializedBusinessId.current === business.id) {
+    if (
+      !business ||
+      (initializedBusinessId.current === business.id && hasChanges)
+    ) {
       return;
     }
 
@@ -95,7 +98,7 @@ export default function MerchantBusinessInformationEditScreen() {
       website: business.website ?? "",
     });
     setReadyBusinessId(business.id);
-  }, [business, reset]);
+  }, [business, hasChanges, reset]);
 
   useLayoutEffect(() => {
     hasChangesRef.current = hasChanges;
@@ -141,12 +144,21 @@ export default function MerchantBusinessInformationEditScreen() {
     savingRef.current = true;
 
     try {
+      // PATCH only edited fields so a refetch cannot make untouched values stale writes.
       await updateInformation({
-        description: values.businessDescription,
-        access_directions: values.accessDirections,
-        contact_number: values.contactNumber,
-        business_email: values.businessEmail,
-        website: values.website,
+        ...(dirtyFields.businessDescription && {
+          description: values.businessDescription,
+        }),
+        ...(dirtyFields.accessDirections && {
+          access_directions: values.accessDirections,
+        }),
+        ...(dirtyFields.contactNumber && {
+          contact_number: values.contactNumber,
+        }),
+        ...(dirtyFields.businessEmail && {
+          business_email: values.businessEmail,
+        }),
+        ...(dirtyFields.website && { website: values.website }),
       });
 
       Toast.show({

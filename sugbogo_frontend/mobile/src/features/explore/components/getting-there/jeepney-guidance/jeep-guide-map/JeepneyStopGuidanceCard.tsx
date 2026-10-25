@@ -1,11 +1,19 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { View } from "react-native";
-import type { ReactNode } from "react";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+} from "@gorhom/bottom-sheet";
+import { BackHandler, Pressable, View } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import DottedTimelineConnector from "@/shared/components/DottedTimelineConnector";
 import { shadows } from "@/shared/styles/shadows";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
+import MerchantAccessDirections from "../../MerchantAccessDirections";
 
 type Props = {
   boardingPointName: string;
@@ -13,6 +21,7 @@ type Props = {
   alightingPointName: string;
   destinationDistance: string;
   landmarkName?: string | null;
+  accessDirections?: string | null;
   headerAction?: ReactNode;
 };
 
@@ -34,8 +43,35 @@ export default function JeepneyStopGuidanceCard({
   alightingPointName,
   destinationDistance,
   landmarkName,
+  accessDirections,
   headerAction,
 }: Props) {
+  const directionsSheet = useRef<BottomSheetModal>(null);
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const insets = useSafeAreaInsets();
+  const directions = accessDirections?.trim();
+
+  useEffect(() => {
+    if (!directionsOpen) {
+      return;
+    }
+
+    if (!directions) {
+      directionsSheet.current?.dismiss();
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        directionsSheet.current?.dismiss();
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [directions, directionsOpen]);
+
   return (
     <View
       className="rounded-t-3xl border-t border-border-primary bg-surface px-4 pb-3 pt-3.5"
@@ -174,6 +210,81 @@ export default function JeepneyStopGuidanceCard({
           </View>
         </View>
       </View>
+      {/* Merchant context is separate from calculated stops and opens outside the footer. */}
+      {directions && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="View merchant directions"
+          accessibilityHint="Opens final-approach information provided by the merchant"
+          accessibilityState={{ expanded: directionsOpen }}
+          onPress={() => {
+            setDirectionsOpen(true);
+            presentBottomSheet(directionsSheet);
+          }}
+          className="mt-3 min-h-12 flex-row items-center rounded-xl border border-border-primary px-3 py-2 active:opacity-70"
+        >
+          <View className="min-w-0 flex-1">
+            <AppText weight="semibold" className="text-sm text-text-primary">
+              Merchant directions
+            </AppText>
+            <AppText className="mt-0.5 text-xs text-text-secondary">
+              Entrance, landmarks and final approach
+            </AppText>
+          </View>
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={20}
+            color={theme.extends.colors.text.secondary}
+            accessible={false}
+          />
+        </Pressable>
+      )}
+      <BottomSheetModal
+        ref={directionsSheet}
+        snapPoints={["65%"]}
+        enableDynamicSizing={false}
+        enablePanDownToClose
+        onDismiss={() => setDirectionsOpen(false)}
+        backgroundStyle={{ backgroundColor: theme.extends.colors.surface }}
+        backdropComponent={(props) => (
+          <BottomSheetBackdrop
+            {...props}
+            appearsOnIndex={0}
+            disappearsOnIndex={-1}
+            opacity={0.5}
+          />
+        )}
+      >
+        <BottomSheetScrollView
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: Math.max(insets.bottom, 16),
+          }}
+        >
+          {directionsOpen && directions && (
+            <>
+              <AppText
+                accessibilityRole="header"
+                weight="bold"
+                className="text-lg text-text-primary"
+              >
+                Final approach
+              </AppText>
+              <MerchantAccessDirections directions={directions} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close merchant directions"
+                onPress={() => directionsSheet.current?.dismiss()}
+                className="min-h-12 items-center justify-center rounded-xl border border-border-primary active:opacity-70"
+              >
+                <AppText weight="semibold" className="text-sm text-brand">
+                  Close
+                </AppText>
+              </Pressable>
+            </>
+          )}
+        </BottomSheetScrollView>
+      </BottomSheetModal>
     </View>
   );
 }

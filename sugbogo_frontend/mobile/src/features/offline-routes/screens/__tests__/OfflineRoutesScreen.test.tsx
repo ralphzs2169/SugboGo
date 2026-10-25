@@ -1,7 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { router } from "expo-router";
 import useSavedJourneys from "../../hooks/useSavedJourneys";
 import { deleteSavedJourney } from "../../services/savedJourneys.service";
 import { snapshot } from "../../utils/__tests__/savedJourney.fixture";
@@ -12,6 +11,7 @@ jest.mock("../../services/savedJourneys.service", () => ({
   deleteSavedJourney: jest.fn(),
 }));
 jest.mock("expo-router", () => ({
+  Stack: { Screen: () => null },
   router: {
     push: jest.fn(),
     replace: jest.fn(),
@@ -53,16 +53,66 @@ describe("saved guidance reader", () => {
     (deleteSavedJourney as jest.Mock).mockResolvedValue(undefined);
   });
 
+  it("shows saved merchant directions separately with existing freshness context", async () => {
+    const directions = "Use the blue gate.\nWalk behind the chapel.";
+    (useSavedJourneys as jest.Mock).mockReturnValue({
+      ownerId: 7,
+      items: [
+        {
+          key: "21:8:2:4",
+          snapshot: {
+            ...snapshot,
+            business: { ...snapshot.business, access_directions: directions },
+          },
+        },
+      ],
+      isLoading: false,
+      error: null,
+      reload,
+    });
+    const screen = await render(<OfflineRoutesScreen journeyKey="21:8:2:4" />);
+    expect(screen.getByText(directions)).toBeTruthy();
+    expect(screen.getByText("Merchant-provided directions")).toBeTruthy();
+    expect(screen.getByText("How to reach us")).toBeTruthy();
+    expect(screen.getByText(/merchant directions.*online/)).toBeTruthy();
+  });
+
+  it.each([undefined, "", "  \n "])(
+    "hides absent or blank saved merchant context (%s)",
+    async (directions) => {
+      (useSavedJourneys as jest.Mock).mockReturnValue({
+        ownerId: 7,
+        items: [
+          {
+            key: "21:8:2:4",
+            snapshot: {
+              ...snapshot,
+              business: { ...snapshot.business, access_directions: directions },
+            },
+          },
+        ],
+        isLoading: false,
+        error: null,
+        reload,
+      });
+      const screen = await render(
+        <OfflineRoutesScreen journeyKey="21:8:2:4" />,
+      );
+      expect(screen.queryByText("Merchant-provided directions")).toBeNull();
+    },
+  );
+
   it("shows saved stops and origin without authenticating the user", async () => {
     const screen = await render(<OfflineRoutesScreen journeyKey="21:8:2:4" />);
-    expect(screen.getByText("Board here")).toBeTruthy();
-    expect(screen.getByText("Get off here")).toBeTruthy();
-    expect(screen.getByText("Saved starting point: Saved start")).toBeTruthy();
+    expect(screen.getByText("Board at Board here")).toBeTruthy();
+    expect(screen.getByText("Get off at Get off here")).toBeTruthy();
+    expect(screen.getByText("Saved starting point")).toBeTruthy();
+    expect(screen.getByText("Saved start")).toBeTruthy();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     screen.unmount();
   });
 
-  it("returns to Offline Storage without requiring a saved journey", async () => {
+  it("shows the empty saved-journey list without requiring a saved journey", async () => {
     (useSavedJourneys as jest.Mock).mockReturnValue({
       ownerId: 7,
       items: [],
@@ -71,9 +121,7 @@ describe("saved guidance reader", () => {
       reload,
     });
     const screen = await render(<OfflineRoutesScreen />);
-    await fireEvent.press(screen.getByRole("button", { name: "Go back" }));
-    expect(router.dismissTo).toHaveBeenCalledWith("/offline-storage");
-    expect(screen.getByText("Saved journeys")).toBeTruthy();
+    expect(screen.getByText("No saved journeys")).toBeTruthy();
   });
 
   it("requires confirmation before deleting a corrupt entry", async () => {
