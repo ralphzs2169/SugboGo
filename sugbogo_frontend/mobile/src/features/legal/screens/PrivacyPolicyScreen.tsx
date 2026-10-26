@@ -39,7 +39,7 @@ function DraftBlock({ block }: { block: PrivacyPolicyDraftBlock }) {
             <AppText
               accessible={false}
               importantForAccessibility="no"
-              className="min-w-6 shrink-0 text-base leading-6 text-text-primary"
+              className="min-w-6 shrink-0 text-base leading-6 text-text-secondary"
             >
               {block.ordered ? `${index + 1}.` : "•"}
             </AppText>
@@ -47,7 +47,7 @@ function DraftBlock({ block }: { block: PrivacyPolicyDraftBlock }) {
               accessibilityLabel={
                 block.ordered ? `${index + 1}. ${item}` : undefined
               }
-              className="flex-1 text-base leading-6 text-text-primary"
+              className="flex-1 text-base leading-6 text-text-secondary"
             >
               {item}
             </AppText>
@@ -66,7 +66,7 @@ function DraftBlock({ block }: { block: PrivacyPolicyDraftBlock }) {
       className={
         isSubheading
           ? "mt-2 text-base text-text-primary"
-          : "text-base leading-6 text-text-primary"
+          : "text-base leading-6 text-text-secondary"
       }
     >
       {block.text}
