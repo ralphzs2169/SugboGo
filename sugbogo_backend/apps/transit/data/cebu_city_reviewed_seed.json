@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "kind": "cebu_city_transit_seed",
+  "dataset_id": "cebu-city-pilot-v1",
+  "scope": "cebu_city",
+  "sources": [],
+  "points": [],
+  "routes": []
+}

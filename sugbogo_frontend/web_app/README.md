@@ -63,9 +63,6 @@ web_app/
 ```
 ## Requirements
 
-For transit map configuration, recovery steps and verification, see
-[Transit map configuration](docs/transit-map-configuration.md).
-
 Before setting up the project, ensure the following are installed:
 
 - Node.js 20 or later
