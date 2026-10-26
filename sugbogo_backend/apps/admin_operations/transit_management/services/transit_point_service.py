@@ -1,8 +1,10 @@
 from django.contrib.gis.geos import Point
 from django.db import transaction
+from django.db.models import Q
 from rest_framework.exceptions import NotFound, ValidationError
 
-from apps.transit.models import TransitPoint
+from apps.transit.models import JeepneyRouteVariant, TransitPoint
+from apps.transit.services.transit_spatial_validation_service import TransitSpatialValidationService
 
 
 class TransitPointService:
@@ -58,13 +60,16 @@ class TransitPointService:
     ) -> TransitPoint:
         """Create a transit point from frontend coordinate fields."""
 
+        TransitSpatialValidationService.lock_network()
+        location = Point(
+            x=validated_data["longitude"],
+            y=validated_data["latitude"],
+            srid=4326,
+        )
+        TransitSpatialValidationService.validate_point(location)
         return TransitPoint.objects.create(
             TRPT_NAME=validated_data["name"],
-            TRPT_POINT=Point(
-                x=validated_data["longitude"],
-                y=validated_data["latitude"],
-                srid=4326,
-            ),
+            TRPT_POINT=location,
         )
 
     @staticmethod
@@ -75,6 +80,7 @@ class TransitPointService:
     ) -> TransitPoint:
         """Update a transit point and any supplied coordinates."""
 
+        TransitSpatialValidationService.lock_network()
         try:
             transit_point = (
                 TransitPoint.objects
@@ -107,11 +113,51 @@ class TransitPointService:
             )
 
         if has_latitude and has_longitude:
-            transit_point.TRPT_POINT = Point(
+            location = Point(
                 x=validated_data["longitude"],
                 y=validated_data["latitude"],
                 srid=4326,
             )
+            if not location.equals_exact(transit_point.TRPT_POINT, 0):
+                boundary = TransitSpatialValidationService.boundary()
+                TransitSpatialValidationService.validate_point(location, boundary)
+                variants = (
+                    JeepneyRouteVariant.objects.filter(
+                        Q(JRV_ORIGIN_ID=transit_point)
+                        | Q(JRV_DESTINATION_ID=transit_point)
+                        | Q(route_transit_points__TRPT_ID=transit_point),
+                    )
+                    .select_related("JRT_ID", "JRV_ORIGIN_ID", "JRV_DESTINATION_ID")
+                    .prefetch_related("route_transit_points__TRPT_ID")
+                    .distinct()
+                    .order_by("JRV_ID")
+                )
+                for variant in variants:
+                    points = [item.TRPT_ID for item in variant.route_transit_points.all()]
+                    if (
+                        not points or points[0].pk != variant.JRV_ORIGIN_ID_id
+                        or points[-1].pk != variant.JRV_DESTINATION_ID_id
+                    ):
+                        raise ValidationError({
+                            "non_field_errors": (
+                                f"Direction {variant.pk} has inconsistent stop memberships. "
+                                "Repair its path and stops before moving a shared stop."
+                            ),
+                        })
+                    try:
+                        TransitSpatialValidationService.validate_variant(
+                            variant.JRV_GEOMETRY, points, boundary,
+                            overrides={transit_point.pk: location},
+                        )
+                    except ValidationError as exc:
+                        messages = [str(value) for value in exc.detail.values()]
+                        raise ValidationError({
+                            "latitude": (
+                                f"This move would invalidate {variant.JRT_ID.JRT_CODE} "
+                                f"direction {variant.pk}: {' '.join(messages)}"
+                            ),
+                        }) from exc
+            transit_point.TRPT_POINT = location
             update_fields.append("TRPT_POINT")
 
         if update_fields:

@@ -153,7 +153,7 @@ export default function OrderedTransitPointPanel({
         {orderedRows.length ? (
           <ol className="space-y-2">
             {orderedRows.map((row, index) => {
-              const isTransitPoint = row.role === "Transit point";
+              const isTransitPoint = Number.isInteger(row.intermediateIndex);
 
               return (
                 <li

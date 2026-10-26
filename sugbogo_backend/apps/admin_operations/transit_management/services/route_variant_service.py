@@ -1,4 +1,3 @@
-from django.contrib.gis.geos import LineString
 from django.db import transaction
 from django.db.models import Prefetch
 from rest_framework.exceptions import NotFound, ValidationError
@@ -7,6 +6,7 @@ from apps.transit.models import (
     JeepneyRouteVariant,
     RouteTransitPoint,
 )
+from apps.transit.services.transit_spatial_validation_service import TransitSpatialValidationService
 
 
 class RouteVariantService:
@@ -81,19 +81,10 @@ class RouteVariantService:
     @staticmethod
     def _build_geometry(
         coordinates,
-    ) -> LineString:
+    ):
         """Convert frontend coordinates into a WGS 84 LineString."""
 
-        return LineString(
-            [
-                (
-                    coordinate["longitude"],
-                    coordinate["latitude"],
-                )
-                for coordinate in coordinates
-            ],
-            srid=4326,
-        )
+        return TransitSpatialValidationService.build_geometry(coordinates)
 
     @staticmethod
     def _validate_ordered_points(
@@ -145,6 +136,17 @@ class RouteVariantService:
             )
 
     @staticmethod
+    def _validate_direction(route, origin, destination, variant_id=None):
+        """Recheck direction uniqueness inside the spatial write lock."""
+        queryset = JeepneyRouteVariant.objects.filter(
+            JRT_ID=route, JRV_ORIGIN_ID=origin, JRV_DESTINATION_ID=destination,
+        )
+        if variant_id is not None:
+            queryset = queryset.exclude(pk=variant_id)
+        if queryset.exists():
+            raise ValidationError({"non_field_errors": "This route direction already exists."})
+
+    @staticmethod
     def _replace_ordered_points(
         variant,
         transit_points,
@@ -175,8 +177,16 @@ class RouteVariantService:
         """Create a directional variant and ordered points atomically."""
 
         validated_data = validated_data.copy()
+        TransitSpatialValidationService.lock_network()
         coordinates = validated_data.pop("geometry")
-        transit_points = validated_data.pop("ordered_transit_points")
+        transit_points = TransitSpatialValidationService.fresh_points(
+            validated_data.pop("ordered_transit_points"),
+        )
+        origin, destination = TransitSpatialValidationService.fresh_points([
+            validated_data["JRV_ORIGIN_ID"], validated_data["JRV_DESTINATION_ID"],
+        ])
+        validated_data["JRV_ORIGIN_ID"] = origin
+        validated_data["JRV_DESTINATION_ID"] = destination
 
         RouteVariantService._validate_ordered_points(
             validated_data["JRV_ORIGIN_ID"],
@@ -184,13 +194,11 @@ class RouteVariantService:
             transit_points,
         )
 
+        geometry = RouteVariantService._build_geometry(coordinates)
+        TransitSpatialValidationService.validate_variant(geometry, transit_points)
+        RouteVariantService._validate_direction(validated_data["JRT_ID"], origin, destination)
         variant = JeepneyRouteVariant.objects.create(
-            JRV_GEOMETRY=(
-                RouteVariantService
-                ._build_geometry(
-                    coordinates,
-                )
-            ),
+            JRV_GEOMETRY=geometry,
             **validated_data,
         )
 
@@ -211,6 +219,7 @@ class RouteVariantService:
     ) -> JeepneyRouteVariant:
         """Update a directional variant and replace ordered points atomically."""
 
+        TransitSpatialValidationService.lock_network()
         try:
             variant = (
                 JeepneyRouteVariant.objects
@@ -260,12 +269,22 @@ class RouteVariantService:
         else:
             replace_transit_points = True
 
+        transit_points = TransitSpatialValidationService.fresh_points(transit_points)
+        origin, destination = TransitSpatialValidationService.fresh_points([origin, destination])
         RouteVariantService._validate_ordered_points(
             origin,
             destination,
             transit_points,
         )
 
+        geometry = (
+            RouteVariantService._build_geometry(coordinates)
+            if coordinates is not None else variant.JRV_GEOMETRY
+        )
+        TransitSpatialValidationService.validate_variant(geometry, transit_points)
+        RouteVariantService._validate_direction(
+            validated_data.get("JRT_ID", variant.JRT_ID), origin, destination, variant.pk,
+        )
         update_fields = []
 
         for field_name, value in validated_data.items():
@@ -277,12 +296,7 @@ class RouteVariantService:
             update_fields.append(field_name)
 
         if coordinates is not None:
-            variant.JRV_GEOMETRY = (
-                RouteVariantService
-                ._build_geometry(
-                    coordinates,
-                )
-            )
+            variant.JRV_GEOMETRY = geometry
             update_fields.append("JRV_GEOMETRY")
 
         if update_fields:
