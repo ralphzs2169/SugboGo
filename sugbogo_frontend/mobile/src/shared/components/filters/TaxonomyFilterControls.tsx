@@ -8,6 +8,7 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import FilterChip from "@/shared/components/FilterChip";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import type { SpecialtyTag } from "@/shared/types/specialtyTag.types";
 import { TAXONOMY_SEARCH_THRESHOLD } from "@/shared/utils/taxonomyFilters";
 
@@ -15,7 +16,7 @@ import FilterSection from "./FilterSection";
 
 type Props = {
   options: {
-    clusters: { id: number; name: string }[];
+    clusters: { id: number; name: string; icon?: string | null }[];
     categories: { id: number; name: string; cluster_id: number }[];
     specialty_tags: (SpecialtyTag & { id: number })[];
   };
@@ -29,6 +30,9 @@ type Props = {
   onSpecialtySelect: (id: number | null) => void;
   specialtyTitle?: string;
   showEmptyStates?: boolean;
+  highlightSearchMatches?: boolean;
+  showIcons?: boolean;
+  searchBackground?: "surface" | "muted";
 };
 
 /**
@@ -47,6 +51,9 @@ export default function TaxonomyFilterControls({
   onSpecialtySelect,
   specialtyTitle = "Specialty",
   showEmptyStates = true,
+  highlightSearchMatches = false,
+  showIcons = false,
+  searchBackground = "muted",
 }: Props) {
   const normalizedQuery = query.trim().toLowerCase();
   const showSearch =
@@ -73,7 +80,11 @@ export default function TaxonomyFilterControls({
     <>
       {/* Optional search uses the containing bottom sheet's keyboard handling. */}
       {showSearch && (
-        <View className="mt-4 h-11 flex-row items-center rounded-full border border-border-primary bg-surface-muted px-4">
+        <View
+          className={`mt-4 h-11 flex-row items-center rounded-full border border-border-primary px-4 ${
+            searchBackground === "surface" ? "bg-surface" : "bg-surface-muted"
+          }`}
+        >
           <MaterialCommunityIcons
             name="magnify"
             size={20}
@@ -121,15 +132,22 @@ export default function TaxonomyFilterControls({
           className="-mx-5 mt-3"
           contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
         >
-          {[{ id: null, name: "All" }, ...options.clusters].map((cluster) => (
-            <FilterChip
-              key={cluster.id ?? "all"}
-              label={cluster.name}
-              selected={clusterId === cluster.id}
-              showSelectedCheck
-              onPress={() => onClusterSelect(cluster.id)}
-            />
-          ))}
+          {[{ id: null, name: "All", icon: null }, ...options.clusters].map(
+            (cluster) => (
+              <FilterChip
+                key={cluster.id ?? "all"}
+                label={cluster.name}
+                icon={
+                  showIcons && cluster.icon
+                    ? (CLUSTER_ICONS[cluster.icon] ?? "store")
+                    : undefined
+                }
+                selected={clusterId === cluster.id}
+                showSelectedCheck
+                onPress={() => onClusterSelect(cluster.id)}
+              />
+            ),
+          )}
         </ScrollView>
       </FilterSection>
 
@@ -143,6 +161,9 @@ export default function TaxonomyFilterControls({
             <FilterChip
               key={category.id}
               label={category.name}
+              highlightQuery={
+                highlightSearchMatches ? normalizedQuery : undefined
+              }
               selected={categoryIds.includes(category.id)}
               showSelectedCheck
               onPress={() => onCategoryToggle(category.id)}
@@ -173,8 +194,12 @@ export default function TaxonomyFilterControls({
             <SpecialtyTagChip
               key={specialty.id}
               tag={specialty}
+              highlightQuery={
+                highlightSearchMatches ? normalizedQuery : undefined
+              }
               mode="filter"
               size="medium"
+              showIcon={showIcons}
               isSelected={specialtyTagId === specialty.id}
               showSelectionIndicator
               onPress={() => onSpecialtySelect(specialty.id)}

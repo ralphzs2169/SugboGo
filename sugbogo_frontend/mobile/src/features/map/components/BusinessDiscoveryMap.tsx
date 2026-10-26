@@ -152,7 +152,7 @@ export default function BusinessDiscoveryMap({
           identifier={String(business.id)}
           {...(isSelected ? { cluster: false } : {})}
           anchor={{ x: 0.5, y: 1 }}
-          zIndex={isSelected ? 1 : 0}
+          zIndex={isSelected ? 3 : 0}
           opacity={
             dimUnselectedMarkers && selectedBusinessId !== null && !isSelected
               ? 0.55
@@ -429,6 +429,7 @@ export default function BusinessDiscoveryMap({
           void reportViewport(region);
         }}
         onTouchStart={onMapInteraction}
+        onClusterPress={onMapInteraction}
         style={{
           width: "100%",
           height: "100%",

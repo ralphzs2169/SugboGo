@@ -1,7 +1,8 @@
 import React from "react";
+import type { LocationObject } from "expo-location";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
-import { AppState } from "react-native";
+import { Alert, AppState } from "react-native";
 
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -51,6 +52,13 @@ jest.mock(
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(() => {
+      if (mockScreenFocused) {
+        return effect();
+      }
+    }, [effect, mockScreenFocused]);
+  },
   useIsFocused: () => mockScreenFocused,
   useNavigation: jest.fn(),
 }));
@@ -132,6 +140,65 @@ function setup() {
   );
 }
 
+type LocationResult = Awaited<
+  ReturnType<ReturnType<typeof useUserLocation>["refreshLocation"]>
+>;
+type MapTestScreen = Awaited<ReturnType<typeof setup>>;
+
+const availableLocation: LocationResult = {
+  status: "available",
+  location: {
+    coords: { latitude: 10.33, longitude: 123.91 },
+  } as LocationObject,
+  error: null,
+};
+const deniedLocation: LocationResult = {
+  status: "denied",
+  location: null,
+  error: null,
+};
+
+function deferredLocation() {
+  let resolve!: (result: LocationResult) => void;
+  const promise = new Promise<LocationResult>((complete) => {
+    resolve = complete;
+  });
+
+  return { promise, resolve };
+}
+
+async function setupLocateMe(refreshLocation: jest.Mock) {
+  (useUserLocation as jest.Mock).mockReturnValue({
+    status: "denied",
+    location: null,
+    isRefreshingLocation: false,
+    refreshLocation,
+  });
+  const screen = await setup();
+  const camera = { animateToRegion: jest.fn() };
+  await fireEvent(screen.getByTestId("discovery-map"), "mapReady", camera);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(
+      1,
+    ),
+  );
+
+  return { screen, camera };
+}
+
+async function changeMapFocus(
+  screen: MapTestScreen,
+  focused: boolean,
+) {
+  mockScreenFocused = focused;
+  const client = clients[clients.length - 1];
+  await screen.rerender(
+    <QueryClientProvider client={client}>
+      <MapScreen />
+    </QueryClientProvider>,
+  );
+}
+
 beforeEach(() => {
   mockScreenFocused = true;
   AppState.currentState = "active";
@@ -147,7 +214,9 @@ beforeEach(() => {
     error: null,
     refetch: jest.fn().mockResolvedValue({ error: null }),
   });
-  (useNavigation as jest.Mock).mockReturnValue({ isFocused: () => true });
+  (useNavigation as jest.Mock).mockReturnValue({
+    isFocused: () => mockScreenFocused,
+  });
   (useUserLocation as jest.Mock).mockReturnValue({
     status: "denied",
     location: null,
@@ -158,6 +227,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  jest.restoreAllMocks();
   clients.splice(0).forEach((client) => client.clear());
 });
 
@@ -602,4 +672,212 @@ it("forwards tab focus without reloading the directory or clearing selection", a
     expect(map().props.selectedBusinessId).toBe(42);
   }
   expect(getMapDirectoryPage).toHaveBeenCalledTimes(1);
+});
+
+it("ignores a Locate Me result after a manual map gesture", async () => {
+  const request = deferredLocation();
+  const refreshLocation = jest.fn(() => request.promise);
+  const { screen, camera } = await setupLocateMe(refreshLocation);
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  expect(refreshLocation).toHaveBeenCalledTimes(1);
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+  await act(async () => {
+    request.resolve(availableLocation);
+    await request.promise;
+  });
+
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it.each(["marker", "search"])(
+  "preserves a newer %s selection when Locate Me resolves",
+  async (selection) => {
+    const request = deferredLocation();
+    const { screen, camera } = await setupLocateMe(
+      jest.fn(() => request.promise),
+    );
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    if (selection === "marker") {
+      await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+    } else {
+      await fireEvent(
+        screen.getByTestId("map-search-sheet"),
+        "businessSelect",
+        business,
+      );
+    }
+    await act(async () => {
+      request.resolve(availableLocation);
+      await request.promise;
+    });
+
+    expect(camera.animateToRegion).not.toHaveBeenCalled();
+    expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(
+      42,
+    );
+    expect(screen.getByTestId("discovery-map").props.focusTarget.id).toBe(42);
+    expect(screen.getByText(business.business_name)).toBeTruthy();
+  },
+);
+
+it.each(["blur", "blur and return", "unmount"])(
+  "ignores Locate Me failure feedback after %s",
+  async (transition) => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const request = deferredLocation();
+    const { screen, camera } = await setupLocateMe(
+      jest.fn(() => request.promise),
+    );
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    if (transition === "unmount") {
+      await screen.unmount();
+    } else {
+      await changeMapFocus(screen, false);
+      if (transition === "blur and return") {
+        await changeMapFocus(screen, true);
+      }
+    }
+    await act(async () => {
+      request.resolve(deniedLocation);
+      await request.promise;
+    });
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(camera.animateToRegion).not.toHaveBeenCalled();
+  },
+);
+
+it.each(["blur", "blur and return", "unmount"])(
+  "ignores Locate Me camera movement after %s",
+  async (transition) => {
+    const request = deferredLocation();
+    const { screen, camera } = await setupLocateMe(
+      jest.fn(() => request.promise),
+    );
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    if (transition === "unmount") {
+      await screen.unmount();
+    } else {
+      await changeMapFocus(screen, false);
+      if (transition === "blur and return") {
+        await changeMapFocus(screen, true);
+      }
+    }
+    await act(async () => {
+      request.resolve(availableLocation);
+      await request.promise;
+    });
+
+    expect(camera.animateToRegion).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  { outcome: "success", result: availableLocation },
+  { outcome: "failure", result: deniedLocation },
+])(
+  "ignores an older Locate Me $outcome after a newer Locate Me completes",
+  async ({ result }) => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const olderRequest = deferredLocation();
+    const newerRequest = deferredLocation();
+    const refreshLocation = jest
+      .fn()
+      .mockReturnValueOnce(olderRequest.promise)
+      .mockReturnValueOnce(newerRequest.promise);
+    const { screen, camera } = await setupLocateMe(refreshLocation);
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    expect(refreshLocation).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      newerRequest.resolve(availableLocation);
+      await newerRequest.promise;
+    });
+    expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
+    const latestCameraCall = camera.animateToRegion.mock.calls[0];
+    await act(async () => {
+      olderRequest.resolve(result);
+      await olderRequest.promise;
+    });
+
+    expect(camera.animateToRegion.mock.calls).toEqual([latestCameraCall]);
+    expect(alert).not.toHaveBeenCalled();
+  },
+);
+
+it("recenters for a Locate Me action that remains current", async () => {
+  const request = deferredLocation();
+  const { screen, camera } = await setupLocateMe(
+    jest.fn(() => request.promise),
+  );
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+  await act(async () => {
+    request.resolve(availableLocation);
+    await request.promise;
+  });
+
+  expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).toHaveBeenCalledWith({
+    latitude: availableLocation.location!.coords.latitude,
+    longitude: availableLocation.location!.coords.longitude,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
+  });
+});
+
+it("keeps location failure feedback for a Locate Me action that remains current", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const request = deferredLocation();
+  const { screen, camera } = await setupLocateMe(
+    jest.fn(() => request.promise),
+  );
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await act(async () => {
+    request.resolve(deniedLocation);
+    await request.promise;
+  });
+
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+  expect(alert).toHaveBeenCalledTimes(1);
+  expect(alert).toHaveBeenCalledWith(
+    "Location Permission Needed",
+    expect.any(String),
+  );
+});
+
+it("dispatches View Business once for rapid presses and releases the guard on return", async () => {
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(
+      1,
+    ),
+  );
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  const viewBusinessButton = screen.getByRole("button", {
+    name: /View Real Cebu Cafe business profile/,
+  });
+  await fireEvent.press(viewBusinessButton);
+  await fireEvent.press(viewBusinessButton);
+  await fireEvent.press(viewBusinessButton);
+  expect(router.push).toHaveBeenCalledTimes(1);
+  expect(router.push).toHaveBeenCalledWith({
+    pathname: "/(explorer)/business/[businessId]",
+    params: { businessId: "42", profileSource: "MAP" },
+  });
+
+  await changeMapFocus(screen, false);
+  await fireEvent.press(viewBusinessButton);
+  expect(router.push).toHaveBeenCalledTimes(1);
+  await changeMapFocus(screen, true);
+  await fireEvent.press(
+    screen.getByRole("button", {
+      name: /View Real Cebu Cafe business profile/,
+    }),
+  );
+  expect(router.push).toHaveBeenCalledTimes(2);
+  expect(router.push).toHaveBeenLastCalledWith({
+    pathname: "/(explorer)/business/[businessId]",
+    params: { businessId: "42", profileSource: "MAP" },
+  });
 });

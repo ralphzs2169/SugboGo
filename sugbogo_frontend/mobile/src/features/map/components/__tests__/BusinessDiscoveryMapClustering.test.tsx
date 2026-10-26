@@ -9,6 +9,7 @@ const mockMap = {
   animateCamera: jest.fn(),
   getCamera: jest.fn().mockResolvedValue({ zoom: 12 }),
   getMapBoundaries: jest.fn().mockResolvedValue(undefined),
+  fitToCoordinates: jest.fn(),
 };
 
 // Exercise the installed clustering wrapper and its real callback-ref contract.
@@ -53,6 +54,8 @@ jest.mock("@/shared/components/MapMarker", () => {
 
 it("dispatches search focus through the installed clustering ref and keeps the selected business outside clusters", async () => {
   const target = { latitude: 10.3157, longitude: 123.8854 };
+  const onBusinessPress = jest.fn();
+  const onMapInteraction = jest.fn();
   const screen = await render(
     <BusinessDiscoveryMap
       businesses={[
@@ -62,6 +65,8 @@ it("dispatches search focus through the installed clustering ref and keeps the s
         { id: 4, ...target },
       ]}
       selectedBusinessId={1}
+      onBusinessPress={onBusinessPress}
+      onMapInteraction={onMapInteraction}
       focusTarget={target}
       userLocation={null}
       autoCenterOnLocation={false}
@@ -78,9 +83,22 @@ it("dispatches search focus through the installed clustering ref and keeps the s
   );
   const markers = screen.getAllByTestId("native-marker");
   expect(markers).toHaveLength(2); // One cluster plus the selected marker.
-  expect(
-    markers.find((marker) => marker.props.identifier === "1")?.props.cluster,
-  ).toBe(false);
+  const selectedMarker = markers.find(
+    (marker) => marker.props.identifier === "1",
+  )!;
+  const cluster = screen.getByLabelText(/3 businesses/);
+  expect(selectedMarker.props.coordinate).toEqual(target);
+  expect(selectedMarker.props.accessibilityState.selected).toBe(true);
+  expect(selectedMarker.props.zIndex).toBeGreaterThan(cluster.props.zIndex);
+  await fireEvent.press(selectedMarker);
+  expect(onBusinessPress).toHaveBeenCalledTimes(1);
+  expect(onBusinessPress).toHaveBeenCalledWith(1);
+  await fireEvent.press(cluster);
+  expect(mockMap.fitToCoordinates).toHaveBeenCalledWith(
+    [target, target, target],
+    expect.anything(),
+  );
+  expect(onMapInteraction).toHaveBeenCalledTimes(1);
   expect(mockMap.animateCamera).toHaveBeenCalledTimes(1);
 });
 

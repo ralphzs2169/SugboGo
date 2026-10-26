@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, BackHandler, View } from "react-native";
 import type RNMapView from "react-native-maps";
-import { router, useIsFocused, useNavigation } from "expo-router";
+import {
+  router,
+  useFocusEffect,
+  useIsFocused,
+  useNavigation,
+} from "expo-router";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import SearchFilterBottomSheet from "@/features/explore/components/search-filter-results/SearchFilterBottomSheet";
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
@@ -14,6 +19,7 @@ import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import useUserLocation from "@/shared/hooks/useUserLocation";
@@ -40,6 +46,8 @@ import {
 export default function MapScreen() {
   const isScreenFocused = useIsFocused();
   const navigation = useNavigation();
+  const navigate = useNavigationAction();
+  const locateIntentVersion = useRef(0);
   const userLocation = useUserLocation();
   const [filters, setFilters] =
     useState<MapDiscoveryFilters>(DEFAULT_MAP_FILTERS);
@@ -89,6 +97,16 @@ export default function MapScreen() {
   const hasInteracted = useRef(false);
   const hasHandledInitialLocation = useRef(false);
   const bottomSpacing = useTabBarSpacing(16);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Blur and unmount revoke Map effects without cancelling shared GPS work.
+      return () => {
+        locateIntentVersion.current += 1;
+      };
+    }, []),
+  );
+
   const handleFocusStart = useCallback(() => {
     if (destination.current) {
       destination.current.started = true;
@@ -272,6 +290,7 @@ export default function MapScreen() {
     if (!navigation.isFocused()) {
       return;
     }
+    locateIntentVersion.current += 1;
     hasInteracted.current = true;
     setSelectionUnavailable(false);
     hasHandledInitialLocation.current = true;
@@ -298,23 +317,36 @@ export default function MapScreen() {
       return;
     }
 
-    router.push({
-      pathname: "/(explorer)/business/[businessId]",
-      params: {
-        businessId: String(selectedBusiness.id),
-        profileSource: "MAP",
-      },
+    navigate(() => {
+      router.push({
+        pathname: "/(explorer)/business/[businessId]",
+        params: {
+          businessId: String(selectedBusiness.id),
+          profileSource: "MAP",
+        },
+      });
     });
   };
 
   const locateMe = async () => {
     hasInteracted.current = true;
 
-    if (userLocation.isRefreshingLocation) {
+    if (
+      !navigation.isFocused() ||
+      userLocation.isRefreshingLocation
+    ) {
       return;
     }
 
+    const intentVersion = ++locateIntentVersion.current;
     const result = await userLocation.refreshLocation();
+
+    if (
+      intentVersion !== locateIntentVersion.current ||
+      !navigation.isFocused()
+    ) {
+      return;
+    }
 
     if (result.status !== "available") {
       Alert.alert(
@@ -379,6 +411,7 @@ export default function MapScreen() {
         onMapReady={setMapInstance}
         onViewportChange={handleViewportChange}
         onMapInteraction={() => {
+          locateIntentVersion.current += 1;
           hasInteracted.current = true;
           destination.current = null;
           setCameraTarget(null);
@@ -386,6 +419,7 @@ export default function MapScreen() {
         onBusinessPress={(id) => {
           const business = displayedBusinesses.find((item) => item.id === id);
           if (!business) return;
+          locateIntentVersion.current += 1;
           hasInteracted.current = true;
           hasHandledInitialLocation.current = true;
           const target = {
