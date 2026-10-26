@@ -1,0 +1,647 @@
+{
+  "format_version": 1,
+  "kind": "cebu_city_transit_candidate_catalog",
+  "accessed_on": "2026-10-24",
+  "warning": "Research identifiers only. Includes historical/inactive candidates; not operational certification and not an importable seed.",
+  "sources": [
+    {
+      "id": "cbs-city-directory",
+      "url": "https://sites.google.com/view/cebubusspotters/cbs-virtual-library/cebu-jeepney-route-guide/cebu-city-jeepney-routes",
+      "publisher": "Cebu Bus Spotters",
+      "source_reported_route_lines": 74,
+      "manually_transcribed_unique_codes": 75,
+      "note": "Directory describes active and inactive lines documented since 2016. Its stated count differs from the transcribed list; resolve during review. No route descriptions, coordinates or geometry copied."
+    },
+    {
+      "id": "commutetour-archive",
+      "url": "https://commutetour.com/category/ph/routes/cebu-routes/cebu-jeep/",
+      "note": "Three additional previously researched Cebu City-serving candidates from archive titles labeled 2023. Publication/operational dates and geometry are not established."
+    }
+  ],
+  "candidates": [
+    {
+      "code": "01A",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "01B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "01C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "01E",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "01H",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "01K",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "cross_city_defer"
+    },
+    {
+      "code": "02A",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "02B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "03A",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "03B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "03G",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "03L",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "03Q",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "04B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "04C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "04D",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "04H",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "04I",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "04L",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "04M",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "06A",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "06B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "06C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "06D",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "06F",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "06G",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "06H",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "07B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "07D",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "08E",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "08F",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "08G",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "09C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "09F",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "09G",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "09H",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "09J",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "10C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "10D",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "10E",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "10F",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "10G",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "10H",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "10K",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "10M",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "11A",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "11D",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12A",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12D",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12E",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12F",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12G",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12I",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12J",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12L",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "12M",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "13B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "13C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "13H",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "cross_city_defer"
+    },
+    {
+      "code": "13I",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "cross_city_defer"
+    },
+    {
+      "code": "14B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "14C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "14D",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "15",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "15A",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "17B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "17C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "17D",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "20A",
+      "source_ids": [
+        "commutetour-archive"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "cross_city_defer"
+    },
+    {
+      "code": "21A",
+      "source_ids": [
+        "commutetour-archive"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "cross_city_defer"
+    },
+    {
+      "code": "22A",
+      "source_ids": [
+        "commutetour-archive"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "cross_city_defer"
+    },
+    {
+      "code": "51",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "51E",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "62B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "62C",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    },
+    {
+      "code": "63B",
+      "source_ids": [
+        "cbs-city-directory"
+      ],
+      "review_status": "needs_review",
+      "scope_status": "boundary_unverified"
+    }
+  ]
+}
