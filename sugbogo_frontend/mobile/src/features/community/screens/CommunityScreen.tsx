@@ -1,16 +1,20 @@
 import LottieView from "lottie-react-native";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { hashKey } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
+import ExploreQueryNotice from "@/features/explore/components/ExploreQueryNotice";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import CommunityEmptyState from "../components/CommunityEmptyState";
@@ -20,9 +24,11 @@ import CommunityFilterBottomSheet from "../components/CommunityFilterBottomSheet
 import CommunityHeader from "../components/CommunityHeader";
 import CommunityReviewCard from "../components/CommunityReviewCard";
 import { useCommunityReviews } from "../hooks/useCommunityReviews";
+import { communityReviewsKey } from "../hooks/communityReviewQueryKeys";
 import {
   DEFAULT_COMMUNITY_REVIEW_FILTERS,
   type CommunityReview,
+  type CommunityReviewBusiness,
   type CommunityReviewFilters,
 } from "../types/communityReview.types";
 
@@ -41,6 +47,7 @@ function FeedSeparator() {
  * and posts render edge to edge, like a social feed.
  */
 export default function CommunityScreen() {
+  const navigate = useNavigationAction();
   const bottomSpacing = useTabBarSpacing(20);
   const listRef = useRef<FlatList<CommunityReview>>(null);
   const filterSheetRef = useRef<BottomSheetModal>(null);
@@ -61,7 +68,10 @@ export default function CommunityScreen() {
   const taxonomy = useExploreFilterOptions();
 
   useQueryErrorNotification({
-    error: community.error,
+    error:
+      community.reviews.length > 0 && !community.isFetchNextPageError
+        ? null
+        : community.error,
     toastId: "community-reviews",
     title: "Unable to load Community",
     fallbackMessage: "Please try again.",
@@ -98,6 +108,24 @@ export default function CommunityScreen() {
   );
 
   const displayedReviews = hasListError ? [] : reviews;
+  const hasRefreshError = Boolean(
+    community.error &&
+    !community.isFetchNextPageError &&
+    reviews.length > 0,
+  );
+
+  const applyFilters = (nextFilters: CommunityReviewFilters) => {
+    setFilters((current) => {
+      if (
+        hashKey(communityReviewsKey(current)) ===
+        hashKey(communityReviewsKey(nextFilters))
+      ) {
+        return current;
+      }
+
+      return nextFilters;
+    });
+  };
 
   const openFilters = () => presentBottomSheet(filterSheetRef);
 
@@ -126,7 +154,8 @@ export default function CommunityScreen() {
         (!isPaginationArmedRef.current || community.isFetchNextPageError)) ||
       !community.hasNextPage ||
       community.isFetchingNextPage ||
-      community.isFetching
+      community.isFetching ||
+      community.isRefreshing
     ) {
       return;
     }
@@ -139,11 +168,26 @@ export default function CommunityScreen() {
     });
   };
 
+  const openBusiness = useCallback(
+    (business: CommunityReviewBusiness) => {
+      navigate(() =>
+        router.push({
+          pathname: "/(explorer)/business/[businessId]",
+          params: {
+            businessId: String(business.id),
+            profileSource: "COMMUNITY",
+          },
+        }),
+      );
+    },
+    [navigate],
+  );
+
   const renderReview = useCallback(
     ({ item }: { item: CommunityReview }) => (
-      <CommunityReviewCard review={item} />
+      <CommunityReviewCard review={item} onOpenBusiness={openBusiness} />
     ),
-    [],
+    [openBusiness],
   );
 
   const shouldShowEndMessage =
@@ -176,23 +220,45 @@ export default function CommunityScreen() {
         keyExtractor={(review) => String(review.id)}
         renderItem={renderReview}
         ItemSeparatorComponent={FeedSeparator}
+        ListHeaderComponent={
+          hasRefreshError ? (
+            <ExploreQueryNotice
+              message="Couldn't refresh. Showing previously loaded reviews."
+              retryLabel="Retry refreshing Community reviews"
+              onRetry={community.refresh}
+            />
+          ) : null
+        }
         ListEmptyComponent={
-          community.isInitialLoading ? (
+          community.isPaused ? (
+            <View className="min-h-[420px]" testID="community-offline">
+              <ErrorState
+                title="You're offline"
+                primaryActionTextTone="primary"
+                description="Connect to the internet to load Community reviews, then try again."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => void community.refetch()}
+              />
+            </View>
+          ) : community.isInitialLoading ? (
             <CommunityFeedSkeleton />
           ) : hasListError ? (
             <View className="min-h-[420px]" testID="community-error">
               <ErrorState
                 title="Unable to load Community"
+                primaryActionTextTone="primary"
                 description="We couldn't load Community reviews right now. Please try again."
                 primaryActionTitle="Retry"
                 onPrimaryAction={() => void community.refetch()}
               />
             </View>
-          ) : (
+          ) : community.hasData && community.isSuccess ? (
             <CommunityEmptyState
               isFiltered={hasContentFilters}
               onClearFilters={clearContentFilters}
             />
+          ) : (
+            <CommunityFeedSkeleton />
           )
         }
         ListFooterComponent={
@@ -211,6 +277,7 @@ export default function CommunityScreen() {
                 title="Retry loading reviews"
                 onPress={() => loadNextPage(true)}
                 variant="soft"
+                textTone="primary"
                 rounded="full"
                 size="sm"
               />
@@ -228,8 +295,9 @@ export default function CommunityScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={community.isRefetching && !community.isFetchingNextPage}
-            onRefresh={() => void community.refetch()}
+            testID="community-refresh-control"
+            refreshing={community.isRefreshing}
+            onRefresh={() => void community.refresh()}
             tintColor={theme.extends.colors.brand}
           />
         }
@@ -241,7 +309,7 @@ export default function CommunityScreen() {
         isLoading={taxonomy.isLoading}
         error={taxonomy.error}
         onRetry={() => void taxonomy.refetch()}
-        onApply={setFilters}
+        onApply={applyFilters}
       />
     </View>
   );

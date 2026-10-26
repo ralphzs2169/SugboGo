@@ -1,3 +1,5 @@
+import { CancelledError } from "@tanstack/react-query";
+
 import apiClient from "@/shared/api/apiClient.service";
 import { request } from "@/shared/api/request.service";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
@@ -9,10 +11,15 @@ import {
 } from "../types/communityReview.types";
 
 /** Retrieves one backend-ordered page of public Community reviews. */
-export function getCommunityReviews(
+export async function getCommunityReviews(
   filters: CommunityReviewFilters = DEFAULT_COMMUNITY_REVIEW_FILTERS,
   page = 1,
+  signal?: AbortSignal,
 ): Promise<ApiResponse<CommunityReviewListResponse>> {
+  if (signal?.aborted) {
+    throw new CancelledError({ revert: true });
+  }
+
   const params = new URLSearchParams();
   params.set("page", String(page));
 
@@ -34,5 +41,14 @@ export function getCommunityReviews(
     params.set("has_photos", "true");
   }
 
-  return request(apiClient.get("/reviews/community/", { params }));
+  const response = await request<ApiResponse<CommunityReviewListResponse>>(
+    apiClient.get("/reviews/community/", { params, signal }),
+  );
+
+  // Shared transport normalization must not turn an intentional abort into UI errors.
+  if (signal?.aborted) {
+    throw new CancelledError({ revert: true });
+  }
+
+  return response;
 }

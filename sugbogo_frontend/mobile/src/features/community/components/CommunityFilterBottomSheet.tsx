@@ -5,7 +5,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { RefObject } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -15,6 +15,7 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FilterChip from "@/shared/components/FilterChip";
 import TaxonomyFilterControls from "@/shared/components/filters/TaxonomyFilterControls";
+import useBottomSheetBackHandler from "@/shared/hooks/useBottomSheetBackHandler";
 import {
   retainClusterCategoryIds,
   toggleCategoryId,
@@ -51,6 +52,8 @@ export default function CommunityFilterBottomSheet({
   onApply,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const backHandler = useBottomSheetBackHandler(sheetRef);
+  const isOpenRef = useRef(false);
   const [draft, setDraft] = useState<CommunityReviewFilters>(filters);
   const [search, setSearch] = useState("");
   const hasContentFilters =
@@ -102,10 +105,17 @@ export default function CommunityFilterBottomSheet({
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       onChange={(index) => {
-        if (index === 0) {
+        backHandler.onChange(index);
+
+        if (index >= 0 && !isOpenRef.current) {
+          isOpenRef.current = true;
           setDraft({ ...filters, categoryIds: [...filters.categoryIds] });
           setSearch("");
         }
+      }}
+      onDismiss={() => {
+        isOpenRef.current = false;
+        backHandler.onDismiss();
       }}
       backgroundStyle={{
         backgroundColor: theme.extends.colors.surface,
@@ -136,7 +146,7 @@ export default function CommunityFilterBottomSheet({
             <AppText
               weight="bold"
               accessibilityRole="header"
-              className="text-xl text-text-primary"
+              className="min-w-0 flex-1 text-xl text-text-primary"
             >
               Filter reviews
             </AppText>
@@ -144,7 +154,7 @@ export default function CommunityFilterBottomSheet({
               onPress={() => sheetRef.current?.dismiss()}
               accessibilityRole="button"
               accessibilityLabel="Close filters"
-              className="h-11 w-11 items-center justify-center rounded-full active:bg-surface-muted"
+              className="h-11 w-11 shrink-0 items-center justify-center rounded-full active:bg-surface-muted"
             >
               <MaterialCommunityIcons
                 name="close"
@@ -163,16 +173,17 @@ export default function CommunityFilterBottomSheet({
             </View>
           )}
           {error && (
-            <View className="mt-4 flex-row items-center justify-between rounded-xl bg-surface-muted px-4">
-              <AppText className="text-sm text-text-secondary">
+            <View className="mt-4 flex-row flex-wrap items-center gap-x-3 rounded-xl bg-surface-muted px-4 py-2">
+              <AppText className="min-w-0 flex-1 text-sm text-text-secondary">
                 Could not load filter options.
               </AppText>
               <Pressable
                 onPress={onRetry}
                 accessibilityRole="button"
-                className="min-h-11 justify-center px-2"
+                accessibilityLabel="Retry loading filter options"
+                className="min-h-12 max-w-full shrink-0 justify-center px-2 active:opacity-70"
               >
-                <AppText weight="semibold" className="text-sm text-brand">
+                <AppText weight="semibold" className="text-sm text-text-primary">
                   Retry
                 </AppText>
               </Pressable>
@@ -254,6 +265,7 @@ export default function CommunityFilterBottomSheet({
           <Button
             title="Apply"
             variant="primary"
+            textTone="primary"
             rounded="full"
             size="sm"
             onPress={() => {

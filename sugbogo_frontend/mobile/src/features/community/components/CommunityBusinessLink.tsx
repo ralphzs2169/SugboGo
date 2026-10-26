@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { useState } from "react";
 import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
@@ -12,7 +12,35 @@ import type { CommunityReviewBusiness } from "../types/communityReview.types";
 
 type Props = {
   business: CommunityReviewBusiness;
+  onOpenBusiness: (business: CommunityReviewBusiness) => void;
 };
+
+/** Falls back to the existing storefront placeholder for a failed cover URL. */
+function BusinessThumbnail({ url }: { url: string | null }) {
+  const [hasFailed, setHasFailed] = useState(false);
+
+  return (
+    <View className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-background">
+      {url && !hasFailed ? (
+        <Image
+          source={{ uri: url }}
+          style={{ width: "100%", height: "100%" }}
+          contentFit="cover"
+          transition={150}
+          onError={() => setHasFailed(true)}
+        />
+      ) : (
+        <View className="h-full w-full items-center justify-center">
+          <MaterialCommunityIcons
+            name="storefront-outline"
+            size={18}
+            color={theme.extends.colors.text.secondary}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
 
 /**
  * Connects a Community review to its associated business.
@@ -20,17 +48,10 @@ type Props = {
  * Uses a subtle elbow arrow to associate the review with the business,
  * while a trailing chevron reinforces the row's navigation behavior.
  */
-export default function CommunityBusinessLink({ business }: Props) {
-  const openBusiness = () => {
-    router.push({
-      pathname: "/(explorer)/business/[businessId]",
-      params: {
-        businessId: String(business.id),
-        profileSource: "COMMUNITY",
-      },
-    });
-  };
-
+export default function CommunityBusinessLink({
+  business,
+  onOpenBusiness,
+}: Props) {
   const clusterIconName = business.cluster_icon
     ? CLUSTER_ICONS[business.cluster_icon]
     : undefined;
@@ -41,7 +62,7 @@ export default function CommunityBusinessLink({ business }: Props) {
   return (
     <SafePressable
       testID={`community-business-${business.id}`}
-      onPress={openBusiness}
+      onPress={() => onOpenBusiness(business)}
       accessibilityRole="button"
       accessibilityLabel={`Open ${business.business_name} business profile`}
       className="min-h-12 cursor-pointer flex-row items-center active:opacity-70"
@@ -56,24 +77,10 @@ export default function CommunityBusinessLink({ business }: Props) {
       </View>
 
       {/* Business thumbnail */}
-      <View className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-background">
-        {business.display_cover_photo_url ? (
-          <Image
-            source={{ uri: business.display_cover_photo_url }}
-            style={{ width: "100%", height: "100%" }}
-            contentFit="cover"
-            transition={150}
-          />
-        ) : (
-          <View className="h-full w-full items-center justify-center">
-            <MaterialCommunityIcons
-              name="storefront-outline"
-              size={18}
-              color={theme.extends.colors.text.secondary}
-            />
-          </View>
-        )}
-      </View>
+      <BusinessThumbnail
+        key={business.display_cover_photo_url}
+        url={business.display_cover_photo_url}
+      />
 
       {/* Business identity */}
       <View className="ml-2.5 min-w-0 flex-1">

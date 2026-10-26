@@ -1,6 +1,7 @@
-import { View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 
 import Skeleton from "@/shared/components/Skeleton";
+import { COMMUNITY_REVIEW_MEDIA_ASPECT_RATIO } from "../constants/communityMedia";
 
 /**
  * Displays loading placeholders matching the full-width Community feed.
@@ -9,6 +10,9 @@ import Skeleton from "@/shared/components/Skeleton";
  * and business links without introducing card-style containers.
  */
 export default function CommunityFeedSkeleton() {
+  const { width } = useWindowDimensions();
+  const mediaHeight = Math.round(width / COMMUNITY_REVIEW_MEDIA_ASPECT_RATIO);
+
   return (
     <View
       testID="community-feed-skeleton"
@@ -33,7 +37,11 @@ export default function CommunityFeedSkeleton() {
             </View>
 
             {/* Full-width photo carousel placeholder */}
-            {item === 0 && <Skeleton className="h-56 w-full rounded-none" />}
+            {item === 0 && (
+              <View style={{ height: mediaHeight }}>
+                <Skeleton className="h-full w-full rounded-none" />
+              </View>
+            )}
 
             {/* Review text */}
             <View className="px-4 pt-3">

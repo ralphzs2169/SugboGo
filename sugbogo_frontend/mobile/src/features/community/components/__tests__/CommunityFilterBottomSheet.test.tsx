@@ -1,4 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { BackHandler } from "react-native";
 
 import type { ExploreFilterOptions } from "@/features/explore/types/exploreBusiness.types";
 
@@ -10,18 +12,21 @@ import CommunityFilterBottomSheet from "../CommunityFilterBottomSheet";
 
 jest.mock("expo-router", () => ({
   useNavigation: () => ({ isFocused: () => true }),
+  useIsFocused: () => true,
 }));
 jest.mock("@gorhom/bottom-sheet", () => ({
   BottomSheetModal: ({
     children,
     onChange,
+    onDismiss,
   }: {
     children: React.ReactNode;
     onChange: (index: number) => void;
+    onDismiss: () => void;
   }) => {
     const { View } = jest.requireActual("react-native");
     return (
-      <View testID="mock-sheet" onChange={onChange}>
+      <View testID="mock-sheet" onChange={onChange} onDismiss={onDismiss}>
         {children}
       </View>
     );
@@ -88,6 +93,47 @@ function renderSheet(
 }
 
 describe("CommunityFilterBottomSheet", () => {
+  it("consumes Back while open and discards un-applied draft selections", async () => {
+    const remove = jest.fn();
+    const addListener = jest
+      .spyOn(BackHandler, "addEventListener")
+      .mockReturnValue({ remove });
+    const dismiss = jest.fn();
+    const onApply = jest.fn();
+    const screen = await render(
+      <CommunityFilterBottomSheet
+        sheetRef={{ current: { dismiss } as unknown as BottomSheetModal }}
+        filters={DEFAULT_COMMUNITY_REVIEW_FILTERS}
+        options={options}
+        isLoading={false}
+        error={null}
+        onRetry={jest.fn()}
+        onApply={onApply}
+      />,
+    );
+
+    await fireEvent(screen.getByTestId("mock-sheet"), "onChange", 0);
+    await press(screen.getByText("Cafe"));
+    // A repeated sheet-position notification must not erase the open draft.
+    await fireEvent(screen.getByTestId("mock-sheet"), "onChange", 0);
+    expect(
+      screen.getByRole("button", { name: "Cafe" }).props.accessibilityState,
+    ).toEqual({ selected: true });
+    const handleBack = addListener.mock.calls.at(-1)![1];
+    expect(
+      handleBack({ type: "hardwareBackPress", timeStamp: Date.now() }),
+    ).toBe(true);
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(onApply).not.toHaveBeenCalled();
+
+    await fireEvent(screen.getByTestId("mock-sheet"), "onDismiss");
+    expect(remove).toHaveBeenCalledTimes(1);
+    await fireEvent(screen.getByTestId("mock-sheet"), "onChange", 0);
+    await press(screen.getByText("Apply"));
+    expect(onApply).toHaveBeenCalledWith(DEFAULT_COMMUNITY_REVIEW_FILTERS);
+    addListener.mockRestore();
+  });
+
   it("stages category and vouched-specialty choices until Apply", async () => {
     const onApply = jest.fn();
     const screen = await renderSheet(onApply);
@@ -193,6 +239,9 @@ describe("CommunityFilterBottomSheet", () => {
       />,
     );
     expect(screen.getByText("Could not load filter options.")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Retry loading filter options" }),
+    ).toBeTruthy();
     await press(screen.getByText("Retry"));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });

@@ -13,12 +13,16 @@ import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
-import type { CommunityReview } from "../types/communityReview.types";
+import type {
+  CommunityReview,
+  CommunityReviewBusiness,
+} from "../types/communityReview.types";
 import CommunityBusinessLink from "./CommunityBusinessLink";
 import ReviewPhotoCarousel from "./ReviewPhotoCarousel";
 
 type Props = {
   review: CommunityReview;
+  onOpenBusiness: (business: CommunityReviewBusiness) => void;
 };
 
 const MAX_REVIEW_LINES = 5;
@@ -44,7 +48,10 @@ function formatRelativeDate(value: string) {
  * the linked business sits quietly at the bottom so the feed stays about
  * people's experiences rather than listings.
  */
-function CommunityReviewCard({ review }: Props) {
+function CommunityReviewCard({
+  review,
+  onOpenBusiness,
+}: Props) {
   const { mutateAsync: like, isPending: isLikePending } = useReviewLike(
     review.business.id,
     review.id,
@@ -110,7 +117,7 @@ function CommunityReviewCard({ review }: Props) {
 
             {review.is_own_review && (
               <View className="ml-2 rounded-full bg-brand/10 px-2 py-0.5">
-                <AppText weight="semibold" className="text-[10px] text-brand">
+                <AppText weight="semibold" className="text-[10px] text-text-primary">
                   You
                 </AppText>
               </View>
@@ -196,31 +203,34 @@ function CommunityReviewCard({ review }: Props) {
 
       {/* Merchant response */}
       {review.reply && (
-        <View className="mt-3 px-4">
+        <View className="px-4">
           <MerchantReviewResponse reply={review.reply} />
         </View>
       )}
 
       {/* Helpful interaction */}
-      <View className="mt-2 flex-row items-center px-4">
+      <View className="mt-2 flex-row flex-wrap items-center gap-x-3 px-4">
         <Pressable
           onPress={toggleHelpful}
           disabled={isLikePending}
           accessibilityRole="button"
           accessibilityLabel={
             review.is_liked
-              ? "Remove helpful from this review"
-              : "Mark review helpful"
+              ? `Remove helpful, ${review.like_count} helpful`
+              : `Mark review helpful, ${review.like_count} helpful`
           }
           accessibilityState={{
             selected: review.is_liked,
             disabled: isLikePending,
+            busy: isLikePending,
           }}
-          className="min-h-12 cursor-pointer flex-row items-center pr-3 active:opacity-70 disabled:opacity-50"
+          className="min-h-12 max-w-full cursor-pointer flex-row items-center pr-3 active:opacity-70 disabled:opacity-50"
         >
           <MaterialCommunityIcons
             name={review.is_liked ? "thumb-up" : "thumb-up-outline"}
             size={20}
+            accessible={false}
+            style={{ flexShrink: 0 }}
             color={
               review.is_liked
                 ? theme.extends.colors.brand
@@ -230,7 +240,7 @@ function CommunityReviewCard({ review }: Props) {
 
           <AppText
             weight="medium"
-            className={`ml-2 text-xs ${
+            className={`ml-2 min-w-0 shrink text-xs ${
               review.is_liked ? "text-text-primary" : "text-text-secondary"
             }`}
           >
@@ -241,15 +251,17 @@ function CommunityReviewCard({ review }: Props) {
         </Pressable>
 
         {review.is_liked_by_owner && (
-          <View className="ml-2 flex-row items-center">
+          <View className="max-w-full flex-row items-center py-2">
             <MaterialCommunityIcons
               name="heart"
               size={15}
+              accessible={false}
+              style={{ flexShrink: 0 }}
               color={theme.extends.colors.brand}
             />
             <AppText
               weight="medium"
-              className="ml-1 text-xs text-text-secondary"
+              className="ml-1 min-w-0 shrink text-xs text-text-secondary"
             >
               Liked by merchant
             </AppText>
@@ -259,12 +271,18 @@ function CommunityReviewCard({ review }: Props) {
 
       {/* Business context footer */}
       <View className="mt-1 border-t border-border-primary px-4 pb-3 pt-2">
-        <CommunityBusinessLink business={review.business} />
+        <CommunityBusinessLink
+          business={review.business}
+          onOpenBusiness={onOpenBusiness}
+        />
       </View>
 
       {/* Fullscreen review photo gallery */}
       <FullScreenPhotoViewer
-        photos={review.photos.map((photo) => ({ uri: photo.photo_url }))}
+        photos={review.photos.map((photo, index) => ({
+          uri: photo.photo_url,
+          accessibilityLabel: `Review photo ${index + 1} of ${review.photos.length}`,
+        }))}
         visible={isPhotoViewerVisible}
         initialIndex={selectedPhotoIndex}
         onClose={() => setIsPhotoViewerVisible(false)}

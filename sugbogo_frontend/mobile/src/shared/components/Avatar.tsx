@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { useState } from "react";
 import { View } from "react-native";
 import { resolveAvatarSource } from "@/shared/constants/avatars";
 
@@ -8,17 +9,40 @@ type AvatarProps = {
   size?: number;
 };
 
-/**
- * Displays a user's avatar or a placeholder when no image is available.
- */
+/** Owns failure state for one supplied avatar URL. */
+function AvatarImage({
+  imageUrl,
+  avatarKey,
+  size = 80,
+}: AvatarProps) {
+  const [hasFailedImage, setHasFailedImage] = useState(false);
+
+  const borderRadius = size / 2;
+  const remoteImageUrl = hasFailedImage ? null : imageUrl;
+  const source = remoteImageUrl
+    ? { uri: remoteImageUrl }
+    : resolveAvatarSource(avatarKey);
+
+  return (
+    <Image
+      source={source}
+      style={{
+        width: size,
+        height: size,
+        borderRadius,
+      }}
+      contentFit="cover"
+      onError={remoteImageUrl ? () => setHasFailedImage(true) : undefined}
+    />
+  );
+}
+
+/** Displays an avatar, falling back to a built-in avatar if loading fails. */
 export default function Avatar({
   imageUrl,
   avatarKey,
   size = 80,
 }: AvatarProps) {
-  const borderRadius = size / 2;
-  const source = imageUrl ? { uri: imageUrl } : resolveAvatarSource(avatarKey);
-
   return (
     <View
       style={{
@@ -26,15 +50,11 @@ export default function Avatar({
         height: size,
       }}
     >
-      <Image
-        key={imageUrl ?? avatarKey ?? "default-avatar"}
-        source={source}
-        style={{
-          width: size,
-          height: size,
-          borderRadius,
-        }}
-        contentFit="cover"
+      <AvatarImage
+        key={imageUrl ?? "default-avatar"}
+        imageUrl={imageUrl}
+        avatarKey={avatarKey}
+        size={size}
       />
     </View>
   );

@@ -10,7 +10,13 @@ import {
   Text,
   View,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import { PHOTO_CATEGORY_LABELS } from "@/shared/constants/businessPhotoCategories";
 import Animated, {
   useAnimatedStyle,
@@ -25,6 +31,7 @@ import { theme } from "@/constants/theme";
 export type PhotoViewerItem = {
   uri: string;
   category?: string;
+  accessibilityLabel?: string;
 };
 
 type Props = {
@@ -41,6 +48,7 @@ const MAX_SCALE = 3;
 
 type ZoomablePhotoProps = {
   photo: PhotoViewerItem;
+  accessibilityLabel: string;
   onZoomStateChange: (isZoomed: boolean) => void;
 };
 
@@ -48,7 +56,12 @@ type ZoomablePhotoProps = {
  * Renders an individual gallery image with pinch-to-zoom, panning,
  * and double-tap zoom interactions.
  */
-function ZoomablePhoto({ photo, onZoomStateChange }: ZoomablePhotoProps) {
+function ZoomablePhoto({
+  photo,
+  accessibilityLabel,
+  onZoomStateChange,
+}: ZoomablePhotoProps) {
+  const [hasFailed, setHasFailed] = useState(false);
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
 
@@ -148,6 +161,33 @@ function ZoomablePhoto({ photo, onZoomStateChange }: ZoomablePhotoProps) {
     };
   }, []);
 
+  if (hasFailed) {
+    return (
+      <View
+        style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
+        className="items-center justify-center px-8"
+      >
+        <AppText
+          weight="semibold"
+          accessibilityLabel={`${accessibilityLabel}. Couldn't load photo.`}
+          className="text-base text-white"
+        >
+          {"Couldn't load photo"}
+        </AppText>
+        <AppText className="mt-2 text-sm text-white/65">
+          Please try again or swipe to another photo.
+        </AppText>
+        <Button
+          title="Retry"
+          onPress={() => setHasFailed(false)}
+          variant="outline"
+          size="sm"
+          className="mt-4"
+        />
+      </View>
+    );
+  }
+
   return (
     <GestureDetector gesture={gesture}>
       <View
@@ -168,8 +208,25 @@ function ZoomablePhoto({ photo, onZoomStateChange }: ZoomablePhotoProps) {
         >
           <Image
             source={{ uri: photo.uri }}
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel={accessibilityLabel}
             contentFit="contain"
             transition={150}
+            onError={() => {
+              const wasZoomed = scale.get() > 1;
+              setHasFailed(true);
+              scale.set(1);
+              savedScale.set(1);
+              translateX.set(0);
+              translateY.set(0);
+              savedTranslateX.set(0);
+              savedTranslateY.set(0);
+
+              if (wasZoomed) {
+                onZoomStateChange(false);
+              }
+            }}
             style={{
               width: "100%",
               height: "100%",
@@ -276,7 +333,7 @@ export default function FullScreenPhotoViewer({
     >
       <StatusBar hidden backgroundColor="black" barStyle="light-content" />
 
-      <View className="flex-1 bg-black">
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: "black" }}>
         {/* Header */}
         {/* Header */}
         <View
@@ -300,7 +357,11 @@ export default function FullScreenPhotoViewer({
           )}
 
           {/* Photo counter */}
-          <View className="ml-3 rounded-full bg-black/45 px-3 py-1.5">
+          <View
+            className="ml-3 rounded-full bg-black/45 px-3 py-1.5"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
             <Text className="text-xs font-semibold text-white">
               {currentIndex + 1} / {photos.length}
             </Text>
@@ -331,8 +392,14 @@ export default function FullScreenPhotoViewer({
             setCurrentIndex(index);
             setIsZoomed(false);
           }}
-          renderItem={({ item }) => (
-            <ZoomablePhoto photo={item} onZoomStateChange={setIsZoomed} />
+          renderItem={({ item, index }) => (
+            <ZoomablePhoto
+              photo={item}
+              accessibilityLabel={
+                item.accessibilityLabel ?? `Photo ${index + 1} of ${photos.length}`
+              }
+              onZoomStateChange={setIsZoomed}
+            />
           )}
         />
 
@@ -365,7 +432,7 @@ export default function FullScreenPhotoViewer({
             </View>
           )}
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

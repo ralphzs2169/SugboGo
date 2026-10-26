@@ -53,6 +53,7 @@ export default function CommunityEmptyState({
           title="Clear filters"
           onPress={onClearFilters}
           variant="soft"
+          textTone="primary"
           rounded="full"
           size="sm"
           className="mt-4"
