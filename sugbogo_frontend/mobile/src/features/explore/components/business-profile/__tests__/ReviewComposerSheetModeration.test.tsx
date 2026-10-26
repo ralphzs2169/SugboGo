@@ -22,15 +22,26 @@ jest.mock("../../../hooks/useBusinessReviews", () => ({
   }),
 }));
 jest.mock("@gorhom/bottom-sheet", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View, TextInput } = require("react-native");
   return {
-    BottomSheetModal: View,
+    BottomSheetModal: ({
+      children,
+      ref,
+    }: {
+      children: React.ReactNode;
+      ref: React.Ref<unknown>;
+    }) => {
+      React.useImperativeHandle(ref, () => ({ dismiss: mockDismiss }));
+      return <View>{children}</View>;
+    },
     BottomSheetScrollView: View,
     BottomSheetBackdrop: View,
     BottomSheetTextInput: TextInput,
   };
 });
+jest.mock("@/shared/components/modals/ConfirmModal", () => () => null);
 jest.mock("@/shared/components/form/FormTextArea", () => ({
   __esModule: true,
   default: ({

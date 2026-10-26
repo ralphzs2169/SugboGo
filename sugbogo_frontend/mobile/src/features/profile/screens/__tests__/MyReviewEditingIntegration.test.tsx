@@ -251,7 +251,7 @@ describe("My Reviews editing integration", () => {
     }));
   });
 
-  it("prepopulates the existing composer and closes an unsaved draft without changing history", async () => {
+  it("protects an unsaved draft through Keep editing and only discards after confirmation", async () => {
     const { screen, client } = await setup();
     await openEditor(screen);
     expect(screen.getByDisplayValue(originalText)).toBeTruthy();
@@ -264,6 +264,12 @@ describe("My Reviews editing integration", () => {
       changedText,
     );
     await fireEvent.press(screen.getByLabelText("Close"));
+    expect(screen.getByText("Discard review changes?")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByDisplayValue(changedText)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Close"));
+    await fireEvent.press(screen.getByRole("button", { name: "Discard" }));
+    await waitFor(() => expect(screen.queryByText("Edit review")).toBeNull());
     expect(updateReview).not.toHaveBeenCalled();
     expect(screen.getByText(originalText)).toBeTruthy();
     await screen.unmount();
