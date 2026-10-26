@@ -54,7 +54,7 @@ const representativeContent = [
   "We use selected interests and business interactions to personalize discovery and recommendations. These may include saved businesses, specialty vouches, profile visits, and route planning. Some interactions linked to accounts are stored to measure app activity.",
   "Verification documents",
   "The code review did not confirm collection of an ID tied to the device's hardware.",
-  "Supporting account-management and security features.",
+  "Support account management and security features.",
   "OpenAI for automated review text and image moderation.",
   "Google Gemini for certain review analysis, summaries, and recommendation-related processing.",
   "These mechanisms are separate from a general customer-support system.",
@@ -123,11 +123,11 @@ describe("Privacy Policy draft", () => {
     }
     expect(screen.getByText("First and last name")).toBeTruthy();
     expect(
-      screen.getByLabelText("1. Creating and managing user accounts."),
+      screen.getByLabelText("1. Create and manage accounts."),
     ).toBeTruthy();
     expect(
       screen.getByLabelText(
-        "10. Supporting account-management and security features.",
+        "10. Support account management and security features.",
       ),
     ).toBeTruthy();
   });
