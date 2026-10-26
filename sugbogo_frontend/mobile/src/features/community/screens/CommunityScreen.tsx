@@ -150,7 +150,8 @@ export default function CommunityScreen() {
         (!isPaginationArmedRef.current || community.isFetchNextPageError)) ||
       !community.hasNextPage ||
       community.isFetchingNextPage ||
-      community.isFetching
+      community.isFetching ||
+      community.isRefreshing
     ) {
       return;
     }
@@ -205,7 +206,7 @@ export default function CommunityScreen() {
             <ExploreQueryNotice
               message="Couldn't refresh. Showing previously loaded reviews."
               retryLabel="Retry refreshing Community reviews"
-              onRetry={community.refetch}
+              onRetry={community.refresh}
             />
           ) : null
         }
@@ -272,8 +273,9 @@ export default function CommunityScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={community.isRefetching && !community.isFetchingNextPage}
-            onRefresh={() => void community.refetch()}
+            testID="community-refresh-control"
+            refreshing={community.isRefreshing}
+            onRefresh={() => void community.refresh()}
             tintColor={theme.extends.colors.brand}
           />
         }

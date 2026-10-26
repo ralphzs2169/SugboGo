@@ -10,6 +10,7 @@ import type { CommunityReview } from "../../types/communityReview.types";
 
 const mockFetchNextPage = jest.fn(async () => undefined);
 const mockRefetch = jest.fn(async () => undefined);
+const mockRefresh = jest.fn(async () => undefined);
 const mockTaxonomyRefetch = jest.fn(async () => undefined);
 
 jest.mock("expo-router", () => ({
@@ -23,6 +24,17 @@ jest.mock("@expo/vector-icons", () => ({
   MaterialCommunityIcons: () => null,
 }));
 jest.mock("lottie-react-native", () => () => null);
+jest.mock(
+  "react-native/Libraries/Components/RefreshControl/RefreshControl",
+  () => ({
+    __esModule: true,
+    default: (props: Record<string, unknown>) => {
+      const { View } = jest.requireActual("react-native");
+
+      return <View {...props} />;
+    },
+  }),
+);
 jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
   useTabBarSpacing: () => 80,
 }));
@@ -102,6 +114,8 @@ function communityState(overrides: Record<string, unknown> = {}) {
     isInitialLoading: false,
     isFetching: false,
     isRefetching: false,
+    isRefreshing: false,
+    refresh: mockRefresh,
     error: null,
     refetch: mockRefetch,
     ...overrides,
@@ -215,7 +229,8 @@ describe("CommunityScreen", () => {
         name: "Retry refreshing Community reviews",
       }),
     );
-    expect(mockRefetch).toHaveBeenCalledTimes(1);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockRefetch).not.toHaveBeenCalled();
 
     (useCommunityReviews as jest.Mock).mockReturnValue(communityState());
     await screen.rerender(<CommunityScreen />);
@@ -260,6 +275,30 @@ describe("CommunityScreen", () => {
     expect(screen.getByTestId("rendered-review-7")).toBeTruthy();
     expect(screen.queryByTestId("community-offline")).toBeNull();
     expect(screen.queryByTestId("community-feed-skeleton")).toBeNull();
+  });
+
+  it("uses the pull indicator only for explicit refresh and preserves scroll", async () => {
+    const scrollToOffset = jest.spyOn(FlatList.prototype, "scrollToOffset");
+    (useCommunityReviews as jest.Mock).mockReturnValue(
+      communityState({ isRefetching: true, isFetching: true }),
+    );
+    const screen = await render(<CommunityScreen />);
+    scrollToOffset.mockClear();
+    const refreshControl = screen.getByTestId("community-refresh-control");
+    expect(refreshControl.props.refreshing).toBe(false);
+    await fireEvent(refreshControl, "refresh");
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockRefetch).not.toHaveBeenCalled();
+
+    (useCommunityReviews as jest.Mock).mockReturnValue(
+      communityState({ isRefreshing: true }),
+    );
+    await screen.rerender(<CommunityScreen />);
+    expect(
+      screen.getByTestId("community-refresh-control").props.refreshing,
+    ).toBe(true);
+    expect(scrollToOffset).not.toHaveBeenCalled();
+    scrollToOffset.mockRestore();
   });
 
   it("does not show empty content before a successful response exists", async () => {
