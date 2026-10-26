@@ -53,7 +53,7 @@ class ReviewMediaCleanupTests(TestCase):
             RMCU_RESOURCE_TYPE="image",
         )
 
-    def test_all_related_media_survive_cascade_as_cleanup_identifiers(self):
+    def test_review_deletion_retains_dispute_media_and_cleans_up_reply_media(self):
         self._photo()
         reply = ReviewReply.objects.create(REVW_ID=self.review, RPLY_TEXT="Reply")
         ReplyPhoto.objects.create(
@@ -77,18 +77,25 @@ class ReviewMediaCleanupTests(TestCase):
             {
                 ("review-photo", "image"),
                 ("reply-photo", "image"),
-                ("evidence-image", "image"),
-                ("evidence-document", "raw"),
             },
         )
         self.assertFalse(Review.objects.filter(pk=self.review.pk).exists())
         self.assertFalse(ReplyPhoto.objects.filter(RPLY_ID_id=reply.pk).exists())
-        self.assertFalse(MerchantReviewDisputeEvidence.objects.filter(MRDSP_ID_id=dispute.pk).exists())
+        self.assertEqual(
+            MerchantReviewDisputeEvidence.objects.filter(MRDSP_ID_id=dispute.pk).count(),
+            2,
+        )
         with patch(
             "apps.shared.services.cloudinary_service.cloudinary.uploader.destroy",
             return_value={"result": "ok"},
         ) as destroy:
             for record in ReviewMediaCleanup.objects.all():
+                if record.RMCU_PUBLIC_ID == "review-photo":
+                    self.assertEqual(
+                        ReviewMediaCleanupService.process(record.pk)["status"],
+                        "retained",
+                    )
+                    continue
                 self.assertEqual(
                     ReviewMediaCleanupService.process(record.pk)["status"],
                     "succeeded",
@@ -99,7 +106,7 @@ class ReviewMediaCleanupTests(TestCase):
                     type="upload",
                     timeout=15,
                 )
-        self.assertEqual(destroy.call_count, 4)
+        self.assertEqual(destroy.call_count, 1)
 
     def test_media_free_deletion_creates_no_cleanup_work(self):
         with patch("apps.reviews.tasks.cleanup_review_media_asset.apply_async") as enqueue:

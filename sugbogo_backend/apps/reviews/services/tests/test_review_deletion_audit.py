@@ -1,3 +1,4 @@
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from unittest.mock import patch
 
 from django.db import DatabaseError
@@ -152,6 +153,10 @@ class ReviewDeletionAuditTests(TestCase):
             dispute.pk,
             actor=self.admin,
             admin_notes="Inspected dispute and kept the published review.",
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
         existing_history = list(AdminActivity.objects.order_by("AACT_ID").values())
         notifications = list(Notification.objects.order_by("NOTF_ID").values())

@@ -1,3 +1,4 @@
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from concurrent.futures import ThreadPoolExecutor
 from unittest import skipUnless
 from unittest.mock import patch
@@ -220,9 +221,15 @@ class ReviewDeletionNotificationTests(TestCase):
         self.publish.assert_not_called()
         self.cleanup.assert_not_called()
 
-    def test_historical_dispute_notice_loses_unavailable_target_only_in_response(self):
+    def test_historical_dispute_notice_keeps_accessible_target_after_review_deletion(self):
         dispute = self.create_dispute()
-        ManageReviewDisputeService.dismiss_dispute(dispute.pk, actor=self.admin)
+        ManageReviewDisputeService.dismiss_dispute(
+            dispute.pk,
+            actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+        )
         notice = Notification.objects.get()
         self.client.force_authenticate(user=self.merchant)
         before = self.client.get(reverse("notification-list"))
@@ -231,14 +238,14 @@ class ReviewDeletionNotificationTests(TestCase):
         response = self.client.get(reverse("notification-list"))
         item = response.data["data"]["items"][0]
         self.assertEqual(item["id"], notice.pk)
-        self.assertEqual(item["target_type"], "")
-        self.assertIsNone(item["target_id"])
+        self.assertEqual(item["target_type"], "review_dispute")
+        self.assertEqual(item["target_id"], dispute.pk)
         opened = self.client.post(reverse("notification-read", args=[notice.pk]))
         self.assertEqual(opened.status_code, 200)
-        self.assertIsNone(opened.data["data"]["target_id"])
+        self.assertEqual(opened.data["data"]["target_id"], dispute.pk)
         cached_target = self.client.get(reverse("review-dispute-detail", args=[dispute.pk]))
-        self.assertEqual(cached_target.status_code, 404)
-        self.assertEqual(cached_target.data["code"], "NOT_FOUND")
+        self.assertEqual(cached_target.status_code, 200)
+        self.assertIsNone(cached_target.data["data"]["review"])
         notice.refresh_from_db()
         self.assertEqual(notice.NOTF_TARGET_ID, dispute.pk)
         self.assertEqual(Notification.objects.count(), 1)

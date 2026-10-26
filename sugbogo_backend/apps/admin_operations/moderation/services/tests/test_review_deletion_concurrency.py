@@ -30,6 +30,7 @@ from apps.admin_operations.moderation.services.tests import (
 from apps.notifications.models import Notification
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.review_disputes.services.review_dispute_service import ReviewDisputeService
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
@@ -52,12 +53,13 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
 
     def setUp(self):
         dispute_tests.ManageReviewDisputeServiceTests.setUp(self)
-        self.dispute = self.create_dispute()
         ReviewPhoto.objects.create(
             REVW_ID=self.review,
             RPHO_PHOTO_URL="https://example.com/concurrent-review.jpg",
             RPHO_PHOTO_PUBLIC_ID="concurrent-review-photo",
         )
+        self.dispute = self.create_dispute()
+        self.expected_fingerprint = ReviewSnapshotService.current_fingerprint(self.review)
         # A second published review makes a double decrement observable.
         Review.objects.create(
             USER_ID=self.second_explorer,
@@ -122,6 +124,8 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
             method(
                 dispute_id=self.dispute.pk,
                 actor=self.admin,
+                expected_fingerprint=self.expected_fingerprint,
+                admin_notes="Inspected the current review and recorded the decision.",
             )
 
     def _worker(
@@ -219,8 +223,12 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
         )
         self.assertEqual(
             MerchantReviewDispute.objects.filter(pk=self.dispute.pk).exists(),
-            not deleted,
+            True,
         )
+        if deleted:
+            self.dispute.refresh_from_db()
+            self.assertIsNone(self.dispute.REVW_ID_id)
+            self.assertTrue(self.dispute.snapshot.MRDS_PHOTOS)
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 1)
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
@@ -336,19 +344,19 @@ class ReviewDeletionConcurrencyTests(TransactionTestCase):
         self.business.save(update_fields=["BUSN_REVIEW_COUNT"])
 
     def test_deletion_commits_before_waiting_uphold(self):
-        self._race("delete", "uphold", "missing")
+        self._race("delete", "uphold", "resolved")
 
     def test_uphold_commits_before_waiting_deletion(self):
         self._race("uphold", "delete", "completed")
 
     def test_deletion_commits_before_waiting_dismissal(self):
-        self._race("delete", "dismiss", "missing")
+        self._race("delete", "dismiss", "resolved")
 
     def test_dismissal_commits_before_waiting_deletion(self):
         self._race("dismiss", "delete", "completed")
 
     def test_deletion_commits_before_waiting_withdrawal(self):
-        self._race("delete", "withdraw", "missing")
+        self._race("delete", "withdraw", "resolved")
 
     def test_withdrawal_commits_before_waiting_deletion(self):
         self._race("withdraw", "delete", "completed")
@@ -410,7 +418,7 @@ class DeletedReviewResourceTests(TestCase):
         with self.assertRaisesMessage(NotFound, "The review could not be found."):
             ReviewModerationConsistencyService.reject_review(999999)
 
-    def test_deleted_review_and_dispute_endpoints_return_not_found(self):
+    def test_deleted_review_is_missing_and_historical_dispute_actions_are_closed(self):
         dispute = self.create_dispute()
         ReviewService.delete_review(
             user=self.explorer,
@@ -452,12 +460,21 @@ class DeletedReviewResourceTests(TestCase):
                 client.force_authenticate(user=user)
                 response = getattr(client, method)(
                     reverse(route, kwargs={parameter: resource_id}),
-                    data={"admin_notes": "Reviewed the submitted dispute evidence."},
+                    data={
+                        "admin_notes": "Reviewed the submitted dispute evidence.",
+                        "expected_fingerprint": "0" * 64,
+                    },
                     format="json",
                 )
-                self.assertEqual(response.status_code, 404)
+                if route == "review-detail":
+                    expected_status = 404
+                    expected_code = "NOT_FOUND"
+                else:
+                    expected_status = 400
+                    expected_code = "VALIDATION_ERROR"
+                self.assertEqual(response.status_code, expected_status)
                 self.assertFalse(response.data["success"])
-                self.assertEqual(response.data["code"], "NOT_FOUND")
+                self.assertEqual(response.data["code"], expected_code)
         self.assertEqual(
             AdminActivity.objects.filter(
                 AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,

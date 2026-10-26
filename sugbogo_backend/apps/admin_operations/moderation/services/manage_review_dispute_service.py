@@ -8,7 +8,11 @@ from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.activity_management.services import AdminActivityService
 from apps.users.models import User
 from apps.review_disputes.models import MerchantReviewDispute
-from apps.reviews.models import Review
+from apps.review_disputes.services.review_snapshot_service import (
+    DisputeContentConflict,
+    ReviewSnapshotService,
+)
+from apps.reviews.models import Review, ReviewPhoto
 from apps.reviews.services.review_moderation_consistency_service import (
     ReviewModerationConsistencyService,
 )
@@ -23,6 +27,7 @@ class ManageReviewDisputeService:
 
     @staticmethod
     def _detail_queryset():
+        """Load authorized investigation relations without per-attempt media queries."""
         active_specialty_tags = (
             BusinessSpecialtyTag.objects
             .filter(
@@ -41,6 +46,7 @@ class ManageReviewDisputeService:
                 "REVW_ID",
                 "REVW_ID__USER_ID",
                 "USER_ID",
+                "snapshot",
             )
             .prefetch_related(
                 Prefetch(
@@ -49,7 +55,10 @@ class ManageReviewDisputeService:
                     to_attr="active_specialty_tag_links",
                 ),
                 "evidence",
-                "REVW_ID__photos",
+                Prefetch(
+                    "REVW_ID__photos",
+                    queryset=ReviewPhoto.objects.order_by("RPHO_ID"),
+                ),
                 "REVW_ID__reports",
                 "REVW_ID__reply",
             )
@@ -64,11 +73,14 @@ class ManageReviewDisputeService:
         ordering=None,
         search=None,
     ):
+        """List moderation cases with attempt numbers stable after source deletion."""
         queryset = ManageReviewDisputeService._detail_queryset()
 
         earlier_attempts = (
             MerchantReviewDispute.objects
-            .filter(REVW_ID_id=OuterRef("REVW_ID_id"))
+            .filter(
+                MRDSP_ORIGINAL_REVIEW_ID=OuterRef("MRDSP_ORIGINAL_REVIEW_ID"),
+            )
             .filter(
                 Q(MRDSP_CREATED_AT__lt=OuterRef("MRDSP_CREATED_AT"))
                 | Q(
@@ -77,7 +89,7 @@ class ManageReviewDisputeService:
                 )
             )
             .order_by()
-            .values("REVW_ID_id")
+            .values("MRDSP_ORIGINAL_REVIEW_ID")
             .annotate(total=Count("MRDSP_ID"))
             .values("total")[:1]
         )
@@ -112,7 +124,7 @@ class ManageReviewDisputeService:
 
         if review_id:
             queryset = queryset.filter(
-                REVW_ID=review_id,
+                MRDSP_ORIGINAL_REVIEW_ID=review_id,
             )
 
         ordering_map = {
@@ -145,10 +157,10 @@ class ManageReviewDisputeService:
                     .get(MRDSP_ID=dispute_id)
                 )
                 # Match deletion's parent-first order before locking the dispute.
-                Review.objects.select_for_update(of=("self",)).get(
-                    REVW_ID=review_id,
-                )
-                queryset = queryset.filter(REVW_ID_id=review_id)
+                if review_id is not None:
+                    Review.objects.select_for_update(of=("self",)).filter(
+                        REVW_ID=review_id,
+                    ).first()
                 queryset = queryset.select_for_update(of=("self",))
             return queryset.get(MRDSP_ID=dispute_id)
         except (Review.DoesNotExist, MerchantReviewDispute.DoesNotExist):
@@ -158,18 +170,22 @@ class ManageReviewDisputeService:
 
 
     @staticmethod
+    @transaction.atomic
     def get_dispute_detail(
         dispute_id: int,
     ) -> MerchantReviewDispute:
+        """Read current text and photos under the review lock for a coherent token."""
         dispute = ManageReviewDisputeService.get_dispute(
             dispute_id,
+            for_update=True,
         )
 
         review_disputes = list(
             MerchantReviewDispute.objects
             .filter(
-                REVW_ID_id=dispute.REVW_ID_id,
+                MRDSP_ORIGINAL_REVIEW_ID=dispute.MRDSP_ORIGINAL_REVIEW_ID,
             )
+            .select_related("snapshot")
             .prefetch_related("evidence")
             .order_by(
                 "MRDSP_CREATED_AT",
@@ -210,6 +226,8 @@ class ManageReviewDisputeService:
         admin_notes: str | None = None,
         *,
         actor: User,
+        expected_fingerprint: str,
+        acknowledge_review_changes: bool = False,
     ) -> MerchantReviewDispute:
         """Uphold a dispute and penalize the review author in one transaction."""
         dispute = ManageReviewDisputeService.get_dispute(
@@ -224,6 +242,14 @@ class ManageReviewDisputeService:
             raise ValidationError(
                 "Only pending review disputes can be upheld.",
             )
+
+        ManageReviewDisputeService._validate_decision(
+            dispute,
+            expected_fingerprint,
+            admin_notes,
+            uphold=True,
+            acknowledge_review_changes=acknowledge_review_changes,
+        )
 
         dispute.MRDSP_STATUS = (
             MerchantReviewDispute.DisputeStatus.UPHELD
@@ -253,11 +279,17 @@ class ManageReviewDisputeService:
         )
 
         ManageReviewDisputeService._record_resolution(
-            actor, dispute, AdminActivity.Action.REVIEW_DISPUTE_UPHELD,
-            previous_review_status, Review.ReviewStatus.REJECTED,
+            actor,
+            dispute,
+            AdminActivity.Action.REVIEW_DISPUTE_UPHELD,
+            previous_review_status,
+            Review.ReviewStatus.REJECTED,
         )
-        NotificationEventService.review_dispute_resolved(dispute, previous_review_status)
-        return dispute
+        NotificationEventService.review_dispute_resolved(
+            dispute,
+            previous_review_status,
+        )
+        return ManageReviewDisputeService.get_dispute_detail(dispute.pk)
 
     @staticmethod
     @transaction.atomic
@@ -266,6 +298,8 @@ class ManageReviewDisputeService:
         admin_notes: str | None = None,
         *,
         actor: User,
+        expected_fingerprint: str,
+        acknowledge_review_changes: bool = False,
     ) -> MerchantReviewDispute:
         """Dismisses a pending dispute and records its administrator decision."""
         dispute = ManageReviewDisputeService.get_dispute(
@@ -280,6 +314,13 @@ class ManageReviewDisputeService:
             raise ValidationError(
                 "Only pending review disputes can be dismissed.",
             )
+
+        ManageReviewDisputeService._validate_decision(
+            dispute,
+            expected_fingerprint,
+            admin_notes,
+            acknowledge_review_changes=acknowledge_review_changes,
+        )
 
         dispute.MRDSP_STATUS = (
             MerchantReviewDispute.DisputeStatus.DISMISSED
@@ -297,13 +338,56 @@ class ManageReviewDisputeService:
         )
 
         ManageReviewDisputeService._record_resolution(
-            actor, dispute, AdminActivity.Action.REVIEW_DISPUTE_DISMISSED,
-            dispute.REVW_ID.REVW_STATUS, dispute.REVW_ID.REVW_STATUS,
+            actor,
+            dispute,
+            AdminActivity.Action.REVIEW_DISPUTE_DISMISSED,
+            dispute.REVW_ID.REVW_STATUS,
+            dispute.REVW_ID.REVW_STATUS,
         )
         NotificationEventService.review_dispute_resolved(
-            dispute, dispute.REVW_ID.REVW_STATUS,
+            dispute,
+            dispute.REVW_ID.REVW_STATUS,
         )
-        return dispute
+        return ManageReviewDisputeService.get_dispute_detail(dispute.pk)
+
+    @staticmethod
+    def _validate_decision(
+        dispute,
+        expected_fingerprint,
+        admin_notes,
+        *,
+        uphold=False,
+        acknowledge_review_changes=False,
+    ):
+        """Reject stale or unjustified decisions before any moderation side effects."""
+        if dispute.REVW_ID is None:
+            raise ValidationError("The original review no longer exists.")
+        fingerprint = ReviewSnapshotService.current_fingerprint(dispute.REVW_ID)
+        if fingerprint != expected_fingerprint:
+            raise DisputeContentConflict()
+        snapshot = getattr(dispute, "snapshot", None)
+        if uphold and (
+            snapshot is None
+            or snapshot.MRDS_FINGERPRINT != fingerprint
+        ):
+            if (
+                not admin_notes
+                or len(admin_notes.strip()) < 20
+            ):
+                raise ValidationError({
+                    "admin_notes": (
+                        "Provide at least 20 characters explaining why rejecting "
+                        "the current review is justified."
+                    ),
+                })
+            if acknowledge_review_changes is not True:
+                raise ValidationError({
+                    "acknowledge_review_changes": (
+                        "Acknowledge the changed review or unavailable snapshot and "
+                        "explain in admin_notes why rejecting the current review is justified."
+                    ),
+                })
+        dispute.acknowledged_review_changes = acknowledge_review_changes
 
     @staticmethod
     def _record_resolution(
@@ -328,5 +412,12 @@ class ManageReviewDisputeService:
                 "dispute_status": dispute.MRDSP_STATUS,
                 "previous_review_status": previous_review_status,
                 "review_status": review_status,
+                "decision_content_fingerprint": (
+                    ReviewSnapshotService.current_fingerprint(dispute.REVW_ID)
+                ),
+                "filing_snapshot_available": (
+                    getattr(dispute, "snapshot", None) is not None
+                ),
+                "acknowledged_review_changes": dispute.acknowledged_review_changes,
             },
         )

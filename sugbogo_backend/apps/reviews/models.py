@@ -159,6 +159,7 @@ class ReviewMediaCleanup(models.Model):
         PENDING = "pending", "Pending"
         SUCCEEDED = "succeeded", "Succeeded"
         FAILED = "failed", "Requires intervention"
+        RETAINED = "retained", "Retained as evidence or live media"
 
     class ResourceType(models.TextChoices):
         IMAGE = "image", "Image"

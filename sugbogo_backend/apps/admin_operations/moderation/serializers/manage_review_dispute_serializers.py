@@ -5,6 +5,7 @@ from apps.business.serializers.business_serializers import (
     BusinessOwnerSerializer,
 )
 from apps.review_disputes.models import MerchantReviewDispute
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from apps.review_disputes.serializers import (
     DisputeEvidenceResponseSerializer,
 )
@@ -43,6 +44,7 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
     business_name = serializers.CharField(
         source="BUSN_ID.BUSN_NAME",
         read_only=True,
+        allow_null=True,
     )
     business_cover_photo_url = serializers.CharField(
         source="BUSN_ID.BUSN_COVER_PHOTO_URL",
@@ -50,7 +52,7 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     review_id = serializers.IntegerField(
-        source="REVW_ID_id",
+        source="MRDSP_ORIGINAL_REVIEW_ID",
         read_only=True,
     )
     review_text_preview = serializers.SerializerMethodField()
@@ -80,12 +82,22 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
             "attempt_number",
         )
 
-    def get_review_text_preview(self, dispute):
+    def get_review_text_preview(
+        self,
+        dispute,
+    ):
         """Keep the original review text compact in the dispute queue."""
+        if dispute.REVW_ID is None:
+            return ""
         return dispute.REVW_ID.REVW_TEXT[:160]
 
-    def get_review_photo_count(self, dispute):
+    def get_review_photo_count(
+        self,
+        dispute,
+    ):
         """Count the photos already prefetched with the disputed review."""
+        if dispute.REVW_ID is None:
+            return 0
         return len(dispute.REVW_ID.photos.all())
 
 
@@ -225,6 +237,14 @@ class AdminReviewDisputeHistorySerializer(serializers.ModelSerializer):
         many=True,
         read_only=True,
     )
+    review_at_filing = serializers.SerializerMethodField()
+
+    def get_review_at_filing(
+        self,
+        obj,
+    ):
+        """Return the evidence captured for this particular previous attempt."""
+        return ReviewSnapshotService.at_filing(obj)
 
     class Meta:
         model = MerchantReviewDispute
@@ -237,6 +257,7 @@ class AdminReviewDisputeHistorySerializer(serializers.ModelSerializer):
             "resolved_at",
             "created_at",
             "evidence",
+            "review_at_filing",
         )
 
 
@@ -306,6 +327,86 @@ class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
         many=True,
         read_only=True,
     )
+    review_at_filing = serializers.SerializerMethodField()
+    current_review = serializers.SerializerMethodField()
+    material_content_changed = serializers.SerializerMethodField()
+    current_content_fingerprint = serializers.SerializerMethodField()
+    decision_eligible = serializers.SerializerMethodField()
+    filing_snapshot_unavailable = serializers.SerializerMethodField()
+    closure_reason = serializers.CharField(
+        source="MRDSP_CLOSURE_REASON",
+        read_only=True,
+    )
+    original_review_id = serializers.IntegerField(
+        source="MRDSP_ORIGINAL_REVIEW_ID",
+        read_only=True,
+    )
+    original_business_id = serializers.IntegerField(
+        source="MRDSP_ORIGINAL_BUSINESS_ID",
+        read_only=True,
+    )
+    original_merchant_id = serializers.IntegerField(
+        source="MRDSP_ORIGINAL_MERCHANT_ID",
+        read_only=True,
+    )
+
+    def get_review_at_filing(
+        self,
+        obj,
+    ):
+        """Distinguish absent legacy evidence from a captured empty review."""
+        return ReviewSnapshotService.at_filing(obj)
+
+    def get_current_review(
+        self,
+        obj,
+    ):
+        """Expose current publication and edit state separately from filing evidence."""
+        if obj.REVW_ID is None:
+            return {"exists": False}
+        return {
+            "exists": True,
+            **AdminDisputedReviewSerializer(obj.REVW_ID).data,
+        }
+
+    def get_current_content_fingerprint(
+        self,
+        obj,
+    ):
+        """Return the mandatory decision token for the displayed current content."""
+        if obj.REVW_ID is None:
+            return None
+        return ReviewSnapshotService.current_fingerprint(obj.REVW_ID)
+
+    def get_material_content_changed(
+        self,
+        obj,
+    ):
+        """Return unknown when either comparison source is unavailable."""
+        snapshot = getattr(obj, "snapshot", None)
+        if (
+            snapshot is None
+            or obj.REVW_ID is None
+        ):
+            return None
+        return snapshot.MRDS_FINGERPRINT != self.get_current_content_fingerprint(obj)
+
+    def get_decision_eligible(
+        self,
+        obj,
+    ):
+        """Allow decisions only while the original review exists and the case is pending."""
+        return (
+            obj.MRDSP_STATUS == MerchantReviewDispute.DisputeStatus.PENDING
+            and obj.REVW_ID is not None
+        )
+
+    def get_filing_snapshot_unavailable(
+        self,
+        obj,
+    ):
+        """Explicitly flag legacy attempts without inventing historical content."""
+        return getattr(obj, "snapshot", None) is None
 
     class Meta:
         model = MerchantReviewDispute
@@ -326,11 +427,27 @@ class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
             "attempt_number",
             "previous_dispute_count",
             "previous_disputes",
+            "review_at_filing",
+            "current_review",
+            "material_content_changed",
+            "current_content_fingerprint",
+            "decision_eligible",
+            "filing_snapshot_unavailable",
+            "closure_reason",
+            "original_review_id",
+            "original_business_id",
+            "original_merchant_id",
         )
 
 
 class AdminReviewDisputeResolutionSerializer(serializers.Serializer):
     """Validate administrator notes when resolving a review dispute."""
+
+    expected_fingerprint = serializers.RegexField(
+        regex=r"\A[0-9a-f]{64}\Z",
+        required=True,
+    )
+    acknowledge_review_changes = serializers.BooleanField(default=False)
 
     admin_notes = serializers.CharField(
         required=True,

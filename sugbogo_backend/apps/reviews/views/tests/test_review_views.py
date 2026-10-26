@@ -20,6 +20,7 @@ from apps.business.models import (
     SpecialtyTag,
 )
 from apps.review_disputes.models import MerchantReviewDispute
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
@@ -42,6 +43,7 @@ class ReviewViewTests(APITestCase):
     """Tests for business review API endpoints."""
 
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         moderation_patcher = patch(
             "apps.reviews.services.review_service.ReviewModerationService.moderate",
             return_value={
@@ -1335,6 +1337,7 @@ class ReviewDetailViewTests(APITestCase):
     """Tests for the review update/delete endpoint."""
 
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         cleanup_patcher = patch(
             "apps.reviews.tasks.cleanup_review_media_asset.apply_async",
         )

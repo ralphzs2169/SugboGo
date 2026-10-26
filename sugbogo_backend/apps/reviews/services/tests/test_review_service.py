@@ -22,6 +22,7 @@ from apps.business.models import (
     SpecialtyTag,
 )
 from apps.review_disputes.models import MerchantReviewDispute
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
@@ -219,6 +220,7 @@ class ReviewServiceTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         cls.user = User.objects.create_user(
             email="explorer@example.com",
             password="StrongPassword123!",

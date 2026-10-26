@@ -161,19 +161,19 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
     )
 
     review_id = serializers.IntegerField(
-        source="REVW_ID_id",
+        source="MRDSP_ORIGINAL_REVIEW_ID",
         read_only=True,
     )
 
     business_id = serializers.IntegerField(
-        source="BUSN_ID_id",
+        source="MRDSP_ORIGINAL_BUSINESS_ID",
         read_only=True,
     )
 
     attempt_number = serializers.IntegerField(
         read_only=True,
     )
-    
+
     reason = serializers.CharField(
         source="MRDSP_REASON",
         read_only=True,
@@ -218,6 +218,10 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
         source="REVW_ID",
         read_only=True,
     )
+    closure_reason = serializers.CharField(
+        source="MRDSP_CLOSURE_REASON",
+        read_only=True,
+    )
 
     class Meta:
         model = MerchantReviewDispute
@@ -235,6 +239,7 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
             "updated_at",
             "evidence",
             "review",
+            "closure_reason",
         )
 
 

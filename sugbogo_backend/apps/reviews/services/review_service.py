@@ -568,7 +568,7 @@ class ReviewService:
                 continue
 
             try:
-                result = CloudinaryService.destroy_asset(
+                result = ReviewMediaCleanupService.destroy_unretained_asset(
                     public_id=public_id,
                     resource_type=ReviewMediaCleanup.ResourceType.IMAGE,
                 )
@@ -1448,6 +1448,17 @@ class ReviewService:
             pending_reports=pending_reports,
             pending_disputes=pending_disputes,
             business_name=review.BUSN_ID.BUSN_NAME,
+        )
+        MerchantReviewDispute.objects.filter(
+            MRDSP_ID__in=[
+                dispute["MRDSP_ID"]
+                for dispute in pending_disputes
+            ],
+        ).update(
+            MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.AUTHOR_DELETED,
+            MRDSP_CLOSURE_REASON="content_removed_by_author",
+            MRDSP_RESOLVED_AT=timezone.now(),
+            MRDSP_UPDATED_AT=timezone.now(),
         )
 
     @staticmethod
