@@ -5,7 +5,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { RefObject } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -15,6 +15,7 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FilterChip from "@/shared/components/FilterChip";
 import TaxonomyFilterControls from "@/shared/components/filters/TaxonomyFilterControls";
+import useBottomSheetBackHandler from "@/shared/hooks/useBottomSheetBackHandler";
 import {
   retainClusterCategoryIds,
   toggleCategoryId,
@@ -51,6 +52,8 @@ export default function CommunityFilterBottomSheet({
   onApply,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const backHandler = useBottomSheetBackHandler(sheetRef);
+  const isOpenRef = useRef(false);
   const [draft, setDraft] = useState<CommunityReviewFilters>(filters);
   const [search, setSearch] = useState("");
   const hasContentFilters =
@@ -102,10 +105,17 @@ export default function CommunityFilterBottomSheet({
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       onChange={(index) => {
-        if (index === 0) {
+        backHandler.onChange(index);
+
+        if (index >= 0 && !isOpenRef.current) {
+          isOpenRef.current = true;
           setDraft({ ...filters, categoryIds: [...filters.categoryIds] });
           setSearch("");
         }
+      }}
+      onDismiss={() => {
+        isOpenRef.current = false;
+        backHandler.onDismiss();
       }}
       backgroundStyle={{
         backgroundColor: theme.extends.colors.surface,

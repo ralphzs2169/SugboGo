@@ -31,6 +31,9 @@ export function useCommunityReviews(
 
   return {
     reviews,
+    hasData: query.data !== undefined,
+    isSuccess: query.isSuccess,
+    isPaused: query.isPaused,
     pages: query.data?.pages ?? [],
     totalCount: query.data?.pages[0]?.pagination.total_items ?? 0,
     hasNextPage: query.hasNextPage,

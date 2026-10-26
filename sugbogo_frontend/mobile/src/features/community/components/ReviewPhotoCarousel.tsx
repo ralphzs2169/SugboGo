@@ -10,6 +10,7 @@ import {
 } from "react-native";
 
 import AppText from "@/shared/components/AppText";
+import ErrorState from "@/shared/components/ErrorState";
 
 import type { CommunityReview } from "../types/communityReview.types";
 
@@ -20,6 +21,54 @@ type Props = {
 
 /** Portrait 4:5 keeps feed photos tall without dominating the screen. Use 1 for square. */
 const MEDIA_ASPECT_RATIO = 16 / 10;
+
+/** Keeps a failed photo's page stable and retries only when requested. */
+function ReviewPhoto({
+  photo,
+  index,
+  photoCount,
+  width,
+  height,
+  onPhotoPress,
+}: {
+  photo: CommunityReview["photos"][number];
+  index: number;
+  photoCount: number;
+  width: number;
+  height: number;
+  onPhotoPress: (index: number) => void;
+}) {
+  const [hasFailed, setHasFailed] = useState(false);
+
+  return (
+    <View style={{ width, height }}>
+      {hasFailed ? (
+        <ErrorState
+          size="small"
+          title="Couldn't load photo"
+          description="Please try again."
+          primaryActionTitle="Retry"
+          onPrimaryAction={() => setHasFailed(false)}
+        />
+      ) : (
+        <Pressable
+          onPress={() => onPhotoPress(index)}
+          accessibilityRole="button"
+          accessibilityLabel={`View review photo ${index + 1} of ${photoCount}`}
+          style={{ width, height }}
+        >
+          <Image
+            source={{ uri: photo.photo_url }}
+            style={{ width, height }}
+            contentFit="cover"
+            transition={150}
+            onError={() => setHasFailed(true)}
+          />
+        </Pressable>
+      )}
+    </View>
+  );
+}
 
 /**
  * Full-bleed, swipeable review photo carousel for the Community feed.
@@ -62,19 +111,15 @@ export default function ReviewPhotoCarousel({ photos, onPhotoPress }: Props) {
           })}
           onMomentumScrollEnd={handleMomentumEnd}
           renderItem={({ item, index }) => (
-            <Pressable
-              onPress={() => onPhotoPress(index)}
-              accessibilityRole="button"
-              accessibilityLabel={`View review photo ${index + 1} of ${photos.length}`}
-              style={{ width, height }}
-            >
-              <Image
-                source={{ uri: item.photo_url }}
-                style={{ width, height }}
-                contentFit="cover"
-                transition={150}
-              />
-            </Pressable>
+            <ReviewPhoto
+              key={item.photo_url}
+              photo={item}
+              index={index}
+              photoCount={photos.length}
+              width={width}
+              height={height}
+              onPhotoPress={onPhotoPress}
+            />
           )}
         />
 

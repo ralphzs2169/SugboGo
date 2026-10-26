@@ -10,7 +10,13 @@ import {
   Text,
   View,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 import { PHOTO_CATEGORY_LABELS } from "@/shared/constants/businessPhotoCategories";
 import Animated, {
   useAnimatedStyle,
@@ -49,6 +55,7 @@ type ZoomablePhotoProps = {
  * and double-tap zoom interactions.
  */
 function ZoomablePhoto({ photo, onZoomStateChange }: ZoomablePhotoProps) {
+  const [hasFailed, setHasFailed] = useState(false);
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
 
@@ -148,6 +155,29 @@ function ZoomablePhoto({ photo, onZoomStateChange }: ZoomablePhotoProps) {
     };
   }, []);
 
+  if (hasFailed) {
+    return (
+      <View
+        style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
+        className="items-center justify-center px-8"
+      >
+        <AppText weight="semibold" className="text-base text-white">
+          {"Couldn't load photo"}
+        </AppText>
+        <AppText className="mt-2 text-sm text-white/65">
+          Please try again or swipe to another photo.
+        </AppText>
+        <Button
+          title="Retry"
+          onPress={() => setHasFailed(false)}
+          variant="outline"
+          size="sm"
+          className="mt-4"
+        />
+      </View>
+    );
+  }
+
   return (
     <GestureDetector gesture={gesture}>
       <View
@@ -170,6 +200,20 @@ function ZoomablePhoto({ photo, onZoomStateChange }: ZoomablePhotoProps) {
             source={{ uri: photo.uri }}
             contentFit="contain"
             transition={150}
+            onError={() => {
+              const wasZoomed = scale.get() > 1;
+              setHasFailed(true);
+              scale.set(1);
+              savedScale.set(1);
+              translateX.set(0);
+              translateY.set(0);
+              savedTranslateX.set(0);
+              savedTranslateY.set(0);
+
+              if (wasZoomed) {
+                onZoomStateChange(false);
+              }
+            }}
             style={{
               width: "100%",
               height: "100%",
@@ -276,7 +320,7 @@ export default function FullScreenPhotoViewer({
     >
       <StatusBar hidden backgroundColor="black" barStyle="light-content" />
 
-      <View className="flex-1 bg-black">
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: "black" }}>
         {/* Header */}
         {/* Header */}
         <View
@@ -365,7 +409,7 @@ export default function FullScreenPhotoViewer({
             </View>
           )}
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

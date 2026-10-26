@@ -1,5 +1,9 @@
 import type { PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { getCommunityReviews } from "../../api/communityReview.service";
@@ -50,6 +54,38 @@ function page(
 describe("useCommunityReviews", () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    onlineManager.setOnline(true);
+  });
+
+  afterEach(() => {
+    onlineManager.setOnline(true);
+  });
+
+  it("distinguishes a paused first request from a successful empty response", async () => {
+    onlineManager.setOnline(false);
+    (getCommunityReviews as jest.Mock).mockResolvedValue({
+      success: true,
+      data: page([], 1, false),
+    });
+    const { client, Wrapper } = setupClient();
+    const { result, unmount } = await renderHook(() => useCommunityReviews(), {
+      wrapper: Wrapper,
+    });
+
+    expect(result.current.isPaused).toBe(true);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasData).toBe(false);
+    expect(result.current.isSuccess).toBe(false);
+    expect(getCommunityReviews).not.toHaveBeenCalled();
+
+    await act(async () => onlineManager.setOnline(true));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.hasData).toBe(true);
+    expect(result.current.isPaused).toBe(false);
+    expect(result.current.reviews).toEqual([]);
+
+    unmount();
+    client.clear();
   });
 
   it("loads page one, preserves page order, and stops at the final page", async () => {

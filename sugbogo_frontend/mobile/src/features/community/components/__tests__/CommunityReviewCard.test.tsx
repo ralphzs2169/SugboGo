@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import { useReviewLike } from "@/features/explore/hooks/useReviewLike";
+import { resolveAvatarSource } from "@/shared/constants/avatars";
 
 import CommunityReviewCard from "../CommunityReviewCard";
 import type { CommunityReview } from "../../types/communityReview.types";
@@ -14,6 +15,19 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("@expo/vector-icons", () => ({
   MaterialCommunityIcons: () => null,
+}));
+jest.mock("expo-image", () => ({
+  Image: ({ source, ...props }: { source: { uri?: string } }) => {
+    const { View } = jest.requireActual("react-native");
+
+    return (
+      <View
+        {...props}
+        source={source}
+        testID={`mock-image:${source?.uri ?? "builtin"}`}
+      />
+    );
+  },
 }));
 jest.mock("@/features/explore/hooks/useReviewLike", () => ({
   useReviewLike: jest.fn(),
@@ -206,5 +220,87 @@ describe("CommunityReviewCard", () => {
 
     expect(screen.queryByText(/comments?/i)).toBeNull();
     expect(screen.queryByLabelText(/reply/i)).toBeNull();
+  });
+
+  it("offers manual recovery for failed review photos and resets on URL changes", async () => {
+    const screen = await render(<CommunityReviewCard review={baseReview} />);
+    const photo = screen.getByTestId(
+      `mock-image:${baseReview.photos[0].photo_url}`,
+    );
+
+    await fireEvent(photo, "error", { error: "Unavailable" });
+    expect(screen.queryByLabelText("View review photo 1 of 1")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Retry" }));
+    expect(screen.getByLabelText("View review photo 1 of 1")).toBeTruthy();
+
+    const retriedPhoto = screen.getByTestId(
+      `mock-image:${baseReview.photos[0].photo_url}`,
+    );
+    await fireEvent(retriedPhoto, "error", { error: "Still unavailable" });
+    await screen.rerender(
+      <CommunityReviewCard
+        review={{
+          ...baseReview,
+          photos: [{ id: 30, photo_url: "https://example.com/replaced.jpg" }],
+        }}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(screen.getByLabelText("View review photo 1 of 1")).toBeTruthy();
+  });
+
+  it("falls back from failed business thumbnails and tries replacement URLs", async () => {
+    const screen = await render(<CommunityReviewCard review={baseReview} />);
+    const thumbnail = screen.getByTestId(
+      `mock-image:${baseReview.business.display_cover_photo_url}`,
+    );
+    await fireEvent(thumbnail, "error", { error: "Unavailable" });
+    expect(
+      screen.queryByTestId(
+        `mock-image:${baseReview.business.display_cover_photo_url}`,
+      ),
+    ).toBeNull();
+    expect(
+      screen.getByLabelText("Open Sugbo Kitchen business profile"),
+    ).toBeTruthy();
+
+    const replacementUrl = "https://example.com/replaced-cover.jpg";
+    await screen.rerender(
+      <CommunityReviewCard
+        review={{
+          ...baseReview,
+          business: {
+            ...baseReview.business,
+            display_cover_photo_url: replacementUrl,
+          },
+        }}
+      />,
+    );
+    expect(screen.getByTestId(`mock-image:${replacementUrl}`)).toBeTruthy();
+  });
+
+  it("falls back to the built-in avatar when a remote avatar fails", async () => {
+    const avatarUrl = "https://example.com/avatar.jpg";
+    const review = {
+      ...baseReview,
+      author: { ...baseReview.author, avatar_url: avatarUrl },
+    };
+    const screen = await render(<CommunityReviewCard review={review} />);
+    const avatar = screen.getByTestId(`mock-image:${avatarUrl}`);
+    await fireEvent(avatar, "error", { error: "Unavailable" });
+    expect(screen.getByTestId("mock-image:builtin").props.source).toBe(
+      resolveAvatarSource(review.author.avatar_key),
+    );
+
+    const replacementUrl = "https://example.com/replaced-avatar.jpg";
+    await screen.rerender(
+      <CommunityReviewCard
+        review={{
+          ...review,
+          author: { ...review.author, avatar_url: replacementUrl },
+        }}
+      />,
+    );
+    expect(screen.getByTestId(`mock-image:${replacementUrl}`)).toBeTruthy();
   });
 });

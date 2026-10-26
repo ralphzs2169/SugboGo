@@ -1,10 +1,12 @@
 import LottieView from "lottie-react-native";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
+import { hashKey } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
+import ExploreQueryNotice from "@/features/explore/components/ExploreQueryNotice";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
@@ -20,6 +22,7 @@ import CommunityFilterBottomSheet from "../components/CommunityFilterBottomSheet
 import CommunityHeader from "../components/CommunityHeader";
 import CommunityReviewCard from "../components/CommunityReviewCard";
 import { useCommunityReviews } from "../hooks/useCommunityReviews";
+import { communityReviewsKey } from "../hooks/communityReviewQueryKeys";
 import {
   DEFAULT_COMMUNITY_REVIEW_FILTERS,
   type CommunityReview,
@@ -61,7 +64,10 @@ export default function CommunityScreen() {
   const taxonomy = useExploreFilterOptions();
 
   useQueryErrorNotification({
-    error: community.error,
+    error:
+      community.reviews.length > 0 && !community.isFetchNextPageError
+        ? null
+        : community.error,
     toastId: "community-reviews",
     title: "Unable to load Community",
     fallbackMessage: "Please try again.",
@@ -98,6 +104,24 @@ export default function CommunityScreen() {
   );
 
   const displayedReviews = hasListError ? [] : reviews;
+  const hasRefreshError = Boolean(
+    community.error &&
+    !community.isFetchNextPageError &&
+    reviews.length > 0,
+  );
+
+  const applyFilters = (nextFilters: CommunityReviewFilters) => {
+    setFilters((current) => {
+      if (
+        hashKey(communityReviewsKey(current)) ===
+        hashKey(communityReviewsKey(nextFilters))
+      ) {
+        return current;
+      }
+
+      return nextFilters;
+    });
+  };
 
   const openFilters = () => presentBottomSheet(filterSheetRef);
 
@@ -176,8 +200,26 @@ export default function CommunityScreen() {
         keyExtractor={(review) => String(review.id)}
         renderItem={renderReview}
         ItemSeparatorComponent={FeedSeparator}
+        ListHeaderComponent={
+          hasRefreshError ? (
+            <ExploreQueryNotice
+              message="Couldn't refresh. Showing previously loaded reviews."
+              retryLabel="Retry refreshing Community reviews"
+              onRetry={community.refetch}
+            />
+          ) : null
+        }
         ListEmptyComponent={
-          community.isInitialLoading ? (
+          community.isPaused ? (
+            <View className="min-h-[420px]" testID="community-offline">
+              <ErrorState
+                title="You're offline"
+                description="Connect to the internet to load Community reviews, then try again."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => void community.refetch()}
+              />
+            </View>
+          ) : community.isInitialLoading ? (
             <CommunityFeedSkeleton />
           ) : hasListError ? (
             <View className="min-h-[420px]" testID="community-error">
@@ -188,11 +230,13 @@ export default function CommunityScreen() {
                 onPrimaryAction={() => void community.refetch()}
               />
             </View>
-          ) : (
+          ) : community.hasData && community.isSuccess ? (
             <CommunityEmptyState
               isFiltered={hasContentFilters}
               onClearFilters={clearContentFilters}
             />
+          ) : (
+            <CommunityFeedSkeleton />
           )
         }
         ListFooterComponent={
@@ -241,7 +285,7 @@ export default function CommunityScreen() {
         isLoading={taxonomy.isLoading}
         error={taxonomy.error}
         onRetry={() => void taxonomy.refetch()}
-        onApply={setFilters}
+        onApply={applyFilters}
       />
     </View>
   );
