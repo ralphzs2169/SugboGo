@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
+import colors from "tailwindcss/colors";
 import MerchantIllustration from "../../merchant/assets/illustrations/merchant-portal-no-shadow.svg";
 
 import { theme } from "@/constants/theme";
@@ -16,22 +17,26 @@ const STATUS_BADGE_CONFIG = {
   draft: {
     label: "Draft",
     icon: "pencil-outline" as const,
-    color: theme.extends.colors.brand,
+    color: colors.orange[700],
+    background: colors.orange[50],
   },
   submitted: {
     label: "Under Review",
     icon: "clock-outline" as const,
-    color: "#D97706",
+    color: colors.amber[800],
+    background: colors.amber[50],
   },
   rejected: {
     label: "Rejected",
     icon: "alert-circle-outline" as const,
-    color: theme.extends.colors.error,
+    color: colors.red[700],
+    background: colors.red[50],
   },
   approved: {
     label: "Approved",
     icon: "check-circle-outline" as const,
-    color: theme.extends.colors.success,
+    color: colors.green[700],
+    background: colors.green[50],
   },
 };
 
@@ -80,23 +85,26 @@ export default function MerchantPortalCard({
   const badge = status ? STATUS_BADGE_CONFIG[status] : null;
 
   return (
-    <View className="relative mt-6 rounded-l-[40px] rounded-r-md bg-[#ff860e]/90 p-4 mx-4">
+    <View className="relative mx-4 mb-1.5 mt-3 rounded-l-[40px] rounded-r-md bg-[#ff860e]/90 p-4">
       {badge && (
         <View
-          className="absolute -right-1 -top-3 z-10 flex-row items-center gap-1 rounded-full bg-white/95 px-2.5 py-1"
+          className="absolute -right-1 -top-3 z-10 flex-row items-center gap-1 rounded-full px-2.5 py-1"
           style={{
             shadowColor: "#000",
             shadowOffset: { width: 0, height: 1 },
             shadowOpacity: 0.12,
             shadowRadius: 2,
             elevation: 2,
-            backgroundColor: badge.color,
+            backgroundColor: badge.background,
+            borderColor: badge.color,
+            borderWidth: 1,
           }}
         >
-          <MaterialCommunityIcons name={badge.icon} size={12} color="white" />
+          <MaterialCommunityIcons name={badge.icon} size={12} color={badge.color} />
           <AppText
             weight="bold"
-            className="text-[10px] uppercase tracking-wide text-white"
+            className="text-[10px] uppercase tracking-wide"
+            style={{ color: badge.color }}
           >
             {badge.label}
           </AppText>

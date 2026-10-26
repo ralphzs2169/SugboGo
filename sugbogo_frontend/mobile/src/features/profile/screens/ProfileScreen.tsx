@@ -7,6 +7,7 @@ import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import ErrorState from "@/shared/components/ErrorState";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
 
 import AppVersion from "../components/AppVersion";
 import MerchantPortalCard from "../components/MerchantPortalCard";
@@ -25,6 +26,7 @@ import Toast from "react-native-toast-message";
  * exposes merchant onboarding status when merchant access is not yet active.
  */
 export default function ProfileScreen() {
+  const navigate = useNavigationAction();
   const user = useAuthStore((state) => state.user);
 
   const canAccessMerchantMode = user?.role === "merchant";
@@ -33,7 +35,9 @@ export default function ProfileScreen() {
 
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
 
-  const openLogoutConfirmation = useLogoutConfirmationStore((state) => state.open);
+  const openLogoutConfirmation = useLogoutConfirmationStore(
+    (state) => state.open,
+  );
 
   const {
     status: applicationStatus,
@@ -51,7 +55,7 @@ export default function ProfileScreen() {
   );
 
   const handleMerchantPortalPress = () => {
-    router.push("/profile/merchant-portal");
+    navigate(() => router.push("/profile/merchant-portal"));
   };
 
   const handleSwitchToMerchant = () => {
@@ -59,14 +63,16 @@ export default function ProfileScreen() {
       return;
     }
 
-    setIsSwitchingMode(true);
+    navigate(() => {
+      setIsSwitchingMode(true);
 
-    setActiveMode("merchant");
-    router.replace("/(merchant)/(tabs)/dashboard");
+      setActiveMode("merchant");
+      router.replace("/(merchant)/(tabs)/dashboard");
 
-    Toast.show({
-      type: "info",
-      text1: "Switched to Merchant Mode",
+      Toast.show({
+        type: "info",
+        text1: "Switched to Merchant Mode",
+      });
     });
   };
 
@@ -88,7 +94,9 @@ export default function ProfileScreen() {
             avatarUrl={user?.avatar_url ?? null}
             avatarKey={user?.avatar_key ?? null}
             role={user?.role ?? "explorer"}
-            onEditProfile={() => router.push("/profile/edit-profile")}
+            onEditProfile={() =>
+              navigate(() => router.push("/profile/edit-profile"))
+            }
           >
             <ProfileActivitySummary className="mt-2" />
           </ProfileHeader>
@@ -98,27 +106,35 @@ export default function ProfileScreen() {
             <ProfileMenuItem
               title="My Pockets"
               icon="bookmark-outline"
-              onPress={() => router.push("/profile/my-pockets")}
+              onPress={() => navigate(() => router.push("/profile/my-pockets"))}
             />
             <ProfileMenuItem
               title="My Vouches"
               icon="heart-outline"
-              onPress={() => router.push("/profile/vouch-history")}
+              onPress={() =>
+                navigate(() => router.push("/profile/vouch-history"))
+              }
             />
             <ProfileMenuItem
               title="My Reviews"
               icon="comment-text-outline"
-              onPress={() => router.push("/profile/reviews-submitted")}
+              onPress={() =>
+                navigate(() => router.push("/profile/reviews-submitted"))
+              }
             />
             <ProfileMenuItem
               title="Activity Timeline"
               icon="history"
-              onPress={() => router.push("/profile/activity-timeline")}
+              onPress={() =>
+                navigate(() => router.push("/profile/activity-timeline"))
+              }
             />
             <ProfileMenuItem
               title="My Interests"
               icon="tune-variant"
-              onPress={() => router.push("/profile/your-interests")}
+              onPress={() =>
+                navigate(() => router.push("/profile/your-interests"))
+              }
             />
           </ProfileMenuSection>
 
@@ -181,7 +197,9 @@ export default function ProfileScreen() {
             <ProfileMenuItem
               title="Account Settings"
               icon="account-cog-outline"
-              onPress={() => router.push("/profile/account-settings")}
+              onPress={() =>
+                navigate(() => router.push("/profile/account-settings"))
+              }
             />
 
             <ProfileMenuItem
@@ -193,19 +211,19 @@ export default function ProfileScreen() {
             <ProfileMenuItem
               title="Offline Storage"
               icon="database-outline"
-              onPress={() => router.push("/offline-storage")}
+              onPress={() => navigate(() => router.push("/offline-storage"))}
             />
 
             <ProfileMenuItem
               title="Privacy Policy"
               icon="shield-lock-outline"
-              onPress={() => router.push("/privacy-policy")}
+              onPress={() => navigate(() => router.push("/privacy-policy"))}
             />
 
             <ProfileMenuItem
               title="Contact Support"
               icon="headset"
-              onPress={() => router.push("/contact-support")}
+              onPress={() => navigate(() => router.push("/contact-support"))}
             />
           </ProfileMenuSection>
 
