@@ -258,30 +258,26 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "SugboGo uses application authentication, access restrictions, and storage mechanisms to help protect information.",
-      },
-      {
-        type: "paragraph",
-        text: "The audited implementation includes:",
+        text: "SugboGo uses sign-in checks, access restrictions, and storage features to help protect information. The reviewed code includes:",
       },
       {
         type: "list",
         ordered: false,
         items: [
-          "Authenticated backend endpoints",
-          "Account-specific access controls",
-          "SecureStore for certain mobile authentication credentials",
-          "Protected access to merchant verification documents",
-          "Session revocation mechanisms",
+          "Sign-in checks for protected app services",
+          "Access checks for information linked to an account",
+          "Storing some sign-in information using your device's secure storage",
+          "Restricted access to merchant verification documents",
+          "Ways to end existing sign-in sessions",
         ],
       },
       {
         type: "paragraph",
-        text: "Some offline information is stored locally on the user's device.",
+        text: "Some offline information is stored on your device.",
       },
       {
         type: "paragraph",
-        text: "These measures do not establish that every category of information is encrypted or protected against every possible security risk.",
+        text: "These measures do not mean that all information is encrypted or protected from every security risk.",
       },
     ],
   },
