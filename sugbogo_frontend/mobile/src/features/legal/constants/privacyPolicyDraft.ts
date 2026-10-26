@@ -240,23 +240,15 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "SugboGo includes automated systems that assist with review moderation, analysis, and summarization.",
+        text: "We use automated tools to help check and analyze reviews. Review text and photos you submit may be sent to external services to check for potentially unsuitable content.",
       },
       {
         type: "paragraph",
-        text: "Submitted review text and images may be processed by applicable moderation services.",
+        text: "Review analysis may produce summaries, keywords, and other insights.",
       },
       {
         type: "paragraph",
-        text: "Certain review information may also be analyzed to generate summaries, keywords, or other insights.",
-      },
-      {
-        type: "paragraph",
-        text: "SugboGo maintains mechanisms for reporting specific review concerns and for merchant review disputes.",
-      },
-      {
-        type: "paragraph",
-        text: "These mechanisms are separate from a general customer-support system.",
+        text: "You can report concerns about a review, and merchants can dispute reviews. These reporting and dispute features are separate from general customer support.",
       },
     ],
   },

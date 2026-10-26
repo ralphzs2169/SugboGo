@@ -57,7 +57,7 @@ const representativeContent = [
   "Support account management and security features.",
   "OpenAI for automatically checking review text and photos for potentially unsuitable content.",
   "Google Gemini for some review analysis, summaries, and merchant recommendations.",
-  "These mechanisms are separate from a general customer-support system.",
+  "You can report concerns about a review, and merchants can dispute reviews. These reporting and dispute features are separate from general customer support.",
   "These measures do not establish that every category of information is encrypted or protected against every possible security risk.",
   "This period does not apply to every category of personal information.",
   "Deactivation disables account access and revokes relevant sessions. It does not automatically erase all account information, contributions, or related business records.",
