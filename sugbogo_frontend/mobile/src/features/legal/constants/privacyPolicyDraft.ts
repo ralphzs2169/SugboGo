@@ -398,11 +398,11 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "SugboGo is currently a student-developed capstone/thesis project.",
+        text: "SugboGo is currently a student-developed capstone or thesis project.",
       },
       {
         type: "paragraph",
-        text: "The team must confirm the responsible person or organization and official privacy contact details before publishing this policy.",
+        text: "Before publishing this policy, the team must confirm the responsible person or organization and the official privacy contact details.",
       },
       {
         type: "paragraph",
@@ -410,7 +410,7 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "Users should not treat example or proposed email addresses as active support channels.",
+        text: "Do not treat example or proposed email addresses as working support contacts.",
       },
     ],
   },
