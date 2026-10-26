@@ -1,12 +1,30 @@
 import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
+import { Animated } from "react-native";
 
 import MSMEPreviewCard from "../MSMEPreviewCard";
-import type { MapDiscoveryBusiness } from "../../types/mapDiscovery.types";
+import type {
+  MapDiscoveryBusiness,
+  MapSearchBusinessIdentity,
+} from "../../types/mapDiscovery.types";
 
 jest.mock("@expo/vector-icons", () => ({
   MaterialCommunityIcons: () => null,
 }));
+
+jest.mock("@/shared/components/Skeleton", () => {
+  const React = jest.requireActual("react");
+  const { View } = jest.requireActual("react-native");
+  const Skeleton = jest.requireActual("@/shared/components/Skeleton").default;
+  return {
+    __esModule: true,
+    default: (props: React.ComponentProps<typeof Skeleton>) => (
+      <View testID="preview-skeleton">
+        <Skeleton {...props} />
+      </View>
+    ),
+  };
+});
 
 const business: MapDiscoveryBusiness = {
   id: 42,
@@ -127,3 +145,93 @@ it.each([false, undefined])(
     expect(screen.queryByText("Hidden Gem")).toBeNull();
   },
 );
+
+it("shows known provisional identity immediately, keeps Close available, and disables profile navigation", async () => {
+  const onClose = jest.fn();
+  const onViewBusiness = jest.fn();
+  const screen = await render(
+    <MSMEPreviewCard
+      business={business}
+      isProvisional
+      onClose={onClose}
+      onViewBusiness={onViewBusiness}
+    />,
+  );
+  expect(screen.getByText(business.business_name)).toBeTruthy();
+  expect(screen.getByText("Cafe")).toBeTruthy();
+  expect(screen.getByText("Cebu City, Cebu")).toBeTruthy();
+  expect(screen.getByText("Local Coffee")).toBeTruthy();
+  expect(screen.getByLabelText(`${business.business_name} cover photo`)).toBeTruthy();
+  expect(screen.queryAllByTestId("preview-skeleton")).toHaveLength(0);
+  expect(screen.queryByLabelText("Hidden Gem")).toBeNull();
+  await fireEvent.press(screen.getByRole("button", {
+    name: `View ${business.business_name} business profile`,
+    disabled: true,
+  }));
+  expect(onViewBusiness).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole("button", { name: "Close business preview" }));
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it("uses static shared skeletons only for unresolved metadata, then replaces them with confirmed content", async () => {
+  const animation = jest.spyOn(Animated, "loop");
+  const onViewBusiness = jest.fn();
+  const identity: MapSearchBusinessIdentity = {
+    id: business.id,
+    business_name: business.business_name,
+    location: {
+      latitude: business.location.latitude,
+      longitude: business.location.longitude,
+    },
+  };
+  const screen = await render(
+    <MSMEPreviewCard
+      business={identity}
+      isProvisional
+      onClose={jest.fn()}
+      onViewBusiness={onViewBusiness}
+    />,
+  );
+  expect(screen.getByText(identity.business_name)).toBeTruthy();
+  expect(screen.queryAllByTestId("preview-skeleton").length).toBeGreaterThan(0);
+  expect(screen.queryByText("Address unavailable")).toBeNull();
+  expect(screen.queryByLabelText("Business photo unavailable")).toBeNull();
+  expect(animation).not.toHaveBeenCalled();
+
+  await screen.rerender(
+    <MSMEPreviewCard
+      business={business}
+      onClose={jest.fn()}
+      onViewBusiness={onViewBusiness}
+    />,
+  );
+  expect(screen.queryAllByTestId("preview-skeleton")).toHaveLength(0);
+  expect(screen.getByText("Cafe")).toBeTruthy();
+  expect(screen.getByText("Cebu City, Cebu")).toBeTruthy();
+  expect(screen.getByText("Local Coffee")).toBeTruthy();
+  expect(screen.getByLabelText("Hidden Gem")).toBeTruthy();
+  await fireEvent.press(screen.getByRole("button", {
+    name: `View ${business.business_name} business profile`,
+    disabled: false,
+  }));
+  expect(onViewBusiness).toHaveBeenCalledTimes(1);
+  animation.mockRestore();
+});
+
+it("keeps explicitly absent Search photos and tags distinct from unresolved metadata", async () => {
+  const screen = await render(
+    <MSMEPreviewCard
+      business={{
+        ...business,
+        display_cover_photo_url: null,
+        cover_photo_url: null,
+        specialty_tags: [],
+      }}
+      isProvisional
+      onClose={jest.fn()}
+      onViewBusiness={jest.fn()}
+    />,
+  );
+  expect(screen.getByLabelText("Business photo unavailable")).toBeTruthy();
+  expect(screen.queryAllByTestId("preview-skeleton")).toHaveLength(0);
+});

@@ -13,6 +13,7 @@ import { theme } from "@/constants/theme";
 
 type Props = {
   className?: string;
+  animated?: boolean;
 };
 
 /**
@@ -20,14 +21,21 @@ type Props = {
  *
  * Moves a broad highlight using the native driver without moving the layout.
  * Keeps placeholders static for reduced motion and pauses in the background.
+ * Callers can explicitly disable shimmer without changing the shared appearance.
  */
-export default function Skeleton({ className = "" }: Props) {
+export default function Skeleton({
+  className = "",
+  animated = true,
+}: Props) {
   const [progress] = useState(() => new Animated.Value(0));
   const [width, setWidth] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(true);
   const [isActive, setIsActive] = useState(AppState.currentState === "active");
 
   useEffect(() => {
+    if (!animated) {
+      return;
+    }
     let mounted = true;
     let receivedChange = false;
     const motionSubscription = AccessibilityInfo.addEventListener(
@@ -56,10 +64,10 @@ export default function Skeleton({ className = "" }: Props) {
       motionSubscription.remove();
       appSubscription.remove();
     };
-  }, []);
+  }, [animated]);
 
   useEffect(() => {
-    if (reduceMotion || !isActive || width === 0) {
+    if (!animated || reduceMotion || !isActive || width === 0) {
       return;
     }
 
@@ -82,7 +90,7 @@ export default function Skeleton({ className = "" }: Props) {
     return () => {
       animation.stop();
     };
-  }, [isActive, progress, reduceMotion, width]);
+  }, [animated, isActive, progress, reduceMotion, width]);
 
   // A wide, feathered highlight avoids a sharp stripe on large photo placeholders.
   const highlightWidth = width * 1.4;
@@ -91,14 +99,18 @@ export default function Skeleton({ className = "" }: Props) {
     <View
       className={`bg-border-primary ${className}`}
       style={styles.container}
-      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      onLayout={
+        animated
+          ? (event) => setWidth(event.nativeEvent.layout.width)
+          : undefined
+      }
       accessible={false}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       pointerEvents="none"
     >
       {/* The highlight starts and ends outside the clipped placeholder. */}
-      {!reduceMotion && isActive && width > 0 && (
+      {animated && !reduceMotion && isActive && width > 0 && (
         <Animated.View
           style={[
             styles.highlight,

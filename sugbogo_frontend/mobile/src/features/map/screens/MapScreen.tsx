@@ -43,6 +43,7 @@ import {
   DEFAULT_MAP_FILTERS,
   type MapBounds,
   type MapDiscoveryFilters,
+  type MapSearchBusinessIdentity,
 } from "../types/mapDiscovery.types";
 
 /**
@@ -77,6 +78,7 @@ export default function MapScreen() {
     id: number;
     latitude: number;
     longitude: number;
+    identity: MapSearchBusinessIdentity;
   } | null>(null);
   const destination = useRef<{
     latitude: number;
@@ -257,6 +259,14 @@ export default function MapScreen() {
   const selectedBusiness = displayedBusinesses.find(
     (business) => business.id === selectedBusinessId,
   );
+  const provisionalBusiness =
+    !selectedBusiness &&
+    searchTarget !== null &&
+    searchTarget.id === selectedBusinessId &&
+    !discovery.selectionResolved
+      ? searchTarget.identity
+      : undefined;
+  const previewBusiness = selectedBusiness ?? provisionalBusiness;
   const {
     viewportRef,
     previewRef,
@@ -269,6 +279,13 @@ export default function MapScreen() {
     headerBottom,
     headerBottom > 0 && !searchSheetVisible && !filterSheetVisible,
   );
+
+  // Confirmation can keep the same card geometry, so it may not emit onLayout.
+  useEffect(() => {
+    if (selectedBusiness && searchTarget?.id === selectedBusiness.id) {
+      measurePreview();
+    }
+  }, [measurePreview, searchTarget?.id, selectedBusiness]);
 
   // Reset vanished IDs before rendering so a later response cannot reopen them.
   if (
@@ -333,6 +350,35 @@ export default function MapScreen() {
       id: business.id,
       latitude: business.location.latitude,
       longitude: business.location.longitude,
+      identity: {
+        id: business.id,
+        business_name: business.business_name,
+        display_cover_photo_url: business.display_cover_photo_url,
+        cover_photo_url: business.cover_photo_url,
+        cluster: business.cluster
+          ? {
+              id: business.cluster.id,
+              name: business.cluster.name,
+              icon: business.cluster.icon,
+            }
+          : undefined,
+        category: business.category
+          ? { id: business.category.id, name: business.category.name }
+          : undefined,
+        location: {
+          address: business.location.address,
+          city: business.location.city,
+          province: business.location.province,
+          latitude: business.location.latitude,
+          longitude: business.location.longitude,
+        },
+        specialty_tags: business.specialty_tags?.map((tag) => ({
+          id: tag.id,
+          name: tag.name,
+          color: tag.color,
+          icon: tag.icon,
+        })),
+      },
     });
     destination.current = {
       latitude: business.location.latitude,
@@ -528,14 +574,14 @@ export default function MapScreen() {
           discovery={discovery}
           filterCount={filterCount}
           openNowRequested={filters.openNow}
-          hasSelectedBusiness={selectedBusiness !== undefined}
+          hasSelectedBusiness={previewBusiness !== undefined}
         />
       </MapSearchOverlay>
       <MapControls
         onLocateMe={() => void locateMe()}
         isLocating={userLocation.isRefreshingLocation}
         bottomOffset={
-          selectedBusiness ? bottomSpacing + previewHeight + 12 : bottomSpacing
+          previewBusiness ? bottomSpacing + previewHeight + 12 : bottomSpacing
         }
       />
 
@@ -565,13 +611,6 @@ export default function MapScreen() {
               />
             </View>
           )}
-          {searchTarget && discovery.isLoadingSelection && !targetBusiness && (
-            <View className="rounded-card bg-surface p-md">
-              <AppText className="text-sm text-text-secondary">
-                Loading selected business…
-              </AppText>
-            </View>
-          )}
           {discovery.selectionError && (
             <View className="rounded-card bg-surface">
               <ErrorState
@@ -597,23 +636,24 @@ export default function MapScreen() {
         </View>
 
         {/* Full-width preview owns no camera or server state. */}
-        {selectedBusiness && (
+        {previewBusiness && (
           <View
-            key={selectedBusiness.id}
+            key={previewBusiness.id}
             ref={previewRef}
             collapsable={false}
             testID="business-preview-anchor"
             onLayout={(event) => {
               setPreviewLayout({
-                id: selectedBusiness.id,
+                id: previewBusiness.id,
                 height: event.nativeEvent.layout.height,
               });
               measurePreview();
             }}
           >
             <MSMEPreviewCard
-              key={selectedBusiness.id}
-              business={selectedBusiness}
+              key={previewBusiness.id}
+              business={previewBusiness}
+              isProvisional={selectedBusiness === undefined}
               onClose={clearSelection}
               onViewBusiness={viewBusiness}
               onIdentityGeometryChange={onIdentityGeometryChange}

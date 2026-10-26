@@ -600,10 +600,10 @@ it("falls back to a global compact lookup for a result missing from the cached d
     "businessSelect",
     target,
   );
-  await waitFor(() => expect(screen.getByText("Distant Cafe")).toBeTruthy());
-  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(
-    900,
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(900),
   );
+  expect(screen.getByText("Distant Cafe")).toBeTruthy();
   expect(getMapDirectoryPage).toHaveBeenLastCalledWith(1, expect.anything(), {
     businessId: 900,
   });
@@ -640,6 +640,9 @@ it("ignores an older selection response", async () => {
   await waitFor(() =>
     expect(screen.getByText("Latest Selection")).toBeTruthy(),
   );
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(901),
+  );
   await act(async () => finishOld(response([{ ...business, id: 900 }])));
   expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(
     901,
@@ -673,6 +676,10 @@ it("retries a failed selection lookup without repeating camera focus", async () 
   await waitFor(() =>
     expect(screen.getByText("Could not load selected business")).toBeTruthy(),
   );
+  expect(screen.getByRole("button", {
+    name: "View Recovered Selection business profile",
+    disabled: true,
+  })).toBeTruthy();
   await fireEvent(screen.getByTestId("discovery-map"), "focusStart");
   await fireEvent(
     screen.getByTestId("discovery-map"),
@@ -686,15 +693,23 @@ it("retries a failed selection lookup without repeating camera focus", async () 
     }),
   );
   await waitFor(() =>
-    expect(screen.getByText("Recovered Selection")).toBeTruthy(),
+    expect(screen.getByRole("button", {
+      name: "View Recovered Selection business profile",
+      disabled: false,
+    })).toBeTruthy(),
   );
   expect(screen.getByTestId("discovery-map").props.focusTarget).toBeNull();
 });
 
 it("clears a search selection when the server says the business is unavailable", async () => {
+  const pending = deferredDirectoryResponse();
   (getMapDirectoryPage as jest.Mock).mockImplementation(
-    async (_page, _signal, options) =>
-      response(options.businessId ? [] : [business]),
+    (_page, _signal, options) => {
+      if (options.businessId) {
+        return pending.promise;
+      }
+      return Promise.resolve(response());
+    },
   );
   const screen = await setup();
   await waitFor(() =>
@@ -705,7 +720,14 @@ it("clears a search selection when the server says the business is unavailable",
   await fireEvent(screen.getByTestId("map-search-sheet"), "businessSelect", {
     ...business,
     id: 900,
+    business_name: "Unavailable Search Cafe",
   });
+  expect(screen.getByText("Unavailable Search Cafe")).toBeTruthy();
+  expect(screen.getByRole("button", {
+    name: "View Unavailable Search Cafe business profile",
+    disabled: true,
+  })).toBeTruthy();
+  await act(async () => pending.resolve(response([])));
   await waitFor(() =>
     expect(
       screen.getByText(/This business is no longer available/),
@@ -715,6 +737,198 @@ it("clears a search selection when the server says the business is unavailable",
     screen.getByTestId("discovery-map").props.selectedBusinessId,
   ).toBeNull();
   expect(screen.getByTestId("discovery-map").props.focusTarget).toBeNull();
+  expect(screen.queryByText("Unavailable Search Cafe")).toBeNull();
+  expect(screen.queryByTestId("business-preview-anchor")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+});
+
+it("shows Search identity immediately without promoting it into Map or profile data", async () => {
+  const pending = deferredDirectoryResponse();
+  const searchBusiness = {
+    ...business,
+    id: 900,
+    business_name: "Search Cafe",
+    display_cover_photo_url: "https://example.com/search.jpg",
+    is_hidden_gem: true,
+    is_pocketed: true,
+    review_count: 999,
+  };
+  const confirmedBusiness = {
+    ...business,
+    id: 900,
+    business_name: "Confirmed Cafe",
+    display_cover_photo_url: "https://example.com/confirmed.jpg",
+    category: { id: 8, name: "Bakery" },
+    location: { ...business.location, city: "Mandaue City" },
+    specialty_tags: [
+      { id: 9, name: "Confirmed Pastries", color: "yellow", icon: "cake" },
+    ],
+  };
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.businessId) {
+        return pending.promise;
+      }
+      return Promise.resolve(response());
+    },
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  await fireEvent(screen.getByTestId("map-search-sheet"), "businessSelect", searchBusiness);
+  expect(screen.getByText("Search Cafe")).toBeTruthy();
+  expect(screen.getByText("Cafe")).toBeTruthy();
+  expect(screen.getByText("Cebu City, Cebu")).toBeTruthy();
+  expect(screen.getByText("Local Coffee")).toBeTruthy();
+  expect(screen.getByLabelText("Search Cafe cover photo").props.source[0]).toEqual({
+    uri: searchBusiness.display_cover_photo_url,
+  });
+  expect(screen.queryByText("Loading selected business…")).toBeNull();
+  expect(screen.queryByLabelText("Hidden Gem")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBeNull();
+  await waitFor(() => expect(getMapDirectoryPage).toHaveBeenCalledTimes(2));
+  expect(getMapDirectoryPage).toHaveBeenLastCalledWith(1, expect.anything(), {
+    businessId: 900,
+  });
+  const client = clients[clients.length - 1];
+  expect(client.getQueryData(["explore-business-detail", 900])).toBeUndefined();
+  expect(client.getQueryData([...MAP_DIRECTORY_QUERY_KEY, "business", 900])).toBeUndefined();
+  expect(client.getQueryData([...MAP_DIRECTORY_QUERY_KEY, "all"])).toEqual([business]);
+  await fireEvent.press(screen.getByRole("button", {
+    name: "View Search Cafe business profile",
+    disabled: true,
+  }));
+  expect(router.push).not.toHaveBeenCalled();
+
+  await act(async () => pending.resolve(response([confirmedBusiness])));
+  await waitFor(() =>
+    expect(screen.getByRole("button", {
+      name: "View Confirmed Cafe business profile",
+      disabled: false,
+    })).toBeTruthy(),
+  );
+  expect(screen.queryByText("Search Cafe")).toBeNull();
+  expect(screen.getByText("Bakery")).toBeTruthy();
+  expect(screen.getByText("Mandaue City, Cebu")).toBeTruthy();
+  expect(screen.getByText("Confirmed Pastries")).toBeTruthy();
+  expect(screen.queryByText("Local Coffee")).toBeNull();
+  expect(screen.getByLabelText("Confirmed Cafe cover photo").props.source[0]).toEqual({
+    uri: confirmedBusiness.display_cover_photo_url,
+  });
+  expect(client.getQueryData(["explore-business-detail", 900])).toBeUndefined();
+  const viewBusiness = screen.getByRole("button", {
+    name: "View Confirmed Cafe business profile",
+  });
+  await fireEvent.press(viewBusiness);
+  await fireEvent.press(viewBusiness);
+  expect(router.push).toHaveBeenCalledTimes(1);
+  expect(router.push).toHaveBeenCalledWith({
+    pathname: "/(explorer)/business/[businessId]",
+    params: { businessId: "900", profileSource: "MAP" },
+  });
+});
+
+it("closes a pending Search preview, ignores its late response, and preserves ordinary marker selection", async () => {
+  const pending = deferredDirectoryResponse();
+  const searchBusiness = { ...business, id: 900, business_name: "Pending Search Cafe" };
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.businessId) {
+        return pending.promise;
+      }
+      return Promise.resolve(response());
+    },
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  await fireEvent(screen.getByTestId("map-search-sheet"), "businessSelect", searchBusiness);
+  await waitFor(() => expect(getMapDirectoryPage).toHaveBeenCalledTimes(2));
+  expect(screen.getByText(searchBusiness.business_name)).toBeTruthy();
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+  expect(screen.getByText(searchBusiness.business_name)).toBeTruthy();
+  await fireEvent.press(screen.getByRole("button", { name: "Close business preview" }));
+  expect(screen.queryByTestId("business-preview-anchor")).toBeNull();
+  expect(screen.getByRole("button", { name: "Open Now" })).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.focusTarget).toBeNull();
+  await act(async () => pending.resolve(response([searchBusiness])));
+  expect(screen.queryByText(searchBusiness.business_name)).toBeNull();
+  expect(screen.queryByTestId("business-preview-anchor")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBeNull();
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  expect(screen.getByText(business.business_name)).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+  expect(screen.getByRole("button", {
+    name: `View ${business.business_name} business profile`,
+    disabled: false,
+  })).toBeTruthy();
+  expect(getMapDirectoryPage).toHaveBeenCalledTimes(2);
+});
+
+it("keeps C selected for Search A → B → C responses completing C → A → B", async () => {
+  const requests = new Map([
+    [900, deferredDirectoryResponse()],
+    [901, deferredDirectoryResponse()],
+    [902, deferredDirectoryResponse()],
+  ]);
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.businessId) {
+        return requests.get(options.businessId)!.promise;
+      }
+      return Promise.resolve(response());
+    },
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  for (const id of [900, 901, 902]) {
+    await fireEvent(screen.getByTestId("map-search-sheet"), "businessSelect", {
+      ...business,
+      id,
+      business_name: `Search ${id}`,
+    });
+    expect(screen.getByText(`Search ${id}`)).toBeTruthy();
+    expect(screen.getByRole("button", {
+      name: `View Search ${id} business profile`,
+      disabled: true,
+    })).toBeTruthy();
+    await waitFor(() =>
+      expect(getMapDirectoryPage).toHaveBeenLastCalledWith(1, expect.anything(), {
+        businessId: id,
+      }),
+    );
+  }
+  await act(async () => requests.get(902)!.resolve(response([
+    { ...business, id: 902, business_name: "Confirmed C" },
+  ])));
+  await waitFor(() =>
+    expect(screen.getByRole("button", {
+      name: "View Confirmed C business profile",
+      disabled: false,
+    })).toBeTruthy(),
+  );
+  await act(async () => requests.get(900)!.resolve(response([
+    { ...business, id: 900, business_name: "Late A" },
+  ])));
+  expect(screen.getByText("Confirmed C")).toBeTruthy();
+  expect(screen.queryByText("Late A")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(902);
+  await act(async () => requests.get(901)!.resolve(response([
+    { ...business, id: 901, business_name: "Late B" },
+  ])));
+  expect(screen.getByText("Confirmed C")).toBeTruthy();
+  expect(screen.queryByText("Late B")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(902);
+  expect(screen.getByRole("button", {
+    name: "View Confirmed C business profile",
+    disabled: false,
+  })).toBeTruthy();
+  expect(router.push).not.toHaveBeenCalled();
 });
 
 it.each(["denied", "unavailable"])(

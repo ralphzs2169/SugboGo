@@ -1,4 +1,5 @@
 import type {
+  ExploreBusiness,
   ExploreBusinessCategory,
   ExploreBusinessCluster,
   ExploreBusinessLocation,
@@ -44,6 +45,22 @@ export type MapDiscoveryBusiness = {
     icon: string | null;
   }[];
   is_hidden_gem: boolean;
+};
+
+/** Selection-local identity only; never substitutes for compact eligibility data. */
+export type MapSearchBusinessIdentity = Pick<
+  ExploreBusiness,
+  "id" | "business_name"
+> & Partial<
+  Pick<
+    ExploreBusiness,
+    "cover_photo_url" | "display_cover_photo_url" | "cluster" | "category"
+  >
+> & {
+  location: Pick<ExploreBusinessLocation, "latitude" | "longitude"> & Partial<
+    Pick<ExploreBusinessLocation, "address" | "city" | "province">
+  >;
+  specialty_tags?: MapDiscoveryBusiness["specialty_tags"];
 };
 
 export type MapDiscoveryResponse = {
