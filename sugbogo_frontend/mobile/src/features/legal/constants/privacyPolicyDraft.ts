@@ -42,7 +42,7 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "Depending on the features used, SugboGo processes different types of information.",
+        text: "What SugboGo collects and uses depends on the features you use.",
       },
       {
         type: "subheading",
@@ -50,7 +50,7 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "When users register or manage an account, SugboGo processes information such as:",
+        text: "When you register or manage your account, we use information such as:",
       },
       {
         type: "list",
@@ -58,19 +58,15 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
         items: [
           "First and last name",
           "Email address",
-          "Password credentials",
-          "Optional profile information",
+          "Password information",
+          "Optional profile details",
           "Profile picture",
           "Account preferences and selected interests",
         ],
       },
       {
         type: "paragraph",
-        text: "SugboGo also maintains account identifiers, verification status, roles, and security-related records.",
-      },
-      {
-        type: "paragraph",
-        text: "Passwords are handled through the application's authentication framework rather than stored as readable account passwords.",
+        text: "We also keep account IDs, whether your account is verified, your account type, and security records. Our sign-in system checks passwords without storing readable copies.",
       },
       {
         type: "subheading",
@@ -78,15 +74,11 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "SugboGo includes email-based authentication and integrations for Google and Facebook sign-in.",
+        text: "You can sign in with email, Google, or Facebook. Depending on the method, we may receive your provider account ID, name, email address, and profile-picture link.",
       },
       {
         type: "paragraph",
-        text: "Depending on the authentication method, the application may process provider account identifiers, names, email addresses, and profile-image references.",
-      },
-      {
-        type: "paragraph",
-        text: "Security-related login records may contain login timestamps, authentication methods, login outcomes, IP addresses, and classified client or platform information.",
+        text: "Security records may include the sign-in attempt time, method, whether it succeeded, IP address, and app, browser, or operating system type.",
       },
       {
         type: "subheading",
@@ -94,19 +86,15 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "SugboGo requests foreground location permission for features such as business exploration and maps.",
+        text: "We ask permission to use your location while you use the app to find nearby businesses, show maps, plan routes, and provide navigation.",
       },
       {
         type: "paragraph",
-        text: "Depending on the feature, location coordinates may be processed to help users discover nearby businesses, obtain routes, and access navigation-related services.",
+        text: "Some map and route features may share location information with external map services to provide these features.",
       },
       {
         type: "paragraph",
-        text: "Some mapping and routing operations involve external service providers.",
-      },
-      {
-        type: "paragraph",
-        text: "The repository audit did not identify a general background-location-tracking implementation.",
+        text: "During our code review, we did not find a feature designed to track your location while the app is running in the background.",
       },
       {
         type: "subheading",
@@ -114,27 +102,27 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "When users interact with businesses, SugboGo may process:",
+        text: "When you interact with businesses, we may use:",
       },
       {
         type: "list",
         ordered: false,
         items: [
-          "Review text and photographs",
-          "Review visibility preferences",
+          "Review text and photos",
+          "Your choice about showing a review in the Community feed",
           "Specialty vouches",
           "Saved businesses and Pocket collections",
-          "Associated account and business identifiers",
-          "Relevant timestamps and interaction records",
+          "Account and business IDs linked to these activities",
+          "Activity times and interaction records",
         ],
       },
       {
         type: "paragraph",
-        text: "Certain review information, including author identity details, may be visible to other authenticated application users.",
+        text: "Other signed-in users may see published review information, including the author's name and profile details.",
       },
       {
         type: "paragraph",
-        text: "Pocket collections are handled through user-scoped application interfaces.",
+        text: "Your Pocket collections are linked to your signed-in account and managed through the app's Pocket features.",
       },
       {
         type: "subheading",
@@ -142,15 +130,7 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "SugboGo processes selected interests and certain business interactions to support personalized discovery and recommendations.",
-      },
-      {
-        type: "paragraph",
-        text: "These activities may include saved businesses, specialty vouches, business profile visits, and route-planning interactions.",
-      },
-      {
-        type: "paragraph",
-        text: "Some engagement records are maintained in backend analytics systems.",
+        text: "We use selected interests and business interactions to personalize discovery and recommendations. These may include saved businesses, specialty vouches, profile visits, and route planning. Some interactions linked to accounts are stored to measure app activity.",
       },
       {
         type: "subheading",
@@ -158,7 +138,7 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "Merchant-related features may process:",
+        text: "Merchant features may use:",
       },
       {
         type: "list",
@@ -166,7 +146,7 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
         items: [
           "Business representative information",
           "Business contact details and locations",
-          "Business descriptions and photographs",
+          "Business descriptions and photos",
           "Merchant application information",
           "Verification documents",
           "Application review and moderation records",
@@ -174,7 +154,7 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "Certain approved business details may be displayed through the application. Merchant application information and verification documents are handled through separate workflows.",
+        text: "Some approved business details may appear in the app. Applications and verification documents are handled separately through registration and review.",
       },
       {
         type: "subheading",
@@ -182,15 +162,15 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "SugboGo generates an application installation identifier for certain contribution and abuse-prevention processes.",
+        text: "We create an app installation ID to help check some contributions and identify possible misuse.",
       },
       {
         type: "paragraph",
-        text: "The audited implementation did not establish collection of a hardware-specific device identifier.",
+        text: "The code review did not confirm collection of an ID tied to the device's hardware.",
       },
       {
         type: "paragraph",
-        text: "The application also uses device storage for authentication credentials, onboarding information, pending verification details, and certain offline business and journey information.",
+        text: "Your device stores sign-in details, first-time setup information, pending verification details, and some offline business and journey information.",
       },
       {
         type: "paragraph",
