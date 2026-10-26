@@ -287,23 +287,19 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "Information is stored through different application features and backend systems.",
+        text: "Different app features and server systems store information.",
       },
       {
         type: "paragraph",
-        text: "The current implementation includes a 90-day login-history setting and a scheduled cleanup mechanism for eligible login records.",
+        text: "Login history has a 90-day setting, measured from when each sign-in record is created. An automated cleanup task is configured to delete older login records, but its operation in the final release still needs confirmation. This period does not apply to all personal information.",
       },
       {
         type: "paragraph",
-        text: "This period does not apply to every category of personal information.",
+        text: "Account records, contributions, merchant documents, moderation records, app activity, offline copies, and backups may be kept and removed differently.",
       },
       {
         type: "paragraph",
-        text: "Account records, contributions, merchant documents, moderation information, engagement records, offline copies, and backups may have different storage and cleanup behavior.",
-      },
-      {
-        type: "paragraph",
-        text: "Exact retention periods and deletion commitments require team confirmation before an official policy is published.",
+        text: "Before publishing an official policy, the team must confirm how long each type of information is kept and what will be deleted.",
       },
     ],
   },
