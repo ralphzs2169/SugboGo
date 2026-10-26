@@ -42,7 +42,9 @@ const expectedSubheadings = [
 ];
 
 const representativeContent = [
-  "SugboGo is a student-developed mobile application designed to help users discover local businesses, explore their specialties, share experiences, and support local establishments.",
+  "SugboGo is a student-developed mobile app that helps you discover local businesses, explore their specialties, share experiences, and support them.",
+  "We aim to explain clearly how SugboGo collects, uses, stores, and shares your personal information.",
+  "This draft explains what personal information SugboGo handles, why it is used, and the choices available to you.",
   "Passwords are handled through the application's authentication framework rather than stored as readable account passwords.",
   "Security-related login records may contain login timestamps, authentication methods, login outcomes, IP addresses, and classified client or platform information.",
   "The repository audit did not identify a general background-location-tracking implementation.",

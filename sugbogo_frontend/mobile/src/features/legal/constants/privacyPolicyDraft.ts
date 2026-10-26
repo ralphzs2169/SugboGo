@@ -24,15 +24,15 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
       },
       {
         type: "paragraph",
-        text: "SugboGo is a student-developed mobile application designed to help users discover local businesses, explore their specialties, share experiences, and support local establishments.",
+        text: "SugboGo is a student-developed mobile app that helps you discover local businesses, explore their specialties, share experiences, and support them.",
       },
       {
         type: "paragraph",
-        text: "We recognize the importance of protecting personal information and being transparent about how information is collected, used, stored, and shared when users interact with the application.",
+        text: "We aim to explain clearly how SugboGo collects, uses, stores, and shares your personal information.",
       },
       {
         type: "paragraph",
-        text: "This draft explains the personal information processed through SugboGo, the purposes of that processing, and the controls currently available to users.",
+        text: "This draft explains what personal information SugboGo handles, why it is used, and the choices available to you.",
       },
     ],
   },
