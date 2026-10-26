@@ -9,8 +9,38 @@ import {
   fetchTransitPoints,
   fetchTransitTransfer,
   fetchTransitTransfers,
+  fetchTransitPointReferences,
+  fetchRouteVariantReferences,
 } from "../services/transitNetworkService";
 import { transitQueryKeys } from "./transitQueryKeys";
+
+/** Cache complete references separately and hide stale results after a failed refresh. */
+function useTransitReferences({ queryKey, queryFn, enabled = true }) {
+  const query = useQuery({ queryKey, queryFn, enabled });
+  return {
+    items: query.error ? [] : query.data ?? [],
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+export function useTransitPointReferences(options = {}) {
+  return useTransitReferences({
+    queryKey: transitQueryKeys.transitPointReferences(),
+    queryFn: ({ signal }) => fetchTransitPointReferences({ signal }),
+    enabled: options.enabled,
+  });
+}
+
+export function useRouteVariantReferences(options = {}) {
+  return useTransitReferences({
+    queryKey: transitQueryKeys.variantReferences(),
+    queryFn: ({ signal }) => fetchRouteVariantReferences({ signal }),
+    enabled: options.enabled,
+  });
+}
 
 function usePaginatedTransitQuery({ queryKey, queryFn, enabled = true }) {
   const query = useQuery({

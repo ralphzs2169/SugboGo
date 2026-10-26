@@ -139,6 +139,7 @@ export default function TransitNetworkMapCanvas({
   transferDestinationVariant,
   focusRequest,
   referenceLayerError,
+  referenceLayerLoading,
   isFullscreen,
   onVariantSelect,
   onTransitPointSelect,
@@ -523,6 +524,16 @@ export default function TransitNetworkMapCanvas({
           </MapControl>
         )}
 
+        {referenceLayerLoading && !referenceLayerError && (
+          <MapControl position={ControlPosition.TOP_RIGHT}>
+            <p
+              role="status"
+              className="m-3 rounded-lg border border-stroke bg-background/95 px-3 py-2 text-xs text-text-secondary shadow-md"
+            >
+              Loading all map references…
+            </p>
+          </MapControl>
+        )}
         {referenceLayerError && (
           <MapControl position={ControlPosition.TOP_RIGHT}>
             <div

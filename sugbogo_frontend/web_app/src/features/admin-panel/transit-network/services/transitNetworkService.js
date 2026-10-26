@@ -1,4 +1,5 @@
 import apiClient from "@/shared/api/apiClient";
+import { loadTransitReferences } from "./loadTransitReferences";
 
 const BASE_URL = "/admin/transit/";
 
@@ -33,9 +34,10 @@ export async function updateJeepneyRoute(routeId, data) {
   return unwrapData(response);
 }
 
-export async function fetchRouteVariants(params = {}) {
+export async function fetchRouteVariants(params = {}, { signal } = {}) {
   const response = await apiClient.get(`${BASE_URL}route-variants/`, {
     params,
+    signal,
   });
 
   return unwrapData(response);
@@ -64,12 +66,23 @@ export async function updateRouteVariant(variantId, data) {
   return unwrapData(response);
 }
 
-export async function fetchTransitPoints(params = {}) {
+export async function fetchTransitPoints(params = {}, { signal } = {}) {
   const response = await apiClient.get(`${BASE_URL}transit-points/`, {
     params,
+    signal,
   });
 
   return unwrapData(response);
+}
+
+/** Load every stop page for route editing without changing browser-list pagination. */
+export function fetchTransitPointReferences(options = {}) {
+  return loadTransitReferences(fetchTransitPoints, options);
+}
+
+/** Load every direction page for map reference layers and transfer selectors. */
+export function fetchRouteVariantReferences(options = {}) {
+  return loadTransitReferences(fetchRouteVariants, options);
 }
 
 export async function fetchTransitPoint(transitPointId) {
