@@ -21,10 +21,16 @@ export default function SpecialtyTagsSection() {
     control,
     setValue,
     clearErrors,
-    formState: { errors },
+    formState: { errors, disabled },
   } = useFormContext<MerchantRegistrationForm>();
 
   const specialtyTagsSheetRef = useRef<BottomSheetModal>(null);
+
+  useEffect(() => {
+    if (disabled) {
+      specialtyTagsSheetRef.current?.dismiss();
+    }
+  }, [disabled]);
 
   const selectedTags = useWatch({
     control,
@@ -99,6 +105,7 @@ export default function SpecialtyTagsSection() {
    * allowing the user to continue making their selection.
    */
   const handleTagSelection = (nextTags: number[]) => {
+    if (disabled) return;
     setValue("specialtyTags", nextTags, {
       shouldDirty: true,
       shouldValidate: false,
@@ -113,6 +120,7 @@ export default function SpecialtyTagsSection() {
    * selection as the temporary draft.
    */
   const handleOpenSheet = () => {
+    if (disabled) return;
     setDraftSelectedTags(selectedTags);
     specialtyTagsSheetRef.current?.present();
     Keyboard.dismiss();
@@ -125,6 +133,7 @@ export default function SpecialtyTagsSection() {
    * Validation is deferred until the user attempts to continue.
    */
   const handleDraftToggle = (tagId: number) => {
+    if (disabled) return;
     clearErrors("specialtyTags");
 
     setDraftSelectedTags((current) => {
@@ -145,6 +154,7 @@ export default function SpecialtyTagsSection() {
    * when the sheet is dismissed.
    */
   const handleSheetClose = () => {
+    if (disabled) return;
     setValue("specialtyTags", draftSelectedTags, {
       shouldDirty: true,
       shouldValidate: false,
@@ -175,7 +185,8 @@ export default function SpecialtyTagsSection() {
               }
 
               const isSelected = selectedTags.includes(tag.id);
-              const isDisabled = !isSelected && selectedTags.length >= 3;
+              const isDisabled =
+                disabled || (!isSelected && selectedTags.length >= 3);
 
               return (
                 <SpecialtyTagChip
@@ -202,7 +213,7 @@ export default function SpecialtyTagsSection() {
               {selectedTags.length} of 3 selected
             </Text>
 
-            <Pressable onPress={handleOpenSheet}>
+            <Pressable onPress={handleOpenSheet} disabled={disabled}>
               <Text className="text-sm font-semibold text-brand">
                 See all tags
               </Text>

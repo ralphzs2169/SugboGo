@@ -17,6 +17,7 @@ import type {
 import { ApiError } from "@/shared/types/apiResponse.types";
 
 type RegistrationStepContentProps = {
+  reviewValues?: React.ComponentProps<typeof ReviewSubmitStep>["values"];
   application?: ApplicationDetailResponse | null;
   currentStep: number;
   clusters: ClusterOption[];
@@ -37,6 +38,7 @@ type RegistrationStepContentProps = {
 
 export default function RegistrationStepContent({
   application = null,
+  reviewValues,
   currentStep,
   clusters,
   categories,
@@ -99,6 +101,7 @@ export default function RegistrationStepContent({
     case 6:
       return (
         <ReviewSubmitStep
+          values={reviewValues}
           application={application}
           clusters={clusters}
           categories={categories}

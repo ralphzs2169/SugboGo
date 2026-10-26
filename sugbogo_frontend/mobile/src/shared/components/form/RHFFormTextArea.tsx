@@ -28,8 +28,12 @@ export default function RHFFormTextArea({
       render={({ field, fieldState }) => (
         <FormTextArea
           {...props}
+          editable={props.editable !== false && !field.disabled}
           value={field.value}
           onChangeText={(value) => {
+            if (field.disabled) {
+              return;
+            }
             field.onChange(value);
             clearErrors(name);
           }}

@@ -1,12 +1,13 @@
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import PhotoPreview from "./PhotoPreview";
 import { pickBusinessPhotos } from "./PhotoPicker";
 import type { BusinessPhoto } from "@/features/merchant/types/registration/registrationOption.types";
 import { theme } from "@/constants/theme";
 
 type PhotoGridProps = {
+  disabled?: boolean;
   photos: BusinessPhoto[];
   maxPhotos: number;
   required?: boolean;
@@ -21,6 +22,7 @@ type PhotoGridProps = {
  */
 export default function PhotoGrid({
   photos,
+  disabled = false,
   maxPhotos,
   required = false,
   onPhotosChange,
@@ -28,9 +30,16 @@ export default function PhotoGrid({
   const canAddMore = photos.length < maxPhotos;
 
   const [isPicking, setIsPicking] = useState(false);
+  const disabledRef = useRef(disabled);
+  useLayoutEffect(() => {
+    disabledRef.current = disabled;
+    return () => {
+      disabledRef.current = true;
+    };
+  }, [disabled]);
 
   const handleAddPhoto = async () => {
-    if (!canAddMore || isPicking) {
+    if (disabledRef.current || !canAddMore || isPicking) {
       return;
     }
 
@@ -42,7 +51,7 @@ export default function PhotoGrid({
         maxPhotos,
       });
 
-      if (selectedPhotos.length === 0) {
+      if (disabledRef.current || selectedPhotos.length === 0) {
         return;
       }
 
@@ -53,6 +62,7 @@ export default function PhotoGrid({
   };
 
   const handleRemovePhoto = (index: number) => {
+    if (disabledRef.current) return;
     onPhotosChange(photos.filter((_, photoIndex) => photoIndex !== index));
   };
 
@@ -63,14 +73,14 @@ export default function PhotoGrid({
           <PhotoPreview
             key={`${photo.uri}-${index}`}
             uri={photo.uri}
-            onRemove={() => handleRemovePhoto(index)}
+            onRemove={disabled ? undefined : () => handleRemovePhoto(index)}
           />
         ))}
 
         {canAddMore && (
           <Pressable
-            onPress={handleAddPhoto}
-            disabled={isPicking}
+            onPress={() => void handleAddPhoto()}
+            disabled={disabled || isPicking}
             className="h-24 w-24 items-center justify-center rounded-xl border border-dashed border-border-secondary "
           >
             {isPicking ? (

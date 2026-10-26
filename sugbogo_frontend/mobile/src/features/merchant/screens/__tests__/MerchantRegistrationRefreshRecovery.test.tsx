@@ -54,6 +54,9 @@ jest.mock("expo-router", () => ({
   useFocusEffect: jest.fn(),
   useNavigation: () => ({ setOptions: jest.fn() }),
 }));
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: jest.fn(),
+}));
 jest.mock("../../constants/registration/registrationSteps", () => ({
   REGISTRATION_STEPS: [
     { title: "Identity" },

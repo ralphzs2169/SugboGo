@@ -9,7 +9,10 @@ import SelectedLandmarksSection from "./SelectedLandmarksSection";
 
 /** Keeps the shared landmark selection surface bound to Registration state. */
 export default function LandmarksSection() {
-  const { setValue } = useFormContext<MerchantRegistrationForm>();
+  const {
+    setValue,
+    formState: { disabled },
+  } = useFormContext<MerchantRegistrationForm>();
   const selectedLandmarks = useMerchantRegistrationStore(
     (state) => state.selectedLandmarks,
   );
@@ -32,14 +35,17 @@ export default function LandmarksSection() {
       selectedLandmarks={selectedLandmarks}
       hasSelectedLocation={selectedLocation !== null}
       nearbyLandmarksLoadFailed={nearbyLandmarksLoadFailed}
-      onRemove={(id) =>
+      onRemove={(id) => {
+        if (disabled) return;
         setSelectedLandmarks(
           selectedLandmarks.filter((landmark) => landmark.id !== id),
-        )
-      }
-      onAddCustom={() =>
-        router.push("/(explorer)/merchant-registration/landmarks-picker")
-      }
+        );
+      }}
+      onAddCustom={() => {
+        if (!disabled) {
+          router.push("/(explorer)/merchant-registration/landmarks-picker");
+        }
+      }}
     />
   );
 }

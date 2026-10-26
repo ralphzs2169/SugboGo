@@ -1,6 +1,6 @@
 import { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Platform, View } from "react-native";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import Toast from "react-native-toast-message";
 
@@ -35,8 +35,12 @@ export default function OperatingHoursEditor({
     setValue,
     trigger,
     getValues,
-    formState: { errors },
+    formState: { errors, disabled },
   } = useFormContext<OperatingHoursForm>();
+  const disabledRef = useRef(disabled);
+  useLayoutEffect(() => {
+    disabledRef.current = disabled;
+  }, [disabled]);
 
   const schedule = useWatch({
     control,
@@ -57,6 +61,7 @@ export default function OperatingHoursEditor({
     schedule.closeTime < schedule.openTime;
 
   function handleOpenStateChange(isOpen: boolean) {
+    if (disabledRef.current) return;
     setValue(`operatingHours.${day}.isOpen`, isOpen, {
       shouldDirty: true,
       shouldValidate: true,
@@ -83,6 +88,7 @@ export default function OperatingHoursEditor({
   }
 
   function handle24HoursChange(is24Hours: boolean) {
+    if (disabledRef.current) return;
     setValue(`operatingHours.${day}.is24Hours`, is24Hours, {
       shouldDirty: true,
       shouldValidate: true,
@@ -104,9 +110,10 @@ export default function OperatingHoursEditor({
   }
 
   async function handleApplyToDays(days: Day[]) {
+    if (disabledRef.current) return;
     const isValid = await trigger(`operatingHours.${day}`);
 
-    if (!isValid) {
+    if (disabledRef.current || !isValid) {
       return;
     }
 
@@ -136,10 +143,12 @@ export default function OperatingHoursEditor({
   }
 
   function handleTimePress(field: TimeField) {
+    if (disabledRef.current) return;
     setTimePicker({ field });
   }
 
   function handleTimeChange(event: DateTimePickerEvent, selectedDate?: Date) {
+    if (disabledRef.current) return;
     if (event.type === "dismissed") {
       setTimePicker(null);
       return;
@@ -164,7 +173,10 @@ export default function OperatingHoursEditor({
   }
 
   return (
-    <View className="gap-5 border-y border-border-primary bg-surface px-5 py-5">
+    <View
+      pointerEvents={disabled ? "none" : "auto"}
+      className="gap-5 border-y border-border-primary bg-surface px-5 py-5"
+    >
       {/* Daily schedule heading */}
       <View>
         <AppText weight="bold" className="text-lg capitalize text-text-primary">
@@ -190,7 +202,7 @@ export default function OperatingHoursEditor({
           openTime={schedule.openTime}
           closeTime={schedule.closeTime}
           isOvernight={isOvernight}
-          timePicker={timePicker}
+          timePicker={disabled ? null : timePicker}
           onTimePress={handleTimePress}
           onTimeChange={handleTimeChange}
           openTimeError={dayErrors?.openTime?.message}

@@ -23,7 +23,7 @@ import useCategories from "../hooks/registration/useCategories";
 import useClusters from "../hooks/registration/useClusters";
 import useRegistrationValidation from "../hooks/registration/useRegistrationValidation";
 
-import { BackHandler, Pressable } from "react-native";
+import { BackHandler, Keyboard, Pressable, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import ReviewCelebration from "../components/registration/ReviewCelebration";
@@ -34,6 +34,7 @@ import { mapApplicationToForm } from "@/features/merchant/utils/merchant-applica
 import ErrorState from "@/shared/components/ErrorState";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 import { router, useFocusEffect, useNavigation } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
 import useCurrentApplication from "../hooks/registration/useCurrentApplication";
 import useSaveApplicationDocuments from "../hooks/registration/useSaveApplicationDocuments";
 import useSaveApplicationPhotos from "../hooks/registration/useSaveApplicationPhotos";
@@ -83,6 +84,34 @@ import {
   subscribeAuthSessionChanges,
 } from "@/shared/api/authSessionGeneration.service";
 
+const SECTION_FIELDS = [
+  [
+    "businessName",
+    "businessCluster",
+    "businessCategory",
+    "businessDescription",
+    "specialtyTags",
+    "representativeName",
+    "representativeRole",
+    "contactNumber",
+    "businessEmail",
+    "website",
+  ],
+  [
+    "province",
+    "city",
+    "barangay",
+    "streetAddress",
+    "unit",
+    "landmarks",
+    "latitude",
+    "longitude",
+  ],
+  ["operatingHours"],
+  ["businessPhotos"],
+  ["verificationDocuments"],
+] as const;
+
 /** Keeps the form and its restoration checkpoint local to one account session. */
 export default function MerchantRegistrationScreen() {
   const ownerId = useAuthStore((state) => state.user?.id);
@@ -91,9 +120,7 @@ export default function MerchantRegistrationScreen() {
     getAuthSessionGeneration,
   );
 
-  return (
-    <MerchantRegistrationFormScreen key={`${ownerId}:${generation}`} />
-  );
+  return <MerchantRegistrationFormScreen key={`${ownerId}:${generation}`} />;
 }
 
 /**
@@ -111,9 +138,8 @@ export default function MerchantRegistrationScreen() {
  * Navigation behavior:
  * - Normal steps progress sequentially after successful validation.
  * - Editing a completed section returns to Review after saving.
- * - Android Back while editing returns directly to Review.
- * - Android Back on the Review step is blocked because Review is
- *   the final checkpoint before submission.
+ * - Footer and Android Back return section edits to Review, confirming discard.
+ * - The header explicitly exits registration; Review exits preserve saved details.
  * - Android Back on earlier steps navigates to the previous step.
  *
  * Validation behavior: Each step is validated before leaving that step.
@@ -198,6 +224,9 @@ function MerchantRegistrationFormScreen() {
   const [showReviewCelebration, setShowReviewCelebration] = useState(false);
 
   const [restoreError, setRestoreError] = useState(false);
+  const [reviewValues, setReviewValues] = useState(
+    MERCHANT_REGISTRATION_DEFAULT_VALUES,
+  );
 
   const [unsavedSections, setUnsavedSections] = useState<string[]>([]);
 
@@ -223,8 +252,22 @@ function MerchantRegistrationFormScreen() {
    * the user confirms discarding their unsaved changes.
    */
   const pendingExitAction = useRef<(() => void) | null>(null);
+  const savingRef = useRef(false);
+  const allowRemoval = useRef(false);
+  const [isPersisting, setIsPersisting] = useState(false);
+  const savedValues = useRef(
+    structuredClone(MERCHANT_REGISTRATION_DEFAULT_VALUES),
+  );
+  const savedLocationSelection = useRef<
+    ReturnType<typeof mapApplicationToStore>
+  >({
+    selectedLocation: null,
+    selectedAddress: null,
+    selectedLandmarks: [],
+  });
 
   const isSavingCurrentStep =
+    isPersisting ||
     isSavingIdentity ||
     isSavingLocation ||
     isSavingOperatingHours ||
@@ -258,6 +301,7 @@ function MerchantRegistrationFormScreen() {
   >({
     resolver: zodResolver(merchantRegistrationSchema),
     defaultValues: MERCHANT_REGISTRATION_DEFAULT_VALUES,
+    disabled: isSavingCurrentStep,
   });
 
   const hasUnsavedChanges = useRegistrationUnsavedChanges(form.control, {
@@ -272,6 +316,13 @@ function MerchantRegistrationFormScreen() {
 
   const requestExit = useCallback(
     (action: () => void, confirmReview = false) => {
+      if (
+        savingRef.current ||
+        isSavingCurrentStep ||
+        pendingExitAction.current
+      ) {
+        return;
+      }
       const sections = getUnsavedSections({
         values: form.getValues(),
         lastSavedIdentity,
@@ -283,6 +334,7 @@ function MerchantRegistrationFormScreen() {
 
       if (sections.length === 0) {
         if (confirmReview) {
+          pendingExitAction.current = action;
           setShowLeaveReviewModal(true);
         } else {
           action();
@@ -303,15 +355,55 @@ function MerchantRegistrationFormScreen() {
       lastSavedDocuments,
       setShowDiscardChangesModal,
       setUnsavedSections,
+      setShowLeaveReviewModal,
+      isSavingCurrentStep,
     ],
   );
 
   const handleDiscardChanges = () => {
-    setShowDiscardChangesModal(false);
-    resetMerchantRegistrationStore();
-    pendingExitAction.current?.();
+    if (!isCurrentSession() || savingRef.current || isSavingCurrentStep) {
+      return;
+    }
+    const action = pendingExitAction.current;
     pendingExitAction.current = null;
+    setShowDiscardChangesModal(false);
+    action?.();
   };
+
+  const isCurrentSession = useCallback(() => {
+    const auth = useAuthStore.getState();
+    return (
+      auth.isAuthenticated &&
+      auth.user?.id === session.ownerId &&
+      isAuthSessionCurrent(session.generation)
+    );
+  }, [session]);
+
+  const leaveRegistration = useCallback(
+    (action: () => void) => {
+      if (!isCurrentSession()) {
+        return;
+      }
+      allowRemoval.current = true;
+      resetMerchantRegistrationStore();
+      action();
+    },
+    [resetMerchantRegistrationStore, isCurrentSession],
+  );
+
+  // This is Expo Router's own navigation hook, including native-stack gesture support.
+  usePreventRemove(
+    isCurrentSession() && (hasUnsavedChanges || isSavingCurrentStep),
+    ({ data }) => {
+      if (!isCurrentSession() || allowRemoval.current) {
+        navigation.dispatch(data.action);
+        return;
+      }
+      requestExit(() =>
+        leaveRegistration(() => navigation.dispatch(data.action)),
+      );
+    },
+  );
 
   /** Routes review exits through saved-data confirmation or the existing unsaved-change guard. */
   const requestReviewExit = useCallback(() => {
@@ -319,23 +411,26 @@ function MerchantRegistrationFormScreen() {
       return;
     }
     requestExit(
-      () => router.dismissTo("/(explorer)/profile/merchant-portal"),
+      () =>
+        leaveRegistration(() =>
+          router.dismissTo("/(explorer)/profile/merchant-portal"),
+        ),
       true,
     );
-  }, [isSavingCurrentStep, requestExit]);
+  }, [isSavingCurrentStep, requestExit, leaveRegistration]);
 
   /** Leaves review without deleting saved application details, rechecking local edits first. */
   const exitReviewToPortal = () => {
-    if (isSavingCurrentStep) {
+    if (!isCurrentSession() || savingRef.current || isSavingCurrentStep) {
       return;
     }
     setShowLeaveReviewModal(false);
-    requestExit(() => {
-      router.dismissTo("/(explorer)/profile/merchant-portal");
-    });
+    const action = pendingExitAction.current;
+    pendingExitAction.current = null;
+    action?.();
   };
   // Persist the current address in the registration store when leaving Step 2.
-  const persistCurrentAddress = () => {
+  const persistCurrentAddress = (values = form.getValues()) => {
     const auth = useAuthStore.getState();
     if (
       !auth.isAuthenticated ||
@@ -344,8 +439,6 @@ function MerchantRegistrationFormScreen() {
     ) {
       return;
     }
-
-    const values = form.getValues();
 
     setSelectedAddress({
       province: values.province,
@@ -362,7 +455,7 @@ function MerchantRegistrationFormScreen() {
       headerLeft: () => (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel="Exit registration"
           disabled={isSavingCurrentStep}
           className="min-h-12 min-w-12 cursor-pointer items-center justify-center active:opacity-70"
           onPress={() => {
@@ -370,11 +463,11 @@ function MerchantRegistrationFormScreen() {
               requestReviewExit();
               return;
             }
-            requestExit(() => router.back());
+            requestExit(() => leaveRegistration(() => router.back()));
           }}
         >
           <MaterialCommunityIcons
-            name="chevron-left"
+            name="close"
             size={28}
             color={theme.extends.colors.text.primary}
           />
@@ -388,6 +481,7 @@ function MerchantRegistrationFormScreen() {
     currentStep,
     REVIEW_STEP,
     isSavingCurrentStep,
+    leaveRegistration,
   ]);
 
   /**
@@ -404,6 +498,9 @@ function MerchantRegistrationFormScreen() {
         const store = mapApplicationToStore(application);
 
         form.reset(values);
+        setReviewValues(values);
+        savedValues.current = structuredClone(values);
+        savedLocationSelection.current = structuredClone(store);
 
         // Replace the full authoritative snapshot, including absent values and flags.
         resetMerchantRegistrationStore();
@@ -458,6 +555,7 @@ function MerchantRegistrationFormScreen() {
       setLastSavedPhotos,
       setLastSavedDocuments,
       setRestoreError,
+      setReviewValues,
     ],
   );
 
@@ -517,14 +615,39 @@ function MerchantRegistrationFormScreen() {
   const saveCurrentStep = async (): Promise<boolean> => {
     const isValid = await validateCurrentStep();
 
+    if (!isCurrentSession()) {
+      return false;
+    }
+
     if (!isValid) {
       scrollToFirstError(() => form.formState.errors);
       return false;
     }
 
+    const submittedValues = structuredClone(form.getValues());
+    let values = structuredClone(submittedValues);
+    const fields = SECTION_FIELDS[currentStep - 1] ?? [];
+    const isSameRevision = () =>
+      fields.every(
+        (field) =>
+          JSON.stringify(form.getValues(field)) ===
+          JSON.stringify(submittedValues[field]),
+      );
+    const applySavedSection = (mapped: typeof values) => {
+      for (const field of fields) {
+        values = { ...values, [field]: mapped[field] };
+      }
+    };
+    const emptySections = {
+      identity: null,
+      location: null,
+      operating_hours: [],
+      photos: [],
+      documents: [],
+    };
+
     // Save Step 1: Business Identity
     if (currentStep === 1) {
-      const values = form.getValues();
       const currentIdentity = normalizeIdentity(values);
 
       if (hasIdentityChanged(lastSavedIdentity, currentIdentity)) {
@@ -547,17 +670,19 @@ function MerchantRegistrationFormScreen() {
 
         const response = await saveIdentity(payload);
 
-        if (!response.success) {
+        if (!isCurrentSession() || !response.success) {
           return false;
         }
 
-        setLastSavedIdentity(currentIdentity);
+        applySavedSection(
+          mapApplicationToForm({ ...emptySections, identity: response.data }),
+        );
+        setLastSavedIdentity(normalizeIdentity(values));
       }
     }
 
     // Save Step 2: Business Location
     if (currentStep === 2) {
-      const values = form.getValues();
       const currentLocation = normalizeLocation(values);
 
       if (hasLocationChanged(lastSavedLocation, currentLocation)) {
@@ -580,18 +705,22 @@ function MerchantRegistrationFormScreen() {
 
         const response = await saveLocation(payload);
 
-        if (!response.success) {
+        if (!isCurrentSession() || !response.success) {
           return false;
         }
 
-        setLastSavedLocation(currentLocation);
+        applySavedSection(
+          mapApplicationToForm({ ...emptySections, location: response.data }),
+        );
+        savedLocationSelection.current = mapApplicationToStore({
+          location: response.data,
+        });
+        setLastSavedLocation(normalizeLocation(values));
       }
     }
 
     // Save Step 3: Operating Hours
     if (currentStep === 3) {
-      const values = form.getValues();
-
       const currentOperatingHours = normalizeOperatingHours(values);
       const payload = buildOperatingHoursPayload(values);
 
@@ -603,18 +732,22 @@ function MerchantRegistrationFormScreen() {
       ) {
         const response = await saveOperatingHours(payload);
 
-        if (!response.success) {
+        if (!isCurrentSession() || !response.success) {
           return false;
         }
 
-        setLastSavedOperatingHours(currentOperatingHours);
+        applySavedSection(
+          mapApplicationToForm({
+            ...emptySections,
+            operating_hours: response.data,
+          }),
+        );
+        setLastSavedOperatingHours(normalizeOperatingHours(values));
       }
     }
 
     // Save Step 4: Business Photos
     if (currentStep === 4) {
-      const values = form.getValues();
-
       const photoChanges = getPhotoChanges(
         lastSavedPhotos,
         values.businessPhotos,
@@ -631,23 +764,22 @@ function MerchantRegistrationFormScreen() {
 
       const response = await savePhotos(formData);
 
-      if (!response.success) {
+      if (!isCurrentSession() || !response.success) {
         return false;
       }
 
       const savedPhotos = mapApplicationPhotos(response.data);
 
-      form.setValue("businessPhotos", savedPhotos, {
-        shouldDirty: false,
-      });
-
       setLastSavedPhotos(savedPhotos);
+      savedValues.current = {
+        ...savedValues.current,
+        businessPhotos: savedPhotos,
+      };
+      values.businessPhotos = savedPhotos;
     }
 
     // Save Step 5: Verification Documents
     if (currentStep === 5) {
-      const values = form.getValues();
-
       const documentChanges = getDocumentChanges(
         lastSavedDocuments,
         values.verificationDocuments,
@@ -664,142 +796,193 @@ function MerchantRegistrationFormScreen() {
 
       const response = await saveDocuments(formData);
 
-      if (!response.success) {
+      if (!isCurrentSession() || !response.success) {
         return false;
       }
 
       const savedDocuments = mapApplicationDocuments(response.data);
 
-      form.setValue("verificationDocuments", savedDocuments, {
-        shouldDirty: false,
-      });
-
       setLastSavedDocuments(savedDocuments);
+      savedValues.current = {
+        ...savedValues.current,
+        verificationDocuments: savedDocuments,
+      };
+      values.verificationDocuments = savedDocuments;
     }
 
+    for (const field of fields) {
+      savedValues.current = {
+        ...savedValues.current,
+        [field]: structuredClone(values[field]),
+      };
+    }
+    if (!isSameRevision()) {
+      Toast.show({
+        type: "info",
+        text1: "New changes still need saving",
+        text2: "Your saved section is up to date, but newer local edits have not been saved yet.",
+      });
+      return false;
+    }
+    for (const field of fields) {
+      form.setValue(field, values[field], { shouldDirty: false });
+    }
+    if (currentStep === 2) {
+      persistCurrentAddress(values);
+      useMerchantRegistrationStore.setState(
+        structuredClone(savedLocationSelection.current),
+      );
+    }
     return true;
   };
 
-  /**
-   * Submits the merchant application and navigates to the
-   * submission success screen when successful.
-   */
-  const handleSubmitApplication = async () => {
-    const result = await submit();
-
-    if (!result.success || !result.data) {
-      return;
-    }
-
-    router.replace({
-      pathname: "/(explorer)/merchant-registration/submission-success",
-      params: {
-        minBusinessDays: String(result.data.review_sla_min_business_days),
-        maxBusinessDays: String(result.data.review_sla_max_business_days),
-      },
+  function unsavedSectionsNow() {
+    return getUnsavedSections({
+      values: form.getValues(),
+      lastSavedIdentity,
+      lastSavedLocation,
+      lastSavedOperatingHours,
+      lastSavedPhotos,
+      lastSavedDocuments,
     });
-  };
+  }
 
-  /**
-   * Saves the current step and advances to the next step.
-   *
-   * Displays the completion celebration after Step 5 before moving
-   * to the review screen.
-   */
-  const handleNext = async () => {
-    if (isSavingCurrentStep) {
+  function prepareReview() {
+    const sections = unsavedSectionsNow();
+    if (sections.length > 0) {
+      Toast.show({
+        type: "info",
+        text1: "Save your changes before reviewing",
+        text2: sections.join(", "),
+      });
+      return false;
+    }
+    setReviewValues(structuredClone(savedValues.current));
+    return true;
+  }
+
+  /** Shares one synchronous lock across validation, writes, and step transitions. */
+  async function persistAndContinue(returnToReview = false) {
+    if (savingRef.current || isSavingCurrentStep || !isCurrentSession()) {
       return;
     }
+    savingRef.current = true;
+    setIsPersisting(true);
+    Keyboard.dismiss();
 
-    if (currentStep === REVIEW_STEP) {
-      await handleSubmitApplication();
-      return;
+    try {
+      if (currentStep === REVIEW_STEP) {
+        if (!prepareReview() || !canResubmit) {
+          return;
+        }
+        const result = await submit();
+        if (!isCurrentSession() || !result.success || !result.data) {
+          return;
+        }
+        allowRemoval.current = true;
+        resetMerchantRegistrationStore();
+        router.replace({
+          pathname: "/(explorer)/merchant-registration/submission-success",
+          params: {
+            minBusinessDays: String(result.data.review_sla_min_business_days),
+            maxBusinessDays: String(result.data.review_sla_max_business_days),
+          },
+        });
+        return;
+      }
+
+      const success = await saveCurrentStep();
+      if (!success || !isCurrentSession()) {
+        return;
+      }
+      // Baseline state setters commit on the next render. Compare against the
+      // synchronous successful snapshots before entering Review.
+      const snapshotSections = getUnsavedSections({
+        values: form.getValues(),
+        lastSavedIdentity: normalizeIdentity(savedValues.current),
+        lastSavedLocation: normalizeLocation(savedValues.current),
+        lastSavedOperatingHours: normalizeOperatingHours(savedValues.current),
+        lastSavedPhotos: savedValues.current.businessPhotos,
+        lastSavedDocuments: savedValues.current.verificationDocuments,
+      });
+      if (returnToReview || currentStep === 5) {
+        if (snapshotSections.length > 0) {
+          Toast.show({
+            type: "info",
+            text1: "Save your changes before reviewing",
+            text2: snapshotSections.join(", "),
+          });
+          return;
+        }
+        setReviewValues(structuredClone(savedValues.current));
+        if (returnToReview) {
+          goToReview();
+          return;
+        }
+        setShowReviewCelebration(true);
+      }
+      completeCurrentStep(currentStep);
+    } catch {
+      if (isCurrentSession()) {
+        Toast.show({
+          type: "error",
+          text1: "Unable to save changes",
+          text2: "Your changes are still here. Please try again.",
+        });
+      }
+    } finally {
+      savingRef.current = false;
+      setIsPersisting(false);
     }
+  }
 
-    const success = await saveCurrentStep();
-
-    if (!success) {
-      return;
-    }
-
-    if (currentStep === 2) {
-      persistCurrentAddress();
-    }
-
-    if (currentStep === 5) {
-      setShowReviewCelebration(true);
-    }
-
-    completeCurrentStep(currentStep);
-  };
-
-  /**
-   * Saves the current step and navigates directly to the review page.
-   *
-   * Used when editing an existing section from the review screen.
-   */
-  const handleSaveAndReview = async () => {
-    if (isSavingCurrentStep) {
-      return;
-    }
-
-    if (currentStep === 2) {
-      persistCurrentAddress();
-    }
-
-    const success = await saveCurrentStep();
-
-    if (!success) {
-      return;
-    }
-
+  const restoreSavedReview = useCallback(() => {
+    form.reset(structuredClone(savedValues.current));
+    resetMerchantRegistrationStore();
+    useMerchantRegistrationStore.setState(
+      structuredClone(savedLocationSelection.current),
+    );
+    setReviewValues(structuredClone(savedValues.current));
     goToReview();
-  };
+  }, [form, resetMerchantRegistrationStore, goToReview, setReviewValues]);
+
+  /** Footer and hardware Back share the same wizard intent. */
+  const requestBack = useCallback(() => {
+    if (savingRef.current || isSavingCurrentStep) {
+      return;
+    }
+    if (editingStep !== null) {
+      requestExit(restoreSavedReview);
+    } else if (currentStep === REVIEW_STEP) {
+      requestReviewExit();
+    } else if (currentStep > 1) {
+      handleBack();
+    } else {
+      requestExit(() => leaveRegistration(() => router.back()));
+    }
+  }, [
+    isSavingCurrentStep,
+    editingStep,
+    currentStep,
+    REVIEW_STEP,
+    requestExit,
+    requestReviewExit,
+    handleBack,
+    leaveRegistration,
+    restoreSavedReview,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener(
         "hardwareBackPress",
         () => {
-          // Prevent navigation while a save or submission is in progress.
-          if (isSavingCurrentStep) {
-            return true;
-          }
-
-          // Leave review through the same confirmation as the visible header.
-          if (currentStep === REVIEW_STEP) {
-            requestReviewExit();
-            return true;
-          }
-
-          // While editing a section, Android Back is disabled.
-          if (editingStep !== null) {
-            return true;
-          }
-
-          // Move between registration steps normally.
-          if (currentStep > 1) {
-            handleBack();
-            return true;
-          }
-
-          // Step 1 requires confirmation before leaving registration.
-          requestExit(() => router.back());
-
+          requestBack();
           return true;
         },
       );
-
       return () => subscription.remove();
-    }, [
-      editingStep,
-      currentStep,
-      handleBack,
-      requestExit,
-      requestReviewExit,
-      isSavingCurrentStep,
-      REVIEW_STEP,
-    ]),
+    }, [requestBack]),
   );
 
   if (isLoadingApplication) {
@@ -864,13 +1047,13 @@ function MerchantRegistrationFormScreen() {
             <RegistrationFooter
               currentStep={currentStep}
               totalSteps={REVIEW_STEP}
-              onNext={handleNext}
-              onBack={handleBack}
+              onNext={() => void persistAndContinue()}
+              onBack={requestBack}
               isEditing={editingStep !== null}
-              onSaveAndReview={handleSaveAndReview}
+              onSaveAndReview={() => void persistAndContinue(true)}
               isSubmitting={isSavingCurrentStep}
               isResubmission={isResubmission}
-              canResubmit={canResubmit}
+              canResubmit={canResubmit && !applicationError}
               hasChanges={hasUnsavedChanges}
             />
           }
@@ -889,26 +1072,36 @@ function MerchantRegistrationFormScreen() {
             />
           )}
 
-          <RegistrationStepContent
-            application={application}
-            currentStep={currentStep}
-            clusters={clusters}
-            categories={categories}
+          <View
+            pointerEvents={isSavingCurrentStep ? "none" : "auto"}
+            accessibilityState={{ busy: isSavingCurrentStep }}
+          >
+            <RegistrationStepContent
+              application={application}
+              currentStep={currentStep}
+              clusters={clusters}
+              categories={categories}
 
-            isLoadingClusters={isLoadingClusters}
-            isLoadingCategories={isLoadingCategories}
+              isLoadingClusters={isLoadingClusters}
+              isLoadingCategories={isLoadingCategories}
 
-            clustersError={clustersError}
-            categoriesError={categoriesError}
+              clustersError={clustersError}
+              categoriesError={categoriesError}
 
-            refetchClusters={refetchClusters}
-            refetchCategories={refetchCategories}
+              refetchClusters={refetchClusters}
+              refetchCategories={refetchCategories}
 
-            onEditSection={handleEditSection}
-            isResubmission={isResubmission}
-            feedback={feedback}
-            registerErrorScrollTarget={registerErrorScrollTarget}
-          />
+              onEditSection={(step) => {
+                if (!savingRef.current && !isSavingCurrentStep) {
+                  handleEditSection(step);
+                }
+              }}
+              reviewValues={reviewValues}
+              isResubmission={isResubmission}
+              feedback={feedback}
+              registerErrorScrollTarget={registerErrorScrollTarget}
+            />
+          </View>
         </RegistrationLayout>
       </FormProvider>
 
@@ -919,7 +1112,10 @@ function MerchantRegistrationFormScreen() {
         confirmText="Exit to Portal"
         cancelText="Stay Here"
         onConfirm={exitReviewToPortal}
-        onCancel={() => setShowLeaveReviewModal(false)}
+        onCancel={() => {
+          setShowLeaveReviewModal(false);
+          pendingExitAction.current = null;
+        }}
       />
 
       <ConfirmModal

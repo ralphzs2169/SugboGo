@@ -33,9 +33,13 @@ export default function RHFFormInput({
       render={({ field, fieldState }) => (
         <FormInput
           {...props}
+          editable={props.editable !== false && !field.disabled}
           value={field.value}
           helperText={helperText}
           onChangeText={(value) => {
+            if (field.disabled) {
+              return;
+            }
             field.onChange(value);
             clearErrors(name);
           }}

@@ -44,6 +44,9 @@ export default function RHFFormSelect({
         );
 
         const handlePress = () => {
+          if (field.disabled || props.disabled) {
+            return;
+          }
           clearErrors(name);
           onSelectPress();
         };
@@ -51,6 +54,7 @@ export default function RHFFormSelect({
         return (
           <FormSelect
             {...props}
+            disabled={props.disabled || field.disabled}
             value={selectedOption?.label}
             icon={selectedOption?.icon}
             error={fieldState.error?.message}

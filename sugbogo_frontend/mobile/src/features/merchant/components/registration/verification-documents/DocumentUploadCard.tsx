@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { useFormContext } from "react-hook-form";
 
 import DocumentPreview from "./DocumentPreview";
 import { pickBusinessDocuments } from "./DocumentPicker";
@@ -35,13 +36,23 @@ export default function DocumentUploadCard({
   onDocumentsChange,
 }: DocumentUploadCardProps) {
   const [isPicking, setIsPicking] = useState(false);
+  const {
+    formState: { disabled },
+  } = useFormContext();
+  const disabledRef = useRef(disabled);
+  useLayoutEffect(() => {
+    disabledRef.current = disabled;
+    return () => {
+      disabledRef.current = true;
+    };
+  }, [disabled]);
 
   const currentDocuments = multiple ? documents : document ? [document] : [];
 
   const canAddMore = currentDocuments.length < maxDocuments;
 
   const handleAddDocument = async () => {
-    if (!canAddMore || isPicking) {
+    if (disabledRef.current || !canAddMore || isPicking) {
       return;
     }
 
@@ -53,7 +64,7 @@ export default function DocumentUploadCard({
         maxDocuments,
       });
 
-      if (selectedDocuments.length === 0) {
+      if (disabledRef.current || selectedDocuments.length === 0) {
         return;
       }
 
@@ -69,6 +80,7 @@ export default function DocumentUploadCard({
   };
 
   const handleRemoveDocument = (index: number) => {
+    if (disabledRef.current) return;
     if (multiple) {
       onDocumentsChange?.(
         documents.filter((_, documentIndex) => documentIndex !== index),
@@ -91,7 +103,9 @@ export default function DocumentUploadCard({
             <DocumentPreview
               key={`${item.uri}-${index}`}
               document={item}
-              onRemove={() => handleRemoveDocument(index)}
+              onRemove={
+                disabled ? undefined : () => handleRemoveDocument(index)
+              }
             />
           ))}
         </View>
@@ -99,8 +113,8 @@ export default function DocumentUploadCard({
 
       {canAddMore && (
         <Pressable
-          onPress={handleAddDocument}
-          disabled={isPicking}
+          onPress={() => void handleAddDocument()}
+          disabled={disabled || isPicking}
           className="items-center justify-center rounded-lg border border-dashed border-border-secondary py-5"
         >
           {isPicking ? (
