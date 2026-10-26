@@ -210,35 +210,27 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "SugboGo's audited implementation includes integrations with external services that support specific application features.",
-      },
-      {
-        type: "paragraph",
-        text: "These include:",
+        text: "Some features may share information with external services. The reviewed code includes:",
       },
       {
         type: "list",
         ordered: false,
         items: [
-          "Google and Facebook for authentication and identity-related functionality.",
-          "Google Maps-related services for places, mapping, geocoding, and routing.",
-          "Cloudinary for uploaded media and certain protected documents.",
-          "Resend for transactional email delivery.",
-          "OpenAI for automated review text and image moderation.",
-          "Google Gemini for certain review analysis, summaries, and recommendation-related processing.",
+          "Google and Facebook for sign-in and linked account information.",
+          "Google Maps for finding places, showing maps, matching locations with addresses, and planning routes.",
+          "Cloudinary for uploaded media and some documents with restricted access.",
+          "Resend for account-related emails.",
+          "OpenAI for automatically checking review text and photos for potentially unsuitable content.",
+          "Google Gemini for some review analysis, summaries, and merchant recommendations.",
         ],
       },
       {
         type: "paragraph",
-        text: "The application also uses databases and supporting backend infrastructure.",
+        text: "Databases and servers also store information and run app services.",
       },
       {
         type: "paragraph",
-        text: "The information processed by a provider depends on the relevant feature and how the integration is configured.",
-      },
-      {
-        type: "paragraph",
-        text: "The team's final review must confirm which services are active in the intended release and the applicable external-processing disclosures.",
+        text: "What providers receive or use depends on the feature and service settings. Before release, the team must confirm active services and how they handle information.",
       },
     ],
   },
