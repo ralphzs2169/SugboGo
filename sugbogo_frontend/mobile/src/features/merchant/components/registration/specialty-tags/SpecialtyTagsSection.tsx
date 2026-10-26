@@ -7,6 +7,51 @@ import SpecialtyTagsBottomSheet from "./SpecialtyTagsBottomSheet";
 import useSpecialtyTags from "@/features/merchant/hooks/registration/useSpecialtyTags";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import TagSectionEmptyState from "./TagSectionEmptyState";
+
+const VISIBLE_TAG_COUNT = 10;
+
+/** Keeps selected tags visible while retaining the positions of existing chips. */
+function reconcileVisibleTags(
+  currentIds: number[],
+  taxonomyIds: number[],
+  selectedIds: number[],
+) {
+  const selected = taxonomyIds.filter((id) => selectedIds.includes(id));
+  const limit = Math.max(VISIBLE_TAG_COUNT, selected.length);
+  const retainedIds = currentIds.filter((id) => taxonomyIds.includes(id));
+  const nextIds = retainedIds.length === 0 ? [...selected] : retainedIds;
+
+  for (const id of selected) {
+    if (nextIds.includes(id)) continue;
+    let replaceIndex = -1;
+    for (let index = nextIds.length - 1; index >= 0; index -= 1) {
+      if (!selectedIds.includes(nextIds[index])) {
+        replaceIndex = index;
+        break;
+      }
+    }
+    if (nextIds.length >= limit && replaceIndex !== -1) {
+      nextIds[replaceIndex] = id;
+    } else {
+      nextIds.push(id);
+    }
+  }
+
+  for (const id of taxonomyIds) {
+    if (nextIds.length >= limit) break;
+    if (!nextIds.includes(id)) nextIds.push(id);
+  }
+  for (
+    let index = nextIds.length - 1;
+    nextIds.length > limit && index >= 0;
+    index -= 1
+  ) {
+    if (!selectedIds.includes(nextIds[index])) {
+      nextIds.splice(index, 1);
+    }
+  }
+  return nextIds;
+}
 /**
  * Renders the specialty-tag selection field for merchant registration.
  *
@@ -37,21 +82,25 @@ export default function SpecialtyTagsSection() {
     name: "specialtyTags",
   });
 
-  const { specialtyTags, isLoading, error, refetch } = useSpecialtyTags();
+  const { specialtyTags, error, refetch } = useSpecialtyTags();
 
   const [draftSelectedTags, setDraftSelectedTags] =
     useState<number[]>(selectedTags);
 
   const [visibleTagIds, setVisibleTagIds] = useState<number[]>([]);
 
-  useEffect(() => {
-    if (specialtyTags.length === 0) {
-      setVisibleTagIds([]);
-      return;
-    }
-
-    setVisibleTagIds(specialtyTags.slice(0, 10).map((tag) => tag.id));
-  }, [specialtyTags]);
+  const nextVisibleTagIds = reconcileVisibleTags(
+    visibleTagIds,
+    specialtyTags.map((tag) => tag.id),
+    selectedTags,
+  );
+  if (
+    nextVisibleTagIds.length !== visibleTagIds.length ||
+    nextVisibleTagIds.some((id, index) => id !== visibleTagIds[index])
+  ) {
+    // Adjust this component's presentation when restoration/refetch changes inputs.
+    setVisibleTagIds(nextVisibleTagIds);
+  }
   /**
    * Handles selection of a specialty tag from the main form.
    * Prevents selection of more than three tags and ensures that
@@ -71,34 +120,6 @@ export default function SpecialtyTagsSection() {
   };
 
   /**
-   * Ensures newly selected tags remain visible in the main form.
-   *
-   * Hidden selected tags replace currently visible unselected tags
-   * without unnecessarily reshuffling the existing visible tags.
-   */
-  const updateVisibleTags = (selectedTagIds: number[]) => {
-    setVisibleTagIds((currentIds) => {
-      const nextIds = [...currentIds];
-
-      const hiddenSelectedIds = selectedTagIds.filter(
-        (id) => !nextIds.includes(id),
-      );
-
-      hiddenSelectedIds.forEach((selectedId) => {
-        const replaceIndex = nextIds.findIndex(
-          (id) => !selectedTagIds.includes(id),
-        );
-
-        if (replaceIndex !== -1) {
-          nextIds[replaceIndex] = selectedId;
-        }
-      });
-
-      return nextIds;
-    });
-  };
-
-  /**
    * Updates the saved specialty-tag selection from the main form.
    *
    * Clears the current validation error without immediately re-validating,
@@ -112,7 +133,6 @@ export default function SpecialtyTagsSection() {
     });
 
     clearErrors("specialtyTags");
-    updateVisibleTags(nextTags);
   };
 
   /**
@@ -161,7 +181,6 @@ export default function SpecialtyTagsSection() {
     });
 
     clearErrors("specialtyTags");
-    updateVisibleTags(draftSelectedTags);
   };
 
   return (
