@@ -9,7 +9,10 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
  * Confirmed discards and successful saves can explicitly bypass the guard
  * before performing their intended navigation action.
  */
-export function useUnsavedChangesGuard(hasChanges: boolean) {
+export function useUnsavedChangesGuard(
+  hasChanges: boolean,
+  isNavigationBlocked?: () => boolean,
+) {
   const navigation = useNavigation();
   const canLeaveRef = useRef(false);
 
@@ -23,7 +26,16 @@ export function useUnsavedChangesGuard(hasChanges: boolean) {
         return;
       }
 
-      if (!hasChanges || canLeaveRef.current) {
+      if (canLeaveRef.current) {
+        return;
+      }
+
+      if (isNavigationBlocked?.()) {
+        event.preventDefault();
+        return;
+      }
+
+      if (!hasChanges) {
         return;
       }
 
@@ -32,9 +44,13 @@ export function useUnsavedChangesGuard(hasChanges: boolean) {
     });
 
     return unsubscribe;
-  }, [navigation, hasChanges, isAuthenticated]);
+  }, [navigation, hasChanges, isAuthenticated, isNavigationBlocked]);
 
   function confirmLeave() {
+    if (isNavigationBlocked?.()) {
+      return;
+    }
+
     canLeaveRef.current = true;
     setShowConfirm(false);
 

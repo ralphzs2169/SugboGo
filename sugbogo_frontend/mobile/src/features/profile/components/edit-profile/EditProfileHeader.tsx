@@ -12,7 +12,7 @@ type Props = {
   imageUrl: string | null;
   avatarKey: AvatarKey | null;
   isShowingCustomProfilePicture: boolean;
-  isUploading: boolean;
+  isSaving: boolean;
   onImageSelected: (image: string) => void;
   onChooseAvatar: () => void;
   onRemovePicture: () => void;
@@ -20,13 +20,13 @@ type Props = {
 
 /**
  * Displays the editable profile picture with the SugboGo mascot perched
- * above it and provides visual feedback while a new picture is uploading.
+ * above it and locks picture actions while the profile save is in progress.
  */
 export default function EditProfileHeader({
   imageUrl,
   avatarKey,
   isShowingCustomProfilePicture,
-  isUploading,
+  isSaving,
   onImageSelected,
   onChooseAvatar,
   onRemovePicture,
@@ -73,7 +73,7 @@ export default function EditProfileHeader({
               imageUrl={imageUrl}
               avatarKey={avatarKey}
               isShowingCustomProfilePicture={isShowingCustomProfilePicture}
-              isUploading={isUploading}
+              isSaving={isSaving}
               onImageSelected={onImageSelected}
               onChooseAvatar={onChooseAvatar}
               onRemovePicture={onRemovePicture}
@@ -84,7 +84,7 @@ export default function EditProfileHeader({
               pointerEvents="none"
               className="absolute inset-0 items-center justify-center rounded-full bg-black/35"
             >
-              {isUploading ? (
+              {isSaving ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <MaterialCommunityIcons
@@ -99,7 +99,7 @@ export default function EditProfileHeader({
 
         {/* Profile photo guidance */}
         <AppText className="mt-3 text-sm font-medium text-text-secondary">
-          {isUploading ? "Saving photo..." : "Tap to change avatar"}
+          {isSaving ? "Saving profile..." : "Tap to change avatar"}
         </AppText>
       </View>
     </View>

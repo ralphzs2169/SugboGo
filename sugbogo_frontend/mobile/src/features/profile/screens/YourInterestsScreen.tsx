@@ -74,9 +74,24 @@ function YourInterestsEditor({
   const [categoryIds, setCategoryIds] = useState<number[]>([]);
   const [specialtyTagIds, setSpecialtyTagIds] = useState<number[]>([]);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [lastLoadedInterests, setLastLoadedInterests] = useState(
+    interestsQuery.data,
+  );
+  if (interestsQuery.data && interestsQuery.data !== lastLoadedInterests) {
+    setLastLoadedInterests(interestsQuery.data);
+  }
+
+  // The keyed editor and query enablement keep this fallback within one session.
+  const interests = interestsQuery.isEnabled
+    ? interestsQuery.data ?? lastLoadedInterests
+    : undefined;
 
   useEffect(() => {
-    if (!interestsQuery.data || initialized.current) {
+    if (!interestsQuery.data) {
+      return;
+    }
+
+    if (initialized.current) {
       return;
     }
 
@@ -108,7 +123,7 @@ function YourInterestsEditor({
   const categoryGroups = useMemo(() => {
     const groups = new Map<number, InterestCategoryGroup>();
 
-    for (const category of interestsQuery.data?.available_categories ?? []) {
+    for (const category of interests?.available_categories ?? []) {
       const existing = groups.get(category.cluster.id);
 
       if (existing) {
@@ -123,16 +138,16 @@ function YourInterestsEditor({
     }
 
     return Array.from(groups.entries());
-  }, [interestsQuery.data?.available_categories]);
+  }, [interests?.available_categories]);
 
-  const hasChanges = interestsQuery.data
+  const hasChanges = interests
     ? !idsMatch(
         categoryIds,
-        interestsQuery.data.categories.map((category) => category.id),
+        interests.categories.map((category) => category.id),
       ) ||
       !idsMatch(
         specialtyTagIds,
-        interestsQuery.data.specialty_tags.map((tag) => tag.id),
+        interests.specialty_tags.map((tag) => tag.id),
       )
     : false;
 
@@ -144,6 +159,10 @@ function YourInterestsEditor({
   } = useUnsavedChangesGuard(hasChanges);
 
   async function handleRetry() {
+    if (isRetrying) {
+      return;
+    }
+
     setIsRetrying(true);
 
     try {
@@ -203,11 +222,14 @@ function YourInterestsEditor({
     }
   }
 
-  if (interestsQuery.isLoading || isRetrying) {
+  if (
+    !interests &&
+    (interestsQuery.isLoading || interestsQuery.isAuthLoading || isRetrying)
+  ) {
     return <YourInterestsSkeleton />;
   }
 
-  if (interestsQuery.error || !interestsQuery.data) {
+  if (!interests) {
     return (
       <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
         <ErrorState
@@ -239,6 +261,21 @@ function YourInterestsEditor({
           <RecommendationInfoCard />
         </YourInterestsSection>
 
+        {/* Keep the current session's choices available during refresh recovery. */}
+        {(interestsQuery.error || isRetrying) && (
+          <ErrorState
+            size="section"
+            title={
+              isRetrying
+                ? "Refreshing your interests"
+                : "Unable to refresh your interests"
+            }
+            description="Your current selections are still available. You can keep editing."
+            primaryActionTitle={isRetrying ? undefined : "Retry"}
+            onPrimaryAction={isRetrying ? undefined : () => void handleRetry()}
+          />
+        )}
+
         {/* Category interests */}
         <YourInterestsSection
           title="Categories"
@@ -262,7 +299,7 @@ function YourInterestsEditor({
         >
           <InterestSpecialtiesSection
             availableSpecialtyTags={
-              interestsQuery.data.available_specialty_tags
+              interests.available_specialty_tags
             }
             selectedSpecialtyTagIds={specialtyTagIds}
             onToggleSpecialty={(specialtyTagId) => {

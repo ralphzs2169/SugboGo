@@ -1,5 +1,5 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, View } from "react-native";
 import { Toast } from "react-native-toast-message/lib/src/Toast";
 
@@ -13,7 +13,7 @@ type Props = {
   imageUrl?: string | null;
   avatarKey?: AvatarKey | null;
   isShowingCustomProfilePicture: boolean;
-  isUploading: boolean;
+  isSaving: boolean;
   onImageSelected?: (imageUri: string) => void;
   onChooseAvatar?: () => void;
   onRemovePicture?: () => void;
@@ -22,14 +22,13 @@ type Props = {
 /**
  * Handles profile picture selection and related user interactions.
  *
- * Prevents additional picture actions while an existing profile-picture
- * upload is in progress.
+ * Prevents additional picture actions throughout the profile save.
  */
 export function ProfileImagePicker({
   imageUrl,
   avatarKey,
   isShowingCustomProfilePicture,
-  isUploading,
+  isSaving,
   onImageSelected,
   onChooseAvatar,
   onRemovePicture,
@@ -38,9 +37,15 @@ export function ProfileImagePicker({
 
   const sheetRef = useRef<BottomSheetModal | null>(null);
 
+  useEffect(() => {
+    if (isSaving) {
+      sheetRef.current?.dismiss();
+    }
+  }, [isSaving]);
+
   // Open picture actions
   function handlePickImage() {
-    if (isUploading) {
+    if (isSaving) {
       return;
     }
 
@@ -49,6 +54,10 @@ export function ProfileImagePicker({
 
   // Choose from gallery
   async function handleChoosePhoto() {
+    if (isSaving) {
+      return;
+    }
+
     try {
       const imageUri = await pickFromGallery();
 
@@ -70,6 +79,10 @@ export function ProfileImagePicker({
 
   // Remove current picture
   function handleRemovePicture() {
+    if (isSaving) {
+      return;
+    }
+
     sheetRef.current?.dismiss();
     onRemovePicture?.();
   }
@@ -79,10 +92,10 @@ export function ProfileImagePicker({
       {/* Avatar trigger */}
       <Pressable
         onPress={handlePickImage}
-        disabled={isUploading}
+        disabled={isSaving}
         accessibilityRole="button"
         accessibilityLabel="Change avatar"
-        accessibilityState={{ disabled: isUploading }}
+        accessibilityState={{ disabled: isSaving, busy: isSaving }}
         className="cursor-pointer active:opacity-80 disabled:opacity-100"
       >
         <View className="relative">
@@ -97,6 +110,10 @@ export function ProfileImagePicker({
         sheetRef={sheetRef}
         isShowingCustomProfilePicture={isShowingCustomProfilePicture}
         onChooseAvatar={() => {
+          if (isSaving) {
+            return;
+          }
+
           sheetRef.current?.dismiss();
           onChooseAvatar?.();
         }}
