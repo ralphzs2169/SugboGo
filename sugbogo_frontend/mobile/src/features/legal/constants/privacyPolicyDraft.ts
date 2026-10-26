@@ -384,11 +384,11 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "This draft may be revised as SugboGo features, information-handling practices, and team decisions evolve.",
+        text: "This draft may be updated as SugboGo's features, information practices, and team decisions change.",
       },
       {
         type: "paragraph",
-        text: "Before an official policy is published, the team must approve its effective date, versioning process, and approach for communicating material updates.",
+        text: "Before publishing an official policy, the team must approve when it takes effect, how policy versions are tracked, and how important changes will be communicated.",
       },
     ],
   },

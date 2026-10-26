@@ -63,7 +63,7 @@ const representativeContent = [
   "Deactivation blocks sign-in and ends existing sign-in sessions. It does not automatically delete your account information, contributions, or related business records.",
   "You can also manage location permissions in your device settings, where supported.",
   "The final policy must explain the approved process and how to contact the team.",
-  "Before an official policy is published, the team must approve its effective date, versioning process, and approach for communicating material updates.",
+  "Before publishing an official policy, the team must approve when it takes effect, how policy versions are tracked, and how important changes will be communicated.",
   "An official support email is being considered but has not yet been confirmed.",
 ];
 
