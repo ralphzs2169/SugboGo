@@ -1,3 +1,5 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -52,6 +54,12 @@ export default function MerchantBusinessPhotosEditScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  useApiErrorNotification({
+    error,
+    toastId: "merchant-business-photos-profile-error",
+    title: "Unable to load business",
+    fallbackMessage: "Please try again.",
+  });
   const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
     business?.id ?? null,
   );
@@ -285,6 +293,7 @@ export default function MerchantBusinessPhotosEditScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
       >
+        <MerchantRefreshRecovery error={error} refetch={refetch} />
         {/* Full-width photo management information banner */}
         <View className="bg-info px-4 py-4">
           <View className="flex-row items-start">

@@ -206,7 +206,7 @@ describe("merchant location change queries", () => {
     await waitFor(() =>
       expect(result.current.latestRequest?.status).toBe("approved"),
     );
-    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(8));
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: merchantBusinessProfileKey(42),
     });

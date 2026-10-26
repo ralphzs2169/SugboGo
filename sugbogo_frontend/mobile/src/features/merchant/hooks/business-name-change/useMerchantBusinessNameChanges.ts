@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import useMerchantDecisionSync, {
+  syncMerchantDecision,
+} from "../change-requests/useMerchantDecisionSync";
 import {
-  type InfiniteData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -8,66 +9,15 @@ import {
 } from "@tanstack/react-query";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
-import { merchantBusinessProfileKey } from "@/features/merchant/hooks/business-profile/merchantBusinessProfileQueryKeys";
-import type { MerchantBusinessProfileResponse } from "@/features/merchant/types/merchantBusinessProfile.types";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import * as service from "../../api/businessNameChange.service";
 import type {
   BusinessNameChangeRequest,
-  BusinessNameChangeRequestPage,
   SubmitBusinessNameChangePayload,
 } from "../../types/businessNameChange.types";
 import { merchantBusinessNameChangeKeys } from "./businessNameChangeQueryKeys";
 import { businessChangePendingStatusQueryKey } from "../change-requests/businessChangePendingStatusQueryKey";
-
-function useRefreshApprovedBusinessName(
-  latestRequest: BusinessNameChangeRequest | undefined,
-  userId: number | undefined,
-) {
-  const queryClient = useQueryClient();
-  const handledApprovalId = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (
-      !userId ||
-      latestRequest?.status !== "approved" ||
-      handledApprovalId.current === latestRequest.id
-    ) {
-      return;
-    }
-
-    const history = queryClient.getQueryData<
-      InfiniteData<BusinessNameChangeRequestPage>
-    >(merchantBusinessNameChangeKeys.list(userId));
-    const newestKnownRequest = history?.pages[0]?.items[0];
-    if (newestKnownRequest && newestKnownRequest.id !== latestRequest.id) {
-      return;
-    }
-
-    const profile = queryClient.getQueryData<MerchantBusinessProfileResponse>(
-      merchantBusinessProfileKey(userId),
-    );
-
-    if (
-      !profile ||
-      profile.business_name === latestRequest.proposed_business_name
-    ) {
-      return;
-    }
-
-    handledApprovalId.current = latestRequest.id;
-    void Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: merchantBusinessProfileKey(userId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: exploreBusinessDetailKey(profile.id),
-      }),
-    ]);
-  }, [latestRequest, queryClient, userId]);
-}
 
 /** Loads the merchant's paginated request history in backend order. */
 export function useMerchantBusinessNameChangeRequests() {
@@ -92,7 +42,7 @@ export function useMerchantBusinessNameChangeRequests() {
     requests.find(
       (request) => request.id === eligibility?.pending_request_id,
     ) ?? null;
-  useRefreshApprovedBusinessName(latestRequest, userId);
+  useMerchantDecisionSync(requests, userId, "business_name", query.isSuccess);
 
   return {
     requests,
@@ -121,7 +71,12 @@ export function useMerchantBusinessNameChangeRequest(requestId: number) {
       throwOnApiError(await service.getBusinessNameChangeRequest(requestId)),
     refetchOnMount: "always",
   });
-  useRefreshApprovedBusinessName(query.data ?? undefined, userId);
+  useMerchantDecisionSync(
+    query.data ? [query.data] : [],
+    userId,
+    "business_name",
+    query.isSuccess,
+  );
 
   return {
     request: query.data ?? null,
@@ -171,21 +126,13 @@ export function useWithdrawMerchantBusinessNameChange() {
         merchantBusinessNameChangeKeys.detail(userId, changeRequest.id),
         changeRequest,
       );
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: merchantBusinessNameChangeKeys.list(userId),
-          refetchType: "all",
-        }),
-        queryClient.invalidateQueries({
-          queryKey: merchantBusinessNameChangeKeys.detail(
-            userId,
-            changeRequest.id,
-          ),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: businessChangePendingStatusQueryKey(userId),
-        }),
-      ]);
+      if (userId)
+        await syncMerchantDecision(
+          queryClient,
+          userId,
+          "business_name",
+          changeRequest,
+        );
     },
   });
 }

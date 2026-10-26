@@ -10,6 +10,11 @@ export const merchantPlusStatusKey = (accountId: number | undefined) =>
 export const merchantPlusReportScope = (accountId: number | undefined) =>
   ["merchant-plus-analytics", accountId] as const;
 
+export const merchantPlusReportFamily = (
+  accountId: number | undefined,
+  kind: PlusReportKind,
+) => [...merchantPlusReportScope(accountId), kind] as const;
+
 /** Includes every supported query dimension, including custom reporting boundaries. */
 export function merchantPlusReportKey(
   accountId: number | undefined,

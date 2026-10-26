@@ -595,6 +595,11 @@ describe("MerchantProfileScreen", () => {
     expect(mockNotify).toHaveBeenCalledWith(
       expect.objectContaining({ error: expect.any(Error) }),
     );
+    expect(screen.getByText("Unable to refresh business")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Tap to retry/i }),
+    );
+    expect(mockRefetch).toHaveBeenCalled();
   });
 
   it("keeps the two primary actions in one compact row", async () => {

@@ -5,7 +5,8 @@ import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communit
 
 import * as reviewReplyService from "../../api/reviewReply.service";
 import type { LocalReviewPhoto } from "../../types/review-reply/reviewReply.types";
-import { MERCHANT_STANDARD_ANALYTICS_QUERY_KEY } from "../analytics/merchantAnalyticsQueryKeys";
+import { invalidateMerchantAnalytics } from "../analytics/invalidateMerchantAnalytics";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import {
   businessReviewPreviewKey,
@@ -22,6 +23,7 @@ function useReviewReplyMutation<T>(
   mutationFn: (variables: T) => Promise<unknown>,
 ) {
   const queryClient = useQueryClient();
+  const accountId = useAuthStore((state) => state.user?.id);
 
   return useMutation({
     mutationFn: async (variables: T) =>
@@ -41,9 +43,9 @@ function useReviewReplyMutation<T>(
         queryClient.invalidateQueries({
           queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
         }),
-        queryClient.invalidateQueries({
-          queryKey: MERCHANT_STANDARD_ANALYTICS_QUERY_KEY,
-        }),
+        accountId
+          ? invalidateMerchantAnalytics(queryClient, accountId, "reply")
+          : Promise.resolve(),
       ]);
     },
   });

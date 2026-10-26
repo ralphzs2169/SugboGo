@@ -1,3 +1,4 @@
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import MerchantMetricCard from "../../components/MerchantMetricCard";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMutation } from "@tanstack/react-query";
@@ -56,7 +57,9 @@ export default function MerchantProfileScreen() {
   const { width, fontScale } = useWindowDimensions();
   const stackOverview = width < 360 || fontScale >= 1.35;
   const setActiveMode = useAppModeStore((state) => state.setActiveMode);
-  const openLogoutConfirmation = useLogoutConfirmationStore((state) => state.open);
+  const openLogoutConfirmation = useLogoutConfirmationStore(
+    (state) => state.open,
+  );
   const merchantAvatarUrl = useAuthStore(
     (state) => state.user?.avatar_url ?? null,
   );
@@ -324,6 +327,7 @@ export default function MerchantProfileScreen() {
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
         >
+          <MerchantRefreshRecovery error={error} refetch={refetch} />
           {/* Cover hero and live business identity */}
           <View
             testID="merchant-profile-hero-container"

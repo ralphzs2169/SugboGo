@@ -10,6 +10,8 @@ import QuickRepliesIcon from "../../assets/icons/quick-replies.svg";
 import ReviewDisputesIcon from "../../assets/icons/review-disputes.svg";
 
 type Props = {
+  disputesUnavailable?: boolean;
+  templatesUnavailable?: boolean;
   pendingDisputeCount?: number;
   quickResponseCount?: number;
 };
@@ -21,6 +23,8 @@ type Props = {
  * controls that operate directly on the review feed.
  */
 export default function MerchantReviewManagement({
+  disputesUnavailable = false,
+  templatesUnavailable = false,
   pendingDisputeCount,
   quickResponseCount,
 }: Props) {
@@ -60,11 +64,13 @@ export default function MerchantReviewManagement({
             </AppText>
 
             <AppText className="mt-1 text-xs leading-4 text-text-secondary">
-              {pendingDisputeCount !== undefined
-                ? pendingDisputeCount === 1
-                  ? "1 pending case"
-                  : `${pendingDisputeCount} pending cases`
-                : "View moderation cases"}
+              {disputesUnavailable
+                ? "Count unavailable"
+                : pendingDisputeCount !== undefined
+                  ? pendingDisputeCount === 1
+                    ? "1 pending case"
+                    : `${pendingDisputeCount} pending cases`
+                  : "View moderation cases"}
             </AppText>
           </View>
         </SafePressable>
@@ -93,11 +99,13 @@ export default function MerchantReviewManagement({
             </AppText>
 
             <AppText className="mt-1 text-xs leading-4 text-text-secondary">
-              {quickResponseCount !== undefined
-                ? quickResponseCount === 1
-                  ? "1 saved response"
-                  : `${quickResponseCount} saved responses`
-                : "Manage saved replies"}
+              {templatesUnavailable
+                ? "Count unavailable"
+                : quickResponseCount !== undefined
+                  ? quickResponseCount === 1
+                    ? "1 saved response"
+                    : `${quickResponseCount} saved responses`
+                  : "Manage saved replies"}
             </AppText>
           </View>
         </SafePressable>

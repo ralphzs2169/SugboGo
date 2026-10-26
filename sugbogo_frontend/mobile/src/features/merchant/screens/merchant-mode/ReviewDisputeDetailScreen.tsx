@@ -1,6 +1,9 @@
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Animated, RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -60,7 +63,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   const [evidenceAction, setEvidenceAction] = useState<EvidenceAction>(null);
   const [overviewHeight, setOverviewHeight] = useState(0);
 
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const [scrollY] = useState(() => new Animated.Value(0));
 
   const { dispute, isLoading, isRefetching, error, refetch } =
     useReviewDisputeDetail(disputeId);
@@ -84,21 +87,12 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     extrapolate: "clamp",
   });
 
-  useEffect(() => {
-    if (!error) {
-      return;
-    }
-
-    const response = error as unknown as ApiResponse<unknown>;
-
-    if (!response.success && !handleSystemError(response)) {
-      Toast.show({
-        type: "error",
-        text1: "Unable to load dispute",
-        text2: response.message || "Please try again.",
-      });
-    }
-  }, [error]);
+  useApiErrorNotification({
+    error,
+    toastId: `merchant-dispute-${disputeId}-error`,
+    title: "Unable to load dispute",
+    fallbackMessage: "Please try again.",
+  });
 
   const showMutationError = (caughtError: unknown, title: string) => {
     const response = caughtError as ApiResponse<unknown>;
@@ -223,7 +217,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !dispute) {
     return (
       <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -233,7 +227,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     );
   }
 
-  if (error || !dispute) {
+  if (!dispute || isTerminalResourceError(error)) {
     return (
       <View className="flex-1 bg-surface">
         <ErrorState
@@ -270,6 +264,11 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
           />
         }
       >
+        <MerchantRefreshRecovery
+          error={error}
+          refetch={refetch}
+          title="Unable to refresh dispute"
+        />
         {/* Dispute overview */}
         <View
           onLayout={(event) => {

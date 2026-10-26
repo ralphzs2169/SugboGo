@@ -20,7 +20,7 @@ jest.mock("@/shared/components/modals/FullScreenPhotoViewer", () => ({
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
-  useNavigation: () => ({ setOptions: mockSetOptions }),
+  useNavigation: () => ({ setOptions: mockSetOptions, isFocused: () => true }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ bottom: 0 }),
@@ -184,6 +184,7 @@ function preview(overrides: Record<string, unknown> = {}) {
     reviews: reviews.slice(0, 3),
     totalCount: 3,
     userReview: null,
+    hasResolvedOwnership: true,
     hasOwnReview: false,
     isLoading: false,
     error: null,
@@ -442,9 +443,9 @@ describe("ExploreBusinessReviewsScreen", () => {
     );
 
     expect(screen.queryByTestId("reviews-filter-update-loader")).toBeNull();
-    expect(screen.getByTestId("review-result-row-1").props.pointerEvents).toBe(
-      "auto",
-    );
+    expect(
+      screen.getByTestId("review-result-row-1").props.pointerEvents,
+    ).not.toBe("none");
   });
 
   it("clears transition feedback when a filter request fails", async () => {
@@ -525,6 +526,7 @@ describe("ExploreBusinessReviewsScreen", () => {
       expect(screen.queryByLabelText("Write a review")).toBeNull();
       (useBusinessReviewPreview as jest.Mock).mockReturnValue(
         preview({
+          hasResolvedOwnership: true,
           hasOwnReview: false,
           userReview: null,
           totalCount,
@@ -594,4 +596,48 @@ describe("ExploreBusinessReviewsScreen", () => {
     expect(screen.queryByText("Manage My Business")).toBeNull();
     expect(screen.queryByText("Write review")).toBeNull();
   });
+  it("retains cached public reviews and retries only the failed feed", async () => {
+    const refetch = jest.fn();
+    (useBusinessReviews as jest.Mock).mockReturnValue(
+      reviewQuery({ error: new Error("Offline"), refetch }),
+    );
+    const screen = await render(
+      <ExploreBusinessReviewsScreen
+        businessId={20}
+        isOwnBusiness
+        previewAsExplorer
+      />,
+    );
+    expect(screen.getAllByTestId("review-card")).toHaveLength(3);
+    expect(screen.getByText("Unable to refresh reviews")).toBeTruthy();
+    await press(screen.getByRole("button", { name: /Tap to retry/i }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+    (useBusinessReviews as jest.Mock).mockReturnValue(reviewQuery());
+    await screen.rerender(
+      <ExploreBusinessReviewsScreen
+        businessId={20}
+        isOwnBusiness
+        previewAsExplorer
+      />,
+    );
+    expect(screen.queryByText("Unable to refresh reviews")).toBeNull();
+  });
+
+  it.each(["NOT_FOUND", "PERMISSION_DENIED"])(
+    "does not retain public reviews for %s",
+    async (code) => {
+      (useBusinessReviews as jest.Mock).mockReturnValue(
+        reviewQuery({ error: { code }, reviews }),
+      );
+      const screen = await render(
+        <ExploreBusinessReviewsScreen
+          businessId={20}
+          isOwnBusiness
+          previewAsExplorer
+        />,
+      );
+      expect(screen.queryByTestId("review-card")).toBeNull();
+      expect(screen.getByText("Unable to load reviews")).toBeTruthy();
+    },
+  );
 });

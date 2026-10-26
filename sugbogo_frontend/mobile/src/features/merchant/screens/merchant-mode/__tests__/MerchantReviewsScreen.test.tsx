@@ -22,6 +22,12 @@ let mockParams: Record<string, unknown> = {};
 let mockFocused = true;
 const mockRefetchBusiness = jest.fn();
 const mockRefetchDisputes = jest.fn();
+const mockRefetchTemplates = jest.fn();
+let mockBusinessError: unknown = null;
+let mockDisputesError: unknown = null;
+let mockTemplatesError: unknown = null;
+let mockCountsCached = false;
+const mockManagement = jest.fn();
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParams,
   useRouter: () => mockRouter,
@@ -77,23 +83,37 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   default: () => ({
     business: { id: 8 },
     isLoading: false,
-    error: null,
+    error: mockBusinessError,
     refetch: mockRefetchBusiness,
   }),
 }));
 jest.mock("../../../hooks/review-disputes/useReviewDisputes", () => ({
   useReviewDisputes: () => ({
     disputes: [],
+    hasData: mockCountsCached || !mockDisputesError,
+    error: mockDisputesError,
     isLoading: false,
     refetch: mockRefetchDisputes,
   }),
 }));
 jest.mock("../../../hooks/reply-templates/useReplyTemplates", () => ({
-  useReplyTemplates: () => ({ templates: [], isLoading: false }),
+  useReplyTemplates: () => ({
+    templates: [],
+    isLoading: false,
+    error: mockTemplatesError,
+    hasData: mockCountsCached || !mockTemplatesError,
+    refetch: mockRefetchTemplates,
+  }),
 }));
 jest.mock(
   "../../../components/review-management/MerchantReviewManagement",
-  () => ({ __esModule: true, default: () => null }),
+  () => ({
+    __esModule: true,
+    default: (props: unknown) => {
+      mockManagement(props);
+      return null;
+    },
+  }),
 );
 jest.mock(
   "../../../components/review-management/MerchantReviewReplyComposerSheet",
@@ -147,6 +167,10 @@ jest.setTimeout(15_000);
 describe("merchant Reviews screen backlog integration", () => {
   let client: QueryClient;
   beforeEach(() => {
+    mockBusinessError = null;
+    mockDisputesError = null;
+    mockTemplatesError = null;
+    mockCountsCached = false;
     client = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
@@ -506,5 +530,65 @@ describe("merchant Reviews screen backlog integration", () => {
     getReviews.mockResolvedValue(response([]));
     await fireEvent.press(retry);
     await screen.findByText("All caught up");
+  });
+  it("keeps cached business and reviews after a business refresh failure", async () => {
+    mockBusinessError = new Error("Offline");
+    const screen = await openScreen();
+    expect(screen.getByText("Unable to refresh business")).toBeTruthy();
+    expect(screen.getByTestId("merchant-reviews-feed")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Unable to refresh business.*retry/i,
+      }),
+    );
+    expect(mockRefetchBusiness).toHaveBeenCalled();
+  });
+
+  it("distinguishes unknown counts, cached zero, and successful zero", async () => {
+    mockDisputesError = new Error("Offline");
+    mockTemplatesError = new Error("Offline");
+    const screen = await openScreen();
+    expect(mockManagement.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({
+        pendingDisputeCount: undefined,
+        quickResponseCount: undefined,
+        disputesUnavailable: true,
+        templatesUnavailable: true,
+      }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Dispute count unavailable.*retry/i }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Response count unavailable.*retry/i,
+      }),
+    );
+    expect(mockRefetchDisputes).toHaveBeenCalled();
+    expect(mockRefetchTemplates).toHaveBeenCalled();
+    mockCountsCached = true;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantReviewsScreen />
+      </QueryClientProvider>,
+    );
+    expect(mockManagement.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({
+        pendingDisputeCount: 0,
+        quickResponseCount: 0,
+        disputesUnavailable: false,
+        templatesUnavailable: false,
+      }),
+    );
+    mockDisputesError = null;
+    mockTemplatesError = null;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantReviewsScreen />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByText("Dispute count unavailable")).toBeNull();
+    expect(screen.queryByText("Response count unavailable")).toBeNull();
+    expect(mockManagement.mock.lastCall?.[0].quickResponseCount).toBe(0);
   });
 });

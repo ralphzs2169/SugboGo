@@ -1,3 +1,4 @@
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { router, useNavigation } from "expo-router";
@@ -98,7 +99,8 @@ function ReviewsCollectionScreenContent({
     refetch: refetchInsights,
   } = useExploreBusinessProfile(businessId);
 
-  const totalCount = ownership.totalCount ?? 0;
+  const knownTotalCount = ownership.totalCount ?? ownership.lastKnownTotalCount;
+  const totalCount = knownTotalCount ?? 0;
 
   const hasContentFilters = Boolean(
     filters.sentiment ||
@@ -107,17 +109,24 @@ function ReviewsCollectionScreenContent({
     filters.merchantReplied,
   );
 
-  const canWriteReview = !isOwnBusiness && !ownership.hasOwnReview;
+  const canWriteReview =
+    !isOwnBusiness &&
+    ownership.hasResolvedOwnership &&
+    !ownership.error &&
+    !ownership.hasOwnReview;
   const showWriteReviewFab = canWriteReview && totalCount > 0;
 
   const isInitialLoading = ownership.isLoading || reviewQuery.isInitialLoading;
 
   const isInitialError = Boolean(
-    ownership.error ||
+    isTerminalResourceError(ownership.error) ||
+    isTerminalResourceError(reviewQuery.error) ||
+    (ownership.error && !ownership.hasResolvedOwnership) ||
     (reviewQuery.error &&
       !reviewQuery.isFetchNextPageError &&
       !hasContentFilters &&
       filters.ordering === "newest" &&
+      !reviewQuery.hasData &&
       reviewQuery.reviews.length === 0),
   );
 
@@ -132,8 +141,7 @@ function ReviewsCollectionScreenContent({
     reviewQuery.error && !reviewQuery.isFetchNextPageError,
   );
 
-  const displayedReviews =
-    hasListError || isUpdatingResults ? [] : reviewQuery.reviews;
+  const displayedReviews = isUpdatingResults ? [] : reviewQuery.reviews;
 
   const shouldShowEndMessage =
     !isUpdatingResults &&
@@ -144,8 +152,11 @@ function ReviewsCollectionScreenContent({
     reviewQuery.reviews.length >= 5;
 
   useEffect(() => {
-    navigation.setOptions({ title: `Reviews (${totalCount})` });
-  }, [navigation, totalCount]);
+    navigation.setOptions({
+      title:
+        knownTotalCount == null ? "Reviews" : `Reviews (${knownTotalCount})`,
+    });
+  }, [navigation, knownTotalCount]);
 
   useEffect(() => {
     if (totalCount > 0) {
@@ -335,6 +346,24 @@ function ReviewsCollectionScreenContent({
         renderItem={renderReview}
         ListHeaderComponent={
           <View className="gap-3 bg-surface px-4">
+            {ownership.error ? (
+              <ErrorState
+                size="section"
+                title="Unable to refresh review summary"
+                description="Previously loaded information may be out of date."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => void ownership.refetch()}
+              />
+            ) : null}
+            {hasListError && displayedReviews.length > 0 ? (
+              <ErrorState
+                size="section"
+                title="Unable to refresh reviews"
+                description="Previously loaded reviews are still shown and may be out of date."
+                primaryActionTitle="Retry"
+                onPrimaryAction={() => void reviewQuery.refetch()}
+              />
+            ) : null}
             <ReviewFiltersSection
               insights={business?.review_insights}
               regeneration={business?.review_insight_regeneration}

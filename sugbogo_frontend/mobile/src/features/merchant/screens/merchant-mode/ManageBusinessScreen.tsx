@@ -1,3 +1,5 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { Pressable, ScrollView, View } from "react-native";
 import { router, type Href } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -24,9 +26,26 @@ type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
  */
 export default function ManageBusinessScreen() {
   const hasFocused = useRef(false);
-  const { business, isLoading, refetch } = useMerchantBusinessProfile();
-  const { pendingStatus, refetch: refetchPendingStatus } =
-    useBusinessChangePendingStatus();
+  const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  useApiErrorNotification({
+    error,
+    toastId: "merchant-manage-business-profile-error",
+    title: "Unable to load business",
+    fallbackMessage: "Please try again.",
+  });
+  const {
+    pendingStatus,
+    error: pendingError,
+    isLoading: pendingLoading,
+    refetch: refetchPendingStatus,
+  } = useBusinessChangePendingStatus();
+
+  useApiErrorNotification({
+    error: pendingError,
+    toastId: "manage-business-pending-error",
+    title: "Request status unavailable",
+    fallbackMessage: "Please try again.",
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -111,6 +130,7 @@ export default function ManageBusinessScreen() {
         contentContainerClassName="px-4 pb-10 pt-5"
         showsVerticalScrollIndicator={false}
       >
+        <MerchantRefreshRecovery error={error} refetch={refetch} />
         {/* Page introduction */}
         <View className="mb-6 px-1">
           <AppText className="text-sm leading-5 text-text-secondary">
@@ -192,6 +212,16 @@ export default function ManageBusinessScreen() {
           </View>
         </View>
 
+        <MerchantRefreshRecovery
+          error={pendingError}
+          refetch={refetchPendingStatus}
+          title="Request status unavailable"
+          description={
+            pendingStatus
+              ? "Last-known request statuses are shown and may be out of date."
+              : "Pending requests could not be checked."
+          }
+        />
         {/* Approval-required business details */}
         <View className="mb-7">
           <View className="mb-3 px-1">
@@ -262,6 +292,11 @@ export default function ManageBusinessScreen() {
                   </AppText>
                 </View>
 
+                {!pendingStatus ? (
+                  <AppText className="mr-2 text-xs text-text-secondary">
+                    {pendingLoading ? "Checking..." : "Status unavailable"}
+                  </AppText>
+                ) : null}
                 {row.isPending ? (
                   <View className="mr-2 rounded-full bg-info px-2.5 py-1">
                     <AppText

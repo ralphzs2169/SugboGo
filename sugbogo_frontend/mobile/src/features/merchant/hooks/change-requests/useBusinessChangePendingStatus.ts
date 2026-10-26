@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
@@ -18,7 +19,13 @@ export default function useBusinessChangePendingStatus() {
   });
 
   return {
-    pendingStatus: query.error ? null : (query.data ?? null),
+    pendingStatus: isTerminalResourceError(query.error)
+      ? null
+      : (query.data ?? null),
+    hasData: query.data !== undefined && !isTerminalResourceError(query.error),
+    isLoading: query.isLoading,
+    isRefetching: query.isRefetching,
+    error: query.error,
     refetch: query.refetch,
   };
 }

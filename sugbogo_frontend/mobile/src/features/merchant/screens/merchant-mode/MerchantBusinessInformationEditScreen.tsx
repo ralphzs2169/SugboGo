@@ -1,3 +1,5 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
@@ -42,6 +44,12 @@ export default function MerchantBusinessInformationEditScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  useApiErrorNotification({
+    error,
+    toastId: "merchant-business-information-profile-error",
+    title: "Unable to load business",
+    fallbackMessage: "Please try again.",
+  });
   const initializedBusinessId = useRef<number | null>(business?.id ?? null);
   const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
     business?.id ?? null,
@@ -249,6 +257,7 @@ export default function MerchantBusinessInformationEditScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
       >
+        <MerchantRefreshRecovery error={error} refetch={refetch} />
         {/* Full-width business information notice */}
         <View className="bg-info px-4 py-4">
           <View className="flex-row items-start">

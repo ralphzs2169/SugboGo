@@ -71,6 +71,7 @@ export function useReplyTemplates() {
 
   return {
     templates: query.data ?? [],
+    hasData: query.data !== undefined,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,
     error: query.error,

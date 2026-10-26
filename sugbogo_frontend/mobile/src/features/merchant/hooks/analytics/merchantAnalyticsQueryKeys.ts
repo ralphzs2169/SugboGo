@@ -4,6 +4,9 @@ export const MERCHANT_STANDARD_ANALYTICS_QUERY_KEY = [
   "merchant-standard-analytics",
 ] as const;
 
+export const merchantStandardAnalyticsScope = (userId: number | undefined) =>
+  [...MERCHANT_STANDARD_ANALYTICS_QUERY_KEY, userId] as const;
+
 /** Keeps Standard source classification isolated across accounts and periods. */
 export function merchantDiscoverySourcesKey(
   userId: number | undefined,

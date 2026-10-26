@@ -1,4 +1,6 @@
-import { useEffect } from "react";
+import useMerchantDecisionSync, {
+  syncMerchantDecision,
+} from "../change-requests/useMerchantDecisionSync";
 import {
   useInfiniteQuery,
   useMutation,
@@ -7,13 +9,6 @@ import {
 } from "@tanstack/react-query";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
-import { ROAD_ROUTE_QUERY_KEY } from "@/features/explore/hooks/useRoadRoute";
-import { DIRECT_JOURNEYS_QUERY_KEY } from "@/features/explore/hooks/useDirectJourneys";
-import { DIRECT_JOURNEY_MAP_QUERY_KEY } from "@/features/explore/hooks/useDirectJourneyMap";
-import { getMerchantBusinessProfile } from "@/features/merchant/api/merchantBusinessProfile.service";
-import { merchantBusinessProfileKey } from "@/features/merchant/hooks/business-profile/merchantBusinessProfileQueryKeys";
-import type { MerchantBusinessProfileResponse } from "@/features/merchant/types/merchantBusinessProfile.types";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import * as service from "../../api/locationChange.service";
@@ -23,72 +18,6 @@ import type {
 } from "../../types/locationChange.types";
 import { merchantLocationChangeKeys } from "./locationChangeQueryKeys";
 import { businessChangePendingStatusQueryKey } from "../change-requests/businessChangePendingStatusQueryKey";
-
-const handledApprovals = new Set<string>();
-const handlingApprovals = new Set<string>();
-
-/** Refreshes only the live data affected by an observed approved location. */
-function useRefreshApprovedLocation(
-  request: LocationChangeRequest | undefined,
-  userId: number | undefined,
-) {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!userId || request?.status !== "approved") {
-      return;
-    }
-    const approvalKey = `${userId}:${request.id}`;
-    if (
-      handledApprovals.has(approvalKey) ||
-      handlingApprovals.has(approvalKey)
-    ) {
-      return;
-    }
-    handlingApprovals.add(approvalKey);
-
-    async function refreshLiveLocation() {
-      try {
-        const profileKey = merchantBusinessProfileKey(userId);
-        let profile =
-          queryClient.getQueryData<MerchantBusinessProfileResponse>(profileKey);
-        if (!profile) {
-          profile = await queryClient.fetchQuery({
-            queryKey: profileKey,
-            queryFn: async () =>
-              throwOnApiError(await getMerchantBusinessProfile()),
-          });
-        }
-        if (!profile) {
-          return;
-        }
-
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: profileKey }),
-          queryClient.invalidateQueries({
-            queryKey: exploreBusinessDetailKey(profile.id),
-          }),
-          queryClient.invalidateQueries({
-            queryKey: [...ROAD_ROUTE_QUERY_KEY, profile.id],
-          }),
-          queryClient.invalidateQueries({
-            queryKey: [...DIRECT_JOURNEYS_QUERY_KEY, profile.id],
-          }),
-          queryClient.invalidateQueries({
-            queryKey: [...DIRECT_JOURNEY_MAP_QUERY_KEY, profile.id],
-          }),
-        ]);
-        handledApprovals.add(approvalKey);
-      } catch {
-        // A later request observation can retry the targeted refresh.
-      } finally {
-        handlingApprovals.delete(approvalKey);
-      }
-    }
-
-    void refreshLiveLocation();
-  }, [request, queryClient, userId]);
-}
 
 /** Loads paginated Location request history in the backend's newest-first order. */
 export function useMerchantLocationChangeRequests() {
@@ -111,7 +40,7 @@ export function useMerchantLocationChangeRequests() {
     requests.find(
       (request) => request.id === eligibility?.pending_request_id,
     ) ?? null;
-  useRefreshApprovedLocation(latestRequest, userId);
+  useMerchantDecisionSync(requests, userId, "location", query.isSuccess);
 
   return {
     requests,
@@ -140,7 +69,12 @@ export function useMerchantLocationChangeRequest(requestId: number) {
       throwOnApiError(await service.getLocationChangeRequest(requestId)),
     refetchOnMount: "always",
   });
-  useRefreshApprovedLocation(query.data ?? undefined, userId);
+  useMerchantDecisionSync(
+    query.data ? [query.data] : [],
+    userId,
+    "location",
+    query.isSuccess,
+  );
 
   return {
     request: query.data ?? null,
@@ -188,15 +122,13 @@ export function useWithdrawMerchantLocationChange() {
         merchantLocationChangeKeys.detail(userId, changeRequest.id),
         changeRequest,
       );
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: merchantLocationChangeKeys.list(userId),
-          refetchType: "all",
-        }),
-        queryClient.invalidateQueries({
-          queryKey: businessChangePendingStatusQueryKey(userId),
-        }),
-      ]);
+      if (userId)
+        await syncMerchantDecision(
+          queryClient,
+          userId,
+          "location",
+          changeRequest,
+        );
     },
   });
 }

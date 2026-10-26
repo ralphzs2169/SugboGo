@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import useMerchantDecisionSync, {
+  syncMerchantDecision,
+} from "../change-requests/useMerchantDecisionSync";
 import {
-  type InfiniteData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -8,73 +9,15 @@ import {
 } from "@tanstack/react-query";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
-import { merchantBusinessProfileKey } from "@/features/merchant/hooks/business-profile/merchantBusinessProfileQueryKeys";
-import type { MerchantBusinessProfileResponse } from "@/features/merchant/types/merchantBusinessProfile.types";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import * as service from "../../api/classificationChange.service";
 import type {
   ClassificationChangeRequest,
-  ClassificationChangeRequestPage,
   SubmitClassificationChangePayload,
 } from "../../types/classificationChange.types";
 import { merchantClassificationChangeKeys } from "./classificationChangeQueryKeys";
 import { businessChangePendingStatusQueryKey } from "../change-requests/businessChangePendingStatusQueryKey";
-
-function useRefreshApprovedClassification(
-  request: ClassificationChangeRequest | undefined,
-  userId: number | undefined,
-) {
-  const queryClient = useQueryClient();
-  const handledApprovalId = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (
-      !userId ||
-      request?.status !== "approved" ||
-      handledApprovalId.current === request.id
-    ) {
-      return;
-    }
-
-    const history = queryClient.getQueryData<
-      InfiniteData<ClassificationChangeRequestPage>
-    >(merchantClassificationChangeKeys.list(userId));
-    const newestKnownRequest = history?.pages[0]?.items[0];
-    if (newestKnownRequest && newestKnownRequest.id !== request.id) {
-      return;
-    }
-
-    const profile = queryClient.getQueryData<MerchantBusinessProfileResponse>(
-      merchantBusinessProfileKey(userId),
-    );
-    if (!profile) {
-      return;
-    }
-
-    const currentTags = new Set(profile.specialty_tags.map((tag) => tag.id));
-    const proposedTags = request.proposed.specialty_tags.map((tag) => tag.id);
-    const alreadyCurrent =
-      profile.category.id === request.proposed.category.id &&
-      profile.cluster.id === request.proposed.cluster.id &&
-      currentTags.size === proposedTags.length &&
-      proposedTags.every((id) => currentTags.has(id));
-    if (alreadyCurrent) {
-      return;
-    }
-
-    handledApprovalId.current = request.id;
-    void Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: merchantBusinessProfileKey(userId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: exploreBusinessDetailKey(profile.id),
-      }),
-    ]);
-  }, [request, queryClient, userId]);
-}
 
 /** Loads paginated classification requests in the backend's newest-first order. */
 export function useMerchantClassificationChangeRequests() {
@@ -97,7 +40,7 @@ export function useMerchantClassificationChangeRequests() {
     requests.find(
       (request) => request.id === eligibility?.pending_request_id,
     ) ?? null;
-  useRefreshApprovedClassification(latestRequest, userId);
+  useMerchantDecisionSync(requests, userId, "classification", query.isSuccess);
 
   return {
     requests,
@@ -126,7 +69,12 @@ export function useMerchantClassificationChangeRequest(requestId: number) {
       throwOnApiError(await service.getClassificationChangeRequest(requestId)),
     refetchOnMount: "always",
   });
-  useRefreshApprovedClassification(query.data ?? undefined, userId);
+  useMerchantDecisionSync(
+    query.data ? [query.data] : [],
+    userId,
+    "classification",
+    query.isSuccess,
+  );
 
   return {
     request: query.data ?? null,
@@ -174,21 +122,13 @@ export function useWithdrawMerchantClassificationChange() {
         merchantClassificationChangeKeys.detail(userId, changeRequest.id),
         changeRequest,
       );
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: merchantClassificationChangeKeys.list(userId),
-          refetchType: "all",
-        }),
-        queryClient.invalidateQueries({
-          queryKey: merchantClassificationChangeKeys.detail(
-            userId,
-            changeRequest.id,
-          ),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: businessChangePendingStatusQueryKey(userId),
-        }),
-      ]);
+      if (userId)
+        await syncMerchantDecision(
+          queryClient,
+          userId,
+          "classification",
+          changeRequest,
+        );
     },
   });
 }

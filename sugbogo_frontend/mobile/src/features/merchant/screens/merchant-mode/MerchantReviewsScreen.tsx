@@ -1,3 +1,5 @@
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 import MerchantScreenHeader from "../../layout/MerchantScreenHeader";
 import Button from "@/shared/components/Button";
 import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
@@ -221,6 +223,8 @@ export default function MerchantReviewsScreen() {
 
   const {
     disputes,
+    hasData: hasDisputesData,
+    error: disputesError,
     isLoading: isDisputesLoading,
     refetch: refetchDisputes,
   } = useReviewDisputes();
@@ -230,7 +234,13 @@ export default function MerchantReviewsScreen() {
     [disputes],
   );
 
-  const { templates, isLoading: isReplyTemplatesLoading } = useReplyTemplates();
+  const {
+    templates,
+    hasData: hasTemplatesData,
+    error: templatesError,
+    refetch: refetchTemplates,
+    isLoading: isReplyTemplatesLoading,
+  } = useReplyTemplates();
 
   const quickResponseCount = templates.length;
 
@@ -240,7 +250,7 @@ export default function MerchantReviewsScreen() {
     null,
   );
 
-  const isInitialLoading = isBusinessLoading;
+  const isInitialLoading = isBusinessLoading && !business;
   const sectionLoading = isReviewsInitialLoading || locatingReview;
   const needsReplyCount = unanswered.data?.total_unanswered;
   const hasContentFilters = !!(
@@ -259,6 +269,19 @@ export default function MerchantReviewsScreen() {
     error: focused ? businessError : null,
     toastId: "merchant-reviews-business-error",
     title: "Unable to load business",
+    fallbackMessage: "Please try again.",
+  });
+
+  useQueryErrorNotification({
+    error: focused ? disputesError : null,
+    toastId: "merchant-reviews-dispute-count-error",
+    title: "Dispute count unavailable",
+    fallbackMessage: "Please try again.",
+  });
+  useQueryErrorNotification({
+    error: focused ? templatesError : null,
+    toastId: "merchant-reviews-template-count-error",
+    title: "Response count unavailable",
     fallbackMessage: "Please try again.",
   });
 
@@ -331,7 +354,11 @@ export default function MerchantReviewsScreen() {
     );
   }
 
-  if (businessError || !business) {
+  if (
+    !business ||
+    isTerminalResourceError(businessError) ||
+    isTerminalResourceError(reviewsError)
+  ) {
     return (
       <SafeAreaView
         edges={["top", "left", "right"]}
@@ -344,7 +371,11 @@ export default function MerchantReviewsScreen() {
           title="Unable to load reviews"
           description="We couldn't load your business information right now. Please try again."
           primaryActionTitle="Retry"
-          onPrimaryAction={retryBusiness}
+          onPrimaryAction={
+            isTerminalResourceError(reviewsError)
+              ? () => void refetchReviews()
+              : retryBusiness
+          }
         />
       </SafeAreaView>
     );
@@ -423,6 +454,30 @@ export default function MerchantReviewsScreen() {
         }
         ListHeaderComponent={
           <View>
+            <MerchantRefreshRecovery
+              error={businessError}
+              refetch={refetchBusiness}
+            />
+            <MerchantRefreshRecovery
+              error={disputesError}
+              refetch={refetchDisputes}
+              title="Dispute count unavailable"
+              description={
+                hasDisputesData
+                  ? "Last-known counts are shown."
+                  : "Open review disputes or retry to check pending cases."
+              }
+            />
+            <MerchantRefreshRecovery
+              error={templatesError}
+              refetch={refetchTemplates}
+              title="Response count unavailable"
+              description={
+                hasTemplatesData
+                  ? "Last-known counts are shown."
+                  : "Open quick responses or retry to check saved replies."
+              }
+            />
             {/* Review overview */}
             <MerchantReviewsOverview
               totalCount={totalCount}
@@ -447,11 +502,15 @@ export default function MerchantReviewsScreen() {
 
             {/* Review management */}
             <MerchantReviewManagement
+              disputesUnavailable={!isDisputesLoading && !hasDisputesData}
+              templatesUnavailable={
+                !isReplyTemplatesLoading && !hasTemplatesData
+              }
               pendingDisputeCount={
-                isDisputesLoading ? undefined : pendingDisputeCount
+                !hasDisputesData ? undefined : pendingDisputeCount
               }
               quickResponseCount={
-                isReplyTemplatesLoading ? undefined : quickResponseCount
+                !hasTemplatesData ? undefined : quickResponseCount
               }
             />
 

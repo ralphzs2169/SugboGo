@@ -1,3 +1,5 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
@@ -62,6 +64,12 @@ export default function MerchantOperatingHoursEditScreen() {
   } | null>(null);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  useApiErrorNotification({
+    error,
+    toastId: "merchant-operating-hours-profile-error",
+    title: "Unable to load business",
+    fallbackMessage: "Please try again.",
+  });
   const [baseline, setBaseline] = useState(() => ({
     businessId: business?.id ?? null,
     hours: business?.operating_hours ?? [],
@@ -308,6 +316,7 @@ export default function MerchantOperatingHoursEditScreen() {
           contentContainerStyle={{ paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
         >
+          <MerchantRefreshRecovery error={error} refetch={refetch} />
           {/* Full-width operating hours information banner */}
           <View className="bg-info px-4 py-4">
             <View className="flex-row items-start">

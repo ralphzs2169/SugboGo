@@ -1,3 +1,5 @@
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import { merchantPlusReportFamily } from "../../analytics/merchantPlusAnalyticsQueryKeys";
 import type { PropsWithChildren } from "react";
 import {
   QueryClient,
@@ -13,7 +15,7 @@ import {
   exploreBusinessDetailKey,
 } from "@/features/explore/hooks/reviewQueryKeys";
 import {
-  MERCHANT_STANDARD_ANALYTICS_QUERY_KEY,
+  merchantStandardAnalyticsScope,
   merchantUnansweredReviewsKey,
 } from "../../analytics/merchantAnalyticsQueryKeys";
 import { merchantReviewFeedKey } from "../../review-management/merchantReviewQueryKeys";
@@ -52,7 +54,11 @@ function setup() {
 }
 
 describe("merchant reply Community synchronization", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useAuthStore.setState({ user: { id: 42 } as any });
+  });
+  afterEach(() => useAuthStore.setState({ user: null }));
 
   const cases = [
     {
@@ -116,10 +122,16 @@ describe("merchant reply Community synchronization", () => {
         businessReviewPreviewKey(20),
         businessReviewsKey(20),
         exploreBusinessDetailKey(20),
-        MERCHANT_STANDARD_ANALYTICS_QUERY_KEY,
+        merchantPlusReportFamily(42, "reviews"),
+        merchantPlusReportFamily(42, "recommendations"),
       ]) {
         expect(invalidate).toHaveBeenCalledWith({ queryKey });
       }
+      expect(invalidate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryKey: merchantStandardAnalyticsScope(42),
+        }),
+      );
       unmount();
       client.clear();
     },

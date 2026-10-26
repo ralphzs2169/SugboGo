@@ -22,6 +22,7 @@ export function useReviewDisputes() {
 
   return {
     disputes: query.data?.items ?? [],
+    hasData: query.data !== undefined,
     pagination: query.data?.pagination ?? null,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,

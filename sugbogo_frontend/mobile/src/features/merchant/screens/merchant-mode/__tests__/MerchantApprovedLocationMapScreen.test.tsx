@@ -23,6 +23,7 @@ jest.mock("../../../components/registration/landmark/LanmarkMap", () => {
   };
 });
 jest.mock("expo-router", () => ({
+  useNavigation: () => ({ isFocused: () => true }),
   router: { back: jest.fn() },
 }));
 
@@ -93,5 +94,24 @@ describe("MerchantApprovedLocationMapScreen", () => {
     );
     expect(mockMap.mock.lastCall?.[0].onMapPress).toBeUndefined();
     expect(mockMap.mock.lastCall?.[0].onLandmarkPress).toBeUndefined();
+  });
+  it("keeps cached map content and exposes targeted refresh recovery", async () => {
+    const refetch = jest.fn();
+    mockProfile.mockReturnValue({
+      business: {
+        business_name: "Saved business",
+        location: { latitude: 10.3, longitude: 123.8, landmarks: [] },
+      },
+      isLoading: false,
+      error: new Error("Offline"),
+      refetch,
+    });
+    const screen = await render(<MerchantApprovedLocationMapScreen />);
+    expect(screen.getByText("Approved landmark map")).toBeTruthy();
+    expect(screen.getByText("Unable to refresh business")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Tap to retry/i }),
+    );
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 });
