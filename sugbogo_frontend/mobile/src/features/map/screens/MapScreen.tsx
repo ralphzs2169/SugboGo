@@ -248,6 +248,7 @@ export default function MapScreen() {
     () =>
       displayedBusinesses.map((business) => ({
         id: business.id,
+        business_name: business.business_name,
         latitude: business.location.latitude,
         longitude: business.location.longitude,
         is_hidden_gem: business.is_hidden_gem === true,
