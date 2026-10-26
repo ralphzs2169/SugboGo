@@ -22,7 +22,10 @@ export default function OperatingHoursStep({
   registerErrorScrollTarget,
 }: OperatingHoursStepProps) {
   return (
-    <View className="bg-surface">
+    <View
+      className="bg-surface"
+      {...registerErrorScrollTarget("operatingHours.message")}
+    >
       <RegistrationSection
         icon="clock-outline"
         title="Operating Hours"
@@ -30,6 +33,7 @@ export default function OperatingHoursStep({
         showBorder={false}
       >
         <OperatingHoursWeek
+          showScheduleError
           registerDayTarget={(day) =>
             registerErrorScrollTarget(`operatingHours.${day}`)
           }

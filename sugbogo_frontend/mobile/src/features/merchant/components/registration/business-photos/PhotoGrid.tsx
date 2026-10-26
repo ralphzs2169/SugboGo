@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLayoutEffect, useRef, useState } from "react";
+import Toast from "react-native-toast-message";
 import PhotoPreview from "./PhotoPreview";
 import { pickBusinessPhotos } from "./PhotoPicker";
 import type { BusinessPhoto } from "@/features/merchant/types/registration/registrationOption.types";
@@ -31,10 +32,12 @@ export default function PhotoGrid({
 
   const [isPicking, setIsPicking] = useState(false);
   const disabledRef = useRef(disabled);
+  const pickerGeneration = useRef(0);
   useLayoutEffect(() => {
     disabledRef.current = disabled;
     return () => {
       disabledRef.current = true;
+      pickerGeneration.current += 1;
     };
   }, [disabled]);
 
@@ -44,6 +47,7 @@ export default function PhotoGrid({
     }
 
     setIsPicking(true);
+    const operation = pickerGeneration.current;
 
     try {
       const selectedPhotos = await pickBusinessPhotos({
@@ -51,11 +55,26 @@ export default function PhotoGrid({
         maxPhotos,
       });
 
-      if (disabledRef.current || selectedPhotos.length === 0) {
+      if (
+        disabledRef.current ||
+        operation !== pickerGeneration.current ||
+        selectedPhotos.length === 0
+      ) {
         return;
       }
 
       onPhotosChange([...photos, ...selectedPhotos]);
+    } catch (error) {
+      if (!disabledRef.current && operation === pickerGeneration.current) {
+        Toast.show({
+          type: "error",
+          text1: "Unable to add photos",
+          text2:
+            error instanceof Error
+              ? `${error.message} Please try again.`
+              : "Please choose the photos again and try again.",
+        });
+      }
     } finally {
       setIsPicking(false);
     }

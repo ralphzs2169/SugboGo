@@ -22,6 +22,40 @@ describe("pickBusinessPhotos", () => {
     });
   });
 
+  it("returns no selection when the user cancels", async () => {
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
+      canceled: true,
+      assets: null,
+    });
+    await expect(
+      pickBusinessPhotos({ currentCount: 1, maxPhotos: 3 }),
+    ).resolves.toEqual([]);
+    expect(processImage).not.toHaveBeenCalled();
+  });
+
+  it("reports denied permission instead of treating it as cancellation", async () => {
+    (
+      ImagePicker.requestMediaLibraryPermissionsAsync as jest.Mock
+    ).mockResolvedValue({ granted: false });
+    await expect(
+      pickBusinessPhotos({ currentCount: 1, maxPhotos: 3 }),
+    ).rejects.toThrow("Permission to access photos was denied.");
+    expect(ImagePicker.launchImageLibraryAsync).not.toHaveBeenCalled();
+  });
+
+  it("propagates processing failure for actionable caller feedback", async () => {
+    (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: "file:///unreadable.jpg", width: 800, height: 600 }],
+    });
+    jest
+      .mocked(processImage)
+      .mockRejectedValueOnce(new Error("Unreadable image"));
+    await expect(
+      pickBusinessPhotos({ currentCount: 1, maxPhotos: 3 }),
+    ).rejects.toThrow("Unreadable image");
+  });
+
   it("rejects a selected original larger than 10 MB before processing", async () => {
     (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({
       canceled: false,

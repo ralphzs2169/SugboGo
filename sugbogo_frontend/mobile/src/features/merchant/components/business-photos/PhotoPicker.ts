@@ -27,7 +27,9 @@ export async function pickBusinessPhotos({
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
   if (!permission.granted) {
-    return [];
+    throw new Error(
+      "Permission to access photos was denied. Allow photo access to add photos.",
+    );
   }
 
   const result = await ImagePicker.launchImageLibraryAsync({

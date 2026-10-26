@@ -261,12 +261,14 @@ export default function BusinessIdentityStep({
           />
         </View>
 
-        <RHFFormInput
-          name="website"
-          label="Website / Social Media (Optional)"
-          placeholder="https://..."
-          autoCapitalize="none"
-        />
+        <View {...registerErrorScrollTarget("website")}>
+          <RHFFormInput
+            name="website"
+            label="Website / Social Media (Optional)"
+            placeholder="https://..."
+            autoCapitalize="none"
+          />
+        </View>
       </RegistrationSection>
 
       {/* Specialty Tags Section */}
@@ -296,13 +298,15 @@ export default function BusinessIdentityStep({
           />
         </View>
 
-        <RHFFormInput
-          name="businessEmail"
-          label="Business Email (Optional)"
-          placeholder="business@example.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+        <View {...registerErrorScrollTarget("businessEmail")}>
+          <RHFFormInput
+            name="businessEmail"
+            label="Business Email (Optional)"
+            placeholder="business@example.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+        </View>
       </RegistrationSection>
 
       {/* Representative Information Section */}

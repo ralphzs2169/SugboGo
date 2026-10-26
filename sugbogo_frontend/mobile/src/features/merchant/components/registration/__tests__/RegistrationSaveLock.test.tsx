@@ -1,6 +1,7 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
 import { FormProvider, useForm } from "react-hook-form";
 import { View } from "react-native";
+import Toast from "react-native-toast-message";
 
 import { MERCHANT_REGISTRATION_DEFAULT_VALUES } from "../../../constants/registration/defaultValues.constants";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
@@ -12,6 +13,7 @@ import { pickBusinessPhotos } from "../business-photos/PhotoPicker";
 import { pickBusinessDocuments } from "../verification-documents/DocumentPicker";
 
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
+jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 jest.mock("../business-photos/PhotoPicker", () => ({
   pickBusinessPhotos: jest.fn(),
 }));
@@ -109,6 +111,60 @@ describe("registration save lock controls", () => {
   });
 
   it.each(["photo", "document"])(
+    "keeps %s cancellation silent and preserves existing selections",
+    async (kind) => {
+      const picker =
+        kind === "photo"
+          ? jest.mocked(pickBusinessPhotos)
+          : jest.mocked(pickBusinessDocuments);
+      picker.mockResolvedValueOnce([]);
+      const screen = await render(<Fields disabled={false} />);
+      await fireEvent.press(
+        screen.getByText(
+          kind === "photo" ? "Add Photo" : "Add Another Document",
+        ),
+      );
+      expect(Toast.show).not.toHaveBeenCalled();
+      expect(onPhotosChange).not.toHaveBeenCalled();
+      expect(onDocumentChange).not.toHaveBeenCalled();
+      expect(screen.getByLabelText(`Remove ${kind}`)).toBeTruthy();
+    },
+  );
+
+  it.each([
+    ["photo", "Permission to access photos was denied."],
+    ["photo", "Unable to process this image. Choose another photo."],
+    ["document", "Document provider unavailable. Try again."],
+  ])(
+    "reports %s failures and retains selections for retry: %s",
+    async (kind, message) => {
+      const picker =
+        kind === "photo"
+          ? jest.mocked(pickBusinessPhotos)
+          : jest.mocked(pickBusinessDocuments);
+      picker.mockRejectedValueOnce(new Error(message));
+      const screen = await render(<Fields disabled={false} />);
+      const action = kind === "photo" ? "Add Photo" : "Add Another Document";
+      await fireEvent.press(screen.getByText(action));
+      expect(Toast.show).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "error",
+          text2: expect.stringContaining(message),
+        }),
+      );
+      expect(onPhotosChange).not.toHaveBeenCalled();
+      expect(onDocumentChange).not.toHaveBeenCalled();
+      expect(screen.getByLabelText(`Remove ${kind}`)).toBeTruthy();
+      expect(screen.getByPlaceholderText("Name")).toBeTruthy();
+      picker.mockResolvedValueOnce([{ uri: "file:///retry" }]);
+      await fireEvent.press(screen.getByText(action));
+      expect(
+        kind === "photo" ? onPhotosChange : onDocumentChange,
+      ).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["photo", "document"])(
     "ignores a delayed %s selection after persistence locks the form",
     async (kind) => {
       let finish!: (value: { uri: string }[]) => void;
@@ -126,9 +182,38 @@ describe("registration save lock controls", () => {
         ),
       );
       await screen.rerender(<Fields disabled />);
+      await screen.rerender(<Fields disabled={false} />);
       await act(async () => {
         finish([{ uri: "file:///late-selection" }]);
       });
+      expect(onPhotosChange).not.toHaveBeenCalled();
+      expect(onDocumentChange).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["photo", "document"])(
+    "ignores a late %s failure after the save lock invalidates the picker",
+    async (kind) => {
+      let fail!: (error: Error) => void;
+      const pending = new Promise<never>((_resolve, reject) => {
+        fail = reject;
+      });
+      (kind === "photo"
+        ? jest.mocked(pickBusinessPhotos)
+        : jest.mocked(pickBusinessDocuments)
+      ).mockReturnValueOnce(pending);
+      const screen = await render(<Fields disabled={false} />);
+      await fireEvent.press(
+        screen.getByText(
+          kind === "photo" ? "Add Photo" : "Add Another Document",
+        ),
+      );
+      await screen.rerender(<Fields disabled />);
+      await screen.rerender(<Fields disabled={false} />);
+      await act(async () => {
+        fail(new Error("Obsolete picker failed"));
+      });
+      expect(Toast.show).not.toHaveBeenCalled();
       expect(onPhotosChange).not.toHaveBeenCalled();
       expect(onDocumentChange).not.toHaveBeenCalled();
     },

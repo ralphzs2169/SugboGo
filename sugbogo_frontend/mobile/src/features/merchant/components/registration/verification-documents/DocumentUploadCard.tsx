@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useFormContext } from "react-hook-form";
+import Toast from "react-native-toast-message";
 
 import DocumentPreview from "./DocumentPreview";
 import { pickBusinessDocuments } from "./DocumentPicker";
@@ -40,10 +41,12 @@ export default function DocumentUploadCard({
     formState: { disabled },
   } = useFormContext();
   const disabledRef = useRef(disabled);
+  const pickerGeneration = useRef(0);
   useLayoutEffect(() => {
     disabledRef.current = disabled;
     return () => {
       disabledRef.current = true;
+      pickerGeneration.current += 1;
     };
   }, [disabled]);
 
@@ -57,6 +60,7 @@ export default function DocumentUploadCard({
     }
 
     setIsPicking(true);
+    const operation = pickerGeneration.current;
 
     try {
       const selectedDocuments = await pickBusinessDocuments({
@@ -64,7 +68,11 @@ export default function DocumentUploadCard({
         maxDocuments,
       });
 
-      if (disabledRef.current || selectedDocuments.length === 0) {
+      if (
+        disabledRef.current ||
+        operation !== pickerGeneration.current ||
+        selectedDocuments.length === 0
+      ) {
         return;
       }
 
@@ -74,6 +82,17 @@ export default function DocumentUploadCard({
       }
 
       onDocumentChange?.(selectedDocuments[0]);
+    } catch (error) {
+      if (!disabledRef.current && operation === pickerGeneration.current) {
+        Toast.show({
+          type: "error",
+          text1: "Unable to add documents",
+          text2:
+            error instanceof Error
+              ? `${error.message} Please try again.`
+              : "Please choose the documents again and try again.",
+        });
+      }
     } finally {
       setIsPicking(false);
     }
