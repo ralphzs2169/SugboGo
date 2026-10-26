@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   DEFAULT_MERCHANT_REVIEW_CONTENT_FILTERS,
   type MerchantReviewSelection,
@@ -89,12 +89,17 @@ export default function useMerchantReviewSelection() {
     });
   }, [hasIntent, key, params.reviewId, router]);
 
+  const clearReviewTarget = useCallback(() => {
+    setState((current) => ({ ...current, reviewId: null }));
+  }, []);
+
   return {
     ...effective,
     setSelection: (selection: MerchantReviewSelection) =>
       setState((current) => ({ ...current, selection, reviewId: null })),
     reviewId,
     entry,
+    clearReviewTarget,
     setContentFilters: (
       contentFilters: MerchantReviewSelection["contentFilters"],
     ) =>

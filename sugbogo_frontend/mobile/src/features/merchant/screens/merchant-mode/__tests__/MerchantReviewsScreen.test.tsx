@@ -19,12 +19,31 @@ import { getMerchantReviewLocation } from "../../../api/merchantReviewFocus.serv
 
 const mockRouter = { setParams: jest.fn(), push: jest.fn() };
 let mockParams: Record<string, unknown> = {};
+let mockFocused = true;
+const mockRefetchBusiness = jest.fn();
+const mockRefetchDisputes = jest.fn();
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParams,
   useRouter: () => mockRouter,
-  useIsFocused: () => true,
+  useIsFocused: () => mockFocused,
   useNavigation: () => ({ isFocused: () => true }),
 }));
+jest.mock("react-native-reanimated", () => {
+  const React = jest.requireActual("react");
+  return {
+    __esModule: true,
+    default: { View: jest.requireActual("react-native").View },
+    Easing: { inOut: jest.fn(), quad: jest.fn() },
+    ReduceMotion: { System: "system" },
+    useReducedMotion: () => true,
+    useSharedValue: (value: number) =>
+      React.useRef({ value, set: jest.fn() }).current,
+    useAnimatedStyle: () => ({}),
+    cancelAnimation: jest.fn(),
+    withSequence: jest.fn(),
+    withTiming: jest.fn(),
+  };
+});
 jest.mock("@gorhom/bottom-sheet", () =>
   jest
     .requireActual("../../../__tests__/analyticsSheet.mock")
@@ -59,11 +78,15 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
     business: { id: 8 },
     isLoading: false,
     error: null,
-    refetch: jest.fn(),
+    refetch: mockRefetchBusiness,
   }),
 }));
 jest.mock("../../../hooks/review-disputes/useReviewDisputes", () => ({
-  useReviewDisputes: () => ({ disputes: [], isLoading: false }),
+  useReviewDisputes: () => ({
+    disputes: [],
+    isLoading: false,
+    refetch: mockRefetchDisputes,
+  }),
 }));
 jest.mock("../../../hooks/reply-templates/useReplyTemplates", () => ({
   useReplyTemplates: () => ({ templates: [], isLoading: false }),
@@ -128,6 +151,7 @@ describe("merchant Reviews screen backlog integration", () => {
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
     useAuthStore.setState({ user: analyticsMerchant() });
+    mockFocused = true;
     mockParams = {
       filter: "needs-reply",
       ordering: "oldest",
@@ -192,9 +216,151 @@ describe("merchant Reviews screen backlog integration", () => {
         <MerchantReviewsScreen />
       </QueryClientProvider>,
     );
-    await screen.findByText("Unable to open this review");
+    await screen.findByText("Review no longer available");
     await screen.findByText("Review 1");
     expect(getReviews).toHaveBeenCalledWith(8, expect.anything(), 1);
+    await waitFor(() =>
+      expect(screen.queryByText("Unable to open this review")).toBeNull(),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Continue browsing reviews" }),
+    );
+    expect(screen.queryByText("Review no longer available")).toBeNull();
+  });
+
+  it("clears an obsolete page after a previously located review becomes unavailable", async () => {
+    mockParams = { reviewId: "82", filter: "all", ordering: "newest" };
+    jest
+      .mocked(getMerchantReviewLocation)
+      .mockResolvedValueOnce({
+        success: true,
+        message: "Success",
+        data: { review_id: 82, page: 9, page_size: 10 },
+      })
+      .mockResolvedValue({
+        success: false,
+        message: "This review is no longer available.",
+        code: "NOT_FOUND",
+      });
+    getReviews.mockImplementation(async (_business, _filters, page) =>
+      response(page === 9 ? [80] : [1], page),
+    );
+    const screen = await openScreen();
+    const locate = await screen.findByRole("button", {
+      name: /Review no longer on this page.*locate review/i,
+    });
+    await fireEvent.press(locate);
+    await screen.findByText("Review no longer available");
+    await screen.findByText("Review 1");
+    expect(screen.queryByText("Review 80")).toBeNull();
+    expect(screen.queryByText("Review no longer on this page")).toBeNull();
+    expect(screen.queryByText("Unable to open this review")).toBeNull();
+    expect(getMerchantReviewLocation).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows only a temporary failure after a failed relocation and prevents repeated retries", async () => {
+    mockParams = { reviewId: "82", filter: "all", ordering: "newest" };
+    jest
+      .mocked(getMerchantReviewLocation)
+      .mockResolvedValueOnce({
+        success: true,
+        message: "Success",
+        data: { review_id: 82, page: 9, page_size: 10 },
+      })
+      .mockResolvedValueOnce({
+        success: false,
+        message: "Offline",
+        code: "NETWORK_ERROR",
+      });
+    const screen = await openScreen();
+    await fireEvent.press(
+      await screen.findByRole("button", {
+        name: /Review no longer on this page.*locate review/i,
+      }),
+    );
+    const retry = await screen.findByRole("button", {
+      name: /Unable to open this review.*try again/i,
+    });
+    expect(screen.queryByText("Review no longer on this page")).toBeNull();
+    expect(screen.queryByText("Review no longer available")).toBeNull();
+
+    let finish!: (
+      value: Awaited<ReturnType<typeof getMerchantReviewLocation>>,
+    ) => void;
+    jest.mocked(getMerchantReviewLocation).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await act(async () => {
+      await fireEvent.press(retry);
+      await fireEvent.press(retry);
+    });
+    expect(getMerchantReviewLocation).toHaveBeenCalledTimes(3);
+    await waitFor(() =>
+      expect(screen.queryByText("Unable to open this review")).toBeNull(),
+    );
+    getReviews.mockResolvedValue(response([82]));
+    await act(async () =>
+      finish({
+        success: true,
+        message: "Success",
+        data: { review_id: 82, page: 1, page_size: 10 },
+      }),
+    );
+    await screen.findByText("Review 82");
+    expect(screen.queryByText("Review no longer on this page")).toBeNull();
+  });
+
+  it("revalidates a located review and refreshes review data when returning to the tab", async () => {
+    mockParams = { reviewId: "82", filter: "all", ordering: "newest" };
+    jest.mocked(getMerchantReviewLocation).mockResolvedValue({
+      success: true,
+      message: "Success",
+      data: { review_id: 82, page: 1, page_size: 10 },
+    });
+    getReviews.mockResolvedValue(response([82]));
+    const screen = await openScreen();
+    await screen.findByText("Review 82");
+    mockFocused = false;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantReviewsScreen />
+      </QueryClientProvider>,
+    );
+    const invalidation = jest.spyOn(client, "invalidateQueries");
+    jest.mocked(getMerchantReviewLocation).mockResolvedValue({
+      success: false,
+      message: "This review is no longer available.",
+      code: "NOT_FOUND",
+    });
+    getReviews.mockResolvedValue(response([1]));
+    const backlogCalls = jest.mocked(getMerchantUnansweredReviews).mock.calls
+      .length;
+    mockFocused = true;
+    await screen.rerender(
+      <QueryClientProvider client={client}>
+        <MerchantReviewsScreen />
+      </QueryClientProvider>,
+    );
+    await screen.findByText("Review no longer available");
+    await screen.findByText("Review 1");
+    expect(getMerchantReviewLocation).toHaveBeenCalledTimes(2);
+    expect(
+      jest.mocked(getMerchantUnansweredReviews).mock.calls.length,
+    ).toBeGreaterThan(backlogCalls);
+    for (const prefix of [
+      "merchant-business-profile",
+      "business-reviews",
+      "merchant-review-disputes",
+    ]) {
+      expect(
+        invalidation.mock.calls.some(
+          ([filters]) => filters?.queryKey?.[0] === prefix,
+        ),
+      ).toBe(true);
+    }
   });
   async function openScreen() {
     return render(
@@ -219,7 +385,9 @@ describe("merchant Reviews screen backlog integration", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Filter reviews, 1 active filters" }),
     );
-    await fireEvent.press(screen.getByRole("button", { name: "With photos" }));
+    await screen.findByText("Refine which reviews you want to see.");
+    const photoOptions = screen.getAllByRole("button", { name: "With photos" });
+    await fireEvent.press(photoOptions[photoOptions.length - 1]);
     expect(getReviews).toHaveBeenCalledTimes(1);
     getReviews.mockResolvedValueOnce(response([]));
     await fireEvent.press(

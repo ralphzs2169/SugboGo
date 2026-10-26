@@ -7,6 +7,7 @@ import LottieView from "lottie-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import { useIsFocused } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -36,6 +37,11 @@ import MerchantReviewsOverview from "../../components/review-management/Merchant
 import MerchantReviewsSectionSkeleton from "../../components/review-management/MerchantReviewsSectionSkeleton";
 import MerchantReviewsSkeleton from "../../components/review-management/MerchantReviewsSkeleton";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import { businessReviewsKey } from "@/features/explore/hooks/reviewQueryKeys";
+import { merchantBusinessProfileKey } from "../../hooks/business-profile/merchantBusinessProfileQueryKeys";
+import { merchantUnansweredReviewsKey } from "../../hooks/analytics/merchantAnalyticsQueryKeys";
+import { reviewDisputeKeys } from "../../hooks/review-disputes/reviewDisputeQueryKeys";
 
 const TAB_BAR_HEIGHT = 64;
 
@@ -55,6 +61,8 @@ const MASCOT_NO_HISTORY = require("@/shared/assets/mascot/mascot-no-history.webp
 export default function MerchantReviewsScreen() {
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
+  const queryClient = useQueryClient();
+  const accountId = useAuthStore((state) => state.user?.id);
   const {
     filter,
     ordering,
@@ -63,6 +71,7 @@ export default function MerchantReviewsScreen() {
     contentFilters,
     setSelection,
     clearFilters,
+    clearReviewTarget,
   } = useMerchantReviewSelection();
   const unanswered = useMerchantUnansweredReviews(focused);
   useQueryErrorNotification({
@@ -86,7 +95,54 @@ export default function MerchantReviewsScreen() {
     entry,
     focused,
   );
-  const locatingReview = !!reviewId && reviewFocus.isPending;
+  const locatingReview =
+    !!reviewId && (reviewFocus.isPending || reviewFocus.isFetching);
+  const locationUnavailable =
+    !!reviewId &&
+    !locatingReview &&
+    reviewFocus.error !== null &&
+    "code" in reviewFocus.error &&
+    reviewFocus.error.code === "NOT_FOUND";
+  const [unavailableTarget, setUnavailableTarget] = useState<{
+    entry: number;
+    businessId: number;
+  } | null>(null);
+  const showUnavailable =
+    locationUnavailable ||
+    (unavailableTarget?.entry === entry &&
+      unavailableTarget.businessId === businessId &&
+      !reviewId);
+
+  // Consume the unavailable target before the next render can reuse its old page.
+  if (locationUnavailable) {
+    setUnavailableTarget({ entry, businessId });
+    clearReviewTarget();
+  }
+
+  const wasFocused = useRef(focused);
+  useEffect(() => {
+    const returningToReviews = focused && !wasFocused.current;
+    wasFocused.current = focused;
+    if (
+      !focused ||
+      (!returningToReviews && !showUnavailable) ||
+      !accountId ||
+      !businessId
+    ) {
+      return;
+    }
+
+    // Invalidate disabled feed queries too, so the resolved location loads fresh data.
+    const queryKeys = [
+      merchantBusinessProfileKey(accountId),
+      [...businessReviewsKey(businessId), "merchant-feed", accountId],
+      merchantUnansweredReviewsKey(accountId),
+      reviewDisputeKeys.list(),
+    ];
+    void Promise.all(
+      queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    );
+  }, [focused, accountId, businessId, queryClient, showUnavailable]);
 
   const {
     reviews,
@@ -108,7 +164,7 @@ export default function MerchantReviewsScreen() {
     filter,
     ordering,
     focused && !locatingReview,
-    reviewId ? reviewFocus.data : undefined,
+    reviewId && !reviewFocus.error ? reviewFocus.data : undefined,
     contentFilters,
   );
 
@@ -122,7 +178,11 @@ export default function MerchantReviewsScreen() {
   const targetIndex = reviewId
     ? reviews.findIndex((review) => review.id === reviewId)
     : -1;
-  const targetFound = targetIndex >= 0 && !!reviewFocus.data && !locatingReview;
+  const targetFound =
+    targetIndex >= 0 &&
+    !!reviewFocus.data &&
+    !reviewFocus.error &&
+    !locatingReview;
 
   useEffect(() => {
     if (!focused || !targetFound || handledEntry.current === entry) {
@@ -159,7 +219,11 @@ export default function MerchantReviewsScreen() {
     };
   }, [entry, reviewId, focused]);
 
-  const { disputes, isLoading: isDisputesLoading } = useReviewDisputes();
+  const {
+    disputes,
+    isLoading: isDisputesLoading,
+    refetch: refetchDisputes,
+  } = useReviewDisputes();
 
   const pendingDisputeCount = useMemo(
     () => disputes.filter((dispute) => dispute.status === "pending").length,
@@ -202,8 +266,9 @@ export default function MerchantReviewsScreen() {
     if (business) {
       await Promise.all([
         refetchBusiness(),
-        refetchReviews(),
+        reviewId ? retryReviewLocation() : refetchReviews(),
         unanswered.refetch(),
+        refetchDisputes(),
       ]);
       return;
     }
@@ -215,10 +280,26 @@ export default function MerchantReviewsScreen() {
     void refetchBusiness();
   };
 
+  const locationRequestRunning = useRef(false);
   const retryReviewLocation = async () => {
-    const result = await reviewFocus.refetch();
-    if (result.data?.page === reviewFocus.data?.page) {
-      await refetchReviews();
+    if (!reviewId || reviewFocus.isFetching || locationRequestRunning.current) {
+      return;
+    }
+
+    locationRequestRunning.current = true;
+    try {
+      const result = await reviewFocus.refetch({ cancelRefetch: false });
+      if (result.isSuccess) {
+        await queryClient.invalidateQueries({
+          queryKey: [
+            ...businessReviewsKey(businessId),
+            "merchant-feed",
+            accountId,
+          ],
+        });
+      }
+    } finally {
+      locationRequestRunning.current = false;
     }
   };
 
@@ -384,17 +465,27 @@ export default function MerchantReviewsScreen() {
               ordering={ordering}
             />
 
-            {!!reviewId && reviewFocus.error && (
+            {showUnavailable ? (
+              <ErrorState
+                size="section"
+                title="Review no longer available"
+                description="This review is no longer available in your reviews. You can continue browsing below."
+                secondaryActionTitle="Continue browsing reviews"
+                onSecondaryAction={() => {
+                  setUnavailableTarget(null);
+                  clearReviewTarget();
+                }}
+              />
+            ) : !!reviewId && !locatingReview && reviewFocus.error ? (
               <ErrorState
                 size="section"
                 title="Unable to open this review"
-                description="It may no longer be available. You can still browse your reviews below."
+                description="We couldn't locate this review right now. Please try again. You can still browse your reviews below."
                 primaryActionTitle="Try again"
                 onPrimaryAction={() => void retryReviewLocation()}
               />
-            )}
-
-            {!!reviewId &&
+            ) : (
+              !!reviewId &&
               reviewFocus.data &&
               !sectionLoading &&
               !reviewsError &&
@@ -406,7 +497,8 @@ export default function MerchantReviewsScreen() {
                   primaryActionTitle="Locate review"
                   onPrimaryAction={() => void retryReviewLocation()}
                 />
-              )}
+              )
+            )}
 
             {hasPreviousPage && (
               <SafePressable

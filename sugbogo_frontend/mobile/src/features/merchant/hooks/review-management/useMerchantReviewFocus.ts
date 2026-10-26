@@ -20,7 +20,7 @@ export default function useMerchantReviewFocus(
       throwOnApiError(await getMerchantReviewLocation(businessId, reviewId!)),
     enabled: !!accountId && !!businessId && !!reviewId && enabled,
     retry: false,
-    staleTime: Infinity,
+    staleTime: 0,
     gcTime: 0,
   });
 }
