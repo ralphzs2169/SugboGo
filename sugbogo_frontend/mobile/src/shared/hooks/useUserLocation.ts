@@ -107,11 +107,15 @@ export default function useUserLocation({
   const query = useQuery({
     queryKey: USER_LOCATION_QUERY_KEY,
     queryFn: async (): Promise<UserLocationResult> => {
-      if (!getRecentLocation()) return acquireLocation();
       try {
         const permission = await Location.getForegroundPermissionsAsync();
-        if (permission.status !== Location.PermissionStatus.GRANTED) {
+        // Passive resume checks must not repeat a previously denied prompt.
+        // Explicit refresh still requests permission through acquireLocation.
+        if (permission.status === Location.PermissionStatus.DENIED) {
           return { status: "denied", location: null, error: null };
+        }
+        if (permission.status !== Location.PermissionStatus.GRANTED) {
+          return acquireLocation();
         }
         const location = getRecentLocation();
         return location

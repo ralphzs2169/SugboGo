@@ -1,8 +1,19 @@
 import React from "react";
 import type { LocationObject } from "expo-location";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
-import { Alert, AppState } from "react-native";
+import * as Location from "expo-location";
+import {
+  focusManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  waitFor,
+} from "@testing-library/react-native";
+import { Alert, AppState, Linking, type AppStateStatus } from "react-native";
 
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -15,6 +26,19 @@ let mockScreenFocused = true;
 const mockSearchPresent = jest.fn();
 const mockFilterPresent = jest.fn();
 const mockSheetDismiss = jest.fn();
+const mockAppListeners = new Set<(state: AppStateStatus) => void>();
+
+jest.mock("expo-location", () => ({
+  Accuracy: { High: 6 },
+  PermissionStatus: {
+    GRANTED: "granted",
+    DENIED: "denied",
+    UNDETERMINED: "undetermined",
+  },
+  requestForegroundPermissionsAsync: jest.fn(),
+  getForegroundPermissionsAsync: jest.fn(),
+  getCurrentPositionAsync: jest.fn(),
+}));
 
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: (ref: { current: { present: () => void } }) =>
@@ -126,11 +150,20 @@ function response(items: object[] = [business], hasNext = false) {
 }
 
 const clients: QueryClient[] = [];
+const {
+  default: useSharedUserLocation,
+  USER_LOCATION_QUERY_KEY,
+  RECENT_LOCATION_MAX_AGE_MS,
+} = jest.requireActual<typeof import("@/shared/hooks/useUserLocation")>(
+  "@/shared/hooks/useUserLocation",
+);
 
-function setup() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-  });
+function setup(existingClient?: QueryClient) {
+  const client =
+    existingClient ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
   clients.push(client);
 
   return render(
@@ -199,9 +232,67 @@ async function changeMapFocus(
   );
 }
 
+function recentFix(): LocationObject {
+  return {
+    timestamp: Date.now(),
+    coords: { latitude: 10.33, longitude: 123.91, accuracy: 20 },
+  } as LocationObject;
+}
+
+function cachedLocationClient(location = recentFix()) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  client.setQueryData(USER_LOCATION_QUERY_KEY, {
+    status: "available",
+    location,
+    error: null,
+  });
+  return client;
+}
+
+async function setupSharedLocation(client?: QueryClient) {
+  jest.mocked(useUserLocation).mockImplementation(useSharedUserLocation);
+  const screen = await setup(client);
+  const camera = { animateToRegion: jest.fn() };
+  await fireEvent(screen.getByTestId("discovery-map"), "mapReady", camera);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(
+      1,
+    ),
+  );
+  return { screen, camera };
+}
+
+async function changeAppState(state: AppStateStatus) {
+  await act(async () => {
+    AppState.currentState = state;
+    mockAppListeners.forEach((listener) => listener(state));
+    // The root QueryLifecycle maps these same native events to React Query.
+    focusManager.setFocused(state === "active");
+  });
+}
+
 beforeEach(() => {
   mockScreenFocused = true;
   AppState.currentState = "active";
+  focusManager.setFocused(true);
+  mockAppListeners.clear();
+  jest.spyOn(AppState, "addEventListener").mockImplementation(
+    (_event, callback) => {
+      mockAppListeners.add(callback);
+      return { remove: () => mockAppListeners.delete(callback) };
+    },
+  );
+  jest.mocked(Location.getForegroundPermissionsAsync)
+    .mockReset()
+    .mockResolvedValue({ status: "granted" } as never);
+  jest.mocked(Location.requestForegroundPermissionsAsync)
+    .mockReset()
+    .mockResolvedValue({ status: "granted" } as never);
+  jest.mocked(Location.getCurrentPositionAsync)
+    .mockReset()
+    .mockImplementation(async () => recentFix());
   (useExploreFilterOptions as jest.Mock).mockReturnValue({
     options: {
       clusters: [{ id: 1, name: "Food", icon: "coffee" }],
@@ -229,6 +320,7 @@ beforeEach(() => {
 afterEach(() => {
   jest.restoreAllMocks();
   clients.splice(0).forEach((client) => client.clear());
+  focusManager.setFocused(true);
 });
 
 it("loads immediately without bounds and never requests data during map movement", async () => {
@@ -776,7 +868,7 @@ it.each([
   { outcome: "success", result: availableLocation },
   { outcome: "failure", result: deniedLocation },
 ])(
-  "ignores an older Locate Me $outcome after a newer Locate Me completes",
+  "blocks repeated Locate Me presses while pending and allows another action after $outcome",
   async ({ result }) => {
     const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
     const olderRequest = deferredLocation();
@@ -788,19 +880,21 @@ it.each([
     const { screen, camera } = await setupLocateMe(refreshLocation);
     await fireEvent(screen.getByTestId("map-controls"), "locateMe");
     await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    expect(refreshLocation).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      olderRequest.resolve(result);
+      await olderRequest.promise;
+    });
+    camera.animateToRegion.mockClear();
+    alert.mockClear();
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
     expect(refreshLocation).toHaveBeenCalledTimes(2);
     await act(async () => {
       newerRequest.resolve(availableLocation);
       await newerRequest.promise;
     });
-    expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
-    const latestCameraCall = camera.animateToRegion.mock.calls[0];
-    await act(async () => {
-      olderRequest.resolve(result);
-      await olderRequest.promise;
-    });
 
-    expect(camera.animateToRegion.mock.calls).toEqual([latestCameraCall]);
+    expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
     expect(alert).not.toHaveBeenCalled();
   },
 );
@@ -843,6 +937,7 @@ it("keeps location failure feedback for a Locate Me action that remains current"
   expect(alert).toHaveBeenCalledWith(
     "Location Permission Needed",
     expect.any(String),
+    expect.arrayContaining([expect.objectContaining({ text: "Open Settings" })]),
   );
 });
 
@@ -880,4 +975,295 @@ it("dispatches View Business once for rapid presses and releases the guard on re
     pathname: "/(explorer)/business/[businessId]",
     params: { businessId: "42", profileSource: "MAP" },
   });
+});
+
+it("reuses Explore's acquired fix on Map mount and focus without acquiring GPS again", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  const explore = await renderHook(
+    () => useSharedUserLocation({ mode: "recent" }),
+    {
+      wrapper: ({ children }: React.PropsWithChildren) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    },
+  );
+  await waitFor(() => expect(explore.result.current.status).toBe("available"));
+  const exploreFix = explore.result.current.location;
+  await explore.unmount();
+
+  const { screen, camera } = await setupSharedLocation(client);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(screen.getByTestId("discovery-map").props.userLocation).toEqual(exploreFix);
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
+  camera.animateToRegion.mockClear();
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+
+  for (let visit = 0; visit < 2; visit += 1) {
+    const permissionChecks = jest.mocked(Location.getForegroundPermissionsAsync)
+      .mock.calls.length;
+    await changeMapFocus(screen, false);
+    await changeMapFocus(screen, true);
+    await waitFor(() =>
+      expect(jest.mocked(Location.getForegroundPermissionsAsync).mock.calls.length)
+        .toBeGreaterThan(permissionChecks),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+    );
+  }
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it("replaces an expired passive fix through the existing acquisition path", async () => {
+  const expired = {
+    ...recentFix(),
+    timestamp: Date.now() - RECENT_LOCATION_MAX_AGE_MS,
+  };
+  const client = cachedLocationClient(expired);
+  const { screen } = await setupSharedLocation(client);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledWith({
+    accuracy: Location.Accuracy.High,
+  });
+  expect(screen.getByTestId("discovery-map").props.userLocation.timestamp)
+    .toBeGreaterThan(expired.timestamp);
+});
+
+it("rejects a revoked cached permission quietly on Map mount and return", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  jest.mocked(Location.getForegroundPermissionsAsync).mockResolvedValue({
+    status: "denied",
+  } as never);
+  const { screen, camera } = await setupSharedLocation(cachedLocationClient());
+  await waitFor(() =>
+    expect(screen.getByTestId("map-controls").props.isLocating).toBe(false),
+  );
+  await changeMapFocus(screen, false);
+  await changeMapFocus(screen, true);
+  await waitFor(() =>
+    expect(Location.getForegroundPermissionsAsync).toHaveBeenCalledTimes(2),
+  );
+  expect(screen.getByTestId("discovery-map").props.userLocation).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(false);
+  expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+  expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+  expect(alert).not.toHaveBeenCalled();
+});
+
+it("explicit Locate Me acquires a fresh position despite a valid passive fix", async () => {
+  const client = cachedLocationClient();
+  const { screen, camera } = await setupSharedLocation(client);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+  camera.animateToRegion.mockClear();
+  const moved = recentFix();
+  moved.coords.latitude = 10.41;
+  jest.mocked(Location.getCurrentPositionAsync).mockResolvedValue(moved);
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await waitFor(() => expect(camera.animateToRegion).toHaveBeenCalledTimes(1));
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).toHaveBeenCalledWith({
+    latitude: moved.coords.latitude,
+    longitude: moved.coords.longitude,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
+  });
+  expect(client.getQueryData(USER_LOCATION_QUERY_KEY)).toMatchObject({
+    status: "available",
+    location: moved,
+  });
+});
+
+it("keeps discovery interactive during explicit acquisition and caches a gesture-superseded fix", async () => {
+  const client = cachedLocationClient();
+  const { screen, camera } = await setupSharedLocation(client);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  camera.animateToRegion.mockClear();
+  let finishLocation!: (location: LocationObject) => void;
+  jest.mocked(Location.getCurrentPositionAsync).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finishLocation = resolve;
+    }),
+  );
+  const locateMe = screen.getByTestId("map-controls").props.onLocateMe;
+  await act(() => {
+    locateMe();
+    locateMe();
+    locateMe();
+  });
+  await waitFor(() =>
+    expect(screen.getByTestId("map-controls").props.isLocating).toBe(true),
+  );
+  await waitFor(() =>
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1),
+  );
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByTestId("discovery-map").props.interactive).not.toBe(false);
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+  const location = recentFix();
+  await act(async () => finishLocation(location));
+  await waitFor(() =>
+    expect(screen.getByTestId("map-controls").props.isLocating).toBe(false),
+  );
+  expect(client.getQueryData(USER_LOCATION_QUERY_KEY)).toMatchObject({
+    status: "available",
+    location,
+  });
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it("allows manual exploration while the first passive location is pending", async () => {
+  let finishLocation!: (location: LocationObject) => void;
+  jest.mocked(Location.getCurrentPositionAsync).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finishLocation = resolve;
+    }),
+  );
+  const { screen, camera } = await setupSharedLocation();
+  await waitFor(() =>
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1),
+  );
+  expect(screen.getByTestId("map-controls").props.isLocating).toBe(true);
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+  await act(async () => finishLocation(recentFix()));
+  await waitFor(() =>
+    expect(screen.getByTestId("map-controls").props.isLocating).toBe(false),
+  );
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it("offers Settings after explicit denial and revalidates on foreground return without recentering", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined);
+  const { screen, camera } = await setupSharedLocation(cachedLocationClient());
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  camera.animateToRegion.mockClear();
+  jest.mocked(Location.requestForegroundPermissionsAsync).mockResolvedValue({
+    status: "denied",
+  } as never);
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
+  const settingsAction = alert.mock.calls[0][2]!.find(
+    (button) => button.text === "Open Settings",
+  )!;
+  await act(() => settingsAction.onPress?.());
+  expect(openSettings).toHaveBeenCalledTimes(1);
+
+  await changeAppState("background");
+  jest.mocked(Location.requestForegroundPermissionsAsync).mockResolvedValue({
+    status: "granted",
+  } as never);
+  await changeAppState("active");
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(alert).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it("offers a fresh retry after temporary location failure", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const { screen, camera } = await setupSharedLocation(cachedLocationClient());
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  camera.animateToRegion.mockClear();
+  jest.mocked(Location.getCurrentPositionAsync).mockRejectedValueOnce(
+    new Error("Location services unavailable"),
+  );
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
+  const retryAction = alert.mock.calls[0][2]!.find(
+    (button) => button.text === "Try Again",
+  )!;
+  await act(() => retryAction.onPress?.());
+  await waitFor(() => expect(camera.animateToRegion).toHaveBeenCalledTimes(1));
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(2);
+});
+
+it("does not apply passive permission revocation or recovery to the camera", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const { screen, camera } = await setupSharedLocation(cachedLocationClient());
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  camera.animateToRegion.mockClear();
+  await changeAppState("background");
+  jest.mocked(Location.getForegroundPermissionsAsync).mockResolvedValue({
+    status: "denied",
+  } as never);
+  await changeAppState("active");
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.userLocation).toBeNull(),
+  );
+  expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+  await changeAppState("background");
+  jest.mocked(Location.getForegroundPermissionsAsync).mockResolvedValue({
+    status: "granted",
+  } as never);
+  await changeAppState("active");
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+  expect(alert).not.toHaveBeenCalled();
+});
+
+it.each(["success", "failure"])(
+  "keeps a delayed Locate Me %s stale after backgrounding and returning",
+  async (outcome) => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const request = deferredLocation();
+    const { screen, camera } = await setupLocateMe(
+      jest.fn(() => request.promise),
+    );
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    await changeAppState("background");
+    await changeAppState("active");
+    await act(async () => {
+      if (outcome === "success") {
+        request.resolve(availableLocation);
+      } else {
+        request.resolve(deniedLocation);
+      }
+      await request.promise;
+    });
+    expect(camera.animateToRegion).not.toHaveBeenCalled();
+    expect(alert).not.toHaveBeenCalled();
+  },
+);
+
+it("preserves explicit Locate Me through a temporary inactive permission dialog", async () => {
+  const request = deferredLocation();
+  const { screen, camera } = await setupLocateMe(
+    jest.fn(() => request.promise),
+  );
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await changeAppState("inactive");
+  await changeAppState("active");
+  await act(async () => {
+    request.resolve(availableLocation);
+    await request.promise;
+  });
+  expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
 });

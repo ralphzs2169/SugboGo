@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, BackHandler, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  AppState,
+  BackHandler,
+  Linking,
+  View,
+} from "react-native";
 import type RNMapView from "react-native-maps";
 import {
   router,
@@ -48,7 +55,11 @@ export default function MapScreen() {
   const navigation = useNavigation();
   const navigate = useNavigationAction();
   const locateIntentVersion = useRef(0);
-  const userLocation = useUserLocation();
+  const locateInProgress = useRef(false);
+  const userLocation = useUserLocation({
+    mode: "recent",
+    enabled: isScreenFocused,
+  });
   const [filters, setFilters] =
     useState<MapDiscoveryFilters>(DEFAULT_MAP_FILTERS);
   const [draftFilters, setDraftFilters] = useState<ExploreResultsCriteria>({
@@ -100,9 +111,21 @@ export default function MapScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      const subscription = AppState.addEventListener(
+        "change",
+        (state) => {
+          if (state === "background") {
+            locateIntentVersion.current += 1;
+            hasHandledInitialLocation.current = true;
+          }
+        },
+      );
+
       // Blur and unmount revoke Map effects without cancelling shared GPS work.
       return () => {
         locateIntentVersion.current += 1;
+        hasHandledInitialLocation.current = true;
+        subscription.remove();
       };
     }, []),
   );
@@ -162,6 +185,8 @@ export default function MapScreen() {
   useEffect(() => {
     if (
       !mapInstance ||
+      !isScreenFocused ||
+      AppState.currentState === "background" ||
       userLocation.status === "loading" ||
       hasHandledInitialLocation.current
     ) {
@@ -178,7 +203,12 @@ export default function MapScreen() {
         longitudeDelta: 0.06,
       });
     }
-  }, [mapInstance, userLocation.location, userLocation.status]);
+  }, [
+    isScreenFocused,
+    mapInstance,
+    userLocation.location,
+    userLocation.status,
+  ]);
 
   const handleViewportChange = useCallback((bounds: MapBounds) => {
     if (destination.current) {
@@ -333,39 +363,93 @@ export default function MapScreen() {
 
     if (
       !navigation.isFocused() ||
+      locateInProgress.current ||
       userLocation.isRefreshingLocation
     ) {
       return;
     }
 
     const intentVersion = ++locateIntentVersion.current;
-    const result = await userLocation.refreshLocation();
+    locateInProgress.current = true;
 
-    if (
-      intentVersion !== locateIntentVersion.current ||
-      !navigation.isFocused()
-    ) {
-      return;
+    try {
+      const result = await userLocation.refreshLocation();
+
+      if (
+        intentVersion !== locateIntentVersion.current ||
+        !navigation.isFocused() ||
+        AppState.currentState === "background"
+      ) {
+        return;
+      }
+
+      if (result.status === "denied") {
+        Alert.alert(
+          "Location Permission Needed",
+          "Allow location access in Settings, then try Locate me again. You can still explore the map manually.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Open Settings",
+              onPress: () => {
+                if (
+                  intentVersion !== locateIntentVersion.current ||
+                  !navigation.isFocused()
+                ) {
+                  return;
+                }
+                void Linking.openSettings().catch(() => {
+                  if (
+                    intentVersion !== locateIntentVersion.current ||
+                    !navigation.isFocused()
+                  ) {
+                    return;
+                  }
+                  Alert.alert(
+                    "Could not open Settings",
+                    "Open your device Settings to allow location access, then try Locate me again.",
+                  );
+                });
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      if (result.status === "unavailable") {
+        Alert.alert(
+          "Location unavailable",
+          "Check that device location services are on, then try again. You can still explore the map manually.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Try Again",
+              onPress: () => {
+                if (
+                  intentVersion === locateIntentVersion.current &&
+                  navigation.isFocused()
+                ) {
+                  void locateMe();
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      destination.current = null;
+      setCameraTarget(null);
+      mapInstance?.animateToRegion({
+        latitude: result.location.coords.latitude,
+        longitude: result.location.coords.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      });
+    } finally {
+      locateInProgress.current = false;
     }
-
-    if (result.status !== "available") {
-      Alert.alert(
-        result.status === "denied"
-          ? "Location Permission Needed"
-          : "Location unavailable",
-        "You can still explore the map. Enable location access and device location to recenter near you.",
-      );
-      return;
-    }
-
-    destination.current = null;
-    setCameraTarget(null);
-    mapInstance?.animateToRegion({
-      latitude: result.location.coords.latitude,
-      longitude: result.location.coords.longitude,
-      latitudeDelta: 0.02,
-      longitudeDelta: 0.02,
-    });
   };
 
   let statusMessage: string | null = null;
@@ -459,6 +543,7 @@ export default function MapScreen() {
       />
       <MapControls
         onLocateMe={() => void locateMe()}
+        isLocating={userLocation.isRefreshingLocation}
         bottomOffset={
           selectedBusiness ? bottomSpacing + previewHeight + 12 : bottomSpacing
         }
