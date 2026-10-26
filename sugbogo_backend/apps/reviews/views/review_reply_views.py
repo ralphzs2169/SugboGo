@@ -80,6 +80,9 @@ class ReviewReplyDetailView(APIView):
                 data["keep_photo_ids"] = request.data.getlist(
                     "keep_photo_ids",
                 )
+                # Match review editing: only a sole marker means retain no photos.
+                if data["keep_photo_ids"] == ["[]"]:
+                    data["keep_photo_ids"] = []
             else:
                 data["keep_photo_ids"] = request.data.get(
                     "keep_photo_ids",

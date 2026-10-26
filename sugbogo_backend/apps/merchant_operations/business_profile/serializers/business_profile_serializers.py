@@ -12,6 +12,7 @@ from apps.business.models import (
 )
 from apps.merchant_application.models import MerchantApplicationDocument
 from apps.shared.serializers.operating_hours_serializers import (
+    OperatingHoursDaySerializer,
     OperatingHoursWeekSerializer,
 )
 from apps.merchant_operations.business_profile.helpers import (
@@ -301,12 +302,35 @@ class MerchantBusinessHoursSerializer(serializers.ModelSerializer):
 
 
 class BusinessOperatingHoursUpdateSerializer(OperatingHoursWeekSerializer):
-    """Validate a complete approved schedule with shared domain rules."""
+    """Validate the proposed week and the server schedule the merchant edited."""
 
-    def validate(self, attrs):
+    expected_hours = OperatingHoursDaySerializer(
+        many=True,
+        allow_empty=True,
+    )
+
+    def validate_expected_hours(
+        self,
+        value,
+    ):
+        """Allow incomplete existing schedules while rejecting ambiguous baselines."""
+        days = [
+            item["day"]
+            for item in value
+        ]
+        if len(days) != len(set(days)):
+            raise serializers.ValidationError(
+                "Each baseline day can only be supplied once.",
+            )
+        return value
+
+    def validate(
+        self,
+        attrs,
+    ):
         """Reject fields that could suggest an arbitrary target business."""
 
-        unexpected_fields = set(self.initial_data) - {"hours"}
+        unexpected_fields = set(self.initial_data) - {"hours", "expected_hours"}
 
         if unexpected_fields:
             raise serializers.ValidationError(

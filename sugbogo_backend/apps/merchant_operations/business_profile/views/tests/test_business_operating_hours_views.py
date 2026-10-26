@@ -1,4 +1,6 @@
 from datetime import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 from apps.business.models import (
     Business,
@@ -9,12 +11,13 @@ from apps.business.models import (
 )
 from apps.users.models import User
 from django.contrib.gis.geos import Point
-from django.test import TestCase
+from django.db import connection, connections
+from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APIClient
 
 
-class BusinessOperatingHoursViewTests(TestCase):
-    """Exercise complete owner-only updates to approved business hours."""
+class BusinessOperatingHoursFixtureMixin:
+    """Share an owned full-week fixture between API and row-lock regressions."""
 
     def setUp(self):
         """Create an active merchant with an existing full weekly schedule."""
@@ -58,6 +61,9 @@ class BusinessOperatingHoursViewTests(TestCase):
             self.original_ids[day] = schedule.BOHR_ID
 
         self.client.force_authenticate(user=self.merchant)
+        self.baseline = self.client.get(
+            "/api/merchant/business-profile/",
+        ).data["data"]["operating_hours"]
 
     def _hours(self):
         """Build a valid full-week payload with ordinary daytime hours."""
@@ -73,14 +79,93 @@ class BusinessOperatingHoursViewTests(TestCase):
             for day in BusinessOperatingHours.Day.values
         ]
 
-    def _put(self, hours):
+    def _put(
+        self,
+        hours,
+        expected_hours=None,
+    ):
         """Submit one weekly schedule through the merchant endpoint."""
+
+        if expected_hours is None:
+            expected_hours = self.baseline
 
         return self.client.put(
             self.url,
-            {"hours": hours},
+            {
+                "hours": hours,
+                "expected_hours": expected_hours,
+            },
             format="json",
         )
+
+
+class BusinessOperatingHoursViewTests(BusinessOperatingHoursFixtureMixin, TestCase):
+    """Exercise complete owner-only updates to approved business hours."""
+
+    def test_stale_week_cannot_overwrite_a_newer_schedule(self):
+        """Reject a second editor's old baseline without changing any newer day."""
+        first_response = self._put(self._hours())
+        self.assertEqual(first_response.status_code, 200)
+        newer = first_response.data["data"]
+        stale_proposal = self._hours()
+        stale_proposal[0]["open_time"] = "10:00"
+
+        response = self._put(stale_proposal)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.data["code"],
+            "BUSINESS_OPERATING_HOURS_EDIT_CONFLICT",
+        )
+        self.assertIn("Your draft has been kept", response.data["message"])
+        current = self.client.get(
+            "/api/merchant/business-profile/",
+        ).data["data"]["operating_hours"]
+        self.assertEqual(current, newer)
+
+        # An explicitly reconciled draft uses the latest baseline and keeps Tuesday.
+        retry = self._put(stale_proposal, expected_hours=newer)
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(retry.data["data"][0]["open_time"], "10:00:00")
+        self.assertEqual(retry.data["data"][1], newer[1])
+
+    def test_baseline_is_required_and_duplicate_days_are_rejected(self):
+        """Do not permit unguarded saves or ambiguous concurrency snapshots."""
+        response = self.client.put(
+            self.url,
+            {"hours": self._hours()},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("expected_hours", response.data["errors"])
+        duplicate = [*self.baseline, self.baseline[0]]
+        response = self._put(self._hours(), expected_hours=duplicate)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("expected_hours", response.data["errors"])
+        self.assertEqual(
+            self.business.operating_hours.get(BOHR_DAY="monday").BOHR_OPEN_TIME,
+            time(8, 0),
+        )
+
+    def test_baseline_order_and_minute_format_do_not_cause_false_conflicts(self):
+        """Compare validated schedule values rather than array or time formatting."""
+        baseline = [
+            {
+                **item,
+                "open_time": item["open_time"][:5],
+                "close_time": item["close_time"][:5],
+            }
+            for item in reversed(self.baseline)
+        ]
+        response = self._put(self._hours(), expected_hours=baseline)
+        self.assertEqual(response.status_code, 200)
+
+    def test_empty_existing_schedule_can_be_repaired(self):
+        """Accept an explicit empty baseline only when no stored rows exist."""
+        self.business.operating_hours.all().delete()
+        response = self._put(self._hours(), expected_hours=[])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.business.operating_hours.count(), 7)
 
     def test_valid_week_updates_existing_rows_and_preserves_ids(self):
         """Persist ordinary hours without replacing approved row identities."""
@@ -201,8 +286,71 @@ class BusinessOperatingHoursViewTests(TestCase):
 
         targeted_response = self.client.put(
             self.url,
-            {"business_id": self.business.BUSN_ID, "hours": self._hours()},
+            {
+                "business_id": self.business.BUSN_ID,
+                "hours": self._hours(),
+                "expected_hours": self.baseline,
+            },
             format="json",
         )
         self.assertEqual(targeted_response.status_code, 400)
         self.assertIn("business_id", targeted_response.data["errors"])
+
+
+class BusinessOperatingHoursConcurrencyTests(
+    BusinessOperatingHoursFixtureMixin,
+    TransactionTestCase,
+):
+    """Verify competing weekly replacements against real PostgreSQL row locks."""
+
+    def test_only_one_editor_can_save_the_same_baseline(self):
+        """Keep the winning week intact when two editors submit concurrently."""
+        if connection.vendor != "postgresql":
+            self.skipTest("Requires PostgreSQL row locks.")
+        starting = Barrier(2)
+        first = self._hours()
+        second = self._hours()
+        first[0]["open_time"] = "10:00"
+        second[1]["close_time"] = "20:00"
+
+        def save_week(hours):
+            """Submit on an independent connection and release it after completion."""
+            client = APIClient()
+            client.force_authenticate(user=self.merchant)
+            try:
+                starting.wait(timeout=10)
+                response = client.put(
+                    self.url,
+                    {
+                        "hours": hours,
+                        "expected_hours": self.baseline,
+                    },
+                    format="json",
+                )
+                return response.status_code, response.data
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(save_week, hours)
+                for hours in (first, second)
+            ]
+            results = [
+                future.result(timeout=20)
+                for future in futures
+            ]
+
+        self.assertCountEqual(
+            [code for code, data in results],
+            [200, 409],
+        )
+        winner = next(
+            data["data"]
+            for code, data in results
+            if code == 200
+        )
+        current = self.client.get(
+            "/api/merchant/business-profile/",
+        ).data["data"]["operating_hours"]
+        self.assertEqual(current, winner)

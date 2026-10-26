@@ -7,6 +7,7 @@ import MerchantOperatingHoursEditScreen from "../MerchantOperatingHoursEditScree
 
 const mockProfile = jest.fn();
 const mockUpdateOperatingHours = jest.fn();
+const mockRefetch = jest.fn();
 
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
@@ -30,6 +31,7 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
+  useNavigation: () => ({ isFocused: () => true }),
 }));
 
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
@@ -85,8 +87,9 @@ describe("MerchantOperatingHoursEditScreen", () => {
       business,
       isLoading: false,
       error: null,
-      refetch: jest.fn(),
+      refetch: mockRefetch,
     });
+    mockRefetch.mockResolvedValue({ data: business, error: null });
     mockUpdateOperatingHours.mockResolvedValue([]);
   });
 
@@ -110,6 +113,7 @@ describe("MerchantOperatingHoursEditScreen", () => {
 
     await waitFor(() => {
       expect(mockUpdateOperatingHours).toHaveBeenCalledWith({
+        expected_hours: business.operating_hours,
         hours: DAYS.map((day) =>
           day === "monday"
             ? {
@@ -123,8 +127,8 @@ describe("MerchantOperatingHoursEditScreen", () => {
                 day,
                 is_open: true,
                 is_24_hours: false,
-                open_time: "08:00",
-                close_time: "17:00",
+                open_time: "08:00:00",
+                close_time: "17:00:00",
               },
         ),
       });
@@ -234,5 +238,172 @@ describe("MerchantOperatingHoursEditScreen", () => {
     const suspended = await render(<MerchantOperatingHoursEditScreen />);
     expect(suspended.getByText("Editing unavailable")).toBeTruthy();
     expect(suspended.queryByText("Save Changes")).toBeNull();
+  });
+
+  it("hydrates the complete server week after an initial request", async () => {
+    mockProfile.mockReturnValue({
+      business: null,
+      isLoading: true,
+      error: null,
+      refetch: mockRefetch,
+    });
+    const screen = await render(<MerchantOperatingHoursEditScreen />);
+    expect(screen.queryByLabelText("Edit monday hours")).toBeNull();
+    mockProfile.mockReturnValue({
+      business,
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+    await screen.rerender(<MerchantOperatingHoursEditScreen />);
+    expect(screen.getByLabelText("Edit sunday hours")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+  });
+
+  it("refreshes a pristine editor and submits the refreshed baseline", async () => {
+    const screen = await render(<MerchantOperatingHoursEditScreen />);
+    const newer = {
+      ...business,
+      operating_hours: business.operating_hours.map((hours) => ({
+        ...hours,
+        open_time: "09:00:00",
+      })),
+    };
+    mockProfile.mockReturnValue({
+      business: newer,
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+    await screen.rerender(<MerchantOperatingHoursEditScreen />);
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+    expect(screen.queryAllByText(/8:00/)).toHaveLength(0);
+    await press(screen.getByLabelText("Edit monday hours"));
+    await press(screen.getByText("Open 24 hours"));
+    await press(screen.getByText("Save Changes"));
+    expect(mockUpdateOperatingHours).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expected_hours: newer.operating_hours,
+        hours: expect.arrayContaining([newer.operating_hours[1]]),
+      }),
+    );
+  });
+
+  it("does not make an equivalent reordered server week dirty", async () => {
+    const screen = await render(<MerchantOperatingHoursEditScreen />);
+    mockProfile.mockReturnValue({
+      business: {
+        ...business,
+        operating_hours: [...business.operating_hours].reverse(),
+      },
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+    await screen.rerender(<MerchantOperatingHoursEditScreen />);
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+    expect(screen.queryByText("Operating hours changed")).toBeNull();
+  });
+
+  it("keeps a dirty draft when newer data arrives and requires explicit reconciliation", async () => {
+    const screen = await render(<MerchantOperatingHoursEditScreen />);
+    await press(screen.getByLabelText("Edit monday hours"));
+    await press(screen.getByText("Open 24 hours"));
+    const newer = {
+      ...business,
+      operating_hours: business.operating_hours.map((hours) =>
+        hours.day === "monday"
+          ? { ...hours, is_open: false, open_time: null, close_time: null }
+          : { ...hours, open_time: "09:00:00" },
+      ),
+    };
+    mockRefetch.mockResolvedValue({ data: newer, error: null });
+    mockProfile.mockReturnValue({
+      business: newer,
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+    await screen.rerender(<MerchantOperatingHoursEditScreen />);
+    expect(screen.getByRole("switch").props.accessibilityState.checked).toBe(
+      true,
+    );
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+    expect(mockUpdateOperatingHours).not.toHaveBeenCalled();
+    await press(
+      screen.getByRole("button", { name: /Tap to review latest hours/ }),
+    );
+    expect(screen.getByText("Latest saved hours")).toBeTruthy();
+    expect(screen.getByText("Your draft")).toBeTruthy();
+    await press(screen.getByText("Keep draft without merging"));
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+    expect(screen.getByRole("switch").props.accessibilityState.checked).toBe(
+      true,
+    );
+    await press(
+      screen.getByRole("button", { name: /Tap to review latest hours/ }),
+    );
+    await press(screen.getByText("Keep my edited days"));
+    expect(mockUpdateOperatingHours).not.toHaveBeenCalled();
+    await press(screen.getByText("Save Changes"));
+    const payload = mockUpdateOperatingHours.mock.calls[0][0];
+    expect(payload.expected_hours).toEqual(newer.operating_hours);
+    expect(payload.hours[0]).toMatchObject({
+      is_open: true,
+      is_24_hours: true,
+    });
+    expect(payload.hours[1]).toEqual(newer.operating_hours[1]);
+  });
+
+  it("preserves a rejected draft and never automatically retries a conflict", async () => {
+    mockUpdateOperatingHours.mockRejectedValueOnce({
+      success: false,
+      code: "BUSINESS_OPERATING_HOURS_EDIT_CONFLICT",
+      message: "Your operating hours changed. Your draft has been kept.",
+    });
+    const screen = await render(<MerchantOperatingHoursEditScreen />);
+    await press(screen.getByLabelText("Edit monday hours"));
+    await press(screen.getByText("Open 24 hours"));
+    await press(screen.getByText("Save Changes"));
+    expect(router.back).not.toHaveBeenCalled();
+    expect(screen.getByText(/Your draft has been kept/)).toBeTruthy();
+    expect(screen.getByRole("switch").props.accessibilityState.checked).toBe(
+      true,
+    );
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+    mockRefetch.mockResolvedValueOnce({
+      data: business,
+      error: new Error("Offline"),
+    });
+    await press(
+      screen.getByRole("button", { name: /Tap to review latest hours/ }),
+    );
+    expect(screen.getByText(/Unable to refresh operating hours/)).toBeTruthy();
+    expect(mockUpdateOperatingHours).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("switch").props.accessibilityState.checked).toBe(
+      true,
+    );
+  });
+
+  it("disables save when a meaningful change is reverted", async () => {
+    const closed = {
+      ...business,
+      operating_hours: business.operating_hours.map((hours) =>
+        hours.day === "monday"
+          ? { ...hours, is_open: false, open_time: null, close_time: null }
+          : hours,
+      ),
+    };
+    mockProfile.mockReturnValue({
+      business: closed,
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    });
+    const screen = await render(<MerchantOperatingHoursEditScreen />);
+    await press(screen.getByLabelText("Edit monday hours"));
+    await press(screen.getByRole("button", { name: "Open" }));
+    await press(screen.getByText("Closed"));
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
   });
 });

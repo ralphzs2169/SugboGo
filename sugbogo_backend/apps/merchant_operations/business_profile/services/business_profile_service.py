@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.db.models import Case, IntegerField, Prefetch, Value, When
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import APIException, NotFound, PermissionDenied
 
 from apps.business.models import (
     Business,
@@ -15,6 +15,17 @@ from apps.merchant_application.models import (
     MerchantApplicationDocument,
 )
 from apps.shared.services.cloudinary_service import CloudinaryService
+
+
+class BusinessOperatingHoursEditConflict(APIException):
+    """Reject a full-week replacement based on an outdated schedule."""
+
+    status_code = 409
+    default_detail = (
+        "Your operating hours changed while you were editing. "
+        "Review the latest hours before saving again. Your draft has been kept."
+    )
+    default_code = "BUSINESS_OPERATING_HOURS_EDIT_CONFLICT"
 
 
 class BusinessProfileService:
@@ -130,9 +141,27 @@ class BusinessProfileService:
         return business
 
     @staticmethod
+    def _operating_day_values(
+        is_open,
+        is_24_hours,
+        open_time,
+        close_time,
+    ):
+        """Compare only applicable schedule values using the shared day semantics."""
+        if not is_open:
+            return False, False, None, None
+        if is_24_hours:
+            return True, True, None, None
+        return True, False, open_time, close_time
+
+    @staticmethod
     @transaction.atomic
-    def update_operating_hours(user, hours):
-        """Update the authenticated merchant's complete approved schedule atomically."""
+    def update_operating_hours(
+        user,
+        hours,
+        expected_hours,
+    ):
+        """Replace the week only when its locked current values match the baseline."""
 
         try:
             business = Business.objects.select_for_update().get(USER_ID=user)
@@ -146,8 +175,31 @@ class BusinessProfileService:
 
         existing_hours = {
             item.BOHR_DAY: item
-            for item in BusinessOperatingHours.objects.filter(BUSN_ID=business)
+            for item in BusinessOperatingHours.objects.select_for_update().filter(
+                BUSN_ID=business,
+            )
         }
+
+        current_values = {
+            day: BusinessProfileService._operating_day_values(
+                item.BOHR_IS_OPEN,
+                item.BOHR_IS_24_HOURS,
+                item.BOHR_OPEN_TIME,
+                item.BOHR_CLOSE_TIME,
+            )
+            for day, item in existing_hours.items()
+        }
+        expected_values = {
+            item["day"]: BusinessProfileService._operating_day_values(
+                item["is_open"],
+                item["is_24_hours"],
+                item.get("open_time"),
+                item.get("close_time"),
+            )
+            for item in expected_hours
+        }
+        if current_values != expected_values:
+            raise BusinessOperatingHoursEditConflict()
 
         for item in hours:
             day = item["day"]

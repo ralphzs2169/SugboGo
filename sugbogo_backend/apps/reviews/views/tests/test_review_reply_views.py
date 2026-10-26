@@ -7,13 +7,16 @@ from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.admin_operations.system_configuration.models import (
+    AnalyticsPolicyConfiguration,
+)
 from apps.business.models import (
     Business,
     Category,
     Cluster,
     Location,
 )
-from apps.reviews.models import Review, ReviewReply
+from apps.reviews.models import ReplyPhoto, Review, ReviewMediaCleanup, ReviewReply
 from apps.reviews.services.review_reply_service import (
     ReviewReplyEditConflict,
     ReviewReplyService,
@@ -29,6 +32,7 @@ class ReviewReplyViewTests(SafeReviewModerationMixin, APITestCase):
     """Tests for business-owner review reply API endpoints."""
 
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         self.merchant = User.objects.create_user(
             email="merchant-reply@example.com",
             password="StrongPassword123!",
@@ -379,6 +383,7 @@ class ReviewReplyDetailViewTests(SafeReviewModerationMixin, APITestCase):
     """Tests for the review reply update/delete endpoint."""
 
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         self.merchant = User.objects.create_user(
             email="merchant-reply-detail@example.com",
             password="StrongPassword123!",
@@ -535,3 +540,226 @@ class ReviewReplyDetailViewTests(SafeReviewModerationMixin, APITestCase):
         self.assertTrue(
             ReviewReply.objects.filter(RPLY_ID=self.reply.RPLY_ID).exists(),
         )
+
+    def _photo(
+        self,
+        name,
+        reply=None,
+    ):
+        """Attach one stored asset to the selected reply."""
+        return ReplyPhoto.objects.create(
+            RPLY_ID=reply or self.reply,
+            RPHO_PHOTO_URL=f"https://example.com/{name}.jpg",
+            RPHO_PHOTO_PUBLIC_ID=f"reply/{name}",
+        )
+
+    def test_omitted_retention_preserves_photos(self):
+        """Keep existing photos for older clients and text-only updates."""
+        photo = self._photo("original")
+        response = self.client.patch(
+            self.detail_url,
+            {"text": "Only the text changed."},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["data"]["photos"][0]["id"],
+            photo.pk,
+        )
+        self.assertFalse(ReviewMediaCleanup.objects.exists())
+
+    def test_multipart_empty_marker_removes_all_photos_after_success(self):
+        """Persist an explicit empty retained set and register cleanup after commit."""
+        self._photo("first")
+        self._photo("second")
+        with patch(
+            "apps.reviews.tasks.cleanup_review_media_asset.apply_async",
+        ) as enqueue:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.patch(
+                    self.detail_url,
+                    {"keep_photo_ids": "[]"},
+                    format="multipart",
+                )
+                enqueue.assert_not_called()
+            self.assertEqual(enqueue.call_count, 2)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["photos"], [])
+        self.assertEqual(self.reply.photos.count(), 0)
+        self.assertCountEqual(
+            ReviewMediaCleanup.objects.values_list(
+                "RMCU_PUBLIC_ID",
+                flat=True,
+            ),
+            ["reply/first", "reply/second"],
+        )
+
+    def test_json_empty_retention_also_removes_all_photos(self):
+        """Keep JSON's explicit empty list distinct from omission."""
+        self._photo("original")
+        response = self.client.patch(
+            self.detail_url,
+            {"keep_photo_ids": []},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["photos"], [])
+
+    def test_partial_retention_keeps_only_selected_photos(self):
+        """Preserve repeated multipart IDs and remove only unretained assets."""
+        first = self._photo("first")
+        second = self._photo("second")
+        self._photo("removed")
+        response = self.client.patch(
+            self.detail_url,
+            {
+                "keep_photo_ids": [str(first.pk), str(second.pk)],
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertCountEqual(
+            [
+                photo["id"]
+                for photo in response.data["data"]["photos"]
+            ],
+            [first.pk, second.pk],
+        )
+        self.assertEqual(
+            ReviewMediaCleanup.objects.get().RMCU_PUBLIC_ID,
+            "reply/removed",
+        )
+
+    @patch(
+        "apps.reviews.services.review_reply_service.CloudinaryService.upload_image",
+    )
+    def test_replace_all_uses_final_collection_for_photo_limit(
+        self,
+        upload,
+    ):
+        """Replace a full gallery without counting removed assets against the limit."""
+        for index in range(3):
+            self._photo(f"old-{index}")
+        upload.side_effect = [
+            {
+                "public_id": f"reply/new-{index}",
+                "secure_url": f"https://example.com/new-{index}.jpg",
+            }
+            for index in range(3)
+        ]
+        response = self.client.patch(
+            self.detail_url,
+            {
+                "keep_photo_ids": "[]",
+                "photos": [
+                    ReviewReplyViewTests.create_test_image(f"new-{index}.jpg")
+                    for index in range(3)
+                ],
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["data"]["photos"]), 3)
+        self.assertCountEqual(
+            self.reply.photos.values_list(
+                "RPHO_PHOTO_PUBLIC_ID",
+                flat=True,
+            ),
+            ["reply/new-0", "reply/new-1", "reply/new-2"],
+        )
+        self.assertEqual(ReviewMediaCleanup.objects.count(), 3)
+
+    @patch(
+        "apps.reviews.services.review_reply_service.CloudinaryService.upload_image",
+    )
+    def test_adding_without_retention_preserves_existing_photos(
+        self,
+        upload,
+    ):
+        """Omitted retention also preserves the old collection during additions."""
+        photo = self._photo("original")
+        upload.return_value = {
+            "public_id": "reply/new",
+            "secure_url": "https://example.com/new.jpg",
+        }
+        response = self.client.patch(
+            self.detail_url,
+            {"photos": [ReviewReplyViewTests.create_test_image()]},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.reply.photos.count(), 2)
+        self.assertTrue(self.reply.photos.filter(pk=photo.pk).exists())
+        self.assertFalse(ReviewMediaCleanup.objects.exists())
+
+    def test_invalid_retention_never_changes_any_reply_photos(self):
+        """Reject foreign IDs and ambiguous empty markers before any removal."""
+        original = self._photo("original")
+        other_review = Review.objects.create(
+            USER_ID=self.other_merchant,
+            BUSN_ID=self.business,
+            REVW_TEXT="Another published review.",
+        )
+        other_reply = ReviewReply.objects.create(
+            REVW_ID=other_review,
+            RPLY_TEXT="Another reply.",
+        )
+        foreign = self._photo(
+            "foreign",
+            reply=other_reply,
+        )
+        invalid_selections = (
+            [str(foreign.pk)],
+            ["999999"],
+            ["[]", str(original.pk)],
+            ["invalid"],
+        )
+        for ids in invalid_selections:
+            with self.subTest(ids=ids):
+                response = self.client.patch(
+                    self.detail_url,
+                    {"keep_photo_ids": ids},
+                    format="multipart",
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+                self.assertTrue(
+                    ReplyPhoto.objects.filter(pk=original.pk).exists(),
+                )
+                self.assertTrue(
+                    ReplyPhoto.objects.filter(pk=foreign.pk).exists(),
+                )
+                self.assertFalse(ReviewMediaCleanup.objects.exists())
+
+    @patch(
+        "apps.reviews.services.review_reply_service.CloudinaryService.upload_image",
+    )
+    def test_photo_limit_rejection_preserves_existing_assets(
+        self,
+        upload,
+    ):
+        """Enforce the final retained-plus-uploaded limit before uploading."""
+        for index in range(3):
+            self._photo(f"original-{index}")
+        response = self.client.patch(
+            self.detail_url,
+            {"photos": [ReviewReplyViewTests.create_test_image()]},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.reply.photos.count(), 3)
+        self.assertFalse(ReviewMediaCleanup.objects.exists())
+        upload.assert_not_called()
+
+    def test_remove_all_still_requires_reply_ownership(self):
+        """An explicit empty collection never bypasses the existing owner check."""
+        photo = self._photo("original")
+        self.client.force_authenticate(self.other_merchant)
+        response = self.client.patch(
+            self.detail_url,
+            {"keep_photo_ids": "[]"},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(ReplyPhoto.objects.filter(pk=photo.pk).exists())
+        self.assertFalse(ReviewMediaCleanup.objects.exists())

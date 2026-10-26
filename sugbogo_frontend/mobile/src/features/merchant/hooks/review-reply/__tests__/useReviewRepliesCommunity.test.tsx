@@ -1,6 +1,10 @@
 import type { PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react-native";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { COMMUNITY_REVIEWS_QUERY_KEY } from "@/features/community/hooks/communityReviewQueryKeys";
 import {
@@ -8,8 +12,10 @@ import {
   businessReviewsKey,
   exploreBusinessDetailKey,
 } from "@/features/explore/hooks/reviewQueryKeys";
-import { MERCHANT_STANDARD_ANALYTICS_QUERY_KEY } from "../../analytics/merchantAnalyticsQueryKeys";
-import { merchantUnansweredReviewsKey } from "../../analytics/merchantAnalyticsQueryKeys";
+import {
+  MERCHANT_STANDARD_ANALYTICS_QUERY_KEY,
+  merchantUnansweredReviewsKey,
+} from "../../analytics/merchantAnalyticsQueryKeys";
 import { merchantReviewFeedKey } from "../../review-management/merchantReviewQueryKeys";
 
 import * as replyService from "../../../api/reviewReply.service";
@@ -118,4 +124,90 @@ describe("merchant reply Community synchronization", () => {
       client.clear();
     },
   );
+
+  it("keeps old photos until success and then refreshes the persisted empty collection", async () => {
+    const { client, Wrapper } = setup();
+    const key = businessReviewsKey(20);
+    const previous = { reply: { id: 9, photos: [{ id: 44 }] } };
+    let persisted = previous;
+    client.setQueryData(key, previous);
+    let complete: (value: unknown) => void = () => {};
+    jest.mocked(replyService.updateReviewReply).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }) as never,
+    );
+    const { result, unmount } = await renderHook(
+      () => ({
+        query: useQuery({
+          queryKey: key,
+          queryFn: async () => persisted,
+          staleTime: Infinity,
+        }),
+        mutation: useUpdateReviewReply(20),
+      }),
+      { wrapper: Wrapper },
+    );
+    let pending: Promise<unknown>;
+    await act(async () => {
+      pending = result.current.mutation.mutateAsync({
+        replyId: 9,
+        text: "Updated reply.",
+        photos: [],
+        keepPhotoIds: [],
+      });
+    });
+    expect(result.current.query.data).toEqual(previous);
+    await act(async () => {
+      persisted = { reply: { id: 9, photos: [] } };
+      complete({ success: true, data: persisted.reply });
+      await pending!;
+    });
+    await waitFor(() =>
+      expect(result.current.query.data?.reply.photos).toEqual([]),
+    );
+    expect(replyService.updateReviewReply).toHaveBeenCalledWith(
+      9,
+      "Updated reply.",
+      [],
+      [],
+    );
+    unmount();
+    client.clear();
+  });
+
+  it("preserves cached reply photos and skips invalidation on a failed removal", async () => {
+    const { client, invalidate, Wrapper } = setup();
+    const key = businessReviewsKey(20);
+    const previous = { reply: { id: 9, photos: [{ id: 44 }] } };
+    client.setQueryDefaults(key, { gcTime: Infinity });
+    client.setQueryData(key, previous);
+    const failure = {
+      success: false,
+      code: "VALIDATION_ERROR",
+      message: "Unable to update.",
+    };
+    jest
+      .mocked(replyService.updateReviewReply)
+      .mockResolvedValueOnce(failure as never);
+    const { result, unmount } = await renderHook(
+      () => useUpdateReviewReply(20),
+      { wrapper: Wrapper },
+    );
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          replyId: 9,
+          text: "Updated reply.",
+          photos: [],
+          keepPhotoIds: [],
+        }),
+      ).rejects.toEqual(failure);
+    });
+    expect(client.getQueryData(key)).toEqual(previous);
+    expect(invalidate).not.toHaveBeenCalled();
+    unmount();
+    client.clear();
+  });
 });

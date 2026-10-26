@@ -75,6 +75,7 @@ export type MerchantBusinessOperatingHours = {
 };
 
 export type MerchantBusinessOperatingHoursUpdate = {
+  expected_hours: MerchantBusinessOperatingHours[];
   hours: {
     day: string;
     is_open: boolean;
