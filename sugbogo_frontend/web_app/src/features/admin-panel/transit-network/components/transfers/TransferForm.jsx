@@ -7,7 +7,7 @@ import SelectInput from "@/shared/components/forms/SelectInput";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 import useTransitMutations from "../../hooks/useTransitMutations";
-import { useRouteVariants } from "../../hooks/useTransitQueries";
+import { useRouteVariantReferences } from "../../hooks/useTransitQueries";
 import {
   formatVariantLabel,
   getApiFieldErrors,
@@ -57,7 +57,7 @@ export default function TransferForm({
     isLoading: areVariantsLoading,
     error: variantsError,
     refetch: refetchVariants,
-  } = useRouteVariants({ page_size: 100 });
+  } = useRouteVariantReferences();
   const {
     createTransfer,
     updateTransfer,
@@ -170,7 +170,7 @@ export default function TransferForm({
     return (
       <DataErrorState
         title="Unable to load route variants"
-        message="Transfer selections are unavailable until route variants load."
+        message="The complete direction list could not be loaded. Retry before choosing a connection."
         onRetry={refetchVariants}
       />
     );
@@ -178,6 +178,9 @@ export default function TransferForm({
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
+      {areVariantsLoading && (
+        <p role="status" className="text-sm text-text-secondary">Loading all directions…</p>
+      )}
       {/* Transfer editor heading */}
       <div className="rounded-xl border border-stroke bg-background p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-primary">
@@ -281,7 +284,7 @@ export default function TransferForm({
         <Button variant="secondary" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button type="submit" loading={isSubmitting} disabled={!isDirty}>
+        <Button type="submit" loading={isSubmitting} disabled={!isDirty || areVariantsLoading}>
           {isEditing ? "Save Connection" : "Add Pending Transfer"}
         </Button>
       </div>

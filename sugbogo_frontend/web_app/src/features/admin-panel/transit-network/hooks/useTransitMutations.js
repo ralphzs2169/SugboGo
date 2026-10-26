@@ -21,6 +21,7 @@ export default function useTransitMutations() {
   async function invalidateRouteQueries(routeId) {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: transitQueryKeys.routes() }),
+      queryClient.invalidateQueries({ queryKey: transitQueryKeys.variants() }),
       routeId
         ? queryClient.invalidateQueries({
             queryKey: transitQueryKeys.routeDetail(routeId),

@@ -9,6 +9,7 @@ export const transitQueryKeys = {
   ],
   variants: () => [...transitQueryKeys.all, "route-variants"],
   variantList: (params) => [...transitQueryKeys.variants(), "list", params],
+  variantReferences: () => [...transitQueryKeys.variants(), "references"],
   variantDetails: () => [...transitQueryKeys.variants(), "detail"],
   variantDetail: (variantId) => [
     ...transitQueryKeys.variantDetails(),
@@ -20,6 +21,7 @@ export const transitQueryKeys = {
     "list",
     params,
   ],
+  transitPointReferences: () => [...transitQueryKeys.transitPoints(), "references"],
   transitPointDetails: () => [
     ...transitQueryKeys.transitPoints(),
     "detail",

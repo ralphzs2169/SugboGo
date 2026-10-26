@@ -9,7 +9,8 @@ import useTransitWorkspaceKeyboardShortcuts from "../../hooks/useTransitWorkspac
 import {
   useJeepneyRoute,
   useJeepneyRoutes,
-  useRouteVariants,
+  useRouteVariantReferences,
+  useTransitPointReferences,
   useRouteVariant,
   useTransitPoints,
   useTransitTransfers,
@@ -113,12 +114,10 @@ export default function TransitNetworkWorkspace() {
   const routeDetailQuery = useJeepneyRoute(expandedRouteId, {
     enabled: context === TRANSIT_CONTEXTS.ROUTES && Boolean(expandedRouteId),
   });
-  const routeReferencePointsQuery = useTransitPoints(
-    { page_size: 100 },
+  const routeReferencePointsQuery = useTransitPointReferences(
     { enabled: context === TRANSIT_CONTEXTS.ROUTES },
   );
-  const pointReferenceVariantsQuery = useRouteVariants(
-    { page_size: 100 },
+  const pointReferenceVariantsQuery = useRouteVariantReferences(
     { enabled: context === TRANSIT_CONTEXTS.POINTS },
   );
   const sourceVariantQuery = useRouteVariant(
@@ -762,6 +761,11 @@ export default function TransitNetworkWorkspace() {
           transferDestinationVariant={destinationVariantQuery.variant}
           focusRequest={focusRequest}
           referenceLayerError={referenceLayerError}
+          referenceLayerLoading={
+            context === TRANSIT_CONTEXTS.ROUTES
+              ? routeReferencePointsQuery.isLoading
+              : context === TRANSIT_CONTEXTS.POINTS && pointReferenceVariantsQuery.isLoading
+          }
           isFullscreen={fullscreen.isFullscreen}
           onVariantSelect={selectVariant}
           onTransitPointSelect={(point) =>

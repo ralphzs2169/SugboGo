@@ -11,7 +11,7 @@ let OrderedTransitPointPanel;
 
 before(async () => {
   server = await createServer({
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, ws: false, hmr: false },
     appType: "custom",
     cacheDir: "node_modules/.vite-ordered-stop-tests",
   });

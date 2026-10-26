@@ -36,6 +36,7 @@ class TransitPointService:
                 ordering,
                 "TRPT_NAME",
             ),
+            "TRPT_ID",
         )
 
     @staticmethod

@@ -1,4 +1,5 @@
 import DataErrorState from "@/shared/components/errors/DataErrorState";
+import Button from "@/shared/components/Button";
 
 import RouteForm from "../routes/RouteForm";
 import RouteInspector from "../routes/RouteInspector";
@@ -113,11 +114,19 @@ function RouteContextInspector({
   }
 
   if (isVariantEditingMode(mode)) {
+    if (routeReferencePointsQuery.isLoading) {
+      return (
+        <div className="rounded-xl border border-stroke bg-surface p-4">
+          <p role="status" className="text-sm text-text-secondary">Loading all stops…</p>
+          <Button className="mt-3" variant="secondary" onClick={onCancelVariant}>Cancel</Button>
+        </div>
+      );
+    }
     if (routeReferencePointsQuery.error) {
       return (
         <DataErrorState
           title="Unable to load Transit Points"
-          message="Route editing requires managed Transit Point reference data."
+          message="The complete stop list could not be loaded. Retry before editing this direction."
           onRetry={routeReferencePointsQuery.refetch}
         />
       );
