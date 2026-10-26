@@ -17,6 +17,13 @@ import {
 } from "../../api/exploreBusiness.service";
 import useBusinessVouch from "../useBusinessVouch";
 import type { ExploreBusinessDetail } from "../../types/exploreBusiness.types";
+import { DISCOVERY_FEED_QUERY_KEY } from "../useDiscoveryFeed";
+import {
+  MAP_DIRECTORY_QUERY_KEY,
+  MAP_DIRECTORY_DATA_QUERY_KEY,
+  MAP_BUSINESS_QUERY_KEY,
+  mapBusinessQueryKey,
+} from "@/features/map/hooks/mapDirectoryQueryKeys";
 
 jest.mock("../../api/exploreBusiness.service", () => ({
   getExploreBusinessDetail: jest.fn(),
@@ -81,7 +88,102 @@ describe("latest vouch intent", () => {
       .specialty_tags.find((item) => item.id === tagId)!;
   }
 
+  it.each([false, true])(
+    "invalidates global Map presentation only after a confirmed write (removing: %s)",
+    async (isVouched) => {
+      const request = deferred();
+      (vouchForBusinessSpecialty as jest.Mock).mockReturnValue(request.promise);
+      (removeBusinessSpecialtyVouch as jest.Mock).mockReturnValue(request.promise);
+      client.setQueryData(
+        key,
+        businessDetail(historyBusiness(1, isVouched ? [1] : [])),
+      );
+      const mapKeys = [
+        MAP_DIRECTORY_DATA_QUERY_KEY,
+        mapBusinessQueryKey(1),
+        mapBusinessQueryKey(2),
+      ];
+      const untouchedKeys = [
+        [...MAP_DIRECTORY_QUERY_KEY, "open-now"],
+        ["unrelated-business-data"],
+      ];
+      const saved = [{ id: 1, is_hidden_gem: false }];
+      for (const queryKey of [...mapKeys, ...untouchedKeys]) {
+        client.setQueryData(queryKey, saved);
+      }
+      const invalidate = jest.spyOn(client, "invalidateQueries");
+      const { result, rerender } = await renderHook(
+        () => useBusinessVouch({ businessId: 1 }),
+        { wrapper: Wrapper },
+      );
+      await rerender(undefined);
+      expect(invalidate).not.toHaveBeenCalled();
+      let drain!: Promise<void>;
+      await act(async () => {
+        drain = result.current.vouch({ tagId: 1, isVouched });
+      });
+      expect(invalidate).not.toHaveBeenCalled();
+      for (const queryKey of mapKeys) {
+        expect(client.getQueryData(queryKey)).toEqual(saved);
+      }
+      await act(async () => {
+        request.resolve(success);
+        await drain;
+      });
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: MAP_DIRECTORY_DATA_QUERY_KEY,
+      });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: MAP_BUSINESS_QUERY_KEY });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: DISCOVERY_FEED_QUERY_KEY,
+      });
+      for (const queryKey of mapKeys) {
+        expect(client.getQueryState(queryKey)?.isInvalidated).toBe(true);
+        expect(client.getQueryData(queryKey)).toEqual(saved);
+      }
+      for (const queryKey of untouchedKeys) {
+        expect(client.getQueryState(queryKey)?.isInvalidated).toBe(false);
+      }
+      expect(
+        invalidate.mock.calls.every(([filters]) => filters?.queryKey?.length),
+      ).toBe(true);
+    },
+  );
+
+  it("does not invalidate Map for a rejected write while preserving existing reconciliation", async () => {
+    (vouchForBusinessSpecialty as jest.Mock).mockResolvedValue(rejected);
+    client.setQueryData(MAP_DIRECTORY_DATA_QUERY_KEY, []);
+    client.setQueryData(mapBusinessQueryKey(1), []);
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result } = await renderHook(
+      () => useBusinessVouch({ businessId: 1 }),
+      { wrapper: Wrapper },
+    );
+    await act(async () => {
+      await expect(
+        result.current.vouch({ tagId: 1, isVouched: false }),
+      ).rejects.toMatchObject(rejected);
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: DISCOVERY_FEED_QUERY_KEY,
+    });
+    expect(
+      invalidate.mock.calls.some(
+        ([filters]) => filters?.queryKey?.[0] === MAP_DIRECTORY_QUERY_KEY[0],
+      ),
+    ).toBe(false);
+    expect(
+      client.getQueryState(MAP_DIRECTORY_DATA_QUERY_KEY)?.isInvalidated,
+    ).toBe(false);
+    expect(
+      client.getQueryState(mapBusinessQueryKey(1))?.isInvalidated,
+    ).toBe(false);
+  });
+
   it("coalesces opposite taps before dispatch and keeps every cached count aligned", async () => {
+    const invalidate = jest.spyOn(client, "invalidateQueries");
     const business = businessDetail(historyBusiness(1, []));
     const flatKeys = [
       ["explore-new-businesses"],
@@ -112,6 +214,11 @@ describe("latest vouch intent", () => {
     });
     expect(vouchForBusinessSpecialty).not.toHaveBeenCalled();
     expect(removeBusinessSpecialtyVouch).not.toHaveBeenCalled();
+    expect(
+      invalidate.mock.calls.some(
+        ([filters]) => filters?.queryKey?.[0] === MAP_DIRECTORY_QUERY_KEY[0],
+      ),
+    ).toBe(false);
     for (const queryKey of flatKeys)
       expect(client.getQueryData(queryKey)).toEqual({ items: [business] });
     for (const queryKey of pageKeys)
@@ -260,6 +367,7 @@ describe("latest vouch intent", () => {
   });
 
   it("restores the last confirmed add when a subsequent removal is rejected", async () => {
+    const invalidate = jest.spyOn(client, "invalidateQueries");
     const add = deferred();
     (vouchForBusinessSpecialty as jest.Mock).mockReturnValue(add.promise);
     (removeBusinessSpecialtyVouch as jest.Mock).mockResolvedValue(rejected);
@@ -285,6 +393,10 @@ describe("latest vouch intent", () => {
     });
     expect(await drain).toMatchObject(rejected);
     expect(tag()).toMatchObject({ is_vouched: true, vouch_count: 1 });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: MAP_DIRECTORY_DATA_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: MAP_BUSINESS_QUERY_KEY });
   });
 
   it("reads the server after a timeout before sending the latest corrective choice", async () => {
@@ -325,6 +437,7 @@ describe("latest vouch intent", () => {
   });
 
   it("does not retry an uncertain write if the verification read also fails", async () => {
+    const invalidate = jest.spyOn(client, "invalidateQueries");
     (vouchForBusinessSpecialty as jest.Mock).mockResolvedValue(timeout);
     (getExploreBusinessDetail as jest.Mock).mockResolvedValue(timeout);
     const { result } = await renderHook(
@@ -339,6 +452,32 @@ describe("latest vouch intent", () => {
     expect(vouchForBusinessSpecialty).toHaveBeenCalledTimes(1);
     expect(removeBusinessSpecialtyVouch).not.toHaveBeenCalled();
     expect(tag().is_vouched).toBe(false);
+    expect(
+      invalidate.mock.calls.some(
+        ([filters]) => filters?.queryKey?.[0] === MAP_DIRECTORY_QUERY_KEY[0],
+      ),
+    ).toBe(false);
+  });
+
+  it("invalidates Map when timeout recovery confirms the requested write committed", async () => {
+    (vouchForBusinessSpecialty as jest.Mock).mockResolvedValue(timeout);
+    (getExploreBusinessDetail as jest.Mock).mockResolvedValue({
+      success: true,
+      data: businessDetail(historyBusiness(1, [1])),
+    });
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    const { result } = await renderHook(
+      () => useBusinessVouch({ businessId: 1 }),
+      { wrapper: Wrapper },
+    );
+    await act(async () => {
+      await result.current.vouch({ tagId: 1, isVouched: false });
+    });
+    expect(vouchForBusinessSpecialty).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: MAP_DIRECTORY_DATA_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: MAP_BUSINESS_QUERY_KEY });
   });
 
   it("shares the pending intent across hook remounts instead of duplicating writes", async () => {

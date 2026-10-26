@@ -38,7 +38,7 @@ export default function useUpdateMerchantBusinessPhotos(
 
       await Promise.all([
         ...invalidations,
-        invalidateBusinessDisplayCover(queryClient),
+        invalidateBusinessDisplayCover(queryClient, businessId),
       ]);
     },
   });

@@ -1,12 +1,27 @@
 import React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
-import { AppState } from "react-native";
+import type { LocationObject } from "expo-location";
+import * as Location from "expo-location";
+import {
+  focusManager,
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  waitFor,
+} from "@testing-library/react-native";
+import { Alert, AppState, Linking, type AppStateStatus } from "react-native";
 
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { getMapDirectoryPage } from "../../api/mapDiscovery.service";
 import MapScreen from "../MapScreen";
+import { MAP_DIRECTORY_QUERY_KEY } from "../../hooks/useMapDirectory";
 import { router, useNavigation } from "expo-router";
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
 
@@ -14,6 +29,19 @@ let mockScreenFocused = true;
 const mockSearchPresent = jest.fn();
 const mockFilterPresent = jest.fn();
 const mockSheetDismiss = jest.fn();
+const mockAppListeners = new Set<(state: AppStateStatus) => void>();
+
+jest.mock("expo-location", () => ({
+  Accuracy: { High: 6 },
+  PermissionStatus: {
+    GRANTED: "granted",
+    DENIED: "denied",
+    UNDETERMINED: "undetermined",
+  },
+  requestForegroundPermissionsAsync: jest.fn(),
+  getForegroundPermissionsAsync: jest.fn(),
+  getCurrentPositionAsync: jest.fn(),
+}));
 
 jest.mock("@/shared/utils/presentBottomSheet.utils", () => ({
   presentBottomSheet: (ref: { current: { present: () => void } }) =>
@@ -51,6 +79,13 @@ jest.mock(
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(() => {
+      if (mockScreenFocused) {
+        return effect();
+      }
+    }, [effect, mockScreenFocused]);
+  },
   useIsFocused: () => mockScreenFocused,
   useNavigation: jest.fn(),
 }));
@@ -118,11 +153,20 @@ function response(items: object[] = [business], hasNext = false) {
 }
 
 const clients: QueryClient[] = [];
+const {
+  default: useSharedUserLocation,
+  USER_LOCATION_QUERY_KEY,
+  RECENT_LOCATION_MAX_AGE_MS,
+} = jest.requireActual<typeof import("@/shared/hooks/useUserLocation")>(
+  "@/shared/hooks/useUserLocation",
+);
 
-function setup() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-  });
+function setup(existingClient?: QueryClient) {
+  const client =
+    existingClient ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
   clients.push(client);
 
   return render(
@@ -132,9 +176,135 @@ function setup() {
   );
 }
 
+type LocationResult = Awaited<
+  ReturnType<ReturnType<typeof useUserLocation>["refreshLocation"]>
+>;
+type MapTestScreen = Awaited<ReturnType<typeof setup>>;
+
+const availableLocation: LocationResult = {
+  status: "available",
+  location: {
+    coords: { latitude: 10.33, longitude: 123.91 },
+  } as LocationObject,
+  error: null,
+};
+const deniedLocation: LocationResult = {
+  status: "denied",
+  location: null,
+  error: null,
+};
+
+function deferredLocation() {
+  let resolve!: (result: LocationResult) => void;
+  const promise = new Promise<LocationResult>((complete) => {
+    resolve = complete;
+  });
+
+  return { promise, resolve };
+}
+
+function deferredDirectoryResponse() {
+  let resolve!: (value: unknown) => void;
+  const promise = new Promise((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
+async function setupLocateMe(refreshLocation: jest.Mock) {
+  (useUserLocation as jest.Mock).mockReturnValue({
+    status: "denied",
+    location: null,
+    isRefreshingLocation: false,
+    refreshLocation,
+  });
+  const screen = await setup();
+  const camera = { animateToRegion: jest.fn() };
+  await fireEvent(screen.getByTestId("discovery-map"), "mapReady", camera);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(
+      1,
+    ),
+  );
+
+  return { screen, camera };
+}
+
+async function changeMapFocus(
+  screen: MapTestScreen,
+  focused: boolean,
+) {
+  mockScreenFocused = focused;
+  const client = clients[clients.length - 1];
+  await screen.rerender(
+    <QueryClientProvider client={client}>
+      <MapScreen />
+    </QueryClientProvider>,
+  );
+}
+
+function recentFix(): LocationObject {
+  return {
+    timestamp: Date.now(),
+    coords: { latitude: 10.33, longitude: 123.91, accuracy: 20 },
+  } as LocationObject;
+}
+
+function cachedLocationClient(location = recentFix()) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  client.setQueryData(USER_LOCATION_QUERY_KEY, {
+    status: "available",
+    location,
+    error: null,
+  });
+  return client;
+}
+
+async function setupSharedLocation(client?: QueryClient) {
+  jest.mocked(useUserLocation).mockImplementation(useSharedUserLocation);
+  const screen = await setup(client);
+  const camera = { animateToRegion: jest.fn() };
+  await fireEvent(screen.getByTestId("discovery-map"), "mapReady", camera);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(
+      1,
+    ),
+  );
+  return { screen, camera };
+}
+
+async function changeAppState(state: AppStateStatus) {
+  await act(async () => {
+    AppState.currentState = state;
+    mockAppListeners.forEach((listener) => listener(state));
+    // The root QueryLifecycle maps these same native events to React Query.
+    focusManager.setFocused(state === "active");
+  });
+}
+
 beforeEach(() => {
   mockScreenFocused = true;
   AppState.currentState = "active";
+  focusManager.setFocused(true);
+  onlineManager.setOnline(true);
+  mockAppListeners.clear();
+  jest.spyOn(AppState, "addEventListener").mockImplementation(
+    (_event, callback) => {
+      mockAppListeners.add(callback);
+      return { remove: () => mockAppListeners.delete(callback) };
+    },
+  );
+  jest.mocked(Location.getForegroundPermissionsAsync)
+    .mockReset()
+    .mockResolvedValue({ status: "granted" } as never);
+  jest.mocked(Location.requestForegroundPermissionsAsync)
+    .mockReset()
+    .mockResolvedValue({ status: "granted" } as never);
+  jest.mocked(Location.getCurrentPositionAsync)
+    .mockReset()
+    .mockImplementation(async () => recentFix());
   (useExploreFilterOptions as jest.Mock).mockReturnValue({
     options: {
       clusters: [{ id: 1, name: "Food", icon: "coffee" }],
@@ -147,7 +317,9 @@ beforeEach(() => {
     error: null,
     refetch: jest.fn().mockResolvedValue({ error: null }),
   });
-  (useNavigation as jest.Mock).mockReturnValue({ isFocused: () => true });
+  (useNavigation as jest.Mock).mockReturnValue({
+    isFocused: () => mockScreenFocused,
+  });
   (useUserLocation as jest.Mock).mockReturnValue({
     status: "denied",
     location: null,
@@ -157,8 +329,12 @@ beforeEach(() => {
   (getMapDirectoryPage as jest.Mock).mockResolvedValue(response());
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await cleanup();
+  jest.restoreAllMocks();
   clients.splice(0).forEach((client) => client.clear());
+  onlineManager.setOnline(true);
+  focusManager.setFocused(true);
 });
 
 it("loads immediately without bounds and never requests data during map movement", async () => {
@@ -308,7 +484,7 @@ it("keeps the map visible on failure and retries the directory", async () => {
   expect(screen.getByTestId("discovery-map")).toBeTruthy();
   expect(screen.queryByText("No businesses are available yet.")).toBeNull();
   await fireEvent.press(
-    screen.getByRole("button", { name: /Could not load businesses.*retry/i }),
+    screen.getByRole("button", { name: "Retry loading places" }),
   );
   await waitFor(() =>
     expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(
@@ -347,13 +523,14 @@ it("reports Open Now errors separately and retries without refetching the base d
   );
   await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
   await waitFor(() =>
-    expect(screen.getByText("Could not check opening hours")).toBeTruthy(),
+    expect(screen.getByText(/Could not check opening hours/)).toBeTruthy(),
   );
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
   expect(screen.queryByText(/No businesses match/)).toBeNull();
   fail = false;
   await fireEvent.press(
     screen.getByRole("button", {
-      name: /Could not check opening hours.*retry/i,
+      name: "Retry checking opening hours",
     }),
   );
   await waitFor(() =>
@@ -423,10 +600,10 @@ it("falls back to a global compact lookup for a result missing from the cached d
     "businessSelect",
     target,
   );
-  await waitFor(() => expect(screen.getByText("Distant Cafe")).toBeTruthy());
-  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(
-    900,
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(900),
   );
+  expect(screen.getByText("Distant Cafe")).toBeTruthy();
   expect(getMapDirectoryPage).toHaveBeenLastCalledWith(1, expect.anything(), {
     businessId: 900,
   });
@@ -463,6 +640,9 @@ it("ignores an older selection response", async () => {
   await waitFor(() =>
     expect(screen.getByText("Latest Selection")).toBeTruthy(),
   );
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(901),
+  );
   await act(async () => finishOld(response([{ ...business, id: 900 }])));
   expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(
     901,
@@ -496,6 +676,10 @@ it("retries a failed selection lookup without repeating camera focus", async () 
   await waitFor(() =>
     expect(screen.getByText("Could not load selected business")).toBeTruthy(),
   );
+  expect(screen.getByRole("button", {
+    name: "View Recovered Selection business profile",
+    disabled: true,
+  })).toBeTruthy();
   await fireEvent(screen.getByTestId("discovery-map"), "focusStart");
   await fireEvent(
     screen.getByTestId("discovery-map"),
@@ -509,15 +693,23 @@ it("retries a failed selection lookup without repeating camera focus", async () 
     }),
   );
   await waitFor(() =>
-    expect(screen.getByText("Recovered Selection")).toBeTruthy(),
+    expect(screen.getByRole("button", {
+      name: "View Recovered Selection business profile",
+      disabled: false,
+    })).toBeTruthy(),
   );
   expect(screen.getByTestId("discovery-map").props.focusTarget).toBeNull();
 });
 
 it("clears a search selection when the server says the business is unavailable", async () => {
+  const pending = deferredDirectoryResponse();
   (getMapDirectoryPage as jest.Mock).mockImplementation(
-    async (_page, _signal, options) =>
-      response(options.businessId ? [] : [business]),
+    (_page, _signal, options) => {
+      if (options.businessId) {
+        return pending.promise;
+      }
+      return Promise.resolve(response());
+    },
   );
   const screen = await setup();
   await waitFor(() =>
@@ -528,7 +720,14 @@ it("clears a search selection when the server says the business is unavailable",
   await fireEvent(screen.getByTestId("map-search-sheet"), "businessSelect", {
     ...business,
     id: 900,
+    business_name: "Unavailable Search Cafe",
   });
+  expect(screen.getByText("Unavailable Search Cafe")).toBeTruthy();
+  expect(screen.getByRole("button", {
+    name: "View Unavailable Search Cafe business profile",
+    disabled: true,
+  })).toBeTruthy();
+  await act(async () => pending.resolve(response([])));
   await waitFor(() =>
     expect(
       screen.getByText(/This business is no longer available/),
@@ -538,6 +737,198 @@ it("clears a search selection when the server says the business is unavailable",
     screen.getByTestId("discovery-map").props.selectedBusinessId,
   ).toBeNull();
   expect(screen.getByTestId("discovery-map").props.focusTarget).toBeNull();
+  expect(screen.queryByText("Unavailable Search Cafe")).toBeNull();
+  expect(screen.queryByTestId("business-preview-anchor")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+});
+
+it("shows Search identity immediately without promoting it into Map or profile data", async () => {
+  const pending = deferredDirectoryResponse();
+  const searchBusiness = {
+    ...business,
+    id: 900,
+    business_name: "Search Cafe",
+    display_cover_photo_url: "https://example.com/search.jpg",
+    is_hidden_gem: true,
+    is_pocketed: true,
+    review_count: 999,
+  };
+  const confirmedBusiness = {
+    ...business,
+    id: 900,
+    business_name: "Confirmed Cafe",
+    display_cover_photo_url: "https://example.com/confirmed.jpg",
+    category: { id: 8, name: "Bakery" },
+    location: { ...business.location, city: "Mandaue City" },
+    specialty_tags: [
+      { id: 9, name: "Confirmed Pastries", color: "yellow", icon: "cake" },
+    ],
+  };
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.businessId) {
+        return pending.promise;
+      }
+      return Promise.resolve(response());
+    },
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  await fireEvent(screen.getByTestId("map-search-sheet"), "businessSelect", searchBusiness);
+  expect(screen.getByText("Search Cafe")).toBeTruthy();
+  expect(screen.getByText("Cafe")).toBeTruthy();
+  expect(screen.getByText("Cebu City, Cebu")).toBeTruthy();
+  expect(screen.getByText("Local Coffee")).toBeTruthy();
+  expect(screen.getByLabelText("Search Cafe cover photo").props.source[0]).toEqual({
+    uri: searchBusiness.display_cover_photo_url,
+  });
+  expect(screen.queryByText("Loading selected business…")).toBeNull();
+  expect(screen.queryByLabelText("Hidden Gem")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBeNull();
+  await waitFor(() => expect(getMapDirectoryPage).toHaveBeenCalledTimes(2));
+  expect(getMapDirectoryPage).toHaveBeenLastCalledWith(1, expect.anything(), {
+    businessId: 900,
+  });
+  const client = clients[clients.length - 1];
+  expect(client.getQueryData(["explore-business-detail", 900])).toBeUndefined();
+  expect(client.getQueryData([...MAP_DIRECTORY_QUERY_KEY, "business", 900])).toBeUndefined();
+  expect(client.getQueryData([...MAP_DIRECTORY_QUERY_KEY, "all"])).toEqual([business]);
+  await fireEvent.press(screen.getByRole("button", {
+    name: "View Search Cafe business profile",
+    disabled: true,
+  }));
+  expect(router.push).not.toHaveBeenCalled();
+
+  await act(async () => pending.resolve(response([confirmedBusiness])));
+  await waitFor(() =>
+    expect(screen.getByRole("button", {
+      name: "View Confirmed Cafe business profile",
+      disabled: false,
+    })).toBeTruthy(),
+  );
+  expect(screen.queryByText("Search Cafe")).toBeNull();
+  expect(screen.getByText("Bakery")).toBeTruthy();
+  expect(screen.getByText("Mandaue City, Cebu")).toBeTruthy();
+  expect(screen.getByText("Confirmed Pastries")).toBeTruthy();
+  expect(screen.queryByText("Local Coffee")).toBeNull();
+  expect(screen.getByLabelText("Confirmed Cafe cover photo").props.source[0]).toEqual({
+    uri: confirmedBusiness.display_cover_photo_url,
+  });
+  expect(client.getQueryData(["explore-business-detail", 900])).toBeUndefined();
+  const viewBusiness = screen.getByRole("button", {
+    name: "View Confirmed Cafe business profile",
+  });
+  await fireEvent.press(viewBusiness);
+  await fireEvent.press(viewBusiness);
+  expect(router.push).toHaveBeenCalledTimes(1);
+  expect(router.push).toHaveBeenCalledWith({
+    pathname: "/(explorer)/business/[businessId]",
+    params: { businessId: "900", profileSource: "MAP" },
+  });
+});
+
+it("closes a pending Search preview, ignores its late response, and preserves ordinary marker selection", async () => {
+  const pending = deferredDirectoryResponse();
+  const searchBusiness = { ...business, id: 900, business_name: "Pending Search Cafe" };
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.businessId) {
+        return pending.promise;
+      }
+      return Promise.resolve(response());
+    },
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  await fireEvent(screen.getByTestId("map-search-sheet"), "businessSelect", searchBusiness);
+  await waitFor(() => expect(getMapDirectoryPage).toHaveBeenCalledTimes(2));
+  expect(screen.getByText(searchBusiness.business_name)).toBeTruthy();
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+  expect(screen.getByText(searchBusiness.business_name)).toBeTruthy();
+  await fireEvent.press(screen.getByRole("button", { name: "Close business preview" }));
+  expect(screen.queryByTestId("business-preview-anchor")).toBeNull();
+  expect(screen.getByRole("button", { name: "Open Now" })).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.focusTarget).toBeNull();
+  await act(async () => pending.resolve(response([searchBusiness])));
+  expect(screen.queryByText(searchBusiness.business_name)).toBeNull();
+  expect(screen.queryByTestId("business-preview-anchor")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBeNull();
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  expect(screen.getByText(business.business_name)).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+  expect(screen.getByRole("button", {
+    name: `View ${business.business_name} business profile`,
+    disabled: false,
+  })).toBeTruthy();
+  expect(getMapDirectoryPage).toHaveBeenCalledTimes(2);
+});
+
+it("keeps C selected for Search A → B → C responses completing C → A → B", async () => {
+  const requests = new Map([
+    [900, deferredDirectoryResponse()],
+    [901, deferredDirectoryResponse()],
+    [902, deferredDirectoryResponse()],
+  ]);
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.businessId) {
+        return requests.get(options.businessId)!.promise;
+      }
+      return Promise.resolve(response());
+    },
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  for (const id of [900, 901, 902]) {
+    await fireEvent(screen.getByTestId("map-search-sheet"), "businessSelect", {
+      ...business,
+      id,
+      business_name: `Search ${id}`,
+    });
+    expect(screen.getByText(`Search ${id}`)).toBeTruthy();
+    expect(screen.getByRole("button", {
+      name: `View Search ${id} business profile`,
+      disabled: true,
+    })).toBeTruthy();
+    await waitFor(() =>
+      expect(getMapDirectoryPage).toHaveBeenLastCalledWith(1, expect.anything(), {
+        businessId: id,
+      }),
+    );
+  }
+  await act(async () => requests.get(902)!.resolve(response([
+    { ...business, id: 902, business_name: "Confirmed C" },
+  ])));
+  await waitFor(() =>
+    expect(screen.getByRole("button", {
+      name: "View Confirmed C business profile",
+      disabled: false,
+    })).toBeTruthy(),
+  );
+  await act(async () => requests.get(900)!.resolve(response([
+    { ...business, id: 900, business_name: "Late A" },
+  ])));
+  expect(screen.getByText("Confirmed C")).toBeTruthy();
+  expect(screen.queryByText("Late A")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(902);
+  await act(async () => requests.get(901)!.resolve(response([
+    { ...business, id: 901, business_name: "Late B" },
+  ])));
+  expect(screen.getByText("Confirmed C")).toBeTruthy();
+  expect(screen.queryByText("Late B")).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(902);
+  expect(screen.getByRole("button", {
+    name: "View Confirmed C business profile",
+    disabled: false,
+  })).toBeTruthy();
+  expect(router.push).not.toHaveBeenCalled();
 });
 
 it.each(["denied", "unavailable"])(
@@ -602,4 +993,704 @@ it("forwards tab focus without reloading the directory or clearing selection", a
     expect(map().props.selectedBusinessId).toBe(42);
   }
   expect(getMapDirectoryPage).toHaveBeenCalledTimes(1);
+});
+
+it("ignores a Locate Me result after a manual map gesture", async () => {
+  const request = deferredLocation();
+  const refreshLocation = jest.fn(() => request.promise);
+  const { screen, camera } = await setupLocateMe(refreshLocation);
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  expect(refreshLocation).toHaveBeenCalledTimes(1);
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+  await act(async () => {
+    request.resolve(availableLocation);
+    await request.promise;
+  });
+
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it.each(["marker", "search"])(
+  "preserves a newer %s selection when Locate Me resolves",
+  async (selection) => {
+    const request = deferredLocation();
+    const { screen, camera } = await setupLocateMe(
+      jest.fn(() => request.promise),
+    );
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    if (selection === "marker") {
+      await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+    } else {
+      await fireEvent(
+        screen.getByTestId("map-search-sheet"),
+        "businessSelect",
+        business,
+      );
+    }
+    await act(async () => {
+      request.resolve(availableLocation);
+      await request.promise;
+    });
+
+    expect(camera.animateToRegion).not.toHaveBeenCalled();
+    expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(
+      42,
+    );
+    expect(screen.getByTestId("discovery-map").props.focusTarget.id).toBe(42);
+    expect(screen.getByText(business.business_name)).toBeTruthy();
+  },
+);
+
+it.each(["blur", "blur and return", "unmount"])(
+  "ignores Locate Me failure feedback after %s",
+  async (transition) => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const request = deferredLocation();
+    const { screen, camera } = await setupLocateMe(
+      jest.fn(() => request.promise),
+    );
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    if (transition === "unmount") {
+      await screen.unmount();
+    } else {
+      await changeMapFocus(screen, false);
+      if (transition === "blur and return") {
+        await changeMapFocus(screen, true);
+      }
+    }
+    await act(async () => {
+      request.resolve(deniedLocation);
+      await request.promise;
+    });
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(camera.animateToRegion).not.toHaveBeenCalled();
+  },
+);
+
+it.each(["blur", "blur and return", "unmount"])(
+  "ignores Locate Me camera movement after %s",
+  async (transition) => {
+    const request = deferredLocation();
+    const { screen, camera } = await setupLocateMe(
+      jest.fn(() => request.promise),
+    );
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    if (transition === "unmount") {
+      await screen.unmount();
+    } else {
+      await changeMapFocus(screen, false);
+      if (transition === "blur and return") {
+        await changeMapFocus(screen, true);
+      }
+    }
+    await act(async () => {
+      request.resolve(availableLocation);
+      await request.promise;
+    });
+
+    expect(camera.animateToRegion).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  { outcome: "success", result: availableLocation },
+  { outcome: "failure", result: deniedLocation },
+])(
+  "blocks repeated Locate Me presses while pending and allows another action after $outcome",
+  async ({ result }) => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const olderRequest = deferredLocation();
+    const newerRequest = deferredLocation();
+    const refreshLocation = jest
+      .fn()
+      .mockReturnValueOnce(olderRequest.promise)
+      .mockReturnValueOnce(newerRequest.promise);
+    const { screen, camera } = await setupLocateMe(refreshLocation);
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    expect(refreshLocation).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      olderRequest.resolve(result);
+      await olderRequest.promise;
+    });
+    camera.animateToRegion.mockClear();
+    alert.mockClear();
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    expect(refreshLocation).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      newerRequest.resolve(availableLocation);
+      await newerRequest.promise;
+    });
+
+    expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
+    expect(alert).not.toHaveBeenCalled();
+  },
+);
+
+it("recenters for a Locate Me action that remains current", async () => {
+  const request = deferredLocation();
+  const { screen, camera } = await setupLocateMe(
+    jest.fn(() => request.promise),
+  );
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+  await act(async () => {
+    request.resolve(availableLocation);
+    await request.promise;
+  });
+
+  expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).toHaveBeenCalledWith({
+    latitude: availableLocation.location!.coords.latitude,
+    longitude: availableLocation.location!.coords.longitude,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
+  });
+});
+
+it("keeps location failure feedback for a Locate Me action that remains current", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const request = deferredLocation();
+  const { screen, camera } = await setupLocateMe(
+    jest.fn(() => request.promise),
+  );
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await act(async () => {
+    request.resolve(deniedLocation);
+    await request.promise;
+  });
+
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+  expect(alert).toHaveBeenCalledTimes(1);
+  expect(alert).toHaveBeenCalledWith(
+    "Location Permission Needed",
+    expect.any(String),
+    expect.arrayContaining([expect.objectContaining({ text: "Open Settings" })]),
+  );
+});
+
+it("dispatches View Business once for rapid presses and releases the guard on return", async () => {
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(
+      1,
+    ),
+  );
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  const viewBusinessButton = screen.getByRole("button", {
+    name: /View Real Cebu Cafe business profile/,
+  });
+  await fireEvent.press(viewBusinessButton);
+  await fireEvent.press(viewBusinessButton);
+  await fireEvent.press(viewBusinessButton);
+  expect(router.push).toHaveBeenCalledTimes(1);
+  expect(router.push).toHaveBeenCalledWith({
+    pathname: "/(explorer)/business/[businessId]",
+    params: { businessId: "42", profileSource: "MAP" },
+  });
+
+  await changeMapFocus(screen, false);
+  await fireEvent.press(viewBusinessButton);
+  expect(router.push).toHaveBeenCalledTimes(1);
+  await changeMapFocus(screen, true);
+  await fireEvent.press(
+    screen.getByRole("button", {
+      name: /View Real Cebu Cafe business profile/,
+    }),
+  );
+  expect(router.push).toHaveBeenCalledTimes(2);
+  expect(router.push).toHaveBeenLastCalledWith({
+    pathname: "/(explorer)/business/[businessId]",
+    params: { businessId: "42", profileSource: "MAP" },
+  });
+});
+
+it("reuses Explore's acquired fix on Map mount and focus without acquiring GPS again", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  const explore = await renderHook(
+    () => useSharedUserLocation({ mode: "recent" }),
+    {
+      wrapper: ({ children }: React.PropsWithChildren) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    },
+  );
+  await waitFor(() => expect(explore.result.current.status).toBe("available"));
+  const exploreFix = explore.result.current.location;
+  await explore.unmount();
+
+  const { screen, camera } = await setupSharedLocation(client);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(screen.getByTestId("discovery-map").props.userLocation).toEqual(exploreFix);
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
+  camera.animateToRegion.mockClear();
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+
+  for (let visit = 0; visit < 2; visit += 1) {
+    const permissionChecks = jest.mocked(Location.getForegroundPermissionsAsync)
+      .mock.calls.length;
+    await changeMapFocus(screen, false);
+    await changeMapFocus(screen, true);
+    await waitFor(() =>
+      expect(jest.mocked(Location.getForegroundPermissionsAsync).mock.calls.length)
+        .toBeGreaterThan(permissionChecks),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+    );
+  }
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it("replaces an expired passive fix through the existing acquisition path", async () => {
+  const expired = {
+    ...recentFix(),
+    timestamp: Date.now() - RECENT_LOCATION_MAX_AGE_MS,
+  };
+  const client = cachedLocationClient(expired);
+  const { screen } = await setupSharedLocation(client);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledWith({
+    accuracy: Location.Accuracy.High,
+  });
+  expect(screen.getByTestId("discovery-map").props.userLocation.timestamp)
+    .toBeGreaterThan(expired.timestamp);
+});
+
+it("rejects a revoked cached permission quietly on Map mount and return", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  jest.mocked(Location.getForegroundPermissionsAsync).mockResolvedValue({
+    status: "denied",
+  } as never);
+  const { screen, camera } = await setupSharedLocation(cachedLocationClient());
+  await waitFor(() =>
+    expect(screen.getByTestId("map-controls").props.isLocating).toBe(false),
+  );
+  await changeMapFocus(screen, false);
+  await changeMapFocus(screen, true);
+  await waitFor(() =>
+    expect(Location.getForegroundPermissionsAsync).toHaveBeenCalledTimes(2),
+  );
+  expect(screen.getByTestId("discovery-map").props.userLocation).toBeNull();
+  expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(false);
+  expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+  expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+  expect(alert).not.toHaveBeenCalled();
+});
+
+it("explicit Locate Me acquires a fresh position despite a valid passive fix", async () => {
+  const client = cachedLocationClient();
+  const { screen, camera } = await setupSharedLocation(client);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+  camera.animateToRegion.mockClear();
+  const moved = recentFix();
+  moved.coords.latitude = 10.41;
+  jest.mocked(Location.getCurrentPositionAsync).mockResolvedValue(moved);
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await waitFor(() => expect(camera.animateToRegion).toHaveBeenCalledTimes(1));
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).toHaveBeenCalledWith({
+    latitude: moved.coords.latitude,
+    longitude: moved.coords.longitude,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
+  });
+  expect(client.getQueryData(USER_LOCATION_QUERY_KEY)).toMatchObject({
+    status: "available",
+    location: moved,
+  });
+});
+
+it("keeps discovery interactive during explicit acquisition and caches a gesture-superseded fix", async () => {
+  const client = cachedLocationClient();
+  const { screen, camera } = await setupSharedLocation(client);
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  camera.animateToRegion.mockClear();
+  let finishLocation!: (location: LocationObject) => void;
+  jest.mocked(Location.getCurrentPositionAsync).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finishLocation = resolve;
+    }),
+  );
+  const locateMe = screen.getByTestId("map-controls").props.onLocateMe;
+  await act(() => {
+    locateMe();
+    locateMe();
+    locateMe();
+  });
+  await waitFor(() =>
+    expect(screen.getByTestId("map-controls").props.isLocating).toBe(true),
+  );
+  await waitFor(() =>
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1),
+  );
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByTestId("discovery-map").props.interactive).not.toBe(false);
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+  const location = recentFix();
+  await act(async () => finishLocation(location));
+  await waitFor(() =>
+    expect(screen.getByTestId("map-controls").props.isLocating).toBe(false),
+  );
+  expect(client.getQueryData(USER_LOCATION_QUERY_KEY)).toMatchObject({
+    status: "available",
+    location,
+  });
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it("allows manual exploration while the first passive location is pending", async () => {
+  let finishLocation!: (location: LocationObject) => void;
+  jest.mocked(Location.getCurrentPositionAsync).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finishLocation = resolve;
+    }),
+  );
+  const { screen, camera } = await setupSharedLocation();
+  await waitFor(() =>
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1),
+  );
+  expect(screen.getByTestId("map-controls").props.isLocating).toBe(true);
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  await fireEvent(screen.getByTestId("discovery-map"), "mapInteraction");
+  await act(async () => finishLocation(recentFix()));
+  await waitFor(() =>
+    expect(screen.getByTestId("map-controls").props.isLocating).toBe(false),
+  );
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it("offers Settings after explicit denial and revalidates on foreground return without recentering", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined);
+  const { screen, camera } = await setupSharedLocation(cachedLocationClient());
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  camera.animateToRegion.mockClear();
+  jest.mocked(Location.requestForegroundPermissionsAsync).mockResolvedValue({
+    status: "denied",
+  } as never);
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
+  const settingsAction = alert.mock.calls[0][2]!.find(
+    (button) => button.text === "Open Settings",
+  )!;
+  await act(() => settingsAction.onPress?.());
+  expect(openSettings).toHaveBeenCalledTimes(1);
+
+  await changeAppState("background");
+  jest.mocked(Location.requestForegroundPermissionsAsync).mockResolvedValue({
+    status: "granted",
+  } as never);
+  await changeAppState("active");
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(alert).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+});
+
+it("offers a fresh retry after temporary location failure", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const { screen, camera } = await setupSharedLocation(cachedLocationClient());
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  camera.animateToRegion.mockClear();
+  jest.mocked(Location.getCurrentPositionAsync).mockRejectedValueOnce(
+    new Error("Location services unavailable"),
+  );
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
+  const retryAction = alert.mock.calls[0][2]!.find(
+    (button) => button.text === "Try Again",
+  )!;
+  await act(() => retryAction.onPress?.());
+  await waitFor(() => expect(camera.animateToRegion).toHaveBeenCalledTimes(1));
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(2);
+});
+
+it("does not apply passive permission revocation or recovery to the camera", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const { screen, camera } = await setupSharedLocation(cachedLocationClient());
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  camera.animateToRegion.mockClear();
+  await changeAppState("background");
+  jest.mocked(Location.getForegroundPermissionsAsync).mockResolvedValue({
+    status: "denied",
+  } as never);
+  await changeAppState("active");
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.userLocation).toBeNull(),
+  );
+  expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+  await changeAppState("background");
+  jest.mocked(Location.getForegroundPermissionsAsync).mockResolvedValue({
+    status: "granted",
+  } as never);
+  await changeAppState("active");
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.showsUserLocation).toBe(true),
+  );
+  expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  expect(camera.animateToRegion).not.toHaveBeenCalled();
+  expect(alert).not.toHaveBeenCalled();
+});
+
+it.each(["success", "failure"])(
+  "keeps a delayed Locate Me %s stale after backgrounding and returning",
+  async (outcome) => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const request = deferredLocation();
+    const { screen, camera } = await setupLocateMe(
+      jest.fn(() => request.promise),
+    );
+    await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+    await changeAppState("background");
+    await changeAppState("active");
+    await act(async () => {
+      if (outcome === "success") {
+        request.resolve(availableLocation);
+      } else {
+        request.resolve(deniedLocation);
+      }
+      await request.promise;
+    });
+    expect(camera.animateToRegion).not.toHaveBeenCalled();
+    expect(alert).not.toHaveBeenCalled();
+  },
+);
+
+it("preserves explicit Locate Me through a temporary inactive permission dialog", async () => {
+  const request = deferredLocation();
+  const { screen, camera } = await setupLocateMe(
+    jest.fn(() => request.promise),
+  );
+  await fireEvent(screen.getByTestId("map-controls"), "locateMe");
+  await changeAppState("inactive");
+  await changeAppState("active");
+  await act(async () => {
+    request.resolve(availableLocation);
+    await request.promise;
+  });
+  expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
+});
+
+it("shows compact first-load feedback while the discovery map stays interactive", async () => {
+  const pending = deferredDirectoryResponse();
+  (getMapDirectoryPage as jest.Mock).mockReturnValue(pending.promise);
+  const screen = await setup();
+  expect(screen.getByRole("progressbar", { name: "Finding places…" })).toBeTruthy();
+  expect(screen.queryByText("Loading business directory…")).toBeNull();
+  expect(screen.queryByText(/No businesses/)).toBeNull();
+  const map = screen.getByTestId("discovery-map");
+  expect(map.props.interactive).not.toBe(false);
+  await fireEvent(map, "mapInteraction");
+  await act(async () => pending.resolve(response()));
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  expect(screen.queryByText("Finding places…")).toBeNull();
+});
+
+it("retains markers and preview through directory refresh and localized failure recovery", async () => {
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  const pending = deferredDirectoryResponse();
+  (getMapDirectoryPage as jest.Mock).mockReturnValueOnce(pending.promise);
+  const client = clients[clients.length - 1];
+  await act(() => {
+    void client.refetchQueries({ queryKey: [...MAP_DIRECTORY_QUERY_KEY, "all"] });
+  });
+  await waitFor(() => expect(screen.getByText("Updating places…")).toBeTruthy());
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+  await act(async () => pending.resolve({
+    success: false,
+    code: "NETWORK_ERROR",
+    message: "Refresh failed",
+  }));
+  await waitFor(() =>
+    expect(screen.getByText(/Could not update places/)).toBeTruthy(),
+  );
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByText(business.business_name)).toBeTruthy();
+  const callsBeforeRetry = jest.mocked(getMapDirectoryPage).mock.calls.length;
+  await fireEvent.press(screen.getByRole("button", { name: "Retry loading places" }));
+  await waitFor(() =>
+    expect(screen.queryByText(/Could not update places/)).toBeNull(),
+  );
+  await waitFor(() =>
+    expect(screen.queryByText("Updating places…")).toBeNull(),
+  );
+  expect(getMapDirectoryPage).toHaveBeenCalledTimes(callsBeforeRetry + 1);
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+});
+
+it("retains markers and pending selection until Open Now resolves, then removes an excluded selection", async () => {
+  const second = { ...business, id: 77, business_name: "Open Cafe" };
+  const pending = deferredDirectoryResponse();
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.openNow) {
+        return pending.promise;
+      }
+      return Promise.resolve(response([business, second]));
+    },
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(2),
+  );
+  await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
+  expect(screen.getByRole("button", {
+    name: "Open Now",
+    selected: true,
+    busy: true,
+  })).toBeTruthy();
+  expect(screen.getByText(/Checking what's open/)).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(2);
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  expect(screen.getByText(business.business_name)).toBeTruthy();
+  expect(screen.getByText(/Checking what's open/)).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+
+  await act(async () => pending.resolve(response([second])));
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses.map(
+      (marker: { id: number }) => marker.id,
+    )).toEqual([77]),
+  );
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBeNull();
+  expect(screen.queryByText(business.business_name)).toBeNull();
+  expect(screen.queryByText(/Checking what's open/)).toBeNull();
+  expect(screen.getByRole("button", {
+    name: "Open Now",
+    selected: true,
+    busy: false,
+  })).toBeTruthy();
+});
+
+it("keeps confirmed Open Now results and selection through a failed hours refresh", async () => {
+  const second = { ...business, id: 77, business_name: "Other Cafe" };
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    async (_page, _signal, options) => response(
+      options.openNow ? [business] : [business, second],
+    ),
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(2),
+  );
+  await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  (getMapDirectoryPage as jest.Mock).mockResolvedValueOnce({
+    success: false,
+    message: "Hours refresh failed",
+  });
+  const client = clients[clients.length - 1];
+  await act(async () => {
+    await client.refetchQueries({ queryKey: [...MAP_DIRECTORY_QUERY_KEY, "open-now"] });
+  });
+  await waitFor(() =>
+    expect(screen.getByText(/Could not update opening hours/)).toBeTruthy(),
+  );
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+  expect(screen.queryByText(/No businesses match/)).toBeNull();
+  expect(screen.queryByText(/Checking what's open/)).toBeNull();
+  await fireEvent.press(screen.getByRole("button", { name: "Retry checking opening hours" }));
+  await waitFor(() =>
+    expect(screen.queryByText(/Could not update opening hours/)).toBeNull(),
+  );
+});
+
+it("shows offline recovery instead of endless initial loading and resumes the affected query", async () => {
+  onlineManager.setOnline(false);
+  const screen = await setup();
+  expect(screen.getByText("You're offline. Connect to load places.")).toBeTruthy();
+  expect(screen.queryByText("Finding places…")).toBeNull();
+  expect(screen.queryByText(/No businesses/)).toBeNull();
+  expect(screen.getByTestId("discovery-map")).toBeTruthy();
+  await fireEvent.press(screen.getByRole("button", {
+    name: "Retry loading places",
+    disabled: false,
+    busy: false,
+  }));
+  expect(getMapDirectoryPage).not.toHaveBeenCalled();
+  expect(screen.queryByText("Finding places…")).toBeNull();
+  await act(() => onlineManager.setOnline(true));
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  expect(getMapDirectoryPage).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText(/You're offline/)).toBeNull();
+});
+
+it("keeps a fresh cached directory selectable offline even before a query pauses", async () => {
+  const client = new QueryClient();
+  client.setQueryData([...MAP_DIRECTORY_QUERY_KEY, "all"], [business]);
+  onlineManager.setOnline(false);
+  const screen = await setup(client);
+  expect(screen.getByText("Offline · showing previous results")).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(getMapDirectoryPage).not.toHaveBeenCalled();
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  expect(screen.getByText(business.business_name)).toBeTruthy();
+  expect(screen.getByText("Offline · showing previous results")).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+});
+
+it("keeps offline Open Now visibly unapplied and retries hours without reloading the directory", async () => {
+  const client = new QueryClient();
+  client.setQueryData([...MAP_DIRECTORY_QUERY_KEY, "all"], [business]);
+  onlineManager.setOnline(false);
+  const screen = await setup(client);
+  await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
+  expect(screen.getByRole("button", {
+    name: "Open Now",
+    selected: true,
+    busy: false,
+  })).toBeTruthy();
+  expect(screen.getByText(/Offline · Open Now not applied/)).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  await fireEvent.press(screen.getByRole("button", { name: "Retry checking opening hours" }));
+  expect(getMapDirectoryPage).not.toHaveBeenCalled();
+  await act(() => onlineManager.setOnline(true));
+  await waitFor(() => expect(getMapDirectoryPage).toHaveBeenCalledTimes(1));
+  await waitFor(() =>
+    expect(screen.queryByText(/Open Now not applied/)).toBeNull(),
+  );
+  expect(getMapDirectoryPage).toHaveBeenLastCalledWith(
+    1,
+    expect.anything(),
+    { openNow: true },
+  );
 });

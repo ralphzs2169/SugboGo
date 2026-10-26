@@ -2,7 +2,6 @@ import type { LocationObject } from "expo-location";
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,15 +16,18 @@ import MapView, {
 
 import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
 import MapClusterMarker from "@/shared/components/map-related/MapClusterMarker";
-import SnapshotMapMarker from "@/shared/components/map-related/SnapshotMapMarker";
+import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import MapMarker from "@/shared/components/MapMarker";
 import { MAP_MARKER_FALLBACK_IMAGE } from "@/shared/constants/mapMarkerSnapshot";
 
 import type { MapBounds } from "../types/mapDiscovery.types";
 import { regionToBounds } from "../utils/mapViewport";
+import useMapMarkerOverlap from "../hooks/useMapMarkerOverlap";
+import DiscoveryBusinessMarker from "./DiscoveryBusinessMarker";
 
 export type BusinessMapMarker = {
   id: number;
+  business_name?: string;
   latitude: number;
   longitude: number;
   is_hidden_gem?: boolean;
@@ -120,11 +122,14 @@ export default function BusinessDiscoveryMap({
   const dispatchedFocus = useRef<typeof focusTarget>(null);
   const boundaryReadId = useRef(0);
   const isMounted = useRef(true);
-  const businessPressRef = useRef(onBusinessPress);
-
-  useLayoutEffect(() => {
-    businessPressRef.current = onBusinessPress;
-  }, [onBusinessPress]);
+  const overlap = useMapMarkerOverlap({
+    businesses,
+    selectedBusinessId,
+    isScreenFocused,
+    onBusinessPress,
+    mapRef,
+  });
+  const { registerCoordinate, pressBusiness } = overlap;
 
   // Keep event updates out of the marker tree's identity. The clustering wrapper
   // rebuilds its entire index whenever its children array changes.
@@ -137,8 +142,10 @@ export default function BusinessDiscoveryMap({
       const isSelected = selectedBusinessId === business.id;
 
       return (
-        <SnapshotMapMarker
+        <DiscoveryBusinessMarker
           key={`business-${business.id}`}
+          businessId={business.id}
+          registerCoordinate={registerCoordinate}
           markerRef={(marker) => {
             const key = `business-${business.id}`;
 
@@ -152,7 +159,7 @@ export default function BusinessDiscoveryMap({
           identifier={String(business.id)}
           {...(isSelected ? { cluster: false } : {})}
           anchor={{ x: 0.5, y: 1 }}
-          zIndex={isSelected ? 1 : 0}
+          zIndex={isSelected ? 3 : 0}
           opacity={
             dimUnselectedMarkers && selectedBusinessId !== null && !isSelected
               ? 0.55
@@ -164,7 +171,7 @@ export default function BusinessDiscoveryMap({
             longitude: business.longitude,
           }}
           tracksViewChanges={trackMarkerUpdates}
-          onPress={() => businessPressRef.current?.(business.id)}
+          onPress={() => void pressBusiness(business.id)}
         >
           <MapMarker
             variant={
@@ -175,7 +182,7 @@ export default function BusinessDiscoveryMap({
               useClusterIcons ? (business.cluster_icon ?? null) : undefined
             }
           />
-        </SnapshotMapMarker>
+        </DiscoveryBusinessMarker>
       );
     });
   }, [
@@ -185,6 +192,8 @@ export default function BusinessDiscoveryMap({
     selectedBusinessId,
     trackMarkerUpdates,
     useClusterIcons,
+    registerCoordinate,
+    pressBusiness,
   ]);
 
   const mapPadding = useMemo(
@@ -418,6 +427,7 @@ export default function BusinessDiscoveryMap({
           void reportViewport(DEFAULT_REGION);
         }}
         onRegionChange={(_region, details) => {
+          overlap.reset();
           if (details?.isGesture) {
             onMapInteraction?.();
           }
@@ -426,9 +436,11 @@ export default function BusinessDiscoveryMap({
           onViewportChanging?.();
         }}
         onRegionChangeComplete={(region) => {
+          overlap.reset();
           void reportViewport(region);
         }}
         onTouchStart={onMapInteraction}
+        onClusterPress={onMapInteraction}
         style={{
           width: "100%",
           height: "100%",
@@ -476,6 +488,19 @@ export default function BusinessDiscoveryMap({
       >
         {businessMarkers}
       </ClusteredMapView>
+      {/* Overlapping pins keep their positions and offer distinct business actions. */}
+      {overlap.options.length > 1 && (
+        <SelectionBottomSheet
+          sheetRef={overlap.sheetRef}
+          title="Choose a business"
+          description="These markers overlap. Choose a business to preview."
+          options={overlap.options}
+          selectedValue={
+            selectedBusinessId === null ? undefined : String(selectedBusinessId)
+          }
+          onSelect={overlap.selectBusiness}
+        />
+      )}
     </View>
   );
 }

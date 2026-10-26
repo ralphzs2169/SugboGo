@@ -102,6 +102,10 @@ describe("merchant review entry intent and server pagination", () => {
     await rerender({});
     expect(result.current.reviewId).toBe(42);
     expect(result.current.entry).toBeGreaterThan(firstEntry);
+    await act(async () => result.current.clearReviewTarget());
+    expect(result.current.reviewId).toBeNull();
+    expect(result.current.filter).toBe("all");
+    expect(result.current.ordering).toBe("newest");
   });
 
   it("applies the route intent before the first request and permits manual changes and repeated entry", async () => {
@@ -273,6 +277,13 @@ describe("merchant review entry intent and server pagination", () => {
         hasPhotos: true,
       }),
     );
+    // A fresh default feed can be reused without a request; mark it stale here.
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: ["business-reviews", 20],
+        refetchType: "none",
+      });
+    });
     mockParams = {
       reviewId: "42",
       filter: "all",

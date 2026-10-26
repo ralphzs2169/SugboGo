@@ -19,6 +19,8 @@ jest.mock("expo-location", () => ({
   },
   PermissionStatus: {
     GRANTED: "granted",
+    DENIED: "denied",
+    UNDETERMINED: "undetermined",
   },
   requestForegroundPermissionsAsync: jest.fn(),
   getForegroundPermissionsAsync: jest.fn(),
@@ -383,5 +385,69 @@ describe("useUserLocation", () => {
       expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(2),
     );
     await waitFor(() => expect(hook.result.current.status).toBe("available"));
+  });
+
+  it("keeps denied passive checks quiet and leaves permission requests to explicit retry", async () => {
+    jest.mocked(Location.getForegroundPermissionsAsync).mockResolvedValue({
+      status: "denied",
+    } as never);
+    const hook = await renderHook(() => useUserLocation({ mode: "recent" }), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(hook.result.current.status).toBe("denied"));
+    await act(async () => focusManager.setFocused(false));
+    await act(async () => focusManager.setFocused(true));
+    await waitFor(() =>
+      expect(Location.getForegroundPermissionsAsync).toHaveBeenCalledTimes(2),
+    );
+    expect(Location.requestForegroundPermissionsAsync).not.toHaveBeenCalled();
+    expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+
+    jest.mocked(Location.getForegroundPermissionsAsync).mockResolvedValue({
+      status: "granted",
+    } as never);
+    await act(async () => {
+      await hook.result.current.refreshLocation();
+    });
+    await waitFor(() => expect(hook.result.current.status).toBe("available"));
+    expect(Location.requestForegroundPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the initial permission request when permission is undetermined", async () => {
+    jest.mocked(Location.getForegroundPermissionsAsync).mockResolvedValue({
+      status: "undetermined",
+    } as never);
+    const hook = await renderHook(() => useUserLocation({ mode: "recent" }), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(hook.result.current.status).toBe("available"));
+    expect(Location.requestForegroundPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("expires a mounted recent fix without polling GPS and replaces it on reactivation", async () => {
+    jest.useFakeTimers();
+    const hook = await renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useUserLocation({ mode: "recent", enabled }),
+      { wrapper: Wrapper, initialProps: { enabled: true } },
+    );
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1);
+    });
+    expect(hook.result.current.status).toBe("available");
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(RECENT_LOCATION_MAX_AGE_MS);
+    });
+    expect(hook.result.current.location).toBeNull();
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
+    await hook.rerender({ enabled: false });
+    await hook.rerender({ enabled: true });
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1);
+    });
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalledTimes(2);
+    expect(hook.result.current.status).toBe("available");
   });
 });

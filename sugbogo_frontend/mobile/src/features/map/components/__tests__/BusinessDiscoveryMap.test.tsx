@@ -4,6 +4,8 @@ import type { LocationObject } from "expo-location";
 
 import BusinessDiscoveryMap from "../BusinessDiscoveryMap";
 
+jest.mock("@/shared/components/bottom-sheets/SelectionBottomSheet", () => () => null);
+
 const mockNativeMap = {
   animateToRegion: jest.fn(),
   animateCamera: jest.fn(),

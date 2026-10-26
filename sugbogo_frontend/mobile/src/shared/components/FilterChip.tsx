@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
+import HighlightedText from "@/shared/components/HighlightedText";
 import SafePressable from "@/shared/components/SafePressable";
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
   /** Optional series identity; keeps labels and surfaces neutral. */
   accentColor?: string;
   compact?: boolean;
+  highlightQuery?: string;
 };
 
 /**
@@ -34,6 +36,7 @@ export default function FilterChip({
   accessibilityLabel,
   accentColor,
   compact = false,
+  highlightQuery,
 }: Props) {
   const showCount = count !== undefined && count > 0;
 
@@ -95,7 +98,7 @@ export default function FilterChip({
           selected ? "text-text-primary" : "text-text-secondary"
         }`}
       >
-        {label}
+        <HighlightedText text={label} query={highlightQuery} />
 
         {showCount && (
           <AppText className="text-sm text-text-secondary">

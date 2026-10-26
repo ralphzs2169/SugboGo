@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, BackHandler, View } from "react-native";
+import {
+  Alert,
+  AppState,
+  BackHandler,
+  Linking,
+  View,
+} from "react-native";
 import type RNMapView from "react-native-maps";
-import { router, useIsFocused, useNavigation } from "expo-router";
+import {
+  router,
+  useFocusEffect,
+  useIsFocused,
+  useNavigation,
+} from "expo-router";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import SearchFilterBottomSheet from "@/features/explore/components/search-filter-results/SearchFilterBottomSheet";
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
@@ -11,9 +22,9 @@ import type {
 } from "@/features/explore/types/exploreBusiness.types";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import useUserLocation from "@/shared/hooks/useUserLocation";
@@ -23,6 +34,7 @@ import BusinessDiscoveryMap, {
 } from "../components/BusinessDiscoveryMap";
 import MapControls from "../components/MapControls";
 import MapSearchOverlay from "../components/MapSearchOverlay";
+import MapDiscoveryStatus from "../components/MapDiscoveryStatus";
 import MSMEPreviewCard from "../components/MSMEPreviewCard";
 import MapBusinessSearchSheet from "../components/MapBusinessSearchSheet";
 import useMapDirectory from "../hooks/useMapDirectory";
@@ -31,6 +43,7 @@ import {
   DEFAULT_MAP_FILTERS,
   type MapBounds,
   type MapDiscoveryFilters,
+  type MapSearchBusinessIdentity,
 } from "../types/mapDiscovery.types";
 
 /**
@@ -40,7 +53,13 @@ import {
 export default function MapScreen() {
   const isScreenFocused = useIsFocused();
   const navigation = useNavigation();
-  const userLocation = useUserLocation();
+  const navigate = useNavigationAction();
+  const locateIntentVersion = useRef(0);
+  const locateInProgress = useRef(false);
+  const userLocation = useUserLocation({
+    mode: "recent",
+    enabled: isScreenFocused,
+  });
   const [filters, setFilters] =
     useState<MapDiscoveryFilters>(DEFAULT_MAP_FILTERS);
   const [draftFilters, setDraftFilters] = useState<ExploreResultsCriteria>({
@@ -59,6 +78,7 @@ export default function MapScreen() {
     id: number;
     latitude: number;
     longitude: number;
+    identity: MapSearchBusinessIdentity;
   } | null>(null);
   const destination = useRef<{
     latitude: number;
@@ -89,6 +109,28 @@ export default function MapScreen() {
   const hasInteracted = useRef(false);
   const hasHandledInitialLocation = useRef(false);
   const bottomSpacing = useTabBarSpacing(16);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = AppState.addEventListener(
+        "change",
+        (state) => {
+          if (state === "background") {
+            locateIntentVersion.current += 1;
+            hasHandledInitialLocation.current = true;
+          }
+        },
+      );
+
+      // Blur and unmount revoke Map effects without cancelling shared GPS work.
+      return () => {
+        locateIntentVersion.current += 1;
+        hasHandledInitialLocation.current = true;
+        subscription.remove();
+      };
+    }, []),
+  );
+
   const handleFocusStart = useCallback(() => {
     if (destination.current) {
       destination.current.started = true;
@@ -144,6 +186,8 @@ export default function MapScreen() {
   useEffect(() => {
     if (
       !mapInstance ||
+      !isScreenFocused ||
+      AppState.currentState === "background" ||
       userLocation.status === "loading" ||
       hasHandledInitialLocation.current
     ) {
@@ -160,7 +204,12 @@ export default function MapScreen() {
         longitudeDelta: 0.06,
       });
     }
-  }, [mapInstance, userLocation.location, userLocation.status]);
+  }, [
+    isScreenFocused,
+    mapInstance,
+    userLocation.location,
+    userLocation.status,
+  ]);
 
   const handleViewportChange = useCallback((bounds: MapBounds) => {
     if (destination.current) {
@@ -199,6 +248,7 @@ export default function MapScreen() {
     () =>
       displayedBusinesses.map((business) => ({
         id: business.id,
+        business_name: business.business_name,
         latitude: business.location.latitude,
         longitude: business.location.longitude,
         is_hidden_gem: business.is_hidden_gem === true,
@@ -210,6 +260,14 @@ export default function MapScreen() {
   const selectedBusiness = displayedBusinesses.find(
     (business) => business.id === selectedBusinessId,
   );
+  const provisionalBusiness =
+    !selectedBusiness &&
+    searchTarget !== null &&
+    searchTarget.id === selectedBusinessId &&
+    !discovery.selectionResolved
+      ? searchTarget.identity
+      : undefined;
+  const previewBusiness = selectedBusiness ?? provisionalBusiness;
   const {
     viewportRef,
     previewRef,
@@ -222,6 +280,13 @@ export default function MapScreen() {
     headerBottom,
     headerBottom > 0 && !searchSheetVisible && !filterSheetVisible,
   );
+
+  // Confirmation can keep the same card geometry, so it may not emit onLayout.
+  useEffect(() => {
+    if (selectedBusiness && searchTarget?.id === selectedBusiness.id) {
+      measurePreview();
+    }
+  }, [measurePreview, searchTarget?.id, selectedBusiness]);
 
   // Reset vanished IDs before rendering so a later response cannot reopen them.
   if (
@@ -272,6 +337,7 @@ export default function MapScreen() {
     if (!navigation.isFocused()) {
       return;
     }
+    locateIntentVersion.current += 1;
     hasInteracted.current = true;
     setSelectionUnavailable(false);
     hasHandledInitialLocation.current = true;
@@ -285,6 +351,35 @@ export default function MapScreen() {
       id: business.id,
       latitude: business.location.latitude,
       longitude: business.location.longitude,
+      identity: {
+        id: business.id,
+        business_name: business.business_name,
+        display_cover_photo_url: business.display_cover_photo_url,
+        cover_photo_url: business.cover_photo_url,
+        cluster: business.cluster
+          ? {
+              id: business.cluster.id,
+              name: business.cluster.name,
+              icon: business.cluster.icon,
+            }
+          : undefined,
+        category: business.category
+          ? { id: business.category.id, name: business.category.name }
+          : undefined,
+        location: {
+          address: business.location.address,
+          city: business.location.city,
+          province: business.location.province,
+          latitude: business.location.latitude,
+          longitude: business.location.longitude,
+        },
+        specialty_tags: business.specialty_tags?.map((tag) => ({
+          id: tag.id,
+          name: tag.name,
+          color: tag.color,
+          icon: tag.icon,
+        })),
+      },
     });
     destination.current = {
       latitude: business.location.latitude,
@@ -298,61 +393,110 @@ export default function MapScreen() {
       return;
     }
 
-    router.push({
-      pathname: "/(explorer)/business/[businessId]",
-      params: {
-        businessId: String(selectedBusiness.id),
-        profileSource: "MAP",
-      },
+    navigate(() => {
+      router.push({
+        pathname: "/(explorer)/business/[businessId]",
+        params: {
+          businessId: String(selectedBusiness.id),
+          profileSource: "MAP",
+        },
+      });
     });
   };
 
   const locateMe = async () => {
     hasInteracted.current = true;
 
-    if (userLocation.isRefreshingLocation) {
+    if (
+      !navigation.isFocused() ||
+      locateInProgress.current ||
+      userLocation.isRefreshingLocation
+    ) {
       return;
     }
 
-    const result = await userLocation.refreshLocation();
+    const intentVersion = ++locateIntentVersion.current;
+    locateInProgress.current = true;
 
-    if (result.status !== "available") {
-      Alert.alert(
-        result.status === "denied"
-          ? "Location Permission Needed"
-          : "Location unavailable",
-        "You can still explore the map. Enable location access and device location to recenter near you.",
-      );
-      return;
+    try {
+      const result = await userLocation.refreshLocation();
+
+      if (
+        intentVersion !== locateIntentVersion.current ||
+        !navigation.isFocused() ||
+        AppState.currentState === "background"
+      ) {
+        return;
+      }
+
+      if (result.status === "denied") {
+        Alert.alert(
+          "Location Permission Needed",
+          "Allow location access in Settings, then try Locate me again. You can still explore the map manually.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Open Settings",
+              onPress: () => {
+                if (
+                  intentVersion !== locateIntentVersion.current ||
+                  !navigation.isFocused()
+                ) {
+                  return;
+                }
+                void Linking.openSettings().catch(() => {
+                  if (
+                    intentVersion !== locateIntentVersion.current ||
+                    !navigation.isFocused()
+                  ) {
+                    return;
+                  }
+                  Alert.alert(
+                    "Could not open Settings",
+                    "Open your device Settings to allow location access, then try Locate me again.",
+                  );
+                });
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      if (result.status === "unavailable") {
+        Alert.alert(
+          "Location unavailable",
+          "Check that device location services are on, then try again. You can still explore the map manually.",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Try Again",
+              onPress: () => {
+                if (
+                  intentVersion === locateIntentVersion.current &&
+                  navigation.isFocused()
+                ) {
+                  void locateMe();
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      destination.current = null;
+      setCameraTarget(null);
+      mapInstance?.animateToRegion({
+        latitude: result.location.coords.latitude,
+        longitude: result.location.coords.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      });
+    } finally {
+      locateInProgress.current = false;
     }
-
-    destination.current = null;
-    setCameraTarget(null);
-    mapInstance?.animateToRegion({
-      latitude: result.location.coords.latitude,
-      longitude: result.location.coords.longitude,
-      latitudeDelta: 0.02,
-      longitudeDelta: 0.02,
-    });
   };
-
-  let statusMessage: string | null = null;
-  if (selectionUnavailable) {
-    statusMessage = "This business is no longer available. Try another search.";
-  } else if (discovery.isLoading) {
-    statusMessage = "Loading business directory…";
-  } else if (discovery.isLoadingOpenNow) {
-    statusMessage = "Checking opening hours…";
-  } else if (
-    !discovery.error &&
-    !discovery.openNowError &&
-    discovery.businesses.length === 0
-  ) {
-    statusMessage =
-      filterCount > 0
-        ? "No businesses match these map filters. Clear or adjust filters."
-        : "No businesses are available yet.";
-  }
 
   return (
     <View
@@ -379,6 +523,7 @@ export default function MapScreen() {
         onMapReady={setMapInstance}
         onViewportChange={handleViewportChange}
         onMapInteraction={() => {
+          locateIntentVersion.current += 1;
           hasInteracted.current = true;
           destination.current = null;
           setCameraTarget(null);
@@ -386,6 +531,7 @@ export default function MapScreen() {
         onBusinessPress={(id) => {
           const business = displayedBusinesses.find((item) => item.id === id);
           if (!business) return;
+          locateIntentVersion.current += 1;
           hasInteracted.current = true;
           hasHandledInitialLocation.current = true;
           const target = {
@@ -413,6 +559,8 @@ export default function MapScreen() {
         filters={filters}
         hideQuickFilters={selectedBusinessId !== null}
         filterCount={filterCount}
+        openNowBusy={discovery.isApplyingOpenNow}
+        openNowUnresolved={discovery.isOpenNowUnresolved}
         onSearch={() => {
           setSearchSheetVisible(true);
           presentBottomSheet(searchSheetRef);
@@ -422,15 +570,23 @@ export default function MapScreen() {
           setFilters({ ...filters, [key]: !filters[key] })
         }
         onClear={() => setFilters(DEFAULT_MAP_FILTERS)}
-      />
+      >
+        <MapDiscoveryStatus
+          discovery={discovery}
+          filterCount={filterCount}
+          openNowRequested={filters.openNow}
+          hasSelectedBusiness={previewBusiness !== undefined}
+        />
+      </MapSearchOverlay>
       <MapControls
         onLocateMe={() => void locateMe()}
+        isLocating={userLocation.isRefreshingLocation}
         bottomOffset={
-          selectedBusiness ? bottomSpacing + previewHeight + 12 : bottomSpacing
+          previewBusiness ? bottomSpacing + previewHeight + 12 : bottomSpacing
         }
       />
 
-      {/* Nonblocking directory feedback */}
+      {/* Selection and taxonomy feedback retain their existing presentation. */}
       <View
         className="absolute left-md right-md gap-sm"
         style={{ bottom: bottomSpacing }}
@@ -456,13 +612,6 @@ export default function MapScreen() {
               />
             </View>
           )}
-          {searchTarget && discovery.isLoadingSelection && !targetBusiness && (
-            <View className="rounded-card bg-surface p-md">
-              <AppText className="text-sm text-text-secondary">
-                Loading selected business…
-              </AppText>
-            </View>
-          )}
           {discovery.selectionError && (
             <View className="rounded-card bg-surface">
               <ErrorState
@@ -474,64 +623,38 @@ export default function MapScreen() {
               />
             </View>
           )}
-          {statusMessage && !selectedBusiness && (
+          {selectionUnavailable && !selectedBusiness && (
             <View className="flex-row items-center gap-sm rounded-card bg-surface p-md">
-              {discovery.isFetching && (
-                <ActivityIndicator color={theme.extends.colors.brand} />
-              )}
               <AppText
                 className="flex-1 text-small text-text-secondary"
                 accessibilityLiveRegion="polite"
               >
-                {statusMessage}
+                This business is no longer available. Try another search.
               </AppText>
             </View>
           )}
 
-          {discovery.error && (
-            <View className="rounded-card bg-surface">
-              <ErrorState
-                size="section"
-                title="Could not load businesses"
-                description="The complete directory could not be loaded. Any previous complete results remain available."
-                primaryActionTitle="Retry"
-                onPrimaryAction={() => {
-                  void discovery.refetch();
-                }}
-              />
-            </View>
-          )}
-          {discovery.openNowError && (
-            <View className="rounded-card bg-surface">
-              <ErrorState
-                size="section"
-                title="Could not check opening hours"
-                description="Opening information could not be refreshed. Retry or turn off Open Now."
-                primaryActionTitle="Retry"
-                onPrimaryAction={() => void discovery.refetchOpenNow()}
-              />
-            </View>
-          )}
         </View>
 
         {/* Full-width preview owns no camera or server state. */}
-        {selectedBusiness && (
+        {previewBusiness && (
           <View
-            key={selectedBusiness.id}
+            key={previewBusiness.id}
             ref={previewRef}
             collapsable={false}
             testID="business-preview-anchor"
             onLayout={(event) => {
               setPreviewLayout({
-                id: selectedBusiness.id,
+                id: previewBusiness.id,
                 height: event.nativeEvent.layout.height,
               });
               measurePreview();
             }}
           >
             <MSMEPreviewCard
-              key={selectedBusiness.id}
-              business={selectedBusiness}
+              key={previewBusiness.id}
+              business={previewBusiness}
+              isProvisional={selectedBusiness === undefined}
               onClose={clearSelection}
               onViewBusiness={viewBusiness}
               onIdentityGeometryChange={onIdentityGeometryChange}

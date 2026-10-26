@@ -279,6 +279,9 @@ export default function ExploreFiltersSheet({
               categoryIds={draft.categoryIds}
               specialtyTagId={draft.specialtyTagId}
               query={showSearch ? query : ""}
+              highlightSearchMatches
+              showIcons
+              searchBackground="surface"
               onQueryChange={changeQuery}
               onClusterSelect={selectCluster}
               onCategoryToggle={toggleCategory}

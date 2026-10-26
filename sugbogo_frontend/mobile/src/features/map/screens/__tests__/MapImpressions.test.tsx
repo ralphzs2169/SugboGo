@@ -71,6 +71,13 @@ jest.mock("react-native", () => {
   });
 });
 jest.mock("expo-router", () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    jest.requireActual("react").useEffect(() => {
+      if (mockFocused) {
+        return effect();
+      }
+    }, [effect, mockFocused]);
+  },
   useIsFocused: () => mockFocused,
   useNavigation: () => ({ isFocused: () => mockFocused }),
   router: { push: jest.fn() },
@@ -85,6 +92,16 @@ jest.mock("../../hooks/useMapDirectory", () => ({
 jest.mock("../../hooks/useMapBusinessSearch", () => ({
   __esModule: true,
   default: () => ({ businesses: mockSearchBusinesses, hasQuery: true }),
+}));
+jest.mock("@/features/explore/stores/recentSearches.store", () => ({
+  useRecentSearchesStore: () => ({
+    queries: [],
+    scope: "test",
+    isHydrated: true,
+    addQuery: jest.fn(),
+    removeQuery: jest.fn(),
+    clearQueries: jest.fn(),
+  }),
 }));
 jest.mock("@/features/explore/hooks/useExploreFilterOptions", () => ({
   __esModule: true,

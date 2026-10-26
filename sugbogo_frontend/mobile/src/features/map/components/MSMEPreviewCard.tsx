@@ -7,11 +7,15 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import Skeleton from "@/shared/components/Skeleton";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import { GEM_FILL, GEM_ICON } from "@/shared/styles/hiddenGems";
 import { shadows } from "@/shared/styles/shadows";
 
-import type { MapDiscoveryBusiness } from "../types/mapDiscovery.types";
+import type {
+  MapDiscoveryBusiness,
+  MapSearchBusinessIdentity,
+} from "../types/mapDiscovery.types";
 import type { VisibilityRect } from "@/features/explore/utils/businessImpressions";
 
 export type PreviewIdentityGeometry = {
@@ -20,7 +24,8 @@ export type PreviewIdentityGeometry = {
 };
 
 type Props = {
-  business: MapDiscoveryBusiness;
+  business: MapDiscoveryBusiness | MapSearchBusinessIdentity;
+  isProvisional?: boolean;
   onClose: () => void;
   onViewBusiness: () => void;
   onIdentityGeometryChange?: (geometry: PreviewIdentityGeometry | null) => void;
@@ -40,10 +45,12 @@ function InfoRow({
   icon,
   text,
   muted = false,
+  loading = false,
 }: {
   icon: IconName;
   text: string;
   muted?: boolean;
+  loading?: boolean;
 }) {
   return (
     <View className="mt-1 flex-row items-center gap-1.5">
@@ -54,14 +61,18 @@ function InfoRow({
         accessibilityElementsHidden
         importantForAccessibility="no"
       />
-      <AppText
-        className={`min-w-0 flex-1 text-xs ${
-          muted ? "italic text-text-secondary/70" : "text-text-secondary"
-        }`}
-        numberOfLines={1}
-      >
-        {text}
-      </AppText>
+      {loading ? (
+        <Skeleton animated={false} className="h-3 w-28 rounded" />
+      ) : (
+        <AppText
+          className={`min-w-0 flex-1 text-xs ${
+            muted ? "italic text-text-secondary/70" : "text-text-secondary"
+          }`}
+          numberOfLines={1}
+        >
+          {text}
+        </AppText>
+      )}
     </View>
   );
 }
@@ -69,9 +80,11 @@ function InfoRow({
 /**
  * Presents a concise API-backed business preview without moving the map.
  * Longer content scrolls within the card while its profile action stays visible.
+ * Search identity can fill the same shell while compact eligibility is unresolved.
  */
 export default function MSMEPreviewCard({
   business,
+  isProvisional = false,
   onClose,
   onViewBusiness,
   onIdentityGeometryChange,
@@ -122,7 +135,27 @@ export default function MSMEPreviewCard({
     .join(", ");
 
   const tags = business.specialty_tags ?? [];
-  const isHiddenGem = business.is_hidden_gem === true;
+  const isHiddenGem =
+    !isProvisional &&
+    "is_hidden_gem" in business &&
+    business.is_hidden_gem === true;
+  const isPhotoUnresolved =
+    isProvisional &&
+    !photo &&
+    (
+      business.display_cover_photo_url === undefined ||
+      business.cover_photo_url === undefined
+    );
+  const isClassificationUnresolved =
+    isProvisional &&
+    business.category === undefined &&
+    business.cluster === undefined;
+  const isAddressUnresolved =
+    isProvisional &&
+    business.location?.city === undefined &&
+    business.location?.province === undefined;
+  const areTagsUnresolved =
+    isProvisional && business.specialty_tags === undefined;
 
   return (
     <View
@@ -161,7 +194,9 @@ export default function MSMEPreviewCard({
             style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
           >
             <View className="h-full w-full overflow-hidden rounded-xl bg-surface-secondary">
-              {photo ? (
+              {isPhotoUnresolved ? (
+                <Skeleton animated={false} className="h-full w-full" />
+              ) : photo ? (
                 <Image
                   key={photo}
                   source={{ uri: photo }}
@@ -232,7 +267,9 @@ export default function MSMEPreviewCard({
               {business.business_name}
             </AppText>
 
-            {classification ? (
+            {isClassificationUnresolved ? (
+              <InfoRow icon={clusterIcon} text="" loading />
+            ) : classification ? (
               <InfoRow icon={clusterIcon} text={classification} />
             ) : null}
 
@@ -240,6 +277,7 @@ export default function MSMEPreviewCard({
               icon="map-marker-outline"
               text={address || "Address unavailable"}
               muted={!address}
+              loading={isAddressUnresolved}
             />
           </View>
 
@@ -260,7 +298,12 @@ export default function MSMEPreviewCard({
         </View>
 
         {/* Specialty tags wrap onto additional rows */}
-        {tags.length > 0 && (
+        {areTagsUnresolved ? (
+          <View className="mt-2 flex-row gap-2">
+            <Skeleton animated={false} className="h-6 w-24 rounded-full" />
+            <Skeleton animated={false} className="h-6 w-20 rounded-full" />
+          </View>
+        ) : tags.length > 0 ? (
           <View className="mt-2 flex-row flex-wrap items-center">
             {tags.map((tag) => (
               <View key={tag.id} className="max-w-full shrink">
@@ -268,7 +311,7 @@ export default function MSMEPreviewCard({
               </View>
             ))}
           </View>
-        )}
+        ) : null}
       </ScrollView>
 
       {/* Business profile navigation */}
@@ -276,6 +319,7 @@ export default function MSMEPreviewCard({
         title="View Business"
         accessibilityLabel={`View ${business.business_name} business profile`}
         onPress={onViewBusiness}
+        disabled={isProvisional}
         icon={
           <MaterialCommunityIcons
             name="arrow-right"
