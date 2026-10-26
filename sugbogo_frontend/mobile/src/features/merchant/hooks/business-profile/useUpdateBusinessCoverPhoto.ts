@@ -81,7 +81,7 @@ export default function useUpdateBusinessCoverPhoto(
 
       await Promise.all([
         ...invalidations,
-        invalidateBusinessDisplayCover(queryClient),
+        invalidateBusinessDisplayCover(queryClient, businessId),
       ]);
     },
     onError: (error) => {

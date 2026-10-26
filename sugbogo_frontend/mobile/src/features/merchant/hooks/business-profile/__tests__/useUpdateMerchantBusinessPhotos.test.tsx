@@ -10,6 +10,10 @@ import { updateMerchantBusinessPhotos } from "@/features/merchant/api/merchantBu
 
 import { merchantBusinessProfileKey } from "../merchantBusinessProfileQueryKeys";
 import useUpdateMerchantBusinessPhotos from "../useUpdateMerchantBusinessPhotos";
+import {
+  MAP_DIRECTORY_DATA_QUERY_KEY,
+  mapBusinessQueryKey,
+} from "@/features/map/hooks/mapDirectoryQueryKeys";
 
 jest.mock("@/features/merchant/api/merchantBusinessProfile.service", () => ({
   updateMerchantBusinessPhotos: jest.fn(),
@@ -52,7 +56,11 @@ describe("useUpdateMerchantBusinessPhotos", () => {
     });
 
     expect(updateMerchantBusinessPhotos).toHaveBeenCalledWith(payload);
-    expect(invalidate).toHaveBeenCalledTimes(8);
+    expect(invalidate).toHaveBeenCalledTimes(10);
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: MAP_DIRECTORY_DATA_QUERY_KEY,
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: mapBusinessQueryKey(7) });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: merchantBusinessProfileKey(42),
       refetchType: "all",

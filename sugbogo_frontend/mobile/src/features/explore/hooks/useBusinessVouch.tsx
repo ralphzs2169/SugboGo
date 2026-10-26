@@ -24,6 +24,10 @@ import { EXPLORE_COLLECTIONS_QUERY_KEY } from "./useExploreCollection";
 import { VOUCH_HISTORY_QUERY_KEY } from "@/features/profile/hooks/vouchHistoryQueryKeys";
 import { ACTIVITY_TIMELINE_QUERY_KEY } from "@/features/profile/hooks/activityTimelineQueryKeys";
 import {
+  MAP_DIRECTORY_DATA_QUERY_KEY,
+  MAP_BUSINESS_QUERY_KEY,
+} from "@/features/map/hooks/mapDirectoryQueryKeys";
+import {
   businessReviewPreviewKey,
   businessReviewsKey,
 } from "./reviewQueryKeys";
@@ -50,6 +54,7 @@ type Intent = {
 type WriteGroup = {
   intents: Map<string, Intent>;
   businessIds: Set<number>;
+  hasConfirmedWrite: boolean;
 };
 
 const VOUCH_MUTATION_KEY = ["business-specialty-vouch"] as const;
@@ -174,6 +179,10 @@ export default function useBusinessVouch({
                   intent.tagId,
                 );
             throwOnApiError(response);
+            const group = writeGroups.get(queryClient);
+            if (group) {
+              group.hasConfirmedWrite = true;
+            }
             intent.confirmed = target;
           } catch (error) {
             if (hasUncertainOutcome(error)) {
@@ -185,6 +194,10 @@ export default function useBusinessVouch({
                 (item) => item.id === intent.tagId,
               );
               if (!tag) throw error;
+              const group = writeGroups.get(queryClient);
+              if (group && tag.is_vouched !== intent.confirmed) {
+                group.hasConfirmedWrite = true;
+              }
               intent.confirmed = tag.is_vouched;
               if (intent.desired === intent.confirmed) break;
             }
@@ -213,8 +226,15 @@ export default function useBusinessVouch({
       const group = writeGroups.get(queryClient);
       if (!group || group.intents.size > 0) return;
       writeGroups.delete(queryClient);
+      // Hidden Gem membership can change globally, including cached compact reads.
+      const mapInvalidations = group.hasConfirmedWrite
+        ? [MAP_DIRECTORY_DATA_QUERY_KEY, MAP_BUSINESS_QUERY_KEY].map(
+            (queryKey) => queryClient.invalidateQueries({ queryKey }),
+          )
+        : [];
       // Reconcile after all specialties drain, without making the UI wait.
       void Promise.all([
+        ...mapInvalidations,
         ...[
           COMMUNITY_REVIEWS_QUERY_KEY,
           OPEN_NOW_BUSINESSES_QUERY_KEY,
@@ -250,6 +270,7 @@ export default function useBusinessVouch({
     const group = writeGroups.get(queryClient) ?? {
       intents: new Map<string, Intent>(),
       businessIds: new Set<number>(),
+      hasConfirmedWrite: false,
     };
     const key = businessId + ":" + variables.tagId;
     const existing = group.intents.get(key);

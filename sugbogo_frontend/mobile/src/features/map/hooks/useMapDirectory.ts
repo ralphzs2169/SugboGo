@@ -5,13 +5,17 @@ import { onlineManager, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getMapDirectoryPage } from "../api/mapDiscovery.service";
+import {
+  MAP_DIRECTORY_QUERY_KEY,
+  MAP_DIRECTORY_DATA_QUERY_KEY,
+  mapBusinessQueryKey,
+} from "./mapDirectoryQueryKeys";
 import type {
   MapDiscoveryBusiness,
   MapDiscoveryFilters,
 } from "../types/mapDiscovery.types";
 
-export const MAP_DIRECTORY_QUERY_KEY = ["map-discovery-directory"] as const;
-const DIRECTORY_KEY = [...MAP_DIRECTORY_QUERY_KEY, "all"] as const;
+export { MAP_DIRECTORY_QUERY_KEY } from "./mapDirectoryQueryKeys";
 const OPEN_NOW_KEY = [...MAP_DIRECTORY_QUERY_KEY, "open-now"] as const;
 const EMPTY_BUSINESSES: MapDiscoveryBusiness[] = [];
 
@@ -102,7 +106,7 @@ export default function useMapDirectory(
   }, [isActive, filters.openNow, queryClient]);
 
   const directory = useQuery({
-    queryKey: DIRECTORY_KEY,
+    queryKey: MAP_DIRECTORY_DATA_QUERY_KEY,
     queryFn: ({ signal }) => loadDirectory(signal),
     enabled: isActive,
     staleTime: 5 * 60 * 1000,
@@ -128,7 +132,7 @@ export default function useMapDirectory(
     (business) => business.id === searchBusinessId,
   );
   const selection = useQuery({
-    queryKey: [...MAP_DIRECTORY_QUERY_KEY, "business", searchBusinessId],
+    queryKey: mapBusinessQueryKey(searchBusinessId),
     queryFn: ({ signal }) =>
       loadDirectory(signal, { businessId: searchBusinessId }),
     enabled:
