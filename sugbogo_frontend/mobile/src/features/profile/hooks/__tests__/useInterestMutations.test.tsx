@@ -12,7 +12,15 @@ import {
 } from "../your-interests/useInterestMutations";
 import { getExploreCollectionQueryKey } from "@/features/explore/hooks/useExploreCollection";
 import { RECOMMENDATIONS_QUERY_KEY } from "@/features/explore/constants/exploreHomepageQueries";
-import { USER_INTERESTS_QUERY_KEY } from "../your-interests/useUserInterests";
+import { userInterestsQueryKey } from "../your-interests/useUserInterests";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import type { User } from "@/features/users/types/user.types";
+import {
+  beginAuthSession,
+  getAuthSessionGeneration,
+  invalidateAuthSession,
+  StaleAuthSessionError,
+} from "@/shared/api/authSessionGeneration.service";
 
 jest.mock("../../api/interest.service", () => ({
   updateUserInterests: jest.fn(),
@@ -20,6 +28,15 @@ jest.mock("../../api/interest.service", () => ({
 }));
 
 describe("interest mutations", () => {
+  beforeEach(() => {
+    beginAuthSession();
+    useAuthStore.setState({
+      user: { id: 1 } as User,
+      isAuthenticated: true,
+      isLoading: false,
+    });
+  });
+
   it.each(["save", "onboarding"] as const)(
     "invalidates every Interests collection variant after %s without invalidating other collections",
     async (operation) => {
@@ -57,7 +74,8 @@ describe("interest mutations", () => {
         client.setQueryData(key, oldCollection);
         expect(client.getQueryState(key)?.isInvalidated).toBe(false);
       }
-      client.setQueryData(USER_INTERESTS_QUERY_KEY, {
+      const interestsKey = userInterestsQueryKey(1, getAuthSessionGeneration());
+      client.setQueryData(interestsKey, {
         categories: [{ id: 99 }],
         specialty_tags: [{ id: 100 }],
       });
@@ -107,7 +125,7 @@ describe("interest mutations", () => {
           }
         });
 
-        expect(client.getQueryData(USER_INTERESTS_QUERY_KEY)).toEqual(interests);
+        expect(client.getQueryData(interestsKey)).toEqual(interests);
         expect(invalidate).toHaveBeenCalledWith({
           queryKey: ["explore-collections", "interests"],
         });
@@ -164,7 +182,9 @@ describe("interest mutations", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(client.getQueryData(USER_INTERESTS_QUERY_KEY)).toBe(interests);
+    expect(
+      client.getQueryData(userInterestsQueryKey(1, getAuthSessionGeneration())),
+    ).toBe(interests);
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: ["explore-recommendations"],
       refetchType: "all",
@@ -172,4 +192,80 @@ describe("interest mutations", () => {
     await unmount();
     client.clear();
   });
+
+  describe.each(["save", "onboarding"] as const)(
+    "%s ownership",
+    (operation) => {
+      it.each(["logout", "another account", "replacement login"])(
+        "ignores a late response after %s without invalidating discovery",
+        async (transition) => {
+          let finish!: (value: unknown) => void;
+          const request =
+            operation === "save"
+              ? updateUserInterests
+              : completeOnboardingInterests;
+          (request as jest.Mock).mockReturnValue(
+            new Promise((resolve) => {
+              finish = resolve;
+            }),
+          );
+          const client = new QueryClient({
+            defaultOptions: { mutations: { gcTime: Infinity } },
+          });
+          function Wrapper({ children }: PropsWithChildren) {
+            return (
+              <QueryClientProvider client={client}>
+                {children}
+              </QueryClientProvider>
+            );
+          }
+          const hook = await renderHook(
+            () => ({
+              save: useUpdateUserInterests(),
+              onboarding: useCompleteOnboardingInterests(),
+            }),
+            { wrapper: Wrapper },
+          );
+          let pending!: Promise<unknown>;
+          await act(async () => {
+            pending = (
+              operation === "save"
+                ? hook.result.current.save.mutateAsync({
+                    category_ids: [8],
+                    specialty_tag_ids: [14],
+                  })
+                : hook.result.current.onboarding.mutateAsync([14])
+            ).catch((error) => error);
+          });
+          await waitFor(() => expect(request).toHaveBeenCalled());
+          await act(async () => {
+            invalidateAuthSession();
+            useAuthStore.getState().clearUser();
+            client.clear();
+            if (transition !== "logout") {
+              beginAuthSession();
+              useAuthStore.getState().setUser({
+                id: transition === "another account" ? 2 : 1,
+              } as User);
+            }
+          });
+          const currentKey = userInterestsQueryKey(
+            useAuthStore.getState().user?.id ?? null,
+            getAuthSessionGeneration(),
+          );
+          const currentData = { categories: [], specialty_tags: [] };
+          client.setQueryData(currentKey, currentData);
+          const invalidate = jest.spyOn(client, "invalidateQueries");
+          await act(async () => {
+            finish({ success: true, data: { categories: [{ id: 8 }] } });
+            expect(await pending).toBeInstanceOf(StaleAuthSessionError);
+          });
+          expect(client.getQueryData(currentKey)).toBe(currentData);
+          expect(invalidate).not.toHaveBeenCalled();
+          await hook.unmount();
+          client.clear();
+        },
+      );
+    },
+  );
 });

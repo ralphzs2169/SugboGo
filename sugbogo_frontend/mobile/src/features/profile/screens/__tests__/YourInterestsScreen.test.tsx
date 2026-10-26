@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
 import { router } from "expo-router";
 
@@ -7,6 +7,12 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 import { useUpdateUserInterests } from "../../hooks/your-interests/useInterestMutations";
 import useUserInterests from "../../hooks/your-interests/useUserInterests";
 import YourInterestsScreen from "../YourInterestsScreen";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import type { User } from "@/features/users/types/user.types";
+import {
+  beginAuthSession,
+  getAuthSessionGeneration,
+} from "@/shared/api/authSessionGeneration.service";
 
 jest.mock("../../hooks/your-interests/useUserInterests");
 jest.mock("../../hooks/your-interests/useInterestMutations");
@@ -58,6 +64,12 @@ describe("YourInterestsScreen", () => {
   const refetch = jest.fn();
 
   beforeEach(() => {
+    beginAuthSession();
+    useAuthStore.setState({
+      user: { id: 1 } as User,
+      isAuthenticated: true,
+      isLoading: false,
+    });
     mockRecommendationEntry = false;
     (router.canGoBack as jest.Mock).mockReturnValue(true);
     (useUserInterests as jest.Mock).mockReturnValue({
@@ -65,12 +77,94 @@ describe("YourInterestsScreen", () => {
       isLoading: false,
       error: null,
       refetch,
+      userId: 1,
+      generation: getAuthSessionGeneration(),
     });
     (useUpdateUserInterests as jest.Mock).mockReturnValue({
       mutateAsync,
       isPending: false,
     });
     (handleSystemError as jest.Mock).mockReturnValue(false);
+  });
+
+  it("preserves dirty local choices during a normal same-session refetch", async () => {
+    const screen = await render(<YourInterestsScreen />);
+    await fireEvent.press(screen.getByLabelText("Traditional Food"));
+    (useUserInterests as jest.Mock).mockReturnValue({
+      data: { ...data, categories: [...data.categories] },
+      isLoading: false,
+      error: null,
+      refetch,
+      userId: 1,
+      generation: getAuthSessionGeneration(),
+    });
+    await screen.rerender(<YourInterestsScreen />);
+    expect(
+      screen.getByLabelText("Traditional Food").props.accessibilityState
+        .selected,
+    ).toBe(true);
+    await screen.unmount();
+  });
+
+  it.each([1, 2])(
+    "initializes fresh choices for a replacement login as owner %s",
+    async (nextOwner) => {
+      const screen = await render(<YourInterestsScreen />);
+      await fireEvent.press(screen.getByLabelText("Handmade Crafts"));
+      await act(async () => {
+        beginAuthSession();
+        useAuthStore.getState().setUser({ id: nextOwner } as User);
+      });
+      (useUserInterests as jest.Mock).mockReturnValue({
+        data: {
+          ...data,
+          categories: [],
+          specialty_tags: [data.available_specialty_tags[1]],
+        },
+        isLoading: false,
+        error: null,
+        refetch,
+        userId: nextOwner,
+        generation: getAuthSessionGeneration(),
+      });
+      await screen.rerender(<YourInterestsScreen />);
+      expect(
+        screen.getByLabelText("Cafe").props.accessibilityState.selected,
+      ).toBe(false);
+      expect(
+        screen.getByLabelText("Local Coffee").props.accessibilityState.selected,
+      ).toBe(false);
+      expect(
+        screen.getByLabelText("Handmade Crafts").props.accessibilityState
+          .selected,
+      ).toBe(false);
+      expect(
+        screen.getByLabelText("Traditional Food").props.accessibilityState
+          .selected,
+      ).toBe(true);
+      await screen.unmount();
+    },
+  );
+
+  it("does not navigate or show success when an old save finishes after account replacement", async () => {
+    let finish!: (value: unknown) => void;
+    mutateAsync.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const screen = await render(<YourInterestsScreen />);
+    await fireEvent.press(screen.getByLabelText("Traditional Food"));
+    await fireEvent.press(screen.getByRole("button", { name: "Save Changes" }));
+    await act(async () => {
+      beginAuthSession();
+      useAuthStore.getState().setUser({ id: 2 } as User);
+      finish(data);
+    });
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.back).not.toHaveBeenCalled();
+    expect(Toast.show).not.toHaveBeenCalled();
+    await screen.unmount();
   });
 
   it("explains selections and activity as inputs to For You", async () => {

@@ -17,6 +17,11 @@ import Skeleton from "@/shared/components/Skeleton";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import InterestGridSkeleton from "../components/InterestGrdiSkeleton";
+import { isStaleAuthSessionError } from "@/shared/api/authSessionGeneration.service";
+import {
+  assertProfileSessionCurrent,
+  captureProfileSession,
+} from "@/features/profile/utils/profileSession";
 
 const MAX_SELECTIONS = 3;
 
@@ -27,6 +32,22 @@ const MAX_SELECTIONS = 3;
  * into the Explorer experience after onboarding interests are completed.
  */
 export default function InterestSelectionScreen() {
+  const interestsQuery = useUserInterests();
+
+  return (
+    <InterestSelectionForm
+      key={`${interestsQuery.userId}:${interestsQuery.generation}`}
+      interestsQuery={interestsQuery}
+    />
+  );
+}
+
+/** Keeps setup choices and completion effects within their owning login. */
+function InterestSelectionForm({
+  interestsQuery,
+}: {
+  interestsQuery: ReturnType<typeof useUserInterests>;
+}) {
   const router = useRouter();
 
   const [selected, setSelected] = useState<number[]>([]);
@@ -34,7 +55,6 @@ export default function InterestSelectionScreen() {
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
 
-  const interestsQuery = useUserInterests();
   const completeMutation = useCompleteOnboardingInterests();
 
   useEffect(() => {
@@ -55,7 +75,9 @@ export default function InterestSelectionScreen() {
 
   const handleCompleteSelection = async (specialtyTagIds = selected) => {
     try {
+      const session = captureProfileSession();
       await completeMutation.mutateAsync(specialtyTagIds);
+      assertProfileSessionCurrent(session);
 
       if (user) {
         setUser({
@@ -66,6 +88,10 @@ export default function InterestSelectionScreen() {
 
       router.replace("/(explorer)/(tabs)/explore");
     } catch (error) {
+      if (isStaleAuthSessionError(error)) {
+        return;
+      }
+
       const response = error as ApiResponse<unknown>;
 
       if (!response.success && !handleSystemError(response)) {

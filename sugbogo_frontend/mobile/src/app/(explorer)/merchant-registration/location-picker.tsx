@@ -3,9 +3,14 @@ import LocationPickerScreen from "@/features/merchant/screens/LocationPickerScre
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { BusinessLocation } from "@/shared/types/BusinessLocation.types";
-import { router } from "expo-router";
-import { useState } from "react";
+import { router, useFocusEffect, useNavigation } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import Toast from "react-native-toast-message";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import {
+  getAuthSessionGeneration,
+  isAuthSessionCurrent,
+} from "@/shared/api/authSessionGeneration.service";
 
 /**
  * Route wrapper for the full-screen business location picker.
@@ -20,6 +25,44 @@ import Toast from "react-native-toast-message";
  * navigating away from Step 2.
  */
 export default function BusinessLocationPickerPage() {
+  const navigation = useNavigation();
+  const session = useRef({
+    ownerId: useAuthStore.getState().user?.id,
+    generation: getAuthSessionGeneration(),
+  }).current;
+  const active = useRef(false);
+  const confirmation = useRef<object | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      active.current = true;
+      setIsRefreshingLandmarks(false);
+
+      const invalidate = () => {
+        active.current = false;
+        confirmation.current = null;
+      };
+      const unsubscribe = navigation.addListener("beforeRemove", invalidate);
+
+      return () => {
+        invalidate();
+        unsubscribe();
+      };
+    }, [navigation]),
+  );
+
+  function isCurrentSession() {
+    const auth = useAuthStore.getState();
+    return (
+      active.current &&
+      auth.isAuthenticated &&
+      !auth.isLoading &&
+      session.ownerId !== undefined &&
+      auth.user?.id === session.ownerId &&
+      isAuthSessionCurrent(session.generation)
+    );
+  }
+
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
   );
@@ -77,13 +120,27 @@ export default function BusinessLocationPickerPage() {
     location: BusinessLocation,
     addressLoadFailed: boolean,
   ) {
+    if (!isCurrentSession() || confirmation.current !== null) {
+      return;
+    }
+
+    const operation = {};
+    confirmation.current = operation;
     setIsRefreshingLandmarks(true);
+
+    const isCurrentOperation = () => (
+      confirmation.current === operation && isCurrentSession()
+    );
 
     try {
       const result = await searchNearbyLandmarks(
         location.latitude,
         location.longitude,
       );
+
+      if (!isCurrentOperation()) {
+        return;
+      }
 
       setSelectedLocation(location);
 
@@ -120,8 +177,12 @@ export default function BusinessLocationPickerPage() {
         text1: "Location confirmed successfully.",
       });
 
-      router.back();
+      handleClose();
     } catch (error) {
+      if (!isCurrentOperation()) {
+        return;
+      }
+
       console.error(error);
 
       Toast.show({
@@ -129,11 +190,20 @@ export default function BusinessLocationPickerPage() {
         text1: "Unable to load nearby landmarks.",
       });
     } finally {
-      setIsRefreshingLandmarks(false);
+      if (confirmation.current === operation) {
+        confirmation.current = null;
+        setIsRefreshingLandmarks(false);
+      }
     }
   }
 
   function handleClose() {
+    if (!active.current) {
+      return;
+    }
+
+    active.current = false;
+    confirmation.current = null;
     router.back();
   }
 
@@ -141,13 +211,17 @@ export default function BusinessLocationPickerPage() {
     location: BusinessLocation,
     addressLoadFailed: boolean,
   ) {
+    if (!isCurrentSession() || confirmation.current !== null) {
+      return;
+    }
+
     const locationChanged =
       !selectedLocation ||
       selectedLocation.latitude !== location.latitude ||
       selectedLocation.longitude !== location.longitude;
 
     if (!locationChanged) {
-      router.back();
+      handleClose();
       return;
     }
 

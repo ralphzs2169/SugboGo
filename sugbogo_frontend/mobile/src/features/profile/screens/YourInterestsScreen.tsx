@@ -21,6 +21,11 @@ import useUserInterests from "../hooks/your-interests/useUserInterests";
 import { useUpdateUserInterests } from "../hooks/your-interests/useInterestMutations";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChanges";
 import { router, useLocalSearchParams } from "expo-router";
+import { isStaleAuthSessionError } from "@/shared/api/authSessionGeneration.service";
+import {
+  assertProfileSessionCurrent,
+  captureProfileSession,
+} from "../utils/profileSession";
 
 function toggleId(current: number[], id: number) {
   return current.includes(id)
@@ -45,8 +50,23 @@ function idsMatch(first: number[], second: number[]) {
  * unsaved changes when the user attempts to leave the screen.
  */
 export default function YourInterestsScreen() {
-  const { source } = useLocalSearchParams<{ source?: string }>();
   const interestsQuery = useUserInterests();
+
+  return (
+    <YourInterestsEditor
+      key={`${interestsQuery.userId}:${interestsQuery.generation}`}
+      interestsQuery={interestsQuery}
+    />
+  );
+}
+
+/** Preserves local edits through same-session refetches, never through a new login. */
+function YourInterestsEditor({
+  interestsQuery,
+}: {
+  interestsQuery: ReturnType<typeof useUserInterests>;
+}) {
+  const { source } = useLocalSearchParams<{ source?: string }>();
   const updateMutation = useUpdateUserInterests();
 
   const initialized = useRef(false);
@@ -139,12 +159,20 @@ export default function YourInterestsScreen() {
     }
 
     try {
+      const session = captureProfileSession();
       await updateMutation.mutateAsync({
         category_ids: categoryIds,
         specialty_tag_ids: specialtyTagIds,
       });
+      assertProfileSessionCurrent(session);
 
       setTimeout(() => {
+        try {
+          assertProfileSessionCurrent(session);
+        } catch {
+          return;
+        }
+
         Toast.show({
           type: "info",
           text1: "Your interests have been updated",
@@ -159,6 +187,10 @@ export default function YourInterestsScreen() {
         router.replace("/profile");
       });
     } catch (error) {
+      if (isStaleAuthSessionError(error)) {
+        return;
+      }
+
       const response = error as ApiResponse<unknown>;
 
       if (!response.success && !handleSystemError(response)) {

@@ -11,10 +11,29 @@ import { searchNearbyLandmarksService } from "@/shared/api/googlePlaces.service"
 import type { BusinessLocation } from "@/shared/types/BusinessLocation.types";
 import BusinessLandmarkPickerPage from "../landmarks-picker";
 import BusinessLocationPickerPage from "../location-picker";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import type { User } from "@/features/users/types/user.types";
+import {
+  beginAuthSession,
+  invalidateAuthSession,
+} from "@/shared/api/authSessionGeneration.service";
+
+const mockListeners = new Map<string, () => void>();
+const mockNavigation = {
+  addListener: jest.fn((event: string, listener: () => void) => {
+    mockListeners.set(event, listener);
+    return () => mockListeners.delete(event);
+  }),
+};
 
 jest.mock("expo-router", () => ({
   router: {
     back: jest.fn(),
+  },
+  useNavigation: () => mockNavigation,
+  useFocusEffect: (callback: () => void) => {
+    const React = jest.requireActual<typeof import("react")>("react");
+    React.useEffect(callback, [callback]);
   },
 }));
 
@@ -78,6 +97,13 @@ const businessLocation: BusinessLocation = {
 describe("merchant registration landmark location flow", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockListeners.clear();
+    beginAuthSession();
+    useAuthStore.setState({
+      user: { id: 1 } as User,
+      isAuthenticated: true,
+      isLoading: false,
+    });
     useMerchantRegistrationStore.getState().reset();
   });
 
@@ -110,6 +136,7 @@ describe("merchant registration landmark location flow", () => {
 
     await act(async () => {
       onConfirm(businessLocation, false);
+      onConfirm(businessLocation, false);
     });
 
     await waitFor(() =>
@@ -122,6 +149,7 @@ describe("merchant registration landmark location flow", () => {
       businessLocation.latitude,
       businessLocation.longitude,
     );
+    expect(searchNearbyLandmarksService).toHaveBeenCalledTimes(1);
     expect(useMerchantRegistrationStore.getState().selectedLandmarks).toEqual([
       expect.objectContaining({
         id: "place-1",
@@ -139,6 +167,89 @@ describe("merchant registration landmark location flow", () => {
     expect(router.back).toHaveBeenCalledTimes(1);
 
     screen.unmount();
+    client.clear();
+  });
+
+  it.each(["close", "route removal", "unmount", "new login"])(
+    "ignores delayed confirmation after %s",
+    async (dismissal) => {
+      let finish!: (value: unknown) => void;
+      (searchNearbyLandmarksService as jest.Mock).mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const client = createQueryClient();
+      const screen = await render(<BusinessLocationPickerPage />, {
+        wrapper: createWrapper(client),
+      });
+      const picker = LocationPickerScreen as jest.Mock;
+
+      await act(async () => {
+        picker.mock.lastCall[0].onConfirm(businessLocation, false);
+      });
+      await waitFor(() =>
+        expect(searchNearbyLandmarksService).toHaveBeenCalled(),
+      );
+
+      await act(async () => {
+        if (dismissal === "close") {
+          picker.mock.lastCall[0].onClose();
+          picker.mock.lastCall[0].onClose();
+        } else if (dismissal === "route removal") {
+          mockListeners.get("beforeRemove")?.();
+        } else if (dismissal === "unmount") {
+          await screen.unmount();
+        } else {
+          invalidateAuthSession();
+          beginAuthSession();
+          useAuthStore.getState().setUser({ id: 2 } as User);
+        }
+        finish({ success: true, data: { landmarks: [] } });
+      });
+
+      expect(
+        useMerchantRegistrationStore.getState().selectedLocation,
+      ).toBeNull();
+      expect(
+        useMerchantRegistrationStore.getState().selectedAddress,
+      ).toBeNull();
+      expect(useMerchantRegistrationStore.getState().selectedLandmarks).toEqual(
+        [],
+      );
+      expect(router.back).toHaveBeenCalledTimes(dismissal === "close" ? 1 : 0);
+      expect(Toast.show).not.toHaveBeenCalled();
+      if (dismissal !== "unmount") {
+        await screen.unmount();
+      }
+      client.clear();
+    },
+  );
+
+  it("still confirms a valid location when nearby suggestions are unavailable", async () => {
+    (searchNearbyLandmarksService as jest.Mock).mockResolvedValue({
+      success: false,
+      code: "RATE_LIMIT_EXCEEDED",
+      message: "Try later",
+    });
+    const client = createQueryClient();
+    const screen = await render(<BusinessLocationPickerPage />, {
+      wrapper: createWrapper(client),
+    });
+    await act(async () => {
+      (LocationPickerScreen as jest.Mock).mock.lastCall[0].onConfirm(
+        businessLocation,
+        false,
+      );
+    });
+    await waitFor(() => expect(router.back).toHaveBeenCalledTimes(1));
+    expect(useMerchantRegistrationStore.getState().selectedLocation).toEqual(
+      businessLocation,
+    );
+    expect(
+      useMerchantRegistrationStore.getState().nearbyLandmarksLoadFailed,
+    ).toBe(true);
+    await screen.unmount();
     client.clear();
   });
 

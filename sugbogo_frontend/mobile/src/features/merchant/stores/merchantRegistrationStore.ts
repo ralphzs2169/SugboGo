@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import { subscribeAuthSessionChanges } from "@/shared/api/authSessionGeneration.service";
 import {
   BusinessLandmark,
   BusinessLocation,
@@ -152,3 +154,17 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
       }),
   }),
 );
+
+// Match review workflow cleanup: navigation within a session never resets drafts.
+subscribeAuthSessionChanges(() => {
+  useMerchantRegistrationStore.getState().reset();
+});
+
+useAuthStore.subscribe((current, previous) => {
+  if (
+    current.user?.id !== previous.user?.id ||
+    (previous.isAuthenticated && !current.isAuthenticated)
+  ) {
+    useMerchantRegistrationStore.getState().reset();
+  }
+});

@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -75,6 +76,25 @@ import {
 import useRegistrationErrorScroll from "../hooks/registration/useRegistrationErrorScroll";
 import Toast from "react-native-toast-message";
 import useRegistrationUnsavedChanges from "../hooks/registration/useRegistrationUnsavedChanges";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import {
+  getAuthSessionGeneration,
+  isAuthSessionCurrent,
+  subscribeAuthSessionChanges,
+} from "@/shared/api/authSessionGeneration.service";
+
+/** Keeps the form and its restoration checkpoint local to one account session. */
+export default function MerchantRegistrationScreen() {
+  const ownerId = useAuthStore((state) => state.user?.id);
+  const generation = useSyncExternalStore(
+    subscribeAuthSessionChanges,
+    getAuthSessionGeneration,
+  );
+
+  return (
+    <MerchantRegistrationFormScreen key={`${ownerId}:${generation}`} />
+  );
+}
 
 /**
  * Merchant registration wizard screen.
@@ -98,7 +118,11 @@ import useRegistrationUnsavedChanges from "../hooks/registration/useRegistration
  *
  * Validation behavior: Each step is validated before leaving that step.
  */
-export default function MerchantRegistrationScreen() {
+function MerchantRegistrationFormScreen() {
+  const [session] = useState(() => ({
+    ownerId: useAuthStore.getState().user?.id,
+    generation: getAuthSessionGeneration(),
+  }));
   // -- Navigation
   const REVIEW_STEP = REGISTRATION_STEPS.length;
   const navigation = useNavigation();
@@ -187,14 +211,6 @@ export default function MerchantRegistrationScreen() {
   const setSelectedAddress = useMerchantRegistrationStore(
     (state) => state.setSelectedAddress,
   );
-  const setSelectedLocation = useMerchantRegistrationStore(
-    (state) => state.setSelectedLocation,
-  );
-
-  const setSelectedLandmarks = useMerchantRegistrationStore(
-    (state) => state.setSelectedLandmarks,
-  );
-
   const resetMerchantRegistrationStore = useMerchantRegistrationStore(
     (state) => state.reset,
   );
@@ -320,6 +336,15 @@ export default function MerchantRegistrationScreen() {
   };
   // Persist the current address in the registration store when leaving Step 2.
   const persistCurrentAddress = () => {
+    const auth = useAuthStore.getState();
+    if (
+      !auth.isAuthenticated ||
+      auth.user?.id !== session.ownerId ||
+      !isAuthSessionCurrent(session.generation)
+    ) {
+      return;
+    }
+
     const values = form.getValues();
 
     setSelectedAddress({
@@ -372,77 +397,108 @@ export default function MerchantRegistrationScreen() {
    * navigation state, and last-saved snapshots used for change
    * detection when resuming an existing draft.
    */
-  const restoreDraft = (application: ApplicationDetailResponse): boolean => {
-    try {
-      const values = mapApplicationToForm(application);
-      const store = mapApplicationToStore(application);
+  const restoreDraft = useCallback(
+    (application: ApplicationDetailResponse): boolean => {
+      try {
+        const values = mapApplicationToForm(application);
+        const store = mapApplicationToStore(application);
 
-      form.reset(values);
+        form.reset(values);
 
-      // Restore saved location, address, and landmarks to store
-      if (store.selectedLocation) {
-        setSelectedLocation(store.selectedLocation);
+        // Replace the full authoritative snapshot, including absent values and flags.
+        resetMerchantRegistrationStore();
+        useMerchantRegistrationStore.setState(store);
+
+        // Set the current step to the next incomplete step, but do not exceed the Review step.
+        setCurrentStep(
+          Math.min(application.highest_completed_step + 1, REVIEW_STEP),
+        );
+        setHighestCompletedStep(application.highest_completed_step);
+
+        // Initialize the last-saved snapshots for change detection
+        setLastSavedIdentity(normalizeIdentity(values));
+        setLastSavedLocation(normalizeLocation(values));
+
+        if (application.operating_hours.length > 0) {
+          setLastSavedOperatingHours(normalizeOperatingHours(values));
+        } else {
+          setLastSavedOperatingHours(null);
+        }
+
+        setLastSavedPhotos(values.businessPhotos);
+        setLastSavedDocuments(values.verificationDocuments);
+
+        setRestoreError(false);
+
+        if (application.status === "draft") {
+          Toast.show({
+            type: "success",
+            text1: "Draft restored",
+            text2: "Your saved registration draft has been restored.",
+          });
+        }
+
+        return true;
+      } catch (error) {
+        console.error("Failed to restore merchant application:", error);
+        setRestoreError(true);
+
+        return false;
       }
-
-      if (store.selectedAddress) {
-        setSelectedAddress(store.selectedAddress);
-      }
-
-      setSelectedLandmarks(store.selectedLandmarks);
-
-      // Set the current step to the next incomplete step, but do not exceed the Review step.
-      setCurrentStep(
-        Math.min(application.highest_completed_step + 1, REVIEW_STEP),
-      );
-      setHighestCompletedStep(application.highest_completed_step);
-
-      // Initialize the last-saved snapshots for change detection
-      setLastSavedIdentity(normalizeIdentity(values));
-      setLastSavedLocation(normalizeLocation(values));
-
-      if (application.operating_hours.length > 0) {
-        setLastSavedOperatingHours(normalizeOperatingHours(values));
-      } else {
-        setLastSavedOperatingHours(null);
-      }
-
-      setLastSavedPhotos(values.businessPhotos);
-      setLastSavedDocuments(values.verificationDocuments);
-
-      setRestoreError(false);
-
-      if (application.status === "draft") {
-        Toast.show({
-          type: "success",
-          text1: "Draft restored",
-          text2: "Your saved registration draft has been restored.",
-        });
-      }
-
-      return true;
-    } catch (error) {
-      console.error("Failed to restore merchant application:", error);
-      setRestoreError(true);
-
-      return false;
-    }
-  };
+    },
+    [
+      form,
+      resetMerchantRegistrationStore,
+      REVIEW_STEP,
+      setCurrentStep,
+      setHighestCompletedStep,
+      setLastSavedIdentity,
+      setLastSavedLocation,
+      setLastSavedOperatingHours,
+      setLastSavedPhotos,
+      setLastSavedDocuments,
+      setRestoreError,
+    ],
+  );
 
   /**
    * Restores the user's saved merchant application once after
    * the application has been loaded.
    */
   useEffect(() => {
-    if (!application || hasRestoredDraft.current) {
+    const auth = useAuthStore.getState();
+    if (
+      !auth.isAuthenticated ||
+      auth.user?.id !== session.ownerId ||
+      !isAuthSessionCurrent(session.generation) ||
+      isLoadingApplication ||
+      (applicationError && !application) ||
+      hasRestoredDraft.current
+    ) {
       return;
     }
 
+    if (!application) {
+      resetMerchantRegistrationStore();
+      hasRestoredDraft.current = true;
+      return;
+    }
+
+    // One-time server hydration must initialize the form and its saved snapshots together.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     const restored = restoreDraft(application);
 
     if (restored) {
       hasRestoredDraft.current = true;
     }
-  }, [application]);
+  }, [
+    application,
+    applicationError,
+    isLoadingApplication,
+    resetMerchantRegistrationStore,
+    restoreDraft,
+    session,
+  ]);
 
   const { validateCurrentStep } = useRegistrationValidation({
     currentStep,
