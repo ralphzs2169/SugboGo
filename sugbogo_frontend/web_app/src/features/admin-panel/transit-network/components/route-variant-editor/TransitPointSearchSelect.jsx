@@ -16,8 +16,8 @@ export default function TransitPointSearchSelect({
   value = "",
   excludedIds = [],
   error,
-  placeholder = "Search Transit Points",
-  emptyMessage = "No Transit Points available.",
+  placeholder = "Search stops",
+  emptyMessage = "No stops available.",
   alwaysOpen = false,
   autoFocus = false,
   onChange,
@@ -163,7 +163,7 @@ export default function TransitPointSearchSelect({
           ) : (
             <p className="px-3 py-5 text-center text-xs text-text-secondary">
               {normalizedQuery
-                ? "No Transit Points match your search."
+                ? "No stops match your search."
                 : emptyMessage}
             </p>
           )}
@@ -188,7 +188,7 @@ export default function TransitPointSearchSelect({
             className="mt-1 -ml-3"
             onClick={onCreateNew}
           >
-            Create new Transit Point
+            Create new stop
           </Button>
         </div>
       )}

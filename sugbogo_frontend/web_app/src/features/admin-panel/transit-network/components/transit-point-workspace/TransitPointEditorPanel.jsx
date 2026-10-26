@@ -122,13 +122,18 @@ export default function TransitPointEditorPanel({
         <TextInput
           id="transit-point-workspace-name"
           name="name"
-          label="Name"
-          placeholder="e.g. Cebu Provincial Capitol"
+          label="Stop or landmark name"
+          placeholder="e.g. Guadalupe Church — toward downtown"
           value={values.name}
           onChange={onNameChange}
           error={errors.name}
           required
         />
+        <p className="text-xs leading-relaxed text-text-secondary">
+          Use a name passengers can recognize. Place the marker at the actual
+          roadside boarding or drop-off spot, rather than inside the landmark.
+          Coordinates below are filled from your map selection.
+        </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           <TextInput
             id="transit-point-workspace-latitude"

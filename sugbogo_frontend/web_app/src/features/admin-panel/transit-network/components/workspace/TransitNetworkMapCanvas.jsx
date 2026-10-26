@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import {
   AdvancedMarker,
   ControlPosition,
@@ -6,8 +6,13 @@ import {
   MapControl,
   Polyline,
   useMap,
+  useApiLoadingStatus,
 } from "@vis.gl/react-google-maps";
 import { MapPin } from "lucide-react";
+import { googleMapsConfig } from "@/shared/utils/googleMapsConfig";
+import { GoogleMapsAuthContext } from "@/shared/utils/googleMapsAuthContext";
+import { getTransitMapNotice } from "../../utils/transitMapStatus";
+import TransitMapFrame from "./TransitMapFrame";
 
 import {
   isPointEditingMode,
@@ -140,6 +145,39 @@ export default function TransitNetworkMapCanvas({
   onPointPositionChange,
   onReferenceLayerRetry,
 }) {
+  const loaderStatus = useApiLoadingStatus();
+  const authFailed = useContext(GoogleMapsAuthContext);
+  const apiStatus = authFailed ? "AUTH_FAILURE" : loaderStatus;
+  const [markersAvailable, setMarkersAvailable] = useState(null);
+  const [timedOutPhase, setTimedOutPhase] = useState(null);
+  const waitingPhase = apiStatus === "LOADED" ? "markers" : "script";
+  const isWaiting =
+    apiStatus === "NOT_LOADED" ||
+    apiStatus === "LOADING" ||
+    (apiStatus === "LOADED" && markersAvailable === null);
+
+  useEffect(() => {
+    if (!isWaiting || !googleMapsConfig.apiKey || !googleMapsConfig.mapId) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setTimedOutPhase(waitingPhase), 15000);
+    return () => clearTimeout(timer);
+  }, [isWaiting, waitingPhase]);
+
+  const mapNotice = getTransitMapNotice({
+    config: googleMapsConfig,
+    apiStatus,
+    markersAvailable,
+    timedOut: timedOutPhase === waitingPhase,
+  });
+
+  /** Check capabilities after map initialization and whenever they change. */
+  function checkMarkerCapabilities(event) {
+    setMarkersAvailable(
+      event.map.getMapCapabilities().isAdvancedMarkersAvailable === true,
+    );
+  }
+
   const isVariantEditing = isVariantEditingMode(mode);
   const isCreatingRouteTransitPoint =
     isRouteTransitPointCreationMode(mode);
@@ -177,7 +215,7 @@ export default function TransitNetworkMapCanvas({
   }, [context, selectedPoint, transitPoints]);
 
   function handleMapClick(event) {
-    if (!event.detail.latLng) {
+    if (mapNotice || !event.detail.latLng) {
       return;
     }
 
@@ -199,6 +237,9 @@ export default function TransitNetworkMapCanvas({
   }
 
   function handleDraftPointDragEnd(event) {
+    if (mapNotice) {
+      return;
+    }
     const position = event.latLng?.toJSON();
 
     if (position) {
@@ -207,6 +248,9 @@ export default function TransitNetworkMapCanvas({
   }
 
   function handleVertexDragEnd(index, event) {
+    if (mapNotice) {
+      return;
+    }
     const position = event.latLng?.toJSON();
 
     if (position) {
@@ -224,20 +268,21 @@ export default function TransitNetworkMapCanvas({
     isSelectingRouteTransitPoint,
   );
   const showMapHelp = isVariantEditing || isPointEditing;
+  const canMountMap = Boolean(
+    googleMapsConfig.apiKey && googleMapsConfig.mapId && apiStatus === "LOADED",
+  );
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-xl border border-stroke-strong bg-surface ${
-        isFullscreen
-          ? "h-[65vh] min-h-[420px] xl:h-full xl:min-h-0"
-          : "h-[72vh] min-h-[560px]"
-      } xl:col-start-2`}
+    <TransitMapFrame
+      isFullscreen={isFullscreen}
+      canMountMap={canMountMap}
+      notice={mapNotice}
     >
       {/* Persistent transit network map */}
       <Map
         defaultCenter={CEBU_CITY_CENTER}
         defaultZoom={13}
-        mapId={import.meta.env.VITE_GOOGLE_MAP_ID}
+        mapId={googleMapsConfig.mapId}
         mapTypeControl={false}
         streetViewControl={false}
         fullscreenControl={false}
@@ -250,6 +295,8 @@ export default function TransitNetworkMapCanvas({
             : undefined
         }
         onClick={handleMapClick}
+        onTilesLoaded={checkMarkerCapabilities}
+        onMapCapabilitiesChanged={checkMarkerCapabilities}
       >
         <MapSelectionViewport focusRequest={focusRequest} />
         <MapWorkspaceResizeObserver />
@@ -496,7 +543,7 @@ export default function TransitNetworkMapCanvas({
           </MapControl>
         )}
       </Map>
-    </div>
+    </TransitMapFrame>
   );
 }
 
@@ -515,8 +562,8 @@ function getMapHelpText(
   }
   if (isRouteDrawingMode(mode)) {
     return {
-      title: "Drawing route geometry",
-      description: "Click the map to add LineString vertices in travel order.",
+      title: "Drawing route path",
+      description: "Click along the roads in travel order to draw this direction.",
     };
   }
   if (isPointEditingMode(mode) || isRouteTransitPointCreationMode(mode)) {

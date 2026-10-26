@@ -38,14 +38,15 @@ export default function RouteVariantEditorPanel({
         {/* Editing mode heading */}
         <div className="rounded-xl border border-stroke bg-background p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-            {variant ? "Edit variant path" : "Create variant"}
+            {variant ? "Edit direction" : "Add direction"}
           </p>
           <h2 className="mt-1 font-semibold text-text-primary">
             Route {route.code}
           </h2>
           <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-            Geometry vertices define the LineString. Ordered Transit Points remain
-            separate managed infrastructure.
+            Choose the starting and last stops, draw the roads used by this
+            direction, then add stops along the way. The return journey needs
+            its own direction.
           </p>
           {editor.isDirty && (
             <p className="mt-3 text-xs font-semibold text-warning">
@@ -106,7 +107,7 @@ export default function RouteVariantEditorPanel({
             disabledTooltip="Make a route change before saving."
             onClick={handleSave}
           >
-            {variant ? "Save Changes" : "Save Variant"}
+            {variant ? "Save Changes" : "Save Direction"}
           </Button>
         </div>
       </section>
@@ -114,8 +115,8 @@ export default function RouteVariantEditorPanel({
       {/* Clear geometry confirmation */}
       <EditorConfirmationModal
         isOpen={isClearConfirmationOpen}
-        title="Clear Route Geometry?"
-        description="All current LineString vertices will be removed from the editor."
+        title="Clear Route Path?"
+        description="All drawing points for this path will be removed from the editor."
         warning="You can restore the cleared geometry with Undo while this editor remains open."
         confirmLabel="Clear Route"
         onCancel={() => setIsClearConfirmationOpen(false)}

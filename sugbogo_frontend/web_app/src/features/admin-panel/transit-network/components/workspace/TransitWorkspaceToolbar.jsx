@@ -42,20 +42,20 @@ function getModePresentation(
       hint: "Update the selected route in the inspector.",
     },
     [TRANSIT_MODES.CREATE_VARIANT_DRAW]: {
-      label: "Drawing Variant",
-      hint: "Click the map to add route vertices in travel order.",
+      label: "Drawing Direction",
+      hint: "Click along the roads in travel order to draw this direction.",
     },
     [TRANSIT_MODES.CREATE_VARIANT_ADJUST]: {
-      label: "Creating Variant",
-      hint: "Drag vertices or manage ordered Transit Points in the inspector.",
+      label: "Adding Direction",
+      hint: "Choose stops and adjust the path in the inspector.",
     },
     [TRANSIT_MODES.EDIT_VARIANT_DRAW]: {
       label: "Editing Route Path",
-      hint: "Click the map to append vertices or drag existing vertices.",
+      hint: "Click to extend the path, or drag its numbered drawing points.",
     },
     [TRANSIT_MODES.EDIT_VARIANT_ADJUST]: {
       label: "Editing Route Path",
-      hint: "Drag numbered vertices to adjust the LineString.",
+      hint: "Drag the numbered drawing points to follow the road.",
     },
     [TRANSIT_MODES.ADD_POINT]: {
       label: "Adding Transit Point",
@@ -90,7 +90,7 @@ function getModePresentation(
     label: "Browse",
     hint:
       context === TRANSIT_CONTEXTS.ROUTES
-        ? "Select a route or directional variant to inspect it."
+        ? "Select a route or travel direction to inspect it."
         : context === TRANSIT_CONTEXTS.POINTS
           ? "Select a Transit Point marker or list item to inspect it."
           : "Select a directed transfer to review it.",
@@ -144,7 +144,7 @@ export default function TransitWorkspaceToolbar({
               Cancel safely with <kbd className="font-semibold">Esc</kbd>
               {mode.includes("variant") && !isCreatingRouteTransitPoint && (
                 <>
-                  {" "}· Undo geometry with {" "}
+                  {" "}· Undo path changes with {" "}
                   <kbd className="font-semibold">Ctrl/Cmd+Z</kbd>
                 </>
               )}

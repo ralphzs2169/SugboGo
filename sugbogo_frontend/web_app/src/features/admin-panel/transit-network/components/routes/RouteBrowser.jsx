@@ -1,7 +1,6 @@
-import { ChevronDown, ChevronRight, Plus, Route, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Route, Search } from "lucide-react";
 
 import TablePagination from "@/features/admin-panel/components/data-table/TablePagination";
-import Button from "@/shared/components/Button";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 
 /**
@@ -30,7 +29,6 @@ export default function RouteBrowser({
   onVariantSelect,
   onRetry,
   onDetailRetry,
-  onAddRoute,
 }) {
   return (
     <section className="flex h-full min-h-0 flex-col rounded-xl border border-stroke bg-background p-4">
@@ -153,7 +151,7 @@ export default function RouteBrowser({
                       </div>
                     ) : (
                       <p className="px-3 py-3 text-xs text-text-secondary">
-                        No directional variants yet.
+                        No directions yet. Select this route to add its first direction.
                       </p>
                     )}
                   </div>
@@ -186,14 +184,6 @@ export default function RouteBrowser({
           onPageChange={onPageChange}
         />
       )}
-      <Button
-        className="mt-4 w-full"
-        icon={Plus}
-        disabled={interactionDisabled}
-        onClick={onAddRoute}
-      >
-        Add Route
-      </Button>
     </section>
   );
 }
