@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { ReactNode } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,6 +21,9 @@ type Props = {
   disabled?: boolean;
   hideQuickFilters?: boolean;
   onHeaderLayout?: (bottom: number) => void;
+  openNowBusy?: boolean;
+  openNowUnresolved?: boolean;
+  children?: ReactNode;
 };
 
 const BRAND = theme.extends.colors.brand;
@@ -61,6 +65,9 @@ export default function MapSearchOverlay({
   disabled = false,
   hideQuickFilters = false,
   onHeaderLayout,
+  openNowBusy = false,
+  openNowUnresolved = false,
+  children,
 }: Props) {
   const insets = useSafeAreaInsets();
   const advancedFilterCount =
@@ -156,6 +163,8 @@ export default function MapSearchOverlay({
         >
           {QUICK_FILTERS.map((filter) => {
             const isActive = filters[filter.key];
+            const isBusy = filter.key === "openNow" && openNowBusy;
+            const isUnresolved = filter.key === "openNow" && openNowUnresolved;
 
             return (
               <Pressable
@@ -165,7 +174,12 @@ export default function MapSearchOverlay({
                 hitSlop={4}
                 accessibilityRole="button"
                 accessibilityLabel={filter.label}
-                accessibilityState={{ selected: isActive, disabled }}
+                accessibilityState={{ selected: isActive, disabled, busy: isBusy }}
+                accessibilityHint={
+                  isUnresolved
+                    ? "Open Now has not been applied yet. Previous places remain visible."
+                    : undefined
+                }
                 className={`min-h-10 flex-row items-center gap-1.5 rounded-full border px-3.5 active:opacity-70 ${disabled ? "opacity-50" : ""}`}
                 style={[
                   CHIP_SHADOW,
@@ -194,7 +208,7 @@ export default function MapSearchOverlay({
                 >
                   {filter.label}
                 </AppText>
-                {isActive && (
+                {isActive && !isUnresolved && (
                   <MaterialCommunityIcons
                     name="check"
                     size={15}
@@ -235,6 +249,10 @@ export default function MapSearchOverlay({
           )}
         </ScrollView>
       )}
+      {/* Compact discovery status stays visible when quick filters collapse. */}
+      <View className="mt-2" pointerEvents="box-none">
+        {children}
+      </View>
     </View>
   );
 }

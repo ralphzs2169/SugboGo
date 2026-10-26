@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   BackHandler,
@@ -23,7 +22,6 @@ import type {
 } from "@/features/explore/types/exploreBusiness.types";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import useNavigationAction from "@/shared/hooks/useNavigationAction";
@@ -36,6 +34,7 @@ import BusinessDiscoveryMap, {
 } from "../components/BusinessDiscoveryMap";
 import MapControls from "../components/MapControls";
 import MapSearchOverlay from "../components/MapSearchOverlay";
+import MapDiscoveryStatus from "../components/MapDiscoveryStatus";
 import MSMEPreviewCard from "../components/MSMEPreviewCard";
 import MapBusinessSearchSheet from "../components/MapBusinessSearchSheet";
 import useMapDirectory from "../hooks/useMapDirectory";
@@ -452,24 +451,6 @@ export default function MapScreen() {
     }
   };
 
-  let statusMessage: string | null = null;
-  if (selectionUnavailable) {
-    statusMessage = "This business is no longer available. Try another search.";
-  } else if (discovery.isLoading) {
-    statusMessage = "Loading business directory…";
-  } else if (discovery.isLoadingOpenNow) {
-    statusMessage = "Checking opening hours…";
-  } else if (
-    !discovery.error &&
-    !discovery.openNowError &&
-    discovery.businesses.length === 0
-  ) {
-    statusMessage =
-      filterCount > 0
-        ? "No businesses match these map filters. Clear or adjust filters."
-        : "No businesses are available yet.";
-  }
-
   return (
     <View
       ref={viewportRef}
@@ -531,6 +512,8 @@ export default function MapScreen() {
         filters={filters}
         hideQuickFilters={selectedBusinessId !== null}
         filterCount={filterCount}
+        openNowBusy={discovery.isApplyingOpenNow}
+        openNowUnresolved={discovery.isOpenNowUnresolved}
         onSearch={() => {
           setSearchSheetVisible(true);
           presentBottomSheet(searchSheetRef);
@@ -540,7 +523,14 @@ export default function MapScreen() {
           setFilters({ ...filters, [key]: !filters[key] })
         }
         onClear={() => setFilters(DEFAULT_MAP_FILTERS)}
-      />
+      >
+        <MapDiscoveryStatus
+          discovery={discovery}
+          filterCount={filterCount}
+          openNowRequested={filters.openNow}
+          hasSelectedBusiness={selectedBusiness !== undefined}
+        />
+      </MapSearchOverlay>
       <MapControls
         onLocateMe={() => void locateMe()}
         isLocating={userLocation.isRefreshingLocation}
@@ -549,7 +539,7 @@ export default function MapScreen() {
         }
       />
 
-      {/* Nonblocking directory feedback */}
+      {/* Selection and taxonomy feedback retain their existing presentation. */}
       <View
         className="absolute left-md right-md gap-sm"
         style={{ bottom: bottomSpacing }}
@@ -593,44 +583,17 @@ export default function MapScreen() {
               />
             </View>
           )}
-          {statusMessage && !selectedBusiness && (
+          {selectionUnavailable && !selectedBusiness && (
             <View className="flex-row items-center gap-sm rounded-card bg-surface p-md">
-              {discovery.isFetching && (
-                <ActivityIndicator color={theme.extends.colors.brand} />
-              )}
               <AppText
                 className="flex-1 text-small text-text-secondary"
                 accessibilityLiveRegion="polite"
               >
-                {statusMessage}
+                This business is no longer available. Try another search.
               </AppText>
             </View>
           )}
 
-          {discovery.error && (
-            <View className="rounded-card bg-surface">
-              <ErrorState
-                size="section"
-                title="Could not load businesses"
-                description="The complete directory could not be loaded. Any previous complete results remain available."
-                primaryActionTitle="Retry"
-                onPrimaryAction={() => {
-                  void discovery.refetch();
-                }}
-              />
-            </View>
-          )}
-          {discovery.openNowError && (
-            <View className="rounded-card bg-surface">
-              <ErrorState
-                size="section"
-                title="Could not check opening hours"
-                description="Opening information could not be refreshed. Retry or turn off Open Now."
-                primaryActionTitle="Retry"
-                onPrimaryAction={() => void discovery.refetchOpenNow()}
-              />
-            </View>
-          )}
         </View>
 
         {/* Full-width preview owns no camera or server state. */}

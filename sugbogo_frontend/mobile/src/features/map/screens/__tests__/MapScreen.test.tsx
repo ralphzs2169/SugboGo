@@ -3,11 +3,13 @@ import type { LocationObject } from "expo-location";
 import * as Location from "expo-location";
 import {
   focusManager,
+  onlineManager,
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   renderHook,
@@ -19,6 +21,7 @@ import useUserLocation from "@/shared/hooks/useUserLocation";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { getMapDirectoryPage } from "../../api/mapDiscovery.service";
 import MapScreen from "../MapScreen";
+import { MAP_DIRECTORY_QUERY_KEY } from "../../hooks/useMapDirectory";
 import { router, useNavigation } from "expo-router";
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
 
@@ -200,6 +203,14 @@ function deferredLocation() {
   return { promise, resolve };
 }
 
+function deferredDirectoryResponse() {
+  let resolve!: (value: unknown) => void;
+  const promise = new Promise((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
 async function setupLocateMe(refreshLocation: jest.Mock) {
   (useUserLocation as jest.Mock).mockReturnValue({
     status: "denied",
@@ -277,6 +288,7 @@ beforeEach(() => {
   mockScreenFocused = true;
   AppState.currentState = "active";
   focusManager.setFocused(true);
+  onlineManager.setOnline(true);
   mockAppListeners.clear();
   jest.spyOn(AppState, "addEventListener").mockImplementation(
     (_event, callback) => {
@@ -317,9 +329,11 @@ beforeEach(() => {
   (getMapDirectoryPage as jest.Mock).mockResolvedValue(response());
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await cleanup();
   jest.restoreAllMocks();
   clients.splice(0).forEach((client) => client.clear());
+  onlineManager.setOnline(true);
   focusManager.setFocused(true);
 });
 
@@ -470,7 +484,7 @@ it("keeps the map visible on failure and retries the directory", async () => {
   expect(screen.getByTestId("discovery-map")).toBeTruthy();
   expect(screen.queryByText("No businesses are available yet.")).toBeNull();
   await fireEvent.press(
-    screen.getByRole("button", { name: /Could not load businesses.*retry/i }),
+    screen.getByRole("button", { name: "Retry loading places" }),
   );
   await waitFor(() =>
     expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(
@@ -509,13 +523,14 @@ it("reports Open Now errors separately and retries without refetching the base d
   );
   await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
   await waitFor(() =>
-    expect(screen.getByText("Could not check opening hours")).toBeTruthy(),
+    expect(screen.getByText(/Could not check opening hours/)).toBeTruthy(),
   );
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
   expect(screen.queryByText(/No businesses match/)).toBeNull();
   fail = false;
   await fireEvent.press(
     screen.getByRole("button", {
-      name: /Could not check opening hours.*retry/i,
+      name: "Retry checking opening hours",
     }),
   );
   await waitFor(() =>
@@ -1266,4 +1281,202 @@ it("preserves explicit Locate Me through a temporary inactive permission dialog"
     await request.promise;
   });
   expect(camera.animateToRegion).toHaveBeenCalledTimes(1);
+});
+
+it("shows compact first-load feedback while the discovery map stays interactive", async () => {
+  const pending = deferredDirectoryResponse();
+  (getMapDirectoryPage as jest.Mock).mockReturnValue(pending.promise);
+  const screen = await setup();
+  expect(screen.getByRole("progressbar", { name: "Finding places…" })).toBeTruthy();
+  expect(screen.queryByText("Loading business directory…")).toBeNull();
+  expect(screen.queryByText(/No businesses/)).toBeNull();
+  const map = screen.getByTestId("discovery-map");
+  expect(map.props.interactive).not.toBe(false);
+  await fireEvent(map, "mapInteraction");
+  await act(async () => pending.resolve(response()));
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  expect(screen.queryByText("Finding places…")).toBeNull();
+});
+
+it("retains markers and preview through directory refresh and localized failure recovery", async () => {
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  const pending = deferredDirectoryResponse();
+  (getMapDirectoryPage as jest.Mock).mockReturnValueOnce(pending.promise);
+  const client = clients[clients.length - 1];
+  await act(() => {
+    void client.refetchQueries({ queryKey: [...MAP_DIRECTORY_QUERY_KEY, "all"] });
+  });
+  await waitFor(() => expect(screen.getByText("Updating places…")).toBeTruthy());
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+  await act(async () => pending.resolve({
+    success: false,
+    code: "NETWORK_ERROR",
+    message: "Refresh failed",
+  }));
+  await waitFor(() =>
+    expect(screen.getByText(/Could not update places/)).toBeTruthy(),
+  );
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByText(business.business_name)).toBeTruthy();
+  const callsBeforeRetry = jest.mocked(getMapDirectoryPage).mock.calls.length;
+  await fireEvent.press(screen.getByRole("button", { name: "Retry loading places" }));
+  await waitFor(() =>
+    expect(screen.queryByText(/Could not update places/)).toBeNull(),
+  );
+  await waitFor(() =>
+    expect(screen.queryByText("Updating places…")).toBeNull(),
+  );
+  expect(getMapDirectoryPage).toHaveBeenCalledTimes(callsBeforeRetry + 1);
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+});
+
+it("retains markers and pending selection until Open Now resolves, then removes an excluded selection", async () => {
+  const second = { ...business, id: 77, business_name: "Open Cafe" };
+  const pending = deferredDirectoryResponse();
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.openNow) {
+        return pending.promise;
+      }
+      return Promise.resolve(response([business, second]));
+    },
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(2),
+  );
+  await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
+  expect(screen.getByRole("button", {
+    name: "Open Now",
+    selected: true,
+    busy: true,
+  })).toBeTruthy();
+  expect(screen.getByText(/Checking what's open/)).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(2);
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  expect(screen.getByText(business.business_name)).toBeTruthy();
+  expect(screen.getByText(/Checking what's open/)).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+
+  await act(async () => pending.resolve(response([second])));
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses.map(
+      (marker: { id: number }) => marker.id,
+    )).toEqual([77]),
+  );
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBeNull();
+  expect(screen.queryByText(business.business_name)).toBeNull();
+  expect(screen.queryByText(/Checking what's open/)).toBeNull();
+  expect(screen.getByRole("button", {
+    name: "Open Now",
+    selected: true,
+    busy: false,
+  })).toBeTruthy();
+});
+
+it("keeps confirmed Open Now results and selection through a failed hours refresh", async () => {
+  const second = { ...business, id: 77, business_name: "Other Cafe" };
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    async (_page, _signal, options) => response(
+      options.openNow ? [business] : [business, second],
+    ),
+  );
+  const screen = await setup();
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(2),
+  );
+  await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  (getMapDirectoryPage as jest.Mock).mockResolvedValueOnce({
+    success: false,
+    message: "Hours refresh failed",
+  });
+  const client = clients[clients.length - 1];
+  await act(async () => {
+    await client.refetchQueries({ queryKey: [...MAP_DIRECTORY_QUERY_KEY, "open-now"] });
+  });
+  await waitFor(() =>
+    expect(screen.getByText(/Could not update opening hours/)).toBeTruthy(),
+  );
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+  expect(screen.queryByText(/No businesses match/)).toBeNull();
+  expect(screen.queryByText(/Checking what's open/)).toBeNull();
+  await fireEvent.press(screen.getByRole("button", { name: "Retry checking opening hours" }));
+  await waitFor(() =>
+    expect(screen.queryByText(/Could not update opening hours/)).toBeNull(),
+  );
+});
+
+it("shows offline recovery instead of endless initial loading and resumes the affected query", async () => {
+  onlineManager.setOnline(false);
+  const screen = await setup();
+  expect(screen.getByText("You're offline. Connect to load places.")).toBeTruthy();
+  expect(screen.queryByText("Finding places…")).toBeNull();
+  expect(screen.queryByText(/No businesses/)).toBeNull();
+  expect(screen.getByTestId("discovery-map")).toBeTruthy();
+  await fireEvent.press(screen.getByRole("button", {
+    name: "Retry loading places",
+    disabled: false,
+    busy: false,
+  }));
+  expect(getMapDirectoryPage).not.toHaveBeenCalled();
+  expect(screen.queryByText("Finding places…")).toBeNull();
+  await act(() => onlineManager.setOnline(true));
+  await waitFor(() =>
+    expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1),
+  );
+  expect(getMapDirectoryPage).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText(/You're offline/)).toBeNull();
+});
+
+it("keeps a fresh cached directory selectable offline even before a query pauses", async () => {
+  const client = new QueryClient();
+  client.setQueryData([...MAP_DIRECTORY_QUERY_KEY, "all"], [business]);
+  onlineManager.setOnline(false);
+  const screen = await setup(client);
+  expect(screen.getByText("Offline · showing previous results")).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  expect(getMapDirectoryPage).not.toHaveBeenCalled();
+  await fireEvent(screen.getByTestId("discovery-map"), "businessPress", 42);
+  expect(screen.getByText(business.business_name)).toBeTruthy();
+  expect(screen.getByText("Offline · showing previous results")).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.selectedBusinessId).toBe(42);
+});
+
+it("keeps offline Open Now visibly unapplied and retries hours without reloading the directory", async () => {
+  const client = new QueryClient();
+  client.setQueryData([...MAP_DIRECTORY_QUERY_KEY, "all"], [business]);
+  onlineManager.setOnline(false);
+  const screen = await setup(client);
+  await fireEvent.press(screen.getByRole("button", { name: "Open Now" }));
+  expect(screen.getByRole("button", {
+    name: "Open Now",
+    selected: true,
+    busy: false,
+  })).toBeTruthy();
+  expect(screen.getByText(/Offline · Open Now not applied/)).toBeTruthy();
+  expect(screen.getByTestId("discovery-map").props.businesses).toHaveLength(1);
+  await fireEvent.press(screen.getByRole("button", { name: "Retry checking opening hours" }));
+  expect(getMapDirectoryPage).not.toHaveBeenCalled();
+  await act(() => onlineManager.setOnline(true));
+  await waitFor(() => expect(getMapDirectoryPage).toHaveBeenCalledTimes(1));
+  await waitFor(() =>
+    expect(screen.queryByText(/Open Now not applied/)).toBeNull(),
+  );
+  expect(getMapDirectoryPage).toHaveBeenLastCalledWith(
+    1,
+    expect.anything(),
+    { openNow: true },
+  );
 });

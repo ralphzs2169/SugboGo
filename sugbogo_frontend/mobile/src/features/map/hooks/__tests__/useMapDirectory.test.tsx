@@ -1,14 +1,17 @@
 import React, { type PropsWithChildren } from "react";
 import { AppState, type AppStateStatus } from "react-native";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react-native";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react-native";
 
 import { getMapDirectoryPage } from "../../api/mapDiscovery.service";
 import {
   DEFAULT_MAP_FILTERS,
   type MapDiscoveryFilters,
 } from "../../types/mapDiscovery.types";
-import useMapDirectory, { matchesMapFilters } from "../useMapDirectory";
+import useMapDirectory, {
+  MAP_DIRECTORY_QUERY_KEY,
+  matchesMapFilters,
+} from "../useMapDirectory";
 
 let mockFocused = true;
 jest.mock("expo-router", () => ({ useIsFocused: () => mockFocused }));
@@ -58,8 +61,12 @@ function response(
 }
 const clients: QueryClient[] = [];
 let appStateChanged: (state: AppStateStatus) => void;
-function setup(filters = DEFAULT_MAP_FILTERS, searchId?: number) {
-  const client = new QueryClient({
+function setup(
+  filters = DEFAULT_MAP_FILTERS,
+  searchId?: number,
+  existingClient?: QueryClient,
+) {
+  const client = existingClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
   clients.push(client);
@@ -84,6 +91,7 @@ function setup(filters = DEFAULT_MAP_FILTERS, searchId?: number) {
 }
 beforeEach(() => {
   mockFocused = true;
+  onlineManager.setOnline(true);
   AppState.currentState = "active";
   jest
     .spyOn(AppState, "addEventListener")
@@ -93,8 +101,10 @@ beforeEach(() => {
     });
   (getMapDirectoryPage as jest.Mock).mockResolvedValue(response());
 });
-afterEach(() => {
+afterEach(async () => {
+  await cleanup();
   clients.splice(0).forEach((client) => client.clear());
+  onlineManager.setOnline(true);
   jest.restoreAllMocks();
   jest.useRealTimers();
 });
@@ -273,4 +283,156 @@ it("cancels an in-flight directory when the screen loses focus", async () => {
   mockFocused = false;
   await rerender({ currentFilters: DEFAULT_MAP_FILTERS });
   expect(signal?.aborted).toBe(true);
+});
+
+it("preserves local-filtered markers until the first Open Now result commits atomically", async () => {
+  const second = { ...business, id: 2 };
+  let finish!: (value: unknown) => void;
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.openNow) {
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      }
+      return Promise.resolve(response([business, second]));
+    },
+  );
+  const { result, rerender } = await setup();
+  await waitFor(() => expect(result.current.businesses).toHaveLength(2));
+  await rerender({ currentFilters: { ...DEFAULT_MAP_FILTERS, openNow: true } });
+  await waitFor(() => expect(result.current.isApplyingOpenNow).toBe(true));
+  expect(result.current.isOpenNowUnresolved).toBe(true);
+  expect(result.current.businesses).toEqual([business, second]);
+  await act(async () => finish(response([second])));
+  await waitFor(() => expect(result.current.businesses).toEqual([second]));
+  expect(result.current.hasOpenNowResult).toBe(true);
+  expect(result.current.isOpenNowUnresolved).toBe(false);
+});
+
+it("keeps markers and an unapplied filter after the first Open Now failure", async () => {
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    async (_page, _signal, options) => {
+      if (options.openNow) {
+        return { success: false, message: "Could not check hours" };
+      }
+      return response();
+    },
+  );
+  const { result, rerender } = await setup();
+  await waitFor(() => expect(result.current.hasDirectory).toBe(true));
+  await rerender({ currentFilters: { ...DEFAULT_MAP_FILTERS, openNow: true } });
+  await waitFor(() => expect(result.current.openNowError).toBeTruthy());
+  expect(result.current.businesses).toEqual([business]);
+  expect(result.current.hasOpenNowResult).toBe(false);
+  expect(result.current.isOpenNowUnresolved).toBe(true);
+  expect(result.current.isApplyingOpenNow).toBe(false);
+});
+
+it("keeps confirmed Open Now IDs during failed background refresh", async () => {
+  const second = { ...business, id: 2 };
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    async (_page, _signal, options) => response(
+      options.openNow ? [second] : [business, second],
+    ),
+  );
+  const { result } = await setup({ ...DEFAULT_MAP_FILTERS, openNow: true });
+  await waitFor(() => expect(result.current.businesses).toEqual([second]));
+  (getMapDirectoryPage as jest.Mock).mockResolvedValue({
+    success: false,
+    message: "Hours refresh failed",
+  });
+  await act(async () => {
+    await result.current.refetchOpenNow();
+  });
+  await waitFor(() => expect(result.current.openNowError).toBeTruthy());
+  expect(result.current.hasOpenNowResult).toBe(true);
+  expect(result.current.isOpenNowUnresolved).toBe(false);
+  expect(result.current.businesses).toEqual([second]);
+});
+
+it("keeps a complete directory visible throughout refresh and commits a successful empty response", async () => {
+  const { result } = await setup();
+  await waitFor(() => expect(result.current.hasDirectory).toBe(true));
+  let finish!: (value: unknown) => void;
+  (getMapDirectoryPage as jest.Mock).mockImplementation(() => new Promise(
+    (resolve) => {
+      finish = resolve;
+    },
+  ));
+  await act(() => {
+    void result.current.refetch();
+  });
+  await waitFor(() => expect(result.current.isFetching).toBe(true));
+  expect(result.current.isLoading).toBe(false);
+  expect(result.current.businesses).toEqual([business]);
+  await act(async () => finish(response([])));
+  await waitFor(() => expect(result.current.isFetching).toBe(false));
+  expect(result.current.hasDirectory).toBe(true);
+  expect(result.current.businesses).toEqual([]);
+});
+
+it("exposes paused initial fetching without pretending to be actively loading", async () => {
+  onlineManager.setOnline(false);
+  const { result } = await setup();
+  expect(result.current.hasDirectory).toBe(false);
+  expect(result.current.isOffline).toBe(true);
+  expect(result.current.isPaused).toBe(true);
+  expect(result.current.isLoading).toBe(false);
+  expect(result.current.isFetching).toBe(false);
+  expect(getMapDirectoryPage).not.toHaveBeenCalled();
+  await act(() => {
+    void result.current.refetch();
+  });
+  expect(result.current.isPaused).toBe(true);
+  await act(() => onlineManager.setOnline(true));
+  await waitFor(() => expect(result.current.hasDirectory).toBe(true));
+  expect(getMapDirectoryPage).toHaveBeenCalledTimes(1);
+});
+
+it("reports offline status even while a fresh cached directory is idle", async () => {
+  const client = new QueryClient();
+  client.setQueryData([...MAP_DIRECTORY_QUERY_KEY, "all"], [business]);
+  const { result } = await setup(DEFAULT_MAP_FILTERS, undefined, client);
+  expect(result.current.isPaused).toBe(false);
+  expect(result.current.isFetching).toBe(false);
+  await act(() => onlineManager.setOnline(false));
+  expect(result.current.isOffline).toBe(true);
+  expect(result.current.hasDirectory).toBe(true);
+  expect(result.current.businesses).toEqual([business]);
+  expect(getMapDirectoryPage).not.toHaveBeenCalled();
+});
+
+it("retains cached markers while the first Open Now request is paused", async () => {
+  const { result, rerender } = await setup();
+  await waitFor(() => expect(result.current.hasDirectory).toBe(true));
+  await act(() => onlineManager.setOnline(false));
+  await rerender({ currentFilters: { ...DEFAULT_MAP_FILTERS, openNow: true } });
+  expect(result.current.isPausedOpenNow).toBe(true);
+  expect(result.current.isApplyingOpenNow).toBe(false);
+  expect(result.current.isOpenNowUnresolved).toBe(true);
+  expect(result.current.businesses).toEqual([business]);
+  expect(getMapDirectoryPage).toHaveBeenCalledTimes(1);
+});
+
+it("does not apply a late first Open Now result after the filter is switched off", async () => {
+  let finish!: (value: unknown) => void;
+  (getMapDirectoryPage as jest.Mock).mockImplementation(
+    (_page, _signal, options) => {
+      if (options.openNow) {
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      }
+      return Promise.resolve(response());
+    },
+  );
+  const { result, rerender } = await setup();
+  await waitFor(() => expect(result.current.hasDirectory).toBe(true));
+  await rerender({ currentFilters: { ...DEFAULT_MAP_FILTERS, openNow: true } });
+  await waitFor(() => expect(result.current.isApplyingOpenNow).toBe(true));
+  await rerender({ currentFilters: DEFAULT_MAP_FILTERS });
+  await act(async () => finish(response([])));
+  expect(result.current.businesses).toEqual([business]);
+  expect(result.current.isOpenNowUnresolved).toBe(false);
 });
