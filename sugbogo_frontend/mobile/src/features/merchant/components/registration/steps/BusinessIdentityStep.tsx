@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
@@ -66,7 +66,19 @@ export default function BusinessIdentityStep({
   const categorySheetRef = useRef<BottomSheetModal>(null);
 
   const representativeRoleSheetRef = useRef<BottomSheetModal>(null);
-  const { control, setValue } = useFormContext<MerchantRegistrationForm>();
+  const {
+    control,
+    setValue,
+    formState: { disabled },
+  } = useFormContext<MerchantRegistrationForm>();
+
+  useEffect(() => {
+    if (disabled) {
+      clusterSheetRef.current?.dismiss();
+      categorySheetRef.current?.dismiss();
+      representativeRoleSheetRef.current?.dismiss();
+    }
+  }, [disabled]);
 
   const selectedRepresentativeRole = useWatch({
     control,
@@ -118,6 +130,7 @@ export default function BusinessIdentityStep({
   }
 
   function handleSelectCluster(value: string) {
+    if (disabled) return;
     setValue("businessCluster", value, {
       shouldValidate: true,
       shouldDirty: true,
@@ -132,6 +145,7 @@ export default function BusinessIdentityStep({
   }
 
   function handleSelectCategory(value: string) {
+    if (disabled) return;
     setValue("businessCategory", value, {
       shouldValidate: true,
       shouldDirty: true,
@@ -139,11 +153,12 @@ export default function BusinessIdentityStep({
   }
 
   function handleOpenClusterSheet() {
+    if (disabled) return;
     presentBottomSheet(clusterSheetRef);
   }
 
   function handleOpenCategorySheet() {
-    if (!selectedCluster) {
+    if (disabled || !selectedCluster) {
       return;
     }
 
@@ -151,6 +166,7 @@ export default function BusinessIdentityStep({
   }
 
   function handleOpenRepresentativeRoleSheet() {
+    if (disabled) return;
     presentBottomSheet(representativeRoleSheetRef);
   }
 
@@ -158,6 +174,7 @@ export default function BusinessIdentityStep({
    * Updates the representative role selected in the form.
    */
   function handleSelectRepresentativeRole(value: string) {
+    if (disabled) return;
     setValue("representativeRole", value as RepresentativeRole, {
       shouldValidate: true,
       shouldDirty: true,
@@ -244,12 +261,14 @@ export default function BusinessIdentityStep({
           />
         </View>
 
-        <RHFFormInput
-          name="website"
-          label="Website / Social Media (Optional)"
-          placeholder="https://..."
-          autoCapitalize="none"
-        />
+        <View {...registerErrorScrollTarget("website")}>
+          <RHFFormInput
+            name="website"
+            label="Website / Social Media (Optional)"
+            placeholder="https://..."
+            autoCapitalize="none"
+          />
+        </View>
       </RegistrationSection>
 
       {/* Specialty Tags Section */}
@@ -279,13 +298,15 @@ export default function BusinessIdentityStep({
           />
         </View>
 
-        <RHFFormInput
-          name="businessEmail"
-          label="Business Email (Optional)"
-          placeholder="business@example.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+        <View {...registerErrorScrollTarget("businessEmail")}>
+          <RHFFormInput
+            name="businessEmail"
+            label="Business Email (Optional)"
+            placeholder="business@example.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+        </View>
       </RegistrationSection>
 
       {/* Representative Information Section */}

@@ -6,7 +6,14 @@ import {
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   BackHandler,
@@ -24,6 +31,7 @@ import PhotoPreview from "@/features/merchant/components/registration/business-p
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FormTextArea from "@/shared/components/form/FormTextArea";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
 import type { ApiError, ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -33,6 +41,7 @@ import {
   checkReviewSubmissionAgain,
   isUncertainReviewOutcome,
   isUncertainReviewSubmissionOutcome,
+  useReviewWorkflowStore,
 } from "../../stores/reviewWorkflow.store";
 import {
   getAuthSessionGeneration,
@@ -47,6 +56,7 @@ import type {
   BusinessReview,
   LocalReviewPhoto,
   ReviewPhoto,
+  ReviewCreateResult,
 } from "../../types/review.types";
 
 export type EditableReview = Pick<
@@ -161,6 +171,7 @@ function BusinessContext({
  *
  * Presents compact business context, review text and photo controls, validation,
  * and submission feedback while preserving existing review data during edits.
+ * Confirms unsaved dismissal through the shared ref, backdrop and native gestures.
  * The submit action lives in a sticky footer that respects the bottom safe area,
  * so it never collides with the system navigation bar or gesture area.
  */
@@ -178,7 +189,16 @@ export default function ReviewComposerSheet({
       ? null
       : selectedReview;
   const insets = useSafeAreaInsets();
+  const nativeSheetRef = useRef<BottomSheetModal>(null);
   const submissionPending = useRef(false);
+  const pickerOperation = useRef<object | null>(null);
+  const dismissalRequested = useRef(false);
+  const dismissalIssued = useRef(false);
+  const completed = useRef(false);
+  const savedReview = useRef<{
+    source: EditableReview;
+    result: EditableReview;
+  } | null>(null);
   const dismissedReceiptId = useRef<number | null>(null);
   const submissionOwner = useRef<{
     userId: number | undefined;
@@ -215,6 +235,8 @@ export default function ReviewComposerSheet({
   const [originalShowInCommunity, setOriginalShowInCommunity] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [errors, setErrors] = useState<ReviewErrors>({});
+  const [showDiscard, setShowDiscard] = useState(false);
+  const [shouldDismiss, setShouldDismiss] = useState(false);
   const [editFeedback, setEditFeedback] =
     useState<ReviewEditFeedbackCode | null>(null);
 
@@ -234,16 +256,10 @@ export default function ReviewComposerSheet({
     }
 
     // Receipt is authoritative; cache refreshes and moderation can finish later.
-    dismissedReceiptId.current = submission.result.id;
-    Toast.show({
-      type: "success",
-      text1: "Review received",
-      ...(submission.result.status === "under_review"
-        ? { text2: reviewModerationFeedback(submission.result).description }
-        : {}),
-    });
-    sheetRef.current?.dismiss();
-  }, [isEditing, isSheetOpen, submission, sheetRef]);
+    completeCreate(submission.result);
+    // Both receipt reconciliation and mutateAsync share the same completion gate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, isSheetOpen, submission]);
 
   const photoCount = photos.length + existingPhotos.length;
   const canAddMore = photoCount < MAX_REVIEW_PHOTOS;
@@ -257,22 +273,57 @@ export default function ReviewComposerSheet({
     existingPhotos.some((photo) => !originalPhotoIds.includes(photo.id));
   const photosChanged = photos.length > 0 || existingPhotosChanged;
   const communityChanged = showInCommunity !== originalShowInCommunity;
+  const backgroundSubmission =
+    !isEditing &&
+    submission &&
+    ["submitting", "confirming", "unconfirmed"].includes(submission.state)
+      ? submission
+      : null;
+  const hasUnsavedChanges = isEditing
+    ? textChanged || photosChanged || communityChanged
+    : backgroundSubmission
+      ? trimmedText !== backgroundSubmission.text.trim() ||
+        showInCommunity !== backgroundSubmission.showInCommunity ||
+        photos.length !== backgroundSubmission.photos.length ||
+        photos.some(
+          (photo, index) =>
+            photo.uri !== backgroundSubmission.photos[index]?.uri,
+        )
+      : trimmedText.length > 0 || photos.length > 0 || communityChanged;
 
   const hasChanges =
     !isEditing || textChanged || photosChanged || communityChanged;
   const canSubmit =
     !isPending &&
+    !isPicking &&
     hasChanges &&
     (isEditing || !submission || submission.state === "failed");
 
+  const clearForm = useCallback(() => {
+    setText("");
+    setOriginalText("");
+    setPhotos([]);
+    setExistingPhotos([]);
+    setOriginalPhotoIds([]);
+    setShowInCommunity(true);
+    setOriginalShowInCommunity(true);
+    setErrors({});
+    setEditFeedback(null);
+  }, []);
+
   function resetForm() {
-    const initialText = review?.text ?? submission?.text ?? "";
-    const initialPhotos = review?.photos ?? [];
+    const persistedReview =
+      savedReview.current && savedReview.current.source === review
+        ? savedReview.current.result
+        : review;
+    const draft = submission?.state !== "acknowledged" ? submission : undefined;
+    const initialText = persistedReview?.text ?? draft?.text ?? "";
+    const initialPhotos = persistedReview?.photos ?? [];
     const initialCommunity =
-      review?.show_in_community ?? submission?.showInCommunity ?? true;
+      persistedReview?.show_in_community ?? draft?.showInCommunity ?? true;
 
     setText(initialText);
-    setPhotos(review ? [] : (submission?.photos ?? []));
+    setPhotos(persistedReview ? [] : (draft?.photos ?? []));
     setExistingPhotos(initialPhotos);
     setOriginalText(initialText);
     setOriginalPhotoIds(initialPhotos.map((photo) => photo.id));
@@ -280,6 +331,106 @@ export default function ReviewComposerSheet({
     setOriginalShowInCommunity(initialCommunity);
     setErrors({});
     setEditFeedback(null);
+  }
+
+  const approveDismiss = useCallback(() => {
+    if (dismissalRequested.current) {
+      return;
+    }
+
+    dismissalRequested.current = true;
+    pickerOperation.current = null;
+    setIsPicking(false);
+    setShowDiscard(false);
+    setShouldDismiss(true);
+  }, []);
+
+  const requestDismiss = useCallback(() => {
+    if (dismissalRequested.current) {
+      return;
+    }
+    if (isEditing && (isPending || submissionPending.current)) {
+      return;
+    }
+    // New submissions already belong to the session workflow and may finish hidden.
+    if (!isEditing && (isPending || submissionPending.current)) {
+      approveDismiss();
+      return;
+    }
+    if (hasUnsavedChanges && !completed.current) {
+      setShowDiscard(true);
+      return;
+    }
+    approveDismiss();
+  }, [approveDismiss, hasUnsavedChanges, isEditing, isPending]);
+
+  // Callers keep the existing sheet API; all removal methods use the same guard.
+  useImperativeHandle(sheetRef, () => ({
+    present: (data) => {
+      if (!isSheetOpen) {
+        resetForm();
+      }
+      dismissalRequested.current = false;
+      dismissalIssued.current = false;
+      completed.current = false;
+      setShouldDismiss(false);
+      setShowDiscard(false);
+      nativeSheetRef.current?.present(data);
+    },
+    dismiss: requestDismiss,
+    close: requestDismiss,
+    forceClose: requestDismiss,
+    snapToIndex: (index, config) => {
+      if (index < 0) {
+        requestDismiss();
+      } else {
+        nativeSheetRef.current?.snapToIndex(index, config);
+      }
+    },
+    snapToPosition: (...args) =>
+      nativeSheetRef.current?.snapToPosition(...args),
+    expand: (...args) => nativeSheetRef.current?.expand(...args),
+    collapse: (...args) => nativeSheetRef.current?.collapse(...args),
+  }));
+
+  useEffect(() => {
+    if (!shouldDismiss || dismissalIssued.current) {
+      return;
+    }
+    // Commit enableDismissOnClose before asking the native modal to unmount.
+    dismissalIssued.current = true;
+    nativeSheetRef.current?.dismiss();
+  }, [shouldDismiss]);
+
+  function completeCreate(result: ReviewCreateResult) {
+    if (completed.current || dismissedReceiptId.current === result.id) {
+      return;
+    }
+    completed.current = true;
+    dismissedReceiptId.current = result.id;
+    clearForm();
+    Toast.show({
+      type: "success",
+      text1: "Review received",
+      ...(result.status === "under_review"
+        ? { text2: reviewModerationFeedback(result).description }
+        : {}),
+    });
+    approveDismiss();
+  }
+
+  function discardAndDismiss() {
+    if (isEditing && (isPending || submissionPending.current)) {
+      return;
+    }
+    if (!isEditing && submission?.state === "failed") {
+      useReviewWorkflowStore.setState((current) => ({
+        submissions: current.submissions.filter(
+          (draft) => draft.token !== submission.token,
+        ),
+      }));
+    }
+    approveDismiss();
   }
 
   function clearFieldError(field: keyof ReviewErrors) {
@@ -309,9 +460,15 @@ export default function ReviewComposerSheet({
     }
 
     setIsPicking(true);
+    const operation = {};
+    pickerOperation.current = operation;
     const pickingUserId = useAuthStore.getState().user?.id;
+    const pickingGeneration = getAuthSessionGeneration();
     const isCurrentPicker = () =>
-      mounted.current && useAuthStore.getState().user?.id === pickingUserId;
+      mounted.current &&
+      pickerOperation.current === operation &&
+      useAuthStore.getState().user?.id === pickingUserId &&
+      getAuthSessionGeneration() === pickingGeneration;
 
     try {
       const selectedPhotos = await pickBusinessPhotos({
@@ -335,7 +492,10 @@ export default function ReviewComposerSheet({
         text2: error instanceof Error ? error.message : "Please try again.",
       });
     } finally {
-      if (isCurrentPicker()) setIsPicking(false);
+      if (isCurrentPicker()) {
+        pickerOperation.current = null;
+        setIsPicking(false);
+      }
     }
   }
 
@@ -389,7 +549,7 @@ export default function ReviewComposerSheet({
 
     try {
       if (review) {
-        await updateReview({
+        const updated = await updateReview({
           reviewId: review.id,
           text: textChanged ? trimmedText : undefined,
           photos,
@@ -402,8 +562,23 @@ export default function ReviewComposerSheet({
 
         if (!isCurrentSubmission()) return;
 
+        completed.current = true;
+        const persistedReview = {
+          ...updated,
+          show_in_community: updated.show_in_community ?? showInCommunity,
+        };
+        savedReview.current = { source: review, result: persistedReview };
+        setText(updated.text ?? "");
+        setOriginalText(updated.text ?? "");
+        setPhotos([]);
+        setExistingPhotos(updated.photos);
+        setOriginalPhotoIds(updated.photos.map((photo) => photo.id));
+        setShowInCommunity(persistedReview.show_in_community);
+        setOriginalShowInCommunity(persistedReview.show_in_community);
+        setErrors({});
         setEditFeedback(null);
         Toast.show({ type: "success", text1: "Review updated" });
+        approveDismiss();
       } else {
         const created = await createReview({
           text: trimmedText,
@@ -414,20 +589,8 @@ export default function ReviewComposerSheet({
 
         if (!isCurrentSubmission()) return;
 
-        if (dismissedReceiptId.current === created.id) return;
-
-        if (created.status === "under_review") {
-          Toast.show({
-            type: "success",
-            text1: "Review received",
-            text2: reviewModerationFeedback(created).description,
-          });
-        } else {
-          Toast.show({ type: "success", text1: "Review received" });
-        }
+        completeCreate(created);
       }
-
-      sheetRef.current?.dismiss();
     } catch (error) {
       if (!isCurrentSubmission()) return;
       const response = error as Partial<ApiError>;
@@ -448,9 +611,7 @@ export default function ReviewComposerSheet({
           return false;
         }
 
-        if (!isEditing || (!isPending && !submissionPending.current)) {
-          sheetRef.current?.dismiss();
-        }
+        requestDismiss();
         return true;
       },
     );
@@ -458,11 +619,10 @@ export default function ReviewComposerSheet({
     return () => {
       subscription.remove();
     };
-  }, [isSheetOpen, isPending, isEditing, sheetRef]);
+  }, [isSheetOpen, requestDismiss]);
 
   useEffect(() => {
     // The form intentionally mirrors the review selected by the parent screen.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     resetForm();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [review]);
@@ -474,18 +634,17 @@ export default function ReviewComposerSheet({
 
     // Clear removed submissions while hidden, before the next opening paints.
     // Session drafts still restore failed or uncertain submissions here.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     resetForm();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submission, isEditing, isSheetOpen, isPending]);
 
   useEffect(() => {
     const clearPrivateDraft = () => {
-      sheetRef.current?.dismiss();
-      setText("");
-      setPhotos([]);
-      setExistingPhotos([]);
-      setEditFeedback(null);
+      approveDismiss();
+      savedReview.current = null;
+      dismissedReceiptId.current = null;
+      completed.current = false;
+      clearForm();
     };
     const unsubscribeSession = subscribeAuthSessionChanges(clearPrivateDraft);
     const unsubscribeAuth = useAuthStore.subscribe((current, previous) => {
@@ -495,7 +654,7 @@ export default function ReviewComposerSheet({
       unsubscribeSession();
       unsubscribeAuth();
     };
-  }, [sheetRef]);
+  }, [approveDismiss, clearForm]);
 
   useEffect(() => {
     const error = createError || updateError;
@@ -545,8 +704,17 @@ export default function ReviewComposerSheet({
 
   return (
     <BottomSheetModal
-      ref={sheetRef}
-      onDismiss={onDismiss}
+      ref={nativeSheetRef}
+      // Keep a gesture-closed modal mounted until discard or completion is approved.
+      enableDismissOnClose={shouldDismiss}
+      onDismiss={() => {
+        setIsSheetOpen(false);
+        pickerOperation.current = null;
+        setIsPicking(false);
+        setShowDiscard(false);
+        clearForm();
+        onDismiss?.();
+      }}
       snapPoints={["90%"]}
       enableDynamicSizing={false}
       enablePanDownToClose={!isPending || !isEditing}
@@ -564,15 +732,20 @@ export default function ReviewComposerSheet({
       onChange={(index) => {
         const isOpen = index >= 0;
 
+        if (!isOpen && !dismissalRequested.current) {
+          nativeSheetRef.current?.present();
+          requestDismiss();
+          return;
+        }
         setIsSheetOpen(isOpen);
-
-        if (
-          (!isOpen || (!isSheetOpen && !isEditing)) &&
-          !isPending &&
-          !createError &&
-          !updateError
-        ) {
-          resetForm();
+      }}
+      onAnimate={(_fromIndex, toIndex) => {
+        if (toIndex !== -1 || dismissalRequested.current) {
+          return;
+        }
+        requestDismiss();
+        if (!dismissalRequested.current) {
+          nativeSheetRef.current?.present();
         }
       }}
       backdropComponent={(props) => (
@@ -581,7 +754,8 @@ export default function ReviewComposerSheet({
           appearsOnIndex={0}
           disappearsOnIndex={-1}
           opacity={0.45}
-          pressBehavior={isPending && isEditing ? "none" : "close"}
+          pressBehavior="none"
+          onPress={requestDismiss}
         />
       )}
     >
@@ -606,7 +780,7 @@ export default function ReviewComposerSheet({
             </View>
 
             <Pressable
-              onPress={() => sheetRef.current?.dismiss()}
+              onPress={requestDismiss}
               disabled={isPending && isEditing}
               hitSlop={8}
               accessibilityRole="button"
@@ -800,9 +974,9 @@ export default function ReviewComposerSheet({
         >
           {((isPending &&
             (isEditing || submission?.state !== "acknowledged")) ||
-            (!isEditing && (
-              submission?.state === "confirming" || submission?.state === "unconfirmed"
-            ))) && (
+            (!isEditing &&
+              (submission?.state === "confirming" ||
+                submission?.state === "unconfirmed"))) && (
             <AppText
               accessibilityLiveRegion="polite"
               className="mb-2 text-center text-xs text-text-secondary"
@@ -856,7 +1030,7 @@ export default function ReviewComposerSheet({
                   ? "Review received"
                   : "Submit review"
             }
-            onPress={submit}
+            onPress={() => void submit()}
             loading={
               isPending && (isEditing || submission?.state !== "acknowledged")
             }
@@ -866,6 +1040,16 @@ export default function ReviewComposerSheet({
           />
         </View>
       </View>
+      <ConfirmModal
+        visible={showDiscard}
+        title="Discard review changes?"
+        message="Your unsaved review text and photo changes will be lost."
+        confirmText="Discard"
+        cancelText="Keep editing"
+        destructive
+        onCancel={() => setShowDiscard(false)}
+        onConfirm={discardAndDismiss}
+      />
     </BottomSheetModal>
   );
 }

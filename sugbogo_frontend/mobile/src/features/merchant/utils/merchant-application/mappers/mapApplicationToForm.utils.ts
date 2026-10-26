@@ -6,7 +6,10 @@ import { mapApplicationPhotos } from "./mapApplicationPhotos.utils";
 import { mapApplicationDocuments } from "./mapApplicationDocuments.utils";
 
 export function mapApplicationToForm(
-  application: ApplicationDetailResponse,
+  application: Pick<
+    ApplicationDetailResponse,
+    "identity" | "location" | "operating_hours" | "photos" | "documents"
+  >,
 ): z.input<typeof merchantRegistrationSchema> {
   const form = structuredClone(MERCHANT_REGISTRATION_DEFAULT_VALUES);
 

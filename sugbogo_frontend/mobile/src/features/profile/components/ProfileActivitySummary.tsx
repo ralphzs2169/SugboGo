@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { useIsFocused } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 
@@ -15,7 +16,8 @@ export default function ProfileActivitySummary({
 }: {
   className?: string;
 }) {
-  const reviews = useMyReviews();
+  const focused = useIsFocused();
+  const reviews = useMyReviews("all", "newest", focused);
   const pockets = usePocketCollections();
   const vouches = useVouchHistory("newest");
   const hasError = Boolean(pockets.error || reviews.error || vouches.error);

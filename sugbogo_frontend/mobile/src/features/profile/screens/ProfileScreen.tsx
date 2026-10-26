@@ -7,6 +7,8 @@ import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import ErrorState from "@/shared/components/ErrorState";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
+import Skeleton from "@/shared/components/Skeleton";
 
 import AppVersion from "../components/AppVersion";
 import MerchantPortalCard from "../components/MerchantPortalCard";
@@ -25,6 +27,7 @@ import Toast from "react-native-toast-message";
  * exposes merchant onboarding status when merchant access is not yet active.
  */
 export default function ProfileScreen() {
+  const navigate = useNavigationAction();
   const user = useAuthStore((state) => state.user);
 
   const canAccessMerchantMode = user?.role === "merchant";
@@ -33,7 +36,9 @@ export default function ProfileScreen() {
 
   const [isSwitchingMode, setIsSwitchingMode] = useState(false);
 
-  const openLogoutConfirmation = useLogoutConfirmationStore((state) => state.open);
+  const openLogoutConfirmation = useLogoutConfirmationStore(
+    (state) => state.open,
+  );
 
   const {
     status: applicationStatus,
@@ -43,6 +48,8 @@ export default function ProfileScreen() {
     hasResolvedStatus,
     refetch: refetchApplicationStatus,
   } = useApplicationStatus();
+  const isInitialStatusLoading =
+    isLoadingApplicationStatus && !hasResolvedStatus;
 
   useFocusEffect(
     useCallback(() => {
@@ -51,7 +58,7 @@ export default function ProfileScreen() {
   );
 
   const handleMerchantPortalPress = () => {
-    router.push("/profile/merchant-portal");
+    navigate(() => router.push("/profile/merchant-portal"));
   };
 
   const handleSwitchToMerchant = () => {
@@ -59,14 +66,16 @@ export default function ProfileScreen() {
       return;
     }
 
-    setIsSwitchingMode(true);
+    navigate(() => {
+      setIsSwitchingMode(true);
 
-    setActiveMode("merchant");
-    router.replace("/(merchant)/(tabs)/dashboard");
+      setActiveMode("merchant");
+      router.replace("/(merchant)/(tabs)/dashboard");
 
-    Toast.show({
-      type: "info",
-      text1: "Switched to Merchant Mode",
+      Toast.show({
+        type: "info",
+        text1: "Switched to Merchant Mode",
+      });
     });
   };
 
@@ -88,7 +97,9 @@ export default function ProfileScreen() {
             avatarUrl={user?.avatar_url ?? null}
             avatarKey={user?.avatar_key ?? null}
             role={user?.role ?? "explorer"}
-            onEditProfile={() => router.push("/profile/edit-profile")}
+            onEditProfile={() =>
+              navigate(() => router.push("/profile/edit-profile"))
+            }
           >
             <ProfileActivitySummary className="mt-2" />
           </ProfileHeader>
@@ -98,32 +109,65 @@ export default function ProfileScreen() {
             <ProfileMenuItem
               title="My Pockets"
               icon="bookmark-outline"
-              onPress={() => router.push("/profile/my-pockets")}
+              onPress={() => navigate(() => router.push("/profile/my-pockets"))}
             />
             <ProfileMenuItem
               title="My Vouches"
               icon="heart-outline"
-              onPress={() => router.push("/profile/vouch-history")}
+              onPress={() =>
+                navigate(() => router.push("/profile/vouch-history"))
+              }
             />
             <ProfileMenuItem
               title="My Reviews"
               icon="comment-text-outline"
-              onPress={() => router.push("/profile/reviews-submitted")}
+              onPress={() =>
+                navigate(() => router.push("/profile/reviews-submitted"))
+              }
             />
             <ProfileMenuItem
               title="Activity Timeline"
               icon="history"
-              onPress={() => router.push("/profile/activity-timeline")}
+              onPress={() =>
+                navigate(() => router.push("/profile/activity-timeline"))
+              }
             />
             <ProfileMenuItem
               title="My Interests"
               icon="tune-variant"
-              onPress={() => router.push("/profile/your-interests")}
+              onPress={() =>
+                navigate(() => router.push("/profile/your-interests"))
+              }
             />
           </ProfileMenuSection>
 
+          {/* Reserve merchant access while its initial status is unknown. */}
+          {isInitialStatusLoading && (
+            <View
+              accessible
+              accessibilityLabel="Loading merchant access"
+              accessibilityState={{ busy: true }}
+              className={`mx-4 mb-1.5 mt-3 flex-row items-center gap-3 rounded-card bg-surface p-4 ${
+                canAccessMerchantMode ? "min-h-24" : "min-h-36"
+              }`}
+            >
+              <Skeleton
+                className={
+                  canAccessMerchantMode
+                    ? "h-12 w-12 rounded-full"
+                    : "h-24 w-24 rounded-xl"
+                }
+              />
+              <View className="flex-1 gap-3">
+                <Skeleton className="h-4 w-3/4 rounded-md" />
+                <Skeleton className="h-3 w-full rounded-md" />
+                <Skeleton className="h-3 w-2/3 rounded-md" />
+              </View>
+            </View>
+          )}
+
           {/* Merchant mode */}
-          {!isLoadingApplicationStatus &&
+          {!isInitialStatusLoading &&
             canAccessMerchantMode &&
             merchantModeAcknowledged && (
               <ProfileMenuSection title="Merchant">
@@ -142,7 +186,7 @@ export default function ProfileScreen() {
             )}
 
           {/* Merchant onboarding */}
-          {!isLoadingApplicationStatus &&
+          {!isInitialStatusLoading &&
             applicationStatusError &&
             hasResolvedStatus &&
             applicationStatus === null && (
@@ -157,7 +201,7 @@ export default function ProfileScreen() {
               />
             )}
 
-          {!isLoadingApplicationStatus &&
+          {!isInitialStatusLoading &&
             !merchantModeAcknowledged &&
             (applicationStatusError && !hasResolvedStatus ? (
               <ErrorState
@@ -181,7 +225,9 @@ export default function ProfileScreen() {
             <ProfileMenuItem
               title="Account Settings"
               icon="account-cog-outline"
-              onPress={() => router.push("/profile/account-settings")}
+              onPress={() =>
+                navigate(() => router.push("/profile/account-settings"))
+              }
             />
 
             <ProfileMenuItem
@@ -193,19 +239,19 @@ export default function ProfileScreen() {
             <ProfileMenuItem
               title="Offline Storage"
               icon="database-outline"
-              onPress={() => router.push("/offline-storage")}
+              onPress={() => navigate(() => router.push("/offline-storage"))}
             />
 
             <ProfileMenuItem
               title="Privacy Policy"
               icon="shield-lock-outline"
-              onPress={() => router.push("/privacy-policy")}
+              onPress={() => navigate(() => router.push("/privacy-policy"))}
             />
 
             <ProfileMenuItem
               title="Contact Support"
               icon="headset"
-              onPress={() => router.push("/contact-support")}
+              onPress={() => navigate(() => router.push("/contact-support"))}
             />
           </ProfileMenuSection>
 

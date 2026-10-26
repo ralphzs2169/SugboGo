@@ -8,6 +8,7 @@ import ProfileScreen from "../ProfileScreen";
 import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
 
 const mockRefetchApplicationStatus = jest.fn();
+let mockRole = "explorer";
 
 let mockStatusState = {
   status: null as "draft" | "submitted" | "rejected" | "approved" | null,
@@ -37,7 +38,7 @@ jest.mock("@/features/auth/store/auth.store", () => ({
         first_name: "Cebu",
         last_name: "Explorer",
         email: "explorer@example.com",
-        role: "explorer",
+        role: mockRole,
       },
     }),
 }));
@@ -111,6 +112,7 @@ describe("ProfileScreen merchant status", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRole = "explorer";
     mockStatusState = {
       status: null,
       merchantModeAcknowledged: false,
@@ -121,6 +123,58 @@ describe("ProfileScreen merchant status", () => {
       refetch: mockRefetchApplicationStatus,
     };
   });
+  it.each(["explorer", "merchant"])(
+    "reserves merchant access during initial loading without showing a guessed state for %s",
+    async (role) => {
+      mockRole = role;
+      mockStatusState.isLoading = true;
+      mockStatusState.hasResolvedStatus = false;
+      const screen = await render(<ProfileScreen />);
+      expect(screen.getByLabelText("Loading merchant access")).toBeTruthy();
+      expect(mockMerchantPortalCard).not.toHaveBeenCalled();
+      expect(screen.queryByText("Switch to Merchant")).toBeNull();
+      expect(screen.getByText("Settings & Support")).toBeTruthy();
+      mockStatusState = {
+        ...mockStatusState,
+        isLoading: false,
+        hasResolvedStatus: true,
+        status: role === "merchant" ? "approved" : "draft",
+        merchantModeAcknowledged: role === "merchant",
+      };
+      await screen.rerender(<ProfileScreen />);
+      expect(screen.queryByLabelText("Loading merchant access")).toBeNull();
+      if (role === "merchant") {
+        expect(screen.getByText("Switch to Merchant")).toBeTruthy();
+        expect(mockMerchantPortalCard).not.toHaveBeenCalled();
+      } else {
+        expect(mockMerchantPortalCard).toHaveBeenCalledWith(
+          expect.objectContaining({ status: "draft" }),
+          undefined,
+        );
+      }
+    },
+  );
+
+  it.each(["explorer", "merchant"])(
+    "keeps resolved %s merchant access visible during background refresh",
+    async (role) => {
+      mockRole = role;
+      mockStatusState.status = role === "merchant" ? "approved" : "submitted";
+      mockStatusState.merchantModeAcknowledged = role === "merchant";
+      const screen = await render(<ProfileScreen />);
+      mockStatusState.isRefetching = true;
+      await screen.rerender(<ProfileScreen />);
+      expect(screen.queryByLabelText("Loading merchant access")).toBeNull();
+      if (role === "merchant") {
+        expect(screen.getByText("Switch to Merchant")).toBeTruthy();
+      } else {
+        expect(mockMerchantPortalCard).toHaveBeenLastCalledWith(
+          expect.objectContaining({ status: "submitted" }),
+          undefined,
+        );
+      }
+    },
+  );
   it("opens the existing My Pockets profile route", async () => {
     const screen = await render(<ProfileScreen />);
     await fireEvent.press(screen.getByText("My Pockets"));

@@ -25,7 +25,7 @@ type MerchantRegistrationStoreSnapshot = {
  * and selected landmarks when resuming a saved draft.
  */
 export function mapApplicationToStore(
-  application: ApplicationDetailResponse,
+  application: Pick<ApplicationDetailResponse, "location">,
 ): MerchantRegistrationStoreSnapshot {
   if (!application.location) {
     return {

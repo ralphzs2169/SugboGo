@@ -1,7 +1,9 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
+import AppText from "@/shared/components/AppText";
 
 import PhotoGrid from "./PhotoGrid";
 import type { BusinessPhoto } from "@/features/merchant/types/registration/registrationOption.types";
+import { useFormContext } from "react-hook-form";
 
 type PhotoSectionProps = {
   photos: BusinessPhoto[];
@@ -24,6 +26,9 @@ export default function PhotoSection({
   required = false,
   onPhotosChange,
 }: PhotoSectionProps) {
+  const {
+    formState: { disabled },
+  } = useFormContext();
   return (
     <View
       className={`mb-4 rounded-md border px-4 py-4 ${
@@ -36,8 +41,11 @@ export default function PhotoSection({
           maxPhotos={maxPhotos}
           onPhotosChange={onPhotosChange}
           required={required}
+          disabled={disabled}
         />
-        {error && <Text className="mt-2 text-sm text-text-error">{error}</Text>}
+        {error && (
+          <AppText className="mt-2 text-sm text-text-error">{error}</AppText>
+        )}
       </View>
     </View>
   );

@@ -27,6 +27,10 @@ type ReviewBusinessIdentityProps = {
   categories: CategoryOption[];
   onEdit?: () => void;
   feedback?: ApplicationFeedbackResponse;
+  clusterNameFallback?: string;
+  categoryNameFallback?: string;
+  classificationError?: boolean;
+  onRetryClassification?: () => void;
 };
 
 const REPRESENTATIVE_ROLE_LABELS = {
@@ -42,6 +46,10 @@ export default function ReviewBusinessIdentity({
   categories,
   onEdit,
   feedback,
+  clusterNameFallback,
+  categoryNameFallback,
+  classificationError,
+  onRetryClassification,
 }: ReviewBusinessIdentityProps) {
   const {
     specialtyTags,
@@ -55,7 +63,8 @@ export default function ReviewBusinessIdentity({
     (cluster) => cluster.id.toString() === form.businessCluster,
   );
 
-  const clusterName = selectedCluster?.name ?? "Not provided";
+  const clusterName =
+    selectedCluster?.name ?? clusterNameFallback ?? "Not provided";
   const clusterIcon = selectedCluster
     ? CLUSTER_ICONS[selectedCluster.icon]
     : undefined;
@@ -63,7 +72,9 @@ export default function ReviewBusinessIdentity({
   const categoryName =
     categories.find(
       (category) => category.id.toString() === form.businessCategory,
-    )?.name ?? "Not provided";
+    )?.name ??
+    categoryNameFallback ??
+    "Not provided";
 
   const selectedSpecialtyTags = specialtyTags.filter((tag) =>
     form.specialtyTags.includes(tag.id),
@@ -121,6 +132,13 @@ export default function ReviewBusinessIdentity({
           />
         )}
       </View>
+
+      {classificationError && (
+        <FormFieldApiError
+          message="Business classifications could not be refreshed."
+          onRetry={onRetryClassification}
+        />
+      )}
 
       <View className="flex-row flex-wrap">
         <View className="w-1/2 pr-2">

@@ -43,6 +43,8 @@ export default function EditProfileScreen() {
 
   const genderSheetRef = useRef<BottomSheetModal>(null);
   const avatarSheetRef = useRef<BottomSheetModal>(null);
+  const savingRef = useRef(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Profile update operations
   const { updateUserProfile, isUpdating } = useUpdateProfile();
@@ -70,7 +72,7 @@ export default function EditProfileScreen() {
   const [formError, setFormError] = useState("");
 
   // Loading state
-  const isSaving = isUploading || isUpdating || isRemoving;
+  const isSaving = isSavingProfile || isUploading || isUpdating || isRemoving;
 
   const hasChanges =
     firstName !== (user?.first_name ?? "") ||
@@ -85,7 +87,7 @@ export default function EditProfileScreen() {
     confirmLeave,
     cancelLeave,
     navigateWithoutConfirmation,
-  } = useUnsavedChangesGuard(hasChanges);
+  } = useUnsavedChangesGuard(hasChanges, () => savingRef.current);
 
   const clearFieldError = (field: keyof UpdateProfileErrors) => {
     setErrors((prev) => ({
@@ -97,6 +99,10 @@ export default function EditProfileScreen() {
   };
 
   function handleSelectGender() {
+    if (savingRef.current) {
+      return;
+    }
+
     genderSheetRef.current?.present();
   }
 
@@ -105,6 +111,10 @@ export default function EditProfileScreen() {
    * The profile will fall back to the user's SugboGo avatar.
    */
   function confirmRemovePicture() {
+    if (savingRef.current) {
+      return;
+    }
+
     setSelectedImage(null);
     setPreviewImage(null);
     setRemoveProfilePicture(true);
@@ -112,10 +122,18 @@ export default function EditProfileScreen() {
   }
 
   function handleRemovePicture() {
+    if (savingRef.current) {
+      return;
+    }
+
     setShowRemoveModal(true);
   }
 
   function handleSelectAvatar(avatarKey: AvatarKey) {
+    if (savingRef.current) {
+      return;
+    }
+
     setSelectedAvatarKey(avatarKey);
     setSelectedImage(null);
     setPreviewImage(null);
@@ -123,11 +141,26 @@ export default function EditProfileScreen() {
   }
 
   async function handleSaveChanges() {
+    if (savingRef.current || isSaving || !hasChanges) {
+      return;
+    }
+
+    savingRef.current = true;
+    setIsSavingProfile(true);
+    genderSheetRef.current?.dismiss();
+    avatarSheetRef.current?.dismiss();
+    setShowRemoveModal(false);
+
     try {
       await saveChangesForCurrentSession();
     } catch (error) {
-      if (isStaleAuthSessionError(error)) return;
+      if (isStaleAuthSessionError(error)) {
+        return;
+      }
       setFormError("Unable to save your profile. Please try again.");
+    } finally {
+      savingRef.current = false;
+      setIsSavingProfile(false);
     }
   }
 
@@ -235,13 +268,21 @@ export default function EditProfileScreen() {
           isShowingCustomProfilePicture={
             (user?.has_custom_profile_picture ?? false) && !removeProfilePicture
           }
-          isUploading={isUploading}
+          isSaving={isSaving}
           onImageSelected={(image) => {
+            if (savingRef.current) {
+              return;
+            }
+
             setSelectedImage(image);
             setPreviewImage(image);
             setRemoveProfilePicture(false);
           }}
-          onChooseAvatar={() => avatarSheetRef.current?.present()}
+          onChooseAvatar={() => {
+            if (!savingRef.current) {
+              avatarSheetRef.current?.present();
+            }
+          }}
           onRemovePicture={handleRemovePicture}
         />
 
@@ -250,7 +291,12 @@ export default function EditProfileScreen() {
             label="First Name"
             placeholder="Enter your first name"
             value={firstName}
-            onChangeText={setFirstName}
+            editable={!isSaving}
+            onChangeText={(value) => {
+              if (!savingRef.current) {
+                setFirstName(value);
+              }
+            }}
             error={errors.firstName}
             onFocus={() => clearFieldError("firstName")}
           />
@@ -259,7 +305,12 @@ export default function EditProfileScreen() {
             label="Last Name"
             placeholder="Enter your last name"
             value={lastName}
-            onChangeText={setLastName}
+            editable={!isSaving}
+            onChangeText={(value) => {
+              if (!savingRef.current) {
+                setLastName(value);
+              }
+            }}
             error={errors.lastName}
             onFocus={() => clearFieldError("lastName")}
           />
@@ -272,6 +323,7 @@ export default function EditProfileScreen() {
             }
             placeholder="Select gender"
             onPress={handleSelectGender}
+            disabled={isSaving}
           />
 
           {formError ? (
@@ -292,7 +344,7 @@ export default function EditProfileScreen() {
 
           <Button
             title="Save Changes"
-            onPress={handleSaveChanges}
+            onPress={() => void handleSaveChanges()}
             loading={isSaving}
             disabled={!hasChanges || isSaving}
             className="mt-6 mb-10"
@@ -300,7 +352,7 @@ export default function EditProfileScreen() {
           />
 
           <ConfirmModal
-            visible={showConfirm}
+            visible={showConfirm && !isSaving}
             title="Discard changes?"
             message="You have unsaved changes. Are you sure you want to leave?"
             confirmText="Discard"
@@ -314,7 +366,11 @@ export default function EditProfileScreen() {
             title="Select Gender"
             options={GENDER_OPTIONS}
             selectedValue={gender ?? undefined}
-            onSelect={(value) => setGender(value as Gender)}
+            onSelect={(value) => {
+              if (!savingRef.current) {
+                setGender(value as Gender);
+              }
+            }}
           />
 
           <AvatarPickerBottomSheet

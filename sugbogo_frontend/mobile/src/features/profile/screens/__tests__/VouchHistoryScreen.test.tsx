@@ -1,6 +1,10 @@
 import React from "react";
 import { BackHandler } from "react-native";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
@@ -239,7 +243,12 @@ describe("production Vouch History screen", () => {
       },
     );
   });
-  afterEach(() => client.clear());
+  afterEach(async () => {
+    client.clear();
+    await act(async () => {
+      onlineManager.setOnline(true);
+    });
+  });
 
   async function renderScreen() {
     return render(
@@ -290,6 +299,32 @@ describe("production Vouch History screen", () => {
     await fireEvent.press(screen.getByLabelText("Sort history by Newest"));
     await waitFor(() =>
       expect(getVouchHistory).toHaveBeenLastCalledWith("newest", 1),
+    );
+  });
+
+  it("explains offline taps without mutating cached history and resumes online", async () => {
+    const screen = await renderScreen();
+    await openManage(screen);
+    await act(async () => {
+      onlineManager.setOnline(false);
+    });
+    await fireEvent.press(screen.getByLabelText("Toggle Specialty 1"));
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "info",
+        text1: "Internet connection required",
+      }),
+    );
+    expect(removeBusinessSpecialtyVouch).not.toHaveBeenCalled();
+    expect(vouchForBusinessSpecialty).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Manage vouches for Business 1")).toBeTruthy();
+    expect(screen.getByTestId("manage-vouch-sheet")).toBeTruthy();
+    await act(async () => {
+      onlineManager.setOnline(true);
+    });
+    await fireEvent.press(screen.getByLabelText("Toggle Specialty 1"));
+    await waitFor(() =>
+      expect(removeBusinessSpecialtyVouch).toHaveBeenCalledTimes(1),
     );
   });
 

@@ -46,7 +46,7 @@ export default function BusinessLocationStep({
 }: BusinessLocationStepProps) {
   const {
     setValue,
-    formState: { errors },
+    formState: { errors, disabled },
     clearErrors,
   } = useFormContext<MerchantRegistrationForm>();
 
@@ -146,6 +146,7 @@ export default function BusinessLocationStep({
    * any existing location error.
    */
   const handleOpenLocationPicker = () => {
+    if (disabled) return;
     clearErrors(["latitude", "longitude"]);
 
     router.push("/(explorer)/merchant-registration/location-picker");
@@ -253,25 +254,27 @@ export default function BusinessLocationStep({
           />
         </View>
 
-        <RHFFormInput
-          name="streetAddress"
-          label="Street Address"
-          required
-          editable={hasSelectedLocation}
-          showError={hasSelectedLocation}
-          placeholder={
-            hasSelectedLocation
-              ? "e.g. Gov. Cuenco Avenue"
-              : "Select a location first"
-          }
-          helperText={
-            addressLoadFailures.streetAddress
-              ? "Unable to detect automatically. Please enter it manually."
-              : undefined
-          }
-          minLength={5}
-          showCharacterCount
-        />
+        <View {...registerErrorScrollTarget("streetAddress")}>
+          <RHFFormInput
+            name="streetAddress"
+            label="Street Address"
+            required
+            editable={hasSelectedLocation}
+            showError={hasSelectedLocation}
+            placeholder={
+              hasSelectedLocation
+                ? "e.g. Gov. Cuenco Avenue"
+                : "Select a location first"
+            }
+            helperText={
+              addressLoadFailures.streetAddress
+                ? "Unable to detect automatically. Please enter it manually."
+                : undefined
+            }
+            minLength={5}
+            showCharacterCount
+          />
+        </View>
 
         <RHFFormInput
           name="unit"

@@ -1,11 +1,31 @@
-import { render } from "@testing-library/react-native";
+import { act, render } from "@testing-library/react-native";
 
 import ErrorState from "@/shared/components/ErrorState";
 import RegistrationLayout from "../../components/registration/RegistrationLayout";
 import MerchantRegistrationScreen from "../MerchantRegistrationScreen";
 import type { DuplicateDisposition } from "../../types/registration/registrationApi.types";
+import { useMerchantRegistrationStore } from "../../stores/merchantRegistrationStore";
+import { mapApplicationToStore } from "../../utils/merchant-application/mappers/mapApplicationToStore.utils";
+import {
+  beginAuthSession,
+  invalidateAuthSession,
+} from "@/shared/api/authSessionGeneration.service";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import type { User } from "@/features/users/types/user.types";
 
 const mockRefetchApplication = jest.fn();
+let mockHasNoApplication = false;
+
+const savedLocation = {
+  latitude: 10.31,
+  longitude: 123.88,
+  formattedAddress: "Cebu City",
+  province: "Cebu",
+  city: "Cebu City",
+  barangay: "Lahug",
+  streetAddress: "Gorordo Avenue",
+  isWithinServiceArea: true,
+};
 
 jest.mock(
   "../../utils/merchant-application/comparisons/getUnsavedSections.utils",
@@ -34,6 +54,9 @@ jest.mock("expo-router", () => ({
   useFocusEffect: jest.fn(),
   useNavigation: () => ({ setOptions: jest.fn() }),
 }));
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: jest.fn(),
+}));
 jest.mock("../../constants/registration/registrationSteps", () => ({
   REGISTRATION_STEPS: [
     { title: "Identity" },
@@ -46,7 +69,10 @@ jest.mock("../../constants/registration/registrationSteps", () => ({
 }));
 jest.mock("../../hooks/registration/useCurrentApplication", () => ({
   __esModule: true,
-  default: () => mockApplicationState,
+  default: () => ({
+    ...mockApplicationState,
+    application: mockHasNoApplication ? null : mockApplicationState.application,
+  }),
 }));
 jest.mock("../../hooks/registration/useClusters", () => ({
   __esModule: true,
@@ -171,6 +197,13 @@ jest.mock("@/shared/components/modals/ConfirmModal", () => () => null);
 describe("MerchantRegistrationScreen rejected refresh recovery", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockHasNoApplication = false;
+    beginAuthSession();
+    useAuthStore.setState({
+      user: { id: 1 } as User,
+      isAuthenticated: true,
+      isLoading: false,
+    });
     mockApplicationState = {
       application: {
         status: "rejected",
@@ -185,6 +218,92 @@ describe("MerchantRegistrationScreen rejected refresh recovery", () => {
       error: true,
       refetch: mockRefetchApplication,
     };
+  });
+
+  it("clears absent server location values once without overwriting picker round trips or refreshes", async () => {
+    mockApplicationState.error = false;
+    useMerchantRegistrationStore.setState({
+      selectedLocation: savedLocation,
+      selectedAddress: { ...savedLocation, unit: "Old" },
+      addressLoadFailed: true,
+    });
+    const screen = await render(<MerchantRegistrationScreen />);
+    expect(useMerchantRegistrationStore.getState()).toMatchObject({
+      selectedLocation: null,
+      selectedAddress: null,
+      selectedLandmarks: [],
+      addressLoadFailed: false,
+    });
+
+    const pickerLocation = { ...savedLocation, latitude: 11, longitude: 124 };
+    await act(async () => {
+      useMerchantRegistrationStore
+        .getState()
+        .setSelectedLocation(pickerLocation);
+    });
+    mockApplicationState = {
+      ...mockApplicationState,
+      application: { ...mockApplicationState.application },
+    };
+    await screen.rerender(<MerchantRegistrationScreen />);
+    expect(useMerchantRegistrationStore.getState().selectedLocation).toEqual(
+      pickerLocation,
+    );
+
+    await act(async () => {
+      beginAuthSession();
+      useAuthStore.getState().setUser({ id: 2 } as User);
+    });
+    expect(mapApplicationToStore).toHaveBeenCalledTimes(2);
+    expect(useMerchantRegistrationStore.getState().selectedLocation).toBeNull();
+    await screen.unmount();
+  });
+
+  it("does not restore cached application data after session expiration", async () => {
+    mockApplicationState.error = false;
+    const screen = await render(<MerchantRegistrationScreen />);
+    expect(mapApplicationToStore).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      invalidateAuthSession();
+    });
+
+    expect(mapApplicationToStore).toHaveBeenCalledTimes(1);
+    expect(useMerchantRegistrationStore.getState().selectedLocation).toBeNull();
+    await screen.unmount();
+  });
+
+  it("restores a complete saved location, address, and landmark snapshot", async () => {
+    mockApplicationState.error = false;
+    const snapshot = {
+      selectedLocation: savedLocation,
+      selectedAddress: { ...savedLocation, unit: "Saved unit" },
+      selectedLandmarks: [],
+    };
+    (mapApplicationToStore as jest.Mock).mockReturnValueOnce(snapshot);
+    const screen = await render(<MerchantRegistrationScreen />);
+    expect(useMerchantRegistrationStore.getState()).toMatchObject(snapshot);
+    await screen.unmount();
+  });
+
+  it("initializes a new application once and preserves later same-session picker work", async () => {
+    mockHasNoApplication = true;
+    mockApplicationState.error = false;
+    useMerchantRegistrationStore.getState().setSelectedLocation(savedLocation);
+    const screen = await render(<MerchantRegistrationScreen />);
+    expect(useMerchantRegistrationStore.getState().selectedLocation).toBeNull();
+    await act(async () => {
+      useMerchantRegistrationStore
+        .getState()
+        .setSelectedLocation(savedLocation);
+    });
+    mockHasNoApplication = false;
+    await screen.rerender(<MerchantRegistrationScreen />);
+    expect(mapApplicationToStore).not.toHaveBeenCalled();
+    expect(useMerchantRegistrationStore.getState().selectedLocation).toEqual(
+      savedLocation,
+    );
+    await screen.unmount();
   });
 
   it("keeps stale feedback gated and provides a retry until refresh succeeds", async () => {

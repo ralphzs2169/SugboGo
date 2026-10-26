@@ -49,4 +49,25 @@ it("preserves the edit action while displaying the same draft indicator", async 
   await fireEvent.press(screen.getByText("Save & Review"));
   expect(actions.onSaveAndReview).toHaveBeenCalledTimes(1);
   expect(screen.queryByText("Back")).toBeNull();
+  await fireEvent.press(screen.getByRole("button", { name: "Back to Review" }));
+  expect(actions.onBack).toHaveBeenCalledTimes(1);
+});
+
+it("blocks final submission while review-visible work is unsaved", async () => {
+  const screen = await render(
+    <RegistrationFooter
+      {...actions}
+      currentStep={6}
+      totalSteps={6}
+      isResubmission={false}
+      hasChanges
+    />,
+  );
+  expect(
+    screen.getByRole("button", { name: "Submit Application" }),
+  ).toBeDisabled();
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Submit Application" }),
+  );
+  expect(actions.onNext).not.toHaveBeenCalled();
 });

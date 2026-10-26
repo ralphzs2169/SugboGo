@@ -1,5 +1,9 @@
-import { ReactNode, useRef } from "react";
-import { Animated } from "react-native";
+import { ReactNode, useRef, useState } from "react";
+import {
+  Animated,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
 import ProfileStickyHeader from "./ProfileStickyHeader";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
@@ -15,20 +19,26 @@ export default function ProfileScrollView({
   children,
 }: Props) {
   const bottomSpacing = useTabBarSpacing();
-  const stickyHeaderOpacity = useRef(new Animated.Value(0)).current;
-  const stickyHeaderTranslateY = useRef(new Animated.Value(-20)).current;
+  const [stickyHeaderOpacity] = useState(() => new Animated.Value(0));
+  const [stickyHeaderTranslateY] = useState(() => new Animated.Value(-20));
+  const isStickyHeaderVisible = useRef(false);
 
-  function handleScroll(event: any) {
+  function handleScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const offsetY = event.nativeEvent.contentOffset.y;
+    const shouldShowHeader = offsetY > 120;
+    if (shouldShowHeader === isStickyHeaderVisible.current) {
+      return;
+    }
+    isStickyHeaderVisible.current = shouldShowHeader;
 
     Animated.parallel([
       Animated.timing(stickyHeaderOpacity, {
-        toValue: offsetY > 120 ? 1 : 0,
+        toValue: shouldShowHeader ? 1 : 0,
         duration: 100,
         useNativeDriver: true,
       }),
       Animated.timing(stickyHeaderTranslateY, {
-        toValue: offsetY > 120 ? 0 : -20,
+        toValue: shouldShowHeader ? 0 : -20,
         duration: 100,
         useNativeDriver: true,
       }),
@@ -45,6 +55,7 @@ export default function ProfileScrollView({
       />
 
       <Animated.ScrollView
+        testID="profile-scroll-view"
         contentContainerClassName="pb-8"
         contentContainerStyle={{ paddingBottom: bottomSpacing }}
         onScroll={handleScroll}

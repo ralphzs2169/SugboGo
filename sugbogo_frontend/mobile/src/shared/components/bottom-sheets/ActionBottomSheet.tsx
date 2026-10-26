@@ -4,7 +4,8 @@ import {
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
+import AppText from "@/shared/components/AppText";
 
 type ActionOption = {
   label: string;
@@ -82,14 +83,15 @@ export default function ActionBottomSheet({
               accessibilityLabel={option.label}
               className="min-h-12 cursor-pointer items-center justify-center bg-surface py-3 active:opacity-60"
             >
-              <Text
-                className="text-base font-bold"
+              <AppText
+                weight="bold"
+                className="text-base"
                 style={{
                   color: option.color ?? "#1F2937",
                 }}
               >
                 {option.label}
-              </Text>
+              </AppText>
             </Pressable>
           ))}
         </View>
@@ -101,9 +103,9 @@ export default function ActionBottomSheet({
           accessibilityLabel="Cancel"
           className=" cursor-pointer items-center rounded-lg py-4 bg-surface active:bg-gray-100"
         >
-          <Text className="text-base font-semibold text-text-secondary">
+          <AppText weight="semibold" className="text-base text-text-secondary">
             Cancel
-          </Text>
+          </AppText>
         </Pressable>
       </BottomSheetView>
     </BottomSheetModal>

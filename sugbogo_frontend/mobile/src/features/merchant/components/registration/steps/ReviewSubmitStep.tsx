@@ -11,6 +11,7 @@ import type {
 } from "@/features/merchant/types/registration/registrationApi.types";
 import type { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import { useFormContext } from "react-hook-form";
+import type { mapApplicationToForm } from "../../../utils/merchant-application/mappers/mapApplicationToForm.utils";
 
 import ReviewBusinessIdentity from "../review/sections/ReviewBusinessIdentity";
 import ReviewBusinessLocation from "../review/sections/ReviewBusinessLocation";
@@ -21,6 +22,7 @@ import ResubmissionChecklist from "../ResubmissionChecklist";
 import DuplicateBusinessWarning from "../DuplicateBusinessWarning";
 
 type ReviewSubmitStepProps = {
+  values?: ReturnType<typeof mapApplicationToForm>;
   application?: ApplicationDetailResponse | null;
   clusters: ClusterOption[];
   categories: CategoryOption[];
@@ -29,8 +31,10 @@ type ReviewSubmitStepProps = {
   feedback: ApplicationFeedbackResponse[];
 };
 
+/** Renders the accepted section snapshot while retaining section-specific correction actions. */
 export default function ReviewSubmitStep({
   application = null,
+  values,
   clusters,
   categories,
   onEditSection,
@@ -38,7 +42,7 @@ export default function ReviewSubmitStep({
   feedback,
 }: ReviewSubmitStepProps) {
   const { watch } = useFormContext<MerchantRegistrationForm>();
-  const form = watch();
+  const form = (values ?? watch()) as MerchantRegistrationForm;
   const duplicateRejected =
     isResubmission && !!application?.duplicate_disposition;
   const getSectionFeedback = (section: ApplicationFeedbackSection) => {

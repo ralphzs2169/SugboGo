@@ -1,6 +1,9 @@
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
+import AppText from "@/shared/components/AppText";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { useFormContext } from "react-hook-form";
+import Toast from "react-native-toast-message";
 
 import DocumentPreview from "./DocumentPreview";
 import { pickBusinessDocuments } from "./DocumentPicker";
@@ -35,17 +38,30 @@ export default function DocumentUploadCard({
   onDocumentsChange,
 }: DocumentUploadCardProps) {
   const [isPicking, setIsPicking] = useState(false);
+  const {
+    formState: { disabled },
+  } = useFormContext();
+  const disabledRef = useRef(disabled);
+  const pickerGeneration = useRef(0);
+  useLayoutEffect(() => {
+    disabledRef.current = disabled;
+    return () => {
+      disabledRef.current = true;
+      pickerGeneration.current += 1;
+    };
+  }, [disabled]);
 
   const currentDocuments = multiple ? documents : document ? [document] : [];
 
   const canAddMore = currentDocuments.length < maxDocuments;
 
   const handleAddDocument = async () => {
-    if (!canAddMore || isPicking) {
+    if (disabledRef.current || !canAddMore || isPicking) {
       return;
     }
 
     setIsPicking(true);
+    const operation = pickerGeneration.current;
 
     try {
       const selectedDocuments = await pickBusinessDocuments({
@@ -53,7 +69,11 @@ export default function DocumentUploadCard({
         maxDocuments,
       });
 
-      if (selectedDocuments.length === 0) {
+      if (
+        disabledRef.current ||
+        operation !== pickerGeneration.current ||
+        selectedDocuments.length === 0
+      ) {
         return;
       }
 
@@ -63,12 +83,24 @@ export default function DocumentUploadCard({
       }
 
       onDocumentChange?.(selectedDocuments[0]);
+    } catch (error) {
+      if (!disabledRef.current && operation === pickerGeneration.current) {
+        Toast.show({
+          type: "error",
+          text1: "Unable to add documents",
+          text2:
+            error instanceof Error
+              ? `${error.message} Please try again.`
+              : "Please choose the documents again and try again.",
+        });
+      }
     } finally {
       setIsPicking(false);
     }
   };
 
   const handleRemoveDocument = (index: number) => {
+    if (disabledRef.current) return;
     if (multiple) {
       onDocumentsChange?.(
         documents.filter((_, documentIndex) => documentIndex !== index),
@@ -91,7 +123,9 @@ export default function DocumentUploadCard({
             <DocumentPreview
               key={`${item.uri}-${index}`}
               document={item}
-              onRemove={() => handleRemoveDocument(index)}
+              onRemove={
+                disabled ? undefined : () => handleRemoveDocument(index)
+              }
             />
           ))}
         </View>
@@ -99,8 +133,8 @@ export default function DocumentUploadCard({
 
       {canAddMore && (
         <Pressable
-          onPress={handleAddDocument}
-          disabled={isPicking}
+          onPress={() => void handleAddDocument()}
+          disabled={disabled || isPicking}
           className="items-center justify-center rounded-lg border border-dashed border-border-secondary py-5"
         >
           {isPicking ? (
@@ -113,21 +147,24 @@ export default function DocumentUploadCard({
                 color={theme.extends.colors.text.secondary}
               />
 
-              <Text className="mt-2 text-sm font-medium text-text-secondary">
+              <AppText
+                weight="medium"
+                className="mt-2 text-sm text-text-secondary"
+              >
                 {currentDocuments.length > 0
                   ? "Add Another Document"
                   : "Upload Document"}
-              </Text>
+              </AppText>
 
-              <Text className="mt-1 text-xs text-text-secondary">
+              <AppText className="mt-1 text-xs text-text-secondary">
                 {required ? "Required" : "Optional"}
                 {multiple && ` · Up to ${maxDocuments} documents`}
-              </Text>
+              </AppText>
             </>
           )}
         </Pressable>
       )}
-      {error && <Text className="text-sm text-text-error">{error}</Text>}
+      {error && <AppText className="text-sm text-text-error">{error}</AppText>}
     </View>
   );
 }

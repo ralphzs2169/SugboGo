@@ -26,12 +26,16 @@ export default function SelectedLandmarksSection({
   nearbyLandmarksLoadFailed,
   onRemove,
   onAddCustom,
+  onRetryNearby,
+  isRetryingNearby = false,
 }: {
   selectedLandmarks: BusinessLandmark[];
   hasSelectedLocation: boolean;
   nearbyLandmarksLoadFailed: boolean;
   onRemove: (id: string) => void;
   onAddCustom: () => void;
+  onRetryNearby?: () => void;
+  isRetryingNearby?: boolean;
 }) {
   const remainingLandmarks = MAX_SELECTED_LANDMARKS - selectedLandmarks.length;
 
@@ -47,20 +51,28 @@ export default function SelectedLandmarksSection({
       {/* Landmark selection state */}
       {!hasSelectedLocation ? (
         <DisabledSelectionState />
-      ) : nearbyLandmarksLoadFailed ? (
-        <LandmarksLoadFailedState />
-      ) : selectedLandmarks.length === 0 ? (
-        <LandmarksEmptyState />
       ) : (
-        <View className="gap-2">
-          {selectedLandmarks.map((landmark) => (
-            <LandmarkCard
-              key={landmark.id}
-              landmark={landmark}
-              onRemove={onRemove}
+        <>
+          {nearbyLandmarksLoadFailed && (
+            <LandmarksLoadFailedState
+              onRetry={onRetryNearby}
+              isRetrying={isRetryingNearby}
             />
-          ))}
-        </View>
+          )}
+          {selectedLandmarks.length > 0 ? (
+            <View className="gap-2">
+              {selectedLandmarks.map((landmark) => (
+                <LandmarkCard
+                  key={landmark.id}
+                  landmark={landmark}
+                  onRemove={onRemove}
+                />
+              ))}
+            </View>
+          ) : !nearbyLandmarksLoadFailed ? (
+            <LandmarksEmptyState />
+          ) : null}
+        </>
       )}
 
       {/* Landmark capacity and custom selection */}

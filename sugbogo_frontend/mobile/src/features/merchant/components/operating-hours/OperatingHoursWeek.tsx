@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LayoutChangeEvent, View } from "react-native";
 import { useFormContext, useFormState, useWatch } from "react-hook-form";
 
@@ -23,15 +23,34 @@ export default function OperatingHoursWeek({
   registerDayTarget,
   showScheduleError = false,
 }: OperatingHoursWeekProps) {
-  const { control } = useFormContext<OperatingHoursForm>();
+  const { control, trigger } = useFormContext<OperatingHoursForm>();
   const { errors } = useFormState({ control });
   const operatingHours = useWatch({ control, name: "operatingHours" });
   const [expandedDay, setExpandedDay] = useState<Day | null>(null);
 
+  useEffect(() => {
+    // Nested field validation does not clear a resolver error on the schedule.
+    if (
+      showScheduleError &&
+      errors.operatingHours?.message &&
+      DAYS.some((day) => operatingHours[day].isOpen)
+    ) {
+      void trigger("operatingHours");
+    }
+  }, [
+    showScheduleError,
+    errors.operatingHours?.message,
+    operatingHours,
+    trigger,
+  ]);
+
   return (
     <View className="gap-3">
       {showScheduleError && errors.operatingHours?.message && (
-        <AppText className="text-sm text-text-error">
+        <AppText
+          className="text-sm text-text-error"
+          accessibilityLiveRegion="polite"
+        >
           {errors.operatingHours.message}
         </AppText>
       )}

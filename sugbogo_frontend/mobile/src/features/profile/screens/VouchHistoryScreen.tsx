@@ -114,7 +114,14 @@ export default function VouchHistoryScreen() {
     onAccepted?: () => void,
   ) {
     if (!selectedBusiness) return;
-    if (!onlineManager.isOnline()) return;
+    if (!onlineManager.isOnline()) {
+      Toast.show({
+        type: "info",
+        text1: "Internet connection required",
+        text2: "Connect to the internet to update your vouches.",
+      });
+      return;
+    }
     try {
       await vouch(
         {

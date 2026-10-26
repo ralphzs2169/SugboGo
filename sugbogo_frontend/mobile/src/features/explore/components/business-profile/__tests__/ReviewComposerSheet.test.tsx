@@ -18,8 +18,10 @@ import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.ser
 
 let mockSubmitHandler: () => void;
 let mockSheetChange: (index: number) => void;
+const mockNativeDismiss = jest.fn();
 
 jest.mock("@gorhom/bottom-sheet", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { View, TextInput } = require("react-native");
   return {
@@ -27,10 +29,16 @@ jest.mock("@gorhom/bottom-sheet", () => {
     BottomSheetModal: ({
       children,
       onChange,
+      ref,
     }: {
       children: React.ReactNode;
       onChange: (index: number) => void;
+      ref: React.Ref<unknown>;
     }) => {
+      React.useImperativeHandle(ref, () => ({
+        dismiss: mockNativeDismiss,
+        present: () => onChange(0),
+      }));
       mockSheetChange = onChange;
       return <View>{children}</View>;
     },
@@ -40,6 +48,7 @@ jest.mock("@gorhom/bottom-sheet", () => {
     BottomSheetTextInput: TextInput,
   };
 });
+jest.mock("@/shared/components/modals/ConfirmModal", () => () => null);
 jest.mock("expo-image", () => ({ Image: () => null }));
 jest.mock(
   "@/features/merchant/components/registration/business-photos/PhotoPicker",
@@ -174,7 +183,7 @@ describe("ReviewComposerSheet Community visibility", () => {
     const screen = await showReview();
     expect(screen.getByText("Submitting · Only you can see this")).toBeTruthy();
     await fireEvent.press(screen.getByLabelText("Close"));
-    expect(sheetRef.current.dismiss).toHaveBeenCalled();
+    expect(mockNativeDismiss).toHaveBeenCalled();
   });
 
   it.each<ReviewSubmissionDraft["state"]>([
@@ -231,7 +240,7 @@ describe("ReviewComposerSheet Community visibility", () => {
           ],
         });
       });
-      expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(
+      expect(mockNativeDismiss).toHaveBeenCalledTimes(
         state === "acknowledged" ? 1 : 0,
       );
       expect(
@@ -253,7 +262,7 @@ describe("ReviewComposerSheet Community visibility", () => {
     expect(screen.getByText("Saving changes…")).toBeTruthy();
     expect(screen.getByDisplayValue(review.text)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText("Close"));
-    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    expect(mockNativeDismiss).not.toHaveBeenCalled();
   });
 
   it("clears an open private edit when the account changes", async () => {
@@ -369,7 +378,7 @@ describe("ReviewComposerSheet Community visibility", () => {
     await fireEvent.press(screen.getByText("Submit review"));
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("switch").props.value).toBe(false);
-    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    expect(mockNativeDismiss).not.toHaveBeenCalled();
     expect(Toast.show).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "success" }),
     );
@@ -513,7 +522,7 @@ describe("ReviewComposerSheet edit moderation feedback", () => {
         expect.objectContaining({ type: "success", text1: "Review updated" }),
       ),
     );
-    expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(1);
+    expect(mockNativeDismiss).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("review-edit-error-banner")).toBeNull();
   });
 
@@ -551,7 +560,7 @@ describe("ReviewComposerSheet edit moderation feedback", () => {
     expect(screen.getByLabelText("Your review").props.value).toBe(
       "A changed review with enough written detail.",
     );
-    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    expect(mockNativeDismiss).not.toHaveBeenCalled();
     expect(Toast.show).not.toHaveBeenCalled();
   });
 
@@ -574,7 +583,7 @@ describe("ReviewComposerSheet edit moderation feedback", () => {
       expect(screen.getByTestId("review-edit-error-banner")).toBeTruthy(),
     );
     await waitFor(() => expect(screen.getByText("1/3")).toBeTruthy());
-    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    expect(mockNativeDismiss).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByLabelText("Add review photo"));
     expect(screen.queryByTestId("review-edit-error-banner")).toBeNull();
   });
@@ -606,15 +615,13 @@ describe("ReviewComposerSheet edit moderation feedback", () => {
     const retryPress = fireEvent.press(screen.getByText("Save changes"));
     await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
     expect(screen.queryByTestId("review-edit-error-banner")).toBeNull();
-    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    expect(mockNativeDismiss).not.toHaveBeenCalled();
 
     await act(async () => {
       resolveRetry?.(review);
     });
     await retryPress;
-    await waitFor(() =>
-      expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(1),
-    );
+    await waitFor(() => expect(mockNativeDismiss).toHaveBeenCalledTimes(1));
   });
 
   it("clears the banner when the review changes and when retried", async () => {
@@ -643,7 +650,7 @@ describe("ReviewComposerSheet edit moderation feedback", () => {
     await fireEvent.press(screen.getByText("Save changes"));
     await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
     expect(screen.queryByTestId("review-edit-error-banner")).toBeNull();
-    expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(1);
+    expect(mockNativeDismiss).toHaveBeenCalledTimes(1);
   });
 
   it("disables submission while moderation is pending", async () => {
@@ -683,7 +690,7 @@ describe("ReviewComposerSheet edit moderation feedback", () => {
     await act(async () => {
       finish(review);
     });
-    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    expect(mockNativeDismiss).not.toHaveBeenCalled();
     expect(Toast.show).not.toHaveBeenCalled();
   });
 
@@ -710,8 +717,6 @@ describe("ReviewComposerSheet edit moderation feedback", () => {
     await act(async () => {
       finishUpdate(review);
     });
-    await waitFor(() =>
-      expect(sheetRef.current.dismiss).toHaveBeenCalledTimes(1),
-    );
+    await waitFor(() => expect(mockNativeDismiss).toHaveBeenCalledTimes(1));
   });
 });

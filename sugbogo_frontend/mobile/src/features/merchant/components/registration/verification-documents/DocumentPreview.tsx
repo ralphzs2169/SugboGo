@@ -1,6 +1,8 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { Image, Linking, Pressable, View } from "react-native";
+import * as Sharing from "expo-sharing";
+import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import type { BusinessDocument } from "@/features/merchant/types/registration/registrationOption.types";
@@ -30,7 +32,33 @@ export default function DocumentPreview({
       return;
     }
 
-    await Linking.openURL(document.uri);
+    try {
+      if (/^file:\/\//i.test(document.uri)) {
+        if (!(await Sharing.isAvailableAsync())) {
+          throw new Error("Local document handoff is unavailable.");
+        }
+        await Sharing.shareAsync(document.uri, {
+          mimeType: document.mimeType ?? undefined,
+          UTI:
+            document.mimeType === "application/pdf"
+              ? "com.adobe.pdf"
+              : undefined,
+          dialogTitle: "Open document with another app",
+        });
+      } else if (/^(https?:\/\/|content:\/\/)/i.test(document.uri)) {
+        // Keep persisted URLs and provider URIs on their existing open path.
+        await Linking.openURL(document.uri);
+      } else {
+        throw new Error("Unsupported document URI.");
+      }
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Unable to open document",
+        text2:
+          "This device cannot open the document right now. Try again with a compatible viewer. Your document has not been changed.",
+      });
+    }
   };
 
   return (

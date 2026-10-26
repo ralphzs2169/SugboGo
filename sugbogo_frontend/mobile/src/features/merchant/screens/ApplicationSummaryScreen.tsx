@@ -8,7 +8,6 @@ import { mapApplicationToForm } from "../utils/merchant-application/mappers/mapA
 
 import useBusinessCategories from "../hooks/registration/useCategories";
 import useBusinessClusters from "../hooks/registration/useClusters";
-import useSpecialtyTags from "../hooks/registration/useSpecialtyTags";
 
 import ReviewBusinessIdentity from "@/features/merchant/components/registration/review/sections/ReviewBusinessIdentity";
 import ErrorState from "@/shared/components/ErrorState";
@@ -23,33 +22,17 @@ export default function ApplicationSummaryScreen() {
 
   const {
     clusters,
-    isLoading: isLoadingClusters,
-    hasData: hasClustersData,
     error: clustersError,
     refetch: refetchClusters,
   } = useBusinessClusters();
 
   const {
     categories,
-    isLoading: isLoadingCategories,
-    hasData: hasCategoriesData,
     error: categoriesError,
     refetch: refetchCategories,
   } = useBusinessCategories();
 
-  const {
-    isLoading: isLoadingSpecialtyTags,
-    hasData: hasSpecialtyTagsData,
-    error: specialtyTagsError,
-    refetch: refetchSpecialtyTags,
-  } = useSpecialtyTags();
-
-  if (
-    isLoading ||
-    isLoadingClusters ||
-    isLoadingCategories ||
-    isLoadingSpecialtyTags
-  ) {
+  if (isLoading && !application) {
     return (
       <LoadingScreen
         title="Loading Application"
@@ -58,12 +41,7 @@ export default function ApplicationSummaryScreen() {
     );
   }
 
-  if (
-    (error && !application) ||
-    (clustersError && !hasClustersData) ||
-    (categoriesError && !hasCategoriesData) ||
-    (specialtyTagsError && !hasSpecialtyTagsData)
-  ) {
+  if (error && !application) {
     return (
       <SafeAreaView
         className="flex-1 bg-background"
@@ -74,12 +52,7 @@ export default function ApplicationSummaryScreen() {
           description="Please check your internet connection and try again."
           primaryActionTitle="Try Again"
           onPrimaryAction={() => {
-            void Promise.all([
-              refetch(),
-              refetchClusters(),
-              refetchCategories(),
-              refetchSpecialtyTags(),
-            ]);
+            void refetch();
           }}
           secondaryActionTitle="Go Back"
           onSecondaryAction={() => router.back()}
@@ -89,11 +62,23 @@ export default function ApplicationSummaryScreen() {
   }
 
   if (!application) {
-    return null;
+    return (
+      <SafeAreaView
+        className="flex-1 bg-background"
+        edges={["left", "right", "bottom"]}
+      >
+        <ErrorState
+          icon="file-document-outline"
+          title="No submitted application"
+          description="There is no submitted application to display."
+          primaryActionTitle="Go Back"
+          onPrimaryAction={() => router.back()}
+        />
+      </SafeAreaView>
+    );
   }
 
   const form = mapApplicationToForm(application);
-  const hasBackgroundError = error || clustersError || categoriesError;
 
   return (
     <SafeAreaView className="flex-1" edges={["left", "right", "bottom"]}>
@@ -102,18 +87,14 @@ export default function ApplicationSummaryScreen() {
           paddingTop: 0,
         }}
       >
-        {hasBackgroundError && (
+        {error && (
           <ErrorState
             size="section"
             title="Unable to refresh application"
             description="Showing the last available application details."
             primaryActionTitle="Try Again"
             onPrimaryAction={() => {
-              void Promise.all([
-                refetch(),
-                refetchClusters(),
-                refetchCategories(),
-              ]);
+              void refetch();
             }}
           />
         )}
@@ -122,6 +103,17 @@ export default function ApplicationSummaryScreen() {
           form={form}
           clusters={clusters}
           categories={categories}
+          clusterNameFallback={application.identity?.business_cluster_name}
+          categoryNameFallback={application.identity?.business_category_name}
+          classificationError={Boolean(clustersError || categoriesError)}
+          onRetryClassification={() => {
+            if (clustersError) {
+              void refetchClusters();
+            }
+            if (categoriesError) {
+              void refetchCategories();
+            }
+          }}
         />
 
         <ReviewBusinessLocation form={form} returnTo="application-summary" />
