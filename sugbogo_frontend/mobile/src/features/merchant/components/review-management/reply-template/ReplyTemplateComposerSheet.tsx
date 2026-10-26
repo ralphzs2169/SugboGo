@@ -6,7 +6,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
@@ -18,6 +18,8 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import { useReplyTemplates } from "../../../hooks/reply-templates/useReplyTemplates";
 import type { ReplyTemplate } from "../../../types/reply-templates/replyTemplate.types";
+import useMerchantSheetDraft from "../../../hooks/useMerchantSheetDraft";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import AppText from "@/shared/components/AppText";
 
 type Props = {
@@ -30,6 +32,16 @@ type TemplateErrors = {
   title?: string;
   text?: string;
 };
+
+function templateDraft(template?: ReplyTemplate | null) {
+  return {
+    source: template,
+    title: template?.title ?? "",
+    text: template?.text ?? "",
+    baselineTitle: template?.title ?? "",
+    baselineText: template?.text ?? "",
+  };
+}
 
 /**
  * Provides a focused composer for creating or editing a reusable
@@ -50,38 +62,44 @@ export default function ReplyTemplateComposerSheet({
     updateError,
   } = useReplyTemplates();
 
-  const [title, setTitle] = useState("");
-  const [text, setText] = useState("");
+  const [draft, setDraft] = useState(() => templateDraft(template));
+  const { title, text } = draft;
+  const setTitle = (value: string) =>
+    setDraft((current) => ({ ...current, title: value }));
+  const setText = (value: string) =>
+    setDraft((current) => ({ ...current, text: value }));
   const [errors, setErrors] = useState<TemplateErrors>({});
 
   const isEditing = Boolean(template);
-  const isPending = isCreating || isUpdating;
+  const dirty =
+    title.trim() !== draft.baselineTitle.trim() ||
+    text.trim() !== draft.baselineText.trim();
+  // A new selection resets the composer; refetches only refresh a pristine draft.
+  if (
+    draft.source !== template &&
+    (draft.source?.id !== template?.id || !dirty)
+  ) {
+    setDraft(templateDraft(template));
+    setErrors({});
+  }
+  const sheet = useMerchantSheetDraft(
+    sheetRef,
+    dirty,
+    isCreating || isUpdating,
+    template?.id ?? null,
+  );
+  const isPending = sheet.pending;
 
   const trimmedTitle = title.trim();
   const trimmedText = text.trim();
 
-  const hasChanges = template
-    ? trimmedTitle !== template.title.trim() ||
-      trimmedText !== template.text.trim()
-    : true;
+  const hasChanges = dirty;
 
   const canSubmit =
     !isPending &&
     trimmedTitle.length > 0 &&
     trimmedText.length > 0 &&
     hasChanges;
-
-  useEffect(() => {
-    if (template) {
-      setTitle(template.title);
-      setText(template.text);
-    } else {
-      setTitle("");
-      setText("");
-    }
-
-    setErrors({});
-  }, [template]);
 
   useEffect(() => {
     const error = createError || updateError;
@@ -129,8 +147,7 @@ export default function ReplyTemplateComposerSheet({
   };
 
   const resetForm = () => {
-    setTitle("");
-    setText("");
+    setDraft(templateDraft(template));
     setErrors({});
   };
 
@@ -146,6 +163,8 @@ export default function ReplyTemplateComposerSheet({
       return;
     }
 
+    const token = sheet.beginSave();
+    if (token === null) return;
     try {
       if (isEditing && template) {
         await updateTemplateAsync({
@@ -170,18 +189,18 @@ export default function ReplyTemplateComposerSheet({
         });
       }
 
-      resetForm();
-      sheetRef.current?.dismiss();
+      sheet.completeSave(token);
     } catch {
       // API errors are handled through the mutation error state.
+    } finally {
+      sheet.endSave();
     }
   };
 
   const handleDismiss = () => {
-    if (!isPending) {
-      resetForm();
-      onDismiss();
-    }
+    sheet.onDismiss();
+    resetForm();
+    onDismiss();
   };
 
   return (
@@ -190,6 +209,8 @@ export default function ReplyTemplateComposerSheet({
       snapPoints={["75%"]}
       enableDynamicSizing={false}
       enablePanDownToClose={!isPending}
+      enableDismissOnClose={false}
+      onChange={sheet.onChange}
       keyboardBehavior="fillParent"
       keyboardBlurBehavior="restore"
       onDismiss={handleDismiss}
@@ -199,6 +220,8 @@ export default function ReplyTemplateComposerSheet({
           appearsOnIndex={0}
           disappearsOnIndex={-1}
           opacity={0.45}
+          pressBehavior="none"
+          onPress={sheet.requestDismiss}
         />
       )}
     >
@@ -221,7 +244,7 @@ export default function ReplyTemplateComposerSheet({
           </View>
 
           <Pressable
-            onPress={() => sheetRef.current?.dismiss()}
+            onPress={sheet.requestDismiss}
             disabled={isPending}
             accessibilityRole="button"
             accessibilityLabel="Close"
@@ -240,8 +263,12 @@ export default function ReplyTemplateComposerSheet({
         <View className="mt-5">
           <FormInput
             label="Template name"
+            editable={!isPending}
+            accessibilityState={{ disabled: isPending }}
             value={title}
-            onChangeText={setTitle}
+            onChangeText={(value) => {
+              if (!sheet.savingRef.current && !isPending) setTitle(value);
+            }}
             onFocus={() => clearFieldError("title")}
             placeholder="e.g. Thank you"
             required
@@ -257,8 +284,12 @@ export default function ReplyTemplateComposerSheet({
         <View className="mt-3">
           <FormTextArea
             label="Response"
+            editable={!isPending}
+            accessibilityState={{ disabled: isPending }}
             value={text}
-            onChangeText={setText}
+            onChangeText={(value) => {
+              if (!sheet.savingRef.current && !isPending) setText(value);
+            }}
             onFocus={() => clearFieldError("text")}
             placeholder="Write your reusable response"
             maxLength={1000}
@@ -281,6 +312,16 @@ export default function ReplyTemplateComposerSheet({
           rounded="full"
         />
       </BottomSheetScrollView>
+      <ConfirmModal
+        visible={sheet.showDiscard}
+        title="Discard template changes?"
+        message="Your unsaved template changes will be lost."
+        confirmText="Discard"
+        cancelText="Keep Editing"
+        destructive
+        onCancel={sheet.keepEditing}
+        onConfirm={sheet.discard}
+      />
     </BottomSheetModal>
   );
 }

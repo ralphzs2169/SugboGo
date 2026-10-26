@@ -6,6 +6,7 @@ import AppText from "@/shared/components/AppText";
 import { formatTime } from "@/features/merchant/utils/operatingHours.utils";
 
 type TimeInputProps = {
+  disabled?: boolean;
   label: string;
   value: string;
   error?: string;
@@ -19,6 +20,7 @@ type TimeInputProps = {
  * native time picker when pressed.
  */
 export default function TimeInput({
+  disabled = false,
   label,
   value,
   error,
@@ -36,6 +38,8 @@ export default function TimeInput({
 
       {/* Time selection */}
       <Pressable
+        disabled={disabled}
+        accessibilityState={{ disabled }}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${

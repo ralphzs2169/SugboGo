@@ -6,10 +6,13 @@ import type { LocationChangeLocation } from "../types/locationChange.types";
 import {
   liveLandmarkSelection,
   liveLocationProposal,
+  buildLocationChangePayload,
+  locationPayloadSignature,
 } from "../utils/locationChange.utils";
 
 type LocationChangeDraftState = {
   businessId: number | null;
+  baselineKey: string | null;
   location: LocationChangeLocation | null;
   landmarks: BusinessLandmark[];
   nearbyLandmarksLoadFailed: boolean;
@@ -24,17 +27,36 @@ type LocationChangeDraftState = {
 export const useLocationChangeDraftStore = create<LocationChangeDraftState>(
   (set, get) => ({
     businessId: null,
+    baselineKey: null,
     location: null,
     landmarks: [],
     nearbyLandmarksLoadFailed: false,
     initialize: (business) => {
-      if (get().businessId === business.id && get().location) {
+      const current = get();
+      if (
+        current.businessId === business.id &&
+        current.location &&
+        locationPayloadSignature(
+          buildLocationChangePayload(current.location, current.landmarks),
+        ) !== current.baselineKey
+      ) {
         return;
       }
+      const location = liveLocationProposal(business.location);
+      const landmarks = liveLandmarkSelection(business.location);
+      const baselineKey = locationPayloadSignature(
+        buildLocationChangePayload(location, landmarks),
+      );
+      if (
+        current.businessId === business.id &&
+        current.baselineKey === baselineKey
+      )
+        return;
       set({
         businessId: business.id,
-        location: liveLocationProposal(business.location),
-        landmarks: liveLandmarkSelection(business.location),
+        baselineKey,
+        location,
+        landmarks,
         nearbyLandmarksLoadFailed: false,
       });
     },
@@ -57,6 +79,7 @@ export const useLocationChangeDraftStore = create<LocationChangeDraftState>(
     reset: () =>
       set({
         businessId: null,
+        baselineKey: null,
         location: null,
         landmarks: [],
         nearbyLandmarksLoadFailed: false,

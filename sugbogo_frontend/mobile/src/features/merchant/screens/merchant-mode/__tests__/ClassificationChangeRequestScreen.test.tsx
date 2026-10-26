@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -25,7 +26,11 @@ jest.mock("expo-router", () => ({
     push: (...args: unknown[]) => mockPush(...args),
     replace: (...args: unknown[]) => mockReplace(...args),
   },
-  useNavigation: () => ({ setOptions: mockSetOptions }),
+  useNavigation: () => ({
+    setOptions: mockSetOptions,
+    isFocused: () => true,
+    dispatch: jest.fn(),
+  }),
   useFocusEffect: (callback: () => void) =>
     jest.requireActual("react").useEffect(callback, [callback]),
 }));
@@ -160,6 +165,7 @@ const eligible = {
 describe("ClassificationChangeRequestScreen", () => {
   afterEach(async () => {
     await cleanup();
+    jest.restoreAllMocks();
   });
 
   beforeEach(() => {
@@ -300,26 +306,37 @@ describe("ClassificationChangeRequestScreen", () => {
   });
 
   it("prevents duplicate submissions while the first save is pending", async () => {
-    let resolveSubmit: ((value: unknown) => void) | undefined;
-    mockSubmit.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveSubmit = resolve;
-        }),
+    let resolveSubmit!: (value: { id: number; status?: string }) => void;
+    const submission = new Promise<{ id: number; status?: string }>(
+      (resolve) => {
+        resolveSubmit = resolve;
+      },
     );
-    const screen = await render(<ClassificationChangeRequestScreen />);
-    await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
-    await fireEvent.press(screen.getByText("Review Changes"));
-    await fireEvent.changeText(
-      screen.getByLabelText("Reason for change"),
-      "Our business focus has changed.",
-    );
-    const button = screen.getByRole("button", { name: "Submit Request" });
-    await fireEvent.press(button);
-    await fireEvent.press(button);
-    expect(mockSubmit).toHaveBeenCalledTimes(1);
-    resolveSubmit?.({ id: 7, status: "pending" });
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledTimes(1));
+    mockSubmit.mockReturnValueOnce(submission);
+    try {
+      const screen = await render(<ClassificationChangeRequestScreen />);
+      await fireEvent.press(screen.getByLabelText("Select Category: Cafes"));
+      await fireEvent.press(screen.getByText("Review Changes"));
+      await fireEvent.changeText(
+        screen.getByLabelText("Reason for change"),
+        "Our business focus has changed.",
+      );
+      const button = screen.getByRole("button", { name: "Submit Request" });
+      await fireEvent.press(button);
+      await fireEvent.press(button);
+      expect(mockSubmit).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        resolveSubmit({ id: 7, status: "pending" });
+        await submission;
+      });
+      await waitFor(() => expect(mockReplace).toHaveBeenCalledTimes(1));
+    } finally {
+      // An assertion failure must not leave the mocked mutation pending.
+      await act(async () => {
+        resolveSubmit({ id: 7, status: "pending" });
+        await submission;
+      });
+    }
   });
 
   it("allows specialty-only changes and maps backend tag errors", async () => {
@@ -478,4 +495,36 @@ describe("ClassificationChangeRequestScreen", () => {
     expect(screen.getByText("Discard classification changes?")).toBeTruthy();
     expect(mockBack).not.toHaveBeenCalled();
   });
+  it("adopts pristine classification updates but preserves dirty specialty choices", async () => {
+    const screen = await render(<ClassificationChangeRequestScreen />);
+    const newer = {
+      ...business,
+      category: { ...business.category, id: 6, name: "Cafes" },
+      specialty_tags: [...business.specialty_tags].reverse(),
+    };
+    mockProfile.mockReturnValue({
+      business: newer,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    await screen.rerender(<ClassificationChangeRequestScreen />);
+    expect(
+      screen.getByRole("button", { name: "Review Changes" }).props
+        .accessibilityState.disabled,
+    ).toBe(true);
+    await fireEvent.press(screen.getByText("Choose Tag 4"));
+    mockProfile.mockReturnValue({
+      business: { ...newer, specialty_tags: business.specialty_tags },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    await screen.rerender(<ClassificationChangeRequestScreen />);
+    expect(mockSelectorProps.mock.lastCall?.[0].selectedIds).toEqual([1, 2, 4]);
+  });
 });
+
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: jest.fn(),
+}));

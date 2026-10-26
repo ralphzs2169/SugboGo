@@ -1,22 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { router, useFocusEffect, useNavigation } from "expo-router";
-import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { router } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import {
-  BackHandler,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  View,
-} from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { z } from "zod";
@@ -27,6 +14,7 @@ import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormInput from "@/shared/components/form/FormInput";
 import FormTextArea from "@/shared/components/form/FormTextArea";
+import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
@@ -50,11 +38,8 @@ type BusinessInformationForm = z.infer<
  */
 export default function MerchantBusinessInformationEditScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const savingRef = useRef(false);
-  const savedRef = useRef(false);
-  const hasChangesRef = useRef(false);
-  const [discardVisible, setDiscardVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
   const initializedBusinessId = useRef<number | null>(business?.id ?? null);
@@ -62,12 +47,14 @@ export default function MerchantBusinessInformationEditScreen() {
     business?.id ?? null,
   );
 
-  const { updateInformation, isSaving } = useUpdateMerchantBusinessInformation(
-    business?.id,
-  );
+  const { updateInformation, isSaving: mutationPending } =
+    useUpdateMerchantBusinessInformation(business?.id);
+
+  const isSaving = mutationPending || submitting;
 
   const form = useForm<BusinessInformationForm>({
     resolver: zodResolver(merchantBusinessInformationSchema),
+    disabled: isSaving,
     defaultValues: {
       businessDescription: business?.description ?? "",
       accessDirections: business?.access_directions ?? "",
@@ -100,40 +87,10 @@ export default function MerchantBusinessInformationEditScreen() {
     setReadyBusinessId(business.id);
   }, [business, hasChanges, reset]);
 
-  useLayoutEffect(() => {
-    hasChangesRef.current = hasChanges;
-  }, [hasChanges]);
-
-  const requestExit = useCallback(() => {
-    if (savingRef.current || savedRef.current) {
-      return;
-    }
-
-    if (hasChangesRef.current) {
-      setDiscardVisible(true);
-      return;
-    }
-
-    router.back();
-  }, []);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerLeft: () => <HeaderBackButton onPress={requestExit} />,
-    });
-  }, [navigation, requestExit]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const subscription = BackHandler.addEventListener(
-        "hardwareBackPress",
-        () => {
-          requestExit();
-          return true;
-        },
-      );
-      return () => subscription.remove();
-    }, [requestExit]),
+  const exit = useMerchantEditorExit(
+    hasChanges,
+    isSaving || form.formState.isSubmitting,
+    () => savingRef.current,
   );
 
   async function submitValues(values: BusinessInformationForm) {
@@ -142,7 +99,9 @@ export default function MerchantBusinessInformationEditScreen() {
     }
 
     savingRef.current = true;
+    setSubmitting(true);
 
+    let finishing = false;
     try {
       // PATCH only edited fields so a refetch cannot make untouched values stale writes.
       await updateInformation({
@@ -166,8 +125,7 @@ export default function MerchantBusinessInformationEditScreen() {
         text1: "Business information updated",
       });
 
-      savedRef.current = true;
-      router.back();
+      finishing = exit.finish();
     } catch (error) {
       const response = error as ApiError;
 
@@ -214,16 +172,37 @@ export default function MerchantBusinessInformationEditScreen() {
         });
       }
     } finally {
-      savingRef.current = false;
+      if (!finishing) {
+        savingRef.current = false;
+        setSubmitting(false);
+      }
     }
   }
+
+  const discardDialog = (
+    <ConfirmModal
+      visible={exit.showDiscard}
+      title="Discard business information changes?"
+      message="Your unsaved business information changes will be lost."
+      confirmText="Discard"
+      destructive
+      cancelText="Keep Editing"
+      onCancel={exit.keepEditing}
+      onConfirm={exit.discard}
+    />
+  );
 
   // Initial business loading state
   if (
     (isLoading && !business) ||
     (business && readyBusinessId !== business.id)
   ) {
-    return <MerchantBusinessEditSkeleton variant="information" />;
+    return (
+      <>
+        <MerchantBusinessEditSkeleton variant="information" />
+        {discardDialog}
+      </>
+    );
   }
 
   // Business profile unavailable
@@ -240,6 +219,7 @@ export default function MerchantBusinessInformationEditScreen() {
           secondaryActionTitle="Go Back"
           onSecondaryAction={() => router.back()}
         />
+        {discardDialog}
       </View>
     );
   }
@@ -254,6 +234,7 @@ export default function MerchantBusinessInformationEditScreen() {
           primaryActionTitle="Go Back"
           onPrimaryAction={() => router.back()}
         />
+        {discardDialog}
       </View>
     );
   }
@@ -307,8 +288,14 @@ export default function MerchantBusinessInformationEditScreen() {
                 showCharacterCount
                 maxLength={500}
                 placeholder="Tell explorers about your business..."
+                editable={!isSaving && !form.formState.isSubmitting}
+                accessibilityState={{
+                  disabled: isSaving || form.formState.isSubmitting,
+                }}
                 value={field.value}
-                onChangeText={field.onChange}
+                onChangeText={(value) => {
+                  if (!savingRef.current) field.onChange(value);
+                }}
                 onBlur={field.onBlur}
                 error={fieldState.error?.message}
               />
@@ -326,8 +313,14 @@ export default function MerchantBusinessInformationEditScreen() {
                 maxLength={1000}
                 helperText="Help visitors find your entrance or understand the last part of their visit. Shown to Explorers as merchant-provided Access notes."
                 placeholder="e.g. Use the side entrance beside the bakery. Our shop is upstairs on the second floor."
+                editable={!isSaving && !form.formState.isSubmitting}
+                accessibilityState={{
+                  disabled: isSaving || form.formState.isSubmitting,
+                }}
                 value={field.value}
-                onChangeText={field.onChange}
+                onChangeText={(value) => {
+                  if (!savingRef.current) field.onChange(value);
+                }}
                 onBlur={field.onBlur}
                 error={fieldState.error?.message}
               />
@@ -344,8 +337,14 @@ export default function MerchantBusinessInformationEditScreen() {
                 required
                 keyboardType="phone-pad"
                 placeholder="0912 345 6789"
+                editable={!isSaving && !form.formState.isSubmitting}
+                accessibilityState={{
+                  disabled: isSaving || form.formState.isSubmitting,
+                }}
                 value={field.value}
-                onChangeText={field.onChange}
+                onChangeText={(value) => {
+                  if (!savingRef.current) field.onChange(value);
+                }}
                 onBlur={field.onBlur}
                 error={fieldState.error?.message}
               />
@@ -362,8 +361,14 @@ export default function MerchantBusinessInformationEditScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 placeholder="business@example.com"
+                editable={!isSaving && !form.formState.isSubmitting}
+                accessibilityState={{
+                  disabled: isSaving || form.formState.isSubmitting,
+                }}
                 value={field.value}
-                onChangeText={field.onChange}
+                onChangeText={(value) => {
+                  if (!savingRef.current) field.onChange(value);
+                }}
                 onBlur={field.onBlur}
                 error={fieldState.error?.message}
               />
@@ -380,8 +385,14 @@ export default function MerchantBusinessInformationEditScreen() {
                 keyboardType="url"
                 autoCapitalize="none"
                 placeholder="https://..."
+                editable={!isSaving && !form.formState.isSubmitting}
+                accessibilityState={{
+                  disabled: isSaving || form.formState.isSubmitting,
+                }}
                 value={field.value}
-                onChangeText={field.onChange}
+                onChangeText={(value) => {
+                  if (!savingRef.current) field.onChange(value);
+                }}
                 onBlur={field.onBlur}
                 error={fieldState.error?.message}
               />
@@ -399,7 +410,7 @@ export default function MerchantBusinessInformationEditScreen() {
           title="Cancel"
           variant="outline"
           className="flex-1"
-          onPress={requestExit}
+          onPress={exit.requestExit}
           disabled={isSaving || form.formState.isSubmitting}
           rounded="full"
         />
@@ -415,19 +426,7 @@ export default function MerchantBusinessInformationEditScreen() {
       </View>
 
       {/* Discard confirmation */}
-      <ConfirmModal
-        visible={discardVisible}
-        title="Discard business information changes?"
-        message="Your unsaved business information changes will be lost."
-        confirmText="Discard"
-        destructive
-        onCancel={() => setDiscardVisible(false)}
-        onConfirm={() => {
-          reset();
-          setDiscardVisible(false);
-          router.back();
-        }}
-      />
+      {discardDialog}
     </KeyboardAvoidingView>
   );
 }

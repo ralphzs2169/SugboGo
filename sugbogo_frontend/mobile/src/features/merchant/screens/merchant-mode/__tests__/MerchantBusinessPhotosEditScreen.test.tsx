@@ -28,6 +28,13 @@ jest.mock("../../../components/business-photos/PhotoPicker", () => ({
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
+  useNavigation: () => ({
+    isFocused: () => true,
+    setOptions: jest.fn(),
+    dispatch: jest.fn(),
+  }),
+  useFocusEffect: (callback: () => void) =>
+    jest.requireActual("react").useEffect(callback, [callback]),
 }));
 
 jest.mock("react-native-safe-area-context", () => ({
@@ -238,4 +245,66 @@ describe("MerchantBusinessPhotosEditScreen", () => {
     await fireEvent.press(saveButton);
     expect(mockSavePhotos).not.toHaveBeenCalled();
   });
+  it("adopts pristine refetches, preserves removals, and refreshes after undoing all edits", async () => {
+    const screen = await render(<MerchantBusinessPhotosEditScreen />);
+    const newer = {
+      ...business,
+      photos: [
+        ...business.photos,
+        { ...business.photos[0], id: 2, file_name: "second.jpg" },
+      ],
+    };
+    mockProfile.mockReturnValue({
+      business: newer,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    await screen.rerender(<MerchantBusinessPhotosEditScreen />);
+    expect(screen.getAllByLabelText("Remove photo")).toHaveLength(2);
+    await fireEvent.press(screen.getAllByLabelText("Remove photo")[0]);
+    mockProfile.mockReturnValue({
+      business: {
+        ...newer,
+        photos: [...newer.photos, { ...business.photos[0], id: 3 }],
+      },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+    await screen.rerender(<MerchantBusinessPhotosEditScreen />);
+    expect(screen.getAllByLabelText("Remove photo")).toHaveLength(1);
+    await fireEvent.press(
+      screen.getByLabelText("Undo removal of storefront.jpg photo"),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByLabelText("Remove photo")).toHaveLength(3),
+    );
+    expect(
+      screen.getByRole("button", { name: "Save Changes" }).props
+        .accessibilityState.disabled,
+    ).toBe(true);
+  });
+
+  it("confirms a dirty Cancel, keeps the draft, and discards only on confirmation", async () => {
+    const screen = await render(<MerchantBusinessPhotosEditScreen />);
+    await fireEvent.press(screen.getByLabelText("Remove photo"));
+    await fireEvent.press(screen.getByText("Cancel"));
+    expect(screen.getByText("Discard photo changes?")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Keep Editing"));
+    expect(screen.getByText(/marked for removal/)).toBeTruthy();
+    expect(router.back).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByText("Cancel"));
+    await fireEvent.press(screen.getByText("Discard"));
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
 });
+
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: jest.fn(),
+}));
+
+jest.mock(
+  "expo-router/build/react-navigation/elements/Header/HeaderBackButton",
+  () => ({ HeaderBackButton: () => null }),
+);

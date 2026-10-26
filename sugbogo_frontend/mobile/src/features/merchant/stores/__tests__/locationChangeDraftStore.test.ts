@@ -61,4 +61,57 @@ describe("Location change draft", () => {
     expect(useLocationChangeDraftStore.getState().landmarks).toHaveLength(1);
     expect(business.location.address).toBe("Live flat address");
   });
+  it("refreshes a pristine baseline and preserves a dirty draft across route reinitialization", () => {
+    const store = useLocationChangeDraftStore.getState();
+    store.initialize(business);
+    const newer = {
+      ...business,
+      location: { ...business.location, address: "New live address" },
+    };
+    store.initialize(newer);
+    expect(useLocationChangeDraftStore.getState().location?.address).toBe(
+      "New live address",
+    );
+    store.setLocation({
+      ...useLocationChangeDraftStore.getState().location!,
+      address: "My draft",
+    });
+    store.initialize({
+      ...newer,
+      location: { ...newer.location, address: "Newest live address" },
+    });
+    expect(useLocationChangeDraftStore.getState().location?.address).toBe(
+      "My draft",
+    );
+    store.setLocation({
+      ...useLocationChangeDraftStore.getState().location!,
+      address: " New live address ",
+    });
+    store.initialize({
+      ...newer,
+      location: { ...newer.location, address: "Newest live address" },
+    });
+    expect(useLocationChangeDraftStore.getState().location?.address).toBe(
+      "Newest live address",
+    );
+  });
+
+  it("ignores landmark ordering and display IDs when deciding whether a draft is pristine", () => {
+    const store = useLocationChangeDraftStore.getState();
+    store.initialize(business);
+    store.setLandmarks(
+      useLocationChangeDraftStore.getState().landmarks.map((item) => ({
+        ...item,
+        id: "picker-id",
+        name: ` ${item.name} `,
+      })),
+    );
+    store.initialize({
+      ...business,
+      location: { ...business.location, city: "New city" },
+    });
+    expect(useLocationChangeDraftStore.getState().location?.city).toBe(
+      "New city",
+    );
+  });
 });

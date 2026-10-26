@@ -5,14 +5,8 @@ import {
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  BackHandler,
-  Pressable,
-  Text,
-  View,
-} from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
@@ -35,6 +29,7 @@ import type {
 } from "../../types/review-reply/reviewReply.types";
 import { BusinessReview } from "@/features/explore/types/review.types";
 import QuickResponses from "./QuickResponses";
+import useMerchantSheetDraft from "../../hooks/useMerchantSheetDraft";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
 import AppText from "@/shared/components/AppText";
@@ -78,18 +73,35 @@ export default function MerchantReviewReplyComposerSheet({
   const [originalPhotoIds, setOriginalPhotoIds] = useState<number[]>([]);
   const [isPicking, setIsPicking] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<ReplyTemplate | null>(
     null,
   );
 
   const isEditing = Boolean(review?.reply);
-  const isPending = isCreatePending || isUpdatePending;
+  const initialReviewId = useRef<number | null>(null);
+  const draftChanged =
+    text.trim() !== originalText.trim() ||
+    photos.length > 0 ||
+    existingPhotos.length !== originalPhotoIds.length ||
+    existingPhotos.some((photo) => !originalPhotoIds.includes(photo.id));
+  const sheet = useMerchantSheetDraft(
+    sheetRef,
+    draftChanged,
+    isCreatePending || isUpdatePending || isPicking,
+    review?.id ?? null,
+  );
+  const isPending = sheet.pending;
 
   const photoCount = photos.length + existingPhotos.length;
   const canAddMore = photoCount < MAX_REVIEW_PHOTOS;
 
   useEffect(() => {
+    if (
+      initialReviewId.current === review?.id &&
+      (draftChanged || sheet.savingRef.current)
+    )
+      return;
+    initialReviewId.current = review?.id ?? null;
     const reply = review?.reply;
     const initialText = reply?.text ?? "";
     const initialPhotos = reply?.photos ?? [];
@@ -100,7 +112,7 @@ export default function MerchantReviewReplyComposerSheet({
     setOriginalText(initialText);
     setOriginalPhotoIds(initialPhotos.map((photo) => photo.id));
     setShowTemplates(false);
-  }, [review]);
+  }, [review, draftChanged, sheet.savingRef]);
 
   const addPhotos = async () => {
     if (!canAddMore || isPicking || isPending) {
@@ -126,38 +138,28 @@ export default function MerchantReviewReplyComposerSheet({
   };
 
   const removeExistingPhoto = (photoId: number) => {
+    if (sheet.savingRef.current || isPending) return;
     setExistingPhotos((current) =>
       current.filter((photo) => photo.id !== photoId),
     );
   };
 
   const removeNewPhoto = (index: number) => {
+    if (sheet.savingRef.current || isPending) return;
     setPhotos((current) =>
       current.filter((_, photoIndex) => photoIndex !== index),
     );
   };
 
-  const hasChanges = () => {
-    if (!isEditing) {
-      return true;
-    }
-
-    const textChanged = text.trim() !== originalText.trim();
-
-    const existingPhotosChanged =
-      existingPhotos.length !== originalPhotoIds.length ||
-      existingPhotos.some((photo) => !originalPhotoIds.includes(photo.id));
-
-    return textChanged || existingPhotosChanged || photos.length > 0;
-  };
-
-  const canSubmit = Boolean(text.trim()) && (!isEditing || hasChanges());
+  const canSubmit = Boolean(text.trim()) && draftChanged;
 
   const submit = async () => {
     if (!review || !canSubmit || isPending) {
       return;
     }
 
+    const token = sheet.beginSave();
+    if (token === null) return;
     try {
       if (review.reply) {
         await updateReply({
@@ -179,7 +181,7 @@ export default function MerchantReviewReplyComposerSheet({
         text1: review.reply ? "Reply updated" : "Reply sent",
       });
 
-      sheetRef.current?.dismiss();
+      sheet.completeSave(token);
     } catch (error) {
       const response = error as unknown as ApiResponse<unknown>;
 
@@ -192,10 +194,13 @@ export default function MerchantReviewReplyComposerSheet({
           text2: response.message || "Please try again.",
         });
       }
+    } finally {
+      sheet.endSave();
     }
   };
 
   const applyTemplate = (template: ReplyTemplate) => {
+    if (sheet.savingRef.current || isPending) return;
     setText(template.text);
     setShowTemplates(false);
     setPendingTemplate(null);
@@ -227,39 +232,18 @@ export default function MerchantReviewReplyComposerSheet({
     setShowTemplates(false);
   };
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => {
-        if (!isSheetOpen) {
-          return false;
-        }
-
-        if (showTemplates) {
-          setShowTemplates(false);
-          return true;
-        }
-
-        sheetRef.current?.dismiss();
-        return true;
-      },
-    );
-
-    return () => subscription.remove();
-  }, [isSheetOpen, showTemplates, sheetRef]);
-
   return (
     <BottomSheetModal
       ref={sheetRef}
       snapPoints={["90%"]}
       enableDynamicSizing={false}
       enablePanDownToClose={!isPending}
+      enableDismissOnClose={false}
       keyboardBehavior="fillParent"
       keyboardBlurBehavior="restore"
-      onChange={(index) => {
-        setIsSheetOpen(index >= 0);
-      }}
+      onChange={sheet.onChange}
       onDismiss={() => {
+        sheet.onDismiss();
         setShowTemplates(false);
         onDismiss();
       }}
@@ -269,6 +253,8 @@ export default function MerchantReviewReplyComposerSheet({
           appearsOnIndex={0}
           disappearsOnIndex={-1}
           opacity={0.45}
+          pressBehavior="none"
+          onPress={sheet.requestDismiss}
         />
       )}
     >
@@ -310,7 +296,7 @@ export default function MerchantReviewReplyComposerSheet({
             </View>
 
             <Pressable
-              onPress={() => sheetRef.current?.dismiss()}
+              onPress={sheet.requestDismiss}
               accessibilityRole="button"
               accessibilityLabel="Close response templates"
               hitSlop={8}
@@ -349,7 +335,7 @@ export default function MerchantReviewReplyComposerSheet({
               </AppText>
 
               <AppText className="mt-1 text-center text-sm leading-5 text-text-secondary">
-                We couldn't load your response templates right now.
+                We couldn&apos;t load your response templates right now.
               </AppText>
 
               <Pressable
@@ -450,12 +436,15 @@ export default function MerchantReviewReplyComposerSheet({
             <FormTextArea
               label="Response"
               value={text}
-              onChangeText={setText}
+              onChangeText={(value) => {
+                if (!sheet.savingRef.current && !isPending) setText(value);
+              }}
               placeholder="Write a helpful response"
               maxLength={1000}
               showCharacterCount
               required
               editable={!isPending}
+              accessibilityState={{ disabled: isPending }}
               InputComponent={BottomSheetTextInput}
             />
           </View>
@@ -535,6 +524,16 @@ export default function MerchantReviewReplyComposerSheet({
         </BottomSheetScrollView>
       )}
 
+      <ConfirmModal
+        visible={sheet.showDiscard}
+        title="Discard reply?"
+        message="Your unsaved reply and photo changes will be lost."
+        confirmText="Discard"
+        cancelText="Keep Editing"
+        destructive
+        onCancel={sheet.keepEditing}
+        onConfirm={sheet.discard}
+      />
       <ConfirmModal
         visible={Boolean(pendingTemplate)}
         title="Replace your draft?"

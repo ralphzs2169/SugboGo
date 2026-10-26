@@ -31,7 +31,13 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
-  useNavigation: () => ({ isFocused: () => true }),
+  useNavigation: () => ({
+    isFocused: () => true,
+    setOptions: jest.fn(),
+    dispatch: jest.fn(),
+  }),
+  useFocusEffect: (callback: () => void) =>
+    jest.requireActual("react").useEffect(callback, [callback]),
 }));
 
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
@@ -406,4 +412,58 @@ describe("MerchantOperatingHoursEditScreen", () => {
     await press(screen.getByText("Closed"));
     expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
   });
+  it("keeps the hours draft when discard is cancelled and exits only after confirmation", async () => {
+    const screen = await render(<MerchantOperatingHoursEditScreen />);
+    await press(screen.getByLabelText("Edit monday hours"));
+    await press(screen.getByRole("switch"));
+    await press(screen.getByText("Cancel"));
+    expect(screen.getByText("Discard operating hours changes?")).toBeTruthy();
+    await press(screen.getByText("Keep Editing"));
+    expect(screen.getByRole("switch").props.accessibilityState.checked).toBe(
+      true,
+    );
+    expect(router.back).not.toHaveBeenCalled();
+    await press(screen.getByText("Cancel"));
+    await press(screen.getByText("Discard"));
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it("freezes the captured schedule and blocks Cancel until the save fails", async () => {
+    let reject: (value: unknown) => void = () => {};
+    mockUpdateOperatingHours.mockImplementationOnce(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
+    );
+    const screen = await render(<MerchantOperatingHoursEditScreen />);
+    await press(screen.getByLabelText("Edit monday hours"));
+    await press(screen.getByRole("switch"));
+    await press(screen.getByText("Save Changes"));
+    expect(screen.getByRole("switch").props.accessibilityState.disabled).toBe(
+      true,
+    );
+    await press(screen.getByRole("button", { name: "Save Changes" }));
+    await press(screen.getByText("Cancel"));
+    expect(mockUpdateOperatingHours).toHaveBeenCalledTimes(1);
+    expect(router.back).not.toHaveBeenCalled();
+    await act(() => reject({ code: "NETWORK_ERROR", message: "Try again" }));
+    await waitFor(() =>
+      expect(screen.getByRole("switch").props.accessibilityState.disabled).toBe(
+        false,
+      ),
+    );
+    expect(screen.getByRole("switch").props.accessibilityState.checked).toBe(
+      true,
+    );
+  });
 });
+
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: jest.fn(),
+}));
+
+jest.mock(
+  "expo-router/build/react-navigation/elements/Header/HeaderBackButton",
+  () => ({ HeaderBackButton: () => null }),
+);

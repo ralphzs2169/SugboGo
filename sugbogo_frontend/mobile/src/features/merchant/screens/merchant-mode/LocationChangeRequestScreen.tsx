@@ -1,20 +1,7 @@
-import { router, useFocusEffect, useNavigation, type Href } from "expo-router";
+import { router, type Href } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
-import {
-  BackHandler,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  View,
-} from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
@@ -24,6 +11,7 @@ import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormInput from "@/shared/components/form/FormInput";
 import MerchantChangeRequestSkeleton from "../../components/change-requests/MerchantChangeRequestSkeleton";
+import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import type { ApiError } from "@/shared/types/apiResponse.types";
@@ -48,6 +36,7 @@ import {
   buildLocationChangePayload,
   liveLocationProposal,
   locationProposalChanged,
+  locationPayloadSignature,
 } from "../../utils/locationChange.utils";
 import { validateMerchantChangeReason } from "../../utils/merchantChangeReason";
 
@@ -61,14 +50,12 @@ import { validateMerchantChangeReason } from "../../utils/merchantChangeReason";
  */
 export default function LocationChangeRequestScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const submittingRef = useRef(false);
   const submittedRef = useRef(false);
-  const hasChangesRef = useRef(false);
+  const leavingRef = useRef(false);
 
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-  const [discardVisible, setDiscardVisible] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string>();
   const [reason, setReason] = useState("");
@@ -95,6 +82,7 @@ export default function LocationChangeRequestScreen() {
 
   const location = useLocationChangeDraftStore((state) => state.location);
   const landmarks = useLocationChangeDraftStore((state) => state.landmarks);
+  const baselineKey = useLocationChangeDraftStore((state) => state.baselineKey);
 
   const nearbyLoadFailed = useLocationChangeDraftStore(
     (state) => state.nearbyLandmarksLoadFailed,
@@ -114,49 +102,24 @@ export default function LocationChangeRequestScreen() {
   const hasChanges = Boolean(
     business &&
     location &&
-    locationProposalChanged(
-      business,
+    locationPayloadSignature(
       buildLocationChangePayload(location, landmarks),
-    ),
+    ) !== baselineKey,
   );
 
-  useLayoutEffect(() => {
-    hasChangesRef.current = hasChanges;
-  }, [hasChanges]);
-
-  const requestExit = useCallback(() => {
-    if (submittingRef.current || submittedRef.current) {
-      return;
-    }
-
-    if (hasChangesRef.current) {
-      setDiscardVisible(true);
-      return;
-    }
-
-    reset();
-    router.back();
-  }, [reset]);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerLeft: () => <HeaderBackButton onPress={requestExit} />,
-    });
-  }, [navigation, requestExit]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const subscription = BackHandler.addEventListener(
-        "hardwareBackPress",
-        () => {
-          requestExit();
-          return true;
-        },
-      );
-
-      return () => subscription.remove();
-    }, [requestExit]),
+  const exit = useMerchantEditorExit(
+    hasChanges || Boolean(reason.trim()),
+    submitRequest.isPending || isSubmittingRequest,
+    () => submittingRef.current,
   );
+  const requestExit = () => {
+    if (submittingRef.current || submittedRef.current) return;
+    if (!hasChanges && !reason.trim()) {
+      leavingRef.current = true;
+      reset();
+    }
+    exit.requestExit();
+  };
 
   useEffect(
     () => () => {
@@ -176,6 +139,8 @@ export default function LocationChangeRequestScreen() {
 
   useEffect(() => {
     if (
+      !leavingRef.current &&
+      !submittedRef.current &&
       business &&
       business.status === "active" &&
       hasRequestsData &&
@@ -186,6 +151,7 @@ export default function LocationChangeRequestScreen() {
     }
   }, [
     business,
+    hasChanges,
     eligibility?.can_submit,
     hasRequestsData,
     initialize,
@@ -275,9 +241,15 @@ export default function LocationChangeRequestScreen() {
       });
 
       submittedRef.current = true;
-      router.replace(
-        `/(merchant)/business-update-requests/location/${result.id}` as Href,
+      const navigated = exit.finish(() =>
+        router.replace(
+          `/(merchant)/business-update-requests/location/${result.id}` as Href,
+        ),
       );
+      if (!navigated) {
+        submittedRef.current = false;
+        setIsSubmittingRequest(false);
+      }
     } catch (error) {
       setIsSubmittingRequest(false);
       const response = error as ApiError;
@@ -350,56 +322,93 @@ export default function LocationChangeRequestScreen() {
     router.push("/(merchant)/location-change/review-landmarks" as Href);
   }
 
+  const discardDialog = (
+    <ConfirmModal
+      visible={exit.showDiscard}
+      title="Discard location request?"
+      message="Your current live location and landmarks will remain unchanged."
+      confirmText="Discard"
+      destructive
+      cancelText="Keep Editing"
+      onCancel={exit.keepEditing}
+      onConfirm={() => {
+        if (submittingRef.current) return;
+        leavingRef.current = true;
+        reset();
+        exit.discard();
+      }}
+    />
+  );
+
   if (!business || (!hasRequestsData && !isRequestsLoading)) {
     if (
       (isProfileLoading && !profileError) ||
       (isRequestsLoading && !hasRequestsData && !requestsError)
     ) {
-      return <MerchantChangeRequestSkeleton variant="location" />;
+      return (
+        <>
+          <MerchantChangeRequestSkeleton variant="location" />
+          {discardDialog}
+        </>
+      );
     }
 
     return (
-      <ErrorState
-        title="Unable to load location request"
-        description="Please try again."
-        primaryActionTitle="Retry"
-        onPrimaryAction={() =>
-          void Promise.all([refetchProfile(), refetchRequests()])
-        }
-        secondaryActionTitle="Go Back"
-        onSecondaryAction={requestExit}
-      />
+      <>
+        <ErrorState
+          title="Unable to load location request"
+          description="Please try again."
+          primaryActionTitle="Retry"
+          onPrimaryAction={() =>
+            void Promise.all([refetchProfile(), refetchRequests()])
+          }
+          secondaryActionTitle="Go Back"
+          onSecondaryAction={requestExit}
+        />
+        {discardDialog}
+      </>
     );
   }
 
   if (isRequestsLoading && !hasRequestsData) {
-    return <MerchantChangeRequestSkeleton variant="location" />;
+    return (
+      <>
+        <MerchantChangeRequestSkeleton variant="location" />
+        {discardDialog}
+      </>
+    );
   }
 
   if (pendingRequest && !isSubmittingRequest) {
     return (
-      <ErrorState
-        title="Pending Admin review"
-        description="A location change request is already pending. Your current business location remains visible until approval."
-        primaryActionTitle="View Request"
-        onPrimaryAction={() => {
-          reset();
-          router.replace(
-            `/(merchant)/business-update-requests/location/${pendingRequest.id}` as Href,
-          );
-        }}
-      />
+      <>
+        <ErrorState
+          title="Pending Admin review"
+          description="A location change request is already pending. Your current business location remains visible until approval."
+          primaryActionTitle="View Request"
+          onPrimaryAction={() => {
+            reset();
+            router.replace(
+              `/(merchant)/business-update-requests/location/${pendingRequest.id}` as Href,
+            );
+          }}
+        />
+        {discardDialog}
+      </>
     );
   }
 
   if (business.status !== "active") {
     return (
-      <ErrorState
-        title="Location changes unavailable"
-        description="Your business must be active to request a location change."
-        primaryActionTitle="Go Back"
-        onPrimaryAction={requestExit}
-      />
+      <>
+        <ErrorState
+          title="Location changes unavailable"
+          description="Your business must be active to request a location change."
+          primaryActionTitle="Go Back"
+          onPrimaryAction={requestExit}
+        />
+        {discardDialog}
+      </>
     );
   }
 
@@ -409,26 +418,34 @@ export default function LocationChangeRequestScreen() {
     eligibility.last_approved_request_id
   ) {
     return (
-      <MerchantChangeCooldownState
-        description="Your recent location and landmarks change was approved. You can submit another request after the waiting period."
-        cooldownDurationHours={eligibility.cooldown_duration_hours}
-        cooldownUntil={eligibility.cooldown_until}
-        onViewApprovedRequest={() => {
-          reset();
-          router.push(
-            `/(merchant)/business-update-requests/location/${eligibility.last_approved_request_id}` as Href,
-          );
-        }}
-        onGoBack={() => {
-          reset();
-          router.back();
-        }}
-      />
+      <>
+        <MerchantChangeCooldownState
+          description="Your recent location and landmarks change was approved. You can submit another request after the waiting period."
+          cooldownDurationHours={eligibility.cooldown_duration_hours}
+          cooldownUntil={eligibility.cooldown_until}
+          onViewApprovedRequest={() => {
+            reset();
+            router.push(
+              `/(merchant)/business-update-requests/location/${eligibility.last_approved_request_id}` as Href,
+            );
+          }}
+          onGoBack={() => {
+            reset();
+            router.back();
+          }}
+        />
+        {discardDialog}
+      </>
     );
   }
 
   if (!location) {
-    return <MerchantChangeRequestSkeleton variant="location" />;
+    return (
+      <>
+        <MerchantChangeRequestSkeleton variant="location" />
+        {discardDialog}
+      </>
+    );
   }
 
   const currentLiveLocation = liveLocationProposal(business.location);
@@ -483,8 +500,10 @@ export default function LocationChangeRequestScreen() {
               }
             />
             <MerchantChangeReasonCard
+              disabled={submitRequest.isPending || isSubmittingRequest}
               value={reason}
               onChangeText={(value) => {
+                if (submittingRef.current || submittedRef.current) return;
                 setReason(value);
                 setReasonError(undefined);
               }}
@@ -631,19 +650,7 @@ export default function LocationChangeRequestScreen() {
       </View>
 
       {/* Discard confirmation */}
-      <ConfirmModal
-        visible={discardVisible}
-        title="Discard location request?"
-        message="Your current live location and landmarks will remain unchanged."
-        confirmText="Discard"
-        destructive
-        onCancel={() => setDiscardVisible(false)}
-        onConfirm={() => {
-          reset();
-          setDiscardVisible(false);
-          router.back();
-        }}
-      />
+      {discardDialog}
     </KeyboardAvoidingView>
   );
 }

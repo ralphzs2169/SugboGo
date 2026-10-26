@@ -25,7 +25,11 @@ jest.mock("expo-router", () => ({
     push: (...args: unknown[]) => mockPush(...args),
     replace: (...args: unknown[]) => mockReplace(...args),
   },
-  useNavigation: () => ({ setOptions: mockSetOptions }),
+  useNavigation: () => ({
+    setOptions: mockSetOptions,
+    isFocused: () => true,
+    dispatch: jest.fn(),
+  }),
   useFocusEffect: (callback: () => void) =>
     jest.requireActual("react").useEffect(callback, [callback]),
 }));
@@ -88,6 +92,7 @@ const eligible = {
 describe("BusinessNameChangeRequestScreen", () => {
   afterEach(async () => {
     await cleanup();
+    jest.restoreAllMocks();
   });
 
   beforeEach(() => {
@@ -247,29 +252,46 @@ describe("BusinessNameChangeRequestScreen", () => {
   });
 
   it("prevents a second submission while the first request is saving", async () => {
-    let resolveSubmit: ((value: unknown) => void) | undefined;
-    mockSubmit.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveSubmit = resolve;
-        }),
+    let resolveSubmit!: (value: { id: number; status?: string }) => void;
+    const submission = new Promise<{ id: number; status?: string }>(
+      (resolve) => {
+        resolveSubmit = resolve;
+      },
     );
-    const screen = await render(<BusinessNameChangeRequestScreen />);
-    await fireEvent.changeText(
-      screen.getByPlaceholderText("Enter your proposed business name"),
-      "Sugbo Heritage Bistro",
-    );
-    await fireEvent.press(screen.getByText("Review Changes"));
-    await fireEvent.changeText(
-      screen.getByLabelText("Reason for change"),
-      "We are rebranding our business.",
-    );
-    const submitButton = screen.getByRole("button", { name: "Submit Request" });
-    await fireEvent.press(submitButton);
-    await fireEvent.press(submitButton);
-    expect(mockSubmit).toHaveBeenCalledTimes(1);
-    resolveSubmit?.({ id: 7, status: "pending" });
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledTimes(1));
+    mockSubmit.mockReturnValueOnce(submission);
+    try {
+      const screen = await render(<BusinessNameChangeRequestScreen />);
+      await fireEvent.changeText(
+        screen.getByPlaceholderText("Enter your proposed business name"),
+        "Sugbo Heritage Bistro",
+      );
+      await fireEvent.press(screen.getByText("Review Changes"));
+      await fireEvent.changeText(
+        screen.getByLabelText("Reason for change"),
+        "We are rebranding our business.",
+      );
+      const submitButton = screen.getByRole("button", {
+        name: "Submit Request",
+      });
+      await fireEvent.press(submitButton);
+      await fireEvent.press(submitButton);
+      expect(mockSubmit).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText("Reason for change").props.editable).toBe(
+        false,
+      );
+      expect(mockBack).not.toHaveBeenCalled();
+      await act(async () => {
+        resolveSubmit({ id: 7, status: "pending" });
+        await submission;
+      });
+      await waitFor(() => expect(mockReplace).toHaveBeenCalledTimes(1));
+    } finally {
+      // An assertion failure must not leave the mocked mutation pending.
+      await act(async () => {
+        resolveSubmit({ id: 7, status: "pending" });
+        await submission;
+      });
+    }
   });
 
   it("blocks a new request while one is pending or business is suspended", async () => {
@@ -385,4 +407,42 @@ describe("BusinessNameChangeRequestScreen", () => {
     });
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
+  it("refreshes an untouched name and preserves a typed proposal across refetches", async () => {
+    const screen = await render(<BusinessNameChangeRequestScreen />);
+    mockProfile.mockReturnValue({
+      ...profile,
+      business: { ...profile.business, business_name: "New live name" },
+    });
+    await screen.rerender(<BusinessNameChangeRequestScreen />);
+    expect(screen.getByDisplayValue("New live name")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Review Changes" }).props
+        .accessibilityState.disabled,
+    ).toBe(true);
+    await fireEvent.changeText(
+      screen.getByDisplayValue("New live name"),
+      "My proposal",
+    );
+    mockProfile.mockReturnValue({
+      ...profile,
+      business: { ...profile.business, business_name: "Another live name" },
+    });
+    await screen.rerender(<BusinessNameChangeRequestScreen />);
+    expect(screen.getByDisplayValue("My proposal")).toBeTruthy();
+    await fireEvent.changeText(
+      screen.getByDisplayValue("My proposal"),
+      " New live name ",
+    );
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Another live name")).toBeTruthy(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Review Changes" }).props
+        .accessibilityState.disabled,
+    ).toBe(true);
+  });
 });
+
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: jest.fn(),
+}));

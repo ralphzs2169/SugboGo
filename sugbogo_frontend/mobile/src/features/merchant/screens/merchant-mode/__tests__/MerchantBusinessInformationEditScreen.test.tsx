@@ -40,7 +40,11 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
-  useNavigation: () => ({ setOptions: mockSetOptions }),
+  useNavigation: () => ({
+    setOptions: mockSetOptions,
+    isFocused: () => true,
+    dispatch: jest.fn(),
+  }),
   useFocusEffect: (callback: () => void) =>
     jest.requireActual("react").useEffect(callback, [callback]),
 }));
@@ -435,6 +439,11 @@ describe("MerchantBusinessInformationEditScreen", () => {
     await waitFor(() => {
       expect(mockUpdateInformation).toHaveBeenCalledTimes(1);
     });
+    expect(
+      screen.getByDisplayValue("Updated business description").props.editable,
+    ).toBe(false);
+    await fireEvent.press(screen.getByText("Cancel"));
+    expect(router.back).not.toHaveBeenCalled();
 
     await act(async () => {
       resolveSave({});
@@ -442,3 +451,7 @@ describe("MerchantBusinessInformationEditScreen", () => {
     await waitFor(() => expect(router.back).toHaveBeenCalledTimes(1));
   });
 });
+
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: jest.fn(),
+}));

@@ -12,6 +12,8 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
 import MerchantBusinessEditSkeleton from "../../components/business-profile/MerchantBusinessEditSkeleton";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -47,6 +49,7 @@ const editSchema = z.object({
 export default function MerchantOperatingHoursEditScreen() {
   const insets = useSafeAreaInsets();
   const savingRef = useRef(false);
+  const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false);
   const reconcilingRef = useRef(false);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [isReconciling, setIsReconciling] = useState(false);
@@ -65,9 +68,9 @@ export default function MerchantOperatingHoursEditScreen() {
     values: mapBusinessHoursToForm(business?.operating_hours ?? []),
   }));
 
-  const { updateOperatingHours, isSaving } = useUpdateMerchantOperatingHours(
-    business?.id,
-  );
+  const { updateOperatingHours, isSaving: isMutationPending } =
+    useUpdateMerchantOperatingHours(business?.id);
+  const isSaving = isMutationPending || isSubmittingSchedule;
 
   const form = useForm<OperatingHoursForm>({
     resolver: zodResolver(editSchema),
@@ -87,6 +90,11 @@ export default function MerchantOperatingHoursEditScreen() {
       operatingHoursSnapshotKey(baseline.hours),
   );
   const hasConflict = Boolean(conflictMessage || (hasChanges && serverChanged));
+  const exit = useMerchantEditorExit(
+    hasChanges,
+    isSaving || form.formState.isSubmitting || isReconciling,
+    () => savingRef.current || reconcilingRef.current,
+  );
 
   useEffect(() => {
     if (
@@ -178,7 +186,9 @@ export default function MerchantOperatingHoursEditScreen() {
     }
 
     savingRef.current = true;
+    setIsSubmittingSchedule(true);
 
+    let finishing = false;
     try {
       const proposed = buildHoursPayload(values.operatingHours);
       const editedDays = editedOperatingDays(
@@ -201,7 +211,7 @@ export default function MerchantOperatingHoursEditScreen() {
         text1: "Operating hours updated",
       });
 
-      router.back();
+      finishing = exit.finish();
     } catch (caught) {
       const response = caught as ApiError;
 
@@ -226,15 +236,36 @@ export default function MerchantOperatingHoursEditScreen() {
         });
       }
     } finally {
-      savingRef.current = false;
+      if (!finishing) {
+        savingRef.current = false;
+        setIsSubmittingSchedule(false);
+      }
     }
   }
+
+  const discardDialog = (
+    <ConfirmModal
+      visible={exit.showDiscard}
+      title="Discard operating hours changes?"
+      message="Your unsaved schedule will be lost."
+      confirmText="Discard"
+      cancelText="Keep Editing"
+      destructive
+      onCancel={exit.keepEditing}
+      onConfirm={exit.discard}
+    />
+  );
 
   if (
     (isLoading && !business) ||
     (business && baseline.businessId !== business.id)
   ) {
-    return <MerchantBusinessEditSkeleton variant="hours" />;
+    return (
+      <>
+        <MerchantBusinessEditSkeleton variant="hours" />
+        {discardDialog}
+      </>
+    );
   }
 
   if (!business) {
@@ -250,6 +281,7 @@ export default function MerchantOperatingHoursEditScreen() {
           secondaryActionTitle="Go Back"
           onSecondaryAction={() => router.back()}
         />
+        {discardDialog}
       </View>
     );
   }
@@ -263,6 +295,7 @@ export default function MerchantOperatingHoursEditScreen() {
           primaryActionTitle="Go Back"
           onPrimaryAction={() => router.back()}
         />
+        {discardDialog}
       </View>
     );
   }
@@ -389,7 +422,7 @@ export default function MerchantOperatingHoursEditScreen() {
             title="Cancel"
             variant="outline"
             className="flex-1"
-            onPress={() => router.back()}
+            onPress={exit.requestExit}
             disabled={isSaving || form.formState.isSubmitting}
             rounded="full"
           />
@@ -408,6 +441,7 @@ export default function MerchantOperatingHoursEditScreen() {
             rounded="full"
           />
         </View>
+        {discardDialog}
       </View>
     </FormProvider>
   );

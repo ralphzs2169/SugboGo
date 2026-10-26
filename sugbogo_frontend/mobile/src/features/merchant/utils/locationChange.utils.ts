@@ -113,34 +113,33 @@ function landmarkSignature(landmark: {
   ]);
 }
 
+/** Compares location drafts using the same trimming and order-independent landmark rules. */
+export function locationPayloadSignature(
+  payload: Omit<SubmitLocationChangePayload, "reason">,
+) {
+  const location = payload.proposed_location;
+  return JSON.stringify([
+    location.latitude,
+    location.longitude,
+    location.address.trim(),
+    location.city.trim(),
+    location.province.trim(),
+    location.postal_code?.trim() || null,
+    payload.proposed_landmarks.map(landmarkSignature).sort(),
+  ]);
+}
+
 /** Detects effective changes without treating landmark display order as a change. */
 export function locationProposalChanged(
   business: MerchantBusinessProfileResponse,
   payload: Omit<SubmitLocationChangePayload, "reason">,
 ) {
-  const current = liveLocationProposal(business.location);
-  const proposed = payload.proposed_location;
-  if (
-    current.latitude !== proposed.latitude ||
-    current.longitude !== proposed.longitude ||
-    current.address !== proposed.address ||
-    current.city !== proposed.city ||
-    current.province !== proposed.province ||
-    (current.postal_code || null) !== (proposed.postal_code || null)
-  ) {
-    return true;
-  }
-
-  const previousLandmarks = business.location.landmarks
-    .map(landmarkSignature)
-    .sort();
-  const proposedLandmarks = payload.proposed_landmarks
-    .map(landmarkSignature)
-    .sort();
   return (
-    previousLandmarks.length !== proposedLandmarks.length ||
-    previousLandmarks.some(
-      (signature, index) => signature !== proposedLandmarks[index],
-    )
+    locationPayloadSignature(
+      buildLocationChangePayload(
+        liveLocationProposal(business.location),
+        liveLandmarkSelection(business.location),
+      ),
+    ) !== locationPayloadSignature(payload)
   );
 }

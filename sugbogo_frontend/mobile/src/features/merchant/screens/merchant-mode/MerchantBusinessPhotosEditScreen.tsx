@@ -9,6 +9,8 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
 import MerchantBusinessEditSkeleton from "../../components/business-profile/MerchantBusinessEditSkeleton";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -47,16 +49,16 @@ const CATEGORY_LABELS: Record<BusinessPhotoCategory, string> = {
 export default function MerchantBusinessPhotosEditScreen() {
   const insets = useSafeAreaInsets();
   const savingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
-  const initializedBusinessId = useRef<number | null>(business?.id ?? null);
   const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
     business?.id ?? null,
   );
 
-  const { savePhotos, isSaving } = useUpdateMerchantBusinessPhotos(
-    business?.id,
-  );
+  const { savePhotos, isSaving: isMutationPending } =
+    useUpdateMerchantBusinessPhotos(business?.id);
+  const isSaving = isMutationPending || isSubmitting;
 
   const [drafts, setDrafts] = useState<BusinessPhotoDrafts>(() =>
     mapBusinessPhotosToDrafts(business?.photos ?? []),
@@ -73,22 +75,29 @@ export default function MerchantBusinessPhotosEditScreen() {
 
   const isPicking = pickingCategory !== null;
 
-  useEffect(() => {
-    if (!business || initializedBusinessId.current === business.id) {
-      return;
-    }
-
-    initializedBusinessId.current = business.id;
-    setDrafts(mapBusinessPhotosToDrafts(business.photos));
-    setDeletedIds([]);
-    setReadyBusinessId(business.id);
-  }, [business]);
-
   const hasNewPhotos = BUSINESS_PHOTO_CATEGORIES.some((category) =>
     drafts[category].some((photo) => photo.id === undefined),
   );
 
   const hasChanges = hasNewPhotos || deletedIds.length > 0;
+  const exit = useMerchantEditorExit(
+    hasChanges,
+    isSaving || isPicking,
+    () => savingRef.current,
+  );
+
+  useEffect(() => {
+    if (
+      !business ||
+      (readyBusinessId === business.id &&
+        (hasChanges || isPicking || savingRef.current))
+    )
+      return;
+    setDrafts(mapBusinessPhotosToDrafts(business.photos));
+    setDeletedIds([]);
+    setCategoryErrors({});
+    setReadyBusinessId(business.id);
+  }, [business, readyBusinessId, hasChanges, isPicking]);
 
   async function addPhotos(category: BusinessPhotoCategory) {
     if (isPicking || isSaving) {
@@ -133,6 +142,7 @@ export default function MerchantBusinessPhotosEditScreen() {
   }
 
   function removePhoto(category: BusinessPhotoCategory, index: number) {
+    if (savingRef.current || isSaving || isPicking) return;
     const photo = visiblePhotos(drafts[category], deletedIds)[index];
 
     if (!photo) {
@@ -169,7 +179,9 @@ export default function MerchantBusinessPhotosEditScreen() {
     }
 
     savingRef.current = true;
+    setIsSubmitting(true);
 
+    let finishing = false;
     try {
       await savePhotos(buildBusinessPhotosFormData(drafts, deletedIds));
 
@@ -178,7 +190,7 @@ export default function MerchantBusinessPhotosEditScreen() {
         text1: "Business photos updated",
       });
 
-      router.back();
+      finishing = exit.finish();
     } catch (caught) {
       const response = caught as ApiError;
 
@@ -200,43 +212,70 @@ export default function MerchantBusinessPhotosEditScreen() {
         });
       }
     } finally {
-      savingRef.current = false;
+      if (!finishing) {
+        savingRef.current = false;
+        setIsSubmitting(false);
+      }
     }
   }
+
+  const discardDialog = (
+    <ConfirmModal
+      visible={exit.showDiscard}
+      title="Discard photo changes?"
+      message="Your unsaved photo additions and removals will be lost."
+      confirmText="Discard"
+      cancelText="Keep Editing"
+      destructive
+      onCancel={exit.keepEditing}
+      onConfirm={exit.discard}
+    />
+  );
 
   // Initial business loading state
   if (
     (isLoading && !business) ||
     (business && readyBusinessId !== business.id)
   ) {
-    return <MerchantBusinessEditSkeleton variant="photos" />;
+    return (
+      <>
+        <MerchantBusinessEditSkeleton variant="photos" />
+        {discardDialog}
+      </>
+    );
   }
 
   // Business profile unavailable
   if (!business) {
     return (
-      <ErrorState
-        title="Unable to load business photos"
-        description={
-          error ? "Please try again." : "Business photos are unavailable."
-        }
-        primaryActionTitle="Retry"
-        onPrimaryAction={refetch}
-        secondaryActionTitle="Go Back"
-        onSecondaryAction={() => router.back()}
-      />
+      <>
+        <ErrorState
+          title="Unable to load business photos"
+          description={
+            error ? "Please try again." : "Business photos are unavailable."
+          }
+          primaryActionTitle="Retry"
+          onPrimaryAction={refetch}
+          secondaryActionTitle="Go Back"
+          onSecondaryAction={() => router.back()}
+        />
+        {discardDialog}
+      </>
     );
   }
 
   // Suspended businesses cannot edit photos
   if (business.status !== "active") {
     return (
-      <ErrorState
-        title="Editing unavailable"
-        description="Photos cannot be edited while your business is suspended."
-        primaryActionTitle="Go Back"
-        onPrimaryAction={() => router.back()}
-      />
+      <>
+        <ErrorState
+          title="Editing unavailable"
+          description="Photos cannot be edited while your business is suspended."
+          primaryActionTitle="Go Back"
+          onPrimaryAction={() => router.back()}
+        />
+        {discardDialog}
+      </>
     );
   }
 
@@ -312,7 +351,11 @@ export default function MerchantBusinessPhotosEditScreen() {
                     <PhotoPreview
                       key={photo.id ?? `${photo.uri}-${index}`}
                       uri={photo.uri}
-                      onRemove={() => removePhoto(category, index)}
+                      onRemove={
+                        isSaving
+                          ? undefined
+                          : () => removePhoto(category, index)
+                      }
                     />
                   ))}
 
@@ -347,11 +390,14 @@ export default function MerchantBusinessPhotosEditScreen() {
                 {removed.map((photo) => (
                   <Pressable
                     key={photo.id}
-                    onPress={() =>
+                    disabled={isSaving || isPicking}
+                    accessibilityState={{ disabled: isSaving || isPicking }}
+                    onPress={() => {
+                      if (savingRef.current || isSaving) return;
                       setDeletedIds((current) =>
                         current.filter((id) => id !== photo.id),
-                      )
-                    }
+                      );
+                    }}
                     accessibilityRole="button"
                     accessibilityLabel={`Undo removal of ${photo.fileName ?? category} photo`}
                     className="mt-3 cursor-pointer self-start rounded-lg bg-surface-secondary px-3 py-2"
@@ -383,7 +429,7 @@ export default function MerchantBusinessPhotosEditScreen() {
           title="Cancel"
           variant="outline"
           className="flex-1"
-          onPress={() => router.back()}
+          onPress={exit.requestExit}
           disabled={isSaving}
           rounded="full"
         />
@@ -397,6 +443,7 @@ export default function MerchantBusinessPhotosEditScreen() {
           rounded="full"
         />
       </View>
+      {discardDialog}
     </View>
   );
 }
