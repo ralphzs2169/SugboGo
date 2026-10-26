@@ -10,7 +10,10 @@ jest.mock("react-native-safe-area-context", () => ({
 const mockScrollTo = jest.spyOn(ScrollView.prototype, "scrollTo");
 
 jest.mock("@expo/vector-icons", () => ({
-  MaterialCommunityIcons: () => null,
+  MaterialCommunityIcons: (props: Record<string, unknown>) => {
+    const { View } = jest.requireActual("react-native");
+    return <View testID="policy-icon" {...props} />;
+  },
 }));
 
 const expectedHeadings = [
@@ -125,6 +128,34 @@ describe("Privacy Policy draft", () => {
     ).toBeTruthy();
   });
 
+  it("pairs each main section with its approved decorative icon", async () => {
+    const screen = await render(<PrivacyPolicyScreen />);
+    const document = within(screen.getByTestId("privacy-policy-scroll"));
+    const expectedIcons = {
+      introduction: "information-outline",
+      "information-we-collect": "account-details-outline",
+      "how-we-use-information": "clipboard-list-outline",
+      "third-party-services": "share-variant-outline",
+      "reviews-moderation-and-ai-assisted-features": "comment-check-outline",
+      "information-storage-and-security": "shield-lock-outline",
+      "data-retention": "clock-outline",
+      "account-deactivation-and-data-deletion": "account-off-outline",
+      "user-choices-and-controls": "tune-variant",
+      "accessing-or-correcting-personal-information": "account-edit-outline",
+      "changes-to-this-privacy-policy": "file-document-edit-outline",
+      "contact-information": "email-outline",
+    };
+    expect(document.getAllByTestId("policy-icon")).toHaveLength(12);
+    for (const [id, name] of Object.entries(expectedIcons)) {
+      const section = within(screen.getByTestId(`privacy-policy-section-${id}`));
+      const icon = section.getByTestId("policy-icon");
+      expect(icon.props.name).toBe(name);
+      expect(icon.props.accessible).toBe(false);
+      expect(icon.props.importantForAccessibility).toBe("no");
+      expect(icon.props.onPress).toBeUndefined();
+    }
+  });
+
   it("starts closed at Introduction, without the draft banner", async () => {
     const screen = await render(<PrivacyPolicyScreen />);
     const document = within(screen.getByTestId("privacy-policy-scroll"));
@@ -155,6 +186,7 @@ describe("Privacy Policy draft", () => {
     expect(
       menu.getAllByRole("button").map((item) => item.props.accessibilityLabel),
     ).toEqual(expectedHeadings);
+    expect(menu.queryByTestId("policy-icon")).toBeNull();
     expect(
       menu.getByRole("button", { name: expectedHeadings[0] }).props.accessibilityState,
     ).toEqual({ selected: true });
@@ -246,6 +278,7 @@ describe("Privacy Policy draft", () => {
     const screen = await render(<PrivacyPolicyScreen />);
 
     expect(screen.getByText(placeholder)).toBeTruthy();
+    expect(screen.queryByTestId("policy-icon")).toBeNull();
     expect(screen.queryByText(draftLabel)).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryAllByRole("header")).toHaveLength(0);

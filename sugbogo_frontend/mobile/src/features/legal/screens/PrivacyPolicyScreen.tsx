@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRef, useState } from "react";
+import { type ComponentProps, useRef, useState } from "react";
 import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -10,6 +10,23 @@ import {
   PRIVACY_POLICY_DRAFT,
   type PrivacyPolicyDraftBlock,
 } from "../constants/privacyPolicyDraft";
+
+const SECTION_ICONS: Readonly<
+  Record<string, ComponentProps<typeof MaterialCommunityIcons>["name"]>
+> = {
+  introduction: "information-outline",
+  "information-we-collect": "account-details-outline",
+  "how-we-use-information": "clipboard-list-outline",
+  "third-party-services": "share-variant-outline",
+  "reviews-moderation-and-ai-assisted-features": "comment-check-outline",
+  "information-storage-and-security": "shield-lock-outline",
+  "data-retention": "clock-outline",
+  "account-deactivation-and-data-deletion": "account-off-outline",
+  "user-choices-and-controls": "tune-variant",
+  "accessing-or-correcting-personal-information": "account-edit-outline",
+  "changes-to-this-privacy-policy": "file-document-edit-outline",
+  "contact-information": "email-outline",
+};
 
 /** Renders a supplied draft paragraph, subheading, or wrapping list. */
 function DraftBlock({ block }: { block: PrivacyPolicyDraftBlock }) {
@@ -165,13 +182,24 @@ export default function PrivacyPolicyScreen() {
                   }
                 }}
               >
-                <AppText
-                  accessibilityRole="header"
-                  weight="bold"
-                  className="text-lg leading-7 text-text-primary"
-                >
-                  {section.heading}
-                </AppText>
+                <View className="flex-row items-start gap-3">
+                  <View className="h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-muted">
+                    <MaterialCommunityIcons
+                      name={SECTION_ICONS[section.id]}
+                      size={19}
+                      color={theme.extends.colors.brand}
+                      accessible={false}
+                      importantForAccessibility="no"
+                    />
+                  </View>
+                  <AppText
+                    accessibilityRole="header"
+                    weight="bold"
+                    className="min-w-0 flex-1 text-lg leading-7 text-text-primary"
+                  >
+                    {section.heading}
+                  </AppText>
+                </View>
                 <View className="gap-3">
                   {section.blocks.map((block, index) => (
                     <DraftBlock key={index} block={block} />
