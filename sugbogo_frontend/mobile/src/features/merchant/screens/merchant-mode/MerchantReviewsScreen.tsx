@@ -6,7 +6,7 @@ import NotificationBellButton from "@/features/notifications/components/Notifica
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import LottieView from "lottie-react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import { useIsFocused } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,7 +30,7 @@ import type { BusinessReview } from "@/features/explore/types/review.types";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
-import { useReviewDisputes } from "../../hooks/review-disputes/useReviewDisputes";
+import { usePendingReviewDisputeCount } from "../../hooks/review-disputes/useReviewDisputes";
 import MerchantReviewCard from "../../components/review-management/MerchantReviewCard";
 import MerchantReviewFilters from "../../components/review-management/MerchantReviewFilters";
 import MerchantReviewManagement from "../../components/review-management/MerchantReviewManagement";
@@ -222,17 +222,12 @@ export default function MerchantReviewsScreen() {
   }, [entry, reviewId, focused]);
 
   const {
-    disputes,
+    count: pendingDisputeCount,
     hasData: hasDisputesData,
     error: disputesError,
     isLoading: isDisputesLoading,
     refetch: refetchDisputes,
-  } = useReviewDisputes();
-
-  const pendingDisputeCount = useMemo(
-    () => disputes.filter((dispute) => dispute.status === "pending").length,
-    [disputes],
-  );
+  } = usePendingReviewDisputeCount();
 
   const {
     templates,

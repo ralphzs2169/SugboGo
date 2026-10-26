@@ -227,7 +227,11 @@ class ReviewDisputeService:
         return dispute
 
     @staticmethod
-    def list_merchant_disputes(user: User):
+    def list_merchant_disputes(
+        user: User,
+        status_filter: str = "all",
+    ):
+        """List owned disputes with filtering before pagination and counting."""
         queryset = (
             MerchantReviewDispute.objects
             .filter(USER_ID=user)
@@ -242,6 +246,15 @@ class ReviewDisputeService:
                 "REVW_ID__photos",
             )
         )
+
+        if status_filter == "pending":
+            queryset = queryset.filter(
+                MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+            )
+        elif status_filter == "resolved":
+            queryset = queryset.exclude(
+                MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+            )
 
         return ReviewDisputeService._with_attempt_number(
             queryset,

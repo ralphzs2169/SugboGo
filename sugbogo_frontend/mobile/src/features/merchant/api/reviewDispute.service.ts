@@ -11,12 +11,16 @@ import type {
   ReviewDisputeReason,
 } from "../types/review-disputes/reviewDispute.types";
 
-export function getReviewDisputes(): Promise<
-  ApiResponse<ReviewDisputeListResponse>
-> {
+export type ReviewDisputeFilter = "all" | "pending" | "resolved";
+
+export function getReviewDisputes(
+  page = 1,
+  status: ReviewDisputeFilter = "all",
+  pageSize = 10,
+): Promise<ApiResponse<ReviewDisputeListResponse>> {
   return request(
     apiClient.get("/merchant/review-disputes/", {
-      params: { page_size: 100 },
+      params: { page, status, page_size: pageSize },
     }),
   );
 }

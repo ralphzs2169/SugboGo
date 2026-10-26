@@ -1,17 +1,24 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, View } from "react-native";
-import Toast from "react-native-toast-message";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  View,
+} from "react-native";
 
 import { theme } from "@/constants/theme";
 import Avatar from "@/shared/components/Avatar";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
-import { handleSystemError } from "@/shared/utils/apiErrors";
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
+
 import { formatDate } from "@/shared/utils/date.utils";
 
 import ReviewDisputeScreenSkeleton from "../../components/review-disputes/ReviewDisputeScreenSkeleton";
@@ -58,38 +65,25 @@ export default function ReviewDisputesScreen() {
 
   const tabBarSpacing = useTabBarSpacing(0);
 
-  const { disputes, isLoading, isRefetching, error, refetch } =
-    useReviewDisputes();
+  const {
+    disputes,
+    hasData,
+    isLoading,
+    isRefetching,
+    error,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useReviewDisputes(filter);
 
-  const filteredDisputes = useMemo(() => {
-    if (filter === "pending") {
-      return disputes.filter((dispute) => dispute.status === "pending");
-    }
-
-    if (filter === "resolved") {
-      return disputes.filter((dispute) =>
-        ["upheld", "dismissed", "withdrawn"].includes(dispute.status),
-      );
-    }
-
-    return disputes;
-  }, [disputes, filter]);
-
-  useEffect(() => {
-    if (!error) {
-      return;
-    }
-
-    const response = error as unknown as ApiResponse<unknown>;
-
-    if (!response.success && !handleSystemError(response)) {
-      Toast.show({
-        type: "error",
-        text1: "Unable to load disputes",
-        text2: response.message || "Please try again.",
-      });
-    }
-  }, [error]);
+  useApiErrorNotification({
+    error,
+    toastId: "merchant-dispute-list-error",
+    title: "Unable to load disputes",
+    fallbackMessage: "Please retry this section.",
+  });
 
   const openDispute = (dispute: ReviewDispute) => {
     router.push({
@@ -100,11 +94,11 @@ export default function ReviewDisputesScreen() {
     });
   };
 
-  if (isLoading) {
+  if (isLoading && !hasData) {
     return <ReviewDisputeScreenSkeleton />;
   }
 
-  if (error && disputes.length === 0) {
+  if (error && (!hasData || isTerminalResourceError(error))) {
     return (
       <View className="flex-1 bg-background">
         {/* Dispute load error */}
@@ -126,7 +120,33 @@ export default function ReviewDisputesScreen() {
     <View className="flex-1 bg-surface">
       {/* Dispute collection */}
       <FlatList
-        data={filteredDisputes}
+        testID="merchant-disputes-list"
+        data={disputes}
+        onEndReached={() => {
+          if (
+            hasNextPage &&
+            !isRefetching &&
+            !isFetchingNextPage &&
+            !isFetchNextPageError
+          )
+            void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <ActivityIndicator
+              accessibilityLabel="Loading more disputes"
+              className="py-5"
+              color={theme.extends.colors.brand}
+            />
+          ) : isFetchNextPageError ? (
+            <MerchantRefreshRecovery
+              error={error}
+              title="Unable to load more disputes"
+              refetch={() => fetchNextPage()}
+            />
+          ) : null
+        }
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         contentContainerClassName="px-4 pt-4"
@@ -135,16 +155,21 @@ export default function ReviewDisputesScreen() {
         }}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
+            refreshing={isRefetching && !isFetchingNextPage}
             onRefresh={() => void refetch()}
             tintColor={theme.extends.colors.brand}
           />
         }
         ListHeaderComponent={
           <View className="mb-4">
+            <MerchantRefreshRecovery
+              error={isFetchNextPageError ? null : error}
+              title="Unable to refresh disputes"
+              refetch={refetch}
+            />
             {/* Screen guidance */}
             <AppText className="text-sm leading-5 text-text-secondary">
-              Track disputes you've submitted for administrator review.
+              Track disputes you&apos;ve submitted for administrator review.
             </AppText>
 
             {/* Status filters */}
@@ -308,7 +333,7 @@ export default function ReviewDisputesScreen() {
                 </AppText>
 
                 <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
-                  You don't have any disputes waiting for review.
+                  You don&apos;t have any disputes waiting for review.
                 </AppText>
               </View>
             )}

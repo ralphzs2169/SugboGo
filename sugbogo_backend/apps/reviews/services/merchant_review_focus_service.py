@@ -2,6 +2,7 @@ from django.db.models import Q
 from rest_framework.exceptions import NotFound
 
 from apps.reviews.models import Review
+from apps.reviews.services.review_service import ReviewService
 
 
 class MerchantReviewFocusService:
@@ -40,3 +41,23 @@ class MerchantReviewFocusService:
             "page": newer_count // page_size + 1,
             "page_size": page_size,
         }
+
+    @staticmethod
+    def get_owned_review(
+        *,
+        user,
+        business_id,
+        review_id,
+    ):
+        """Read one published owned review through the existing serialization path."""
+        try:
+            review = ReviewService._annotated_review_queryset(user).get(
+                BUSN_ID_id=business_id,
+                BUSN_ID__USER_ID=user,
+                REVW_ID=review_id,
+                REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+            )
+        except Review.DoesNotExist:
+            raise NotFound("This review is no longer available.") from None
+
+        return ReviewService._attach_vouched_specialties([review])[0]

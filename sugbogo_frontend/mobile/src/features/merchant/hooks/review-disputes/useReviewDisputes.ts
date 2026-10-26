@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { businessReviewsKey } from "@/features/explore/hooks/reviewQueryKeys";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
@@ -13,19 +18,48 @@ import type {
 import { reviewDisputeKeys } from "./reviewDisputeQueryKeys";
 
 /** Retrieves the merchant's review-dispute collection. */
-export function useReviewDisputes() {
-  const query = useQuery({
-    queryKey: reviewDisputeKeys.list(),
-    queryFn: async (): Promise<ReviewDisputeListResponse> =>
-      throwOnApiError(await reviewDisputeService.getReviewDisputes()),
+export function useReviewDisputes(
+  status: reviewDisputeService.ReviewDisputeFilter = "all",
+) {
+  const query = useInfiniteQuery({
+    queryKey: reviewDisputeKeys.collection(status),
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }): Promise<ReviewDisputeListResponse> =>
+      throwOnApiError(
+        await reviewDisputeService.getReviewDisputes(pageParam, status),
+      ),
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.has_next ? lastPage.pagination.page + 1 : undefined,
   });
 
   return {
-    disputes: query.data?.items ?? [],
+    disputes: query.data?.pages.flatMap((page) => page.items) ?? [],
     hasData: query.data !== undefined,
-    pagination: query.data?.pagination ?? null,
+    pagination: query.data?.pages[0]?.pagination ?? null,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,
+    isFetchingNextPage: query.isFetchingNextPage,
+    isFetchNextPageError: query.isFetchNextPageError,
+    hasNextPage: query.hasNextPage,
+    fetchNextPage: query.fetchNextPage,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+/** Uses the server's filtered total without downloading the pending collection. */
+export function usePendingReviewDisputeCount() {
+  const query = useQuery({
+    queryKey: reviewDisputeKeys.pendingCount(),
+    queryFn: async () =>
+      throwOnApiError(
+        await reviewDisputeService.getReviewDisputes(1, "pending", 1),
+      ),
+  });
+  return {
+    count: query.data?.pagination.total_items,
+    hasData: query.data !== undefined,
+    isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
   };

@@ -320,3 +320,12 @@ class MerchantReviewDisputeDetailSerializer(
             "previous_dispute_count",
             "previous_disputes",
         )
+
+
+class MerchantReviewDisputeListQuerySerializer(serializers.Serializer):
+    """Validate server-owned dispute collection filters."""
+
+    status = serializers.ChoiceField(
+        choices=("all", "pending", "resolved"),
+        default="all",
+    )

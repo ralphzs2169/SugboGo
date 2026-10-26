@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import Toast from "react-native-toast-message";
 
-import { useMerchantBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
+import useMerchantReviewDetail from "../../hooks/review-management/useMerchantReviewDetail";
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import ErrorState from "@/shared/components/ErrorState";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
@@ -78,16 +80,14 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   const businessId = business?.id ?? 0;
 
   const {
-    reviews,
-    isInitialLoading: isReviewsLoading,
+    review,
+    isLoading: isReviewsLoading,
     error: reviewsError,
     refetch: refetchReviews,
-  } = useMerchantBusinessReviews(businessId);
+  } = useMerchantReviewDetail(businessId, reviewId);
 
   const createDispute = useCreateReviewDispute(businessId);
   const addEvidence = useAddReviewDisputeEvidence();
-
-  const review = reviews.find((item) => item.id === reviewId);
 
   const isSubmitting =
     saving || createDispute.isPending || addEvidence.isPending;
@@ -350,7 +350,12 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
     );
   }
 
-  if (error || !business || !review) {
+  if (
+    !business ||
+    !review ||
+    isTerminalResourceError(businessError) ||
+    isTerminalResourceError(reviewsError)
+  ) {
     return (
       <View className="flex-1 bg-surface">
         <ErrorState
@@ -382,6 +387,15 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
           showsVerticalScrollIndicator={false}
           contentContainerClassName="pb-6"
         >
+          <MerchantRefreshRecovery
+            error={reviewsError}
+            title="Unable to refresh review"
+            refetch={refetchReviews}
+          />
+          <MerchantRefreshRecovery
+            error={businessError}
+            refetch={refetchBusiness}
+          />
           <CreateReviewDisputeFormContent
             review={review}
             reason={reason}

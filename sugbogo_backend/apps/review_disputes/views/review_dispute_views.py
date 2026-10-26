@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 from apps.authentication.permissions import HasRole
 from apps.review_disputes.serializers.review_dispute_serializers import (
     DisputeEvidenceResponseSerializer,
+    MerchantReviewDisputeListQuerySerializer,
     MerchantReviewDisputeCreateSerializer,
     MerchantReviewDisputeDetailSerializer,
     MerchantReviewDisputeEvidenceCreateSerializer,
@@ -29,8 +30,13 @@ class MerchantReviewDisputeListView(APIView):
     def get(self, request):
         """Retrieve a paginated list of the merchant's review disputes."""
 
+        query = MerchantReviewDisputeListQuerySerializer(
+            data=request.query_params,
+        )
+        query.is_valid(raise_exception=True)
         disputes = ReviewDisputeService.list_merchant_disputes(
             request.user,
+            status_filter=query.validated_data["status"],
         )
 
         paginator = StandardPagination()

@@ -1,3 +1,4 @@
+import { storedInsightsReport } from "../../../__tests__/merchantAdvancedAnalytics.fixtures";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -35,9 +36,17 @@ import {
   specialtyReport,
   visibilityReport,
 } from "../../../__tests__/merchantPlusAnalytics.fixtures";
-jest.mock("../../../components/analytics/AnalyticsExport", () => ({
+jest.mock("@/features/notifications/components/NotificationBellButton", () => ({
   __esModule: true,
   default: () => null,
+}));
+const mockExport = jest.fn();
+jest.mock("../../../components/analytics/AnalyticsExport", () => ({
+  __esModule: true,
+  default: (props: { enabled: boolean }) => {
+    mockExport(props);
+    return null;
+  },
 }));
 jest.mock("@gorhom/bottom-sheet", () =>
   jest
@@ -135,6 +144,7 @@ jest.mock("../../../api/merchantAnalytics.service", () => ({
 }));
 jest.mock("../../../api/merchantPlusAnalytics.service", () => ({
   getMerchantPlusStatus: jest.fn(),
+  getMerchantPlusStoredInsights: jest.fn(),
   getMerchantPlusVisibility: jest.fn(),
   getMerchantPlusPocket: jest.fn(),
   getMerchantPlusSpecialties: jest.fn(),
@@ -277,6 +287,10 @@ describe("MerchantAnalyticsScreen", () => {
       .mocked(plusService.getMerchantPlusSpecialties)
       .mockReset()
       .mockResolvedValue(plusSuccess(specialtyReport()));
+    jest
+      .mocked(plusService.getMerchantPlusStoredInsights)
+      .mockReset()
+      .mockResolvedValue(plusSuccess(storedInsightsReport()));
     mockNavigate.mockClear();
     jest.mocked(Toast.show).mockClear();
     mockRefetchProfile.mockReset();
@@ -326,6 +340,46 @@ describe("MerchantAnalyticsScreen", () => {
       .mocked(plusService.getMerchantPlusStatus)
       .mockResolvedValue(plusSuccess(status));
   }
+
+  it("keeps all reports and export visible without checking entitlement", async () => {
+    const screen = await renderScreen();
+    await screen.findByLabelText(/^1\. Friendly service/);
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusStoredInsights).toHaveBeenCalledTimes(
+        1,
+      ),
+    );
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(1);
+    expect(plusService.getMerchantPlusPocket).toHaveBeenCalledTimes(1);
+    expect(plusService.getMerchantPlusStatus).not.toHaveBeenCalled();
+    expect(mockExport).toHaveBeenCalledWith({ enabled: true });
+    expect(screen.queryByText("Report access unavailable")).toBeNull();
+  });
+
+  it("retries report failures directly without an entitlement guard", async () => {
+    jest
+      .mocked(plusService.getMerchantPlusPocket)
+      .mockResolvedValueOnce({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    const screen = await renderScreen();
+    await screen.findByText("Pocket activity unavailable");
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Pocket activity unavailable.*retry/i,
+      }),
+    );
+    await waitFor(() =>
+      expect(plusService.getMerchantPlusPocket).toHaveBeenCalledTimes(2),
+    );
+    expect(plusService.getMerchantPlusStatus).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.queryByText("Pocket activity unavailable")).toBeNull(),
+    );
+  });
 
   it("opens the shared notification inbox from the Analytics header", async () => {
     const screen = await renderScreen();

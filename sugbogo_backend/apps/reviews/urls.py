@@ -1,6 +1,9 @@
 from django.urls import path
 
-from apps.reviews.views.merchant_review_focus_views import MerchantReviewFocusView
+from apps.reviews.views.merchant_review_focus_views import (
+    MerchantReviewFocusView,
+    MerchantReviewDetailView,
+)
 from apps.reviews.views.community_review_views import CommunityReviewListView
 from apps.reviews.views.my_review_views import MyReviewListView
 from apps.reviews.views.reply_template_views import (
@@ -34,6 +37,12 @@ urlpatterns = [
         "community/",
         CommunityReviewListView.as_view(),
         name="community-review-list",
+    ),
+
+    path(
+        "business/<int:business_id>/merchant/<int:review_id>/",
+        MerchantReviewDetailView.as_view(),
+        name="merchant-review-detail",
     ),
 
     # Business Review Endpoints

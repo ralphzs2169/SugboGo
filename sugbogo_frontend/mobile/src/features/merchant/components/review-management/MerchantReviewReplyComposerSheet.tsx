@@ -1,3 +1,4 @@
+import { ensureMerchantMediaAvailable } from "../../utils/merchantMedia.utils";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -131,7 +132,17 @@ export default function MerchantReviewReplyComposerSheet({
         return;
       }
 
+      selectedPhotos.forEach((photo) =>
+        ensureMerchantMediaAvailable(photo.uri),
+      );
       setPhotos((current) => current.concat(selectedPhotos));
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Unable to add photos",
+        text2:
+          "Check photo access in Settings and try selecting the photos again.",
+      });
     } finally {
       setIsPicking(false);
     }

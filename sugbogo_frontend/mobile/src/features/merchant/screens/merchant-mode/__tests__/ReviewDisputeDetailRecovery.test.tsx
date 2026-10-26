@@ -1,3 +1,8 @@
+import Toast from "react-native-toast-message";
+import {
+  pickReviewDisputeDocuments,
+  pickReviewDisputeImages,
+} from "../../../utils/review-disputes/pickReviewDisputeEvidence.utils";
 import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
 import ReviewDisputeDetailScreen from "../ReviewDisputeDetailScreen";
@@ -38,7 +43,24 @@ jest.mock(
 );
 jest.mock(
   "../../../components/review-disputes/dispute-detail-screen/ReviewDisputeEvidenceSection",
-  () => () => null,
+  () => {
+    const { Pressable, Text, View } = jest.requireActual("react-native");
+    return function MockEvidenceSection({
+      onPickImages,
+      onPickDocuments,
+    }: any) {
+      return (
+        <View>
+          <Pressable onPress={onPickImages}>
+            <Text>Pick image</Text>
+          </Pressable>
+          <Pressable onPress={onPickDocuments}>
+            <Text>Pick document</Text>
+          </Pressable>
+        </View>
+      );
+    };
+  },
 );
 jest.mock(
   "../../../components/review-disputes/dispute-detail-screen/ReviewDisputeHistorySection",
@@ -56,6 +78,29 @@ const dispute = {
 };
 
 describe("dispute detail cached recovery", () => {
+  it.each(["image", "document"])(
+    "handles %s picker rejection without hiding existing dispute content",
+    async (kind) => {
+      mockDetail.mockReturnValue({
+        dispute,
+        error: null,
+        isLoading: false,
+        refetch: jest.fn(),
+      });
+      const picker =
+        kind === "image" ? pickReviewDisputeImages : pickReviewDisputeDocuments;
+      jest.mocked(picker).mockRejectedValueOnce(new Error("Native failure"));
+      const screen = await render(<ReviewDisputeDetailScreen disputeId={7} />);
+      await fireEvent.press(
+        screen.getByText(kind === "image" ? "Pick image" : "Pick document"),
+      );
+      expect(Toast.show).toHaveBeenCalledWith(
+        expect.objectContaining({ text1: "Unable to attach evidence" }),
+      );
+      expect(screen.getByText("Withdraw dispute")).toBeTruthy();
+    },
+  );
+
   it("retains cached content and safe actions until a successful targeted retry", async () => {
     const refetch = jest.fn();
     mockDetail.mockReturnValue({

@@ -164,6 +164,12 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     try {
       const picked = await pickReviewDisputeImages(remainingSlots);
       await uploadEvidence(picked);
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Unable to attach evidence",
+        text2: "Check file access and try selecting the file again.",
+      });
     } finally {
       setEvidenceAction(null);
     }
@@ -175,6 +181,12 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     try {
       const picked = await pickReviewDisputeDocuments(remainingSlots);
       await uploadEvidence(picked);
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Unable to attach evidence",
+        text2: "Check file access and try selecting the file again.",
+      });
     } finally {
       setEvidenceAction(null);
     }

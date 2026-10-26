@@ -2,6 +2,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.authentication.permissions import HasRole
+from apps.reviews.serializers.review_serializers import ReviewResponseSerializer
 from apps.reviews.serializers.merchant_review_focus_serializers import (
     MerchantReviewFocusQuerySerializer,
 )
@@ -40,4 +41,30 @@ class MerchantReviewFocusView(APIView):
         return success_response(
             data=location,
             message="Review location retrieved successfully.",
+        )
+
+
+class MerchantReviewDetailView(APIView):
+    """Read one published review for its authenticated business owner."""
+
+    permission_classes = MerchantReviewFocusView.permission_classes
+
+    def get(
+        self,
+        request,
+        business_id,
+        review_id,
+    ):
+        """Return review content without downloading or locating archive pages."""
+        review = MerchantReviewFocusService.get_owned_review(
+            user=request.user,
+            business_id=business_id,
+            review_id=review_id,
+        )
+        return success_response(
+            data=ReviewResponseSerializer(
+                review,
+                context={"request": request},
+            ).data,
+            message="Review retrieved successfully.",
         )

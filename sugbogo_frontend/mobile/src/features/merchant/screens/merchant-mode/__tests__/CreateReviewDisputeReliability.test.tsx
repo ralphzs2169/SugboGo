@@ -1,8 +1,12 @@
+import Toast from "react-native-toast-message";
 import React from "react";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import CreateReviewDisputeScreen from "../CreateReviewDisputeScreen";
 
 const mockCreate = jest.fn();
+const mockSelectedReview = jest.fn();
+const mockPickImages = jest.fn();
+const mockPickDocuments = jest.fn();
 const mockEvidence = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
@@ -34,8 +38,9 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
   default: () => ({ business: { id: 1 } }),
 }));
-jest.mock("@/features/explore/hooks/useBusinessReviews", () => ({
-  useMerchantBusinessReviews: () => ({ reviews: [{ id: 7 }] }),
+jest.mock("../../../hooks/review-management/useMerchantReviewDetail", () => ({
+  __esModule: true,
+  default: () => mockSelectedReview(),
 }));
 jest.mock("../../../hooks/review-disputes/useReviewDisputes", () => ({
   useCreateReviewDispute: () => ({ mutateAsync: mockCreate, isPending: false }),
@@ -58,14 +63,9 @@ jest.mock("@/shared/components/bottom-sheets/SelectionBottomSheet", () => ({
 jest.mock(
   "../../../utils/review-disputes/pickReviewDisputeEvidence.utils",
   () => ({
-    pickReviewDisputeImages: async () => [
-      {
-        uri: "file:///evidence.jpg",
-        name: "evidence.jpg",
-        mimeType: "image/jpeg",
-      },
-    ],
-    pickReviewDisputeDocuments: async () => [],
+    pickReviewDisputeImages: (...args: unknown[]) => mockPickImages(...args),
+    pickReviewDisputeDocuments: (...args: unknown[]) =>
+      mockPickDocuments(...args),
   }),
 );
 jest.mock(
@@ -85,6 +85,12 @@ jest.mock(
           />
           <Pressable onPress={props.onPickImages} disabled={props.isSubmitting}>
             <Text>Add evidence</Text>
+          </Pressable>
+          <Pressable
+            onPress={props.onPickDocuments}
+            disabled={props.isSubmitting}
+          >
+            <Text>Add document</Text>
           </Pressable>
           <Text>{props.evidence.length} attachments</Text>
         </View>
@@ -127,7 +133,90 @@ jest.mock("@/shared/components/modals/ConfirmModal", () => {
 describe("Create Review Dispute reliability", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSelectedReview.mockReturnValue({
+      review: { id: 7 },
+      refetch: jest.fn(),
+    });
+    mockPickImages.mockReset().mockResolvedValue([
+      {
+        uri: "file:///evidence.jpg",
+        fileName: "evidence.jpg",
+        mimeType: "image/jpeg",
+      },
+    ]);
+    mockPickDocuments.mockReset().mockResolvedValue([]);
   });
+
+  it("keeps the draft during a cached review refresh failure and retries only that section", async () => {
+    const refetch = jest.fn();
+    const screen = await render(<CreateReviewDisputeScreen reviewId={7} />);
+    await fireEvent.changeText(
+      screen.getByLabelText("Details"),
+      "A preserved draft",
+    );
+    mockSelectedReview.mockReturnValue({
+      review: { id: 7 },
+      error: { code: "NETWORK_ERROR" },
+      refetch,
+    });
+    await screen.rerender(<CreateReviewDisputeScreen reviewId={7} />);
+    expect(screen.getByDisplayValue("A preserved draft")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Unable to refresh review.*retry/i }),
+    );
+    expect(refetch).toHaveBeenCalledTimes(1);
+    mockSelectedReview.mockReturnValue({ review: { id: 7 }, refetch });
+    await screen.rerender(<CreateReviewDisputeScreen reviewId={7} />);
+    expect(screen.queryByText("Unable to refresh review")).toBeNull();
+  });
+
+  it.each(["NOT_FOUND", "PERMISSION_DENIED"])(
+    "hides a cached review after %s",
+    async (code) => {
+      mockSelectedReview.mockReturnValue({
+        review: { id: 7 },
+        error: { code },
+        refetch: jest.fn(),
+      });
+      const screen = await render(<CreateReviewDisputeScreen reviewId={7} />);
+      expect(screen.getByText("Unable to open this review")).toBeTruthy();
+      expect(screen.queryByLabelText("Details")).toBeNull();
+    },
+  );
+
+  it.each(["image", "document"])(
+    "retains the draft and existing evidence after %s picker failure, then permits retry",
+    async (kind) => {
+      const screen = await render(<CreateReviewDisputeScreen reviewId={7} />);
+      await fireEvent.changeText(
+        screen.getByLabelText("Details"),
+        "My dispute draft",
+      );
+      await fireEvent.press(screen.getByText("Add evidence"));
+      const picker = kind === "image" ? mockPickImages : mockPickDocuments;
+      picker.mockRejectedValueOnce(new Error("Native picker failure"));
+      await fireEvent.press(
+        screen.getByText(kind === "image" ? "Add evidence" : "Add document"),
+      );
+      expect(screen.getByDisplayValue("My dispute draft")).toBeTruthy();
+      expect(screen.getByText("1 attachments")).toBeTruthy();
+      expect(mockReplace).not.toHaveBeenCalled();
+      expect(Toast.show).toHaveBeenCalledWith(
+        expect.objectContaining({ text1: `Unable to attach ${kind}` }),
+      );
+      picker.mockResolvedValueOnce([
+        {
+          uri: "file:///another.jpg",
+          fileName: "another.jpg",
+          mimeType: "image/jpeg",
+        },
+      ]);
+      await fireEvent.press(
+        screen.getByText(kind === "image" ? "Add evidence" : "Add document"),
+      );
+      expect(screen.getByText("2 attachments")).toBeTruthy();
+    },
+  );
 
   it("protects selected reason and keeps the draft when discard is cancelled", async () => {
     const screen = await render(<CreateReviewDisputeScreen reviewId={7} />);

@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Linking, Pressable, View } from "react-native";
 import { useState } from "react";
+import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -63,7 +64,14 @@ export default function ReviewDisputeEvidenceSection({
       return;
     }
 
-    void Linking.openURL(item.url);
+    void Linking.openURL(item.url).catch(() => {
+      Toast.show({
+        type: "error",
+        text1: "Unable to open document",
+        text2:
+          "Check your connection and install an app that can open this file, then try again.",
+      });
+    });
   };
 
   return (

@@ -88,8 +88,8 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   }),
 }));
 jest.mock("../../../hooks/review-disputes/useReviewDisputes", () => ({
-  useReviewDisputes: () => ({
-    disputes: [],
+  usePendingReviewDisputeCount: () => ({
+    count: 0,
     hasData: mockCountsCached || !mockDisputesError,
     error: mockDisputesError,
     isLoading: false,

@@ -1,8 +1,13 @@
+import { pickBusinessPhotos } from "@/features/merchant/components/registration/business-photos/PhotoPicker";
+import Toast from "react-native-toast-message";
 import React from "react";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import MerchantReviewReplyComposerSheet from "../MerchantReviewReplyComposerSheet";
 import ReplyTemplateComposerSheet from "../reply-template/ReplyTemplateComposerSheet";
 
+jest.mock("expo-file-system", () => ({
+  File: jest.fn(() => ({ exists: true })),
+}));
 const mockCreateReply = jest.fn();
 const mockUpdateReply = jest.fn();
 const mockCreateTemplate = jest.fn();
@@ -106,6 +111,39 @@ function ref() {
 describe("Merchant composer draft and save reliability", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it("retains reply text and photos after picker or processing failure and permits retry", async () => {
+    jest
+      .mocked(pickBusinessPhotos)
+      .mockRejectedValueOnce(new Error("Native processing error"));
+    const sheetRef = ref();
+    const screen = await render(
+      <MerchantReviewReplyComposerSheet
+        businessId={1}
+        review={review}
+        sheetRef={sheetRef}
+        onDismiss={jest.fn()}
+      />,
+    );
+    await fireEvent.changeText(
+      screen.getByDisplayValue(review.reply.text),
+      "My draft reply",
+    );
+    await fireEvent.press(screen.getByLabelText("Add reply photo"));
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({ text1: "Unable to add photos" }),
+    );
+    expect(screen.getByDisplayValue("My draft reply")).toBeTruthy();
+    expect(screen.getByLabelText("Remove photo")).toBeTruthy();
+    expect(sheetRef.current.dismiss).not.toHaveBeenCalled();
+    jest
+      .mocked(pickBusinessPhotos)
+      .mockResolvedValueOnce([
+        { uri: "file:///replacement.jpg", mimeType: "image/jpeg" },
+      ]);
+    await fireEvent.press(screen.getByLabelText("Add reply photo"));
+    expect(screen.getAllByLabelText("Remove photo")).toHaveLength(2);
   });
 
   it("opens an existing reply pristine and dismisses it without warning", async () => {
