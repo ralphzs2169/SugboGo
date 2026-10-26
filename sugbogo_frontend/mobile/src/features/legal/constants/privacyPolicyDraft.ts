@@ -335,7 +335,7 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "Depending on the feature and account state, SugboGo users can manage certain information through available controls.",
+        text: "Available controls depend on the feature, your account status, and your role.",
       },
       {
         type: "paragraph",
@@ -345,18 +345,18 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
         type: "list",
         ordered: false,
         items: [
-          "Editing profile information",
-          "Updating selected interests",
+          "Editing your profile information",
+          "Updating your selected interests",
           "Managing saved businesses and Pocket collections",
-          "Managing reviews and vouches",
-          "Reviewing login history",
-          "Managing certain locally stored offline information",
-          "Deactivating eligible accounts",
+          "Managing your reviews and vouches",
+          "Viewing your login history",
+          "Managing certain offline information stored on your device",
+          "Deactivating your account if you're eligible",
         ],
       },
       {
         type: "paragraph",
-        text: "Users may also manage location permissions through supported device operating-system settings.",
+        text: "You can also manage location permissions in your device settings, where supported.",
       },
     ],
   },
