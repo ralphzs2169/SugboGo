@@ -60,7 +60,7 @@ const representativeContent = [
   "You can report concerns about a review, and merchants can dispute reviews. These reporting and dispute features are separate from general customer support.",
   "These measures do not mean that all information is encrypted or protected from every security risk.",
   "Login history has a 90-day setting, measured from when each sign-in record is created. An automated cleanup task is configured to delete older login records, but its operation in the final release still needs confirmation. This period does not apply to all personal information.",
-  "Deactivation disables account access and revokes relevant sessions. It does not automatically erase all account information, contributions, or related business records.",
+  "Deactivation blocks sign-in and ends existing sign-in sessions. It does not automatically delete your account information, contributions, or related business records.",
   "Users may also manage location permissions through supported device operating-system settings.",
   "The final policy must identify the approved procedure and contact channel.",
   "Before an official policy is published, the team must approve its effective date, versioning process, and approach for communicating material updates.",

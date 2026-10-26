@@ -309,23 +309,23 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "SugboGo provides an account-deactivation feature for eligible authenticated users.",
+        text: "If your account meets the requirements, you can deactivate it from Account Settings while signed in.",
       },
       {
         type: "paragraph",
-        text: "Deactivation disables account access and revokes relevant sessions. It does not automatically erase all account information, contributions, or related business records.",
+        text: "Deactivation blocks sign-in and ends existing sign-in sessions. It does not automatically delete your account information, contributions, or related business records.",
       },
       {
         type: "paragraph",
-        text: "Some application features provide separate controls for editing or removing content, such as reviews and locally stored information.",
+        text: "Some features let you edit or remove content, such as reviews. Certain information stored on your device can also be removed separately.",
       },
       {
         type: "paragraph",
-        text: "A complete self-service account-erasure or personal-data-export workflow was not identified in the repository audit.",
+        text: "Our code review did not find a complete way for users to permanently delete their account data or export their personal information themselves.",
       },
       {
         type: "paragraph",
-        text: "The official process for broader access, correction, deletion, or export requests requires team confirmation.",
+        text: "The team must confirm the official process for requests to access, correct, delete, or export personal information.",
       },
     ],
   },
