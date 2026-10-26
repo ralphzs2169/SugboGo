@@ -62,7 +62,7 @@ const representativeContent = [
   "Login history has a 90-day setting, measured from when each sign-in record is created. An automated cleanup task is configured to delete older login records, but its operation in the final release still needs confirmation. This period does not apply to all personal information.",
   "Deactivation blocks sign-in and ends existing sign-in sessions. It does not automatically delete your account information, contributions, or related business records.",
   "You can also manage location permissions in your device settings, where supported.",
-  "The final policy must identify the approved procedure and contact channel.",
+  "The final policy must explain the approved process and how to contact the team.",
   "Before an official policy is published, the team must approve its effective date, versioning process, and approach for communicating material updates.",
   "An official support email is being considered but has not yet been confirmed.",
 ];

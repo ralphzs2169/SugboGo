@@ -366,15 +366,15 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "SugboGo includes profile and account-management features through which users can view or update certain information.",
+        text: "You can view or update some personal information through SugboGo's profile and account features.",
       },
       {
         type: "paragraph",
-        text: "For privacy-related requests that cannot be completed through existing account controls, an official contact and verification procedure must be established by the responsible SugboGo team.",
+        text: "For privacy requests that the app cannot handle, the SugboGo team still needs to establish an official contact method and a way to verify requests.",
       },
       {
         type: "paragraph",
-        text: "The final policy must identify the approved procedure and contact channel.",
+        text: "The final policy must explain the approved process and how to contact the team.",
       },
     ],
   },
