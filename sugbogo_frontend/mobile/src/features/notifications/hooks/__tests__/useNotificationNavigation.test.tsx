@@ -125,7 +125,7 @@ describe("useNotificationNavigation", () => {
       const navigate =
         activeMode === "merchant" ? mockRouter.replace : mockRouter.push;
       expect(navigate).toHaveBeenCalledWith(
-        "/(explorer)/merchant-registration/submitted-application",
+        "/(explorer)/profile/merchant-portal",
       );
 
       unmount();

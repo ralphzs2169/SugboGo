@@ -1,4 +1,3 @@
-import { router } from "expo-router";
 import { getDistance } from "geolib";
 import { useEffect, useRef, useState } from "react";
 import type { MapPressEvent } from "react-native-maps";
@@ -50,6 +49,11 @@ export default function LandmarkPickerScreen({
     longitude: number;
   } | null>(null);
 
+  const [mapCenter, setMapCenter] = useState({
+    latitude: businessLocation.latitude,
+    longitude: businessLocation.longitude,
+  });
+
   const [landmarkName, setLandmarkName] = useState("");
   const [errors, setErrors] = useState<LandmarkNameErrors>({});
 
@@ -71,8 +75,13 @@ export default function LandmarkPickerScreen({
       return;
     }
 
-    const coordinate = event.nativeEvent.coordinate;
+    selectCoordinate(event.nativeEvent.coordinate);
+  }
 
+  function selectCoordinate(coordinate: {
+    latitude: number;
+    longitude: number;
+  }) {
     const distance = getDistance(
       {
         latitude: businessLocation.latitude,
@@ -178,6 +187,12 @@ export default function LandmarkPickerScreen({
         customLocation={customLocation}
         landmarkName={landmarkName}
         onMapPress={handleMapPress}
+        onRegionChangeComplete={(region) =>
+          setMapCenter({
+            latitude: region.latitude,
+            longitude: region.longitude,
+          })
+        }
         onExistingMarkerPress={() => {
           markerPressed.current = true;
         }}
@@ -195,6 +210,7 @@ export default function LandmarkPickerScreen({
         landmarkRadiusLabel={landmarkRadiusLabel}
         onNameChange={handleNameChange}
         onConfirm={handleConfirm}
+        onUseMapCenter={() => selectCoordinate(mapCenter)}
         landmarkNameError={errors.name}
       />
     </View>

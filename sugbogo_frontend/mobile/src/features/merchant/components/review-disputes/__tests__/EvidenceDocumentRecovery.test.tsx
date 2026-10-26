@@ -50,3 +50,43 @@ test("document open rejection shows actionable feedback, retains evidence and al
   expect(open).toHaveBeenCalledTimes(2);
   open.mockRestore();
 });
+
+test("evidence buttons expose practical targets and disabled deletion state", async () => {
+  const remove = jest.fn();
+  const screen = await render(
+    <ReviewDisputeEvidenceSection
+      evidence={[
+        {
+          id: 1,
+          type: "document",
+          file_name: "receipt.pdf",
+          url: "https://example.com/receipt.pdf",
+          created_at: "2026-01-01",
+        },
+      ]}
+      isPending
+      remainingSlots={4}
+      isAddingEvidence={false}
+      isDeletingEvidence
+      isPickingImages={false}
+      isPickingDocuments={false}
+      onPickImages={jest.fn()}
+      onPickDocuments={jest.fn()}
+      onRequestDelete={remove}
+    />,
+  );
+  const deletion = screen.getByRole("button", { name: "Delete receipt.pdf" });
+  expect(deletion.props.hitSlop).toBe(8);
+  expect(deletion.props.accessibilityState.disabled).toBe(true);
+  await fireEvent.press(deletion);
+  expect(remove).not.toHaveBeenCalled();
+  expect(
+    screen
+      .getAllByRole("button", { name: "Open receipt.pdf" })
+      .some((button) => button.props.hitSlop === 8),
+  ).toBe(true);
+  expect(
+    screen.getByRole("button", { name: "Add evidence images" }).props
+      .accessibilityState.disabled,
+  ).toBe(false);
+});

@@ -1,3 +1,4 @@
+import RegistrationRouteBoundary from "@/features/merchant/components/registration/RegistrationRouteBoundary";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 
@@ -8,7 +9,7 @@ import {
 
 export default function MerchantRegistrationLayout() {
   return (
-    <>
+    <RegistrationRouteBoundary>
       <StatusBar style="dark" />
 
       <Stack
@@ -66,6 +67,6 @@ export default function MerchantRegistrationLayout() {
           }}
         />
       </Stack>
-    </>
+    </RegistrationRouteBoundary>
   );
 }

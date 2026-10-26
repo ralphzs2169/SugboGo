@@ -285,6 +285,32 @@ describe("MerchantProfileScreen", () => {
     });
   });
 
+  it("keeps Explorer and logout recovery available after an initial business failure", async () => {
+    mockProfile.mockReturnValue({
+      business: null,
+      isLoading: false,
+      error: { code: "NETWORK_ERROR" },
+      refetch: mockRefetch,
+    });
+    const screen = await render(
+      <>
+        <MerchantProfileScreen />
+        <LogoutConfirmationModal />
+      </>,
+    );
+    expect(screen.getByText("Unable to load business profile")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Try Again" }));
+    expect(mockRefetch).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByText("Logout"));
+    expect(screen.getByText("Log out?")).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("Cancel logout"));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Switch to Explorer" }),
+    );
+    expect(router.replace).toHaveBeenCalledWith("/(explorer)/(tabs)/explore");
+    expect(router.back).not.toHaveBeenCalled();
+  });
+
   it("shows a noninteractive full-page skeleton only for a cold profile load", async () => {
     mockProfile.mockReturnValue({
       business: null,

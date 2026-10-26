@@ -1,4 +1,5 @@
-import { render } from "@testing-library/react-native";
+import { router } from "expo-router";
+import { act, render } from "@testing-library/react-native";
 import { useEffect as mockUseEffect } from "react";
 
 import Button from "@/shared/components/Button";
@@ -6,6 +7,8 @@ import ErrorState from "@/shared/components/ErrorState";
 import MerchantPortalScreen from "../MerchantPortalScreen";
 
 const mockRefetch = jest.fn();
+const mockAcknowledge = jest.fn();
+const mockSetMode = jest.fn();
 
 let mockPortalState = {
   registrationStatus: "DRAFT",
@@ -41,11 +44,11 @@ jest.mock("../../hooks/useMerchantPortalState", () => ({
 }));
 jest.mock("../../hooks/useAcknowledgeMerchantMode", () => ({
   __esModule: true,
-  default: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  default: () => ({ mutateAsync: mockAcknowledge, isPending: false }),
 }));
 jest.mock("@/features/app-mode/store/appMode.store", () => ({
   useAppModeStore: (selector: (state: unknown) => unknown) =>
-    selector({ setActiveMode: jest.fn() }),
+    selector({ setActiveMode: mockSetMode }),
 }));
 jest.mock("@/shared/components/Button", () => ({
   __esModule: true,
@@ -76,13 +79,36 @@ jest.mock("../../components/portal/MerchantHero", () => () => null);
 describe("MerchantPortalScreen current-application errors", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAcknowledge.mockResolvedValue({
+      status: "approved",
+      merchant_mode_acknowledged: true,
+    });
     mockPortalState = {
       ...mockPortalState,
+      registrationStatus: "DRAFT",
       application: { id: 1, highest_completed_step: 2 },
       isLoading: false,
       error: false,
       refetch: mockRefetch,
     };
+  });
+
+  it("approved Portal entry acknowledges before switching to Merchant Mode", async () => {
+    mockPortalState.registrationStatus = "APPROVED";
+    // Both a first acknowledgement and the existing idempotent acknowledgement
+    // use this Portal action; the server remains authoritative.
+    mockAcknowledge.mockResolvedValue({
+      status: "approved",
+      merchant_mode_acknowledged: true,
+    });
+    await render(<MerchantPortalScreen />);
+    const enter = (Button as jest.Mock).mock.lastCall[0].onPress;
+    await act(async () => {
+      await enter();
+    });
+    expect(mockAcknowledge).toHaveBeenCalledTimes(1);
+    expect(mockSetMode).toHaveBeenCalledWith("merchant");
+    expect(router.replace).toHaveBeenCalledWith("/(merchant)/(tabs)/dashboard");
   });
 
   it("keeps the cached portal content and offers a non-blocking retry", async () => {

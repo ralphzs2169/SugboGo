@@ -249,9 +249,18 @@ export default function MerchantProfileScreen() {
           description="We couldn't load your business information. Please try again."
           primaryActionTitle="Try Again"
           onPrimaryAction={refetch}
-          secondaryActionTitle="Go Back"
-          onSecondaryAction={() => router.back()}
+          secondaryActionTitle="Switch to Explorer"
+          onSecondaryAction={handleSwitchToExplorer}
         />
+        <View className="mb-4 bg-surface">
+          <ProfileMenuItem
+            title="Logout"
+            icon="logout"
+            variant="danger"
+            onPress={openLogoutConfirmation}
+            showChevron={false}
+          />
+        </View>
       </SafeAreaView>
     );
   }

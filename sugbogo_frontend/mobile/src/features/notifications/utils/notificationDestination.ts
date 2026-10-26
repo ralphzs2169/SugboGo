@@ -45,9 +45,9 @@ const destinationFactories: Record<
     requiredMode: "merchant",
     targetType: "business_review",
   }),
-  // ApplicationSummaryScreen loads the signed-in user's single application.
+  // The portal resolves the signed-in account's current application lifecycle.
   merchant_application: () => ({
-    href: "/(explorer)/merchant-registration/submitted-application",
+    href: "/(explorer)/profile/merchant-portal",
     label: "merchant application",
     requiredMode: "explorer",
     targetType: "merchant_application",

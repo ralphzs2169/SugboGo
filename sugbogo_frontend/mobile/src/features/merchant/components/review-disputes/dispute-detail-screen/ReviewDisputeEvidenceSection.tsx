@@ -181,6 +181,7 @@ export default function ReviewDisputeEvidenceSection({
                     onPress={() => openEvidence(item)}
                     accessibilityRole="button"
                     accessibilityLabel={`Open ${item.file_name ?? "evidence"}`}
+                    hitSlop={8}
                     className="h-9 w-9 cursor-pointer items-center justify-center rounded-full active:bg-surface-secondary"
                   >
                     <MaterialCommunityIcons
@@ -196,6 +197,11 @@ export default function ReviewDisputeEvidenceSection({
                     <Pressable
                       onPress={() => onRequestDelete(item)}
                       disabled={isDeletingEvidence}
+                      accessibilityState={{
+                        disabled: isDeletingEvidence,
+                        busy: isDeletingEvidence,
+                      }}
+                      hitSlop={8}
                       accessibilityRole="button"
                       accessibilityLabel={`Delete ${
                         item.file_name ?? "evidence"

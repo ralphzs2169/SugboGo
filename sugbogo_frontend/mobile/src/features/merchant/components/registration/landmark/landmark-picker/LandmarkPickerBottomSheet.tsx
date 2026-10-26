@@ -1,3 +1,4 @@
+import SafePressable from "@/shared/components/SafePressable";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,6 +17,7 @@ type LandmarkPickerBottomSheetProps = {
   landmarkRadiusLabel: string;
   onNameChange: (text: string) => void;
   onConfirm: () => void;
+  onUseMapCenter: () => void;
   landmarkNameError?: string;
 };
 
@@ -33,6 +35,7 @@ export default function LandmarkPickerBottomSheet({
   landmarkRadiusLabel,
   onNameChange,
   onConfirm,
+  onUseMapCenter,
   landmarkNameError,
 }: LandmarkPickerBottomSheetProps) {
   const insets = useSafeAreaInsets();
@@ -89,6 +92,17 @@ export default function LandmarkPickerBottomSheet({
           </View>
         </View>
 
+        <SafePressable
+          accessibilityRole="button"
+          accessibilityLabel="Use map center for landmark"
+          accessibilityHint="Move the map to position its center, then select this action."
+          onPress={onUseMapCenter}
+          className="mb-3 min-h-12 justify-center self-start"
+        >
+          <AppText weight="semibold" className="text-sm text-brand">
+            Use map center
+          </AppText>
+        </SafePressable>
         {!hasPendingLocation ? (
           /* Map placement guidance */
           <View className="flex-row items-center pb-1">
@@ -105,7 +119,7 @@ export default function LandmarkPickerBottomSheet({
                 weight="semibold"
                 className="text-sm leading-5 text-text-primary"
               >
-                Tap the highlighted area
+                Tap the area or use map center
               </AppText>
 
               <AppText className="mt-0.5 text-xs leading-4 text-text-secondary">

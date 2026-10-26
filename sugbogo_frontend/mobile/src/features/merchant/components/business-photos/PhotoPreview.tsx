@@ -59,10 +59,14 @@ export default function PhotoPreview({ uri, onRemove }: PhotoPreviewProps) {
         onRequestClose={() => setIsPreviewVisible(false)}
       >
         <Pressable
+          accessible={false}
           className="flex-1 items-center justify-center bg-black/80"
           onPress={() => setIsPreviewVisible(false)}
         >
-          <Pressable onPress={(event) => event.stopPropagation()}>
+          <Pressable
+            accessible={false}
+            onPress={(event) => event.stopPropagation()}
+          >
             <Image
               source={{ uri }}
               className="h-[80vh] w-[90vw]"
@@ -73,6 +77,8 @@ export default function PhotoPreview({ uri, onRemove }: PhotoPreviewProps) {
 
           <Pressable
             onPress={() => setIsPreviewVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close photo preview"
             hitSlop={10}
             className="absolute right-5 top-12 h-10 w-10 items-center justify-center"
           >

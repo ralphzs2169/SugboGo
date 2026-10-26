@@ -47,7 +47,10 @@ export default function FormInput({
       {/* Error or helper message */}
       <View className="min-w-0 flex-1">
         {error ? (
-          <AppText className="text-xs font-medium text-text-error">
+          <AppText
+            accessibilityLiveRegion="polite"
+            className="text-xs font-medium text-text-error"
+          >
             {error}
           </AppText>
         ) : helperText ? (
@@ -93,6 +96,20 @@ export default function FormInput({
     >
       <InputComponent
         {...props}
+        accessibilityLabel={props.accessibilityLabel ?? label}
+        accessibilityHint={
+          [
+            props.accessibilityHint,
+            required ? "Required field." : undefined,
+            error ? `Error: ${error}` : undefined,
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
+        accessibilityState={{
+          ...props.accessibilityState,
+          disabled: props.accessibilityState?.disabled || !editable,
+        }}
         editable={editable}
         value={value}
         className={`flex-1 py-[14px] font-nunito text-body ${

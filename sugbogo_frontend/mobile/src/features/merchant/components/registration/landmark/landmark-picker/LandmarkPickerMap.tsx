@@ -1,5 +1,10 @@
 import { View } from "react-native";
-import { Circle, Marker, type MapPressEvent } from "react-native-maps";
+import {
+  Circle,
+  Marker,
+  type MapPressEvent,
+  type Region,
+} from "react-native-maps";
 
 import { theme } from "@/constants/theme";
 import { LANDMARK_RADIUS_METERS } from "@/features/merchant/constants/registration/map.constants";
@@ -21,10 +26,9 @@ type LandmarkPickerMapProps = {
   } | null;
   landmarkName: string;
   onMapPress: (event: MapPressEvent) => void;
+  onRegionChangeComplete: (region: Region) => void;
   onExistingMarkerPress: () => void;
 };
-
-const LANDMARK_RADIUS_FILL = "rgba(242, 127, 13, 0.08)";
 
 /**
  * Displays the interactive map used when creating a custom landmark.
@@ -38,6 +42,7 @@ export default function LandmarkPickerMap({
   customLocation,
   landmarkName,
   onMapPress,
+  onRegionChangeComplete,
   onExistingMarkerPress,
 }: LandmarkPickerMapProps) {
   return (
@@ -45,6 +50,7 @@ export default function LandmarkPickerMap({
       businessLocation={businessLocation}
       selectedLandmarks={selectedLandmarks}
       onMapPress={onMapPress}
+      onRegionChangeComplete={onRegionChangeComplete}
       onLandmarkPress={onExistingMarkerPress}
     >
       {/* Landmark selection area */}

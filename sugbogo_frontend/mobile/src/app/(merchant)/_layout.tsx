@@ -1,4 +1,5 @@
-import { useAuthGuard } from "@/features/auth/hooks/useAuthGuard";
+import useMerchantRouteGuard from "@/features/merchant/hooks/useMerchantRouteGuard";
+import LoadingScreen from "@/shared/components/LoadingScreen";
 import {
   defaultStackScreenOptions,
   slideFromRight,
@@ -6,7 +7,15 @@ import {
 import { Stack } from "expo-router";
 
 export default function MerchantLayout() {
-  useAuthGuard();
+  const { resolving, allowed } = useMerchantRouteGuard();
+  if (resolving)
+    return (
+      <LoadingScreen
+        title="Loading Merchant Mode"
+        description="Restoring your account..."
+      />
+    );
+  if (!allowed) return null;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
