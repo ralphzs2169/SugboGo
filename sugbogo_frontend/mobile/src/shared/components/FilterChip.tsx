@@ -57,7 +57,7 @@ export default function FilterChip({
             }
           : undefined
       }
-      className={`cursor-pointer flex-row items-center rounded-full ${compact ? "px-2.5 py-1.5" : "px-4 py-2"} ${
+      className={`cursor-pointer flex-row items-center rounded-full active:opacity-70 ${compact ? "px-2.5 py-1.5" : "px-4 py-2"} ${
         selected && !accentColor
           ? "bg-surface-muted-strong"
           : "bg-surface-muted"
@@ -67,6 +67,7 @@ export default function FilterChip({
       {selected && showSelectedCheck && (
         <MaterialCommunityIcons
           name="check"
+          accessible={false}
           size={15}
           color={
             accentColor && selected
@@ -81,6 +82,7 @@ export default function FilterChip({
       {icon && (
         <MaterialCommunityIcons
           name={icon}
+          accessible={false}
           size={14}
           color={
             accentColor && selected

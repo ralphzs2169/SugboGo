@@ -1,6 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { router } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 
@@ -13,6 +12,7 @@ import type { CommunityReviewBusiness } from "../types/communityReview.types";
 
 type Props = {
   business: CommunityReviewBusiness;
+  onOpenBusiness: (business: CommunityReviewBusiness) => void;
 };
 
 /** Falls back to the existing storefront placeholder for a failed cover URL. */
@@ -48,17 +48,10 @@ function BusinessThumbnail({ url }: { url: string | null }) {
  * Uses a subtle elbow arrow to associate the review with the business,
  * while a trailing chevron reinforces the row's navigation behavior.
  */
-export default function CommunityBusinessLink({ business }: Props) {
-  const openBusiness = () => {
-    router.push({
-      pathname: "/(explorer)/business/[businessId]",
-      params: {
-        businessId: String(business.id),
-        profileSource: "COMMUNITY",
-      },
-    });
-  };
-
+export default function CommunityBusinessLink({
+  business,
+  onOpenBusiness,
+}: Props) {
   const clusterIconName = business.cluster_icon
     ? CLUSTER_ICONS[business.cluster_icon]
     : undefined;
@@ -69,7 +62,7 @@ export default function CommunityBusinessLink({ business }: Props) {
   return (
     <SafePressable
       testID={`community-business-${business.id}`}
-      onPress={openBusiness}
+      onPress={() => onOpenBusiness(business)}
       accessibilityRole="button"
       accessibilityLabel={`Open ${business.business_name} business profile`}
       className="min-h-12 cursor-pointer flex-row items-center active:opacity-70"

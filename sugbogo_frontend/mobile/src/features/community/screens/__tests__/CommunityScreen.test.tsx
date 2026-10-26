@@ -1,4 +1,10 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react-native";
 import { FlatList } from "react-native";
 
 import useExploreFilterOptions from "@/features/explore/hooks/useExploreFilterOptions";
@@ -6,22 +12,35 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 
 import { useCommunityReviews } from "../../hooks/useCommunityReviews";
 import CommunityScreen from "../CommunityScreen";
-import type { CommunityReview } from "../../types/communityReview.types";
+import type {
+  CommunityReview,
+  CommunityReviewBusiness,
+} from "../../types/communityReview.types";
 
 const mockFetchNextPage = jest.fn(async () => undefined);
 const mockRefetch = jest.fn(async () => undefined);
 const mockRefresh = jest.fn(async () => undefined);
 const mockTaxonomyRefetch = jest.fn(async () => undefined);
+const mockPush = jest.fn();
+let mockFocus: () => void | (() => void);
 
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn() },
+  router: { push: (...args: unknown[]) => mockPush(...args) },
   useNavigation: () => ({ isFocused: () => true }),
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    mockFocus = effect;
+    jest.requireActual("react").useEffect(effect, [effect]);
+  },
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 jest.mock("@expo/vector-icons", () => ({
-  MaterialCommunityIcons: () => null,
+  MaterialCommunityIcons: ({ name }: { name: string }) => {
+    const { View } = jest.requireActual("react-native");
+
+    return <View testID={`icon-${name}`} accessible={false} />;
+  },
 }));
 jest.mock("lottie-react-native", () => () => null);
 jest.mock(
@@ -85,16 +104,33 @@ jest.mock("../../components/CommunityFilterBottomSheet", () => ({
 }));
 jest.mock("../../components/CommunityReviewCard", () => ({
   __esModule: true,
-  default: ({ review }: { review: CommunityReview }) => {
+  default: ({
+    review,
+    onOpenBusiness,
+  }: {
+    review: CommunityReview;
+    onOpenBusiness: (business: CommunityReviewBusiness) => void;
+  }) => {
     const { Text } = jest.requireActual("react-native");
+    const SafePressable = jest.requireActual(
+      "@/shared/components/SafePressable",
+    ).default;
 
-    return <Text testID={`rendered-review-${review.id}`}>{review.text}</Text>;
+    return (
+      <SafePressable
+        testID={`mock-business-${review.id}`}
+        onPress={() => onOpenBusiness(review.business)}
+      >
+        <Text testID={`rendered-review-${review.id}`}>{review.text}</Text>
+      </SafePressable>
+    );
   },
 }));
 
 const review = {
   id: 7,
   text: "A thoughtful Community review.",
+  business: { id: 20 },
 } as CommunityReview;
 
 function communityState(overrides: Record<string, unknown> = {}) {
@@ -166,6 +202,53 @@ describe("CommunityScreen", () => {
     const screen = await render(<CommunityScreen />);
     expect(screen.getByText("Community")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Filters" })).toBeTruthy();
+  });
+
+  it("uses one navigation guard across rapid presses on the same and different rows", async () => {
+    (useCommunityReviews as jest.Mock).mockReturnValue(
+      communityState({
+        reviews: [review, { ...review, id: 8, business: { id: 21 } }],
+      }),
+    );
+    const screen = await render(<CommunityScreen />);
+    const first = screen.getByTestId("mock-business-7");
+    const second = screen.getByTestId("mock-business-8");
+
+    await fireEvent.press(first);
+    await fireEvent.press(first);
+    await fireEvent.press(second);
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: "/(explorer)/business/[businessId]",
+      params: { businessId: "20", profileSource: "COMMUNITY" },
+    });
+
+    await act(() => {
+      mockFocus();
+    });
+    await fireEvent.press(second);
+    expect(mockPush).toHaveBeenCalledTimes(2);
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: "/(explorer)/business/[businessId]",
+      params: { businessId: "21", profileSource: "COMMUNITY" },
+    });
+  });
+
+  it("shows a check and selected semantics for quick filters and removes both on deselection", async () => {
+    const screen = await render(<CommunityScreen />);
+    await fireEvent.press(screen.getByTestId("mock-apply-filters"));
+    const photos = screen.getByRole("button", { name: "With photos" });
+    const helpful = screen.getByRole("button", { name: "Most helpful" });
+
+    expect(photos.props.accessibilityState).toEqual({ selected: true });
+    expect(helpful.props.accessibilityState).toEqual({ selected: true });
+    expect(within(photos).getByTestId("icon-check")).toBeTruthy();
+    expect(within(helpful).getByTestId("icon-check")).toBeTruthy();
+
+    await fireEvent.press(photos);
+    const deselected = screen.getByRole("button", { name: "With photos" });
+    expect(deselected.props.accessibilityState).toEqual({ selected: false });
+    expect(within(deselected).queryByTestId("icon-check")).toBeNull();
   });
 
   it("shows a persistent error and retries only the Community query", async () => {

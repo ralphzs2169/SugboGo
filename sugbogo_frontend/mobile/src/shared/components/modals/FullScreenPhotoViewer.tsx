@@ -31,6 +31,7 @@ import { theme } from "@/constants/theme";
 export type PhotoViewerItem = {
   uri: string;
   category?: string;
+  accessibilityLabel?: string;
 };
 
 type Props = {
@@ -47,6 +48,7 @@ const MAX_SCALE = 3;
 
 type ZoomablePhotoProps = {
   photo: PhotoViewerItem;
+  accessibilityLabel: string;
   onZoomStateChange: (isZoomed: boolean) => void;
 };
 
@@ -54,7 +56,11 @@ type ZoomablePhotoProps = {
  * Renders an individual gallery image with pinch-to-zoom, panning,
  * and double-tap zoom interactions.
  */
-function ZoomablePhoto({ photo, onZoomStateChange }: ZoomablePhotoProps) {
+function ZoomablePhoto({
+  photo,
+  accessibilityLabel,
+  onZoomStateChange,
+}: ZoomablePhotoProps) {
   const [hasFailed, setHasFailed] = useState(false);
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -161,7 +167,11 @@ function ZoomablePhoto({ photo, onZoomStateChange }: ZoomablePhotoProps) {
         style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
         className="items-center justify-center px-8"
       >
-        <AppText weight="semibold" className="text-base text-white">
+        <AppText
+          weight="semibold"
+          accessibilityLabel={`${accessibilityLabel}. Couldn't load photo.`}
+          className="text-base text-white"
+        >
           {"Couldn't load photo"}
         </AppText>
         <AppText className="mt-2 text-sm text-white/65">
@@ -198,6 +208,9 @@ function ZoomablePhoto({ photo, onZoomStateChange }: ZoomablePhotoProps) {
         >
           <Image
             source={{ uri: photo.uri }}
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel={accessibilityLabel}
             contentFit="contain"
             transition={150}
             onError={() => {
@@ -344,7 +357,11 @@ export default function FullScreenPhotoViewer({
           )}
 
           {/* Photo counter */}
-          <View className="ml-3 rounded-full bg-black/45 px-3 py-1.5">
+          <View
+            className="ml-3 rounded-full bg-black/45 px-3 py-1.5"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
             <Text className="text-xs font-semibold text-white">
               {currentIndex + 1} / {photos.length}
             </Text>
@@ -375,8 +392,14 @@ export default function FullScreenPhotoViewer({
             setCurrentIndex(index);
             setIsZoomed(false);
           }}
-          renderItem={({ item }) => (
-            <ZoomablePhoto photo={item} onZoomStateChange={setIsZoomed} />
+          renderItem={({ item, index }) => (
+            <ZoomablePhoto
+              photo={item}
+              accessibilityLabel={
+                item.accessibilityLabel ?? `Photo ${index + 1} of ${photos.length}`
+              }
+              onZoomStateChange={setIsZoomed}
+            />
           )}
         />
 

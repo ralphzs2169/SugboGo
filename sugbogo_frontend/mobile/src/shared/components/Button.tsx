@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ActivityIndicator, TouchableOpacity, View } from "react-native";
 
 import AppText, { type AppTextWeight } from "@/shared/components/AppText";
+import { theme } from "@/constants/theme";
 
 type ButtonProps = {
   title: string;
@@ -17,6 +18,8 @@ type ButtonProps = {
   rounded?: "none" | "sm" | "md" | "lg" | "full";
   size?: "sm" | "md";
   accessibilityLabel?: string;
+  /** Opts into the existing primary text token without changing variant defaults. */
+  textTone?: "default" | "primary";
 };
 
 /**
@@ -39,6 +42,7 @@ export default function Button({
   rounded = "lg",
   size = "md",
   accessibilityLabel,
+  textTone = "default",
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
@@ -51,7 +55,7 @@ export default function Button({
     success: "bg-green-500",
   }[variant];
 
-  const textColorClass = {
+  const variantTextColorClass = {
     primary: "text-white",
     secondary: "text-white",
     outline: "text-text-primary",
@@ -59,6 +63,8 @@ export default function Button({
     danger: "text-white",
     success: "text-white",
   }[variant];
+  const textColorClass =
+    textTone === "primary" ? "text-text-primary" : variantTextColorClass;
 
   const roundedClass = {
     none: "rounded-none",
@@ -78,7 +84,7 @@ export default function Button({
     md: "text-base",
   }[size];
 
-  const loadingIndicatorColor = {
+  const variantLoadingIndicatorColor = {
     primary: "#FFFFFF",
     secondary: "#1A1A1A",
     outline: "#1A1A1A",
@@ -86,6 +92,10 @@ export default function Button({
     danger: "#FFFFFF",
     success: "#FFFFFF",
   }[variant];
+  const loadingIndicatorColor =
+    textTone === "primary"
+      ? theme.extends.colors.text.primary
+      : variantLoadingIndicatorColor;
 
   return (
     <TouchableOpacity

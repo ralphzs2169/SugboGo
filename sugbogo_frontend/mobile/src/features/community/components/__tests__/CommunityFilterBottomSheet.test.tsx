@@ -239,6 +239,9 @@ describe("CommunityFilterBottomSheet", () => {
       />,
     );
     expect(screen.getByText("Could not load filter options.")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Retry loading filter options" }),
+    ).toBeTruthy();
     await press(screen.getByText("Retry"));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });

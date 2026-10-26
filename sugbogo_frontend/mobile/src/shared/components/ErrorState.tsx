@@ -16,6 +16,7 @@ type ErrorStateProps = {
 
   primaryActionTitle?: string;
   onPrimaryAction?: () => void;
+  primaryActionTextTone?: "default" | "primary";
 
   secondaryActionTitle?: string;
   onSecondaryAction?: () => void;
@@ -35,6 +36,7 @@ export default function ErrorState({
   icon = "cloud-off-outline",
   primaryActionTitle,
   onPrimaryAction,
+  primaryActionTextTone = "default",
   secondaryActionTitle,
   onSecondaryAction,
 }: ErrorStateProps) {
@@ -117,7 +119,14 @@ export default function ErrorState({
                   color={theme.extends.colors.brand}
                   accessible={false}
                 />
-                <AppText weight="semibold" className="text-sm text-brand">
+                <AppText
+                  weight="semibold"
+                  className={`text-sm ${
+                    primaryActionTextTone === "primary"
+                      ? "text-text-primary"
+                      : "text-brand"
+                  }`}
+                >
                   {primaryActionTitle}
                 </AppText>
               </SafePressable>
@@ -152,7 +161,14 @@ export default function ErrorState({
             color={theme.extends.colors.brand}
           />
 
-          <AppText weight="semibold" className="ml-1.5 text-xs text-brand">
+          <AppText
+            weight="semibold"
+            className={`ml-1.5 text-xs ${
+              primaryActionTextTone === "primary"
+                ? "text-text-primary"
+                : "text-brand"
+            }`}
+          >
             Tap to {primaryActionTitle?.toLowerCase()}
           </AppText>
         </View>
@@ -200,7 +216,11 @@ export default function ErrorState({
 
               <AppText
                 weight="semibold"
-                className={`text-white ${
+                className={`${
+                  primaryActionTextTone === "primary"
+                    ? "text-text-primary"
+                    : "text-white"
+                } ${
                   isSection ? "ml-1.5 text-xs" : "text-sm"
                 }`}
               >

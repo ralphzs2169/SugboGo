@@ -48,6 +48,7 @@ export default function CommunityFilters({
       <FilterChip
         label="Filters"
         selected={sheetFilterCount > 0}
+        showSelectedCheck
         icon="tune-variant"
         count={sheetFilterCount}
         accessibilityLabel={`Filters${
@@ -59,12 +60,14 @@ export default function CommunityFilters({
         label="With photos"
         icon="image-outline"
         selected={filters.hasPhotos}
+        showSelectedCheck
         onPress={onTogglePhotos}
       />
       <FilterChip
         label="Most helpful"
         icon="thumb-up-outline"
         selected={filters.ordering === "most_helpful"}
+        showSelectedCheck
         onPress={onToggleMostHelpful}
       />
       {hasContentFilters && (

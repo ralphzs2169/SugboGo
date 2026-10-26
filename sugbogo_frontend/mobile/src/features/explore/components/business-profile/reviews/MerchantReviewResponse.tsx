@@ -86,79 +86,87 @@ export default function MerchantReviewResponse({
 
               <MaterialCommunityIcons
                 name="chevron-down"
+                accessible={false}
                 size={18}
                 color={theme.extends.colors.text.tertiary}
               />
             </View>
           ) : (
             /* Expanded response */
-            <View className="px-2 py-3">
-              <View className="flex-row items-center">
-                <AppText weight="bold" className="text-xs text-text-primary">
-                  {responseLabel}
-                </AppText>
-
-                {reply.created_at && (
-                  <>
-                    <AppText className="mx-1.5 text-[11px] text-text-secondary">
-                      ·
-                    </AppText>
-
-                    <AppText className="text-[11px] text-text-secondary">
-                      {formatRelativeDate(reply.created_at)}
-                    </AppText>
-                  </>
-                )}
-
-                <View className="flex-1" />
-
-                <MaterialCommunityIcons
-                  name="chevron-up"
-                  size={18}
-                  color={theme.extends.colors.text.tertiary}
-                />
-              </View>
-
-              {/* Response text */}
-              <AppText className="mt-2 text-sm leading-5 text-text-secondary">
-                {reply.text}
+            <View className="min-h-12 flex-row items-center px-2 pt-3">
+              <AppText weight="bold" className="min-w-0 shrink text-xs text-text-primary">
+                {responseLabel}
               </AppText>
 
-              {/* Response photos */}
-              {reply.photos.length > 0 && (
-                <View className="mt-3 flex-row flex-wrap gap-2">
-                  {reply.photos.map((photo, index) => (
-                    <Pressable
-                      key={photo.id}
-                      onPress={() => handlePhotoPress(index)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`View owner response photo ${
-                        index + 1
-                      }`}
-                      className="h-20 w-20 cursor-pointer overflow-hidden rounded-lg bg-surface-secondary active:opacity-90"
-                    >
-                      <Image
-                        source={{ uri: photo.photo_url }}
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                        }}
-                        contentFit="cover"
-                        transition={150}
-                      />
-                    </Pressable>
-                  ))}
-                </View>
+              {reply.created_at && (
+                <>
+                  <AppText className="mx-1.5 text-[11px] text-text-secondary">
+                    ·
+                  </AppText>
+
+                  <AppText className="text-[11px] text-text-secondary">
+                    {formatRelativeDate(reply.created_at)}
+                  </AppText>
+                </>
               )}
+
+              <View className="flex-1" />
+
+              <MaterialCommunityIcons
+                name="chevron-up"
+                accessible={false}
+                size={18}
+                color={theme.extends.colors.text.tertiary}
+              />
             </View>
           )}
         </Pressable>
+        {expanded && (
+          <View className="px-2 pb-3">
+            {/* Response text */}
+            <AppText
+              accessible
+              className="mt-2 text-sm leading-5 text-text-secondary"
+            >
+              {reply.text}
+            </AppText>
+
+            {/* Response photos */}
+            {reply.photos.length > 0 && (
+              <View className="mt-3 flex-row flex-wrap gap-2">
+                {reply.photos.map((photo, index) => (
+                  <Pressable
+                    key={photo.id}
+                    onPress={() => handlePhotoPress(index)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View merchant response photo ${
+                      index + 1
+                    } of ${reply.photos.length}`}
+                    className="h-20 w-20 cursor-pointer overflow-hidden rounded-lg bg-surface-secondary active:opacity-90"
+                  >
+                    <Image
+                      source={{ uri: photo.photo_url }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                      }}
+                      contentFit="cover"
+                      accessible={false}
+                      transition={150}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Fullscreen response photo gallery */}
       <FullScreenPhotoViewer
-        photos={reply.photos.map((photo) => ({
+        photos={reply.photos.map((photo, index) => ({
           uri: photo.photo_url,
+          accessibilityLabel: `Merchant response photo ${index + 1} of ${reply.photos.length}`,
         }))}
         visible={isPhotoViewerVisible}
         initialIndex={selectedPhotoIndex}

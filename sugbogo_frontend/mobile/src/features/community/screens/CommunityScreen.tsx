@@ -1,6 +1,7 @@
 import LottieView from "lottie-react-native";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { hashKey } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 
@@ -13,6 +14,7 @@ import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
+import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import CommunityEmptyState from "../components/CommunityEmptyState";
@@ -26,6 +28,7 @@ import { communityReviewsKey } from "../hooks/communityReviewQueryKeys";
 import {
   DEFAULT_COMMUNITY_REVIEW_FILTERS,
   type CommunityReview,
+  type CommunityReviewBusiness,
   type CommunityReviewFilters,
 } from "../types/communityReview.types";
 
@@ -44,6 +47,7 @@ function FeedSeparator() {
  * and posts render edge to edge, like a social feed.
  */
 export default function CommunityScreen() {
+  const navigate = useNavigationAction();
   const bottomSpacing = useTabBarSpacing(20);
   const listRef = useRef<FlatList<CommunityReview>>(null);
   const filterSheetRef = useRef<BottomSheetModal>(null);
@@ -164,11 +168,26 @@ export default function CommunityScreen() {
     });
   };
 
+  const openBusiness = useCallback(
+    (business: CommunityReviewBusiness) => {
+      navigate(() =>
+        router.push({
+          pathname: "/(explorer)/business/[businessId]",
+          params: {
+            businessId: String(business.id),
+            profileSource: "COMMUNITY",
+          },
+        }),
+      );
+    },
+    [navigate],
+  );
+
   const renderReview = useCallback(
     ({ item }: { item: CommunityReview }) => (
-      <CommunityReviewCard review={item} />
+      <CommunityReviewCard review={item} onOpenBusiness={openBusiness} />
     ),
-    [],
+    [openBusiness],
   );
 
   const shouldShowEndMessage =
@@ -215,6 +234,7 @@ export default function CommunityScreen() {
             <View className="min-h-[420px]" testID="community-offline">
               <ErrorState
                 title="You're offline"
+                primaryActionTextTone="primary"
                 description="Connect to the internet to load Community reviews, then try again."
                 primaryActionTitle="Retry"
                 onPrimaryAction={() => void community.refetch()}
@@ -226,6 +246,7 @@ export default function CommunityScreen() {
             <View className="min-h-[420px]" testID="community-error">
               <ErrorState
                 title="Unable to load Community"
+                primaryActionTextTone="primary"
                 description="We couldn't load Community reviews right now. Please try again."
                 primaryActionTitle="Retry"
                 onPrimaryAction={() => void community.refetch()}
@@ -256,6 +277,7 @@ export default function CommunityScreen() {
                 title="Retry loading reviews"
                 onPress={() => loadNextPage(true)}
                 variant="soft"
+                textTone="primary"
                 rounded="full"
                 size="sm"
               />

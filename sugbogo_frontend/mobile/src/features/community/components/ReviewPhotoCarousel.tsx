@@ -13,14 +13,12 @@ import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 
 import type { CommunityReview } from "../types/communityReview.types";
+import { COMMUNITY_REVIEW_MEDIA_ASPECT_RATIO } from "../constants/communityMedia";
 
 type Props = {
   photos: CommunityReview["photos"];
   onPhotoPress: (index: number) => void;
 };
-
-/** Portrait 4:5 keeps feed photos tall without dominating the screen. Use 1 for square. */
-const MEDIA_ASPECT_RATIO = 16 / 10;
 
 /** Keeps a failed photo's page stable and retries only when requested. */
 function ReviewPhoto({
@@ -48,6 +46,7 @@ function ReviewPhoto({
           title="Couldn't load photo"
           description="Please try again."
           primaryActionTitle="Retry"
+          primaryActionTextTone="primary"
           onPrimaryAction={() => setHasFailed(false)}
         />
       ) : (
@@ -78,7 +77,7 @@ function ReviewPhoto({
  */
 export default function ReviewPhotoCarousel({ photos, onPhotoPress }: Props) {
   const { width } = useWindowDimensions();
-  const height = Math.round(width / MEDIA_ASPECT_RATIO);
+  const height = Math.round(width / COMMUNITY_REVIEW_MEDIA_ASPECT_RATIO);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const hasMultiple = photos.length > 1;
