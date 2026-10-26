@@ -8,6 +8,7 @@ import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirma
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import ErrorState from "@/shared/components/ErrorState";
 import useNavigationAction from "@/shared/hooks/useNavigationAction";
+import Skeleton from "@/shared/components/Skeleton";
 
 import AppVersion from "../components/AppVersion";
 import MerchantPortalCard from "../components/MerchantPortalCard";
@@ -47,6 +48,8 @@ export default function ProfileScreen() {
     hasResolvedStatus,
     refetch: refetchApplicationStatus,
   } = useApplicationStatus();
+  const isInitialStatusLoading =
+    isLoadingApplicationStatus && !hasResolvedStatus;
 
   useFocusEffect(
     useCallback(() => {
@@ -138,8 +141,33 @@ export default function ProfileScreen() {
             />
           </ProfileMenuSection>
 
+          {/* Reserve merchant access while its initial status is unknown. */}
+          {isInitialStatusLoading && (
+            <View
+              accessible
+              accessibilityLabel="Loading merchant access"
+              accessibilityState={{ busy: true }}
+              className={`mx-4 mb-1.5 mt-3 flex-row items-center gap-3 rounded-card bg-surface p-4 ${
+                canAccessMerchantMode ? "min-h-24" : "min-h-36"
+              }`}
+            >
+              <Skeleton
+                className={
+                  canAccessMerchantMode
+                    ? "h-12 w-12 rounded-full"
+                    : "h-24 w-24 rounded-xl"
+                }
+              />
+              <View className="flex-1 gap-3">
+                <Skeleton className="h-4 w-3/4 rounded-md" />
+                <Skeleton className="h-3 w-full rounded-md" />
+                <Skeleton className="h-3 w-2/3 rounded-md" />
+              </View>
+            </View>
+          )}
+
           {/* Merchant mode */}
-          {!isLoadingApplicationStatus &&
+          {!isInitialStatusLoading &&
             canAccessMerchantMode &&
             merchantModeAcknowledged && (
               <ProfileMenuSection title="Merchant">
@@ -158,7 +186,7 @@ export default function ProfileScreen() {
             )}
 
           {/* Merchant onboarding */}
-          {!isLoadingApplicationStatus &&
+          {!isInitialStatusLoading &&
             applicationStatusError &&
             hasResolvedStatus &&
             applicationStatus === null && (
@@ -173,7 +201,7 @@ export default function ProfileScreen() {
               />
             )}
 
-          {!isLoadingApplicationStatus &&
+          {!isInitialStatusLoading &&
             !merchantModeAcknowledged &&
             (applicationStatusError && !hasResolvedStatus ? (
               <ErrorState

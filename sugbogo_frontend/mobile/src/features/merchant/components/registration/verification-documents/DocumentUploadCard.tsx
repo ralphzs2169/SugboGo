@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
+import AppText from "@/shared/components/AppText";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useFormContext } from "react-hook-form";
@@ -146,21 +147,24 @@ export default function DocumentUploadCard({
                 color={theme.extends.colors.text.secondary}
               />
 
-              <Text className="mt-2 text-sm font-medium text-text-secondary">
+              <AppText
+                weight="medium"
+                className="mt-2 text-sm text-text-secondary"
+              >
                 {currentDocuments.length > 0
                   ? "Add Another Document"
                   : "Upload Document"}
-              </Text>
+              </AppText>
 
-              <Text className="mt-1 text-xs text-text-secondary">
+              <AppText className="mt-1 text-xs text-text-secondary">
                 {required ? "Required" : "Optional"}
                 {multiple && ` · Up to ${maxDocuments} documents`}
-              </Text>
+              </AppText>
             </>
           )}
         </Pressable>
       )}
-      {error && <Text className="text-sm text-text-error">{error}</Text>}
+      {error && <AppText className="text-sm text-text-error">{error}</AppText>}
     </View>
   );
 }

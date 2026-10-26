@@ -1,4 +1,5 @@
-import { Text, Animated, View } from "react-native";
+import { Animated, View } from "react-native";
+import AppText from "@/shared/components/AppText";
 
 type Props = {
   firstname: string;
@@ -48,9 +49,9 @@ export default function ProfileStickyHeader({
       }}
     >
       <View className="flex-1 items-center justify-center">
-        <Text className="text-base font-bold text-text-primary">
+        <AppText weight="bold" className="text-base text-text-primary">
           {firstname} {lastname}
-        </Text>
+        </AppText>
       </View>
     </Animated.View>
   );

@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
+import AppText from "@/shared/components/AppText";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLayoutEffect, useRef, useState } from "react";
 import Toast from "react-native-toast-message";
@@ -112,19 +113,22 @@ export default function PhotoGrid({
                   color={theme.extends.colors.text.primary}
                 />
 
-                <Text className="mt-1 text-xs font-medium text-text-secondary">
+                <AppText
+                  weight="medium"
+                  className="mt-1 text-xs text-text-secondary"
+                >
                   Add Photo
-                </Text>
+                </AppText>
               </>
             )}
           </Pressable>
         )}
       </View>
 
-      <Text className="mt-3 text-xs text-text-secondary">
+      <AppText className="mt-3 text-xs text-text-secondary">
         {required ? "Required" : "Optional"} · {required ? "1–" : "Up to "}
         {maxPhotos} photos · {photos.length} added
-      </Text>
+      </AppText>
     </View>
   );
 }
