@@ -117,7 +117,7 @@ export default function MapSearchOverlay({
           accessibilityRole="button"
           accessibilityLabel={`Map filters${advancedFilterCount ? `, ${advancedFilterCount} active` : ""}`}
           accessibilityState={{ selected: advancedFilterCount > 0 }}
-          className={`h-12 w-12 items-center justify-center active:opacity-70 ${advancedFilterCount > 0 ? "bg-brand/10" : ""}`}
+          className="h-12 w-12 items-center justify-center active:opacity-70"
         >
           <MaterialCommunityIcons
             name="tune-variant"

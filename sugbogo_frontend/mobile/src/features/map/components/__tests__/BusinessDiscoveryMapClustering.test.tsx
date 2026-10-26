@@ -12,6 +12,25 @@ const mockMap = {
   fitToCoordinates: jest.fn(),
 };
 
+const denseRegion = {
+  latitude: 10.3157,
+  longitude: 123.8854,
+  latitudeDelta: 0.0006,
+  longitudeDelta: 0.0006,
+};
+
+function denseBusinesses(offset: number) {
+  return [1, 2, 3, 4, 5, 6].map((id) => ({
+    id,
+    latitude: denseRegion.latitude + ((id - 1) % 3) * offset,
+    longitude:
+      denseRegion.longitude +
+      (id <= 3 ? -0.0003 : 0.0003) +
+      ((id - 1) % 3) * offset,
+    is_hidden_gem: id === 1 || id === 4,
+  }));
+}
+
 // Exercise the installed clustering wrapper and its real callback-ref contract.
 // Use Supercluster's shipped CommonJS build in Jest instead of its ESM entry.
 jest.mock("supercluster", () => {
@@ -50,6 +69,127 @@ jest.mock("@/shared/components/MapMarker", () => {
   return function SharedMarker() {
     return <View />;
   };
+});
+
+it.each([
+  { label: "identical", offset: 0 },
+  { label: "near-identical", offset: 0.00000001 },
+])(
+  "keeps every business selectable when two $label-coordinate clusters expand",
+  async ({ offset }) => {
+    const businesses = denseBusinesses(offset);
+    const onBusinessPress = jest.fn();
+    const screen = await render(
+      <BusinessDiscoveryMap
+        businesses={businesses}
+        userLocation={null}
+        autoCenterOnLocation={false}
+        onBusinessPress={onBusinessPress}
+      />,
+    );
+    await fireEvent.press(screen.getByLabelText(/6 businesses, including 2 hidden gems/));
+    expect(mockMap.fitToCoordinates).toHaveBeenCalledWith(
+      businesses.map(({ latitude, longitude }) => ({ latitude, longitude })),
+      expect.anything(),
+    );
+    await fireEvent(
+      screen.getByTestId("native-map"),
+      "regionChangeComplete",
+      denseRegion,
+    );
+    const markers = screen.getAllByTestId("native-marker");
+    expect(markers.map((marker) => marker.props.identifier).sort()).toEqual([
+      "1", "2", "3", "4", "5", "6",
+    ]);
+    for (const business of businesses) {
+      const marker = markers.find(
+        (item) => item.props.identifier === String(business.id),
+      )!;
+      // Identity and cluster origin survive native marker cloning.
+      expect(marker.props.coordinate.centerPoint.longitude).toBeCloseTo(
+        denseRegion.longitude + (business.id <= 3 ? -0.0003 : 0.0003),
+        5,
+      );
+      await fireEvent.press(marker);
+      expect(onBusinessPress).toHaveBeenLastCalledWith(business.id);
+    }
+    for (const ids of [["1", "2", "3"], ["4", "5", "6"]]) {
+      const coordinates = markers
+        .filter((marker) => ids.includes(marker.props.identifier))
+        .map(({ props }) => JSON.stringify([
+          props.coordinate.latitude,
+          props.coordinate.longitude,
+        ]));
+      expect(new Set(coordinates).size).toBe(3);
+    }
+  },
+);
+
+it("preserves selected identity and remaining cluster membership across dense selection changes", async () => {
+  const businesses = denseBusinesses(0);
+  const props = {
+    businesses,
+    userLocation: null,
+    autoCenterOnLocation: false,
+    dimUnselectedMarkers: true,
+  };
+  const screen = await render(<BusinessDiscoveryMap {...props} />);
+  await fireEvent.press(screen.getByLabelText(/6 businesses/));
+  await fireEvent(
+    screen.getByTestId("native-map"),
+    "regionChangeComplete",
+    denseRegion,
+  );
+  for (const selectedId of [1, 4]) {
+    await screen.rerender(
+      <BusinessDiscoveryMap {...props} selectedBusinessId={selectedId} />,
+    );
+    const markers = screen.getAllByTestId("native-marker");
+    expect(markers.map(({ props }) => props.identifier).sort()).toEqual([
+      "1", "2", "3", "4", "5", "6",
+    ]);
+    const selected = markers.find(
+      ({ props }) => props.identifier === String(selectedId),
+    )!;
+    const business = businesses.find(({ id }) => id === selectedId)!;
+    expect(selected.props.coordinate).toEqual({
+      latitude: business.latitude,
+      longitude: business.longitude,
+    });
+    expect(selected.props.accessibilityState.selected).toBe(true);
+    expect(selected.props.zIndex).toBe(3);
+    expect(selected.props.opacity).toBe(1);
+    for (const marker of markers.filter((item) => item !== selected)) {
+      expect(marker.props.opacity).toBe(0.55);
+      const id = Number(marker.props.identifier);
+      if ((id <= 3) !== (selectedId <= 3)) {
+        // Only the other three-member cluster is expanded. The selected
+        // business's two neighbors are ordinary markers, not duplicate leaves.
+        expect(marker.props.coordinate.centerPoint).toBeDefined();
+      } else {
+        expect(marker.props.coordinate.centerPoint).toBeUndefined();
+      }
+    }
+  }
+  await screen.rerender(<BusinessDiscoveryMap {...props} />);
+  const expanded = screen.getAllByTestId("native-marker");
+  expect(expanded.map(({ props }) => props.identifier).sort()).toEqual([
+    "1", "2", "3", "4", "5", "6",
+  ]);
+  expect(expanded.every(({ props }) => props.opacity === 1)).toBe(true);
+
+  await fireEvent(
+    screen.getByTestId("native-map"),
+    "regionChangeComplete",
+    { ...denseRegion, latitudeDelta: 0.08, longitudeDelta: 0.08 },
+  );
+  expect(screen.getAllByTestId("native-marker")).toHaveLength(1);
+  const cluster = screen.getByLabelText(/6 businesses, including 2 hidden gems/);
+  await fireEvent.press(cluster);
+  expect(mockMap.fitToCoordinates).toHaveBeenLastCalledWith(
+    businesses.map(({ latitude, longitude }) => ({ latitude, longitude })),
+    expect.anything(),
+  );
 });
 
 it("dispatches search focus through the installed clustering ref and keeps the selected business outside clusters", async () => {
