@@ -47,4 +47,15 @@ export const REVIEW_DISPUTE_STATUS_LABELS: Record<ReviewDisputeStatus, string> =
     upheld: "Upheld",
     dismissed: "Dismissed",
     withdrawn: "Withdrawn",
+    author_deleted: "Review Deleted",
+    review_removed: "Review Removed",
   };
+
+export const REVIEW_DISPUTE_CLOSURE_MESSAGES: Partial<
+  Record<ReviewDisputeStatus, string>
+> = {
+  author_deleted:
+    "The reviewer deleted their review. This dispute was closed without an administrator decision. Your explanation and evidence remain in your dispute history.",
+  review_removed:
+    "The original review was removed. This dispute was closed without an administrator decision. Your explanation and evidence remain in your dispute history.",
+};

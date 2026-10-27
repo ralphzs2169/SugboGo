@@ -6,6 +6,7 @@ from apps.review_disputes.models import (
     MerchantReviewDispute,
     MerchantReviewDisputeEvidence,
 )
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from apps.reviews.models import Review
 from apps.reviews.serializers.review_serializers import (
     ReviewAuthorResponseSerializer,
@@ -317,6 +318,22 @@ class MerchantReviewDisputeDetailSerializer(
         many=True,
         read_only=True,
     )
+    material_content_changed = serializers.SerializerMethodField()
+
+    def get_material_content_changed(
+        self,
+        dispute,
+    ):
+        """Compare material content without exposing private filing-time evidence."""
+        snapshot = getattr(dispute, "snapshot", None)
+        if (
+            snapshot is None
+            or dispute.REVW_ID is None
+        ):
+            return None
+        return snapshot.MRDS_FINGERPRINT != (
+            ReviewSnapshotService.current_fingerprint(dispute.REVW_ID)
+        )
 
     class Meta(MerchantReviewDisputeResponseSerializer.Meta):
         fields = (
@@ -324,6 +341,7 @@ class MerchantReviewDisputeDetailSerializer(
             "attempt_number",
             "previous_dispute_count",
             "previous_disputes",
+            "material_content_changed",
         )
 
 

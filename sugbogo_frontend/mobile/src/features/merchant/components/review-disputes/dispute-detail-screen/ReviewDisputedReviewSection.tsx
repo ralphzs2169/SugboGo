@@ -12,7 +12,8 @@ import type {
 } from "../../../types/review-disputes/reviewDispute.types";
 
 type Props = {
-  review: DisputedReview;
+  review: DisputedReview | null;
+  reviewId: number | null;
   reason: ReviewDisputeReason;
   description: string;
 };
@@ -23,6 +24,7 @@ type Props = {
  */
 export default function ReviewDisputedReviewSection({
   review,
+  reviewId,
   reason,
   description,
 }: Props) {
@@ -30,12 +32,24 @@ export default function ReviewDisputedReviewSection({
     <View>
       {/* Disputed review */}
       <View className="overflow-hidden px-4 py-4 rounded-xl border border-border-primary">
-        <ReviewContent
-          review={review}
-          perspective="merchant"
-          showEngagement={false}
-          showSpecialtyVouches={false}
-        />
+        {review ? (
+          <ReviewContent
+            review={review}
+            perspective="merchant"
+            showEngagement={false}
+            showSpecialtyVouches={false}
+          />
+        ) : (
+          <View>
+            <AppText weight="semibold" className="text-sm text-text-primary">
+              {reviewId ? `Review #${reviewId}` : "Review no longer available"}
+            </AppText>
+            <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+              The original review is no longer available. Your dispute explanation,
+              evidence, and decision history remain accessible here.
+            </AppText>
+          </View>
+        )}
       </View>
 
       {/* Dispute context */}

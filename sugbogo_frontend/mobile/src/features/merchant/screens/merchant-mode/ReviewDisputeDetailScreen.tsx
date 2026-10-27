@@ -3,7 +3,7 @@ import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -20,6 +20,7 @@ import ReviewDisputeDetailSkeleton from "../../components/review-disputes/disput
 import ReviewDisputeEvidenceSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeEvidenceSection";
 import ReviewDisputeHistorySection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeHistorySection";
 import ReviewDisputeOverviewSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeOverviewSection";
+import ReviewDisputeReviewNotice from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeReviewNotice";
 import ReviewDisputeStickyHeader from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeStickyHeader";
 import ReviewDisputedReviewSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputedReviewSection";
 import ReviewDisputeSection from "../../components/review-disputes/ReviewDisputeSection";
@@ -72,7 +73,15 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   const deleteEvidence = useDeleteReviewDisputeEvidence();
   const withdrawDispute = useWithdrawReviewDispute(dispute?.business_id ?? 0);
 
-  const isPending = dispute?.status === "pending";
+  const isPending = dispute?.status === "pending" && Boolean(dispute.review);
+  const isPendingRef = useRef(isPending);
+
+  useEffect(() => {
+    isPendingRef.current = isPending;
+    return () => {
+      isPendingRef.current = false;
+    };
+  }, [isPending]);
 
   const remainingSlots = dispute
     ? MAX_REVIEW_DISPUTE_EVIDENCE - dispute.evidence.length
@@ -107,6 +116,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   };
 
   const uploadEvidence = async (picked: LocalReviewDisputeEvidence[]) => {
+    if (!isPendingRef.current) {
+      return;
+    }
     const validEvidence = picked.filter(
       (item) =>
         item.fileSize === undefined ||
@@ -125,6 +137,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     let firstUploadError: unknown;
 
     for (const item of validEvidence) {
+      if (!isPendingRef.current) {
+        return;
+      }
       try {
         await addEvidence.mutateAsync({
           disputeId,
@@ -159,6 +174,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   };
 
   const pickImages = async () => {
+    if (!isPendingRef.current) {
+      return;
+    }
     setEvidenceAction("images");
 
     try {
@@ -176,6 +194,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   };
 
   const pickDocuments = async () => {
+    if (!isPendingRef.current) {
+      return;
+    }
     setEvidenceAction("documents");
 
     try {
@@ -193,7 +214,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   };
 
   const confirmDeleteEvidence = async () => {
-    if (!evidenceToDelete) {
+    if (!evidenceToDelete || !isPendingRef.current || deleteEvidence.isPending) {
       return;
     }
 
@@ -215,6 +236,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   };
 
   const confirmWithdraw = async () => {
+    if (!isPendingRef.current || withdrawDispute.isPending) {
+      return;
+    }
     try {
       await withdrawDispute.mutateAsync({ disputeId });
 
@@ -296,6 +320,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
           />
         </View>
 
+        {/* Review deletion or accepted content changes */}
+        <ReviewDisputeReviewNotice dispute={dispute} />
+
         {/* Disputed review and merchant explanation */}
         <ReviewDisputeSection
           title="Disputed review"
@@ -310,6 +337,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
         >
           <ReviewDisputedReviewSection
             review={dispute.review}
+            reviewId={dispute.review_id}
             reason={dispute.reason}
             description={dispute.description}
           />
@@ -417,7 +445,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
 
       {/* Evidence deletion confirmation */}
       <ConfirmModal
-        visible={Boolean(evidenceToDelete)}
+        visible={isPending && Boolean(evidenceToDelete)}
         title="Delete evidence?"
         message="This file will be removed from your pending dispute."
         confirmText="Delete"
@@ -430,7 +458,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
 
       {/* Withdrawal confirmation */}
       <ConfirmModal
-        visible={isWithdrawVisible}
+        visible={isPending && isWithdrawVisible}
         title="Withdraw dispute?"
         message="The dispute and its evidence will remain in your history, but administrators will no longer review it."
         confirmText="Withdraw"

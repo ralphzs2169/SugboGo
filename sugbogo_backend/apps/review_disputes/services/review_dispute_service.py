@@ -88,6 +88,7 @@ class ReviewDisputeService:
                     "REVW_ID",
                     "REVW_ID__USER_ID",
                     "USER_ID",
+                    "snapshot",
                 )
                 .prefetch_related(
                     "evidence",
@@ -213,14 +214,16 @@ class ReviewDisputeService:
         return dispute
 
     @staticmethod
+    @transaction.atomic
     def get_dispute_detail(
         user: User,
         dispute_id: int,
     ) -> MerchantReviewDispute:
-        """Retrieve owned attempts using identities that survive review deletion."""
+        """Read owned attempts and coherent current content for snapshot comparison."""
         dispute = ReviewDisputeService._get_owned_dispute(
             user,
             dispute_id,
+            for_update=True,
         )
 
         previous_disputes = list(

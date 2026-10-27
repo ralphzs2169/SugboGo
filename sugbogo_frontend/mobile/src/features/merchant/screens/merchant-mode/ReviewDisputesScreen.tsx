@@ -206,92 +206,103 @@ export default function ReviewDisputesScreen() {
           </View>
         }
         ItemSeparatorComponent={() => <View className="h-3" />}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => openDispute(item)}
-            accessibilityRole="button"
-            accessibilityLabel={`Open dispute attempt ${item.attempt_number} for ${item.review.author.first_name} ${item.review.author.last_name}'s review`}
-            className="cursor-pointer rounded-card border border-border-primary bg-surface p-4 active:opacity-75"
-          >
-            {/* Dispute identity */}
-            <View className="flex-row items-start gap-3">
-              <Avatar
-                imageUrl={item.review.author.avatar_url}
-                avatarKey={item.review.author.avatar_key}
-                size={34}
-              />
+        renderItem={({ item }) => {
+          const author = item.review?.author;
+          const authorName = [author?.first_name, author?.last_name]
+            .filter(Boolean)
+            .join(" ");
+          const reviewIdentity = item.review_id
+            ? `Review #${item.review_id}`
+            : "Review no longer available";
 
-              <View className="min-w-0 flex-1">
-                <View className="flex-row items-start justify-between gap-3">
-                  <View className="min-w-0 flex-1">
-                    <AppText
-                      weight="bold"
-                      className="text-base text-text-primary"
-                      numberOfLines={1}
-                    >
-                      Dispute attempt {item.attempt_number}
-                    </AppText>
+          return (
+            <Pressable
+              onPress={() => openDispute(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open dispute attempt ${item.attempt_number} for ${authorName ? `${authorName}'s review` : reviewIdentity}`}
+              className="cursor-pointer rounded-card border border-border-primary bg-surface p-4 active:opacity-75"
+            >
+              {/* Dispute identity */}
+              <View className="flex-row items-start gap-3">
+                <Avatar
+                  imageUrl={author?.avatar_url}
+                  avatarKey={author?.avatar_key}
+                  size={34}
+                />
 
-                    <AppText
-                      weight="medium"
-                      className="mt-1 text-sm text-text-primary"
-                      numberOfLines={2}
-                    >
-                      {REVIEW_DISPUTE_REASON_LABELS[item.reason]}
-                    </AppText>
+                <View className="min-w-0 flex-1">
+                  <View className="flex-row items-start justify-between gap-3">
+                    <View className="min-w-0 flex-1">
+                      <AppText
+                        weight="bold"
+                        className="text-base text-text-primary"
+                        numberOfLines={1}
+                      >
+                        Dispute attempt {item.attempt_number}
+                      </AppText>
 
-                    <AppText
-                      className="mt-1 text-xs text-text-secondary"
-                      numberOfLines={1}
-                    >
-                      {item.review.author.first_name}{" "}
-                      {item.review.author.last_name}
-                    </AppText>
+                      <AppText
+                        weight="medium"
+                        className="mt-1 text-sm text-text-primary"
+                        numberOfLines={2}
+                      >
+                        {REVIEW_DISPUTE_REASON_LABELS[item.reason]}
+                      </AppText>
+
+                      <AppText
+                        className="mt-1 text-xs text-text-secondary"
+                        numberOfLines={1}
+                      >
+                        {authorName || reviewIdentity}
+                      </AppText>
+                    </View>
+
+                    <ReviewDisputeStatusBadge status={item.status} />
                   </View>
-
-                  <ReviewDisputeStatusBadge status={item.status} />
                 </View>
               </View>
-            </View>
 
-            {/* Review preview */}
-            <View className="mt-4 rounded-xl bg-background px-3.5 py-3">
-              <MaterialCommunityIcons
-                name="format-quote-open"
-                size={17}
-                color={theme.extends.colors.text.tertiary}
-              />
-
-              <AppText
-                className="mt-1 text-sm leading-5 text-text-secondary"
-                numberOfLines={2}
-              >
-                {item.review.text}
-              </AppText>
-            </View>
-
-            {/* Dispute metadata */}
-            <View className="mt-4 flex-row items-center justify-between border-t border-border-primary pt-3">
-              <View className="min-w-0 flex-1 flex-row items-center">
+              {/* Review preview */}
+              <View className="mt-4 rounded-xl bg-background px-3.5 py-3">
                 <MaterialCommunityIcons
-                  name="calendar-blank-outline"
-                  size={14}
+                  name="format-quote-open"
+                  size={17}
                   color={theme.extends.colors.text.tertiary}
                 />
 
-                <AppText className="ml-1.5 text-xs text-text-secondary">
-                  Submitted {formatDate(item.created_at)}
+                <AppText
+                  className="mt-1 text-sm leading-5 text-text-secondary"
+                  numberOfLines={2}
+                >
+                  {item.review
+                    ? item.review.text
+                    : "The original review is no longer available. Your dispute history is preserved."}
                 </AppText>
               </View>
 
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={22}
-                color={theme.extends.colors.text.tertiary}
-              />
-            </View>
-          </Pressable>
-        )}
+              {/* Dispute metadata */}
+              <View className="mt-4 flex-row items-center justify-between border-t border-border-primary pt-3">
+                <View className="min-w-0 flex-1 flex-row items-center">
+                  <MaterialCommunityIcons
+                    name="calendar-blank-outline"
+                    size={14}
+                    color={theme.extends.colors.text.tertiary}
+                  />
+
+                  <AppText className="ml-1.5 text-xs text-text-secondary">
+                    Submitted {formatDate(item.created_at)}
+                  </AppText>
+                </View>
+
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={22}
+                  color={theme.extends.colors.text.tertiary}
+                />
+              </View>
+            </Pressable>
+          );
+        }}
         ListEmptyComponent={
           <>
             {/* Empty dispute collection */}
