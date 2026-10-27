@@ -10,7 +10,10 @@ jest.mock("react-native-safe-area-context", () => ({
 const mockScrollTo = jest.spyOn(ScrollView.prototype, "scrollTo");
 
 jest.mock("@expo/vector-icons", () => ({
-  MaterialCommunityIcons: () => null,
+  MaterialCommunityIcons: (props: Record<string, unknown>) => {
+    const { View } = jest.requireActual("react-native");
+    return <View testID="policy-icon" {...props} />;
+  },
 }));
 
 const expectedHeadings = [
@@ -39,24 +42,28 @@ const expectedSubheadings = [
 ];
 
 const representativeContent = [
-  "SugboGo is a student-developed mobile application designed to help users discover local businesses, explore their specialties, share experiences, and support local establishments.",
-  "Passwords are handled through the application's authentication framework rather than stored as readable account passwords.",
-  "Security-related login records may contain login timestamps, authentication methods, login outcomes, IP addresses, and classified client or platform information.",
-  "The repository audit did not identify a general background-location-tracking implementation.",
-  "Pocket collections are handled through user-scoped application interfaces.",
-  "Some engagement records are maintained in backend analytics systems.",
+  "We ask permission to use your location while you use the app to find nearby businesses, show maps, plan routes, and provide navigation.",
+  "Some map and route features may share location information with external map services to provide these features.",
+  "SugboGo is a student-developed mobile app that helps you discover local businesses, explore their specialties, share experiences, and support them.",
+  "We aim to explain clearly how SugboGo collects, uses, stores, and shares your personal information.",
+  "This draft explains what personal information SugboGo handles, why it is used, and the choices available to you.",
+  "We also keep account IDs, whether your account is verified, your account type, and security records. Our sign-in system checks passwords without storing readable copies.",
+  "Security records may include the sign-in attempt time, method, whether it succeeded, IP address, and app, browser, or operating system type.",
+  "During our code review, we did not find a feature designed to track your location while the app is running in the background.",
+  "Your Pocket collections are linked to your signed-in account and managed through the app's Pocket features.",
+  "We use selected interests and business interactions to personalize discovery and recommendations. These may include saved businesses, specialty vouches, profile visits, and route planning. Some interactions linked to accounts are stored to measure app activity.",
   "Verification documents",
-  "The audited implementation did not establish collection of a hardware-specific device identifier.",
-  "Supporting account-management and security features.",
-  "OpenAI for automated review text and image moderation.",
-  "Google Gemini for certain review analysis, summaries, and recommendation-related processing.",
-  "These mechanisms are separate from a general customer-support system.",
-  "These measures do not establish that every category of information is encrypted or protected against every possible security risk.",
-  "This period does not apply to every category of personal information.",
-  "Deactivation disables account access and revokes relevant sessions. It does not automatically erase all account information, contributions, or related business records.",
-  "Users may also manage location permissions through supported device operating-system settings.",
-  "The final policy must identify the approved procedure and contact channel.",
-  "Before an official policy is published, the team must approve its effective date, versioning process, and approach for communicating material updates.",
+  "The code review did not confirm collection of an ID tied to the device's hardware.",
+  "Support account management and security features.",
+  "OpenAI for automatically checking review text and photos for potentially unsuitable content.",
+  "Google Gemini for some review analysis, summaries, and merchant recommendations.",
+  "You can report concerns about a review, and merchants can dispute reviews. These reporting and dispute features are separate from general customer support.",
+  "These measures do not mean that all information is encrypted or protected from every security risk.",
+  "Login history has a 90-day setting, measured from when each sign-in record is created. An automated cleanup task is configured to delete older login records, but its operation in the final release still needs confirmation. This period does not apply to all personal information.",
+  "Deactivation blocks sign-in and ends existing sign-in sessions. It does not automatically delete your account information, contributions, or related business records.",
+  "You can also manage location permissions in your device settings, where supported.",
+  "The final policy must explain the approved process and how to contact the team.",
+  "Before publishing an official policy, the team must approve when it takes effect, how policy versions are tracked, and how important changes will be communicated.",
   "An official support email is being considered but has not yet been confirmed.",
 ];
 
@@ -116,13 +123,41 @@ describe("Privacy Policy draft", () => {
     }
     expect(screen.getByText("First and last name")).toBeTruthy();
     expect(
-      screen.getByLabelText("1. Creating and managing user accounts."),
+      screen.getByLabelText("1. Create and manage accounts."),
     ).toBeTruthy();
     expect(
       screen.getByLabelText(
-        "10. Supporting account-management and security features.",
+        "10. Support account management and security features.",
       ),
     ).toBeTruthy();
+  });
+
+  it("pairs each main section with its approved decorative icon", async () => {
+    const screen = await render(<PrivacyPolicyScreen />);
+    const document = within(screen.getByTestId("privacy-policy-scroll"));
+    const expectedIcons = {
+      introduction: "information-outline",
+      "information-we-collect": "account-details-outline",
+      "how-we-use-information": "clipboard-list-outline",
+      "third-party-services": "share-variant-outline",
+      "reviews-moderation-and-ai-assisted-features": "comment-check-outline",
+      "information-storage-and-security": "shield-lock-outline",
+      "data-retention": "clock-outline",
+      "account-deactivation-and-data-deletion": "account-off-outline",
+      "user-choices-and-controls": "tune-variant",
+      "accessing-or-correcting-personal-information": "account-edit-outline",
+      "changes-to-this-privacy-policy": "file-document-edit-outline",
+      "contact-information": "email-outline",
+    };
+    expect(document.getAllByTestId("policy-icon")).toHaveLength(12);
+    for (const [id, name] of Object.entries(expectedIcons)) {
+      const section = within(screen.getByTestId(`privacy-policy-section-${id}`));
+      const icon = section.getByTestId("policy-icon");
+      expect(icon.props.name).toBe(name);
+      expect(icon.props.accessible).toBe(false);
+      expect(icon.props.importantForAccessibility).toBe("no");
+      expect(icon.props.onPress).toBeUndefined();
+    }
   });
 
   it("starts closed at Introduction, without the draft banner", async () => {
@@ -155,6 +190,7 @@ describe("Privacy Policy draft", () => {
     expect(
       menu.getAllByRole("button").map((item) => item.props.accessibilityLabel),
     ).toEqual(expectedHeadings);
+    expect(menu.queryByTestId("policy-icon")).toBeNull();
     expect(
       menu.getByRole("button", { name: expectedHeadings[0] }).props.accessibilityState,
     ).toEqual({ selected: true });
@@ -246,6 +282,7 @@ describe("Privacy Policy draft", () => {
     const screen = await render(<PrivacyPolicyScreen />);
 
     expect(screen.getByText(placeholder)).toBeTruthy();
+    expect(screen.queryByTestId("policy-icon")).toBeNull();
     expect(screen.queryByText(draftLabel)).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryAllByRole("header")).toHaveLength(0);
