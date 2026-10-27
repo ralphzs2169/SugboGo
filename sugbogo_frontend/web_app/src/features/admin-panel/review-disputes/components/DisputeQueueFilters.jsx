@@ -8,6 +8,8 @@ const STATUS_OPTIONS = [
   { value: "upheld", label: "Upheld" },
   { value: "dismissed", label: "Dismissed" },
   { value: "withdrawn", label: "Withdrawn" },
+  { value: "author_deleted", label: "Author Deleted" },
+  { value: "review_removed", label: "Review Removed" },
 ];
 
 const REASON_OPTIONS = [

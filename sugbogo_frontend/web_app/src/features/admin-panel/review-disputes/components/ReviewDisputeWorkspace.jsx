@@ -24,7 +24,15 @@ import DisputeQueueFilters from "./DisputeQueueFilters";
 import DisputeQueueItem from "./DisputeQueueItem";
 
 const PAGE_SIZE = 10;
-const VALID_STATUSES = new Set(["pending", "upheld", "dismissed", "withdrawn", ""]);
+const VALID_STATUSES = new Set([
+  "pending",
+  "upheld",
+  "dismissed",
+  "withdrawn",
+  "author_deleted",
+  "review_removed",
+  "",
+]);
 
 export default function ReviewDisputeWorkspace() {
   const queryClient = useQueryClient();

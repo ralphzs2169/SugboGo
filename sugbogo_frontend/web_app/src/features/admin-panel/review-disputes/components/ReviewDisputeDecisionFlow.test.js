@@ -23,6 +23,7 @@ let queryClient;
 let detail;
 let posts;
 let detailReads;
+let listReads;
 let conflict;
 let failRefresh;
 let rejectSubmission;
@@ -131,6 +132,7 @@ beforeEach(() => {
   detail = fixture();
   posts = [];
   detailReads = [];
+  listReads = [];
   conflict = false;
   failRefresh = false;
   rejectSubmission = null;
@@ -141,8 +143,9 @@ beforeEach(() => {
     },
   });
   globalThis.__disputeTransport = {
-    async get(url) {
+    async get(url, config) {
       if (url === "/admin/review-disputes/") {
+        listReads.push(config?.params);
         return { data: { data: listData() } };
       }
       detailReads.push(url);
@@ -265,6 +268,22 @@ async function waitFor(condition) {
     await act(async () => new Promise((resolveDelay) => setTimeout(resolveDelay, 5)));
   }
   assert.ok(condition(), "Expected the dispute UI to finish updating");
+}
+
+for (const [status, label] of [
+  ["author_deleted", "Author Deleted"],
+  ["review_removed", "Review Removed"],
+]) {
+  test(`${status} can be selected from the dispute status filter`, async () => {
+    await renderWorkspace();
+    await click(button("Filter"));
+    await click(button("Status›"));
+    await click(button(label));
+    await waitFor(() => listReads.some((params) => params.status === status));
+
+    assert.ok(container.textContent.includes(`Status: ${label}`));
+    assert.equal(posts.length, 0);
+  });
 }
 
 test("unchanged Uphold submits the displayed fingerprint and trimmed notes without acknowledgement", async () => {

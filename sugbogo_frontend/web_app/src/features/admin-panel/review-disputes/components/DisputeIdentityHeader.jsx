@@ -17,6 +17,14 @@ const identityLinkClass =
   "focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 function IdentityLink({ to, children }) {
+  if (!to) {
+    return (
+      <span className="inline-flex min-w-0 text-sm font-medium text-text-primary">
+        <span className="truncate">{children}</span>
+      </span>
+    );
+  }
+
   return (
     <Link to={to} className={identityLinkClass}>
       <span className="truncate">{children}</span>
@@ -35,6 +43,16 @@ function IdentityLink({ to, children }) {
 export default function DisputeIdentityHeader({ dispute }) {
   const business = dispute.business ?? {};
   const merchant = dispute.merchant ?? {};
+  const merchantName = merchant.name || (
+    dispute.original_merchant_id
+      ? `Merchant #${dispute.original_merchant_id}`
+      : "Merchant"
+  );
+  const businessName = business.name || (
+    dispute.original_business_id
+      ? `Business #${dispute.original_business_id}`
+      : "Unknown business"
+  );
 
   const classification = [business.cluster_name, business.category_name]
     .filter(Boolean)
@@ -78,8 +96,12 @@ export default function DisputeIdentityHeader({ dispute }) {
             size="sm"
           />
 
-          <IdentityLink to={`/admin-panel/users/${dispute.merchant_id}`}>
-            {merchant.name || "Merchant"}
+          <IdentityLink
+            to={dispute.merchant && dispute.merchant_id
+              ? `/admin-panel/users/${dispute.merchant_id}`
+              : null}
+          >
+            {merchantName}
           </IdentityLink>
         </div>
 
@@ -111,8 +133,10 @@ export default function DisputeIdentityHeader({ dispute }) {
           </span>
 
           <div className="min-w-0">
-            <IdentityLink to={`/admin-panel/businesses/${business.id}`}>
-              {business.name || "Unknown business"}
+            <IdentityLink
+              to={business.id ? `/admin-panel/businesses/${business.id}` : null}
+            >
+              {businessName}
             </IdentityLink>
 
             {classification && (

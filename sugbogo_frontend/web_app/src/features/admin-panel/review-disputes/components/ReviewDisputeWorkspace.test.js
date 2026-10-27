@@ -221,6 +221,22 @@ test("resolved dispute remains in filtered history with read-only queue status",
   assert.doesNotMatch(html, /No pending disputes/);
 });
 
+for (const [status, label] of [
+  ["author_deleted", "Author Deleted"],
+  ["review_removed", "Review Removed"],
+]) {
+  test(`${status} initializes the status filter from its URL parameter`, () => {
+    const html = renderWorkspace(
+      `/admin-panel/moderation-integrity?tab=disputes&status=${status}`,
+      [{ ...dispute, status }],
+    ).replaceAll("<!-- -->", "");
+
+    assert.ok(html.includes(`Status: ${label}`));
+    assert.match(html, /Maria Santos/);
+    assert.doesNotMatch(html, /Loading review disputes|No pending disputes/);
+  });
+}
+
 test("queue keeps neutral image fallback and unselected styling", () => {
   const html = renderWorkspace(
     "/admin-panel/moderation-integrity?tab=disputes",
@@ -337,6 +353,31 @@ test("original review shows edit context only when an edit timestamp exists", ()
     renderInvestigation("pending", "2026-10-11T03:00:00Z"),
     /Edited Oct 11, 2026/,
   );
+});
+
+test("a missing merchant retains its original identity without a user link", () => {
+  const html = renderInvestigation("review_removed", null, {
+    merchant: null,
+    merchant_id: null,
+    original_merchant_id: 9,
+  });
+  const header = html.match(/<header\b[\s\S]*?<\/header>/)[0];
+
+  assert.match(header, /Merchant #9/);
+  assert.doesNotMatch(header, /href="\/admin-panel\/users\//);
+  assert.match(header, /href="\/admin-panel\/businesses\/17"/);
+});
+
+test("a missing business retains its original identity without a business link", () => {
+  const html = renderInvestigation("review_removed", null, {
+    business: null,
+    original_business_id: 17,
+  });
+  const header = html.match(/<header\b[\s\S]*?<\/header>/)[0];
+
+  assert.match(header, /Business #17/);
+  assert.doesNotMatch(header, /href="\/admin-panel\/businesses\//);
+  assert.match(header, /href="\/admin-panel\/users\/9"/);
 });
 
 test("community reports stay compact and link to the same Reported review", () => {
