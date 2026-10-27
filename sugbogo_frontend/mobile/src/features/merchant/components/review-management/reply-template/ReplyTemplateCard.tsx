@@ -11,7 +11,7 @@ import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
-import { useReplyTemplates } from "../../../hooks/reply-templates/useReplyTemplates";
+import { useDeleteReplyTemplate } from "../../../hooks/reply-templates/useReplyTemplates";
 
 type Props = {
   id: number;
@@ -33,9 +33,11 @@ export default function ReplyTemplateCard({ id, title, text, onEdit }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
 
-  const { deleteTemplateAsync, isDeleting } = useReplyTemplates();
+  const { mutateAsync: deleteTemplateAsync, isPending: isDeleting } =
+    useDeleteReplyTemplate();
 
   const handleDelete = async () => {
+    if (isDeleting) return;
     try {
       await deleteTemplateAsync({
         templateId: id,
@@ -91,6 +93,8 @@ export default function ReplyTemplateCard({ id, title, text, onEdit }: Props) {
           onPress={() => actionSheetRef.current?.present()}
           accessibilityRole="button"
           accessibilityLabel={`Actions for ${title}`}
+          disabled={isDeleting}
+          accessibilityState={{ disabled: isDeleting, busy: isDeleting }}
           hitSlop={8}
           className="h-9 w-9 cursor-pointer items-center justify-center rounded-full active:bg-background"
         >
@@ -162,6 +166,7 @@ export default function ReplyTemplateCard({ id, title, text, onEdit }: Props) {
           },
         ]}
         onSelect={(value) => {
+          if (isDeleting) return;
           if (value === "edit") {
             onEdit();
           }

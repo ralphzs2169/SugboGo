@@ -128,6 +128,7 @@ export default function SelectedEvidenceList({
             <Pressable
               onPress={() => onRemove(index)}
               disabled={disabled}
+              accessibilityState={{ disabled }}
               accessibilityRole="button"
               accessibilityLabel={`Remove ${item.fileName}`}
               hitSlop={8}

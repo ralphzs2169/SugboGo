@@ -49,6 +49,7 @@ jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
   useNavigation: () => ({ isFocused: () => true }),
 }));
+jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("../../components/business-profile/reviews/ReviewContent", () => {
   const { Text, View } = jest.requireActual("react-native");
   return {
@@ -280,7 +281,7 @@ describe("private review submission workflow", () => {
     expect(screen.queryByText("Checking")).toBeNull();
     expect(screen.queryByText("Published")).toBeNull();
     await act(async () => cacheReview(serverReview({ status: "rejected" })));
-    expect(screen.getByText("Not published")).toBeTruthy();
+    expect(screen.getByText("Not public")).toBeTruthy();
     expect(screen.queryByText("Engagement")).toBeNull();
   });
 

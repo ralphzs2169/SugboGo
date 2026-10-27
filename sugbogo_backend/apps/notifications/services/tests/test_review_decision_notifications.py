@@ -1,3 +1,4 @@
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from unittest.mock import AsyncMock, patch
 
 from django.test import TestCase
@@ -88,6 +89,10 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
         dispute = self.dispute()
         ManageReviewDisputeService.uphold_dispute(
             dispute.pk, actor=self.admin, admin_notes="Private inspection notes.",
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
         self.approve_report()
         self.assertEqual(Notification.objects.filter(NOTF_TYPE="review_rejected").count(), 1)
@@ -98,6 +103,10 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
         self.approve_report()
         ManageReviewDisputeService.uphold_dispute(
             dispute.pk, actor=self.admin, admin_notes="Private inspection notes.",
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
         self.assertEqual(Notification.objects.filter(NOTF_TYPE="review_rejected").count(), 1)
         self.assertEqual(Notification.objects.count(), 3)
@@ -106,6 +115,10 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
         dispute = self.dispute()
         ManageReviewDisputeService.dismiss_dispute(
             dispute.pk, actor=self.admin, admin_notes="Private inspection notes.",
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
         notification = Notification.objects.get()
         self.assertEqual(notification.USER_ID_id, dispute.USER_ID_id)
@@ -120,6 +133,10 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
         dispute = self.dispute()
         ManageReviewDisputeService.uphold_dispute(
             dispute.pk, actor=self.admin, admin_notes="Private inspection notes.",
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
         self.assertEqual(
             set(Notification.objects.values_list("USER_ID_id", "NOTF_TYPE")),
@@ -164,7 +181,15 @@ class ReviewDecisionNotificationTests(ReportFixtures, TestCase):
                 with patch("apps.notifications.services.notification_event_service.NotificationService.create",
                            side_effect=RuntimeError("Inbox storage unavailable")):
                     with self.assertRaises(RuntimeError):
-                        method(dispute.pk, actor=self.admin, admin_notes="Inspection notes.")
+                        method(
+                            dispute.pk,
+                            actor=self.admin,
+                            admin_notes="Current review inspected and decision recorded.",
+                            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                                self.review,
+                            ),
+                            acknowledge_review_changes=True,
+                        )
                 dispute.refresh_from_db()
                 self.review.refresh_from_db()
                 self.assertEqual(dispute.MRDSP_STATUS, "pending")

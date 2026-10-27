@@ -11,6 +11,9 @@ from django.utils import timezone
 from PIL import Image
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
+from apps.admin_operations.system_configuration.models import (
+    AnalyticsPolicyConfiguration,
+)
 from apps.business.models import (
     Business,
     Category,
@@ -33,6 +36,7 @@ from apps.users.models import User
 class ReviewReplyServiceTests(SafeReviewModerationMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         cls.merchant = User.objects.create_user(
             email="merchant@example.com",
             password="StrongPassword123!",
@@ -447,6 +451,7 @@ class ReplyPhotoServiceTests(SafeReviewModerationMixin, TestCase):
 
     @classmethod
     def setUpTestData(cls):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         cls.merchant = User.objects.create_user(
             email="reply-photo-merchant@example.com",
             password="StrongPassword123!",

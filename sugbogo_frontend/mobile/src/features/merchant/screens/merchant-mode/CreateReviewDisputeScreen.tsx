@@ -4,9 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import Toast from "react-native-toast-message";
 
-import { useMerchantBusinessReviews } from "@/features/explore/hooks/useBusinessReviews";
+import useMerchantReviewDetail from "../../hooks/review-management/useMerchantReviewDetail";
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import ErrorState from "@/shared/components/ErrorState";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
@@ -53,6 +57,8 @@ type FormErrors = {
  */
 export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   const reasonSheetRef = useRef<BottomSheetModal | null>(null);
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
 
   const [reason, setReason] = useState<ReviewDisputeReason | null>(null);
   const [description, setDescription] = useState("");
@@ -74,18 +80,22 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   const businessId = business?.id ?? 0;
 
   const {
-    reviews,
-    isInitialLoading: isReviewsLoading,
+    review,
+    isLoading: isReviewsLoading,
     error: reviewsError,
     refetch: refetchReviews,
-  } = useMerchantBusinessReviews(businessId);
+  } = useMerchantReviewDetail(businessId, reviewId);
 
   const createDispute = useCreateReviewDispute(businessId);
   const addEvidence = useAddReviewDisputeEvidence();
 
-  const review = reviews.find((item) => item.id === reviewId);
-
-  const isSubmitting = createDispute.isPending || addEvidence.isPending;
+  const isSubmitting =
+    saving || createDispute.isPending || addEvidence.isPending;
+  const exit = useMerchantEditorExit(
+    Boolean(reason || description.trim() || evidence.length),
+    isSubmitting || isPickingImages || isPickingDocuments,
+    () => savingRef.current,
+  );
   const remainingSlots = MAX_REVIEW_DISPUTE_EVIDENCE - evidence.length;
   const error = businessError || reviewsError;
 
@@ -127,7 +137,13 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   };
 
   const pickImages = async () => {
-    if (isPickingImages || remainingSlots <= 0) {
+    if (
+      savingRef.current ||
+      isSubmitting ||
+      isPickingImages ||
+      isPickingDocuments ||
+      remainingSlots <= 0
+    ) {
       return;
     }
 
@@ -149,7 +165,13 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   };
 
   const pickDocuments = async () => {
-    if (isPickingDocuments || remainingSlots <= 0) {
+    if (
+      savingRef.current ||
+      isSubmitting ||
+      isPickingImages ||
+      isPickingDocuments ||
+      remainingSlots <= 0
+    ) {
       return;
     }
 
@@ -198,10 +220,21 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
   };
 
   const submit = async () => {
-    if (!validate() || !reason) {
+    if (
+      savingRef.current ||
+      isSubmitting ||
+      isPickingImages ||
+      isPickingDocuments ||
+      !validate() ||
+      !reason
+    ) {
       return;
     }
-
+    savingRef.current = true;
+    setSaving(true);
+    reasonSheetRef.current?.dismiss();
+    const submittedEvidence = [...evidence];
+    let finishing = false;
     try {
       const dispute = await createDispute.mutateAsync({
         reviewId,
@@ -211,7 +244,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
 
       let failedUploads = 0;
 
-      for (const item of evidence) {
+      for (const item of submittedEvidence) {
         try {
           await addEvidence.mutateAsync({
             disputeId: dispute.id,
@@ -238,12 +271,14 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
         });
       }
 
-      router.replace({
-        pathname: "/(merchant)/review-disputes/[disputeId]",
-        params: {
-          disputeId: String(dispute.id),
-        },
-      });
+      finishing = exit.finish(() =>
+        router.replace({
+          pathname: "/(merchant)/review-disputes/[disputeId]",
+          params: {
+            disputeId: String(dispute.id),
+          },
+        }),
+      );
     } catch (caughtError) {
       const response = caughtError as ApiResponse<unknown>;
 
@@ -270,8 +305,26 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
           });
         }
       }
+    } finally {
+      if (!finishing) {
+        savingRef.current = false;
+        setSaving(false);
+      }
     }
   };
+
+  const discardDialog = (
+    <ConfirmModal
+      visible={exit.showDiscard}
+      title="Discard dispute draft?"
+      message="Your selected reason, details, and evidence will be lost."
+      confirmText="Discard"
+      cancelText="Keep Editing"
+      destructive
+      onCancel={exit.keepEditing}
+      onConfirm={exit.discard}
+    />
+  );
 
   if (isBusinessLoading || (business && isReviewsLoading)) {
     return (
@@ -297,7 +350,12 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
     );
   }
 
-  if (error || !business || !review) {
+  if (
+    !business ||
+    !review ||
+    isTerminalResourceError(businessError) ||
+    isTerminalResourceError(reviewsError)
+  ) {
     return (
       <View className="flex-1 bg-surface">
         <ErrorState
@@ -312,6 +370,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
           }}
           onSecondaryAction={() => router.back()}
         />
+        {discardDialog}
       </View>
     );
   }
@@ -328,6 +387,15 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
           showsVerticalScrollIndicator={false}
           contentContainerClassName="pb-6"
         >
+          <MerchantRefreshRecovery
+            error={reviewsError}
+            title="Unable to refresh review"
+            refetch={refetchReviews}
+          />
+          <MerchantRefreshRecovery
+            error={businessError}
+            refetch={refetchBusiness}
+          />
           <CreateReviewDisputeFormContent
             review={review}
             reason={reason}
@@ -338,8 +406,12 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
             isSubmitting={isSubmitting}
             isPickingImages={isPickingImages}
             isPickingDocuments={isPickingDocuments}
-            onReasonPress={() => presentBottomSheet(reasonSheetRef)}
+            onReasonPress={() => {
+              if (!savingRef.current && !isSubmitting)
+                presentBottomSheet(reasonSheetRef);
+            }}
             onDescriptionChange={(value) => {
+              if (savingRef.current || isSubmitting) return;
               setDescription(value);
 
               setErrors((current) => ({
@@ -350,6 +422,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
             onPickImages={() => void pickImages()}
             onPickDocuments={() => void pickDocuments()}
             onRemoveEvidence={(index) => {
+              if (savingRef.current || isSubmitting) return;
               setEvidence((current) =>
                 current.filter((_, itemIndex) => itemIndex !== index),
               );
@@ -374,6 +447,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
         options={REVIEW_DISPUTE_REASON_OPTIONS}
         selectedValue={reason ?? undefined}
         onSelect={(value) => {
+          if (savingRef.current || isSubmitting) return;
           setReason(value as ReviewDisputeReason);
 
           setErrors((current) => ({
@@ -382,6 +456,7 @@ export default function CreateReviewDisputeScreen({ reviewId }: Props) {
           }));
         }}
       />
+      {discardDialog}
     </View>
   );
 }

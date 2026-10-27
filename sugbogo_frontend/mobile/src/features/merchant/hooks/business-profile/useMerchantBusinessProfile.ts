@@ -1,3 +1,4 @@
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -20,7 +21,9 @@ export default function useMerchantBusinessProfile() {
   });
 
   return {
-    business: query.data ?? null,
+    business: isTerminalResourceError(query.error)
+      ? null
+      : (query.data ?? null),
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

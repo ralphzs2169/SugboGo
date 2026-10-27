@@ -24,12 +24,14 @@ export default function useReviewDisputeMutations() {
 
   const upholdMutation = useMutation({
     mutationFn: ({ disputeId, data }) => upholdReviewDispute(disputeId, data),
+    retry: false,
     onSuccess: (_, { disputeId }) =>
       invalidateReviewDisputeQueries(disputeId),
   });
 
   const dismissMutation = useMutation({
     mutationFn: ({ disputeId, data }) => dismissReviewDispute(disputeId, data),
+    retry: false,
 
     onSuccess: (_, { disputeId }) =>
       invalidateReviewDisputeQueries(disputeId),

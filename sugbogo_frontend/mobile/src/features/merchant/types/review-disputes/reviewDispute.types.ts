@@ -5,7 +5,12 @@ import type {
 import type { ExploreBusinessPagination } from "@/features/explore/types/exploreBusiness.types";
 
 export type ReviewDisputeStatus =
-  "pending" | "upheld" | "dismissed" | "withdrawn";
+  | "pending"
+  | "upheld"
+  | "dismissed"
+  | "withdrawn"
+  | "author_deleted"
+  | "review_removed";
 
 export type ReviewDisputeReason =
   | "fake_review"
@@ -36,8 +41,8 @@ export type DisputedReview = {
 
 export type ReviewDispute = {
   id: number;
-  review_id: number;
-  business_id: number;
+  review_id: number | null;
+  business_id: number | null;
   attempt_number: number;
   reason: ReviewDisputeReason;
   description: string;
@@ -47,7 +52,8 @@ export type ReviewDispute = {
   created_at: string;
   updated_at: string;
   evidence: ReviewDisputeEvidence[];
-  review: DisputedReview;
+  review: DisputedReview | null;
+  closure_reason: string;
 };
 
 export type PreviousReviewDispute = Pick<
@@ -63,6 +69,7 @@ export type PreviousReviewDispute = Pick<
 >;
 
 export type ReviewDisputeDetail = ReviewDispute & {
+  material_content_changed: boolean | null;
   attempt_number: number;
   previous_dispute_count: number;
   previous_disputes: PreviousReviewDispute[];

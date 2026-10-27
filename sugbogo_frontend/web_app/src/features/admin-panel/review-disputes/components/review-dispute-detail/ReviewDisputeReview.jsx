@@ -2,11 +2,12 @@ import { Link } from "react-router-dom";
 import { ExternalLink, Quote } from "lucide-react";
 
 import UserAvatar from "@/shared/components/UserAvatar";
+import { formatLabel } from "@/shared/utils/stringUtils";
 import ReviewContentCard from "../../../moderation/components/ReviewContentCard";
 import { ReviewStatusBadge } from "../../../moderation/components/ReviewIdentityHeader";
 import { formatReviewTimestamp } from "../../../moderation/components/reviewPresentation";
 
-export default function ReviewDisputeReview({ review }) {
+function ReviewVersion({ review, title }) {
   const author = review?.author;
 
   const authorName =
@@ -14,11 +15,7 @@ export default function ReviewDisputeReview({ review }) {
     "Unknown explorer";
 
   return (
-    <section
-      id="dispute-original-review"
-      aria-label="Original review"
-      className="space-y-3.5"
-    >
+    <section aria-label={title} className="space-y-3.5">
       {/* Section heading */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -29,7 +26,7 @@ export default function ReviewDisputeReview({ review }) {
           />
 
           <h3 className="text-base font-semibold text-text-primary">
-            Original Review
+            {title}
           </h3>
         </div>
 
@@ -88,6 +85,80 @@ export default function ReviewDisputeReview({ review }) {
           is_edited: review?.is_edited ?? Boolean(review?.edited_at),
         }}
       />
+    </section>
+  );
+}
+
+export default function ReviewDisputeReview({ dispute }) {
+  const snapshot = dispute.review_at_filing;
+  const currentReview = dispute.current_review?.exists === true
+    ? dispute.current_review
+    : null;
+  const snapshotAvailable = snapshot?.available === true;
+  const changed = dispute.material_content_changed === true;
+  const deleted = dispute.current_review?.exists === false;
+  const closureReasons = {
+    content_removed_by_author:
+      "Closed without an Admin decision because the author deleted the review.",
+    original_review_removed:
+      "Closed without an Admin decision because the original review was removed.",
+  };
+  let filingReview = null;
+
+  if (snapshotAvailable) {
+    const author = currentReview?.author?.id === snapshot.author_id
+      ? currentReview.author
+      : { first_name: snapshot.author_id ? `Explorer #${snapshot.author_id}` : "Unknown explorer" };
+
+    filingReview = {
+      id: snapshot.review_id,
+      text: snapshot.text,
+      status: snapshot.status,
+      created_at: snapshot.submitted_at,
+      edited_at: snapshot.edited_at,
+      author,
+      photos: [...(snapshot.photos ?? [])]
+        .sort((first, second) => first.display_order - second.display_order)
+        .map((photo) => ({ id: photo.id, photo_url: photo.url })),
+    };
+  }
+
+  return (
+    <section aria-label="Original review" className="space-y-5">
+      {changed && currentReview && (
+        <p className="text-xs leading-5 text-text-secondary">
+          The review changed after this dispute was filed. Compare the filing-time
+          evidence with the current review before deciding.
+        </p>
+      )}
+      {deleted && (
+        <div className="space-y-1 text-sm leading-6 text-text-secondary">
+          <p>The original review has been deleted. Historical dispute evidence is preserved.</p>
+          {dispute.closure_reason && (
+            <p>
+              {closureReasons[dispute.closure_reason] ?? formatLabel(dispute.closure_reason)}
+            </p>
+          )}
+        </div>
+      )}
+      {filingReview ? (
+        <>
+          <ReviewVersion
+            review={filingReview}
+            title={changed || deleted ? "Review at Filing" : "Original Review"}
+          />
+          {!changed && currentReview && currentReview.status !== filingReview.status && (
+            <p className="text-xs text-text-secondary">
+              Current review status: {formatLabel(currentReview.status)}.
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="text-sm text-text-secondary">Filing-time snapshot unavailable</p>
+      )}
+      {currentReview && (changed || !snapshotAvailable) && (
+        <ReviewVersion review={currentReview} title="Current Review" />
+      )}
     </section>
   );
 }

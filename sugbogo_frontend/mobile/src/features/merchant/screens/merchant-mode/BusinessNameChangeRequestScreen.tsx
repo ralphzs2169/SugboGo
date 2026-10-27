@@ -1,21 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { router, useFocusEffect, useNavigation, type Href } from "expo-router";
-import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { router, type Href } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
-import {
-  BackHandler,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  View,
-} from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { z } from "zod";
@@ -25,6 +12,7 @@ import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormInput from "@/shared/components/form/FormInput";
 import MerchantChangeRequestSkeleton from "../../components/change-requests/MerchantChangeRequestSkeleton";
+import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import type { ApiError } from "@/shared/types/apiResponse.types";
@@ -48,13 +36,10 @@ type NameChangeForm = z.infer<typeof businessNameChangeSchema>;
 /** Reviews one changed business name and protects an unfinished request on exit. */
 export default function BusinessNameChangeRequestScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const submittingRef = useRef(false);
   const submittedRef = useRef(false);
-  const hasChangesRef = useRef(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-  const [discardVisible, setDiscardVisible] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string>();
   const {
@@ -64,6 +49,9 @@ export default function BusinessNameChangeRequestScreen() {
     refetch: refetchProfile,
   } = useMerchantBusinessProfile();
   const initializedBusinessId = useRef<number | null>(business?.id ?? null);
+  const [baselineName, setBaselineName] = useState(
+    business?.business_name ?? "",
+  );
   const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
     business?.id ?? null,
   );
@@ -85,54 +73,31 @@ export default function BusinessNameChangeRequestScreen() {
     control: form.control,
     name: "proposedBusinessName",
   });
-  const hasChanges = Boolean(
-    business &&
-    form.formState.isDirty &&
-    proposedBusinessName.trim() !== business.business_name.trim(),
-  );
+  const hasProposalDraft = proposedBusinessName.trim() !== baselineName.trim();
+  const hasChanges = Boolean(business && hasProposalDraft);
 
   useEffect(() => {
-    if (!business || initializedBusinessId.current === business.id) {
+    if (
+      !business ||
+      (initializedBusinessId.current === business.id &&
+        (hasProposalDraft || submittingRef.current))
+    ) {
       return;
     }
     initializedBusinessId.current = business.id;
+    setBaselineName(business.business_name);
     form.reset({ proposedBusinessName: business.business_name });
     setReadyBusinessId(business.id);
-  }, [business, form]);
+  }, [business, form, hasProposalDraft]);
 
-  useLayoutEffect(() => {
-    hasChangesRef.current = hasChanges;
-  }, [hasChanges]);
-
-  const requestExit = useCallback(() => {
-    if (submittingRef.current || submittedRef.current) {
-      return;
-    }
-    if (hasChangesRef.current) {
-      setDiscardVisible(true);
-      return;
-    }
-    router.back();
-  }, []);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerLeft: () => <HeaderBackButton onPress={requestExit} />,
-    });
-  }, [navigation, requestExit]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const subscription = BackHandler.addEventListener(
-        "hardwareBackPress",
-        () => {
-          requestExit();
-          return true;
-        },
-      );
-      return () => subscription.remove();
-    }, [requestExit]),
+  const exit = useMerchantEditorExit(
+    hasChanges || Boolean(reason.trim()),
+    submitRequest.isPending || isSubmittingRequest,
+    () => submittingRef.current,
   );
+  const requestExit = () => {
+    exit.requestExit();
+  };
 
   useQueryErrorNotification({
     error: requestsError ?? profileError,
@@ -179,9 +144,15 @@ export default function BusinessNameChangeRequestScreen() {
         text2: "Your current name stays visible until Admin approval.",
       });
       submittedRef.current = true;
-      router.replace(
-        `/(merchant)/business-update-requests/${created.id}` as Href,
+      const navigated = exit.finish(() =>
+        router.replace(
+          `/(merchant)/business-update-requests/${created.id}` as Href,
+        ),
       );
+      if (!navigated) {
+        submittedRef.current = false;
+        setIsSubmittingRequest(false);
+      }
     } catch (error) {
       setIsSubmittingRequest(false);
       const response = error as ApiError;
@@ -220,7 +191,9 @@ export default function BusinessNameChangeRequestScreen() {
           text1: "Request already pending",
           text2: response.message,
         });
-        router.replace("/(merchant)/business-update-requests" as Href);
+        exit.finish(() =>
+          router.replace("/(merchant)/business-update-requests" as Href),
+        );
       } else if (!handleSystemError(response)) {
         Toast.show({
           type: "error",
@@ -247,58 +220,85 @@ export default function BusinessNameChangeRequestScreen() {
     setIsReviewing(true);
   }
 
+  const discardDialog = (
+    <ConfirmModal
+      visible={exit.showDiscard}
+      title="Discard name change?"
+      message="Your current business name will remain unchanged."
+      confirmText="Discard"
+      destructive
+      cancelText="Keep Editing"
+      onCancel={exit.keepEditing}
+      onConfirm={exit.discard}
+    />
+  );
+
   if (
     (isProfileLoading && !business) ||
     (isRequestsLoading && !hasRequestsData) ||
     (business && readyBusinessId !== business.id)
   ) {
-    return <MerchantChangeRequestSkeleton variant="name" />;
+    return (
+      <>
+        <MerchantChangeRequestSkeleton variant="name" />
+        {discardDialog}
+      </>
+    );
   }
 
   if (!business || !hasRequestsData) {
     return (
-      <View className="flex-1 bg-background">
-        <ErrorState
-          title="Unable to load name changes"
-          description="Please try again."
-          primaryActionTitle="Retry"
-          onPrimaryAction={() =>
-            void (business ? refetchRequests() : refetchProfile())
-          }
-          secondaryActionTitle="Go Back"
-          onSecondaryAction={() => router.back()}
-        />
-      </View>
+      <>
+        <View className="flex-1 bg-background">
+          <ErrorState
+            title="Unable to load name changes"
+            description="Please try again."
+            primaryActionTitle="Retry"
+            onPrimaryAction={() =>
+              void (business ? refetchRequests() : refetchProfile())
+            }
+            secondaryActionTitle="Go Back"
+            onSecondaryAction={() => router.back()}
+          />
+        </View>
+        {discardDialog}
+      </>
     );
   }
 
   if (pendingRequest && !isSubmittingRequest) {
     return (
-      <View className="flex-1 bg-background">
-        <ErrorState
-          title="Pending Admin review"
-          description={`Your request for ${pendingRequest.proposed_business_name} is already pending. Your current name remains ${business.business_name}.`}
-          primaryActionTitle="View Request"
-          onPrimaryAction={() =>
-            router.replace(
-              `/(merchant)/business-update-requests/${pendingRequest.id}` as Href,
-            )
-          }
-        />
-      </View>
+      <>
+        <View className="flex-1 bg-background">
+          <ErrorState
+            title="Pending Admin review"
+            description={`Your request for ${pendingRequest.proposed_business_name} is already pending. Your current name remains ${business.business_name}.`}
+            primaryActionTitle="View Request"
+            onPrimaryAction={() =>
+              router.replace(
+                `/(merchant)/business-update-requests/${pendingRequest.id}` as Href,
+              )
+            }
+          />
+        </View>
+        {discardDialog}
+      </>
     );
   }
 
   if (business.status === "suspended") {
     return (
-      <View className="flex-1 bg-background">
-        <ErrorState
-          title="Request unavailable"
-          description="Name changes cannot be requested while your business is suspended."
-          primaryActionTitle="Go Back"
-          onPrimaryAction={() => router.back()}
-        />
-      </View>
+      <>
+        <View className="flex-1 bg-background">
+          <ErrorState
+            title="Request unavailable"
+            description="Name changes cannot be requested while your business is suspended."
+            primaryActionTitle="Go Back"
+            onPrimaryAction={() => router.back()}
+          />
+        </View>
+        {discardDialog}
+      </>
     );
   }
 
@@ -308,17 +308,20 @@ export default function BusinessNameChangeRequestScreen() {
     eligibility.last_approved_request_id
   ) {
     return (
-      <MerchantChangeCooldownState
-        description="Your recent business name change was approved. You can submit another request after the waiting period."
-        cooldownDurationHours={eligibility.cooldown_duration_hours}
-        cooldownUntil={eligibility.cooldown_until}
-        onViewApprovedRequest={() =>
-          router.push(
-            `/(merchant)/business-update-requests/${eligibility.last_approved_request_id}` as Href,
-          )
-        }
-        onGoBack={() => router.back()}
-      />
+      <>
+        <MerchantChangeCooldownState
+          description="Your recent business name change was approved. You can submit another request after the waiting period."
+          cooldownDurationHours={eligibility.cooldown_duration_hours}
+          cooldownUntil={eligibility.cooldown_until}
+          onViewApprovedRequest={() =>
+            router.push(
+              `/(merchant)/business-update-requests/${eligibility.last_approved_request_id}` as Href,
+            )
+          }
+          onGoBack={() => router.back()}
+        />
+        {discardDialog}
+      </>
     );
   }
 
@@ -353,8 +356,10 @@ export default function BusinessNameChangeRequestScreen() {
               proposedName={proposedBusinessName.trim()}
             />
             <MerchantChangeReasonCard
+              disabled={submitRequest.isPending || isSubmittingRequest}
               value={reason}
               onChangeText={(value) => {
+                if (submittingRef.current || submittedRef.current) return;
                 setReason(value);
                 setReasonError(undefined);
               }}
@@ -432,18 +437,7 @@ export default function BusinessNameChangeRequestScreen() {
       </View>
 
       {/* Discard confirmation */}
-      <ConfirmModal
-        visible={discardVisible}
-        title="Discard name change?"
-        message="Your current business name will remain unchanged."
-        confirmText="Discard"
-        destructive
-        onCancel={() => setDiscardVisible(false)}
-        onConfirm={() => {
-          setDiscardVisible(false);
-          router.back();
-        }}
-      />
+      {discardDialog}
     </KeyboardAvoidingView>
   );
 }

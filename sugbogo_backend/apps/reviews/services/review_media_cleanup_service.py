@@ -6,8 +6,12 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
-from apps.review_disputes.models import MerchantReviewDisputeEvidence
-from apps.reviews.models import ReplyPhoto, Review, ReviewMediaCleanup
+from apps.review_disputes.models import (
+    MerchantReviewDisputeEvidence,
+    MerchantReviewDisputeSnapshot,
+)
+from apps.reviews.models import ReplyPhoto, Review, ReviewMediaCleanup, ReviewPhoto
+from apps.reviews.services.review_media_lock_service import lock_review_media_assets
 from apps.shared.services.cloudinary_service import CloudinaryService
 
 logger = logging.getLogger(__name__)
@@ -36,18 +40,6 @@ class ReviewMediaCleanupService:
             ).values_list("RPHO_PHOTO_PUBLIC_ID", flat=True)
             if public_id
         )
-        evidence = MerchantReviewDisputeEvidence.objects.filter(
-            MRDSP_ID__REVW_ID_id=review.pk,
-        ).values_list("MRDSE_PUBLIC_ID", "MRDSE_TYPE")
-        for public_id, evidence_type in evidence:
-            if not public_id:
-                continue
-            if evidence_type == MerchantReviewDisputeEvidence.EvidenceType.DOCUMENT:
-                resource_type = ReviewMediaCleanup.ResourceType.RAW
-            else:
-                resource_type = ReviewMediaCleanup.ResourceType.IMAGE
-            assets.add((public_id, resource_type))
-
         ReviewMediaCleanupService.register_assets(
             review_id=review.pk,
             assets=assets,
@@ -62,6 +54,7 @@ class ReviewMediaCleanupService:
         """Retain unique asset identifiers in the owning transaction before dispatch."""
         cleanup_ids = []
 
+        lock_review_media_assets(assets)
         for public_id, resource_type in sorted(assets):
             if not public_id:
                 continue
@@ -73,6 +66,17 @@ class ReviewMediaCleanupService:
             )
 
             if created:
+                cleanup_ids.append(record.pk)
+            elif record.RMCU_STATUS == ReviewMediaCleanup.Status.RETAINED:
+                record.RMCU_STATUS = ReviewMediaCleanup.Status.PENDING
+                record.RMCU_NEXT_ATTEMPT_AT = timezone.now()
+                record.save(
+                    update_fields=[
+                        "RMCU_STATUS",
+                        "RMCU_NEXT_ATTEMPT_AT",
+                        "RMCU_UPDATED_AT",
+                    ],
+                )
                 cleanup_ids.append(record.pk)
 
         if not cleanup_ids:
@@ -120,7 +124,17 @@ class ReviewMediaCleanupService:
     @staticmethod
     @transaction.atomic
     def process(cleanup_id: int) -> dict:
-        """Serialize a bounded provider call on one independent cleanup row."""
+        """Hold the asset lock across retention checks and the bounded provider call."""
+        identity = (
+            ReviewMediaCleanup.objects
+            .filter(pk=cleanup_id)
+            .values_list("RMCU_PUBLIC_ID", "RMCU_RESOURCE_TYPE")
+            .first()
+        )
+        if identity is None:
+            return {"status": "skipped"}
+        if not lock_review_media_assets([identity], wait=False):
+            return {"status": "skipped"}
         record = (
             ReviewMediaCleanup.objects
             .select_for_update(skip_locked=True)
@@ -133,6 +147,18 @@ class ReviewMediaCleanupService:
         )
         if record is None:
             return {"status": "skipped"}
+
+        if ReviewMediaCleanupService.is_retained(*identity):
+            record.RMCU_STATUS = ReviewMediaCleanup.Status.RETAINED
+            record.RMCU_LAST_ERROR = ""
+            record.save(
+                update_fields=[
+                    "RMCU_STATUS",
+                    "RMCU_LAST_ERROR",
+                    "RMCU_UPDATED_AT",
+                ],
+            )
+            return {"status": "retained", "retry_after": 0}
 
         record.RMCU_ATTEMPTS += 1
         retry_after = 0
@@ -183,6 +209,47 @@ class ReviewMediaCleanupService:
             ],
         )
         return {"status": record.RMCU_STATUS, "retry_after": retry_after}
+
+    @staticmethod
+    @transaction.atomic
+    def destroy_unretained_asset(
+        public_id,
+        resource_type,
+    ):
+        """Protect committed historical evidence from late upload compensation."""
+        lock_review_media_assets([(public_id, resource_type)])
+        if ReviewMediaCleanupService.is_retained(public_id, resource_type):
+            return {"result": "retained"}
+        return CloudinaryService.destroy_asset(
+            public_id=public_id,
+            resource_type=resource_type,
+        )
+
+    @staticmethod
+    def is_retained(
+        public_id,
+        resource_type,
+    ):
+        """Protect every historical reference and any still-live provider identity."""
+        if MerchantReviewDisputeSnapshot.objects.filter(
+            MRDS_PHOTOS__contains=[{
+                "public_id": public_id,
+                "resource_type": resource_type,
+            }],
+        ).exists():
+            return True
+        if resource_type == "image":
+            if ReviewPhoto.objects.filter(RPHO_PHOTO_PUBLIC_ID=public_id).exists():
+                return True
+            if ReplyPhoto.objects.filter(RPHO_PHOTO_PUBLIC_ID=public_id).exists():
+                return True
+            evidence_type = MerchantReviewDisputeEvidence.EvidenceType.IMAGE
+        else:
+            evidence_type = MerchantReviewDisputeEvidence.EvidenceType.DOCUMENT
+        return MerchantReviewDisputeEvidence.objects.filter(
+            MRDSE_PUBLIC_ID=public_id,
+            MRDSE_TYPE=evidence_type,
+        ).exists()
 
     @staticmethod
     @transaction.atomic

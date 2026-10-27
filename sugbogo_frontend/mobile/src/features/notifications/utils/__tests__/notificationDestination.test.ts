@@ -20,7 +20,7 @@ describe("notification destinations", () => {
     });
   });
 
-  it("opens the account-scoped application summary in Explorer mode", () => {
+  it("opens the status-aware application portal in Explorer mode", () => {
     expect(
       resolveNotificationDestination({
         target_type: "merchant_application",
@@ -29,7 +29,7 @@ describe("notification destinations", () => {
     ).toEqual({
       kind: "destination",
       destination: {
-        href: "/(explorer)/merchant-registration/submitted-application",
+        href: "/(explorer)/profile/merchant-portal",
         label: "merchant application",
         requiredMode: "explorer",
         targetType: "merchant_application",

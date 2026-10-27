@@ -11,6 +11,7 @@ import TimePicker from "./time-input/TimePicker";
 type TimeField = "openTime" | "closeTime";
 
 type TimeFieldsProps = {
+  disabled?: boolean;
   openTime: string;
   closeTime: string;
   isOvernight: boolean;
@@ -30,6 +31,7 @@ type TimeFieldsProps = {
  * picker while a time field is being edited.
  */
 export default function TimeFields({
+  disabled = false,
   openTime,
   closeTime,
   isOvernight,
@@ -44,6 +46,7 @@ export default function TimeFields({
       {/* Opening and closing time inputs */}
       <View className="flex-row gap-3">
         <TimeInput
+          disabled={disabled}
           label="Opens"
           value={openTime}
           error={openTimeError}
@@ -51,6 +54,7 @@ export default function TimeFields({
         />
 
         <TimeInput
+          disabled={disabled}
           label="Closes"
           value={closeTime}
           error={closeTimeError}

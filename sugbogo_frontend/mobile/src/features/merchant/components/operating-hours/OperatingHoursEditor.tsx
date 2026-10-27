@@ -190,6 +190,7 @@ export default function OperatingHoursEditor({
 
       {/* Schedule controls */}
       <OperatingHoursControls
+        disabled={disabled}
         isOpen={schedule.isOpen}
         is24Hours={schedule.is24Hours}
         onOpenStateChange={handleOpenStateChange}
@@ -199,6 +200,7 @@ export default function OperatingHoursEditor({
       {/* Opening and closing times */}
       {schedule.isOpen && !schedule.is24Hours && (
         <TimeFields
+          disabled={disabled}
           openTime={schedule.openTime}
           closeTime={schedule.closeTime}
           isOvernight={isOvernight}
@@ -211,7 +213,11 @@ export default function OperatingHoursEditor({
       )}
 
       {/* Schedule reuse */}
-      <ApplyToOtherDays currentDay={day} onApply={handleApplyToDays} />
+      <ApplyToOtherDays
+        disabled={disabled}
+        currentDay={day}
+        onApply={handleApplyToDays}
+      />
     </View>
   );
 }

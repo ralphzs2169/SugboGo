@@ -38,6 +38,7 @@ export default function EvidencePickerActions({
         disabled={isDisabled}
         accessibilityRole="button"
         accessibilityLabel="Add evidence images"
+        accessibilityState={{ disabled: isDisabled, busy: isPickingImages }}
         className={`min-h-11 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl border border-border-primary bg-white px-3 active:bg-surface-secondary ${
           isDisabled && !isPickingImages ? "opacity-50" : ""
         }`}
@@ -65,6 +66,7 @@ export default function EvidencePickerActions({
         disabled={isDisabled}
         accessibilityRole="button"
         accessibilityLabel="Add evidence documents"
+        accessibilityState={{ disabled: isDisabled, busy: isPickingDocuments }}
         className={`min-h-11 flex-1 cursor-pointer flex-row items-center justify-center rounded-xl border border-border-primary bg-white px-3 active:bg-surface-secondary ${
           isDisabled && !isPickingDocuments ? "opacity-50" : ""
         }`}

@@ -149,6 +149,7 @@ export function ReviewSubmissionCard({
       )}
       <ReviewContent
         review={content}
+        showAuthor={!showBusiness}
         showEngagement={false}
         showSpecialtyVouches={false}
       />

@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Linking, Pressable, View } from "react-native";
 import { useState } from "react";
+import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -63,7 +64,14 @@ export default function ReviewDisputeEvidenceSection({
       return;
     }
 
-    void Linking.openURL(item.url);
+    void Linking.openURL(item.url).catch(() => {
+      Toast.show({
+        type: "error",
+        text1: "Unable to open document",
+        text2:
+          "Check your connection and install an app that can open this file, then try again.",
+      });
+    });
   };
 
   return (
@@ -173,6 +181,7 @@ export default function ReviewDisputeEvidenceSection({
                     onPress={() => openEvidence(item)}
                     accessibilityRole="button"
                     accessibilityLabel={`Open ${item.file_name ?? "evidence"}`}
+                    hitSlop={8}
                     className="h-9 w-9 cursor-pointer items-center justify-center rounded-full active:bg-surface-secondary"
                   >
                     <MaterialCommunityIcons
@@ -188,6 +197,11 @@ export default function ReviewDisputeEvidenceSection({
                     <Pressable
                       onPress={() => onRequestDelete(item)}
                       disabled={isDeletingEvidence}
+                      accessibilityState={{
+                        disabled: isDeletingEvidence,
+                        busy: isDeletingEvidence,
+                      }}
+                      hitSlop={8}
                       accessibilityRole="button"
                       accessibilityLabel={`Delete ${
                         item.file_name ?? "evidence"

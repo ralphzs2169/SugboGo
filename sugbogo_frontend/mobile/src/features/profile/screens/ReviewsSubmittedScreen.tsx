@@ -11,6 +11,7 @@ import { theme } from "@/constants/theme";
 import ReviewComposerSheet from "@/features/explore/components/business-profile/ReviewComposerSheet";
 import AuthorReviewSubmissions from "@/features/explore/components/business-profile/reviews/AuthorReviewSubmission";
 import { useAuthorReviewSubmissions } from "@/features/explore/hooks/useAuthorReviewSubmissions";
+import { canEditReview } from "@/features/explore/utils/reviewModeration.utils";
 import { ReviewDerivedDataSyncProvider } from "@/features/explore/hooks/ReviewDerivedDataSyncProvider";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
 import ActionBottomSheet from "@/shared/components/bottom-sheets/ActionBottomSheet";
@@ -104,7 +105,7 @@ export default function ReviewsSubmittedScreen() {
   );
 
   const canEdit = (review: MyReview) =>
-    canManage(review) && review.status !== "under_review";
+    canManage(review) && canEditReview(review);
 
   /** Returns the selected review only if it is still safe to act on. */
   const getActionableReview = (predicate: (review: MyReview) => boolean) => {
@@ -260,13 +261,13 @@ export default function ReviewsSubmittedScreen() {
         className="flex-1 bg-surface"
         contentContainerStyle={{
           flexGrow: 1,
+          paddingBottom: insets.bottom + 24,
         }}
         ListFooterComponentStyle={{
           flexGrow: showEndMessage ? 1 : 0,
           backgroundColor: showEndMessage
             ? theme.extends.colors.background
             : theme.extends.colors.surface,
-          paddingBottom: insets.bottom,
         }}
         ItemSeparatorComponent={ReviewSeparator}
         ListHeaderComponent={

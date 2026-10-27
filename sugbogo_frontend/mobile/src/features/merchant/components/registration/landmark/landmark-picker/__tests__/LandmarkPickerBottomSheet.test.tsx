@@ -11,6 +11,10 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
+jest.mock("expo-router", () => ({
+  useNavigation: () => ({ isFocused: () => true }),
+}));
+
 const defaultProps = {
   keyboardHeight: 0,
   hasPendingLocation: true,
@@ -20,6 +24,7 @@ const defaultProps = {
   canSubmit: false,
   onNameChange: jest.fn(),
   onConfirm: jest.fn(),
+  onUseMapCenter: jest.fn(),
 };
 
 afterEach(async () => {
@@ -39,6 +44,10 @@ describe("LandmarkPickerBottomSheet", () => {
       />,
     );
 
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Use map center for landmark" }),
+    );
+    expect(defaultProps.onUseMapCenter).toHaveBeenCalledTimes(1);
     expect(screen.queryByDisplayValue("")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add Landmark" })).toBeNull();
   });

@@ -1,10 +1,12 @@
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 import MerchantScreenHeader from "../../layout/MerchantScreenHeader";
 import Button from "@/shared/components/Button";
 import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import LottieView from "lottie-react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import { useIsFocused } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,7 +30,7 @@ import type { BusinessReview } from "@/features/explore/types/review.types";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
-import { useReviewDisputes } from "../../hooks/review-disputes/useReviewDisputes";
+import { usePendingReviewDisputeCount } from "../../hooks/review-disputes/useReviewDisputes";
 import MerchantReviewCard from "../../components/review-management/MerchantReviewCard";
 import MerchantReviewFilters from "../../components/review-management/MerchantReviewFilters";
 import MerchantReviewManagement from "../../components/review-management/MerchantReviewManagement";
@@ -220,17 +222,20 @@ export default function MerchantReviewsScreen() {
   }, [entry, reviewId, focused]);
 
   const {
-    disputes,
+    count: pendingDisputeCount,
+    hasData: hasDisputesData,
+    error: disputesError,
     isLoading: isDisputesLoading,
     refetch: refetchDisputes,
-  } = useReviewDisputes();
+  } = usePendingReviewDisputeCount();
 
-  const pendingDisputeCount = useMemo(
-    () => disputes.filter((dispute) => dispute.status === "pending").length,
-    [disputes],
-  );
-
-  const { templates, isLoading: isReplyTemplatesLoading } = useReplyTemplates();
+  const {
+    templates,
+    hasData: hasTemplatesData,
+    error: templatesError,
+    refetch: refetchTemplates,
+    isLoading: isReplyTemplatesLoading,
+  } = useReplyTemplates();
 
   const quickResponseCount = templates.length;
 
@@ -240,7 +245,7 @@ export default function MerchantReviewsScreen() {
     null,
   );
 
-  const isInitialLoading = isBusinessLoading;
+  const isInitialLoading = isBusinessLoading && !business;
   const sectionLoading = isReviewsInitialLoading || locatingReview;
   const needsReplyCount = unanswered.data?.total_unanswered;
   const hasContentFilters = !!(
@@ -259,6 +264,19 @@ export default function MerchantReviewsScreen() {
     error: focused ? businessError : null,
     toastId: "merchant-reviews-business-error",
     title: "Unable to load business",
+    fallbackMessage: "Please try again.",
+  });
+
+  useQueryErrorNotification({
+    error: focused ? disputesError : null,
+    toastId: "merchant-reviews-dispute-count-error",
+    title: "Dispute count unavailable",
+    fallbackMessage: "Please try again.",
+  });
+  useQueryErrorNotification({
+    error: focused ? templatesError : null,
+    toastId: "merchant-reviews-template-count-error",
+    title: "Response count unavailable",
     fallbackMessage: "Please try again.",
   });
 
@@ -331,7 +349,11 @@ export default function MerchantReviewsScreen() {
     );
   }
 
-  if (businessError || !business) {
+  if (
+    !business ||
+    isTerminalResourceError(businessError) ||
+    isTerminalResourceError(reviewsError)
+  ) {
     return (
       <SafeAreaView
         edges={["top", "left", "right"]}
@@ -344,7 +366,11 @@ export default function MerchantReviewsScreen() {
           title="Unable to load reviews"
           description="We couldn't load your business information right now. Please try again."
           primaryActionTitle="Retry"
-          onPrimaryAction={retryBusiness}
+          onPrimaryAction={
+            isTerminalResourceError(reviewsError)
+              ? () => void refetchReviews()
+              : retryBusiness
+          }
         />
       </SafeAreaView>
     );
@@ -423,6 +449,30 @@ export default function MerchantReviewsScreen() {
         }
         ListHeaderComponent={
           <View>
+            <MerchantRefreshRecovery
+              error={businessError}
+              refetch={refetchBusiness}
+            />
+            <MerchantRefreshRecovery
+              error={disputesError}
+              refetch={refetchDisputes}
+              title="Dispute count unavailable"
+              description={
+                hasDisputesData
+                  ? "Last-known counts are shown."
+                  : "Open review disputes or retry to check pending cases."
+              }
+            />
+            <MerchantRefreshRecovery
+              error={templatesError}
+              refetch={refetchTemplates}
+              title="Response count unavailable"
+              description={
+                hasTemplatesData
+                  ? "Last-known counts are shown."
+                  : "Open quick responses or retry to check saved replies."
+              }
+            />
             {/* Review overview */}
             <MerchantReviewsOverview
               totalCount={totalCount}
@@ -447,11 +497,15 @@ export default function MerchantReviewsScreen() {
 
             {/* Review management */}
             <MerchantReviewManagement
+              disputesUnavailable={!isDisputesLoading && !hasDisputesData}
+              templatesUnavailable={
+                !isReplyTemplatesLoading && !hasTemplatesData
+              }
               pendingDisputeCount={
-                isDisputesLoading ? undefined : pendingDisputeCount
+                !hasDisputesData ? undefined : pendingDisputeCount
               }
               quickResponseCount={
-                isReplyTemplatesLoading ? undefined : quickResponseCount
+                !hasTemplatesData ? undefined : quickResponseCount
               }
             />
 

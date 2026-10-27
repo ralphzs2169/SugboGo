@@ -32,7 +32,7 @@ const dispute = {
 before(async () => {
   server = await createServer({
     appType: "custom",
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, hmr: false },
   });
   ({ default: ReviewDisputeWorkspace } = await server.ssrLoadModule(
     "/src/features/admin-panel/review-disputes/components/ReviewDisputeWorkspace.jsx",
@@ -96,7 +96,7 @@ function renderWorkspace(url, items = [dispute]) {
   );
 }
 
-function renderInvestigation(status, editedAt = null) {
+function renderInvestigation(status, editedAt = null, overrides = {}) {
   const queryClient = new QueryClient();
   queryClient.setQueryData(
     ["admin", "review-dispute", "16"],
@@ -104,6 +104,29 @@ function renderInvestigation(status, editedAt = null) {
       ...dispute,
       status,
       merchant_id: 9,
+      original_review_id: 72,
+      decision_eligible: status === "pending",
+      current_content_fingerprint: "a".repeat(64),
+      material_content_changed: false,
+      filing_snapshot_unavailable: false,
+      review_at_filing: {
+        available: true,
+        review_id: 72,
+        author_id: 42,
+        text: "The food was cold.",
+        status: "published",
+        submitted_at: "2026-10-11T02:00:00Z",
+        edited_at: editedAt,
+        photos: [],
+      },
+      current_review: {
+        id: 72,
+        exists: true,
+        status: "published",
+        text: "The food was cold.",
+        author: { id: 42, first_name: "Ana", last_name: "Reyes" },
+        photos: [],
+      },
       description: "The review did not describe a real visit.",
       business: {
         id: 17,
@@ -133,6 +156,7 @@ function renderInvestigation(status, editedAt = null) {
         reason: "fake_review",
         created_at: "2026-09-10T04:26:00Z",
       }],
+      ...overrides,
     },
   );
 
@@ -196,6 +220,22 @@ test("resolved dispute remains in filtered history with read-only queue status",
   assert.match(html, /Upheld/);
   assert.doesNotMatch(html, /No pending disputes/);
 });
+
+for (const [status, label] of [
+  ["author_deleted", "Author Deleted"],
+  ["review_removed", "Review Removed"],
+]) {
+  test(`${status} initializes the status filter from its URL parameter`, () => {
+    const html = renderWorkspace(
+      `/admin-panel/moderation-integrity?tab=disputes&status=${status}`,
+      [{ ...dispute, status }],
+    ).replaceAll("<!-- -->", "");
+
+    assert.ok(html.includes(`Status: ${label}`));
+    assert.match(html, /Maria Santos/);
+    assert.doesNotMatch(html, /Loading review disputes|No pending disputes/);
+  });
+}
 
 test("queue keeps neutral image fallback and unselected styling", () => {
   const html = renderWorkspace(
@@ -315,6 +355,31 @@ test("original review shows edit context only when an edit timestamp exists", ()
   );
 });
 
+test("a missing merchant retains its original identity without a user link", () => {
+  const html = renderInvestigation("review_removed", null, {
+    merchant: null,
+    merchant_id: null,
+    original_merchant_id: 9,
+  });
+  const header = html.match(/<header\b[\s\S]*?<\/header>/)[0];
+
+  assert.match(header, /Merchant #9/);
+  assert.doesNotMatch(header, /href="\/admin-panel\/users\//);
+  assert.match(header, /href="\/admin-panel\/businesses\/17"/);
+});
+
+test("a missing business retains its original identity without a business link", () => {
+  const html = renderInvestigation("review_removed", null, {
+    business: null,
+    original_business_id: 17,
+  });
+  const header = html.match(/<header\b[\s\S]*?<\/header>/)[0];
+
+  assert.match(header, /Business #17/);
+  assert.doesNotMatch(header, /href="\/admin-panel\/businesses\//);
+  assert.match(header, /href="\/admin-panel\/users\/9"/);
+});
+
 test("community reports stay compact and link to the same Reported review", () => {
   const html = renderToStaticMarkup(
     React.createElement(
@@ -415,5 +480,27 @@ test("resolved investigation shows case history without decision buttons", () =>
 
   assert.match(html, /Dismissed/);
   assert.match(html, /Previous Disputes/);
+  assert.doesNotMatch(html, /aria-label="Review decision"/);
+});
+
+test("pending but ineligible investigation disables both decisions", () => {
+  const html = renderInvestigation("pending", null, { decision_eligible: false });
+
+  assert.match(html, /disabled=""[^>]*><span>Dismiss</);
+  assert.match(html, /disabled=""[^>]*><span>Uphold Dispute</);
+});
+
+test("deleted investigation keeps the original review identifier and historical navigation", () => {
+  const html = renderInvestigation("author_deleted", null, {
+    review: null,
+    current_review: { exists: false },
+    decision_eligible: false,
+    material_content_changed: null,
+    closure_reason: "content_removed_by_author",
+  });
+
+  assert.match(html, /Review #72/);
+  assert.match(html, /Review at Filing/);
+  assert.match(html, /View dispute attempt 1/);
   assert.doesNotMatch(html, /aria-label="Review decision"/);
 });

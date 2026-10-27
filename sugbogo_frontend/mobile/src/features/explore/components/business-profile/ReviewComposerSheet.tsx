@@ -80,6 +80,10 @@ type ReviewErrors = {
 const MIN_REVIEW_LENGTH = 25;
 const MAX_REVIEW_LENGTH = 1000;
 const REVIEW_EDIT_FEEDBACK = {
+  REVIEW_EDIT_UNAVAILABLE: {
+    title: "Editing unavailable",
+    message: "Editing is unavailable for this review. You can still delete it.",
+  },
   REVIEW_EDIT_CONTENT_FLAGGED: {
     title: "Changes not saved",
     message:

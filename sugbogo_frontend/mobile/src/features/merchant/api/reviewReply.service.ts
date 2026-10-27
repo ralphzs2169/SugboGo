@@ -22,9 +22,14 @@ function replyForm(
 
   form.append("text", text);
 
-  keepPhotoIds?.forEach((id) => {
-    form.append("keep_photo_ids", String(id));
-  });
+  if (keepPhotoIds?.length === 0) {
+    // A repeated multipart field cannot otherwise express an empty collection.
+    form.append("keep_photo_ids", "[]");
+  } else {
+    keepPhotoIds?.forEach((id) => {
+      form.append("keep_photo_ids", String(id));
+    });
+  }
 
   appendPhotos(form, photos);
 

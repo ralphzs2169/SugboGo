@@ -6,6 +6,7 @@ from apps.review_disputes.models import (
     MerchantReviewDispute,
     MerchantReviewDisputeEvidence,
 )
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from apps.reviews.models import Review
 from apps.reviews.serializers.review_serializers import (
     ReviewAuthorResponseSerializer,
@@ -161,19 +162,19 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
     )
 
     review_id = serializers.IntegerField(
-        source="REVW_ID_id",
+        source="MRDSP_ORIGINAL_REVIEW_ID",
         read_only=True,
     )
 
     business_id = serializers.IntegerField(
-        source="BUSN_ID_id",
+        source="MRDSP_ORIGINAL_BUSINESS_ID",
         read_only=True,
     )
 
     attempt_number = serializers.IntegerField(
         read_only=True,
     )
-    
+
     reason = serializers.CharField(
         source="MRDSP_REASON",
         read_only=True,
@@ -218,6 +219,10 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
         source="REVW_ID",
         read_only=True,
     )
+    closure_reason = serializers.CharField(
+        source="MRDSP_CLOSURE_REASON",
+        read_only=True,
+    )
 
     class Meta:
         model = MerchantReviewDispute
@@ -235,6 +240,7 @@ class MerchantReviewDisputeResponseSerializer(serializers.ModelSerializer):
             "updated_at",
             "evidence",
             "review",
+            "closure_reason",
         )
 
 
@@ -312,6 +318,22 @@ class MerchantReviewDisputeDetailSerializer(
         many=True,
         read_only=True,
     )
+    material_content_changed = serializers.SerializerMethodField()
+
+    def get_material_content_changed(
+        self,
+        dispute,
+    ):
+        """Compare material content without exposing private filing-time evidence."""
+        snapshot = getattr(dispute, "snapshot", None)
+        if (
+            snapshot is None
+            or dispute.REVW_ID is None
+        ):
+            return None
+        return snapshot.MRDS_FINGERPRINT != (
+            ReviewSnapshotService.current_fingerprint(dispute.REVW_ID)
+        )
 
     class Meta(MerchantReviewDisputeResponseSerializer.Meta):
         fields = (
@@ -319,4 +341,14 @@ class MerchantReviewDisputeDetailSerializer(
             "attempt_number",
             "previous_dispute_count",
             "previous_disputes",
+            "material_content_changed",
         )
+
+
+class MerchantReviewDisputeListQuerySerializer(serializers.Serializer):
+    """Validate server-owned dispute collection filters."""
+
+    status = serializers.ChoiceField(
+        choices=("all", "pending", "resolved"),
+        default="all",
+    )

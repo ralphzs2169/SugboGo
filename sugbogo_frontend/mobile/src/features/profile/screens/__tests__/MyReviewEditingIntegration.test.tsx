@@ -376,6 +376,9 @@ describe("My Reviews editing integration", () => {
   it("requires confirmation and cancels without calling DELETE", async () => {
     const { screen, client } = await setup();
     await openDeleteConfirmation(screen);
+    expect(screen.getByText(
+      "Your review will be removed from SugboGo review surfaces. Moderation or dispute records may be retained for platform integrity.",
+    )).toBeTruthy();
     await fireEvent.press(screen.getByText("Cancel"));
     await waitFor(() =>
       expect(screen.queryByText("Delete this review?")).toBeNull(),
@@ -676,19 +679,18 @@ describe("My Reviews editing integration", () => {
   });
 
   it.each(["rejected", "flagged"] as const)(
-    "edits %s without implying publication or polling public sentiment",
+    "keeps %s read-only while allowing deletion",
     async (status) => {
       retained = makeReview(status);
       const { screen, client } = await setup();
-      await openEditor(screen);
-      await fireEvent.changeText(
-        screen.getByDisplayValue(originalText),
-        changedText,
+      await fireEvent.press(
+        screen.getByLabelText("Review actions for Sugbo Cafe"),
       );
-      await fireEvent.press(screen.getByText("Save changes"));
-      await waitFor(() => expect(screen.queryByText("Edit review")).toBeNull());
-      expect(screen.getByText(changedText)).toBeTruthy();
-      expect(screen.getAllByText("Not published").length).toBeGreaterThan(0);
+      await waitFor(() => expect(screen.getByText("Delete review")).toBeTruthy());
+      expect(screen.queryByText("Edit my review")).toBeNull();
+      expect(screen.getByText(originalText)).toBeTruthy();
+      expect(screen.getByText("Not public")).toBeTruthy();
+      expect(updateReview).not.toHaveBeenCalled();
       expect(retained.status).toBe(status);
       expect(getBusinessReviewPreview).not.toHaveBeenCalled();
       await screen.unmount();
@@ -697,6 +699,7 @@ describe("My Reviews editing integration", () => {
   );
 
   it.each([
+    "REVIEW_EDIT_UNAVAILABLE",
     "REVIEW_EDIT_CONTENT_FLAGGED",
     "REVIEW_EDIT_MODERATION_UNAVAILABLE",
     "VALIDATION_ERROR",

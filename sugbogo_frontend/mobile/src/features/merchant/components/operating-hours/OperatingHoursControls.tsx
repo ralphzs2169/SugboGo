@@ -6,6 +6,7 @@ import AppText from "@/shared/components/AppText";
 import { shadows } from "@/shared/styles/shadows";
 
 type OperatingHoursControlsProps = {
+  disabled?: boolean;
   isOpen: boolean;
   is24Hours: boolean;
   onOpenStateChange: (isOpen: boolean) => void;
@@ -18,6 +19,7 @@ type OperatingHoursControlsProps = {
  * Keeps the 24-hour option available only while the selected day is open.
  */
 export default function OperatingHoursControls({
+  disabled = false,
   isOpen,
   is24Hours,
   onOpenStateChange,
@@ -28,9 +30,10 @@ export default function OperatingHoursControls({
       {/* Open and closed segmented control */}
       <View className="flex-row rounded-md bg-black/5 p-1.5">
         <Pressable
+          disabled={disabled}
           onPress={() => onOpenStateChange(true)}
           accessibilityRole="button"
-          accessibilityState={{ selected: isOpen }}
+          accessibilityState={{ selected: isOpen, disabled }}
           className={
             isOpen
               ? "flex-1 cursor-pointer rounded-md bg-surface px-4 py-3"
@@ -55,9 +58,10 @@ export default function OperatingHoursControls({
         </Pressable>
 
         <Pressable
+          disabled={disabled}
           onPress={() => onOpenStateChange(false)}
           accessibilityRole="button"
-          accessibilityState={{ selected: !isOpen }}
+          accessibilityState={{ selected: !isOpen, disabled }}
           className={
             !isOpen
               ? "flex-1 cursor-pointer rounded-md bg-surface px-4 py-3"
@@ -85,9 +89,10 @@ export default function OperatingHoursControls({
       {/* 24-hour toggle */}
       {isOpen && (
         <Pressable
+          disabled={disabled}
           onPress={() => on24HoursChange(!is24Hours)}
           accessibilityRole="switch"
-          accessibilityState={{ checked: is24Hours }}
+          accessibilityState={{ checked: is24Hours, disabled }}
           className="cursor-pointer flex-row items-center justify-between py-2 active:opacity-70"
         >
           <View className="flex-row items-center gap-3">

@@ -1,3 +1,5 @@
+import InfoBanner from "@/shared/components/InfoBanner";
+import AppText from "@/shared/components/AppText";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsFocused, useRouter } from "expo-router";
@@ -327,6 +329,21 @@ export default function MerchantDashboardScreen() {
             </View>
           ) : null}
 
+          {business?.status === "suspended" && (
+            <View className="px-5 pt-4">
+              <InfoBanner
+                title="Business suspended"
+                variant="warning"
+                actionTitle="View Business"
+                onAction={() => router.push("/(merchant)/(tabs)/profile")}
+              >
+                <AppText className="text-sm leading-5 text-text-secondary">
+                  Some listing-management actions may be restricted. Review your
+                  business status for details.
+                </AppText>
+              </InfoBanner>
+            </View>
+          )}
           {/* Business overview */}
           <AnalyticsOverviewSection
             title="Business overview"

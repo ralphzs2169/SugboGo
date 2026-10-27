@@ -214,7 +214,7 @@ describe("business name change React Query hooks", () => {
         queryKey: exploreBusinessDetailKey(10),
       });
     });
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledTimes(8);
     unmount();
     client.clear();
   });

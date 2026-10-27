@@ -115,9 +115,9 @@ describe("BusinessReviewCard held review", () => {
   );
 
   it.each([
-    ["flagged", "awaiting_admin_review", "Under review"],
+    ["flagged", "awaiting_admin_review", "Not public"],
     ["under_review", "retries_exhausted", "Needs review"],
-    ["rejected", "rejected", "Not published"],
+    ["rejected", "rejected", "Not public"],
   ] as const)("preserves %s / %s feedback", async (status, state, label) => {
     const screen = await render(
       <BusinessReviewCard
@@ -164,6 +164,18 @@ describe("BusinessReviewCard held review", () => {
     expect(screen.getByText("Delete my review")).toBeTruthy();
     fireEvent.press(screen.getByText("Delete my review"));
     expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it.each(["rejected", "flagged"] as const)("does not offer editing for %s", async (status) => {
+    const screen = await render(
+      <BusinessReviewCard businessId={20} review={{ ...heldReview, status }} />,
+    );
+    expect(screen.queryByText("Edit my review")).toBeNull();
+    expect(screen.getByText("Delete my review")).toBeTruthy();
+    expect(screen.getByText("This review is not public.")).toBeTruthy();
+    expect(screen.getByText(
+      "Editing is unavailable for this review. You can still delete it.",
+    )).toBeTruthy();
   });
 
   it("shows the persisted view action only for an already reported review", async () => {

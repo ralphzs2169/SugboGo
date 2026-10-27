@@ -36,7 +36,7 @@ import AnalyticsSpecialtySupport from "../../components/analytics/AnalyticsSpeci
 import AnalyticsVisibilityTrends from "../../components/analytics/AnalyticsVisibilityTrends";
 
 import { merchantPlusReportScope } from "../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
-import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import useMerchantRoutePlanning from "../../hooks/analytics/useMerchantRoutePlanning";
 import useMerchantStandardAnalytics from "../../hooks/analytics/useMerchantStandardAnalytics";
@@ -90,8 +90,8 @@ export default function MerchantAnalyticsScreen() {
   const reviewInsights = useMerchantPlusStoredInsights(focused);
   const routePlanning = useMerchantRoutePlanning(routePlanningPeriod, focused);
 
-  // Existing entitlement and comparison support
-  const plusAccess = useMerchantPlusAccess();
+  // Account-scoped report refresh
+  const accountId = useAuthStore((state) => state.user?.id);
 
   // Merchant business profile and specialty styling
   const {
@@ -124,13 +124,6 @@ export default function MerchantAnalyticsScreen() {
     toastId: "merchant-standard-analytics-error",
     title: "Unable to load analytics",
     fallbackMessage: "Please try again.",
-  });
-
-  useQueryErrorNotification({
-    error: focused ? plusAccess.error : null,
-    toastId: "merchant-plus-access-error",
-    title: "Unable to check report access",
-    fallbackMessage: "Your Standard analytics remain available.",
   });
 
   useQueryErrorNotification({
@@ -171,11 +164,9 @@ export default function MerchantAnalyticsScreen() {
     setIsRefreshingPlus(true);
 
     try {
-      const access = await plusAccess.refetch();
-
-      if (!access.error && access.data?.has_plus_access) {
+      if (focused && accountId) {
         await queryClient.refetchQueries({
-          queryKey: merchantPlusReportScope(plusAccess.accountId),
+          queryKey: merchantPlusReportScope(accountId),
           type: "active",
           predicate: (query) =>
             query.queryKey[7] === undefined &&

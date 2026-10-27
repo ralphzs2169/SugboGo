@@ -135,13 +135,14 @@ function useReviewMutation<TVariables, TResult>(
           .getQueriesData<InfiniteData<MyReviewPage>>({
             queryKey: myReviewsKey(user.id),
           })
-          .flatMap(([, data]) =>
-            data?.pages.flatMap((page) =>
-              page.items.filter((item) => item.business?.id === businessId),
-            ) ?? [],
+          .flatMap(
+            ([, data]) =>
+              data?.pages.flatMap((page) =>
+                page.items.filter((item) => item.business?.id === businessId),
+              ) ?? [],
           );
         const previousReviewIds = [previewReview, ...historyReviews].flatMap(
-          (review) => review?.author?.id === user.id ? [review.id] : [],
+          (review) => (review?.author?.id === user.id ? [review.id] : []),
         );
         useReviewWorkflowStore.setState((current) => ({
           submissions: [
@@ -473,6 +474,7 @@ export function useBusinessReviewPreview(businessId: number) {
   return {
     reviews,
     totalCount: query.error ? null : (query.data?.total_count ?? null),
+    lastKnownTotalCount: query.data?.total_count ?? null,
     userReview,
     hasOwnReview: Boolean(userReview) || submissions.length > 0,
     hasResolvedOwnership: query.data !== undefined,
@@ -509,6 +511,7 @@ export function useBusinessReviews(
   });
 
   return {
+    hasData: query.data !== undefined,
     reviews: query.data?.pages.flatMap((page) => page.items) ?? [],
     totalCount: query.data?.pages[0]?.pagination.total_items ?? 0,
     hasNextPage: query.hasNextPage,

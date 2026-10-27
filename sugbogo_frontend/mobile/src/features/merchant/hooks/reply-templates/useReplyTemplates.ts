@@ -56,21 +56,11 @@ export function useReplyTemplates() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async ({ templateId }: { templateId: number }) =>
-      throwOnApiError(
-        await replyTemplateService.deleteReplyTemplate(templateId),
-      ),
-
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: replyTemplatesKey(),
-      });
-    },
-  });
+  const deleteMutation = useDeleteReplyTemplate();
 
   return {
     templates: query.data ?? [],
+    hasData: query.data !== undefined,
     isLoading: query.isLoading,
     isRefetching: query.isRefetching,
     error: query.error,
@@ -91,4 +81,21 @@ export function useReplyTemplates() {
     isDeleting: deleteMutation.isPending,
     deleteError: deleteMutation.error,
   };
+}
+
+/** Deletes a template without subscribing to the collection read. */
+export function useDeleteReplyTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ templateId }: { templateId: number }) =>
+      throwOnApiError(
+        await replyTemplateService.deleteReplyTemplate(templateId),
+      ),
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: replyTemplatesKey(),
+      });
+    },
+  });
 }

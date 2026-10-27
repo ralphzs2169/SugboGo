@@ -20,13 +20,25 @@ export default function AuthorReviewStatus({
   onCheckAgain,
   onResume,
 }: {
-  review?: Pick<BusinessReview, "status" | "moderation_progress"> | null;
+  review?: Pick<
+    BusinessReview,
+    "status" | "moderation_progress" | "non_public_reason" | "has_pending_merchant_dispute"
+  > | null;
   submissionState?: ReviewSubmissionDraft["state"];
   onCheckAgain?: () => void;
   onResume?: () => void;
 }) {
   if (review) {
-    if (review.status === "published") return null;
+    if (review.status === "published") {
+      if (!review.has_pending_merchant_dispute) return null;
+      return (
+        <StatusBanner
+          title="Review disputed"
+          description="A merchant has disputed this review. Your review is still published."
+          variant="info"
+        />
+      );
+    }
     if (isInlineReviewCheck(review)) {
       return (
         <PendingReviewStatus
@@ -39,6 +51,9 @@ export default function AuthorReviewStatus({
       <StatusBanner
         title={feedback.label}
         description={feedback.description}
+        detail={review.status === "rejected" || review.status === "flagged"
+          ? "Editing is unavailable for this review. You can still delete it."
+          : undefined}
         variant={feedback.label === "Under review" ? "info" : "warning"}
       />
     );
@@ -94,12 +109,14 @@ export default function AuthorReviewStatus({
 /** Reuses the existing banner and recovery action treatment within the card. */
 function StatusBanner({
   description,
+  detail,
   ...props
 }: Pick<
   ComponentProps<typeof InfoBanner>,
   "title" | "variant" | "actionTitle" | "onAction"
 > & {
   description: string;
+  detail?: string;
 }) {
   return (
     <View accessibilityLiveRegion="polite" className="mt-3">
@@ -107,6 +124,11 @@ function StatusBanner({
         <AppText className="text-xs leading-5 text-text-secondary">
           {description}
         </AppText>
+        {detail && (
+          <AppText className="text-xs leading-5 text-text-secondary">
+            {detail}
+          </AppText>
+        )}
       </InfoBanner>
     </View>
   );

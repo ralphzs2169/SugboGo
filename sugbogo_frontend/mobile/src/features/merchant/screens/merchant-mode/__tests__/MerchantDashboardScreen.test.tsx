@@ -39,6 +39,23 @@ import {
   specialtyReport,
   visibilityReport,
 } from "../../../__tests__/merchantPlusAnalytics.fixtures";
+jest.mock("@/features/notifications/components/NotificationBellButton", () => ({
+  __esModule: true,
+  default: function MockBell() {
+    const { Pressable, Text } = jest.requireActual("react-native");
+    const { useRouter } = jest.requireMock("expo-router");
+    const router = useRouter();
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Notifications, 4 unread"
+        onPress={() => router.push("/notifications")}
+      >
+        <Text>Notifications</Text>
+      </Pressable>
+    );
+  },
+}));
 jest.mock("../../../components/analytics/AnalyticsExport", () => ({
   __esModule: true,
   default: () => null,
@@ -343,6 +360,27 @@ describe("MerchantDashboardScreen", () => {
       </QueryClientProvider>,
     );
   }
+
+  it.each(["active", "suspended"])(
+    "Phase 5 shows suspended status only for %s while preserving overview and reviews",
+    async (status) => {
+      mockProfileStatus = status;
+      const screen = await renderScreen();
+      await screen.findByRole("header", { name: "Business overview" });
+      await waitFor(() => expect(getAnalytics).toHaveBeenCalled());
+      if (status === "suspended") {
+        expect(screen.getByText("Business suspended")).toBeTruthy();
+        await fireEvent.press(
+          screen.getByRole("button", { name: "View Business" }),
+        );
+        expect(mockNavigate).toHaveBeenCalledWith("/(merchant)/(tabs)/profile");
+      } else expect(screen.queryByText("Business suspended")).toBeNull();
+      expect(
+        screen.getByRole("header", { name: "Business overview" }),
+      ).toBeTruthy();
+      expect(getMerchantUnansweredReviews).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("opens an activity review through the specific-review route without marking notifications read", async () => {
     jest.mocked(getMerchantRecentActivity).mockResolvedValue({

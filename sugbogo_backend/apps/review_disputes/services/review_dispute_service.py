@@ -10,6 +10,8 @@ from apps.review_disputes.models import (
     MerchantReviewDisputeEvidence,
 )
 from apps.reviews.models import Review
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
+from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
 from apps.shared.services.cloudinary_service import CloudinaryService
 from apps.users.models import User
 
@@ -20,17 +22,20 @@ class ReviewDisputeService:
     MAX_EVIDENCE_FILES = 5
 
     @staticmethod
-    def _with_attempt_number(queryset, user: User):
+    def _with_attempt_number(
+        queryset,
+        user: User,
+    ):
         """Annotate disputes with their attempt number for the same review."""
 
         previous_attempt_count = (
             MerchantReviewDispute.objects
             .filter(
-                REVW_ID_id=OuterRef("REVW_ID_id"),
+                MRDSP_ORIGINAL_REVIEW_ID=OuterRef("MRDSP_ORIGINAL_REVIEW_ID"),
                 USER_ID_id=user.USER_ID,
                 MRDSP_CREATED_AT__lt=OuterRef("MRDSP_CREATED_AT"),
             )
-            .values("REVW_ID_id")
+            .values("MRDSP_ORIGINAL_REVIEW_ID")
             .annotate(count=Count("MRDSP_ID"))
             .values("count")[:1]
         )
@@ -58,7 +63,7 @@ class ReviewDisputeService:
         previous_dispute_count = (
             MerchantReviewDispute.objects
             .filter(
-                REVW_ID_id=dispute.REVW_ID_id,
+                MRDSP_ORIGINAL_REVIEW_ID=dispute.MRDSP_ORIGINAL_REVIEW_ID,
                 USER_ID_id=user.USER_ID,
                 MRDSP_CREATED_AT__lt=dispute.MRDSP_CREATED_AT,
             )
@@ -83,6 +88,7 @@ class ReviewDisputeService:
                     "REVW_ID",
                     "REVW_ID__USER_ID",
                     "USER_ID",
+                    "snapshot",
                 )
                 .prefetch_related(
                     "evidence",
@@ -96,10 +102,10 @@ class ReviewDisputeService:
                     .get(MRDSP_ID=dispute_id)
                 )
                 # Re-read ownership and eligibility only after both locks are held.
-                Review.objects.select_for_update(of=("self",)).get(
-                    REVW_ID=review_id,
-                )
-                queryset = queryset.filter(REVW_ID_id=review_id)
+                if review_id is not None:
+                    Review.objects.select_for_update(of=("self",)).filter(
+                        REVW_ID=review_id,
+                    ).first()
                 queryset = queryset.select_for_update(of=("self",))
             dispute = queryset.get(MRDSP_ID=dispute_id)
         except (Review.DoesNotExist, MerchantReviewDispute.DoesNotExist):
@@ -112,7 +118,10 @@ class ReviewDisputeService:
                 "You do not have permission to access this review dispute.",
             )
 
-        if dispute.REVW_ID.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
+        if (
+            dispute.REVW_ID is not None
+            and dispute.REVW_ID.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW
+        ):
             raise NotFound(
                 "The review dispute could not be found.",
             )
@@ -127,9 +136,11 @@ class ReviewDisputeService:
         reason: str,
         description: str,
     ) -> MerchantReviewDispute:
+        """Capture filing content under the same parent lock used by review mutations."""
         try:
             review = (
                 Review.objects
+                .select_for_update(of=("self",))
                 .select_related(
                     "BUSN_ID",
                     "USER_ID",
@@ -162,18 +173,21 @@ class ReviewDisputeService:
             )
 
         try:
-            dispute = MerchantReviewDispute.objects.create(
-                REVW_ID=review,
-                BUSN_ID=business,
-                USER_ID=user,
-                MRDSP_REASON=reason,
-                MRDSP_DESCRIPTION=description,
-                MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
-            )
+            with transaction.atomic():
+                dispute = MerchantReviewDispute.objects.create(
+                    REVW_ID=review,
+                    BUSN_ID=business,
+                    USER_ID=user,
+                    MRDSP_REASON=reason,
+                    MRDSP_DESCRIPTION=description,
+                    MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+                )
         except IntegrityError:
             raise ValidationError(
                 "An active dispute already exists for this review.",
             ) from None
+
+        ReviewSnapshotService.capture(dispute)
 
         ReviewDisputeService._set_attempt_number(
             dispute,
@@ -200,19 +214,22 @@ class ReviewDisputeService:
         return dispute
 
     @staticmethod
+    @transaction.atomic
     def get_dispute_detail(
         user: User,
         dispute_id: int,
     ) -> MerchantReviewDispute:
+        """Read owned attempts and coherent current content for snapshot comparison."""
         dispute = ReviewDisputeService._get_owned_dispute(
             user,
             dispute_id,
+            for_update=True,
         )
 
         previous_disputes = list(
             MerchantReviewDispute.objects
             .filter(
-                REVW_ID_id=dispute.REVW_ID_id,
+                MRDSP_ORIGINAL_REVIEW_ID=dispute.MRDSP_ORIGINAL_REVIEW_ID,
                 USER_ID_id=user.USER_ID,
                 MRDSP_CREATED_AT__lt=dispute.MRDSP_CREATED_AT,
             )
@@ -227,7 +244,11 @@ class ReviewDisputeService:
         return dispute
 
     @staticmethod
-    def list_merchant_disputes(user: User):
+    def list_merchant_disputes(
+        user: User,
+        status_filter: str = "all",
+    ):
+        """List owned disputes with filtering before pagination and counting."""
         queryset = (
             MerchantReviewDispute.objects
             .filter(USER_ID=user)
@@ -243,6 +264,15 @@ class ReviewDisputeService:
             )
         )
 
+        if status_filter == "pending":
+            queryset = queryset.filter(
+                MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+            )
+        elif status_filter == "resolved":
+            queryset = queryset.exclude(
+                MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+            )
+
         return ReviewDisputeService._with_attempt_number(
             queryset,
             user,
@@ -255,6 +285,7 @@ class ReviewDisputeService:
         evidence_type: str,
         file,
     ) -> MerchantReviewDisputeEvidence:
+        """Finalize an upload only while its locked parent dispute remains pending."""
         dispute = ReviewDisputeService._get_owned_dispute(
             user,
             dispute_id,
@@ -287,6 +318,19 @@ class ReviewDisputeService:
 
         try:
             with transaction.atomic():
+                dispute = ReviewDisputeService._get_owned_dispute(
+                    user,
+                    dispute_id,
+                    for_update=True,
+                )
+                if dispute.MRDSP_STATUS != MerchantReviewDispute.DisputeStatus.PENDING:
+                    raise ValidationError(
+                        "Evidence can only be added to a pending review dispute.",
+                    )
+                if dispute.evidence.count() >= ReviewDisputeService.MAX_EVIDENCE_FILES:
+                    raise ValidationError(
+                        "A review dispute can only have up to 5 evidence files.",
+                    )
                 return MerchantReviewDisputeEvidence.objects.create(
                     MRDSP_ID=dispute,
                     MRDSE_TYPE=evidence_type,
@@ -295,7 +339,10 @@ class ReviewDisputeService:
                     MRDSE_PUBLIC_ID=public_id,
                 )
         except Exception:
-            CloudinaryService.delete_image(public_id)
+            ReviewMediaCleanupService.register_assets(
+                review_id=dispute.MRDSP_ORIGINAL_REVIEW_ID,
+                assets={(public_id, resource_type)},
+            )
             raise
 
     @staticmethod
@@ -304,6 +351,7 @@ class ReviewDisputeService:
         user: User,
         evidence_id: int,
     ) -> None:
+        """Remove pending-case evidence under parent locks and register durable cleanup."""
         try:
             evidence = (
                 MerchantReviewDisputeEvidence.objects
@@ -320,18 +368,26 @@ class ReviewDisputeService:
                 "You do not have permission to delete this dispute evidence.",
             )
 
+        dispute = ReviewDisputeService._get_owned_dispute(
+            user,
+            evidence.MRDSP_ID_id,
+            for_update=True,
+        )
+        try:
+            evidence = MerchantReviewDisputeEvidence.objects.select_for_update().get(
+                pk=evidence_id,
+            )
+        except MerchantReviewDisputeEvidence.DoesNotExist:
+            raise NotFound("The dispute evidence could not be found.") from None
         if (
-            evidence.MRDSP_ID.MRDSP_STATUS
+            dispute.MRDSP_STATUS
             != MerchantReviewDispute.DisputeStatus.PENDING
         ):
             raise ValidationError(
                 "Evidence can only be deleted from a pending review dispute.",
             )
 
-        public_id = evidence.MRDSE_PUBLIC_ID
-
         evidence.delete()
-        CloudinaryService.delete_image(public_id)
 
     @staticmethod
     @transaction.atomic

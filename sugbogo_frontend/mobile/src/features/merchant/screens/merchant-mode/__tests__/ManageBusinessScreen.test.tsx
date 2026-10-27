@@ -13,6 +13,7 @@ const mockProfile = jest.fn();
 const mockPendingStatus = jest.fn();
 
 jest.mock("expo-router", () => ({
+  useNavigation: () => ({ isFocused: () => true }),
   router: { push: (...args: unknown[]) => mockPush(...args) },
   useFocusEffect: (callback: () => void) =>
     jest.requireActual("react").useEffect(callback, [callback]),
@@ -204,5 +205,50 @@ describe("ManageBusinessScreen", () => {
     expect(mockPush).toHaveBeenCalledTimes(3);
     await fireEvent.press(screen.getByText("Business information"));
     expect(mockPush).toHaveBeenCalledTimes(3);
+  });
+  it("shows unknown pending status and targeted retry instead of a valid-looking none", async () => {
+    const refetch = jest.fn();
+    mockPendingStatus.mockReturnValue({
+      pendingStatus: null,
+      error: new Error("Offline"),
+      isLoading: false,
+      refetch,
+    });
+    const screen = await render(<ManageBusinessScreen />);
+    expect(screen.getAllByText("Status unavailable")).toHaveLength(3);
+    expect(screen.getByText("Request status unavailable")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Tap to retry/i }),
+    );
+    expect(refetch).toHaveBeenCalledTimes(1);
+    mockPendingStatus.mockReturnValue({
+      pendingStatus: {
+        business_name: true,
+        classification: false,
+        location: false,
+      },
+      error: new Error("Offline"),
+      refetch,
+    });
+    await screen.rerender(<ManageBusinessScreen />);
+    expect(screen.getByText("Pending")).toBeTruthy();
+    expect(screen.queryByText("Status unavailable")).toBeNull();
+  });
+
+  it("keeps business navigation visible after profile refresh failure", async () => {
+    const refetch = jest.fn();
+    mockProfile.mockReturnValue({
+      business,
+      error: new Error("Offline"),
+      isLoading: false,
+      refetch,
+    });
+    const screen = await render(<ManageBusinessScreen />);
+    expect(screen.getByText("Business details")).toBeTruthy();
+    expect(screen.getByText("Unable to refresh business")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Tap to retry/i }),
+    );
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 });

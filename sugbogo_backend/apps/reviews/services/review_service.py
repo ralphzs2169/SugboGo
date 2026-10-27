@@ -62,6 +62,14 @@ class ReviewEditConflict(APIException):
     default_code = "REVIEW_EDIT_CONFLICT"
 
 
+class ReviewEditUnavailable(APIException):
+    """Reject content changes to reviews that cannot currently be edited."""
+
+    status_code = 400
+    default_detail = "Editing is unavailable for this review. You can still delete it."
+    default_code = "REVIEW_EDIT_UNAVAILABLE"
+
+
 class ReviewService:
     """Handles creating, updating, and deleting business reviews."""
 
@@ -568,7 +576,7 @@ class ReviewService:
                 continue
 
             try:
-                result = CloudinaryService.destroy_asset(
+                result = ReviewMediaCleanupService.destroy_unretained_asset(
                     public_id=public_id,
                     resource_type=ReviewMediaCleanup.ResourceType.IMAGE,
                 )
@@ -965,8 +973,7 @@ class ReviewService:
 
         if source.USER_ID_id != user.USER_ID:
             raise PermissionDenied("You do not have permission to update this review.")
-        if source.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
-            raise ValidationError("This review cannot be edited while it is under review.")
+        ReviewService._require_editable_review(source)
 
         existing_photos = list(source.photos.all().order_by("RPHO_ID"))
         source_identity = ReviewService._edit_source_identity(source, existing_photos)
@@ -1060,6 +1067,16 @@ class ReviewService:
             raise
 
     @staticmethod
+    def _require_editable_review(review: Review) -> None:
+        """Allow only published content changes while preserving held-review errors."""
+        if review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
+            raise ValidationError(
+                "This review cannot be edited while it is under review.",
+            )
+        if review.REVW_STATUS != Review.ReviewStatus.PUBLISHED:
+            raise ReviewEditUnavailable()
+
+    @staticmethod
     def _edit_source_identity(review: Review, photos: list) -> tuple:
         """Identify the source content and status across the provider call."""
         return (
@@ -1126,14 +1143,11 @@ class ReviewService:
                 "You do not have permission to update this review.",
             )
 
+        ReviewService._require_editable_review(review)
+
         existing_photos = list(review.photos.all().order_by("RPHO_ID"))
         if ReviewService._edit_source_identity(review, existing_photos) != source_identity:
             raise ReviewEditConflict()
-
-        if review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
-            raise ValidationError(
-                "This review cannot be edited while it is under review.",
-            )
 
         had_photo_before_update = bool(
             existing_photos,
@@ -1449,6 +1463,17 @@ class ReviewService:
             pending_disputes=pending_disputes,
             business_name=review.BUSN_ID.BUSN_NAME,
         )
+        MerchantReviewDispute.objects.filter(
+            MRDSP_ID__in=[
+                dispute["MRDSP_ID"]
+                for dispute in pending_disputes
+            ],
+        ).update(
+            MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.AUTHOR_DELETED,
+            MRDSP_CLOSURE_REASON="content_removed_by_author",
+            MRDSP_RESOLVED_AT=timezone.now(),
+            MRDSP_UPDATED_AT=timezone.now(),
+        )
 
     @staticmethod
     @transaction.atomic
@@ -1483,10 +1508,7 @@ class ReviewService:
                 "You do not have permission to delete this review photo.",
             )
 
-        if review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
-            raise ValidationError(
-                "This review cannot be edited while it is under review.",
-            )
+        ReviewService._require_editable_review(review)
 
         ReviewMediaCleanupService.register_assets(
             review_id=review.pk,

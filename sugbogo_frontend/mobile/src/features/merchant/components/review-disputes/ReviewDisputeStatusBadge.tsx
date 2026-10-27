@@ -44,6 +44,18 @@ const STATUS_STYLES: Record<
     border: colors.gray[300],
     icon: "undo-variant",
   },
+  author_deleted: {
+    background: colors.gray[100],
+    foreground: colors.gray[700],
+    border: colors.gray[300],
+    icon: "delete-outline",
+  },
+  review_removed: {
+    background: colors.gray[100],
+    foreground: colors.gray[700],
+    border: colors.gray[300],
+    icon: "file-remove-outline",
+  },
 };
 
 /**

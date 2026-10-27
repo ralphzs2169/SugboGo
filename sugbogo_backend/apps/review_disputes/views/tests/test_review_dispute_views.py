@@ -1468,3 +1468,68 @@ class MerchantReviewDisputeEvidenceResponseTests(
             evidence["url"],
             self.evidence.MRDSE_URL,
         )
+
+
+class MerchantReviewDisputePaginationTests(MerchantReviewDisputeViewTestBase):
+    """Keep status filters and totals authoritative across collection pages."""
+
+    def test_filters_before_paginating_and_counts_the_entire_collection(self):
+        statuses = ["pending", "dismissed", "withdrawn", "pending"]
+        for index, dispute_status in enumerate(statuses):
+            author = User.objects.create_user(
+                email=f"pagination-{index}@example.com",
+                password=None,
+                USER_FNAME="Review",
+                USER_LNAME="Author",
+            )
+            review = Review.objects.create(
+                USER_ID=author,
+                BUSN_ID=self.business,
+                REVW_TEXT="A published review for pagination testing.",
+            )
+            MerchantReviewDispute.objects.create(
+                USER_ID=self.merchant,
+                BUSN_ID=self.business,
+                REVW_ID=review,
+                MRDSP_REASON="fake_review",
+                MRDSP_DESCRIPTION="Evidence supporting this dispute.",
+                MRDSP_STATUS=dispute_status,
+            )
+        url = "/api/merchant/review-disputes/"
+        first = self.client.get(
+            url,
+            {"status": "pending", "page_size": 1},
+        )
+        second = self.client.get(
+            url,
+            {"status": "pending", "page_size": 1, "page": 2},
+        )
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(
+            first.data["data"]["pagination"]["total_items"],
+            2,
+        )
+        self.assertTrue(first.data["data"]["pagination"]["has_next"])
+        self.assertNotEqual(
+            first.data["data"]["items"][0]["id"],
+            second.data["data"]["items"][0]["id"],
+        )
+        resolved = self.client.get(
+            url,
+            {"status": "resolved"},
+        )
+        self.assertEqual(
+            resolved.data["data"]["pagination"]["total_items"],
+            2,
+        )
+        self.assertTrue(
+            all(
+                item["status"] != "pending"
+                for item in resolved.data["data"]["items"]
+            ),
+        )
+        invalid = self.client.get(
+            url,
+            {"status": "invalid"},
+        )
+        self.assertEqual(invalid.status_code, 400)

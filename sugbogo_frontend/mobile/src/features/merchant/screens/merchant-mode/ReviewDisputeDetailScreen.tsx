@@ -1,3 +1,6 @@
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -17,6 +20,7 @@ import ReviewDisputeDetailSkeleton from "../../components/review-disputes/disput
 import ReviewDisputeEvidenceSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeEvidenceSection";
 import ReviewDisputeHistorySection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeHistorySection";
 import ReviewDisputeOverviewSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeOverviewSection";
+import ReviewDisputeReviewNotice from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeReviewNotice";
 import ReviewDisputeStickyHeader from "../../components/review-disputes/dispute-detail-screen/ReviewDisputeStickyHeader";
 import ReviewDisputedReviewSection from "../../components/review-disputes/dispute-detail-screen/ReviewDisputedReviewSection";
 import ReviewDisputeSection from "../../components/review-disputes/ReviewDisputeSection";
@@ -60,7 +64,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   const [evidenceAction, setEvidenceAction] = useState<EvidenceAction>(null);
   const [overviewHeight, setOverviewHeight] = useState(0);
 
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const [scrollY] = useState(() => new Animated.Value(0));
 
   const { dispute, isLoading, isRefetching, error, refetch } =
     useReviewDisputeDetail(disputeId);
@@ -69,7 +73,15 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   const deleteEvidence = useDeleteReviewDisputeEvidence();
   const withdrawDispute = useWithdrawReviewDispute(dispute?.business_id ?? 0);
 
-  const isPending = dispute?.status === "pending";
+  const isPending = dispute?.status === "pending" && Boolean(dispute.review);
+  const isPendingRef = useRef(isPending);
+
+  useEffect(() => {
+    isPendingRef.current = isPending;
+    return () => {
+      isPendingRef.current = false;
+    };
+  }, [isPending]);
 
   const remainingSlots = dispute
     ? MAX_REVIEW_DISPUTE_EVIDENCE - dispute.evidence.length
@@ -84,21 +96,12 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     extrapolate: "clamp",
   });
 
-  useEffect(() => {
-    if (!error) {
-      return;
-    }
-
-    const response = error as unknown as ApiResponse<unknown>;
-
-    if (!response.success && !handleSystemError(response)) {
-      Toast.show({
-        type: "error",
-        text1: "Unable to load dispute",
-        text2: response.message || "Please try again.",
-      });
-    }
-  }, [error]);
+  useApiErrorNotification({
+    error,
+    toastId: `merchant-dispute-${disputeId}-error`,
+    title: "Unable to load dispute",
+    fallbackMessage: "Please try again.",
+  });
 
   const showMutationError = (caughtError: unknown, title: string) => {
     const response = caughtError as ApiResponse<unknown>;
@@ -113,6 +116,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   };
 
   const uploadEvidence = async (picked: LocalReviewDisputeEvidence[]) => {
+    if (!isPendingRef.current) {
+      return;
+    }
     const validEvidence = picked.filter(
       (item) =>
         item.fileSize === undefined ||
@@ -131,6 +137,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     let firstUploadError: unknown;
 
     for (const item of validEvidence) {
+      if (!isPendingRef.current) {
+        return;
+      }
       try {
         await addEvidence.mutateAsync({
           disputeId,
@@ -165,29 +174,47 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   };
 
   const pickImages = async () => {
+    if (!isPendingRef.current) {
+      return;
+    }
     setEvidenceAction("images");
 
     try {
       const picked = await pickReviewDisputeImages(remainingSlots);
       await uploadEvidence(picked);
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Unable to attach evidence",
+        text2: "Check file access and try selecting the file again.",
+      });
     } finally {
       setEvidenceAction(null);
     }
   };
 
   const pickDocuments = async () => {
+    if (!isPendingRef.current) {
+      return;
+    }
     setEvidenceAction("documents");
 
     try {
       const picked = await pickReviewDisputeDocuments(remainingSlots);
       await uploadEvidence(picked);
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Unable to attach evidence",
+        text2: "Check file access and try selecting the file again.",
+      });
     } finally {
       setEvidenceAction(null);
     }
   };
 
   const confirmDeleteEvidence = async () => {
-    if (!evidenceToDelete) {
+    if (!evidenceToDelete || !isPendingRef.current || deleteEvidence.isPending) {
       return;
     }
 
@@ -209,6 +236,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
   };
 
   const confirmWithdraw = async () => {
+    if (!isPendingRef.current || withdrawDispute.isPending) {
+      return;
+    }
     try {
       await withdrawDispute.mutateAsync({ disputeId });
 
@@ -223,7 +253,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !dispute) {
     return (
       <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -233,7 +263,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
     );
   }
 
-  if (error || !dispute) {
+  if (!dispute || isTerminalResourceError(error)) {
     return (
       <View className="flex-1 bg-surface">
         <ErrorState
@@ -270,6 +300,11 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
           />
         }
       >
+        <MerchantRefreshRecovery
+          error={error}
+          refetch={refetch}
+          title="Unable to refresh dispute"
+        />
         {/* Dispute overview */}
         <View
           onLayout={(event) => {
@@ -285,6 +320,9 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
           />
         </View>
 
+        {/* Review deletion or accepted content changes */}
+        <ReviewDisputeReviewNotice dispute={dispute} />
+
         {/* Disputed review and merchant explanation */}
         <ReviewDisputeSection
           title="Disputed review"
@@ -299,6 +337,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
         >
           <ReviewDisputedReviewSection
             review={dispute.review}
+            reviewId={dispute.review_id}
             reason={dispute.reason}
             description={dispute.description}
           />
@@ -406,7 +445,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
 
       {/* Evidence deletion confirmation */}
       <ConfirmModal
-        visible={Boolean(evidenceToDelete)}
+        visible={isPending && Boolean(evidenceToDelete)}
         title="Delete evidence?"
         message="This file will be removed from your pending dispute."
         confirmText="Delete"
@@ -419,7 +458,7 @@ export default function ReviewDisputeDetailScreen({ disputeId }: Props) {
 
       {/* Withdrawal confirmation */}
       <ConfirmModal
-        visible={isWithdrawVisible}
+        visible={isPending && isWithdrawVisible}
         title="Withdraw dispute?"
         message="The dispute and its evidence will remain in your history, but administrators will no longer review it."
         confirmText="Withdraw"

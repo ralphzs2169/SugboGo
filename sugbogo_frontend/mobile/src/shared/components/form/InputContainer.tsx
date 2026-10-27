@@ -41,7 +41,16 @@ export default function InputContainer({
             className="text-xs  tracking-[0.5px] text-text-secondary"
           >
             {label}
-            {required && <AppText className="text-text-error"> *</AppText>}
+            {required && (
+              <AppText
+                accessible={false}
+                importantForAccessibility="no"
+                className="text-text-error"
+              >
+                {" "}
+                *
+              </AppText>
+            )}
           </AppText>
         )}
 
@@ -65,7 +74,10 @@ export default function InputContainer({
       {bottomElement ? (
         bottomElement
       ) : error ? (
-        <AppText className="mt-1 text-xs font-medium text-text-error">
+        <AppText
+          accessibilityLiveRegion="polite"
+          className="mt-1 text-xs font-medium text-text-error"
+        >
           {error}
         </AppText>
       ) : helperText ? (

@@ -1,22 +1,8 @@
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { router, useFocusEffect, useNavigation, type Href } from "expo-router";
-import { HeaderBackButton } from "expo-router/build/react-navigation/elements/Header/HeaderBackButton";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  BackHandler,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  View,
-} from "react-native";
+import { router, type Href } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
@@ -27,6 +13,7 @@ import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import FormSelect from "@/shared/components/form/FormSelect";
 import MerchantChangeRequestSkeleton from "../../components/change-requests/MerchantChangeRequestSkeleton";
+import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
@@ -64,7 +51,6 @@ import { validateMerchantChangeReason } from "../../utils/merchantChangeReason";
  */
 export default function ClassificationChangeRequestScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const {
     business,
     isLoading: isProfileLoading,
@@ -74,7 +60,6 @@ export default function ClassificationChangeRequestScreen() {
 
   const submittingRef = useRef(false);
   const submittedRef = useRef(false);
-  const hasChangesRef = useRef(false);
   const initializedBusinessId = useRef<number | null>(business?.id ?? null);
   const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
     business?.id ?? null,
@@ -96,9 +81,9 @@ export default function ClassificationChangeRequestScreen() {
   const [formError, setFormError] = useState<string | undefined>();
   const [isReviewing, setIsReviewing] = useState(false);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-  const [discardVisible, setDiscardVisible] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string>();
+  const [baseline, setBaseline] = useState(business);
 
   const {
     eligibility,
@@ -132,18 +117,6 @@ export default function ClassificationChangeRequestScreen() {
   } = useSpecialtyTags();
 
   const submitRequest = useSubmitMerchantClassificationChange();
-
-  useEffect(() => {
-    if (!business || initializedBusinessId.current === business.id) {
-      return;
-    }
-
-    initializedBusinessId.current = business.id;
-    setClusterId(business.cluster.id);
-    setCategoryId(business.category.id);
-    setSpecialtyTagIds(business.specialty_tags.map((tag) => Number(tag.id)));
-    setReadyBusinessId(business.id);
-  }, [business]);
 
   const loadError =
     profileError ??
@@ -205,52 +178,36 @@ export default function ClassificationChangeRequestScreen() {
   );
 
   const hasDraftChanges = Boolean(
-    business &&
+    baseline &&
     clusterId !== null &&
-    (clusterId !== business.cluster.id ||
-      categoryId !== business.category.id ||
-      specialtyTagIds.length !== business.specialty_tags.length ||
-      specialtyTagIds.some(
-        (id) => !business.specialty_tags.some((tag) => Number(tag.id) === id),
-      )),
+    (clusterId !== baseline.cluster.id ||
+      categoryId === null ||
+      classificationHasChanged(baseline, categoryId, specialtyTagIds)),
   );
 
-  useLayoutEffect(() => {
-    hasChangesRef.current = hasDraftChanges;
-  }, [hasDraftChanges]);
-
-  const requestExit = useCallback(() => {
-    if (submittingRef.current || submittedRef.current) {
+  useEffect(() => {
+    if (
+      !business ||
+      (initializedBusinessId.current === business.id &&
+        (hasDraftChanges || submittingRef.current))
+    )
       return;
-    }
+    initializedBusinessId.current = business.id;
+    setBaseline(business);
+    setClusterId(business.cluster.id);
+    setCategoryId(business.category.id);
+    setSpecialtyTagIds(business.specialty_tags.map((tag) => Number(tag.id)));
+    setReadyBusinessId(business.id);
+  }, [business, hasDraftChanges]);
 
-    if (hasChangesRef.current) {
-      setDiscardVisible(true);
-      return;
-    }
-
-    router.back();
-  }, []);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerLeft: () => <HeaderBackButton onPress={requestExit} />,
-    });
-  }, [navigation, requestExit]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const subscription = BackHandler.addEventListener(
-        "hardwareBackPress",
-        () => {
-          requestExit();
-          return true;
-        },
-      );
-
-      return () => subscription.remove();
-    }, [requestExit]),
+  const exit = useMerchantEditorExit(
+    hasDraftChanges || Boolean(reason.trim()),
+    submitRequest.isPending || isSubmittingRequest,
+    () => submittingRef.current,
   );
+  const requestExit = () => {
+    exit.requestExit();
+  };
 
   function selectCluster(value: string) {
     const nextClusterId = Number(value);
@@ -346,9 +303,15 @@ export default function ClassificationChangeRequestScreen() {
 
       submittedRef.current = true;
 
-      router.replace(
-        `/(merchant)/business-update-requests/classification/${created.id}` as Href,
+      const navigated = exit.finish(() =>
+        router.replace(
+          `/(merchant)/business-update-requests/classification/${created.id}` as Href,
+        ),
       );
+      if (!navigated) {
+        submittedRef.current = false;
+        setIsSubmittingRequest(false);
+      }
     } catch (error) {
       setIsSubmittingRequest(false);
 
@@ -399,61 +362,88 @@ export default function ClassificationChangeRequestScreen() {
     }
   }
 
+  const discardDialog = (
+    <ConfirmModal
+      visible={exit.showDiscard}
+      title="Discard classification changes?"
+      message="Your current live classification will remain unchanged."
+      confirmText="Discard"
+      destructive
+      cancelText="Keep Editing"
+      onCancel={exit.keepEditing}
+      onConfirm={exit.discard}
+    />
+  );
+
   if (
     (isProfileLoading && !business) ||
     (isRequestsLoading && !hasRequestsData) ||
     (business && readyBusinessId !== business.id)
   ) {
-    return <MerchantChangeRequestSkeleton variant="classification" />;
+    return (
+      <>
+        <MerchantChangeRequestSkeleton variant="classification" />
+        {discardDialog}
+      </>
+    );
   }
 
   const cannotRender = !business || !hasRequestsData;
 
   if (cannotRender) {
     return (
-      <View className="flex-1 bg-background">
-        <ErrorState
-          title="Unable to load classification"
-          description="Please try again."
-          primaryActionTitle="Retry"
-          onPrimaryAction={() => {
-            if (profileError || !business) void refetchProfile();
-            if (requestsError) void refetchRequests();
-          }}
-          secondaryActionTitle="Go Back"
-          onSecondaryAction={() => router.back()}
-        />
-      </View>
+      <>
+        <View className="flex-1 bg-background">
+          <ErrorState
+            title="Unable to load classification"
+            description="Please try again."
+            primaryActionTitle="Retry"
+            onPrimaryAction={() => {
+              if (profileError || !business) void refetchProfile();
+              if (requestsError) void refetchRequests();
+            }}
+            secondaryActionTitle="Go Back"
+            onSecondaryAction={() => router.back()}
+          />
+        </View>
+        {discardDialog}
+      </>
     );
   }
 
   if (pendingRequest && !isSubmittingRequest) {
     return (
-      <View className="flex-1 bg-background">
-        <ErrorState
-          title="Pending Admin review"
-          description="A classification request is already pending. Your current category and specialties remain visible."
-          primaryActionTitle="View Request"
-          onPrimaryAction={() =>
-            router.replace(
-              `/(merchant)/business-update-requests/classification/${pendingRequest.id}` as Href,
-            )
-          }
-        />
-      </View>
+      <>
+        <View className="flex-1 bg-background">
+          <ErrorState
+            title="Pending Admin review"
+            description="A classification request is already pending. Your current category and specialties remain visible."
+            primaryActionTitle="View Request"
+            onPrimaryAction={() =>
+              router.replace(
+                `/(merchant)/business-update-requests/classification/${pendingRequest.id}` as Href,
+              )
+            }
+          />
+        </View>
+        {discardDialog}
+      </>
     );
   }
 
   if (business.status === "suspended") {
     return (
-      <View className="flex-1 bg-background">
-        <ErrorState
-          title="Request unavailable"
-          description="Classification changes cannot be requested while your business is suspended."
-          primaryActionTitle="Go Back"
-          onPrimaryAction={() => router.back()}
-        />
-      </View>
+      <>
+        <View className="flex-1 bg-background">
+          <ErrorState
+            title="Request unavailable"
+            description="Classification changes cannot be requested while your business is suspended."
+            primaryActionTitle="Go Back"
+            onPrimaryAction={() => router.back()}
+          />
+        </View>
+        {discardDialog}
+      </>
     );
   }
 
@@ -463,22 +453,30 @@ export default function ClassificationChangeRequestScreen() {
     eligibility.last_approved_request_id
   ) {
     return (
-      <MerchantChangeCooldownState
-        description="Your recent classification change was approved. You can submit another request after the waiting period."
-        cooldownDurationHours={eligibility.cooldown_duration_hours}
-        cooldownUntil={eligibility.cooldown_until}
-        onViewApprovedRequest={() =>
-          router.push(
-            `/(merchant)/business-update-requests/classification/${eligibility.last_approved_request_id}` as Href,
-          )
-        }
-        onGoBack={() => router.back()}
-      />
+      <>
+        <MerchantChangeCooldownState
+          description="Your recent classification change was approved. You can submit another request after the waiting period."
+          cooldownDurationHours={eligibility.cooldown_duration_hours}
+          cooldownUntil={eligibility.cooldown_until}
+          onViewApprovedRequest={() =>
+            router.push(
+              `/(merchant)/business-update-requests/classification/${eligibility.last_approved_request_id}` as Href,
+            )
+          }
+          onGoBack={() => router.back()}
+        />
+        {discardDialog}
+      </>
     );
   }
 
   if (isClustersLoading || isCategoriesLoading || isTagsLoading) {
-    return <MerchantChangeRequestSkeleton variant="classification" />;
+    return (
+      <>
+        <MerchantChangeRequestSkeleton variant="classification" />
+        {discardDialog}
+      </>
+    );
   }
 
   if (
@@ -487,20 +485,23 @@ export default function ClassificationChangeRequestScreen() {
     (tagsError && specialtyTags.length === 0)
   ) {
     return (
-      <View className="flex-1 bg-background">
-        <ErrorState
-          title="Unable to load classification choices"
-          description="Please try again."
-          primaryActionTitle="Retry"
-          onPrimaryAction={() => {
-            if (clustersError) void refetchClusters();
-            if (categoriesError) void refetchCategories();
-            if (tagsError) void refetchTags();
-          }}
-          secondaryActionTitle="Go Back"
-          onSecondaryAction={() => router.back()}
-        />
-      </View>
+      <>
+        <View className="flex-1 bg-background">
+          <ErrorState
+            title="Unable to load classification choices"
+            description="Please try again."
+            primaryActionTitle="Retry"
+            onPrimaryAction={() => {
+              if (clustersError) void refetchClusters();
+              if (categoriesError) void refetchCategories();
+              if (tagsError) void refetchTags();
+            }}
+            secondaryActionTitle="Go Back"
+            onSecondaryAction={() => router.back()}
+          />
+        </View>
+        {discardDialog}
+      </>
     );
   }
 
@@ -564,8 +565,10 @@ export default function ClassificationChangeRequestScreen() {
               showBorder={false}
             />
             <MerchantChangeReasonCard
+              disabled={submitRequest.isPending || isSubmittingRequest}
               value={reason}
               onChangeText={(value) => {
+                if (submittingRef.current || submittedRef.current) return;
                 setReason(value);
                 setReasonError(undefined);
               }}
@@ -717,18 +720,7 @@ export default function ClassificationChangeRequestScreen() {
       />
 
       {/* Discard confirmation */}
-      <ConfirmModal
-        visible={discardVisible}
-        title="Discard classification changes?"
-        message="Your current live classification will remain unchanged."
-        confirmText="Discard"
-        destructive
-        onCancel={() => setDiscardVisible(false)}
-        onConfirm={() => {
-          setDiscardVisible(false);
-          router.back();
-        }}
-      />
+      {discardDialog}
     </KeyboardAvoidingView>
   );
 }

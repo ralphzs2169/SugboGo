@@ -5,7 +5,10 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import { formatDate } from "@/shared/utils/date.utils";
 
-import { REVIEW_DISPUTE_REASON_LABELS } from "../../../constants/reviewDispute.constants";
+import {
+  REVIEW_DISPUTE_REASON_LABELS,
+  REVIEW_DISPUTE_STATUS_LABELS,
+} from "../../../constants/reviewDispute.constants";
 import ReviewDisputeStatusBadge from "../ReviewDisputeStatusBadge";
 import type {
   ReviewDisputeReason,
@@ -112,13 +115,7 @@ export default function ReviewDisputeOverviewSection({
 
           <View className="ml-3">
             <AppText weight="semibold" className="text-sm text-text-primary">
-              {resolvedAt
-                ? status === "upheld"
-                  ? "Upheld"
-                  : status === "dismissed"
-                    ? "Dismissed"
-                    : "Withdrawn"
-                : "Pending"}
+              {REVIEW_DISPUTE_STATUS_LABELS[status]}
             </AppText>
 
             {resolvedAt && (

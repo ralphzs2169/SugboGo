@@ -1,3 +1,4 @@
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -150,7 +151,7 @@ class ManageReviewDisputeServiceTests(TestCase):
         business = business or review.BUSN_ID
         merchant = merchant or business.USER_ID
 
-        return MerchantReviewDispute.objects.create(
+        dispute = MerchantReviewDispute.objects.create(
             REVW_ID=review,
             BUSN_ID=business,
             USER_ID=merchant,
@@ -158,6 +159,8 @@ class ManageReviewDisputeServiceTests(TestCase):
             MRDSP_DESCRIPTION=description,
             MRDSP_STATUS=status,
         )
+        ReviewSnapshotService.capture(dispute)
+        return dispute
 
     def test_uphold_refreshes_sentiment_and_removes_generated_evidence(self):
         self.review.REVW_SENTIMENT_LABEL = "positive"
@@ -176,6 +179,10 @@ class ManageReviewDisputeServiceTests(TestCase):
                 ManageReviewDisputeService.uphold_dispute(
                     dispute.pk,
                     actor=self.admin,
+                    expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                        self.review,
+                    ),
+                    acknowledge_review_changes=True,
                 )
                 enqueue.assert_not_called()
             enqueue.assert_not_called()
@@ -203,6 +210,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.uphold_dispute(
             dispute.pk,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         self.business.refresh_from_db()
@@ -212,6 +223,10 @@ class ManageReviewDisputeServiceTests(TestCase):
             ManageReviewDisputeService.uphold_dispute(
                 dispute.pk,
                 actor=self.admin,
+                expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                    self.review,
+                ),
+                acknowledge_review_changes=True,
             )
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_REVIEW_COUNT, 0)
@@ -250,6 +265,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.uphold_dispute(
             dispute.pk,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         self.review.refresh_from_db()
@@ -275,6 +294,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.uphold_dispute(
             dispute.pk,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         self.business.refresh_from_db()
@@ -290,6 +313,10 @@ class ManageReviewDisputeServiceTests(TestCase):
                     dispute.pk,
                     "No violation found.",
                     actor=self.admin,
+                    expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                        self.review,
+                    ),
+                    acknowledge_review_changes=True,
                 )
             enqueue.assert_not_called()
         event = AdminActivity.objects.get()
@@ -310,6 +337,10 @@ class ManageReviewDisputeServiceTests(TestCase):
                     ManageReviewDisputeService.uphold_dispute(
                         dispute.pk,
                         actor=self.admin,
+                        expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                            self.review,
+                        ),
+                        acknowledge_review_changes=True,
                     )
             enqueue.assert_not_called()
         dispute.refresh_from_db()
@@ -541,6 +572,10 @@ class ManageReviewDisputeServiceTests(TestCase):
             dispute.MRDSP_ID,
             "Violates policy.",
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         dispute.refresh_from_db()
@@ -573,6 +608,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.uphold_dispute(
             dispute.MRDSP_ID,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         dispute.refresh_from_db()
@@ -596,6 +635,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.uphold_dispute(
             dispute.MRDSP_ID,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         after = timezone.now()
@@ -629,6 +672,10 @@ class ManageReviewDisputeServiceTests(TestCase):
             ManageReviewDisputeService.uphold_dispute(
                 dispute.MRDSP_ID,
                 actor=self.admin,
+                expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                    self.review,
+                ),
+                acknowledge_review_changes=True,
             )
 
         self.review.refresh_from_db()
@@ -646,6 +693,10 @@ class ManageReviewDisputeServiceTests(TestCase):
             ManageReviewDisputeService.uphold_dispute(
                 999999,
                 actor=self.admin,
+                expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                    self.review,
+                ),
+                acknowledge_review_changes=True,
             )
 
     def test_uphold_dispute_creates_confirmed_violation_event_for_review_author(self):
@@ -656,6 +707,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.uphold_dispute(
             dispute.pk,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         event = ReputationEvent.objects.get(
@@ -685,6 +740,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.uphold_dispute(
             dispute.pk,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
         self.explorer.refresh_from_db()
         reputation_after_first_uphold = self.explorer.USER_REPUTATION
@@ -701,6 +760,10 @@ class ManageReviewDisputeServiceTests(TestCase):
                 ManageReviewDisputeService.uphold_dispute(
                     dispute.pk,
                     actor=self.admin,
+                    expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                        self.review,
+                    ),
+                    acknowledge_review_changes=True,
                 )
             penalty.assert_not_called()
 
@@ -735,6 +798,10 @@ class ManageReviewDisputeServiceTests(TestCase):
                 dispute.pk,
                 "Violates policy.",
                 actor=self.admin,
+                expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                    self.review,
+                ),
+                acknowledge_review_changes=True,
             )
 
         dispute.refresh_from_db()
@@ -762,6 +829,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         result = ManageReviewDisputeService.dismiss_dispute(
             dispute.MRDSP_ID,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         self.assertEqual(
@@ -785,6 +856,10 @@ class ManageReviewDisputeServiceTests(TestCase):
             dispute.MRDSP_ID,
             "Insufficient evidence.",
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         dispute.refresh_from_db()
@@ -804,6 +879,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.dismiss_dispute(
             dispute.MRDSP_ID,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         after = timezone.now()
@@ -832,6 +911,10 @@ class ManageReviewDisputeServiceTests(TestCase):
         ManageReviewDisputeService.dismiss_dispute(
             dispute.MRDSP_ID,
             actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         self.review.refresh_from_db()
@@ -854,6 +937,10 @@ class ManageReviewDisputeServiceTests(TestCase):
             ManageReviewDisputeService.dismiss_dispute(
                 dispute.MRDSP_ID,
                 actor=self.admin,
+                expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                    self.review,
+                ),
+                acknowledge_review_changes=True,
             )
 
     def test_dismiss_dispute_raises_not_found_for_missing_dispute(self):
@@ -864,6 +951,10 @@ class ManageReviewDisputeServiceTests(TestCase):
             ManageReviewDisputeService.dismiss_dispute(
                 999999,
                 actor=self.admin,
+                expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                    self.review,
+                ),
+                acknowledge_review_changes=True,
             )
 
 
@@ -894,6 +985,10 @@ class ConcurrentDisputeResolutionTests(TransactionTestCase):
                         ManageReviewDisputeService.dismiss_dispute(
                             dispute.pk,
                             actor=self.admin,
+                            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                                self.review,
+                            ),
+                            acknowledge_review_changes=True,
                         )
                 except ValidationError:
                     return "rejected"
@@ -907,6 +1002,10 @@ class ConcurrentDisputeResolutionTests(TransactionTestCase):
                     ManageReviewDisputeService.uphold_dispute(
                         dispute.pk,
                         actor=self.admin,
+                        expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                            self.review,
+                        ),
+                        acknowledge_review_changes=True,
                     )
                     future = executor.submit(dismiss)
                     self.assertTrue(started.wait(5))

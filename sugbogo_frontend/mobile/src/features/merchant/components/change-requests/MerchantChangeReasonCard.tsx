@@ -7,6 +7,7 @@ import FormTextArea from "@/shared/components/form/FormTextArea";
 import RegistrationSection from "../registration/RegistrationSection";
 
 type Props = {
+  disabled?: boolean;
   value: string;
   onChangeText?: (value: string) => void;
   placeholder?: string;
@@ -15,6 +16,7 @@ type Props = {
 
 /** Shows the merchant's reason in review mode or as a submitted read-only detail. */
 export default function MerchantChangeReasonCard({
+  disabled = false,
   value,
   onChangeText,
   placeholder,
@@ -29,6 +31,8 @@ export default function MerchantChangeReasonCard({
         icon="text-box-edit-outline"
       >
         <FormTextArea
+          editable={!disabled}
+          accessibilityState={{ disabled }}
           label="Briefly explain why you're requesting this update."
           required
           value={value}

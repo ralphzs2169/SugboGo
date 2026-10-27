@@ -1,17 +1,24 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, View } from "react-native";
-import Toast from "react-native-toast-message";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  View,
+} from "react-native";
 
 import { theme } from "@/constants/theme";
 import Avatar from "@/shared/components/Avatar";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
-import { handleSystemError } from "@/shared/utils/apiErrors";
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import isTerminalResourceError from "@/shared/utils/isTerminalResourceError";
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
+
 import { formatDate } from "@/shared/utils/date.utils";
 
 import ReviewDisputeScreenSkeleton from "../../components/review-disputes/ReviewDisputeScreenSkeleton";
@@ -58,38 +65,25 @@ export default function ReviewDisputesScreen() {
 
   const tabBarSpacing = useTabBarSpacing(0);
 
-  const { disputes, isLoading, isRefetching, error, refetch } =
-    useReviewDisputes();
+  const {
+    disputes,
+    hasData,
+    isLoading,
+    isRefetching,
+    error,
+    refetch,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useReviewDisputes(filter);
 
-  const filteredDisputes = useMemo(() => {
-    if (filter === "pending") {
-      return disputes.filter((dispute) => dispute.status === "pending");
-    }
-
-    if (filter === "resolved") {
-      return disputes.filter((dispute) =>
-        ["upheld", "dismissed", "withdrawn"].includes(dispute.status),
-      );
-    }
-
-    return disputes;
-  }, [disputes, filter]);
-
-  useEffect(() => {
-    if (!error) {
-      return;
-    }
-
-    const response = error as unknown as ApiResponse<unknown>;
-
-    if (!response.success && !handleSystemError(response)) {
-      Toast.show({
-        type: "error",
-        text1: "Unable to load disputes",
-        text2: response.message || "Please try again.",
-      });
-    }
-  }, [error]);
+  useApiErrorNotification({
+    error,
+    toastId: "merchant-dispute-list-error",
+    title: "Unable to load disputes",
+    fallbackMessage: "Please retry this section.",
+  });
 
   const openDispute = (dispute: ReviewDispute) => {
     router.push({
@@ -100,11 +94,11 @@ export default function ReviewDisputesScreen() {
     });
   };
 
-  if (isLoading) {
+  if (isLoading && !hasData) {
     return <ReviewDisputeScreenSkeleton />;
   }
 
-  if (error && disputes.length === 0) {
+  if (error && (!hasData || isTerminalResourceError(error))) {
     return (
       <View className="flex-1 bg-background">
         {/* Dispute load error */}
@@ -126,7 +120,33 @@ export default function ReviewDisputesScreen() {
     <View className="flex-1 bg-surface">
       {/* Dispute collection */}
       <FlatList
-        data={filteredDisputes}
+        testID="merchant-disputes-list"
+        data={disputes}
+        onEndReached={() => {
+          if (
+            hasNextPage &&
+            !isRefetching &&
+            !isFetchingNextPage &&
+            !isFetchNextPageError
+          )
+            void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <ActivityIndicator
+              accessibilityLabel="Loading more disputes"
+              className="py-5"
+              color={theme.extends.colors.brand}
+            />
+          ) : isFetchNextPageError ? (
+            <MerchantRefreshRecovery
+              error={error}
+              title="Unable to load more disputes"
+              refetch={() => fetchNextPage()}
+            />
+          ) : null
+        }
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         contentContainerClassName="px-4 pt-4"
@@ -135,16 +155,21 @@ export default function ReviewDisputesScreen() {
         }}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
+            refreshing={isRefetching && !isFetchingNextPage}
             onRefresh={() => void refetch()}
             tintColor={theme.extends.colors.brand}
           />
         }
         ListHeaderComponent={
           <View className="mb-4">
+            <MerchantRefreshRecovery
+              error={isFetchNextPageError ? null : error}
+              title="Unable to refresh disputes"
+              refetch={refetch}
+            />
             {/* Screen guidance */}
             <AppText className="text-sm leading-5 text-text-secondary">
-              Track disputes you've submitted for administrator review.
+              Track disputes you&apos;ve submitted for administrator review.
             </AppText>
 
             {/* Status filters */}
@@ -181,92 +206,103 @@ export default function ReviewDisputesScreen() {
           </View>
         }
         ItemSeparatorComponent={() => <View className="h-3" />}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => openDispute(item)}
-            accessibilityRole="button"
-            accessibilityLabel={`Open dispute attempt ${item.attempt_number} for ${item.review.author.first_name} ${item.review.author.last_name}'s review`}
-            className="cursor-pointer rounded-card border border-border-primary bg-surface p-4 active:opacity-75"
-          >
-            {/* Dispute identity */}
-            <View className="flex-row items-start gap-3">
-              <Avatar
-                imageUrl={item.review.author.avatar_url}
-                avatarKey={item.review.author.avatar_key}
-                size={34}
-              />
+        renderItem={({ item }) => {
+          const author = item.review?.author;
+          const authorName = [author?.first_name, author?.last_name]
+            .filter(Boolean)
+            .join(" ");
+          const reviewIdentity = item.review_id
+            ? `Review #${item.review_id}`
+            : "Review no longer available";
 
-              <View className="min-w-0 flex-1">
-                <View className="flex-row items-start justify-between gap-3">
-                  <View className="min-w-0 flex-1">
-                    <AppText
-                      weight="bold"
-                      className="text-base text-text-primary"
-                      numberOfLines={1}
-                    >
-                      Dispute attempt {item.attempt_number}
-                    </AppText>
+          return (
+            <Pressable
+              onPress={() => openDispute(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open dispute attempt ${item.attempt_number} for ${authorName ? `${authorName}'s review` : reviewIdentity}`}
+              className="cursor-pointer rounded-card border border-border-primary bg-surface p-4 active:opacity-75"
+            >
+              {/* Dispute identity */}
+              <View className="flex-row items-start gap-3">
+                <Avatar
+                  imageUrl={author?.avatar_url}
+                  avatarKey={author?.avatar_key}
+                  size={34}
+                />
 
-                    <AppText
-                      weight="medium"
-                      className="mt-1 text-sm text-text-primary"
-                      numberOfLines={2}
-                    >
-                      {REVIEW_DISPUTE_REASON_LABELS[item.reason]}
-                    </AppText>
+                <View className="min-w-0 flex-1">
+                  <View className="flex-row items-start justify-between gap-3">
+                    <View className="min-w-0 flex-1">
+                      <AppText
+                        weight="bold"
+                        className="text-base text-text-primary"
+                        numberOfLines={1}
+                      >
+                        Dispute attempt {item.attempt_number}
+                      </AppText>
 
-                    <AppText
-                      className="mt-1 text-xs text-text-secondary"
-                      numberOfLines={1}
-                    >
-                      {item.review.author.first_name}{" "}
-                      {item.review.author.last_name}
-                    </AppText>
+                      <AppText
+                        weight="medium"
+                        className="mt-1 text-sm text-text-primary"
+                        numberOfLines={2}
+                      >
+                        {REVIEW_DISPUTE_REASON_LABELS[item.reason]}
+                      </AppText>
+
+                      <AppText
+                        className="mt-1 text-xs text-text-secondary"
+                        numberOfLines={1}
+                      >
+                        {authorName || reviewIdentity}
+                      </AppText>
+                    </View>
+
+                    <ReviewDisputeStatusBadge status={item.status} />
                   </View>
-
-                  <ReviewDisputeStatusBadge status={item.status} />
                 </View>
               </View>
-            </View>
 
-            {/* Review preview */}
-            <View className="mt-4 rounded-xl bg-background px-3.5 py-3">
-              <MaterialCommunityIcons
-                name="format-quote-open"
-                size={17}
-                color={theme.extends.colors.text.tertiary}
-              />
-
-              <AppText
-                className="mt-1 text-sm leading-5 text-text-secondary"
-                numberOfLines={2}
-              >
-                {item.review.text}
-              </AppText>
-            </View>
-
-            {/* Dispute metadata */}
-            <View className="mt-4 flex-row items-center justify-between border-t border-border-primary pt-3">
-              <View className="min-w-0 flex-1 flex-row items-center">
+              {/* Review preview */}
+              <View className="mt-4 rounded-xl bg-background px-3.5 py-3">
                 <MaterialCommunityIcons
-                  name="calendar-blank-outline"
-                  size={14}
+                  name="format-quote-open"
+                  size={17}
                   color={theme.extends.colors.text.tertiary}
                 />
 
-                <AppText className="ml-1.5 text-xs text-text-secondary">
-                  Submitted {formatDate(item.created_at)}
+                <AppText
+                  className="mt-1 text-sm leading-5 text-text-secondary"
+                  numberOfLines={2}
+                >
+                  {item.review
+                    ? item.review.text
+                    : "The original review is no longer available. Your dispute history is preserved."}
                 </AppText>
               </View>
 
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={22}
-                color={theme.extends.colors.text.tertiary}
-              />
-            </View>
-          </Pressable>
-        )}
+              {/* Dispute metadata */}
+              <View className="mt-4 flex-row items-center justify-between border-t border-border-primary pt-3">
+                <View className="min-w-0 flex-1 flex-row items-center">
+                  <MaterialCommunityIcons
+                    name="calendar-blank-outline"
+                    size={14}
+                    color={theme.extends.colors.text.tertiary}
+                  />
+
+                  <AppText className="ml-1.5 text-xs text-text-secondary">
+                    Submitted {formatDate(item.created_at)}
+                  </AppText>
+                </View>
+
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={22}
+                  color={theme.extends.colors.text.tertiary}
+                />
+              </View>
+            </Pressable>
+          );
+        }}
         ListEmptyComponent={
           <>
             {/* Empty dispute collection */}
@@ -308,7 +344,7 @@ export default function ReviewDisputesScreen() {
                 </AppText>
 
                 <AppText className="mt-1 max-w-72 text-center text-sm leading-5 text-text-secondary">
-                  You don't have any disputes waiting for review.
+                  You don&apos;t have any disputes waiting for review.
                 </AppText>
               </View>
             )}

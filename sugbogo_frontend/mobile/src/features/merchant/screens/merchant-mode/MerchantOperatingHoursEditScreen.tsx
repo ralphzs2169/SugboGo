@@ -1,8 +1,10 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { FormProvider, useForm } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -12,6 +14,8 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
+import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
 import MerchantBusinessEditSkeleton from "../../components/business-profile/MerchantBusinessEditSkeleton";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
@@ -22,7 +26,14 @@ import useUpdateMerchantOperatingHours from "../../hooks/business-profile/useUpd
 import { buildHoursPayload } from "../../utils/operatingHours.utils";
 import { mapBusinessHoursToForm } from "../../utils/mapBusinessHoursToForm.utils";
 import {
+  editedOperatingDays,
+  operatingHoursSnapshotKey,
+} from "../../utils/operatingHoursEdit.utils";
+import OperatingHoursSummary from "../../components/operating-hours/OperatingHoursSummary";
+import type { MerchantBusinessOperatingHours } from "../../types/merchantBusinessProfile.types";
+import {
   operatingHoursSchema,
+  type OperatingHours,
   type OperatingHoursForm,
 } from "../../validation/operatingHours.schema";
 
@@ -33,51 +44,149 @@ const editSchema = z.object({
 /**
  * Allows merchants to edit their business's weekly operating hours.
  *
- * Displays full-width update guidance, initializes the existing schedule,
- * validates changes, and saves updates without administrator approval.
+ * Refreshes pristine values, preserves dirty drafts, and reconciles concurrent
+ * schedule changes explicitly before saving without administrator approval.
  * Suspended businesses cannot edit their operating hours.
  */
 export default function MerchantOperatingHoursEditScreen() {
   const insets = useSafeAreaInsets();
   const savingRef = useRef(false);
+  const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false);
+  const reconcilingRef = useRef(false);
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+  const [isReconciling, setIsReconciling] = useState(false);
+  const [reconciliation, setReconciliation] = useState<{
+    businessId: number;
+    hours: MerchantBusinessOperatingHours[];
+    values: OperatingHours;
+    draft: OperatingHours;
+    editedDays: ReturnType<typeof editedOperatingDays>;
+  } | null>(null);
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
-  const initializedBusinessId = useRef<number | null>(business?.id ?? null);
-  const [readyBusinessId, setReadyBusinessId] = useState<number | null>(
-    business?.id ?? null,
-  );
+  useApiErrorNotification({
+    error,
+    toastId: "merchant-operating-hours-profile-error",
+    title: "Unable to load business",
+    fallbackMessage: "Please try again.",
+  });
+  const [baseline, setBaseline] = useState(() => ({
+    businessId: business?.id ?? null,
+    hours: business?.operating_hours ?? [],
+    values: mapBusinessHoursToForm(business?.operating_hours ?? []),
+  }));
 
-  const { updateOperatingHours, isSaving } = useUpdateMerchantOperatingHours(
-    business?.id,
-  );
+  const { updateOperatingHours, isSaving: isMutationPending } =
+    useUpdateMerchantOperatingHours(business?.id);
+  const isSaving = isMutationPending || isSubmittingSchedule;
 
   const form = useForm<OperatingHoursForm>({
     resolver: zodResolver(editSchema),
     defaultValues: {
-      operatingHours: mapBusinessHoursToForm(business?.operating_hours ?? []),
+      operatingHours: baseline.values,
     },
+    disabled: isSaving || isReconciling || reconciliation !== null,
   });
 
   const { reset } = form;
-  const hasChanges = form.formState.isDirty;
+  const draft = useWatch({ control: form.control, name: "operatingHours" });
+  const hasChanges = editedOperatingDays(baseline.values, draft).length > 0;
+  const serverChanged = Boolean(
+    business &&
+    business.id === baseline.businessId &&
+    operatingHoursSnapshotKey(business.operating_hours) !==
+      operatingHoursSnapshotKey(baseline.hours),
+  );
+  const hasConflict = Boolean(conflictMessage || (hasChanges && serverChanged));
+  const exit = useMerchantEditorExit(
+    hasChanges,
+    isSaving || form.formState.isSubmitting || isReconciling,
+    () => savingRef.current || reconcilingRef.current,
+  );
 
   useEffect(() => {
-    if (!business || initializedBusinessId.current === business.id) {
+    if (
+      !business ||
+      (baseline.businessId === business.id &&
+        (hasChanges ||
+          !serverChanged ||
+          savingRef.current ||
+          reconcilingRef.current))
+    ) {
       return;
     }
 
-    initializedBusinessId.current = business.id;
-
-    reset({
-      operatingHours: mapBusinessHoursToForm(business.operating_hours),
+    const values = mapBusinessHoursToForm(business.operating_hours);
+    setBaseline({
+      businessId: business.id,
+      hours: business.operating_hours,
+      values,
     });
-    setReadyBusinessId(business.id);
-  }, [business, reset]);
+    reset({ operatingHours: values });
+    setConflictMessage(null);
+    setReconciliation(null);
+  }, [baseline.businessId, business, hasChanges, reset, serverChanged]);
+
+  async function reviewLatestHours() {
+    if (!business || savingRef.current || reconcilingRef.current) {
+      return;
+    }
+    reconcilingRef.current = true;
+    setIsReconciling(true);
+    try {
+      const result = await refetch();
+      if (
+        result.error ||
+        !result.data ||
+        result.data.id !== baseline.businessId
+      ) {
+        setConflictMessage(
+          "Unable to refresh operating hours. Your draft is kept. Try again when connected.",
+        );
+        return;
+      }
+      const currentDraft = form.getValues("operatingHours");
+      setReconciliation({
+        businessId: result.data.id,
+        hours: result.data.operating_hours,
+        values: mapBusinessHoursToForm(result.data.operating_hours),
+        draft: currentDraft,
+        editedDays: editedOperatingDays(baseline.values, currentDraft),
+      });
+    } finally {
+      reconcilingRef.current = false;
+      setIsReconciling(false);
+    }
+  }
+
+  function reconcileHours() {
+    if (!reconciliation || reconciliation.businessId !== business?.id) {
+      return;
+    }
+    // Untouched days use the latest server values; edited days require this explicit choice.
+    setBaseline({
+      businessId: reconciliation.businessId,
+      hours: reconciliation.hours,
+      values: reconciliation.values,
+    });
+    reset({ operatingHours: reconciliation.values });
+    for (const day of reconciliation.editedDays) {
+      form.setValue(`operatingHours.${day}`, reconciliation.draft[day], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+    setReconciliation(null);
+    setConflictMessage(null);
+  }
 
   async function submitValues(values: OperatingHoursForm) {
     if (
       savingRef.current ||
-      !form.formState.isDirty ||
+      !hasChanges ||
+      hasConflict ||
+      isReconciling ||
+      reconciliation ||
       !business ||
       business.status !== "active"
     ) {
@@ -85,18 +194,39 @@ export default function MerchantOperatingHoursEditScreen() {
     }
 
     savingRef.current = true;
+    setIsSubmittingSchedule(true);
 
+    let finishing = false;
     try {
-      await updateOperatingHours(buildHoursPayload(values.operatingHours));
+      const proposed = buildHoursPayload(values.operatingHours);
+      const editedDays = editedOperatingDays(
+        baseline.values,
+        values.operatingHours,
+      );
+      await updateOperatingHours({
+        // Preserve exact server values for untouched days, including time precision.
+        hours: proposed.hours.map((schedule) =>
+          !editedDays.includes(schedule.day)
+            ? (baseline.hours.find((item) => item.day === schedule.day) ??
+              schedule)
+            : schedule,
+        ),
+        expected_hours: baseline.hours,
+      });
 
       Toast.show({
         type: "success",
         text1: "Operating hours updated",
       });
 
-      router.back();
+      finishing = exit.finish();
     } catch (caught) {
       const response = caught as ApiError;
+
+      if (response.code === "BUSINESS_OPERATING_HOURS_EDIT_CONFLICT") {
+        setConflictMessage(response.message);
+        return;
+      }
 
       if (response.code === "VALIDATION_ERROR") {
         form.setError("operatingHours", {
@@ -114,15 +244,36 @@ export default function MerchantOperatingHoursEditScreen() {
         });
       }
     } finally {
-      savingRef.current = false;
+      if (!finishing) {
+        savingRef.current = false;
+        setIsSubmittingSchedule(false);
+      }
     }
   }
 
+  const discardDialog = (
+    <ConfirmModal
+      visible={exit.showDiscard}
+      title="Discard operating hours changes?"
+      message="Your unsaved schedule will be lost."
+      confirmText="Discard"
+      cancelText="Keep Editing"
+      destructive
+      onCancel={exit.keepEditing}
+      onConfirm={exit.discard}
+    />
+  );
+
   if (
     (isLoading && !business) ||
-    (business && readyBusinessId !== business.id)
+    (business && baseline.businessId !== business.id)
   ) {
-    return <MerchantBusinessEditSkeleton variant="hours" />;
+    return (
+      <>
+        <MerchantBusinessEditSkeleton variant="hours" />
+        {discardDialog}
+      </>
+    );
   }
 
   if (!business) {
@@ -138,6 +289,7 @@ export default function MerchantOperatingHoursEditScreen() {
           secondaryActionTitle="Go Back"
           onSecondaryAction={() => router.back()}
         />
+        {discardDialog}
       </View>
     );
   }
@@ -151,6 +303,7 @@ export default function MerchantOperatingHoursEditScreen() {
           primaryActionTitle="Go Back"
           onPrimaryAction={() => router.back()}
         />
+        {discardDialog}
       </View>
     );
   }
@@ -163,6 +316,7 @@ export default function MerchantOperatingHoursEditScreen() {
           contentContainerStyle={{ paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
         >
+          <MerchantRefreshRecovery error={error} refetch={refetch} />
           {/* Full-width operating hours information banner */}
           <View className="bg-info px-4 py-4">
             <View className="flex-row items-start">
@@ -191,6 +345,77 @@ export default function MerchantOperatingHoursEditScreen() {
             </View>
           </View>
 
+          {/* Conflict recovery preserves the draft until the merchant reviews a merge. */}
+          {hasConflict && !reconciliation ? (
+            <View className="mt-5">
+              <ErrorState
+                size="section"
+                title="Operating hours changed"
+                description={
+                  conflictMessage ??
+                  "Newer hours are available. Your draft is kept. Review the latest schedule before saving."
+                }
+                primaryActionTitle={
+                  isReconciling ? undefined : "Review latest hours"
+                }
+                onPrimaryAction={
+                  isReconciling ? undefined : () => void reviewLatestHours()
+                }
+              />
+            </View>
+          ) : null}
+          {reconciliation ? (
+            <View className="mx-5 mt-5 gap-4 rounded-xl border border-border-primary p-4">
+              <AppText weight="bold" className="text-base text-text-primary">
+                Review your edited days
+              </AppText>
+              <AppText className="text-sm leading-5 text-text-secondary">
+                Untouched days will use the latest hours. Compare your edits
+                below before keeping them. Nothing is saved yet.
+              </AppText>
+              {reconciliation.editedDays.map((day) => (
+                <View
+                  key={day}
+                  className="gap-2 border-t border-border-primary pt-3"
+                >
+                  <AppText
+                    weight="semibold"
+                    className="capitalize text-text-primary"
+                  >
+                    {day}
+                  </AppText>
+                  <View>
+                    <AppText className="text-xs text-text-secondary">
+                      Latest saved hours
+                    </AppText>
+                    <OperatingHoursSummary
+                      schedule={reconciliation.values[day]}
+                    />
+                  </View>
+                  <View>
+                    <AppText className="text-xs text-text-secondary">
+                      Your draft
+                    </AppText>
+                    <OperatingHoursSummary
+                      schedule={reconciliation.draft[day]}
+                    />
+                  </View>
+                </View>
+              ))}
+              <Button
+                title="Keep my edited days"
+                onPress={reconcileHours}
+                rounded="full"
+              />
+              <Button
+                title="Keep draft without merging"
+                variant="outline"
+                onPress={() => setReconciliation(null)}
+                rounded="full"
+              />
+            </View>
+          ) : null}
+
           {/* Weekly operating hours editor */}
           <View className="px-5 pt-5">
             <OperatingHoursWeek showScheduleError />
@@ -206,7 +431,7 @@ export default function MerchantOperatingHoursEditScreen() {
             title="Cancel"
             variant="outline"
             className="flex-1"
-            onPress={() => router.back()}
+            onPress={exit.requestExit}
             disabled={isSaving || form.formState.isSubmitting}
             rounded="full"
           />
@@ -216,10 +441,16 @@ export default function MerchantOperatingHoursEditScreen() {
             className="flex-1"
             onPress={() => void form.handleSubmit(submitValues)()}
             loading={isSaving || form.formState.isSubmitting}
-            disabled={!hasChanges}
+            disabled={
+              !hasChanges ||
+              hasConflict ||
+              isReconciling ||
+              reconciliation !== null
+            }
             rounded="full"
           />
         </View>
+        {discardDialog}
       </View>
     </FormProvider>
   );

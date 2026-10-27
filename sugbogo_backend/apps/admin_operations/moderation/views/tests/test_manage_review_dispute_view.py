@@ -16,12 +16,15 @@ from apps.review_disputes.models import (
     MerchantReviewDispute,
     MerchantReviewDisputeEvidence,
 )
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from apps.reviews.models import Review, ReviewPhoto
 from apps.users.models import User
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 
 
 class ManageReviewDisputeViewTestBase(TestCase):
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         self.client = APIClient()
 
         self.admin = User.objects.create_user(
@@ -792,6 +795,9 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
         response = self.client.post(
             self.uphold_url(dispute.MRDSP_ID),
             {
+                "expected_fingerprint": ReviewSnapshotService.current_fingerprint(self.review),
+                "acknowledge_review_changes": True,
+
                 "admin_notes": "Review violates the platform policy.",
             },
         )
@@ -868,7 +874,10 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
 
         response = self.client.post(
             self.uphold_url(dispute.MRDSP_ID),
-            {"admin_notes": "Evidence inspected and decision recorded."},
+            {
+                "expected_fingerprint": ReviewSnapshotService.current_fingerprint(self.review),
+                "acknowledge_review_changes": True,
+                "admin_notes": "Evidence inspected and decision recorded."},
         )
 
         self.assertEqual(
@@ -880,7 +889,10 @@ class AdminReviewDisputeUpholdViewTests(ManageReviewDisputeViewTestBase):
     def test_uphold_rejects_nonexistent_dispute(self):
         response = self.client.post(
             self.uphold_url(999999),
-            {"admin_notes": "Evidence inspected and decision recorded."},
+            {
+                "expected_fingerprint": ReviewSnapshotService.current_fingerprint(self.review),
+                "acknowledge_review_changes": True,
+                "admin_notes": "Evidence inspected and decision recorded."},
         )
 
         self.assertEqual(
@@ -935,6 +947,9 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
         response = self.client.post(
             self.dismiss_url(dispute.MRDSP_ID),
             {
+                "expected_fingerprint": ReviewSnapshotService.current_fingerprint(self.review),
+                "acknowledge_review_changes": True,
+
                 "admin_notes": "The dispute does not provide sufficient evidence.",
             },
         )
@@ -1011,7 +1026,10 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
 
         response = self.client.post(
             self.dismiss_url(dispute.MRDSP_ID),
-            {"admin_notes": "Evidence inspected and decision recorded."},
+            {
+                "expected_fingerprint": ReviewSnapshotService.current_fingerprint(self.review),
+                "acknowledge_review_changes": True,
+                "admin_notes": "Evidence inspected and decision recorded."},
         )
 
         self.assertEqual(
@@ -1023,7 +1041,10 @@ class AdminReviewDisputeDismissViewTests(ManageReviewDisputeViewTestBase):
     def test_dismiss_rejects_nonexistent_dispute(self):
         response = self.client.post(
             self.dismiss_url(999999),
-            {"admin_notes": "Evidence inspected and decision recorded."},
+            {
+                "expected_fingerprint": ReviewSnapshotService.current_fingerprint(self.review),
+                "acknowledge_review_changes": True,
+                "admin_notes": "Evidence inspected and decision recorded."},
         )
 
         self.assertEqual(

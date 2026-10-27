@@ -13,6 +13,7 @@ import Button from "@/shared/components/Button";
 import ApplyDayOption from "./ApplyDayOption";
 
 type ApplyToOtherDaysProps = {
+  disabled?: boolean;
   currentDay: Day;
   onApply: (days: Day[]) => void;
 };
@@ -24,6 +25,7 @@ type ApplyToOtherDaysProps = {
  * then passes those days back to the parent schedule editor.
  */
 export default function ApplyToOtherDays({
+  disabled = false,
   currentDay,
   onApply,
 }: ApplyToOtherDaysProps) {
@@ -44,9 +46,10 @@ export default function ApplyToOtherDays({
     <View>
       {/* Schedule-copy trigger */}
       <Pressable
+        disabled={disabled}
         onPress={() => setIsExpanded((current) => !current)}
         accessibilityRole="button"
-        accessibilityState={{ expanded: isExpanded }}
+        accessibilityState={{ expanded: isExpanded, disabled }}
         className="cursor-pointer flex-row items-center justify-between rounded-md border border-border-primary bg-surface px-4 py-3.5 active:bg-surface-secondary"
       >
         <View className="min-w-0 flex-1 flex-row items-center">
@@ -94,6 +97,7 @@ export default function ApplyToOtherDays({
           <View className="gap-1">
             {otherDays.map((day) => (
               <ApplyDayOption
+                disabled={disabled}
                 key={day}
                 day={day}
                 isSelected={selectedDays.includes(day)}
@@ -112,7 +116,7 @@ export default function ApplyToOtherDays({
                 : "Select days to continue"
             }
             onPress={() => onApply(selectedDays)}
-            disabled={selectedDays.length === 0}
+            disabled={disabled || selectedDays.length === 0}
             variant="soft"
             className="mt-4"
             fontClassName="text-sm font-semibold"

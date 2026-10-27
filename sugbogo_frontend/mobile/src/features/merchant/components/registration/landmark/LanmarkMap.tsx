@@ -2,6 +2,7 @@ import type { ReactNode, RefObject } from "react";
 import { Platform, View } from "react-native";
 import MapView, {
   type MapPressEvent,
+  type Region,
   Marker,
   PROVIDER_GOOGLE,
 } from "react-native-maps";
@@ -25,6 +26,7 @@ type LandmarkMapProps = {
   initialLongitudeDelta?: number;
   mapRef?: RefObject<MapView | null>;
   onMapReady?: () => void;
+  onRegionChangeComplete?: (region: Region) => void;
 };
 
 const DEFAULT_MAP_DELTA = 0.014;
@@ -44,12 +46,14 @@ export default function LandmarkMap({
   initialLongitudeDelta = DEFAULT_MAP_DELTA,
   mapRef,
   onMapReady,
+  onRegionChangeComplete,
   children,
 }: LandmarkMapProps) {
   return (
     <MapView
       ref={mapRef}
       onMapReady={onMapReady}
+      onRegionChangeComplete={onRegionChangeComplete}
       provider={PROVIDER_GOOGLE}
       style={{ flex: 1 }}
       customMapStyle={Platform.OS === "ios" ? MAP_STYLE : undefined}

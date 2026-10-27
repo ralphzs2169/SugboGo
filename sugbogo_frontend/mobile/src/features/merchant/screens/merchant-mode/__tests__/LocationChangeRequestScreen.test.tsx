@@ -1,5 +1,11 @@
 import React from "react";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react-native";
 import { router } from "expo-router";
 import { BackHandler } from "react-native";
 
@@ -13,7 +19,11 @@ const mockSubmit = jest.fn();
 const mockSubmitState = { isPending: false };
 const mockFocusEffect = jest.fn();
 const mockSetOptions = jest.fn();
-const mockNavigation = { setOptions: mockSetOptions };
+const mockNavigation = {
+  setOptions: mockSetOptions,
+  isFocused: () => true,
+  dispatch: jest.fn(),
+};
 const mockConfirmModal = jest.fn((_props: unknown) => null);
 
 jest.mock("expo-router", () => ({
@@ -109,6 +119,10 @@ const eligible = {
 };
 
 describe("Location change request form", () => {
+  afterEach(async () => {
+    await cleanup();
+    jest.restoreAllMocks();
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     mockProfile.mockReset();
@@ -229,73 +243,82 @@ describe("Location change request form", () => {
   });
 
   it("navigates once when the request list observes the new pending request", async () => {
-    let resolveSubmit: (result: { id: number }) => void = () => undefined;
-    mockSubmit.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveSubmit = resolve;
-        }),
+    let resolveSubmit!: (value: { id: number; status?: string }) => void;
+    const submission = new Promise<{ id: number; status?: string }>(
+      (resolve) => {
+        resolveSubmit = resolve;
+      },
     );
-
-    const screen = await render(<LocationChangeRequestScreen />);
-    await waitFor(() =>
-      expect(screen.getByDisplayValue("Current flat address")).toBeTruthy(),
-    );
-    await act(async () => {
-      fireEvent.changeText(
-        screen.getByDisplayValue("Current flat address"),
-        "New flat address",
+    mockSubmit.mockReturnValueOnce(submission);
+    try {
+      const screen = await render(<LocationChangeRequestScreen />);
+      await waitFor(() =>
+        expect(screen.getByDisplayValue("Current flat address")).toBeTruthy(),
       );
-    });
-    await act(async () => {
-      fireEvent.press(screen.getByLabelText("Review Changes"));
-    });
-    const headerConfigurationCount = mockSetOptions.mock.calls.length;
-    await act(async () => {
-      fireEvent.changeText(
-        screen.getByLabelText("Reason for change"),
-        "We have relocated our business.",
+      await act(async () => {
+        fireEvent.changeText(
+          screen.getByDisplayValue("Current flat address"),
+          "New flat address",
+        );
+      });
+      await act(async () => {
+        fireEvent.press(screen.getByLabelText("Review Changes"));
+      });
+      const headerConfigurationCount = mockSetOptions.mock.calls.length;
+      await act(async () => {
+        fireEvent.changeText(
+          screen.getByLabelText("Reason for change"),
+          "We have relocated our business.",
+        );
+      });
+      await act(async () => {
+        fireEvent.press(screen.getByLabelText("Submit Request"));
+      });
+
+      mockRequests.mockReturnValue({
+        pendingRequest: { id: 22 },
+        hasData: true,
+        isLoading: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+      mockSubmitState.isPending = true;
+      await screen.rerender(<LocationChangeRequestScreen />);
+      expect(router.replace).not.toHaveBeenCalled();
+      expect(screen.queryByText("Pending Admin review")).toBeNull();
+      expect(
+        screen.getByLabelText("Submit Request").props.accessibilityState.busy,
+      ).toBe(true);
+
+      await act(async () => {
+        mockSubmitState.isPending = false;
+        resolveSubmit({ id: 22 });
+        await submission;
+      });
+      await waitFor(() =>
+        expect(router.replace).toHaveBeenCalledWith(
+          "/(merchant)/business-update-requests/location/22",
+        ),
       );
-    });
-    await act(async () => {
-      fireEvent.press(screen.getByLabelText("Submit Request"));
-    });
-
-    mockRequests.mockReturnValue({
-      pendingRequest: { id: 22 },
-      hasData: true,
-      isLoading: false,
-      error: null,
-      refetch: jest.fn(),
-    });
-    mockSubmitState.isPending = true;
-    await screen.rerender(<LocationChangeRequestScreen />);
-    expect(router.replace).not.toHaveBeenCalled();
-    expect(screen.queryByText("Pending Admin review")).toBeNull();
-    expect(
-      screen.getByLabelText("Submit Request").props.accessibilityState.busy,
-    ).toBe(true);
-
-    await act(async () => {
-      mockSubmitState.isPending = false;
-      resolveSubmit({ id: 22 });
-    });
-    await waitFor(() =>
-      expect(router.replace).toHaveBeenCalledWith(
-        "/(merchant)/business-update-requests/location/22",
-      ),
-    );
-    expect(router.replace).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Address changes")).toBeTruthy();
-    expect(
-      screen.getByLabelText("Submit Request").props.accessibilityState.busy,
-    ).toBe(true);
-    await screen.rerender(<LocationChangeRequestScreen />);
-    expect(router.replace).toHaveBeenCalledTimes(1);
-    expect(router.back).not.toHaveBeenCalled();
-    expect(mockSetOptions).toHaveBeenCalledTimes(headerConfigurationCount);
-    await screen.unmount();
-    expect(useLocationChangeDraftStore.getState().location).toBeNull();
+      expect(router.replace).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Address changes")).toBeTruthy();
+      expect(
+        screen.getByLabelText("Submit Request").props.accessibilityState.busy,
+      ).toBe(true);
+      await screen.rerender(<LocationChangeRequestScreen />);
+      expect(router.replace).toHaveBeenCalledTimes(1);
+      expect(router.back).not.toHaveBeenCalled();
+      expect(mockSetOptions).toHaveBeenCalledTimes(headerConfigurationCount);
+      await screen.unmount();
+      expect(useLocationChangeDraftStore.getState().location).toBeNull();
+    } finally {
+      // An assertion failure must not leave the mocked mutation pending.
+      await act(async () => {
+        mockSubmitState.isPending = false;
+        resolveSubmit({ id: 22 });
+        await submission;
+      });
+    }
   });
 
   it("keeps the review and draft available after a failed submission", async () => {
@@ -552,3 +575,7 @@ describe("Location change request form", () => {
     await screen.unmount();
   });
 });
+
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: jest.fn(),
+}));

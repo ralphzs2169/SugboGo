@@ -92,7 +92,10 @@ class BusinessOperatingHoursView(APIView):
         HasRole(User.UserRole.MERCHANT),
     )
 
-    def put(self, request):
+    def put(
+        self,
+        request,
+    ):
         """Validate and persist all seven days in one operation."""
 
         serializer = BusinessOperatingHoursUpdateSerializer(data=request.data)
@@ -101,6 +104,7 @@ class BusinessOperatingHoursView(APIView):
         hours = BusinessProfileService.update_operating_hours(
             user=request.user,
             hours=serializer.validated_data["hours"],
+            expected_hours=serializer.validated_data["expected_hours"],
         )
 
         return success_response(

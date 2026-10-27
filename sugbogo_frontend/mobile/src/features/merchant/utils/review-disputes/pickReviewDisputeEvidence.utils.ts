@@ -1,3 +1,4 @@
+import { ensureMerchantMediaAvailable } from "../merchantMedia.utils";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 
@@ -43,7 +44,7 @@ export async function pickReviewDisputeImages(
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
   if (!permission.granted) {
-    return [];
+    throw new Error("Photo access is required to attach evidence.");
   }
 
   const result = await ImagePicker.launchImageLibraryAsync({
@@ -57,7 +58,9 @@ export async function pickReviewDisputeImages(
     return [];
   }
 
-  return result.assets.map((asset, index) => ({
+  result.assets.forEach((asset) => ensureMerchantMediaAvailable(asset.uri));
+
+  return result.assets.slice(0, remainingSlots).map((asset, index) => ({
     uri: asset.uri,
     fileName: asset.fileName ?? `evidence-image-${index + 1}.jpg`,
     mimeType: asset.mimeType ?? "image/jpeg",
@@ -92,6 +95,8 @@ export async function pickReviewDisputeDocuments(
   if (result.canceled) {
     return [];
   }
+
+  result.assets.forEach((asset) => ensureMerchantMediaAvailable(asset.uri));
 
   return result.assets.slice(0, remainingSlots).map((asset) => ({
     uri: asset.uri,

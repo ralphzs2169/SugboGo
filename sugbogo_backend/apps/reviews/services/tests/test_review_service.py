@@ -22,6 +22,7 @@ from apps.business.models import (
     SpecialtyTag,
 )
 from apps.review_disputes.models import MerchantReviewDispute
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 from apps.reviews.models import (
     BusinessReviewSummary,
     Review,
@@ -40,6 +41,7 @@ from apps.reviews.services.review_service import (
     ReviewEditConflict,
     ReviewEditContentFlagged,
     ReviewEditModerationUnavailable,
+    ReviewEditUnavailable,
     ReviewService,
 )
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
@@ -219,6 +221,7 @@ class ReviewServiceTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         cls.user = User.objects.create_user(
             email="explorer@example.com",
             password="StrongPassword123!",
@@ -1427,7 +1430,7 @@ class ReviewServiceTests(TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_TEXT, "Newer accepted content.")
 
-    def test_editing_rejected_review_does_not_republish_it(self):
+    def test_editing_rejected_review_is_unavailable(self):
         review = Review.objects.create(
             USER_ID=self.user,
             BUSN_ID=self.business,
@@ -1435,15 +1438,39 @@ class ReviewServiceTests(TestCase):
             REVW_STATUS=Review.ReviewStatus.REJECTED,
         )
 
-        ReviewService.update_review(
-            user=self.user,
-            review_id=review.pk,
-            text="A safe edited rejected review.",
-        )
+        with self.assertRaises(ReviewEditUnavailable):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="A safe edited rejected review.",
+            )
 
         review.refresh_from_db()
-        self.assertEqual(review.REVW_TEXT, "A safe edited rejected review.")
+        self.assertEqual(review.REVW_TEXT, "Original rejected review.")
         self.assertEqual(review.REVW_STATUS, Review.ReviewStatus.REJECTED)
+        self.moderate_review.assert_not_called()
+
+    def test_rejection_during_edit_moderation_prevents_content_commit(self):
+        review = Review.objects.create(
+            USER_ID=self.user,
+            BUSN_ID=self.business,
+            REVW_TEXT="Original published review.",
+        )
+
+        def reject_during_check(**kwargs):
+            Review.objects.filter(pk=review.pk).update(REVW_STATUS="rejected")
+            return {"outcome": "safe", "findings": []}
+
+        self.moderate_review.side_effect = reject_during_check
+        with self.assertRaises(ReviewEditUnavailable):
+            ReviewService.update_review(
+                user=self.user,
+                review_id=review.pk,
+                text="The proposed replacement review.",
+            )
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Original published review.")
+        self.assertEqual(review.REVW_STATUS, "rejected")
 
     def test_update_review_rejects_non_owner(self):
         review = create_and_moderate_review(

@@ -1,3 +1,4 @@
+import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useRef } from "react";
@@ -134,6 +135,7 @@ export default function MerchantApprovedLocationMapScreen() {
         pointerEvents="box-none"
         className="absolute inset-x-0 bottom-0 px-5 pb-4"
       >
+        <MerchantRefreshRecovery error={error} refetch={refetch} />
         <View className="rounded-xl border border-border-primary bg-surface px-4 py-3">
           <AppText weight="semibold" className="text-sm text-text-primary">
             {business.business_name}

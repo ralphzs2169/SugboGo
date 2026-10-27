@@ -40,7 +40,11 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
-  useNavigation: () => ({ setOptions: mockSetOptions }),
+  useNavigation: () => ({
+    setOptions: mockSetOptions,
+    isFocused: () => true,
+    dispatch: jest.fn(),
+  }),
   useFocusEffect: (callback: () => void) =>
     jest.requireActual("react").useEffect(callback, [callback]),
 }));
@@ -435,10 +439,43 @@ describe("MerchantBusinessInformationEditScreen", () => {
     await waitFor(() => {
       expect(mockUpdateInformation).toHaveBeenCalledTimes(1);
     });
+    expect(
+      screen.getByDisplayValue("Updated business description").props.editable,
+    ).toBe(false);
+    await fireEvent.press(screen.getByText("Cancel"));
+    expect(router.back).not.toHaveBeenCalled();
 
     await act(async () => {
       resolveSave({});
     });
     await waitFor(() => expect(router.back).toHaveBeenCalledTimes(1));
   });
+  it("keeps cached content with targeted refresh recovery and clears it after retry", async () => {
+    const refetch = jest.fn();
+    mockProfile.mockReturnValue({
+      business,
+      isLoading: false,
+      error: { code: "NETWORK_ERROR", message: "Offline" },
+      refetch,
+    });
+    const screen = await render(<MerchantBusinessInformationEditScreen />);
+    expect(screen.getByDisplayValue(business.description)).toBeTruthy();
+    expect(screen.getByText("Unable to refresh business")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Tap to retry/i }),
+    );
+    expect(refetch).toHaveBeenCalledTimes(1);
+    mockProfile.mockReturnValue({
+      business,
+      isLoading: false,
+      error: null,
+      refetch,
+    });
+    await screen.rerender(<MerchantBusinessInformationEditScreen />);
+    expect(screen.queryByText("Unable to refresh business")).toBeNull();
+  });
 });
+
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: jest.fn(),
+}));

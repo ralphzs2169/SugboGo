@@ -5,6 +5,7 @@ import AppText from "@/shared/components/AppText";
 import type { Day } from "@/features/merchant/constants/operatingHours.constants";
 
 type ApplyDayOptionProps = {
+  disabled?: boolean;
   day: Day;
   isSelected: boolean;
   onPress: () => void;
@@ -17,16 +18,18 @@ type ApplyDayOptionProps = {
  * receive the current schedule.
  */
 export default function ApplyDayOption({
+  disabled = false,
   day,
   isSelected,
   onPress,
 }: ApplyDayOptionProps) {
   return (
     <Pressable
+      disabled={disabled}
       onPress={onPress}
       accessibilityRole="checkbox"
       accessibilityLabel={`Apply schedule to ${day}`}
-      accessibilityState={{ checked: isSelected }}
+      accessibilityState={{ checked: isSelected, disabled }}
       className={
         isSelected
           ? "cursor-pointer flex-row items-center justify-between rounded-lg bg-brand/10 px-3 py-3 active:opacity-70"

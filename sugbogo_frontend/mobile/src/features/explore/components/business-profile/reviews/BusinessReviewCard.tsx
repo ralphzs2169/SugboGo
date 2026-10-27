@@ -18,6 +18,7 @@ import { useReviewLike } from "../../../hooks/useReviewLike";
 import { useAuthorReviewSource } from "../../../hooks/useAuthorReviewSource";
 import { useReviewWorkflowStore } from "../../../stores/reviewWorkflow.store";
 import type { BusinessReview } from "../../../types/review.types";
+import { canEditReview } from "../../../utils/reviewModeration.utils";
 import MerchantReviewResponse from "./MerchantReviewResponse";
 import ReviewContent from "./ReviewContent";
 import AuthorReviewStatus from "./AuthorReviewStatus";
@@ -183,9 +184,9 @@ export default function BusinessReviewCard({
         options={
           review.is_own_review
             ? [
-                ...(review.status === "under_review"
-                  ? []
-                  : [{ label: "Edit my review", value: "edit" }]),
+                ...(canEditReview(review)
+                  ? [{ label: "Edit my review", value: "edit" }]
+                  : []),
                 {
                   label: "Delete my review",
                   value: "delete",
@@ -201,7 +202,7 @@ export default function BusinessReviewCard({
               ]
         }
         onSelect={(value) => {
-          if (value === "edit") {
+          if (value === "edit" && review.is_own_review && canEditReview(review)) {
             onEdit?.(review);
           }
 
@@ -239,7 +240,7 @@ export default function BusinessReviewCard({
       <ConfirmModal
         visible={isDeleteVisible}
         title="Delete review?"
-        message="This review and its uploaded photos will be permanently deleted."
+        message="Your review will be removed from SugboGo review surfaces. Moderation or dispute records may be retained for platform integrity."
         confirmText="Delete"
         destructive
         isLoading={isDeletePending}

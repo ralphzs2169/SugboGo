@@ -1,8 +1,9 @@
+import AppText from "@/shared/components/AppText";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
@@ -130,7 +131,7 @@ export default function MerchantReviewCard({
           }
           accessibilityRole="button"
           accessibilityLabel="View pending review dispute"
-          className="mt-4 cursor-pointer flex-row items-center rounded-xl border border-info bg-info-muted px-3 py-2.5 active:opacity-70"
+          className="mt-4 cursor-pointer flex-row items-center rounded-xl border border-border-primary bg-info px-3 py-2.5 active:opacity-70"
         >
           {/* Status icon */}
           <View className="h-8 w-8 items-center justify-center rounded-full bg-info">
@@ -143,13 +144,13 @@ export default function MerchantReviewCard({
 
           {/* Status details */}
           <View className="ml-2.5 min-w-0 flex-1">
-            <Text className="text-xs font-semibold text-info-text">
+            <AppText weight="semibold" className="text-xs text-text-info">
               Dispute pending
-            </Text>
+            </AppText>
 
-            <Text className="mt-0.5 text-[11px] text-text-secondary">
+            <AppText className="mt-0.5 text-[11px] text-text-secondary">
               Awaiting administrator review
-            </Text>
+            </AppText>
           </View>
 
           {/* Navigation */}

@@ -1,3 +1,4 @@
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from io import BytesIO
 from datetime import timedelta
 from unittest.mock import patch
@@ -21,6 +22,8 @@ from apps.review_disputes.services.review_dispute_service import (
 )
 from apps.reviews.models import Review
 from apps.users.models import User
+from apps.reviews.models import ReviewMediaCleanup
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 
 
 class ReviewDisputeServiceTests(TestCase):
@@ -229,6 +232,7 @@ class ReviewDisputeServiceTests(TestCase):
         )
 
     def test_create_dispute_rejects_review_after_upheld_dispute(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         previous_dispute = self.create_dispute()
         admin = User.objects.create_user(
             email="resolution-admin@example.com", password=None,
@@ -240,6 +244,10 @@ class ReviewDisputeServiceTests(TestCase):
             previous_dispute.MRDSP_ID,
             admin_notes="The review violates policy.",
             actor=admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(
+                self.review,
+            ),
+            acknowledge_review_changes=True,
         )
 
         with self.assertRaisesMessage(
@@ -803,9 +811,12 @@ class ReviewDisputeServiceTests(TestCase):
                 file=self.create_image(),
             )
 
-        mock_delete.assert_called_once_with(
-            "failed-evidence",
-        )
+        mock_delete.assert_not_called()
+        self.assertTrue(ReviewMediaCleanup.objects.filter(
+            RMCU_PUBLIC_ID="failed-evidence",
+            RMCU_RESOURCE_TYPE="image",
+            RMCU_STATUS="pending",
+        ).exists())
 
     # Delete Evidence
 
@@ -838,9 +849,11 @@ class ReviewDisputeServiceTests(TestCase):
             ).exists(),
         )
 
-        mock_delete.assert_called_once_with(
-            "evidence-1",
-        )
+        mock_delete.assert_not_called()
+        self.assertTrue(ReviewMediaCleanup.objects.filter(
+            RMCU_PUBLIC_ID="evidence-1",
+            RMCU_STATUS="pending",
+        ).exists())
 
     def test_delete_evidence_rejects_nonexistent_evidence(self):
         with self.assertRaises(NotFound):

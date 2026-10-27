@@ -11,10 +11,7 @@ import FormTextArea from "@/shared/components/form/FormTextArea";
 import EvidencePickerActions from "../EvidencePickerActions";
 import ReviewDisputeSection from "../ReviewDisputeSection";
 import SelectedEvidenceList from "../SelectedEvidenceList";
-import {
-  MAX_REVIEW_DISPUTE_EVIDENCE,
-  REVIEW_DISPUTE_REASON_LABELS,
-} from "../../../constants/reviewDispute.constants";
+import { REVIEW_DISPUTE_REASON_LABELS } from "../../../constants/reviewDispute.constants";
 import type {
   LocalReviewDisputeEvidence,
   ReviewDisputeReason,
@@ -130,6 +127,7 @@ export default function CreateReviewDisputeFormContent({
         <View className="gap-5">
           <FormSelect
             label="Reason"
+            disabled={isSubmitting}
             value={reason ? REVIEW_DISPUTE_REASON_LABELS[reason] : undefined}
             placeholder="Select a reason"
             required
@@ -139,6 +137,8 @@ export default function CreateReviewDisputeFormContent({
 
           <FormTextArea
             label="Details"
+            editable={!isSubmitting}
+            accessibilityState={{ disabled: isSubmitting }}
             value={description}
             onChangeText={onDescriptionChange}
             placeholder="Explain why this review should be investigated."

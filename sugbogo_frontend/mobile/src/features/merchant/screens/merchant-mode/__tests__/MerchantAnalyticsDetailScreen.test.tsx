@@ -103,6 +103,31 @@ describe("lazy Core Plus detail reports", () => {
       </QueryClientProvider>,
     );
 
+  it("loads core reports without checking entitlement and retries report failures directly", async () => {
+    jest
+      .mocked(service.getMerchantPlusStatus)
+      .mockResolvedValueOnce(plusSuccess(plusStatus(false)));
+    jest
+      .mocked(service.getMerchantPlusPocket)
+      .mockResolvedValueOnce({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    const screen = await renderDetail("pocket");
+    await screen.findByText("Unable to load this report");
+    expect(service.getMerchantPlusPocket).toHaveBeenCalledTimes(1);
+    expect(service.getMerchantPlusStatus).not.toHaveBeenCalled();
+    expect(screen.queryByText("Report access unavailable")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: /Unable to load this report.*retry/i,
+      }),
+    );
+    await screen.findByLabelText(/Saving accounts: 3/);
+    expect(service.getMerchantPlusPocket).toHaveBeenCalledTimes(2);
+  });
+
   it("fetches only Pocket detail, preserves distinct savers and exposes explicit zero weeks", async () => {
     const screen = await renderDetail("pocket");
     await screen.findByLabelText("Accounts that saved your business: 3");
@@ -573,27 +598,19 @@ describe("lazy Core Plus detail reports", () => {
     expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
   });
 
-  it("does not fetch any detail when restricted, and retries a failed access check", async () => {
-    jest.mocked(service.getMerchantPlusStatus).mockResolvedValueOnce({
-      success: false,
-      code: "NETWORK_ERROR",
-      message: "Offline",
-    });
-    const screen = await renderDetail("pocket");
-    const retry = await screen.findByRole("button", {
-      name: /Unable to check report access.*retry/i,
-    });
-    expect(service.getMerchantPlusPocket).not.toHaveBeenCalled();
+  it("keeps core reports available when the entitlement service is unavailable", async () => {
     jest
       .mocked(service.getMerchantPlusStatus)
-      .mockResolvedValueOnce(plusSuccess(plusStatus(false)));
-    await fireEvent.press(retry);
-    await screen.findByText("Report access unavailable");
-    expect(service.getMerchantPlusPocket).not.toHaveBeenCalled();
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Check access again" }),
-    );
-    await screen.findByLabelText("Accounts that saved your business: 3");
+      .mockResolvedValueOnce({
+        success: false,
+        code: "NETWORK_ERROR",
+        message: "Offline",
+      });
+    const screen = await renderDetail("pocket");
+    await screen.findByLabelText(/Saving accounts: 3/);
+    expect(service.getMerchantPlusPocket).toHaveBeenCalledTimes(1);
+    expect(service.getMerchantPlusStatus).not.toHaveBeenCalled();
+    expect(screen.queryByText("Unable to check report access")).toBeNull();
   });
 
   it("recovers a report failure and keeps cached data after a failed refresh", async () => {

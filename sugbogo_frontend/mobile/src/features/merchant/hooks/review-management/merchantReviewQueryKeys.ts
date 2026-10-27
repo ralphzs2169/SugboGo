@@ -37,3 +37,17 @@ export function merchantReviewFocusKey(
     entry,
   ] as const;
 }
+
+/** Shares review mutation invalidation while isolating selected review reads by account. */
+export function merchantReviewDetailKey(
+  accountId: number | undefined,
+  businessId: number,
+  reviewId: number,
+) {
+  return [
+    ...businessReviewsKey(businessId),
+    "merchant-detail",
+    accountId,
+    reviewId,
+  ] as const;
+}

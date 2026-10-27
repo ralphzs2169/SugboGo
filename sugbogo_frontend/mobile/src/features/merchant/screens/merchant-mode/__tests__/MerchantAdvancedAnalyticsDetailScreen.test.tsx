@@ -220,13 +220,11 @@ describe("advanced Plus detail integration", () => {
   });
 
   it("recovers review insights errors without losing cached content", async () => {
-    jest
-      .mocked(service.getMerchantPlusStoredInsights)
-      .mockResolvedValueOnce({
-        success: false,
-        code: "NETWORK_ERROR",
-        message: "Offline",
-      });
+    jest.mocked(service.getMerchantPlusStoredInsights).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
     const screen = await renderDetail("review-insights");
     await screen.findByText("Unable to load review insights");
     await fireEvent.press(
@@ -235,13 +233,11 @@ describe("advanced Plus detail integration", () => {
       }),
     );
     await screen.findByText("Stored narrative from eligible reviews.");
-    jest
-      .mocked(service.getMerchantPlusStoredInsights)
-      .mockResolvedValueOnce({
-        success: false,
-        code: "NETWORK_ERROR",
-        message: "Offline",
-      });
+    jest.mocked(service.getMerchantPlusStoredInsights).mockResolvedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+      message: "Offline",
+    });
     await act(async () =>
       screen
         .getByTestId("advanced-plus-detail-scroll")
@@ -649,13 +645,14 @@ describe("advanced Plus detail integration", () => {
     expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(1);
   });
 
-  it("does not fetch advanced reports without Plus access", async () => {
+  it("loads advanced reports without a frontend entitlement guard", async () => {
     jest
       .mocked(service.getMerchantPlusStatus)
       .mockResolvedValueOnce(plusSuccess(plusStatus(false)));
     const screen = await renderDetail("recommendations");
-    await screen.findByText("Report access unavailable");
-    expect(service.getMerchantPlusRecommendations).not.toHaveBeenCalled();
-    expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
+    await screen.findByText("Reply to unanswered reviews");
+    expect(service.getMerchantPlusRecommendations).toHaveBeenCalledTimes(1);
+    expect(service.getMerchantPlusStatus).not.toHaveBeenCalled();
+    expect(screen.queryByText("Report access unavailable")).toBeNull();
   });
 });

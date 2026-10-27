@@ -15,7 +15,7 @@ export default function ReviewDisputeDetailContextBar({ dispute, visible }) {
             Dispute #{dispute.id}
           </p>
           <p className="truncate text-xs text-text-secondary">
-            {dispute.merchant?.name || "Merchant"} · {dispute.business?.name || "Business"} · Review #{dispute.review?.id}
+            {dispute.merchant?.name || "Merchant"} · {dispute.business?.name || "Business"} · Review #{dispute.original_review_id ?? dispute.current_review?.id ?? dispute.review?.id}
           </p>
         </div>
         <StatusBadge
