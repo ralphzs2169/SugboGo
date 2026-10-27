@@ -11,10 +11,12 @@ import ModerationQueueSkeleton from "../../moderation/components/ModerationQueue
 
 import REVIEW_DISPUTE_DECISION_CONFIG, {
   MIN_MODERATION_NOTES_LENGTH,
+  isDisputeDecisionEligible,
+  requiresReviewAcknowledgement,
 } from "../config/reviewDisputeDecisionConfig";
 import useReviewDisputeMutations from "../hooks/useReviewDisputeMutations";
 import useReviewDisputes from "../hooks/useReviewDisputes";
-import { fetchReviewDisputes } from "../services/reviewDisputeService";
+import { fetchReviewDispute, fetchReviewDisputes } from "../services/reviewDisputeService";
 import { nextDisputeSelection } from "../utils/disputeQueueSelection";
 import DisputeDecisionModal from "./DisputeDecisionModal";
 import DisputeInvestigation from "./DisputeInvestigation";
@@ -42,6 +44,8 @@ export default function ReviewDisputeWorkspace() {
   const [decisionTarget, setDecisionTarget] = useState(null);
   const [notes, setNotes] = useState("");
   const [decisionError, setDecisionError] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [refreshingInvestigation, setRefreshingInvestigation] = useState(false);
   const debouncedSearch = useDebounce(filters.search);
   const params = useMemo(() => ({
     page,
@@ -88,26 +92,61 @@ export default function ReviewDisputeWorkspace() {
   }
 
   function openDecision(dispute, decision) {
+    if (!isDisputeDecisionEligible(dispute)) {
+      return;
+    }
     setNotes("");
     setDecisionError("");
-    setDecisionTarget({ disputeId: dispute.id, decision });
+    setAcknowledged(false);
+    setDecisionTarget({
+      disputeId: dispute.id,
+      decision,
+      expectedFingerprint: dispute.current_content_fingerprint,
+      requiresAcknowledgement: decision === "uphold" && requiresReviewAcknowledgement(dispute),
+      refreshRequired: false,
+    });
   }
 
   function closeDecision() {
-    if (!decisionPending) {
+    if (!decisionPending && !refreshingInvestigation) {
       setDecisionTarget(null);
       setNotes("");
       setDecisionError("");
+      setAcknowledged(false);
     }
   }
 
   async function confirmDecision() {
-    if (!decisionTarget || decisionPending || notes.trim().length < MIN_MODERATION_NOTES_LENGTH) {
+    if (
+      !decisionTarget
+      || decisionPending
+      || decisionTarget.refreshRequired
+      || (decisionTarget.requiresAcknowledgement && !acknowledged)
+      || notes.trim().length < MIN_MODERATION_NOTES_LENGTH
+    ) {
       return;
     }
 
     const { disputeId, decision } = decisionTarget;
-    const data = { admin_notes: notes.trim() };
+    const detailKey = ["admin", "review-dispute", String(disputeId)];
+    const latestDispute = queryClient.getQueryData(detailKey);
+    if (
+      !isDisputeDecisionEligible(latestDispute)
+      || latestDispute.current_content_fingerprint !== decisionTarget.expectedFingerprint
+    ) {
+      setDecisionTarget({ ...decisionTarget, refreshRequired: true });
+      setAcknowledged(false);
+      setDecisionError("This investigation changed. Review the latest content before deciding again.");
+      return;
+    }
+
+    const data = {
+      admin_notes: notes.trim(),
+      expected_fingerprint: decisionTarget.expectedFingerprint,
+    };
+    if (decisionTarget.requiresAcknowledgement) {
+      data.acknowledge_review_changes = true;
+    }
     setDecisionError("");
 
     try {
@@ -120,6 +159,7 @@ export default function ReviewDisputeWorkspace() {
       toast.success(REVIEW_DISPUTE_DECISION_CONFIG[decision].successMessage);
       setDecisionTarget(null);
       setNotes("");
+      setAcknowledged(false);
 
       const currentList = queryClient.getQueryData([
         "admin",
@@ -149,6 +189,31 @@ export default function ReviewDisputeWorkspace() {
       );
     } catch (submissionError) {
       const response = submissionError.response?.data;
+      if (
+        submissionError.response?.status === 409
+        && response?.code === "REVIEW_CONTENT_CHANGED"
+      ) {
+        setDecisionTarget({ ...decisionTarget, refreshRequired: true });
+        setNotes("");
+        setAcknowledged(false);
+        setDecisionError("The review changed. Refreshing the investigation; inspect the latest content before deciding again.");
+        setRefreshingInvestigation(true);
+        try {
+          await queryClient.cancelQueries({ queryKey: detailKey, exact: true });
+          await queryClient.fetchQuery({
+            queryKey: detailKey,
+            queryFn: () => fetchReviewDispute(String(disputeId)),
+            staleTime: 0,
+            retry: false,
+          });
+          setDecisionError("The review changed and the investigation has been refreshed. Inspect the latest content before deciding again.");
+        } catch {
+          setDecisionError("The review changed, but the investigation could not be refreshed. Close this dialog and retry loading the investigation before deciding.");
+        } finally {
+          setRefreshingInvestigation(false);
+        }
+        return;
+      }
       const fieldError = response?.errors?.admin_notes;
       setDecisionError(
         (Array.isArray(fieldError) ? fieldError.join(" ") : fieldError)
@@ -227,6 +292,11 @@ export default function ReviewDisputeWorkspace() {
         notes={notes}
         error={decisionError}
         pending={decisionPending}
+        requiresAcknowledgement={decisionTarget?.requiresAcknowledgement}
+        acknowledged={acknowledged}
+        refreshRequired={decisionTarget?.refreshRequired}
+        refreshing={refreshingInvestigation}
+        onAcknowledgementChange={setAcknowledged}
         onNotesChange={(value) => { setNotes(value); setDecisionError(""); }}
         onClose={closeDecision}
         onConfirm={confirmDecision}

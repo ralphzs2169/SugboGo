@@ -53,7 +53,7 @@ const REVIEW_DISPUTE_DECISION_CONFIG = {
     confirmationDescription:
       "Review the moderation notes before submitting this decision.",
     outcomeMessage:
-      "The merchant's dispute will be dismissed and the disputed review will remain on the platform.",
+      "The merchant's dispute will be dismissed without changing the current review's publication status.",
     confirmLabel: "Confirm Dismiss",
     confirmVariant: "primary",
     successMessage: "Review dispute dismissed successfully.",
@@ -88,6 +88,19 @@ const REVIEW_DISPUTE_DECISION_CONFIG = {
 };
 
 export const MIN_MODERATION_NOTES_LENGTH = 20;
+
+export function isDisputeDecisionEligible(dispute) {
+  return dispute?.status === "pending"
+    && dispute.decision_eligible === true
+    && dispute.current_review?.exists === true
+    && /^[a-f0-9]{64}$/.test(dispute.current_content_fingerprint);
+}
+
+export function requiresReviewAcknowledgement(dispute) {
+  return dispute.material_content_changed !== false
+    || dispute.filing_snapshot_unavailable === true
+    || dispute.review_at_filing?.available !== true;
+}
 
 export function appendDisputeTemplate(notes, text) {
   return [notes.trim(), text].filter(Boolean).join("\n");

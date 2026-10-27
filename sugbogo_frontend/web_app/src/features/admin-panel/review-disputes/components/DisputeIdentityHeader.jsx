@@ -141,7 +141,7 @@ export default function DisputeIdentityHeader({ dispute }) {
         </span>
 
         <a href="#dispute-original-review" className={identityLinkClass}>
-          <span>Review #{dispute.review?.id}</span>
+          <span>Review #{dispute.original_review_id ?? dispute.current_review?.id ?? dispute.review?.id}</span>
 
           <ArrowDown
             className="

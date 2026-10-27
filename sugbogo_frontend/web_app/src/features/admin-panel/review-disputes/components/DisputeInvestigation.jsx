@@ -6,6 +6,7 @@ import ModerationDetailSkeleton from "../../moderation/components/ModerationDeta
 import useReviewStickyContext from "../../moderation/hooks/useReviewStickyContext";
 
 import useReviewDisputeDetail from "../hooks/useReviewDisputeDetail";
+import { isDisputeDecisionEligible } from "../config/reviewDisputeDecisionConfig";
 import DisputeIdentityHeader from "./DisputeIdentityHeader";
 import ReviewDisputeDetailContextBar from "./review-dispute-detail/ReviewDisputeDetailContextBar";
 import ReviewDisputeEvidence from "./review-dispute-detail/ReviewDisputeEvidence";
@@ -15,7 +16,7 @@ import ReviewDisputeRequest from "./review-dispute-detail/ReviewDisputeRequest";
 import ReviewDisputeReview from "./review-dispute-detail/ReviewDisputeReview";
 
 export default function DisputeInvestigation({ disputeId, onDecision, decisionPending }) {
-  const { dispute, isLoading, error, refetch } = useReviewDisputeDetail(disputeId);
+  const { dispute, isLoading, isFetching, error, refetch } = useReviewDisputeDetail(disputeId);
   const {
     scrollContainerRef,
     reviewHeaderRef,
@@ -60,7 +61,7 @@ export default function DisputeInvestigation({ disputeId, onDecision, decisionPe
           <DisputeIdentityHeader dispute={dispute} />
         </div>
         <div id="dispute-original-review" className="scroll-mt-16">
-          <ReviewDisputeReview review={dispute.review} />
+          <ReviewDisputeReview dispute={dispute} />
         </div>
         <section className="border-t border-stroke pt-5">
           <ReviewDisputeRequest dispute={dispute} />
@@ -87,8 +88,20 @@ export default function DisputeInvestigation({ disputeId, onDecision, decisionPe
               </p>
             </div>
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-              <Button variant="secondary" disabled={decisionPending} onClick={() => onDecision(dispute, "dismiss")}>Dismiss</Button>
-              <Button variant="primary" disabled={decisionPending} onClick={() => onDecision(dispute, "uphold")}>Uphold Dispute</Button>
+              <Button
+                variant="secondary"
+                disabled={decisionPending || isFetching || !isDisputeDecisionEligible(dispute)}
+                onClick={() => onDecision(dispute, "dismiss")}
+              >
+                Dismiss
+              </Button>
+              <Button
+                variant="primary"
+                disabled={decisionPending || isFetching || !isDisputeDecisionEligible(dispute)}
+                onClick={() => onDecision(dispute, "uphold")}
+              >
+                Uphold Dispute
+              </Button>
             </div>
           </div>
         </section>
