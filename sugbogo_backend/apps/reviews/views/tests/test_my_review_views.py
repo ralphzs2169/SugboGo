@@ -7,6 +7,23 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.admin_operations.moderation.services.manage_under_review_service import (
+    ManageUnderReviewService,
+)
+from apps.admin_operations.moderation.services.manage_review_report_service import (
+    ManageReviewReportService,
+)
+from apps.admin_operations.moderation.services.manage_reported_review_service import (
+    ManageReportedReviewService,
+)
+from apps.admin_operations.moderation.services.manage_review_dispute_service import (
+    ManageReviewDisputeService,
+)
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
+from apps.review_disputes.models import MerchantReviewDispute
+from apps.review_disputes.services.review_dispute_service import ReviewDisputeService
+from apps.review_disputes.services.review_snapshot_service import ReviewSnapshotService
 from apps.business.models import (
     Business,
     BusinessPhoto,
@@ -14,7 +31,7 @@ from apps.business.models import (
     BusinessVouch,
     SpecialtyTag,
 )
-from apps.reviews.models import ReplyPhoto, Review, ReviewPhoto, ReviewReply
+from apps.reviews.models import ReplyPhoto, Review, ReviewPhoto, ReviewReply, ReviewReport
 from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests.test_business_review_summary_service import (
     SummaryFixtureMixin,
@@ -40,6 +57,12 @@ class MyReviewViewTests(
             USER_FNAME="Review",
             USER_LNAME="Author",
             USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        cls.admin = User.objects.create_user(
+            email="my-reviews-admin@example.com",
+            password=None,
+            USER_ROLE=User.UserRole.ADMIN,
             USER_STATUS=User.UserStatus.ACTIVE,
         )
 
@@ -384,6 +407,8 @@ class MyReviewViewTests(
             "show_in_community",
             "vouched_specialties",
             "business",
+            "non_public_reason",
+            "has_pending_merchant_dispute",
         })
         self.assertEqual(set(item["author"]), {
             "id",
@@ -482,3 +507,184 @@ class MyReviewViewTests(
         self.assertEqual(response.status_code, 404)
         self.assertFalse(response.data["success"])
         self.assertEqual(response.data["code"], "NOT_FOUND")
+
+    def _assert_reason(
+        self,
+        review,
+        expected,
+    ):
+        """Read the author's reason through the actual paginated response."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        item = next(
+            item
+            for item in response.data["data"]["items"]
+            if item["id"] == review.pk
+        )
+        self.assertEqual(item["non_public_reason"], expected)
+        return item
+
+    def test_moderation_rejection_reason_comes_from_actual_admin_transition(self):
+        review = self._create_review(
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        )
+        ManageUnderReviewService.resolve(
+            review.pk,
+            actor=self.admin,
+            approve=False,
+            moderation_notes="Private moderation explanation for this rejection.",
+        )
+        self._assert_reason(review, "moderation")
+
+    def test_individual_and_grouped_report_rejections_have_community_reason(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
+        for grouped, business in (
+            (False, self.business),
+            (True, self.other_business),
+        ):
+            with self.subTest(grouped=grouped):
+                review = self._create_review(business)
+                report = ReviewReport.objects.create(
+                    REVW_ID=review,
+                    USER_ID=business.USER_ID,
+                    RREP_TYPE=ReviewReport.ReportType.ABUSE,
+                )
+                if grouped:
+                    ManageReportedReviewService.resolve(
+                        review.pk,
+                        actor=self.admin,
+                        decision="reject",
+                        admin_notes="The reported content was independently reviewed.",
+                    )
+                else:
+                    ManageReviewReportService.resolve(
+                        report.pk,
+                        actor=self.admin,
+                        approve=True,
+                        admin_notes="The reported content was independently reviewed.",
+                    )
+                self._assert_reason(review, "community_reports")
+
+    def test_upheld_dispute_reason_and_later_report_resolution_do_not_conflict(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
+        review = self._create_review()
+        report = ReviewReport.objects.create(
+            REVW_ID=review,
+            USER_ID=self.other_business.USER_ID,
+            RREP_TYPE=ReviewReport.ReportType.ABUSE,
+        )
+        dispute = ReviewDisputeService.create_dispute(
+            user=self.business.USER_ID,
+            review_id=review.pk,
+            reason="fake_review",
+            description="The merchant disputes this review.",
+        )
+        ManageReviewDisputeService.uphold_dispute(
+            dispute.pk,
+            actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(review),
+            admin_notes="The current review was inspected and the dispute is upheld.",
+        )
+        self._assert_reason(review, "merchant_dispute")
+        ManageReviewReportService.resolve(
+            report.pk,
+            actor=self.admin,
+            approve=True,
+            admin_notes="The remaining report is resolved after the original rejection.",
+        )
+        self._assert_reason(review, "merchant_dispute")
+
+    def test_later_rejected_to_rejected_dispute_preserves_report_reason(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
+        review = self._create_review()
+        dispute = ReviewDisputeService.create_dispute(
+            user=self.business.USER_ID,
+            review_id=review.pk,
+            reason="fake_review",
+            description="The merchant disputes this review.",
+        )
+        report = ReviewReport.objects.create(
+            REVW_ID=review,
+            USER_ID=self.other_business.USER_ID,
+            RREP_TYPE=ReviewReport.ReportType.ABUSE,
+        )
+        ManageReviewReportService.resolve(
+            report.pk,
+            actor=self.admin,
+            approve=True,
+            admin_notes="The report warrants rejecting the published content.",
+        )
+        ManageReviewDisputeService.uphold_dispute(
+            dispute.pk,
+            actor=self.admin,
+            expected_fingerprint=ReviewSnapshotService.current_fingerprint(review),
+            admin_notes="The pending dispute is resolved after the original rejection.",
+        )
+        self._assert_reason(review, "community_reports")
+
+    def test_unknown_reason_ignores_unverified_history_and_private_metadata(self):
+        review = self._create_review(
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+            REVW_MODERATION_DATA={"outcome": "flagged"},
+        )
+        contexts = [
+            {"review_id": review.pk},
+            {
+                "review_id": review.pk,
+                "previous_review_status": "rejected",
+                "review_status": "rejected",
+            },
+            {
+                "review_id": review.pk,
+                "previous_review_status": "published",
+                "review_status": "published",
+            },
+            {
+                "review_id": review.pk + 1000,
+                "previous_review_status": "published",
+                "review_status": "rejected",
+            },
+        ]
+        for context in contexts:
+            AdminActivity.objects.create(
+                ACTOR_ID=self.admin,
+                TARGET_USER_ID=self.user,
+                AACT_ACTION=AdminActivity.Action.REVIEW_DISPUTE_UPHELD,
+                AACT_CONTEXT=context,
+            )
+        self._assert_reason(review, "unknown")
+        flagged = self._create_review(
+            self.other_business,
+            REVW_STATUS=Review.ReviewStatus.FLAGGED,
+        )
+        self._assert_reason(flagged, "unknown")
+
+    def test_pending_dispute_notice_is_author_scoped_and_published_only(self):
+        review = self._create_review()
+        item = self._assert_reason(review, "unknown")
+        self.assertFalse(item["has_pending_merchant_dispute"])
+        dispute = ReviewDisputeService.create_dispute(
+            user=self.business.USER_ID,
+            review_id=review.pk,
+            reason="fake_review",
+            description="A pending merchant dispute.",
+        )
+        item = self._assert_reason(review, "unknown")
+        self.assertTrue(item["has_pending_merchant_dispute"])
+        self.assertNotIn("active_dispute_id", item)
+        self.assertNotIn("evidence", item)
+        Review.objects.filter(pk=review.pk).update(REVW_STATUS="rejected")
+        item = self._assert_reason(review, "unknown")
+        self.assertFalse(item["has_pending_merchant_dispute"])
+        Review.objects.filter(pk=review.pk).update(REVW_STATUS="published")
+        MerchantReviewDispute.objects.filter(pk=dispute.pk).update(
+            MRDSP_STATUS="withdrawn",
+        )
+        item = self._assert_reason(review, "unknown")
+        self.assertFalse(item["has_pending_merchant_dispute"])
+        public = self.client.get(
+            reverse("review-preview", args=[self.business.pk]),
+        )
+        for item in public.data["data"]["reviews"]:
+            self.assertNotIn("non_public_reason", item)
+            self.assertNotIn("has_pending_merchant_dispute", item)

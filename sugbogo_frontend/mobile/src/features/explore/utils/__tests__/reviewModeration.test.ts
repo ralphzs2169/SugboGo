@@ -9,7 +9,7 @@ describe("author moderation feedback", () => {
     ["awaiting_admin_review", "Under review"],
     ["retries_exhausted", "Needs review"],
     ["published", "Published"],
-    ["rejected", "Not published"],
+    ["rejected", "Not public"],
     ["under_review", "Under review"],
   ])("presents %s without internal details", (state, label) => {
     const status =
@@ -27,7 +27,7 @@ describe("author moderation feedback", () => {
         "Your review is saved privately. Its status is not yet confirmed.",
     });
     expect(reviewModerationFeedback({ status: "flagged" }).label).toBe(
-      "Not published",
+      "Not public",
     );
   });
 
@@ -43,6 +43,6 @@ describe("author moderation feedback", () => {
         status: "rejected",
         moderation_progress: { state: "processing" },
       }).label,
-    ).toBe("Not published");
+    ).toBe("Not public");
   });
 });

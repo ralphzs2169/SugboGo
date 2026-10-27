@@ -710,6 +710,77 @@ class ReviewViewTests(APITestCase):
         self.assertEqual(deleted.status_code, status.HTTP_200_OK)
         self.assertFalse(Review.objects.filter(pk=held.pk).exists())
 
+    @patch("apps.reviews.services.review_service.CloudinaryService.upload_image")
+    def test_non_public_content_and_standalone_photo_mutations_are_unavailable(
+        self,
+        upload,
+    ):
+        """Rejected and legacy flagged content stays unchanged across both APIs."""
+        for review_status in ("rejected", "flagged"):
+            review = Review.objects.create(
+                USER_ID=self.explorer,
+                BUSN_ID=self.business,
+                REVW_TEXT="Original content that is not public.",
+                REVW_STATUS=review_status,
+            )
+            photo = ReviewPhoto.objects.create(
+                REVW_ID=review,
+                RPHO_PHOTO_URL="https://example.com/original.jpg",
+                RPHO_PHOTO_PUBLIC_ID=f"original-{review.pk}",
+            )
+            for operation in ("text", "add", "replace", "remove"):
+                with self.subTest(status=review_status, operation=operation):
+                    payload = {}
+                    if operation == "text":
+                        payload["text"] = "Changed content must not be committed."
+                    if operation in ("add", "replace"):
+                        payload["photos"] = self.create_test_image("new.jpg")
+                    if operation in ("replace", "remove"):
+                        payload["keep_photo_ids"] = "[]"
+                    response = self.client.patch(
+                        f"/api/reviews/{review.pk}/",
+                        payload,
+                        format="multipart",
+                    )
+                    self.assertEqual(response.status_code, 400, response.data)
+                    self.assertEqual(
+                        response.data["code"],
+                        "REVIEW_EDIT_UNAVAILABLE",
+                    )
+                    review.refresh_from_db()
+                    self.assertEqual(
+                        review.REVW_TEXT,
+                        "Original content that is not public.",
+                    )
+                    self.assertEqual(
+                        list(review.photos.values_list("pk", flat=True)),
+                        [photo.pk],
+                    )
+            response = self.client.delete(f"/api/reviews/photos/{photo.pk}/")
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.data["code"], "REVIEW_EDIT_UNAVAILABLE")
+            self.assertTrue(ReviewPhoto.objects.filter(pk=photo.pk).exists())
+            self.assertFalse(
+                ReviewMediaCleanup.objects.filter(RMCU_REVIEW_ID=review.pk).exists(),
+            )
+            review.delete()
+        self.moderate_review.assert_not_called()
+        upload.assert_not_called()
+
+    def test_rejected_and_flagged_whole_review_deletion_remains_allowed(self):
+        """Read-only content can still be removed by its author."""
+        for review_status in ("rejected", "flagged"):
+            with self.subTest(status=review_status):
+                review = Review.objects.create(
+                    USER_ID=self.explorer,
+                    BUSN_ID=self.business,
+                    REVW_TEXT="A review that the author wants to delete.",
+                    REVW_STATUS=review_status,
+                )
+                response = self.client.delete(f"/api/reviews/{review.pk}/")
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertFalse(Review.objects.filter(pk=review.pk).exists())
+
     def _list_ids(self, **params):
         """Returns review IDs from the existing list response envelope."""
         response = self.client.get(self.list_url, params)

@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.admin_operations.activity_management.models import AdminActivity
+from apps.reviews.models import Review
 from apps.reviews.serializers.community_review_serializers import (
     CommunityCategoryResponseSerializer,
 )
@@ -61,6 +63,36 @@ class MyReviewResponseSerializer(ReviewResponseSerializer):
         source="*",
         read_only=True,
     )
+    non_public_reason = serializers.SerializerMethodField()
+    has_pending_merchant_dispute = serializers.SerializerMethodField()
+
+    def get_non_public_reason(
+        self,
+        review,
+    ):
+        """Expose only a verified rejection transition's public-facing category."""
+        if review.REVW_STATUS != Review.ReviewStatus.REJECTED:
+            return "unknown"
+        reasons = {
+            AdminActivity.Action.REVIEW_MODERATION_REJECTED: "moderation",
+            AdminActivity.Action.REVIEW_REPORT_APPROVED: "community_reports",
+            AdminActivity.Action.REPORTED_REVIEW_REJECTED: "community_reports",
+            AdminActivity.Action.REVIEW_DISPUTE_UPHELD: "merchant_dispute",
+        }
+        return reasons.get(
+            getattr(review, "my_review_rejection_action", None),
+            "unknown",
+        )
+
+    def get_has_pending_merchant_dispute(
+        self,
+        review,
+    ):
+        """Indicate an active case only while the author's review stays published."""
+        return (
+            review.REVW_STATUS == Review.ReviewStatus.PUBLISHED
+            and bool(getattr(review, "my_review_pending_dispute", False))
+        )
 
     class Meta(ReviewResponseSerializer.Meta):
         fields = (
@@ -77,4 +109,6 @@ class MyReviewResponseSerializer(ReviewResponseSerializer):
             "show_in_community",
             "vouched_specialties",
             "business",
+            "non_public_reason",
+            "has_pending_merchant_dispute",
         )

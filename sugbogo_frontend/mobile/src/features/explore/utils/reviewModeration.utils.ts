@@ -1,6 +1,14 @@
 import type { BusinessReview } from "../types/review.types";
 
-type ModeratedReview = Pick<BusinessReview, "status" | "moderation_progress">;
+type ModeratedReview = Pick<
+  BusinessReview,
+  "status" | "moderation_progress" | "non_public_reason"
+>;
+
+/** Match the server's published-only author content editing rule. */
+export function canEditReview(review: Pick<BusinessReview, "status">) {
+  return review.status === "published";
+}
 
 /** Keep queued, active and delayed automatic checks within the review card. */
 export function isInlineReviewCheck(review: ModeratedReview) {
@@ -19,16 +27,24 @@ export function reviewModerationFeedback(review: ModeratedReview) {
       label: "Published",
       description: "Your review is publicly available.",
     };
-  if (review.status === "rejected")
+  if (review.status === "rejected" || review.status === "flagged") {
+    let description = "This review is not public.";
+    switch (review.non_public_reason) {
+      case "moderation":
+        description = "This review was not approved after moderation and is not public.";
+        break;
+      case "community_reports":
+        description = "This review was removed after community reports were reviewed.";
+        break;
+      case "merchant_dispute":
+        description = "This review was removed after a merchant dispute was upheld.";
+        break;
+    }
     return {
-      label: "Not published",
-      description: "Your review wasn’t published and is visible only to you.",
+      label: "Not public",
+      description,
     };
-  if (!review.moderation_progress && review.status === "flagged")
-    return {
-      label: "Not published",
-      description: "Your review wasn’t published and is visible only to you.",
-    };
+  }
 
   switch (review.moderation_progress?.state) {
     case "pending":

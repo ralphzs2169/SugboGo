@@ -122,8 +122,8 @@ describe("ReviewsSubmittedScreen", () => {
   it.each([
     ["published", "Published"],
     ["under_review", "Under review"],
-    ["rejected", "Not published"],
-    ["flagged", "Not published"],
+    ["rejected", "Not public"],
+    ["flagged", "Not public"],
   ] as const)(
     "presents %s without fabricating moderation reasons",
     async (status, label) => {
@@ -170,6 +170,43 @@ describe("ReviewsSubmittedScreen", () => {
       expect(item.queryByLabelText("Like this review")).toBeNull();
     },
   );
+
+  it.each([
+    ["moderation", "This review was not approved after moderation and is not public."],
+    ["community_reports", "This review was removed after community reports were reviewed."],
+    ["merchant_dispute", "This review was removed after a merchant dispute was upheld."],
+    ["unknown", "This review is not public."],
+    [undefined, "This review is not public."],
+  ] as const)("explains the author-only %s rejection reason", async (reason, message) => {
+    (useMyReviews as jest.Mock).mockReturnValue(state({
+      reviews: [{ ...review(1, "rejected"), non_public_reason: reason }],
+    }));
+    const screen = await render(<ReviewsSubmittedScreen />);
+    const item = within(screen.getByTestId("my-review-1"));
+    expect(item.getByText("Not public")).toBeTruthy();
+    expect(item.getByText(message)).toBeTruthy();
+    expect(item.getByText(
+      "Editing is unavailable for this review. You can still delete it.",
+    )).toBeTruthy();
+  });
+
+  it.each([
+    ["published", true, true],
+    ["published", false, false],
+    ["published", undefined, false],
+    ["under_review", true, false],
+    ["rejected", true, false],
+    ["flagged", true, false],
+  ] as const)("limits pending dispute information for %s / %s", async (status, pending, visible) => {
+    (useMyReviews as jest.Mock).mockReturnValue(state({
+      reviews: [{ ...review(1, status), has_pending_merchant_dispute: pending }],
+    }));
+    const screen = await render(<ReviewsSubmittedScreen />);
+    const message = screen.queryByText(
+      "A merchant has disputed this review. Your review is still published.",
+    );
+    expect(Boolean(message)).toBe(visible);
+  });
 
   it("opens shared review photos and expands the merchant response", async () => {
     const screen = await render(<ReviewsSubmittedScreen />);

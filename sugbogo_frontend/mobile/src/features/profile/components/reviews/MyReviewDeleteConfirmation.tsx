@@ -76,7 +76,7 @@ export default function MyReviewDeleteConfirmation({
     <ConfirmModal
       visible
       title="Delete this review?"
-      message="This will permanently remove your review and its photos. This action cannot be undone."
+      message="Your review will be removed from SugboGo review surfaces. Moderation or dispute records may be retained for platform integrity."
       confirmText="Delete review"
       cancelText="Cancel"
       destructive

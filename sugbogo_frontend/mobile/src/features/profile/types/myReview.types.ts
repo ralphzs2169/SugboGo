@@ -8,6 +8,8 @@ export type MyReview = Pick<
   | "text"
   | "status"
   | "moderation_progress"
+  | "non_public_reason"
+  | "has_pending_merchant_dispute"
   | "sentiment_aggregate_included"
   | "created_at"
   | "updated_at"

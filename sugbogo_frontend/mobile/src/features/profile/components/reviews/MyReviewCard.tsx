@@ -120,14 +120,6 @@ function MyReviewCard({
 
       </View>
 
-      {review.is_own_review && review.status !== "published" && (
-        <View className="mt-2 self-start rounded-full bg-brand/10 px-2 py-0.5">
-          <AppText weight="semibold" className="text-[10px] text-brand">
-            You
-          </AppText>
-        </View>
-      )}
-
       {/* Review content and attached photos */}
       {saving && (
         <AppText

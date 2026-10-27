@@ -51,6 +51,9 @@ export type BusinessReview = {
   status: "published" | "under_review" | "flagged" | "rejected";
   /** Private progress returned only to this review's author. */
   moderation_progress?: ReviewModerationProgress;
+  /** Author-only history fields; absent from public review responses. */
+  non_public_reason?: "moderation" | "community_reports" | "merchant_dispute" | "unknown";
+  has_pending_merchant_dispute?: boolean;
   like_count: number;
   sentiment_label: ReviewSentiment | null;
   sentiment_score: number | null;
