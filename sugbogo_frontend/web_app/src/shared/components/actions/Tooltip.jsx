@@ -1,7 +1,5 @@
-import { cloneElement, useState } from "react";
+import { cloneElement, useId } from "react";
 import { Tooltip as ReactTooltip } from "react-tooltip";
-
-let tooltipCounter = 0;
 
 /**
  * Reusable tooltip wrapper.
@@ -18,10 +16,7 @@ export default function Tooltip({
   closeEvents,
   globalCloseEvents,
 }) {
-  const [id] = useState(() => {
-    tooltipCounter += 1;
-    return `tooltip-${tooltipCounter}`;
-  });
+  const id = `tooltip-${useId().replaceAll(":", "")}`;
 
   const props = {
     "data-tooltip-id": id,
