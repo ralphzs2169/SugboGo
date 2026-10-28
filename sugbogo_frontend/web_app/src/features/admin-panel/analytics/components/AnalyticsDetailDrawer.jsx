@@ -13,6 +13,7 @@ export default function AnalyticsDetailDrawer({
   dataDescription,
   showComparison = true,
   dateColumn,
+  dataContent,
 }) {
   const ref = useRef(null);
   const titleId = useId();
@@ -149,7 +150,7 @@ export default function AnalyticsDetailDrawer({
           </> : (
             <>
             {dataDescription && <p className="font-medium">{dataDescription}</p>}
-            {report?.series === null ? (
+            {dataContent ?? (report?.series === null ? (
               <p className="text-text-secondary">Exact observations are currently unavailable.</p>
             ) : <AnalyticsExactTable
               caption={`${title} exact reporting buckets`}
@@ -162,7 +163,7 @@ export default function AnalyticsDetailDrawer({
                   render: (row) => formatCount(row[item.key]),
                 })),
               ]}
-            />}
+            />)}
             </>
           )}
         </div>

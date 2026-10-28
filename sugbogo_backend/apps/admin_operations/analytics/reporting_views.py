@@ -7,12 +7,14 @@ from apps.authentication.permissions import HasRole
 from apps.users.models import User
 from core.responses import success_response
 
+from .serializers.discovery_sources_serializers import AdminDiscoverySourcesSerializer
 from .serializers.change_request_serializers import ChangeRequestAnalyticsSerializer
 from .serializers.community_health_serializers import CommunityHealthSerializer
 from .serializers.platform_analytics_serializers import AnalyticsPeriodQuerySerializer
 from .serializers.platform_growth_serializers import PlatformGrowthSerializer
 from .serializers.reporting_serializers import ReportingSeriesQuerySerializer
 from .serializers.specialty_support_serializers import SpecialtySupportSerializer
+from .services.discovery_sources_service import AdminDiscoverySourcesService
 from .services.change_request_analytics_service import ChangeRequestAnalyticsService
 from .services.community_health_service import CommunityHealthService
 from .services.platform_growth_service import PlatformGrowthService
@@ -81,3 +83,11 @@ class ChangeRequestAnalyticsView(AdminReportingView):
     service = ChangeRequestAnalyticsService
     response_serializer = ChangeRequestAnalyticsSerializer
     message = "Change-request analytics retrieved successfully."
+
+
+class DiscoverySourcesView(AdminReportingView):
+    """Expose platform source counts with independent administrator authorization."""
+
+    service = AdminDiscoverySourcesService
+    response_serializer = AdminDiscoverySourcesSerializer
+    message = "Discovery sources retrieved successfully."

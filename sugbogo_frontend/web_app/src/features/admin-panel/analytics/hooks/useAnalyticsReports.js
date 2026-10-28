@@ -62,3 +62,7 @@ export function useDiscoveryHeatmap(params, options) {
 export function useDiscoveryScoreAnalytics(params, options) {
   return useReportQuery("discoveryScores", params, options);
 }
+
+export function useDiscoverySources(params, options) {
+  return useReportQuery("discoverySources", params, options);
+}

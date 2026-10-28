@@ -4,6 +4,7 @@ from .discovery_heatmap_views import DiscoveryHeatmapView
 from .operations_views import AttentionQueueView, OnboardingAnalyticsView
 from .reporting_views import (
     ChangeRequestAnalyticsView,
+    DiscoverySourcesView,
     CommunityHealthView,
     PlatformGrowthView,
     SpecialtySupportView,
@@ -15,6 +16,11 @@ from .views import VisibilityGapDiagnosticView
 from .views import BusinessAttentionView, CoverageAnalyticsView, LowExposureView
 
 urlpatterns = [
+    path(
+        "discovery-sources/",
+        DiscoverySourcesView.as_view(),
+        name="admin-analytics-discovery-sources",
+    ),
     path(
         "platform-growth/",
         PlatformGrowthView.as_view(),

@@ -8,6 +8,7 @@ export const analyticsQueryKeys = {
   taxonomy: (kind) => [...all, "taxonomy", kind],
   platformOverview: (params) => reportKey("platformOverview", params),
   platformGrowth: (params) => reportKey("platformGrowth", params),
+  discoverySources: (params) => reportKey("discoverySources", params),
   discoverySummary: (params) => reportKey("discoverySummary", params),
   discoveryTrend: (params) => reportKey("discoveryTrend", params),
   onboarding: (params) => reportKey("onboarding", params),

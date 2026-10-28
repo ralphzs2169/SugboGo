@@ -27,3 +27,5 @@ export const fetchSpecialtySupportAnalytics = (params, options) => fetchReport("
 export const fetchChangeRequestAnalytics = (params, options) => fetchReport("changeRequests", params, options);
 export const fetchDiscoveryHeatmap = (params, options) => fetchReport("discoveryHeatmap", params, options);
 export const fetchDiscoveryScoreAnalytics = (params, options) => fetchReport("discoveryScores", params, options);
+
+export const fetchDiscoverySources = (params, options) => fetchReport("discoverySources", params, options);

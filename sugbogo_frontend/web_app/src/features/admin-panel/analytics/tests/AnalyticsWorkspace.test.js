@@ -46,10 +46,11 @@ before(async () => {
             return React.createElement('span', {'data-series':dataKey,'data-series-type':'line','data-connect-nulls':String(connectNulls)},
               React.createElement('svg', {'data-observation-markers':true}, typeof dot === 'function' ? rows.map((row,index) => dot({index,cx:index * 10,cy:20,payload:row})) : null));
           };
+          export const LabelList = () => null;
           export const Bar = ({dataKey,fill,stackId}) => React.createElement('span', {'data-series':dataKey,'data-series-type':'bar','data-fill':fill,'data-stack':stackId});
           export const XAxis = ({type,dataKey,domain,ticks}) => React.createElement('span',{'data-axis-type':type,'data-axis-key':dataKey,'data-domain':JSON.stringify(domain),'data-ticks':JSON.stringify(ticks)});
           export const YAxis = ({allowDecimals}) => React.createElement('span',{'data-allow-decimals':String(allowDecimals)});
-          export const Tooltip = ({filterNull,formatter}) => React.createElement('span',{'data-filter-null':String(filterNull),'data-tooltip-zero':formatter(0,'Selected metric')[0],'data-tooltip-missing':formatter(null,'Selected metric')[0]});
+          export const Tooltip = ({filterNull,formatter}) => React.createElement('span',{'data-filter-null':String(filterNull),'data-tooltip-zero':formatter(0,'Selected metric',{payload:{share_percent:0}})[0],'data-tooltip-missing':formatter(null,'Selected metric',{payload:{share_percent:null}})[0]});
           export const ReferenceArea = ({x1,x2}) => React.createElement("span", {"data-partial-start":x1,"data-partial-end":x2});
           export const CartesianGrid = () => null; export const Legend = () => React.createElement("span", {"data-legend":"true"});`;
       },
@@ -136,7 +137,7 @@ async function tab(name) {
 
 test("workspace mounts only Growth reports and reuses cached queries with retained selections", async () => {
   await mount();
-  assert.equal(reads.length, 4);
+  assert.equal(reads.length, 5);
   assert.equal(requests("onboarding/").length, 0);
   assert.equal(requests("attention-queue/").length, 0);
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 0);
@@ -235,4 +236,54 @@ test("shared table tabs retain their default click and count presentation withou
   await click(buttons[1]);
   assert.equal(changed, "done");
   assert.equal(reads.length, 0);
+});
+
+ test("sources rank all categories, expose exact values, and reuse period cache", async () => {
+  await mount();
+  const report = section("Discovery Sources");
+  assert.ok(report);
+  const rows = JSON.parse(report.querySelector("[data-chart]").getAttribute("data-chart"));
+  assert.equal(rows.length, 7);
+  assert.equal(rows[0].label, "Map");
+  assert.equal(rows[1].label, "Unknown");
+  assert.equal(rows[2].label, "Explore");
+  await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  assert.match(document.querySelector("dialog[open]").textContent, /66.67/);
+  await click(document.querySelector('[aria-label="Close Discovery Sources details"]'));
+  await tab("Operations");
+  const count = requests("discovery-sources/").length;
+  await tab("Growth & Discovery");
+  assert.equal(requests("discovery-sources/").length, count);
+  await click(periodButton("90"));
+  await until(() => client.isFetching() === 0);
+  assert.equal(requests("discovery-sources/").at(-1).params.period, "90");
+ });
+
+ test("sources independently recover errors and distinguish zero from unavailable", async () => {
+  failures.add("/admin/analytics/discovery-sources/");
+  await mount();
+  assert.match(section("Discovery Sources").textContent, /Unable to load/);
+  failures.clear();
+  overrides.set("/admin/analytics/discovery-sources/", (report) => ({...report, total_profile_visits:0, sources:report.sources.map((row) => ({...row,count:0,share_percent:null}))}));
+  await click([...section("Discovery Sources").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
+  await until(() => client.isFetching() === 0);
+  await until(() => section("Discovery Sources").textContent.includes("No profile visits were recorded"));
+  overrides.set("/admin/analytics/discovery-sources/", (report) => ({...report, total_profile_visits:null, sources:null, meta:{...report.meta,availability:"unavailable"}}));
+  await act(async () => { await client.invalidateQueries({queryKey:["admin","analytics","discoverySources"]}); });
+  await until(() => section("Discovery Sources").textContent.includes("does not mean zero visits"));
+ });
+
+test("sources remain dormant on other tabs and retain cached data after refresh failure", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=operations"];
+  await mount();
+  assert.equal(requests("discovery-sources/").length, 0);
+  await tab("Growth & Discovery");
+  failures.add("/admin/analytics/discovery-sources/");
+  await act(async () => { await client.invalidateQueries({queryKey:["admin","analytics","discoverySources"]}); });
+  await until(() => section("Discovery Sources").textContent.includes("Previously loaded data"));
+  assert.ok(section("Discovery Sources").querySelector("[data-chart]"));
+  failures.clear();
+  await click([...section("Discovery Sources").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
+  await until(() => client.isFetching() === 0);
+  await until(() => !section("Discovery Sources").textContent.includes("Refresh failed"));
 });
