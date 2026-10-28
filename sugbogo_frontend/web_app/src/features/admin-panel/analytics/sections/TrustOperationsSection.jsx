@@ -12,7 +12,7 @@ const agingColumns = [
 ];
 
 /** Keeps moderation queues independently recoverable from merchant change requests. */
-function ModerationWorkload({ period }) {
+export function ModerationWorkload({ period }) {
   const query = useAttentionQueueAnalytics(period);
   const state = useAnalyticsSectionState(query, "queues", "reports and disputes");
   const data = query.data;
@@ -29,7 +29,7 @@ function ModerationWorkload({ period }) {
 }
 
 /** Distinguishes current listing-change backlog from administrator decisions and merchant withdrawals. */
-function ChangeRequestWorkload({ period }) {
+export function ChangeRequestWorkload({ period }) {
   const query = useChangeRequestAnalytics(period);
   const state = useAnalyticsSectionState(query, "changes", "merchant change requests");
   const data = query.data;

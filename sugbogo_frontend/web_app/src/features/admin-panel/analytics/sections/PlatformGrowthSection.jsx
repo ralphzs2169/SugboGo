@@ -1,3 +1,4 @@
+import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useId, useState } from "react";
 import { ReferenceArea } from "recharts";
 import { ArrowRight, Info, Minus, TrendingDown, TrendingUp } from "lucide-react";
@@ -42,7 +43,7 @@ function GrowthTooltip({ active, payload, inProgressDate }) {
 
 /** Shows all acquisition signals from one report, with secondary detail outside the dashboard card. */
 export default function PlatformGrowthSection({ period }) {
-  const [interval, setInterval] = useState("weekly");
+  const [interval, setInterval] = useWorkspaceSelection("growth.interval", "weekly");
   const [mode, setMode] = useState(null);
   const query = usePlatformGrowthAnalytics({ ...period, interval });
   const state = useAnalyticsSectionState(query, "growth", "platform growth");

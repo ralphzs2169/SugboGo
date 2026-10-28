@@ -1,4 +1,4 @@
-import { useState } from "react";
+import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { Link } from "react-router-dom";
 import { useBusinessAttention, useLowExposureBusinesses } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
@@ -42,7 +42,7 @@ function AttentionTable({ query, mode, onMode, params, setParams }) {
 
 /** Mounts only the selectable-period business-activity query. */
 function BusinessActivityView({ period, onMode }) {
-  const [params, setParams] = useState({ page: 1, page_size: 10, ordering: "-profile_visits" });
+  const [params, setParams] = useWorkspaceSelection(`attention.activity.${JSON.stringify(period)}`, { page: 1, page_size: 10, ordering: "-profile_visits" });
   const query = useBusinessAttention({ ...period, ...params });
   return (
     <>
@@ -54,7 +54,7 @@ function BusinessActivityView({ period, onMode }) {
 
 /** Mounts only the fixed-window query and intentionally receives no global reporting period. */
 function LowAttentionView({ onMode }) {
-  const [params, setParams] = useState({ page: 1, page_size: 10, ordering: "profile_visits" });
+  const [params, setParams] = useWorkspaceSelection("attention.low", { page: 1, page_size: 10, ordering: "profile_visits" });
   const query = useLowExposureBusinesses(params);
   return (
     <>
@@ -66,7 +66,7 @@ function LowAttentionView({ onMode }) {
 
 /** Switches report lifecycles without fetching the inactive attention mode. */
 export default function BusinessAttentionSection({ period }) {
-  const [mode, setMode] = useState("activity");
+  const [mode, setMode] = useWorkspaceSelection("attention.mode", "activity");
   return (
     <>
       {/* Mode and period changes reset server pagination before issuing a request */}

@@ -198,7 +198,7 @@ test("discovery failure leaves onboarding/community usable and Retry only reques
   failures.add("/admin/analytics/discovery-trend/");
   await mount();
   assert.match(section("Discovery Activity").textContent, /Unable to load discovery activity/);
-  assert.match(section("Merchant Onboarding").textContent, /Pending applications8/);
+  assert.match(section("Merchant Onboarding").textContent, /Pending \/ overdue8 \/ 2/);
   assert.match(section("Community Health").textContent, /Unclassified reviews1/);
   const total = reads.length;
   failures.clear();
@@ -232,19 +232,26 @@ test("successful unavailable discovery is not an HTTP failure or a zero and pres
   assert.equal(metric("Approved businesses").querySelector(".text-3xl").textContent, "12");
 });
 
-test("onboarding exposes workload, paired throughput, null turnaround and overlapping rejection sections", async () => {
+test("onboarding presents grouped workload, compact scoped statistics and complete report details", async () => {
   await mount();
   const onboarding = section("Merchant Onboarding");
-  assert.match(onboarding.textContent, /On time3/);
-  assert.match(onboarding.textContent, /Overdue2/);
-  assert.equal(metric("Median review turnaround").querySelector(".text-3xl").textContent, "Unavailable");
-  assert.doesNotMatch(onboarding.textContent, /Median review turnaround0 hours/);
-  assert.equal(onboarding.querySelector("[data-series='submissions']").dataset.connectNulls, "false");
-  assert.ok(onboarding.querySelector("[data-series='completed_reviews']"));
-  assert.match(onboarding.textContent, /Sections overlap; shares need not total 100%/);
-  assert.match(onboarding.textContent, /Identity/);
-  assert.match(onboarding.textContent, /Location/);
-  assert.match(onboarding.textContent, /strictly after a rejection/);
+  assert.equal(onboarding.querySelector("[data-chart-type]").dataset.chartType, "bar");
+  assert.equal(onboarding.querySelectorAll("[data-series-type='bar']").length, 2);
+  assert.equal(onboarding.querySelector("[data-stack]"), null);
+  assert.equal(onboarding.querySelector("[data-series-type='line']"), null);
+  assert.match(onboarding.textContent, /Pending \/ overdue8 \/ 2/);
+  assert.match(onboarding.textContent, /Current snapshot/);
+  assert.match(onboarding.textContent, /All classified recorded reviews/);
+  assert.match(onboarding.textContent, /Median review turnaroundUnavailable/);
+  assert.equal(onboarding.querySelectorAll(".text-3xl").length, 0);
+  assert.match(onboarding.textContent, /Sections may overlap/);
+  assert.match(onboarding.textContent, /All-time · as of now/);
+  await click([...onboarding.querySelectorAll("button")].find((button) => button.textContent.includes("About this report")));
+  const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /On time3/);
+  assert.match(drawer.textContent, /strictly after a rejection/);
+  assert.match(drawer.textContent, /unknowns are excluded/);
+  assert.match(drawer.textContent, /Missing timestamps/);
 });
 
 test("community uses persisted sentiment, classified shares, and discloses unclassified current-state history", async () => {
@@ -391,19 +398,30 @@ test("report metadata and coverage caveats are secondary but remain available on
   assert.equal(reads.length, 14);
 });
 
-test("onboarding foregrounds core decisions and keeps samples and full rejection rows disclosed", async () => {
-  overrides.set("/admin/analytics/onboarding/", (report) => ({ ...report, rejection_insights: { ...report.rejection_insights, sections: [...report.rejection_insights.sections].reverse().map((row) => ({ ...row, rejection_decisions: row.section === "identity" ? 4 : 1 })) } }));
+test("onboarding ranks all rejection sections and opens exact breakdown and workload in the drawer", async () => {
+  overrides.set("/admin/analytics/onboarding/", (report) => ({ ...report, review_turnaround: { ...report.review_turnaround, median_hours: 0.05 }, rejection_insights: { ...report.rejection_insights, sections: report.rejection_insights.sections.map((row) => ({ ...row, rejection_decisions: row.section === "identity" ? 4 : 1 })) } }));
   await mount();
   const onboarding = section("Merchant Onboarding");
-  for (const name of ["Pending applications", "Overdue", "SLA compliance", "Median review turnaround"]) assert.ok(metric(name));
-  assert.doesNotMatch(primaryText(onboarding), /Mean review turnaround|Unassignable missing decision times/);
-  const ranking = onboarding.querySelector("ol[aria-label='Rejected application sections']");
+  assert.match(onboarding.textContent, /Median review turnaround3 min/);
+  const ranking = onboarding.querySelector("ol");
   assert.deepEqual([...ranking.querySelectorAll("li")].map((row) => row.textContent), ["Identity4", "Location1"]);
-  assert.match(primaryText(onboarding), /50% post-rejection recovery/);
-  const full = disclosure(onboarding, "Full rejection breakdown");
-  assert.equal(full.parentElement.open, false);
-  await click(full);
-  assert.match(primaryText(onboarding), /Distinct applications|Share of decisions/);
+  await click([...onboarding.querySelectorAll("button")].find((button) => button.textContent.includes("View breakdown")));
+  let drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Distinct applications|Share of decisions/);
+  await click(drawer.querySelector("button"));
+  await click([...onboarding.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Merchant Onboarding — Exact Data/);
+  assert.match(drawer.textContent, /Completed reviews/);
+  assert.equal(onboarding.querySelector("table"), null);
+  assert.equal(onboarding.querySelector("a").getAttribute("href"), "/admin-panel/businesses/applications");
+  assert.equal(requests("onboarding/").length, 1);
+});
+
+test("onboarding duration preserves hour and minute units without changing values", async () => {
+  overrides.set("/admin/analytics/onboarding/", (report) => ({ ...report, review_turnaround: { ...report.review_turnaround, median_hours: 1.5 } }));
+  await mount();
+  assert.match(section("Merchant Onboarding").textContent, /Median review turnaround1 hr 30 min/);
 });
 
 test("sentiment primary composition retains backend shares and unclassified count without a raw table", async () => {
@@ -490,7 +508,7 @@ test("growth exact values retain null/zero and other analytics charts remain lin
   assert.match(drawer.textContent, /Accounts/);
   await act(async () => drawer.dispatchEvent(new dom.window.Event("cancel", { cancelable: true })));
   assert.equal(document.querySelector("dialog[open]"), null);
-  for (const title of ["Discovery Activity", "Merchant Onboarding", "Community Health"]) {
+  for (const title of ["Discovery Activity", "Community Health"]) {
     const report = section(title);
     assert.equal(report.querySelector("[data-chart-type]").dataset.chartType, "line");
     assert.equal(report.querySelector("[data-series-type='bar']"), null);

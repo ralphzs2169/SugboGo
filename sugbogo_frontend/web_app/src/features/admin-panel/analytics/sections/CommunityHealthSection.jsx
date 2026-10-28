@@ -1,4 +1,4 @@
-import { useState } from "react";
+import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useCommunityHealthAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsChartCard from "../components/AnalyticsChartCard";
@@ -14,7 +14,7 @@ const SENTIMENTS = [{ name: "positive", label: "Positive", color: "var(--color-s
 
 /** Pairs the publication trend with compact classified sentiment and visible unclassified counts. */
 export default function CommunityHealthSection({ period }) {
-  const [interval, setInterval] = useState("daily");
+  const [interval, setInterval] = useWorkspaceSelection("community.interval", "daily");
   const query = useCommunityHealthAnalytics({ ...period, interval });
   const state = useAnalyticsSectionState(query, "community", "community health");
   const data = query.data;

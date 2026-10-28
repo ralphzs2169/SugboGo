@@ -1,3 +1,6 @@
+import { useSearchParams } from "react-router-dom";
+import TableTabs from "../components/data-table/TableTabs";
+import { WorkspaceSelections } from "../analytics/hooks/useWorkspaceSelection";
 import { useState } from "react";
 import AnalyticsPeriodControl from "../analytics/components/AnalyticsPeriodControl";
 import { serializeReportingPeriod } from "../analytics/utils/reportingPeriod";
@@ -8,57 +11,55 @@ import PlatformGrowthSection from "../analytics/sections/PlatformGrowthSection";
 import DiscoveryActivitySection from "../analytics/sections/DiscoveryActivitySection";
 import OnboardingSection from "../analytics/sections/OnboardingSection";
 import CommunityHealthSection from "../analytics/sections/CommunityHealthSection";
-import TrustOperationsSection from "../analytics/sections/TrustOperationsSection";
+import { ModerationWorkload, ChangeRequestWorkload } from "../analytics/sections/TrustOperationsSection";
 import CoverageSection from "../analytics/sections/CoverageSection";
 import BusinessAttentionSection from "../analytics/sections/BusinessAttentionSection";
 import SpecialtySupportSection from "../analytics/sections/SpecialtySupportSection";
 import DiscoveryScoreHealthSection from "../analytics/sections/DiscoveryScoreHealthSection";
 
-/** Assembles independent, source-aware reports into the Admin decision dashboard. */
+const TABS = [
+  { id: "growth-discovery", label: "Growth & Discovery" },
+  { id: "operations", label: "Operations" },
+  { id: "community-trust", label: "Community & Trust" },
+  { id: "business-ecosystem", label: "Business Ecosystem" },
+];
+
+/** Mounts one topic's independent reports while preserving report controls and shared period state. */
 function Analytics() {
   useDocumentTitle("Analytics | SugboGo Admin");
-
   const [period, setPeriod] = useState(() => serializeReportingPeriod());
-
+  const [selections] = useState(() => new Map());
+  const [search, setSearch] = useSearchParams();
+  const requested = search.get("tab");
+  const active = TABS.some((tab) => tab.id === requested) ? requested : TABS[0].id;
+  function changeTab(tab) {
+    setSearch((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set("tab", tab);
+      return next;
+    });
+  }
   return (
-    <div className="min-w-0 space-y-6">
-      {/* Page identity and applied reporting selection */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-        <PageHeader title="Analytics" />
-        <p className="text-sm text-text-secondary">Platform performance, discovery health, and operational insights.</p>
+    <WorkspaceSelections.Provider value={selections}>
+      <div className="min-w-0 space-y-6">
+        {/* Page identity and one shared applied reporting period */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div><PageHeader title="Analytics" /><p className="text-sm text-text-secondary">Explore platform growth, operations, community health, and business performance.</p></div>
+          <AnalyticsPeriodControl compact value={period} onChange={setPeriod} />
         </div>
-        <AnalyticsPeriodControl compact value={period} onChange={setPeriod} />
+        {/* Reuse the exact DataTable segmented presentation and overflow convention */}
+        <div className="overflow-x-auto pb-1">
+          <TableTabs tabs={TABS} activeTab={active} onTabChange={changeTab} tabListId="analytics-topics" />
+        </div>
+        {/* Conditional mounting keeps inactive reports and taxonomy requests dormant */}
+        <div role="tabpanel" id={`analytics-topics-panel-${active}`} aria-labelledby={`analytics-topics-${active}`} tabIndex={0} className="min-w-0 space-y-4 rounded focus-visible:outline-2 focus-visible:outline-info">
+          {active === "growth-discovery" && <><OverviewSection period={period} /><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><PlatformGrowthSection period={period} /><DiscoveryActivitySection period={period} /></div></>}
+          {active === "operations" && <><OnboardingSection period={period} /><ChangeRequestWorkload period={period} /></>}
+          {active === "community-trust" && <><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><CommunityHealthSection period={period} /><SpecialtySupportSection /></div><ModerationWorkload period={period} /></>}
+          {active === "business-ecosystem" && <><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><CoverageSection period={period} /><DiscoveryScoreHealthSection /></div><BusinessAttentionSection period={period} /></>}
+        </div>
       </div>
-      <nav aria-label="Analytics sections" className="flex gap-4 overflow-x-auto border-b border-stroke pb-3 text-xs font-medium text-text-secondary">
-        {[["overview", "Overview"], ["growth", "Growth"], ["operations", "Operations"], ["community", "Community"], ["businesses", "Businesses"]].map(([id, label]) => <a key={id} href={`#analytics-${id}`} className="cursor-pointer whitespace-nowrap rounded hover:text-text-primary focus-visible:outline-2 focus-visible:outline-info">{label}</a>)}
-      </nav>
-
-      {/* Platform performance and related time-series reports */}
-      <div id="analytics-overview" className="scroll-mt-24"><OverviewSection period={period} /></div>
-      <section id="analytics-growth" aria-label="Growth & Discovery" className="scroll-mt-24 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Growth & Discovery</p>
-        <div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><PlatformGrowthSection period={period} /><DiscoveryActivitySection period={period} /></div>
-      </section>
-      <section id="analytics-operations" aria-label="Operations" className="scroll-mt-24 space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Operations</p>
-      <OnboardingSection period={period} />
-      <TrustOperationsSection period={period} />
-      </section>
-
-      {/* Operational workload, coverage and exposure decisions */}
-      <section id="analytics-community" aria-label="Community & Discovery Quality" className="scroll-mt-24 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Community & Discovery Quality</p>
-        <div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><CommunityHealthSection period={period} /><SpecialtySupportSection /></div>
-      </section>
-
-      {/* Current snapshots intentionally receive no global date selection */}
-      <section id="analytics-businesses" aria-label="Business Health" className="scroll-mt-24 space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Business Health</p>
-        <div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><CoverageSection period={period} /><DiscoveryScoreHealthSection /></div>
-        <BusinessAttentionSection period={period} />
-      </section>
-    </div>
+    </WorkspaceSelections.Provider>
   );
 }
 

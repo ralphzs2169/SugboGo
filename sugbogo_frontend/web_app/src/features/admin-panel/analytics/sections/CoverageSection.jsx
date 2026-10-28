@@ -1,4 +1,4 @@
-import { useState } from "react";
+import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useCoverageAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
@@ -12,8 +12,8 @@ import { formatCount, formatPercentage } from "../utils/presentation";
 
 /** Shows pooled coverage denominators and current taxonomy breakdowns without losing SQL eligibility during outages. */
 export default function CoverageSection({ period }) {
-  const [scope, setScope] = useState({});
-  const [group, setGroup] = useState("categories");
+  const [scope, setScope] = useWorkspaceSelection("coverage.scope", {});
+  const [group, setGroup] = useWorkspaceSelection("coverage.group", "categories");
   const query = useCoverageAnalytics({ ...period, ...scope });
   const state = useAnalyticsSectionState(query, "coverage", "business coverage");
   const data = query.data;

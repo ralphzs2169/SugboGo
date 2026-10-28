@@ -6,11 +6,12 @@ import TableTabBadge from "./TableTabBadge";
  * The active state uses a sliding background indicator while the tab content
  * smoothly transitions between active and inactive styling.
  */
-function TableTabItem({ tab, isActive, onClick }) {
+function TableTabItem({ tab, isActive, onClick, buttonProps }) {
   const Icon = tab.icon;
 
   return (
     <button
+      {...buttonProps}
       type="button"
       onClick={onClick}
       className={`relative cursor-pointer rounded-md px-4 py-1.5 text-[13px] font-medium transition-colors duration-200 ${

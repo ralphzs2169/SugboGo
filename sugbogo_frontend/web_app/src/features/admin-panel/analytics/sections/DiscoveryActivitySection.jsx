@@ -1,3 +1,4 @@
+import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useId, useState } from "react";
 import { ReferenceArea } from "recharts";
 import { ArrowRight, Info } from "lucide-react";
@@ -85,8 +86,8 @@ function DiscoverySummary({ query, metric, onSelect }) {
 
 /** Presents one independently requested discovery metric with source-aware secondary detail. */
 export default function DiscoveryActivitySection({ period }) {
-  const [metric, setMetric] = useState("profile_visits");
-  const [interval, setInterval] = useState("weekly");
+  const [metric, setMetric] = useWorkspaceSelection("discovery.metric", "profile_visits");
+  const [interval, setInterval] = useWorkspaceSelection("discovery.interval", "weekly");
   const [mode, setMode] = useState(null);
   const patternId = useId().replaceAll(":", "");
   const summaryQuery = useDiscoveryActivitySummary(period);
