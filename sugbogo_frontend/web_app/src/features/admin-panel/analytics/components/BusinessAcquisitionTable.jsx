@@ -5,10 +5,14 @@ import { CLUSTER_ICONS } from "../../cluster-category/constants/clusterIcons";
 import { formatCount } from "../utils/presentation";
 
 /** Keeps one cluster subtotal and its category breakdown in the same row group. */
-function AcquisitionClusterRows({ cluster, countHeadingId, collapsible }) {
+function AcquisitionClusterRows({
+  cluster,
+  countHeadingId,
+  collapsible,
+  expanded,
+  onToggle,
+}) {
   const rowId = useId();
-  const [isOpen, setIsOpen] = useState(true);
-  const expanded = !collapsible || isOpen;
   const clusterHeadingId = `${rowId}-cluster`;
   const categories = cluster.categories;
   const Icon = CLUSTER_ICONS.find((item) => item.value === cluster.icon)?.icon ?? Store;
@@ -33,8 +37,8 @@ function AcquisitionClusterRows({ cluster, countHeadingId, collapsible }) {
               type="button"
               aria-expanded={expanded}
               aria-controls={categories.map((_, index) => categoryRowId(index)).join(" ")}
-              onClick={() => setIsOpen((previous) => !previous)}
-              className="flex w-full cursor-pointer items-center gap-2 rounded text-left hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-info"
+              onClick={onToggle}
+              className="flex w-full cursor-pointer items-center gap-2 rounded text-left hover:bg-interaction-hover focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-info"
             >
               {name}
               <ChevronDown
@@ -93,46 +97,98 @@ export default function BusinessAcquisitionTable({
   collapsible = true,
 }) {
   const countHeadingId = useId();
+  const tableId = useId();
+  const [expandedClusters, setExpandedClusters] = useState(() => new Set());
+  const expandableClusters = clusters.filter((cluster) => cluster.categories.length > 0);
+  const allExpanded = expandableClusters.length > 0 && expandableClusters.every(
+    (cluster) => expandedClusters.has(cluster.id ?? "unclassified"),
+  );
+
+  function toggleCluster(clusterId) {
+    setExpandedClusters((previous) => {
+      const next = new Set(previous);
+      if (next.has(clusterId)) {
+        next.delete(clusterId);
+      } else {
+        next.add(clusterId);
+      }
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allExpanded) {
+      setExpandedClusters(new Set());
+    } else {
+      setExpandedClusters(new Set(
+        expandableClusters.map((cluster) => cluster.id ?? "unclassified"),
+      ));
+    }
+  }
 
   return (
-    <table className="w-full table-fixed text-left text-sm text-text-primary">
-      <caption className="sr-only">
-        New businesses by current cluster and category. Category counts break down cluster subtotals.
-      </caption>
-      <colgroup>
-        <col />
-        <col className="w-28 sm:w-36" />
-      </colgroup>
-      {/* The two columns stay aligned for every parent and child classification. */}
-      <thead className="bg-surface-muted">
-        <tr>
-          <th scope="col" className="px-4 py-3 font-medium">Classification</th>
-          <th id={countHeadingId} scope="col" className="px-4 py-3 text-right font-medium">New Businesses</th>
-        </tr>
-      </thead>
-      {clusters.map((cluster) => (
-        <AcquisitionClusterRows
-          key={cluster.id ?? "unclassified"}
-          cluster={cluster}
-          countHeadingId={countHeadingId}
-          collapsible={collapsible}
-        />
-      ))}
-      {!clusters.length && (
-        <tbody>
+    <div className="min-w-0">
+      {/* Use the backend total rather than adding parent subtotals to category rows. */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        {collapsible && (
+          <button
+            type="button"
+            aria-controls={tableId}
+            onClick={toggleAll}
+            disabled={!expandableClusters.length}
+            className="inline-flex min-h-8 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-text-primary hover:bg-interaction-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {allExpanded ? "Collapse all" : "Expand all"}
+          </button>
+        )}
+        <dl className="ml-auto min-w-0 text-right">
+          <dt className="text-xs text-text-secondary">Total new businesses</dt>
+          <dd className="mt-0.5 text-xl font-semibold text-text-primary tabular-nums">
+            {formatCount(total)}
+          </dd>
+        </dl>
+      </div>
+      <table id={tableId} className="w-full table-fixed text-left text-sm text-text-primary">
+        <caption className="sr-only">
+          New businesses by current cluster and category. Category counts break down cluster subtotals.
+        </caption>
+        <colgroup>
+          <col />
+          <col className="w-28 sm:w-36" />
+        </colgroup>
+        {/* The two columns stay aligned for every parent and child classification. */}
+        <thead className="bg-surface-muted">
           <tr>
-            <td colSpan={2} className="px-4 py-8 text-center text-text-secondary">
-              No new businesses were recorded during this period.
-            </td>
+            <th scope="col" className="px-4 py-3 font-medium">Classification</th>
+            <th id={countHeadingId} scope="col" className="px-4 py-3 text-right font-medium">New Businesses</th>
           </tr>
-        </tbody>
-      )}
-      <tfoot className="border-t border-stroke">
-        <tr>
-          <th scope="row" className="px-4 py-3 font-semibold">Total new businesses</th>
-          <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatCount(total)}</td>
-        </tr>
-      </tfoot>
-    </table>
+        </thead>
+        {clusters.map((cluster) => (
+          <AcquisitionClusterRows
+            key={cluster.id ?? "unclassified"}
+            cluster={cluster}
+            countHeadingId={countHeadingId}
+            collapsible={collapsible}
+            expanded={!collapsible || expandedClusters.has(cluster.id ?? "unclassified")}
+            onToggle={() => toggleCluster(cluster.id ?? "unclassified")}
+          />
+        ))}
+        {!clusters.length && (
+          <tbody>
+            <tr>
+              <td colSpan={2} className="px-4 py-8 text-center text-text-secondary">
+                No new businesses were recorded during this period.
+              </td>
+            </tr>
+          </tbody>
+        )}
+        <tfoot className="border-t border-stroke">
+          <tr>
+            <th scope="row" className="px-4 py-3 font-semibold">Grand total of new businesses</th>
+            <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatCount(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }

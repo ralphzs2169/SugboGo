@@ -16,6 +16,16 @@ export default function BusinessAcquisitionSection({ period }) {
   const state = useAnalyticsSectionState(query, "business-acquisition", "business acquisition");
   const data = query.data;
   const hierarchyAvailable = Array.isArray(data?.hierarchy);
+  // Reset navigation for a changed reporting population, not refresh timestamps or drawer state.
+  const populationKey = JSON.stringify([
+    data?.meta?.period?.start_date,
+    data?.meta?.period?.end_date,
+    data?.hierarchy?.map((cluster) => [
+      cluster.id,
+      cluster.created,
+      cluster.categories.map((category) => [category.id, category.created]),
+    ]),
+  ]);
   const missingHierarchy = (
     <DataErrorState
       compact
@@ -54,7 +64,11 @@ export default function BusinessAcquisitionSection({ period }) {
           </p>
         )}
         {hierarchyAvailable ? (
-          <BusinessAcquisitionTable clusters={data.hierarchy} total={data.totals?.created} />
+          <BusinessAcquisitionTable
+            key={populationKey}
+            clusters={data.hierarchy}
+            total={data.totals?.created}
+          />
         ) : missingHierarchy}
       </AnalyticsSection>
 
