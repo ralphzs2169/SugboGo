@@ -12,6 +12,7 @@ const SCORE_ORDER_FIELDS = [
 export const analyticsReports = {
   platformOverview: { path: "", period: true },
   platformGrowth: { path: "platform-growth/", period: true, interval: true },
+  transportationPlanning: { path: "transportation-planning/", period: true, interval: true },
   discoverySources: { path: "discovery-sources/", period: true },
   discoverySummary: { path: "discovery-summary/", period: true },
   discoveryTrend: {

@@ -52,6 +52,14 @@ export function fixtureReport(route, params = {}) {
     current: { published_review_count: 2, classified_review_count: 1, unclassified_review_count: 1, sentiment: { positive: { count: 1, percentage: 100 }, neutral: { count: 0, percentage: 0 }, negative: { count: 0, percentage: 0 } } },
     published_review_count_change: change, series: [point("2026-10-01", { published_review_count: 2 })], meta,
   };
+  if (route === "transportation-planning/") return {
+    total_requests: 5, distinct_requesting_accounts: 2, requests_without_account_identity: 0,
+    methods: [{method:"ROAD_ROUTE",label:"Road routes",count:3,share_percent:60},{method:"JEEPNEY",label:"Jeepney guidance",count:2,share_percent:40},{method:"OTHER",label:"Other recorded methods",count:0,share_percent:0}],
+    series: [{...point("2026-10-01",{road_route:3,jeepney:2,other:null}),observation_start:"2026-10-01T00:00:00+08:00",tracking_started:true}],
+    destinations:[{business_id:10,business_name:"Destination business",count:5,road_route:3,jeepney:2,other:0}],
+    interval:params.interval,tracking_started_at:"2026-10-01T00:00:00+08:00",destination_limit:10,unavailable_destinations_in_ranking:0,
+    definitions:{deduplication:"One recorded request per account, business, method and UTC day; not completed journeys."},meta,
+  };
   if (route === "discovery-sources/") return { total_profile_visits: 3, sources: ["EXPLORE_DISCOVERY", "SEARCH_RESULTS", "MAP", "COLLECTION", "SIMILAR_BUSINESSES", "COMMUNITY", "UNKNOWN"].map((source) => ({ source, count: source === "MAP" ? 2 : source === "UNKNOWN" ? 1 : 0, share_percent: source === "MAP" ? 66.67 : source === "UNKNOWN" ? 33.33 : 0 })), definitions: { deduplication: "First persisted source per UTC day." }, meta };
   if (route === "attention-queue/") return { open_reports: queue, open_disputes: queue, completed_dispute_turnaround: { median_hours: 4, sample_count: 2, excluded_invalid_duration_count: 0, missing_resolution_timestamp_count: 0 }, queue_meta: { as_of: meta.generated_at }, turnaround_meta: meta, meta };
   if (route === "change-requests/") return { backlog: queue, backlog_meta: { as_of: meta.generated_at }, turnaround: { ...duration, median_hours: 2, mean_hours: 3, sample_count: 2 }, period_outcomes: { approved: 2, rejected: 1, withdrawn: 1 }, types: [{ type: "name", label: "Business name", backlog: queue }], missing_resolution_timestamp_count: 0, meta };

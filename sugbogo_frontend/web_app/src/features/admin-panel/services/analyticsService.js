@@ -29,3 +29,5 @@ export const fetchDiscoveryHeatmap = (params, options) => fetchReport("discovery
 export const fetchDiscoveryScoreAnalytics = (params, options) => fetchReport("discoveryScores", params, options);
 
 export const fetchDiscoverySources = (params, options) => fetchReport("discoverySources", params, options);
+
+export const fetchTransportationPlanning = (params, options) => fetchReport("transportationPlanning", params, options);

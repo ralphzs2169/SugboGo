@@ -6,6 +6,7 @@ import AnalyticsPeriodControl from "../analytics/components/AnalyticsPeriodContr
 import { serializeReportingPeriod } from "../analytics/utils/reportingPeriod";
 import PageHeader from "../components/PageHeader";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
+import TransportationPlanningSection from "../analytics/sections/TransportationPlanningSection";
 import DiscoverySourcesSection from "../analytics/sections/DiscoverySourcesSection";
 import OverviewSection from "../analytics/sections/OverviewSection";
 import PlatformGrowthSection from "../analytics/sections/PlatformGrowthSection";
@@ -54,7 +55,7 @@ function Analytics() {
         </div>
         {/* Conditional mounting keeps inactive reports and taxonomy requests dormant */}
         <div role="tabpanel" id={`analytics-topics-panel-${active}`} aria-labelledby={`analytics-topics-${active}`} tabIndex={0} className="min-w-0 space-y-4 rounded focus-visible:outline-2 focus-visible:outline-info">
-          {active === "growth-discovery" && <><OverviewSection period={period} /><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><PlatformGrowthSection period={period} /><DiscoveryActivitySection period={period} /></div><DiscoverySourcesSection period={period} /></>}
+          {active === "growth-discovery" && <><OverviewSection period={period} /><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><PlatformGrowthSection period={period} /><DiscoveryActivitySection period={period} /></div><DiscoverySourcesSection period={period} /><TransportationPlanningSection period={period} /></>}
           {active === "operations" && <><OnboardingSection period={period} /><ChangeRequestWorkload period={period} /></>}
           {active === "community-trust" && <><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><CommunityHealthSection period={period} /><SpecialtySupportSection /></div><ModerationWorkload period={period} /></>}
           {active === "business-ecosystem" && <><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><CoverageSection period={period} /><DiscoveryScoreHealthSection /></div><BusinessAttentionSection period={period} /></>}

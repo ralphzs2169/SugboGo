@@ -7,6 +7,7 @@ from apps.authentication.permissions import HasRole
 from apps.users.models import User
 from core.responses import success_response
 
+from .serializers.transportation_planning_serializers import TransportationPlanningSerializer
 from .serializers.discovery_sources_serializers import AdminDiscoverySourcesSerializer
 from .serializers.change_request_serializers import ChangeRequestAnalyticsSerializer
 from .serializers.community_health_serializers import CommunityHealthSerializer
@@ -19,6 +20,7 @@ from .services.change_request_analytics_service import ChangeRequestAnalyticsSer
 from .services.community_health_service import CommunityHealthService
 from .services.platform_growth_service import PlatformGrowthService
 from .services.specialty_support_service import SpecialtySupportService
+from .services.transportation_planning_service import TransportationPlanningService
 
 
 class AdminReportingView(APIView):
@@ -91,3 +93,12 @@ class DiscoverySourcesView(AdminReportingView):
     service = AdminDiscoverySourcesService
     response_serializer = AdminDiscoverySourcesSerializer
     message = "Discovery sources retrieved successfully."
+
+
+class TransportationPlanningView(AdminReportingView):
+    """Provide administrator-only recorded transportation planning observations."""
+
+    query_serializer = ReportingSeriesQuerySerializer
+    service = TransportationPlanningService
+    response_serializer = TransportationPlanningSerializer
+    message = "Transportation planning analytics retrieved successfully."

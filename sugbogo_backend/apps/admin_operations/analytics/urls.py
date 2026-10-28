@@ -5,6 +5,7 @@ from .operations_views import AttentionQueueView, OnboardingAnalyticsView
 from .reporting_views import (
     ChangeRequestAnalyticsView,
     DiscoverySourcesView,
+    TransportationPlanningView,
     CommunityHealthView,
     PlatformGrowthView,
     SpecialtySupportView,
@@ -16,6 +17,11 @@ from .views import VisibilityGapDiagnosticView
 from .views import BusinessAttentionView, CoverageAnalyticsView, LowExposureView
 
 urlpatterns = [
+    path(
+        "transportation-planning/",
+        TransportationPlanningView.as_view(),
+        name="admin-analytics-transportation-planning",
+    ),
     path(
         "discovery-sources/",
         DiscoverySourcesView.as_view(),

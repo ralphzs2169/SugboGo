@@ -322,3 +322,94 @@ class RoutePlanningEventService:
         if rows:
             totals.update(rows[0])
         return totals, started_at, None
+
+
+    @classmethod
+    def read_platform(
+        cls,
+        period,
+        interval,
+    ):
+        """Read bounded platform aggregates without initializing tracking or indexes."""
+        if interval not in ("daily", "weekly"):
+            raise ValidationError({"interval": "Choose daily or weekly."})
+        started_at = None
+        try:
+            collection = cls._get_collection()
+            state = collection.find_one({"_id": cls.STATE_ID})
+            if state is None:
+                names = collection.database.list_collection_names(
+                    filter={"name": cls.COLLECTION_NAME},
+                )
+                if cls.COLLECTION_NAME not in names:
+                    return None, None, "route_intent_collection_missing"
+                return None, None, "route_tracking_not_initialized"
+            started_at = state.get("started_at")
+            if not isinstance(started_at, datetime):
+                return None, None, "route_tracking_not_initialized"
+            if timezone.is_naive(started_at):
+                started_at = started_at.replace(tzinfo=UTC)
+            started_at = started_at.astimezone(UTC)
+            if started_at >= period.end:
+                return None, started_at, "tracking_not_started_in_period"
+            truncation = {
+                "date": "$occurred_at",
+                "unit": "day" if interval == "daily" else "week",
+                "timezone": "Asia/Manila",
+            }
+            if interval == "weekly":
+                truncation["startOfWeek"] = "monday"
+            methods = [method.value for method in NavigationMethod]
+            pipeline = [
+                {"$match": {
+                    "navigation_method": {"$exists": True},
+                    "occurred_at": {
+                        "$gte": max(period.start, started_at),
+                        "$lt": period.end,
+                    },
+                }},
+                {"$set": {"report_method": {"$cond": [
+                    {"$in": ["$navigation_method", methods]},
+                    "$navigation_method",
+                    "OTHER",
+                ]}}},
+                {"$facet": {
+                    "methods": [
+                        {"$group": {"_id": "$report_method", "count": {"$sum": 1}}},
+                    ],
+                    "accounts": [
+                        {"$match": {"explorer_id": {"$type": "number", "$gt": 0}}},
+                        {"$group": {"_id": "$explorer_id"}},
+                        {"$count": "count"},
+                    ],
+                    "unknown_accounts": [
+                        {"$match": {"$nor": [{"explorer_id": {"$type": "number", "$gt": 0}}]}},
+                        {"$count": "count"},
+                    ],
+                    "series": [
+                        {"$group": {
+                            "_id": {"bucket": {"$dateTrunc": truncation}, "method": "$report_method"},
+                            "count": {"$sum": 1},
+                        }},
+                        {"$sort": {"_id.bucket": 1, "_id.method": 1}},
+                    ],
+                    "destinations": [
+                        {"$group": {
+                            "_id": "$business_id",
+                            "count": {"$sum": 1},
+                            **{
+                                method.lower(): {"$sum": {"$cond": [
+                                    {"$eq": ["$report_method", method]}, 1, 0,
+                                ]}}
+                                for method in [*methods, "OTHER"]
+                            },
+                        }},
+                        {"$sort": {"count": -1, "_id": 1}},
+                        {"$limit": 10},
+                    ],
+                }},
+            ]
+            rows = list(collection.aggregate(pipeline))
+            return rows[0], started_at, None
+        except PyMongoError:
+            return None, started_at, "route_source_unavailable"

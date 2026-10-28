@@ -66,3 +66,8 @@ export function useDiscoveryScoreAnalytics(params, options) {
 export function useDiscoverySources(params, options) {
   return useReportQuery("discoverySources", params, options);
 }
+
+/** Reads recorded platform planning intent independently of discovery events. */
+export function useTransportationPlanning(params, options) {
+  return useReportQuery("transportationPlanning", params, options);
+}

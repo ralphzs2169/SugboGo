@@ -46,6 +46,9 @@ before(async () => {
             return React.createElement('span', {'data-series':dataKey,'data-series-type':'line','data-connect-nulls':String(connectNulls)},
               React.createElement('svg', {'data-observation-markers':true}, typeof dot === 'function' ? rows.map((row,index) => dot({index,cx:index * 10,cy:20,payload:row})) : null));
           };
+          export const PieChart = ({children}) => React.createElement('div', {'data-pie-chart':true}, children);
+          export const Pie = ({data,children}) => React.createElement('div', {'data-pie':JSON.stringify(data)},children);
+          export const Cell = () => null;
           export const LabelList = () => null;
           export const Bar = ({dataKey,fill,stackId}) => React.createElement('span', {'data-series':dataKey,'data-series-type':'bar','data-fill':fill,'data-stack':stackId});
           export const XAxis = ({type,dataKey,domain,ticks}) => React.createElement('span',{'data-axis-type':type,'data-axis-key':dataKey,'data-domain':JSON.stringify(domain),'data-ticks':JSON.stringify(ticks)});
@@ -137,7 +140,7 @@ async function tab(name) {
 
 test("workspace mounts only Growth reports and reuses cached queries with retained selections", async () => {
   await mount();
-  assert.equal(reads.length, 5);
+  assert.equal(reads.length, 6);
   assert.equal(requests("onboarding/").length, 0);
   assert.equal(requests("attention-queue/").length, 0);
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 0);
@@ -364,4 +367,70 @@ test("account trend retry is independent and retains cached observations on refr
   await until(() => section("Discovery Activity").textContent.includes("Previously loaded data"));
   assert.ok(section("Discovery Activity").querySelector("[data-chart]"));
   assert.equal(requests("discovery-sources/").length, sourceCount);
+});
+
+test("transportation donut reconciles methods and drawer destinations with period cache reuse", async () => {
+  await mount();
+  const report = section("Transportation Planning");
+  const methods = JSON.parse(report.querySelector("[data-pie]").getAttribute("data-pie"));
+  assert.equal(methods.reduce((sum,row) => sum + row.count,0), 5);
+  assert.match(report.textContent, /60%/);
+  assert.match(report.textContent, /Distinct requesting accounts: 2/);
+  assert.match(report.textContent, /not completed journeys/);
+  assert.ok(report.querySelector(".sm\\:grid-cols-2"));
+  await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  assert.match(document.querySelector("dialog[open]").textContent, /Recorded planning activity/);
+  assert.equal(document.querySelector('dialog[open] a').getAttribute("href"), "/admin-panel/businesses/10");
+  await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
+  await click(report.querySelector('[aria-label="About Transportation Planning"]'));
+  assert.match(document.querySelector("dialog[open]").textContent, /UTC day/);
+  assert.match(document.querySelector("dialog[open]").textContent, /Tracking started/);
+  await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
+  const count = requests("transportation-planning/").length;
+  await tab("Operations");
+  await tab("Growth & Discovery");
+  assert.equal(requests("transportation-planning/").length,count);
+  const interval = report.querySelector("select");
+  // Resolve the newly mounted section after returning to the tab.
+  const mountedInterval = section("Transportation Planning").querySelector("select");
+  assert.ok(interval);
+  await act(async () => { mountedInterval.value="daily"; mountedInterval.dispatchEvent(new dom.window.Event("change",{bubbles:true})); });
+  await until(() => client.isFetching() === 0);
+  assert.equal(requests("transportation-planning/").at(-1).params.interval,"daily");
+  await click(periodButton("7"));
+  await until(() => client.isFetching() === 0);
+  assert.equal(requests("transportation-planning/").at(-1).params.period,"7");
+});
+
+test("transportation separates zero, unavailable and request failure with independent retry", async () => {
+  initialEntries=["/admin-panel/analytics?tab=operations"];
+  await mount();
+  assert.equal(requests("transportation-planning/").length,0);
+  failures.add("/admin/analytics/transportation-planning/");
+  await tab("Growth & Discovery");
+  assert.match(section("Transportation Planning").textContent,/Unable to load/);
+  const sources=requests("discovery-sources/").length;
+  failures.clear();
+  overrides.set("/admin/analytics/transportation-planning/", (report) => ({...report,total_requests:0,methods:report.methods.map((row)=>({...row,count:0,share_percent:null}))}));
+  await click([...section("Transportation Planning").querySelectorAll("button")].find((button)=>button.textContent === "Retry"));
+  await until(()=>section("Transportation Planning").textContent.includes("No transportation-planning requests"));
+  assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
+  assert.equal(requests("discovery-sources/").length,sources);
+  overrides.set("/admin/analytics/transportation-planning/", (report) => ({...report,total_requests:null,methods:null,meta:{...report.meta,availability:"unavailable"}}));
+  await click(periodButton("7"));
+  await until(()=>section("Transportation Planning").textContent.includes("unavailable, not zero"));
+  assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
+});
+
+test("transportation keeps cached donut on refresh failure and discloses pretracking periods", async () => {
+  await mount();
+  failures.add("/admin/analytics/transportation-planning/");
+  await act(async () => { await client.invalidateQueries({queryKey:["admin","analytics","transportationPlanning"]}); });
+  await until(()=>section("Transportation Planning").textContent.includes("Previously loaded data"));
+  assert.ok(section("Transportation Planning").querySelector("[data-pie]"));
+  failures.clear();
+  overrides.set("/admin/analytics/transportation-planning/", (report) => ({...report,total_requests:null,methods:null,meta:{...report.meta,availability:"unavailable",partial_reasons:["tracking_not_started_in_period"]}}));
+  await click(periodButton("7"));
+  await until(()=>section("Transportation Planning").textContent.includes("before transportation tracking began"));
+  assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
 });
