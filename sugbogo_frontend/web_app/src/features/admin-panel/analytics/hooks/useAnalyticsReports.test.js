@@ -10,7 +10,6 @@ const { JSDOM } = createRequire(resolve("../mobile/package.json"))("jsdom");
 let server;
 let dom;
 let hooks;
-let Page;
 let createRoot;
 let root;
 let container;
@@ -51,7 +50,6 @@ before(async () => {
     }],
   });
   hooks = await server.ssrLoadModule("/src/features/admin-panel/analytics/hooks/useAnalyticsReports.js");
-  ({ default: Page } = await server.ssrLoadModule("/src/features/admin-panel/pages/Analytics.jsx"));
 });
 
 beforeEach(() => {
@@ -213,36 +211,4 @@ test("disabled sections do not fetch and new selected periods request their own 
   assert.deepEqual(reads.map((request) => request.params), [
     { period: "7", interval: "daily" }, { period: "90", interval: "weekly" },
   ]);
-});
-
-test("Analytics shell mounts only overview and offers persistent section Retry after failure", async () => {
-  let failing = true;
-  transport = async () => {
-    if (failing) throw new Error("Overview unavailable");
-    return { data: { data: { kpis: {} } } };
-  };
-  await render(React.createElement(Page));
-  await until(() => container.querySelector("[role='alert']"));
-  assert.match(container.textContent, /Platform overview is unavailable/);
-  assert.equal(container.querySelector("h1").textContent, "Analytics");
-  assert.equal(reads.length, 1);
-  failing = false;
-  await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent === "Retry").click());
-  await until(() => !container.querySelector("[role='alert']"));
-  assert.equal(reads.length, 2);
-  assert.ok(reads.every(({ url }) => url === "/admin/analytics/"));
-  assert.equal(container.querySelector("h1").textContent, "Analytics");
-});
-
-test("Analytics applied presets update only the overview request while custom input stays draft", async () => {
-  await render(React.createElement(Page));
-  await until(() => reads.length === 1 && !container.querySelector("[role='status']"));
-  const findButton = (label) => [...container.querySelectorAll("button")].find((item) => item.textContent === label);
-  await act(async () => findButton("7D").click());
-  await until(() => reads.length === 2 && !container.querySelector("[role='status']"));
-  assert.deepEqual(reads[1].params, { period: "7" });
-  await act(async () => findButton("Custom").click());
-  assert.equal(reads.length, 2);
-  assert.equal(findButton("Apply range").disabled, true);
-  assert.ok(reads.every(({ url }) => url === "/admin/analytics/"));
 });

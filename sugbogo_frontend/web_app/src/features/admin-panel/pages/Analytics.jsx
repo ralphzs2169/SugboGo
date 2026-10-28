@@ -1,42 +1,49 @@
 import { useState } from "react";
-import { usePlatformAnalytics } from "../analytics/hooks/useAnalyticsReports";
 import AnalyticsPeriodControl from "../analytics/components/AnalyticsPeriodControl";
-import AnalyticsSection from "../analytics/components/AnalyticsSection";
 import { serializeReportingPeriod } from "../analytics/utils/reportingPeriod";
 import PageHeader from "../components/PageHeader";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
+import OverviewSection from "../analytics/sections/OverviewSection";
+import PlatformGrowthSection from "../analytics/sections/PlatformGrowthSection";
+import DiscoveryActivitySection from "../analytics/sections/DiscoveryActivitySection";
+import OnboardingSection from "../analytics/sections/OnboardingSection";
+import CommunityHealthSection from "../analytics/sections/CommunityHealthSection";
+import TrustOperationsSection from "../analytics/sections/TrustOperationsSection";
+import CoverageSection from "../analytics/sections/CoverageSection";
+import BusinessAttentionSection from "../analytics/sections/BusinessAttentionSection";
+import SpecialtySupportSection from "../analytics/sections/SpecialtySupportSection";
+import DiscoveryScoreHealthSection from "../analytics/sections/DiscoveryScoreHealthSection";
 
-/** Keeps Analytics limited to reporting controls and independently recoverable overview loading. */
+/** Assembles independent, source-aware reports into the Admin decision dashboard. */
 function Analytics() {
   useDocumentTitle("Analytics | SugboGo Admin");
 
   const [period, setPeriod] = useState(() => serializeReportingPeriod());
-  const overview = usePlatformAnalytics(period);
-
-  useApiErrorNotification(overview.error, {
-    toastId: "analytics-overview-load-error",
-    fallbackMessage: "Unable to load platform overview. Please try again.",
-  });
 
   return (
     <div className="min-w-0 space-y-6">
       {/* Page identity and applied reporting selection */}
-      <PageHeader title="Analytics" />
+      <div>
+        <PageHeader title="Analytics" />
+        <p className="text-sm leading-relaxed text-text-secondary">Understand platform growth, discovery activity, merchant operations, and community health.</p>
+      </div>
       <AnalyticsPeriodControl value={period} onChange={setPeriod} />
 
-      {/* Only overview mounts until report-specific dashboard content is implemented. */}
-      <AnalyticsSection
-        title="Platform overview"
-        description="Current inventory and recorded activity retain their own reporting scope."
-        isLoading={overview.isLoading}
-        isFetching={overview.isFetching}
-        hasData={overview.data !== undefined}
-        error={overview.error}
-        onRetry={() => overview.refetch()}
-        errorMessage="Platform overview is unavailable. Please try again."
-        partialNotice={overview.data?.meta?.is_partial ? "Some sources have incomplete coverage or freshness. Reported values retain these limitations." : null}
-      />
+      {/* Platform performance and related time-series reports */}
+      <OverviewSection period={period} />
+      <PlatformGrowthSection period={period} />
+      <DiscoveryActivitySection period={period} />
+      <OnboardingSection period={period} />
+      <CommunityHealthSection period={period} />
+
+      {/* Operational workload, coverage and exposure decisions */}
+      <TrustOperationsSection period={period} />
+      <CoverageSection period={period} />
+      <BusinessAttentionSection period={period} />
+
+      {/* Current snapshots intentionally receive no global date selection */}
+      <SpecialtySupportSection />
+      <DiscoveryScoreHealthSection />
     </div>
   );
 }

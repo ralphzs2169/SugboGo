@@ -5,6 +5,7 @@ const reportKey = (report, params) => [...all, report, normalizeAnalyticsParams(
 
 export const analyticsQueryKeys = {
   all,
+  taxonomy: (kind) => [...all, "taxonomy", kind],
   platformOverview: (params) => reportKey("platformOverview", params),
   platformGrowth: (params) => reportKey("platformGrowth", params),
   discoveryTrend: (params) => reportKey("discoveryTrend", params),

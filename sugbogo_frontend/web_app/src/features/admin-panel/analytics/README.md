@@ -1,6 +1,6 @@
 # Admin Analytics frontend data foundation
 
-The dashboard UI is deliberately not implemented here. Each exported hook in
+The MVP dashboard is assembled from independent report sections. Each exported hook in
 `hooks/useAnalyticsReports.js` owns one independent React Query request. Services
 live in the existing `../services/analyticsService.js`; the old raw-response
 `getAnalyticsData()` export remains compatible.
@@ -66,7 +66,7 @@ Queries use a one-minute stale time to reduce repeated reads on navigation. They
 inherit the global QueryClient's retry=1 and refetchOnWindowFocus=false settings.
 No polling, custom reconnect policy, prefetch-all or cross-report invalidation is
 introduced. Heatmap/score queries run only when their hooks are mounted and enabled;
-the minimal Analytics page mounts only overview. Existing Discovery Scores list,
+the MVP page does not mount heatmap or the inactive attention mode. Existing Discovery Scores list,
 opt-in visibility diagnostic and mutation consumers remain unchanged.
 
 ## Data semantics and pagination
@@ -104,7 +104,7 @@ node --test --test-concurrency=1 src/features/admin-panel/analytics/queries/anal
 Tests use the existing Vite SSR, Node test and sibling mobile JSDOM setup; no new
 test packages are required. Transport is stubbed, while real hooks and QueryClient
 exercise response semantics, independence, Retry, period/filter changes and background
-refresh. The minimal page is exercised without implementing dashboard visuals.
+refresh. Dashboard integration tests separately exercise the complete page and its selectors.
 
 ## UI foundation
 
@@ -171,6 +171,82 @@ The chart slot is 256px high, increasing to 288px at the existing small breakpoi
 Headers wrap, grids collapse to two/one columns, and DataTable retains horizontal
 scrolling. Existing light/dark tokens and Lucide icons are reused.
 
-The Analytics page currently mounts only overview, with a shared header and
-reporting control. It deliberately renders no fake KPIs, temporary charts or full
-dashboard arrangement. Visual review fixtures are temporary and are not shipped.
+The Analytics page uses the MVP section composition described below. Visual
+review fixtures are temporary and are not shipped.
+
+## MVP dashboard composition
+
+`pages/Analytics.jsx` owns only the applied global reporting period. Focused
+components in `sections/` own their report hooks, local selectors and independent
+notification/Retry states through `useAnalyticsSectionState`.
+
+The page order is overview, platform growth, discovery activity, merchant
+onboarding, community health, trust/operations, business coverage, business
+attention, specialty support and Discovery Score health.
+
+- Overview preserves backend labels and current snapshot/current-role/recorded
+  activity meanings. Inventory cards never receive period comparison badges.
+- Growth uses one local metric selector over the three returned creation/approval
+  series; switching metric does not refetch the same report. Interval does.
+- Discovery selects only profile visits, impressions and saves. Metric and interval
+  are server parameters. Unverified coverage suppresses comparisons according to
+  the backend; source unavailability is successful report data.
+- Onboarding separates current SLA backlog, selected-period throughput and linked
+  decision turnaround, overall SLA across recorded reviews and cumulative post-rejection recovery.
+  Rejection sections rank distinct decision counts, with overlapping shares disclosed.
+- Community shows currently published creation cohorts, backend classified sentiment
+  shares and unclassified counts. It has no star/rating UI.
+- Trust/operations keeps report/dispute and change-request queries independently
+  recoverable. Age bands are current snapshots; decisions/turnaround use selected
+  dates. Withdrawals do not count as administrator resolution samples.
+- Coverage exposes pooled denominators and category/cluster exact tables. SQL
+  eligibility survives visibility outages; null percentages remain unavailable.
+- Attention mounts only its active report component. Native accessible ordering
+  controls request server ordering, pagination and scope. It performs no local
+  row sorting/slicing. Activity remounts at page 1 when period changes; changing
+  ordering/scope resets page before fetching. Low attention receives no global
+  period and shows returned observation dates, pilot policy, thresholds and shorter
+  business-history context.
+- Specialty support has no global period prop: global distinct populations come
+  directly from the backend snapshot, not sums of per-specialty counts.
+- Score health requests a single score row only to obtain existing global coverage
+  counters. Counters can overlap; no composition chart or recomputation is added.
+
+### Charts, tables and navigation
+
+`AnalyticsTimeSeries` uses numeric timestamp positions from backend bucket starts,
+linear lines with `connectNulls=false`, disabled animation, and solid/dashed
+distinction for the paired workload series. Existing theme variables supply colors.
+Every chart includes a native disclosure with an exact-value table; there is no
+interpolation, null deletion, or zero substitution. All-zero observations remain
+measured data. Four charts serve four different administrative questions; rankings,
+sentiment and operational workloads use compact exact tables instead.
+
+`AnalyticsExactTable` handles small unpaginated report aggregates. Server-paginated
+attention reuses `AnalyticsTableSection`/Admin `DataTable`. Drill-downs use inspected
+routes for applications, moderation, listing changes, businesses and Discovery
+Scores; no unsupported query-string filter is fabricated.
+
+### Requests and performance
+
+Initial mounting issues eleven report requests plus two shared taxonomy queries
+(one page each in the current fixture; additional pages are fetched if required).
+Coverage and attention share the taxonomy keys and the existing normalized taxonomy
+services. All pages are fetched so choices are not silently truncated at 100.
+There are no heatmap, inactive low-exposure, alternate-metric prefetch, polling or
+recompute requests. Report query stale time stays at one minute.
+
+Global dates affect nine mounted report queries in activity mode. Specialty and
+score-health snapshots remain on stable keys; low attention also stays stable while
+selected. A growth metric switch is local; discovery metric/interval changes affect
+only discovery. Scoped coverage/attention changes affect only their respective
+reports. Background refetch keeps loaded content, while a new selection gets its
+own loading/data state so stale rows cannot be attributed to newer filters.
+
+The old overview-only page integration tests were replaced with dashboard tests;
+independent hook tests remain in place. `tests/dashboardFixtures.js` is test-only
+transport data and is not imported by production components.
+
+```sh
+node --test --test-concurrency=1 src/features/admin-panel/analytics/tests/AnalyticsDashboard.test.js src/features/admin-panel/analytics/components/analyticsFoundation.test.js src/features/admin-panel/analytics/queries/analyticsData.test.js src/features/admin-panel/analytics/hooks/useAnalyticsReports.test.js
+```
