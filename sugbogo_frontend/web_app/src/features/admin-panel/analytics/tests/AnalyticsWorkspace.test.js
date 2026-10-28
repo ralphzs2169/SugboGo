@@ -53,7 +53,7 @@ before(async () => {
           export const Bar = ({dataKey,fill,stackId}) => React.createElement('span', {'data-series':dataKey,'data-series-type':'bar','data-fill':fill,'data-stack':stackId});
           export const XAxis = ({type,dataKey,domain,ticks}) => React.createElement('span',{'data-axis-type':type,'data-axis-key':dataKey,'data-domain':JSON.stringify(domain),'data-ticks':JSON.stringify(ticks)});
           export const YAxis = ({allowDecimals}) => React.createElement('span',{'data-allow-decimals':String(allowDecimals)});
-          export const Tooltip = ({filterNull,formatter}) => React.createElement('span',{'data-filter-null':String(filterNull),'data-tooltip-zero':formatter(0,'Selected metric',{payload:{share_percent:0}})[0],'data-tooltip-missing':formatter(null,'Selected metric',{payload:{share_percent:null}})[0]});
+          export const Tooltip = ({filterNull,formatter}) => React.createElement('span',{'data-filter-null':String(filterNull),'data-tooltip-zero':formatter?.(0,'Selected metric',{payload:{share_percent:0}})[0],'data-tooltip-missing':formatter?.(null,'Selected metric',{payload:{share_percent:null}})[0]});
           export const ReferenceArea = ({x1,x2}) => React.createElement("span", {"data-partial-start":x1,"data-partial-end":x2});
           export const CartesianGrid = () => null; export const Legend = () => React.createElement("span", {"data-legend":"true"});`;
       },
@@ -312,7 +312,7 @@ test("discovery accounts reuse trend parameters, bucket values, drawer and cache
   assert.match(report.textContent, /Recorded discovery-active accounts by week/);
   const rows = JSON.parse(report.querySelector("[data-chart]").getAttribute("data-chart"));
   assert.deepEqual(rows.map((row) => row.value), [2,2,null,0]);
-  assert.equal(report.querySelectorAll('[aria-label="Recorded discovery metric"] button').length, 3);
+  assert.equal(report.querySelectorAll('[aria-label="Recorded discovery metric"] button').length, 4);
   await click(report.querySelector('[aria-label="About Discovery Activity"]'));
   await until(() => document.querySelector("dialog[open]"));
   assert.match(document.querySelector("dialog[open]").textContent, /must never be summed/);

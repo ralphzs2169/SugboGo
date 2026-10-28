@@ -26,6 +26,7 @@ export default function AnalyticsMetricCard({
   context,
   unavailableMessage,
   compact = false,
+  dense = false,
   details,
 }) {
   const available = value !== null && value !== undefined;
@@ -43,7 +44,8 @@ export default function AnalyticsMetricCard({
       value={available ? formatValue(value) : null}
       wrapTitle
       compact={compact}
-      headerAction={compact && (details || context || unavailableMessage) ? <AnalyticsDisclosure label={`About ${label}`} inline iconOnly>{details}{context}{!available && <p>{unavailableMessage ?? "This metric is currently unavailable."}</p>}</AnalyticsDisclosure> : undefined}
+      dense={dense}
+      headerAction={compact && (details || context || unavailableMessage) ? <AnalyticsDisclosure label={`About ${label}`} inline iconOnly comfortable={dense}>{details ? <p>{details}</p> : context && <p>{context}</p>}{!available && <p>{unavailableMessage ?? "This metric is currently unavailable."}</p>}</AnalyticsDisclosure> : undefined}
       trend={trend}
       footerLabel={comparisonLabel}
       measurementLabel={measurementLabel ?? MEASUREMENT_LABELS[measurementType]}

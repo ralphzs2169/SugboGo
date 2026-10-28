@@ -29,6 +29,7 @@ export default function AnalyticsSection({
   partialNotice,
   skeleton = <AnalyticsReportSkeleton />,
   framed = true,
+  compactHeader = false,
 }) {
   const headingId = useId();
   const descriptionId = useId();
@@ -63,7 +64,7 @@ export default function AnalyticsSection({
       className={framed ? "min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-5" : "min-w-0"}
     >
       {/* Report heading and independent controls */}
-      <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
+      <header className={`${compactHeader ? "mb-2" : "mb-3"} flex flex-wrap items-start justify-between gap-3`}>
         <div className="min-w-0 flex-1 basis-36">
           <h2 id={headingId} className="text-base font-semibold text-text-primary">{title}</h2>
           {description && <p id={descriptionId} className="mt-1 text-xs leading-relaxed text-text-secondary">{description}</p>}

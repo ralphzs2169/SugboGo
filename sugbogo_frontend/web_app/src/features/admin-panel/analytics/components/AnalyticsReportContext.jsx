@@ -7,12 +7,12 @@ import AnalyticsDisclosure from "./AnalyticsDisclosure";
 const clock = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
 
 /** Discloses reporting boundaries and source freshness without inventing a completeness watermark. */
-export default function AnalyticsReportContext({ meta, asOf, children }) {
+export default function AnalyticsReportContext({ meta, asOf, children, fullTimestamp = false }) {
   if (!meta && !asOf && !children) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-text-secondary">
       {/* Effective dates and known source limitations */}
-      <span>Updated {(asOf ?? meta?.generated_at) ? clock.format(new Date(asOf ?? meta.generated_at)) : "Unknown"}</span>
+      <span>Updated {(asOf ?? meta?.generated_at) ? (fullTimestamp ? `${formatTimestamp(asOf ?? meta.generated_at)} PHT` : clock.format(new Date(asOf ?? meta.generated_at))) : "Unknown"}</span>
       <AnalyticsDisclosure label="About this report">
       {asOf && <p>Current snapshot as of {formatTimestamp(asOf)} Philippine time. Selected dates do not filter this snapshot.</p>}
       {meta?.period && <p>{readablePeriod(meta.period)} · Philippine time.</p>}

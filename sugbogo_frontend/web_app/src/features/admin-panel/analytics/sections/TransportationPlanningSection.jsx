@@ -1,6 +1,8 @@
+import { AnalyticsCategoryTooltip } from "../components/AnalyticsTooltip";
+import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
+import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Info } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useTransportationPlanning } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
@@ -41,12 +43,9 @@ export default function TransportationPlanningSection({ period }) {
         unavailableMessage={<span>{data?.meta?.partial_reasons?.includes("tracking_not_started_in_period") ? "This period is before transportation tracking began." : "Transportation planning observations are unavailable, not zero."} <button type="button" onClick={() => query.refetch()} className={actionStyle}>Retry source</button></span>}
         isEmpty={data?.total_requests === 0}
         emptyMessage="No transportation-planning requests were recorded during the observed portion of this period."
-        footer={<div className="flex flex-wrap items-center justify-between gap-3 border-t border-stroke pt-4 text-xs text-text-secondary">
-          <span>Updated {formatTimestamp(data?.meta?.generated_at)} PHT{data?.meta?.is_partial ? " · Partial coverage" : ""} <button type="button" aria-label="About Transportation Planning" disabled={!data} onClick={() => setMode("about")} className={actionStyle}><Info aria-hidden="true" className="h-4 w-4" /></button></span>
-          <button type="button" disabled={!data} onClick={() => setMode("data")} className={actionStyle}>View data <ArrowRight aria-hidden="true" className="h-4 w-4" /></button>
-        </div>}
+        footer={<AnalyticsReportFooter title="Transportation Planning" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
       >
-        <p className="text-xs text-text-secondary">{data?.meta?.period?.start_date} to {data?.meta?.period?.end_date} · PHT</p>
+        <AnalyticsPeriodLabel period={data?.meta?.period} />
         <div className="grid min-w-0 items-center gap-4 sm:grid-cols-2">
           <div className="relative mx-auto h-56 w-full max-w-xs" role="img" aria-label={`${formatCount(data?.total_requests)} recorded planning requests. Exact method counts and shares follow.`}>
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -54,7 +53,7 @@ export default function TransportationPlanningSection({ period }) {
                 <Pie data={methods} dataKey="count" nameKey="label" innerRadius="65%" outerRadius="85%" isAnimationActive={false} stroke="var(--color-background)">
                   {methods.map((row) => <Cell key={row.method} fill={COLORS[row.method]} />)}
                 </Pie>
-                <Tooltip formatter={(value, _label, item) => [`${formatCount(value)} requests · ${formatPercentage(item.payload.share_percent)}`, item.payload.label]} contentStyle={{ background: "var(--color-background)", border: "1px solid var(--color-stroke)", borderRadius: 8 }} />
+                <Tooltip content={<AnalyticsCategoryTooltip unit="requests" colors={COLORS} />} />
               </PieChart>
             </ResponsiveContainer>
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><span className="text-2xl font-semibold text-text-primary">{formatCount(data?.total_requests)}</span><span className="text-xs text-text-secondary">recorded requests</span></div>

@@ -14,17 +14,17 @@ export default function OverviewSection({ period }) {
   const state = useAnalyticsSectionState(query, "overview", "platform overview");
   const data = query.data;
   return (
-    <AnalyticsSection framed={false} title="Overview" {...state}
-      partialNotice={data?.meta?.is_partial ? "Inventory is current state; recorded discovery coverage may be incomplete. Discovery-active accounts are not general platform MAU." : null}
-      footer={<AnalyticsReportContext meta={data?.meta} />}
+    <AnalyticsSection framed={false} compactHeader title="Overview" {...state}
+      footer={<AnalyticsReportContext fullTimestamp meta={data?.meta} />}
     >
+      {data?.meta?.is_partial && <p className="mb-3 text-xs text-text-secondary">Inventory reflects current status. Recorded discovery activity may be incomplete.</p>}
       {/* Backend-labelled inventory and period populations */}
       <AnalyticsMetricGrid>
         {METRICS.map((key) => {
           const metric = data?.kpis?.[key];
           const label = key === "new_explorer_accounts" ? "New Explorer accounts" : key === "discovery_active_explorers" ? "Discovery-active accounts" : metric?.label ?? key.replaceAll("_", " ");
-          const definition = key === "new_explorer_accounts" ? "Accounts created during the selected period whose current role is Explorer. Later promotion to Merchant can revise this cohort." : key === "discovery_active_explorers" ? "Recorded discovery-active accounts include eligible Explorer and Merchant actors. This is not general platform MAU." : null;
-          return <AnalyticsMetricCard compact key={key} label={label} value={metric?.value} formatValue={formatCount}
+          const definition = key === "new_explorer_accounts" ? "New accounts whose role is Explorer today, including all account statuses. Accounts that later become Merchants no longer appear in this count." : key === "discovery_active_explorers" ? "Distinct accounts with recorded discovery activity, including Explorer and Merchant accounts. This is not app-wide active use." : null;
+          return <AnalyticsMetricCard compact dense key={key} label={label} value={metric?.value} formatValue={formatCount}
             details={definition}
             measurementType={metric?.measurement_type} context={metric?.description}
             measurementLabel={metric?.measurement_type === "current_snapshot" ? "Current snapshot" : period.period === "custom" ? "Selected dates" : `Last ${period.period} days`}

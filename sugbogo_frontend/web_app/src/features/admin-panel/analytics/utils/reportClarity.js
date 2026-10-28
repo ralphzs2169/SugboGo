@@ -1,4 +1,4 @@
-const date = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "long", day: "numeric", year: "numeric" });
+const date = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" });
 
 /** Formats inclusive reporting dates without exposing storage timestamps. */
 export function readablePeriod(period) {

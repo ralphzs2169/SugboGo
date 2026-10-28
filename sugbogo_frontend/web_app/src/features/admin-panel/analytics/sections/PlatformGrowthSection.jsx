@@ -1,7 +1,11 @@
+import AnalyticsDisclosure from "../components/AnalyticsDisclosure";
+import AnalyticsTooltip from "../components/AnalyticsTooltip";
+import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
+import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useId, useState } from "react";
 import { ReferenceArea } from "recharts";
-import { ArrowRight, Info, Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { getMetricVariant } from "../../constants/metricVariants";
 import MetricCard from "../../components/MetricCard";
 import { usePlatformGrowthAnalytics } from "../hooks/useAnalyticsReports";
@@ -11,8 +15,8 @@ import AnalyticsIntervalControl from "../components/AnalyticsIntervalControl";
 import AnalyticsTimeSeries from "../components/AnalyticsTimeSeries";
 import AnalyticsReportSkeleton from "../components/AnalyticsReportSkeleton";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
-import { formatCount, formatTimestamp } from "../utils/presentation";
-import { growthBucketLabel, growthPeriodLabel, growthWeekInProgress } from "../utils/growthPresentation";
+import { formatCount } from "../utils/presentation";
+import { growthPeriodLabel, growthWeekInProgress } from "../utils/growthPresentation";
 
 const SERIES = [
   { key: "new_consumer_accounts", label: "Accounts", title: "New accounts", color: "var(--color-primary)" },
@@ -21,24 +25,12 @@ const SERIES = [
 ];
 
 /** Keeps growth tooltip values in KPI order and describes effective exclusive bucket bounds. */
-function GrowthTooltip({ active, payload, inProgressDate }) {
+export function GrowthTooltip({ active, payload, inProgressDate }) {
   const row = payload?.[0]?.payload;
   if (!active || !row) return null;
-  return (
-    <div className="min-w-44 rounded-lg border border-stroke bg-background p-3 text-xs text-text-primary shadow-lg">
-      {/* Effective reporting dates and non-additive bucket counts */}
-      <p className="font-semibold">{growthBucketLabel(row)}</p>
-      {row.date === inProgressDate && <p className="mt-1 text-text-secondary">Week in progress</p>}
-      <dl className="mt-2 space-y-2">
-        {SERIES.map((series) => (
-          <div key={series.key} className="flex items-center justify-between gap-5">
-            <dt className="flex items-center gap-2"><span aria-hidden="true" className="h-2 w-2 rounded-sm" style={{ backgroundColor: series.color }} />{series.label}</dt>
-            <dd className="font-semibold tabular-nums">{formatCount(row[series.key])}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
+  return <AnalyticsTooltip title={growthPeriodLabel(row.start, row.end_exclusive, true)} note={row.date === inProgressDate ? "Week in progress" : undefined}
+    rows={SERIES.map((series) => ({ label: series.label, value: formatCount(row[series.key]), color: series.color }))}
+  />;
 }
 
 /** Shows all acquisition signals from one report, with secondary detail outside the dashboard card. */
@@ -69,13 +61,7 @@ export default function PlatformGrowthSection({ period }) {
         summaryContent={
           <>
             {/* Current chart scope and previous equivalent-period comparison */}
-            <p className="mb-3 text-xs leading-relaxed text-text-secondary">
-              <span className="font-medium text-text-primary">
-                {reporting ? growthPeriodLabel(`${reporting.start_date}T00:00:00+08:00`, `${reporting.end_date}T23:59:59.999+08:00`, true) : "Unavailable"}
-              </span>
-              {" · compared with "}
-              <span>{growthPeriodLabel(reporting?.previous_start, reporting?.previous_end_exclusive, true)}</span>
-            </p>
+            <AnalyticsPeriodLabel period={reporting}> / compared with {growthPeriodLabel(reporting?.previous_start, reporting?.previous_end_exclusive, true)}</AnalyticsPeriodLabel>
             <div className="mb-4 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
               {SERIES.map((series) => {
                 const activity = data?.activity?.[series.key];
@@ -102,6 +88,7 @@ export default function PlatformGrowthSection({ period }) {
                     wrapTitle
                     key={series.key}
                     title={series.title}
+                    headerAction={series.key === "new_consumer_accounts" ? <AnalyticsDisclosure label="About New accounts" inline iconOnly comfortable>New accounts includes current Explorer and Merchant roles, excluding administrators and staff. Overview's New Explorer accounts includes only accounts whose current role is Explorer.</AnalyticsDisclosure> : undefined}
                     value={activity?.value == null ? null : formatCount(activity.value)}
                     footerValue={
                       <span className="block space-y-1">
@@ -122,31 +109,7 @@ export default function PlatformGrowthSection({ period }) {
             <p className="mb-2 text-xs text-text-secondary">{interval === "weekly" ? "Weekly" : "Daily"} activity · selected period only</p>
           </>
         }
-        footer={
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stroke pt-4 text-xs text-text-secondary">
-            <div className="flex items-center gap-1">
-              <span>Updated {formatTimestamp(data?.meta?.generated_at)} (PHT){data?.meta?.is_partial ? " · Partial coverage" : ""}</span>
-              <button
-                type="button"
-                aria-label="About Platform Growth"
-                disabled={!data}
-                onClick={() => setMode("about")}
-                className="cursor-pointer rounded p-1 focus-visible:outline-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Info aria-hidden="true" className="h-4 w-4" />
-              </button>
-            </div>
-            <button
-              type="button"
-              disabled={!data}
-              onClick={() => setMode("data")}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded py-2 font-medium text-text-primary focus-visible:outline-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              View data
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </button>
-          </div>
-        }
+        footer={<AnalyticsReportFooter title="Platform Growth" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
       >
         {empty ? (
           <div className="flex h-full flex-col items-center justify-center text-center">

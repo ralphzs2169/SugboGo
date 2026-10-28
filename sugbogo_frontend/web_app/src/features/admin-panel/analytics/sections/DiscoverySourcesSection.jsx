@@ -1,12 +1,14 @@
+import { AnalyticsCategoryTooltip } from "../components/AnalyticsTooltip";
+import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
+import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
 import { useState } from "react";
-import { ArrowRight, Info } from "lucide-react";
 import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useDiscoverySources } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import AnalyticsExactTable from "../components/AnalyticsExactTable";
-import { formatCount, formatPercentage, formatTimestamp } from "../utils/presentation";
+import { formatCount, formatPercentage } from "../utils/presentation";
 
 const LABELS = { EXPLORE_DISCOVERY: "Explore", SEARCH_RESULTS: "Search & Results", MAP: "Map", COLLECTION: "Collections", SIMILAR_BUSINESSES: "Similar Businesses", COMMUNITY: "Community", UNKNOWN: "Unknown" };
 
@@ -35,20 +37,17 @@ export default function DiscoverySourcesSection({ period }) {
     <>
       {/* Full-width comparison complements the existing two-column discovery reports. */}
       <AnalyticsSection title="Discovery Sources" description="Where recorded business profile visits originate." {...state}
-        controls={data?.meta?.period && <p className="text-xs text-text-secondary">{data.meta.period.start_date} to {data.meta.period.end_date} / PHT</p>}
         unavailable={unavailable} unavailableMessage={<span>Discovery sources are unavailable. This does not mean zero visits. <button type="button" onClick={() => query.refetch()} className={actionStyle}>Retry source</button></span>}
         isEmpty={data?.total_profile_visits === 0} emptyMessage="No profile visits were recorded during this period. View data includes all seven sources."
-        footer={<div className="flex flex-wrap items-center justify-between gap-3 border-t border-stroke pt-4">
-          <span className="text-xs text-text-secondary">Updated {formatTimestamp(data?.meta?.generated_at)} PHT{data?.meta?.is_partial ? " · Partial coverage" : ""} <button type="button" aria-label="About Discovery Sources" disabled={!data} onClick={() => setMode("about")} className={actionStyle}><Info aria-hidden="true" className="h-4 w-4" /></button></span>
-          <button type="button" disabled={!data} onClick={() => setMode("data")} className={actionStyle}>View data <ArrowRight aria-hidden="true" className="h-4 w-4" /></button>
-        </div>}
+        footer={<AnalyticsReportFooter title="Discovery Sources" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
       >
-        <div className="h-72 min-w-0" role="img" aria-label="Recorded visits ranked by source. Exact counts and shares are available in View data.">
+        <AnalyticsPeriodLabel period={data?.meta?.period} />
+        <div className="mx-auto h-72 w-full min-w-0 max-w-4xl" role="img" aria-label="Recorded visits ranked by source. Exact counts and shares are available in View data.">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-            <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 45, bottom: 0, left: 0 }}>
+            <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 64, bottom: 0, left: 0 }}>
               <XAxis type="number" domain={[0, "auto"]} allowDecimals={false} tick={{ fill: "var(--color-text-secondary)", fontSize: 11 }} />
-              <YAxis type="category" dataKey="label" width={135} tick={{ fill: "var(--color-text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(value, _name, item) => [`${formatCount(value)} visits · ${formatPercentage(item.payload.share_percent)}`, "Recorded"]} contentStyle={{ background: "var(--color-background)", border: "1px solid var(--color-stroke)", borderRadius: 8 }} />
+              <YAxis type="category" dataKey="label" width={150} interval={0} tick={{ fill: "var(--color-text-primary)", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<AnalyticsCategoryTooltip unit="visits" />} />
               <Bar dataKey="count" fill="var(--color-primary)" maxBarSize={20} isAnimationActive={false}><LabelList dataKey="count" position="right" formatter={formatCount} fill="var(--color-text-primary)" fontSize={11} /></Bar>
             </BarChart>
           </ResponsiveContainer>

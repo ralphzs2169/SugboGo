@@ -1,3 +1,4 @@
+import { readablePeriod } from "../utils/reportClarity";
 import { useId, useState } from "react";
 import Button from "@/shared/components/Button";
 import { DEFAULT_ANALYTICS_PERIOD, serializeReportingPeriod } from "../utils/reportingPeriod";
@@ -49,7 +50,7 @@ export default function AnalyticsPeriodControl({ value = DEFAULT_SELECTION, onCh
   const selected = String(value.period);
   const showCustom = customOpen || selected === "custom";
   const appliedLabel = selected === "custom"
-    ? `${value.start_date} to ${value.end_date}`
+    ? readablePeriod(value)
     : `Last ${selected} days`;
 
   function choosePreset(period) {

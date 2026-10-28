@@ -1,8 +1,9 @@
+import AnalyticsTooltip from "../components/AnalyticsTooltip";
+import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
+import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useId, useState } from "react";
 import { ReferenceArea } from "recharts";
-import { ArrowRight, Info } from "lucide-react";
-import MetricCard from "../../components/MetricCard";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import AnalyticsSection from "../components/AnalyticsSection";
 import { useDiscoveryActivitySummary, useDiscoveryTrend } from "../hooks/useAnalyticsReports";
@@ -25,22 +26,14 @@ const day = new Intl.DateTimeFormat("en-PH", {
 });
 
 /** Describes one discovery bucket without mixing source methodology into the observation. */
-function DiscoveryTooltip({ active, payload, interval, selected }) {
+export function DiscoveryTooltip({ active, payload, interval, selected }) {
   const row = payload?.[0]?.payload;
   if (!active || !row) return null;
-  return (
-    <div className="min-w-40 rounded-lg border border-stroke bg-background p-3 text-xs text-text-primary shadow-lg">
-      {/* Effective bucket date and selected observation */}
-      <p className="font-semibold">
-        {interval === "weekly" ? growthBucketLabel(row) : day.format(new Date(row.start ?? `${row.date}T00:00:00+08:00`))}
-      </p>
-      {interval === "weekly" && row.in_progress && <p className="mt-1 text-text-secondary">Week in progress</p>}
-      <div className="mt-2 flex items-center justify-between gap-5">
-        <span className="flex items-center gap-2"><span aria-hidden="true" className="h-2 w-2 rounded-sm" style={{ backgroundColor: selected.color }} />{selected.label}</span>
-        <span className="font-semibold tabular-nums">{row.value == null ? "Observation unavailable" : formatCount(row.value)}</span>
-      </div>
-    </div>
-  );
+  return <AnalyticsTooltip
+    title={interval === "weekly" ? growthPeriodLabel(row.start, row.end_exclusive, true) : day.format(new Date(row.start ?? `${row.date}T00:00:00+08:00`))}
+    note={interval === "weekly" && row.in_progress ? "Week in progress" : undefined}
+    rows={[{ label: selected.label, value: row.value == null ? "Observation unavailable" : formatCount(row.value), color: selected.color }]}
+  />;
 }
 
 /** Keeps summary totals selectable and recoverable independently of the trend request. */
@@ -51,46 +44,16 @@ function DiscoverySummary({ query, metric, onSelect }) {
       {/* An isolated failure never removes the trend or metric controls */}
       {query.error && <DataErrorState compact title="Unable to load discovery summary" message={state.errorMessage} onRetry={state.onRetry} retrying={query.isFetching} retryLabel="Retry summary" />}
       {query.data?.meta?.availability === "unavailable" && <p className="mb-2 text-xs text-text-secondary">Discovery summary is currently unavailable.</p>}
-      {query.isLoading && !query.data ? (
-        <div role="status" aria-label="Loading discovery summary" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {OPTIONS.slice(0, 3).map((option) => <div key={option.value} aria-hidden="true" className="h-28 rounded-xl bg-skeleton motion-safe:animate-pulse" />)}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="group" aria-label="Recorded discovery metric">
-          {OPTIONS.slice(0, 3).map((option) => (
-            <MetricCard
-              key={option.value}
-              compact
-              dense
-              wrapTitle
-              title={option.label}
-              value={query.data?.totals?.[option.value] == null ? null : formatCount(query.data.totals[option.value])}
-              headerAction={
-                <button
-                  type="button"
-                  aria-label={`Show recorded ${option.label.toLowerCase()}`}
-                  aria-pressed={metric === option.value}
-                  onClick={() => onSelect(option.value)}
-                  style={metric === option.value ? { boxShadow: `inset 0 -2px 0 ${option.color}` } : undefined}
-                  className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
-                >
-
-                </button>
-              }
-            />
-          ))}
-        </div>
-      )}
-      {/* A compact fourth choice avoids repeating Overview's period-wide account total. */}
-      <button
-        type="button"
-        aria-label="Show recorded discovery-active accounts"
-        aria-pressed={metric === "distinct_engaged_explorers"}
-        onClick={() => onSelect("distinct_engaged_explorers")}
-        className={`mt-3 cursor-pointer rounded-lg border px-3 py-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-info ${metric === "distinct_engaged_explorers" ? "border-text-primary bg-surface text-text-primary" : "border-stroke text-text-secondary"}`}
-      >
-        Discovery-active accounts
-      </button>
+      {/* All four options share one responsive, keyboard-accessible selection system. */}
+      <div className="grid min-w-0 grid-cols-2 gap-2 2xl:grid-cols-4" role="group" aria-label="Recorded discovery metric">
+        {OPTIONS.map((option) => (
+          <button key={option.value} type="button" aria-label={`Show recorded ${option.label.toLowerCase()}`} aria-pressed={metric === option.value} onClick={() => onSelect(option.value)}
+            className={`min-h-20 min-w-0 cursor-pointer rounded-lg border p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info ${metric === option.value ? "border-text-primary bg-surface text-text-primary" : "border-stroke text-text-secondary hover:bg-surface-hover"}`}>
+            <span className="block text-xs font-medium">{option.label}</span>
+            <span className="mt-2 block text-sm font-semibold tabular-nums">{option.value === "distinct_engaged_explorers" ? "Account trend" : query.isLoading && !query.data ? "Loading..." : formatCount(query.data?.totals?.[option.value])}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -136,38 +99,9 @@ export default function DiscoveryActivitySection({ period }) {
             <AnalyticsIntervalControl value={interval} onChange={setInterval} />
           </>
         }
-        footer={
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stroke pt-4 text-xs text-text-secondary">
-            <div className="flex items-center gap-1">
-              <span>Updated {formatTimestamp(meta?.generated_at)} (PHT){(data?.meta?.is_partial || summaryQuery.data?.meta?.is_partial) ? " · Partial coverage" : ""}</span>
-              <button
-                type="button"
-                aria-label="About Discovery Activity"
-                disabled={!data && !summaryQuery.data}
-                onClick={() => setMode("about")}
-                className="cursor-pointer rounded p-1 focus-visible:outline-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Info aria-hidden="true" className="h-4 w-4" />
-              </button>
-            </div>
-            <button
-              type="button"
-              disabled={!data}
-              onClick={() => setMode("data")}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded py-2 font-medium text-text-primary focus-visible:outline-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              View data
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </button>
-          </div>
-        }
+        footer={<AnalyticsReportFooter title="Discovery Activity" meta={meta} hasData={Boolean(data)} hasDetails={Boolean(data || summaryQuery.data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
       >
-        <p className="mb-3 text-xs leading-relaxed text-text-secondary">
-          <span className="font-medium text-text-primary">
-            {reporting ? growthPeriodLabel(reporting.start ?? `${reporting.start_date}T00:00:00+08:00`, reporting.end_exclusive ?? `${reporting.end_date}T23:59:59.999+08:00`, true) : "Unavailable"}
-          </span>
-          {hasComparison && <> · compared with {growthPeriodLabel(reporting?.previous_start, reporting?.previous_end_exclusive, true)}</>}
-        </p>
+        <AnalyticsPeriodLabel period={reporting}>{hasComparison && <> / compared with {growthPeriodLabel(reporting?.previous_start, reporting?.previous_end_exclusive, true)}</>}</AnalyticsPeriodLabel>
         <DiscoverySummary query={summaryQuery} metric={metric} onSelect={setMetric} />
         <AnalyticsChartCard
           compact
