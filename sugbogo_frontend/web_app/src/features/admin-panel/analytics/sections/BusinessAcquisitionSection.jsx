@@ -1,47 +1,99 @@
+import { useState } from "react";
+
+import DataErrorState from "@/shared/components/errors/DataErrorState";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
-import { useState } from "react";
-import { Layers, Tags } from "lucide-react";
-import TableTabs from "../../components/data-table/TableTabs";
+import AnalyticsSection from "../components/AnalyticsSection";
+import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
+import BusinessAcquisitionTable from "../components/BusinessAcquisitionTable";
 import { useBusinessAcquisition } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
-import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
-import AnalyticsSection from "../components/AnalyticsSection";
-import AnalyticsExactTable from "../components/AnalyticsExactTable";
-import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
-import { formatCount } from "../utils/presentation";
 
-const TABS = [
-  { id: "categories", label: "By Category", icon: Tags },
-  { id: "clusters", label: "By Cluster", icon: Layers },
-];
-const COLUMNS = [
-  { key: "name", label: "Classification" },
-  { key: "created", label: "Created", render: (row) => formatCount(row.created) },
-  { key: "approved", label: "Approved", render: (row) => formatCount(row.approved) },
-];
-
-/** Compares separate business acquisition events by current category or cluster. */
+/** Reports new businesses through their current cluster and category hierarchy. */
 export default function BusinessAcquisitionSection({ period }) {
-  const [group, setGroup] = useWorkspaceSelection("acquisition.group", "categories");
   const [mode, setMode] = useState(null);
   const query = useBusinessAcquisition(period);
   const state = useAnalyticsSectionState(query, "business-acquisition", "business acquisition");
   const data = query.data;
+  const hierarchyAvailable = Array.isArray(data?.hierarchy);
+  const missingHierarchy = (
+    <DataErrorState
+      compact
+      title="Classification breakdown unavailable"
+      message="Refresh this report to load the cluster and category hierarchy."
+      onRetry={() => query.refetch()}
+      retrying={query.isFetching}
+    />
+  );
+
   return (
     <>
-      {/* Compact table shares the existing segmented-control and report patterns. */}
-      <AnalyticsSection title="Business Acquisition" description="Which types of businesses are joining SugboGo?" {...state}
-        controls={<TableTabs tabs={TABS} activeTab={group} onTabChange={setGroup} tabListId="acquisition-groups" ariaLabel="Business acquisition grouping" />}
-        footer={<AnalyticsReportFooter title="Business Acquisition" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+      {/* One hierarchy replaces independent category and cluster views. */}
+      <AnalyticsSection
+        title="Business Acquisition"
+        description="New businesses by current cluster and category."
+        {...state}
+        footer={
+          <AnalyticsReportFooter
+            title="Business Acquisition"
+            meta={data?.meta}
+            hasData={Boolean(data)}
+            hasDetails={Boolean(data)}
+            onAbout={() => setMode("about")}
+            onData={() => setMode("data")}
+          />
+        }
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
-        <div role="tabpanel" id={`acquisition-groups-panel-${group}`} aria-labelledby={`acquisition-groups-${group}`} tabIndex={0} className="max-h-72 overflow-auto rounded focus-visible:outline-2 focus-visible:outline-info"><AnalyticsExactTable caption={`Business acquisition by ${group}`} rows={data?.[group]} columns={COLUMNS} emptyMessage="No business creations or first approvals were recorded during this period." /></div>
+        <p className="mb-3 text-xs leading-relaxed text-text-secondary">
+          Categories break down each cluster total. Select a cluster to hide or show its categories.
+        </p>
+        {hierarchyAvailable && data.hierarchy.length > 0 && data.totals?.created === 0 && (
+          <p className="mb-3 text-xs text-text-secondary">
+            No new businesses were recorded during this period.
+          </p>
+        )}
+        {hierarchyAvailable ? (
+          <BusinessAcquisitionTable clusters={data.hierarchy} total={data.totals?.created} />
+        ) : missingHierarchy}
       </AnalyticsSection>
-      {/* Both complete grouping tables remain available in the shared exact-data drawer. */}
-      <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Business Acquisition" report={data} interval="Selected period" series={[]} showComparison={false}
-        aboutContent={<div className="space-y-3">{Object.entries(data?.definitions ?? {}).map(([key, value]) => <p key={key}>{value}</p>)}</div>}
-        dataContent={<div className="space-y-5">{TABS.map((tab) => <AnalyticsExactTable key={tab.id} caption={`Acquisition ${tab.label.toLowerCase()}`} rows={data?.[tab.id]} columns={COLUMNS} />)}<p>Created: {formatCount(data?.totals?.created)}. Approved: {formatCount(data?.totals?.approved)}.</p></div>}
+
+      {/* Exact data always includes every category, independently of collapsed dashboard rows. */}
+      <AnalyticsDetailDrawer
+        mode={mode}
+        onClose={() => setMode(null)}
+        title="Business Acquisition"
+        report={data}
+        interval="Selected period"
+        series={[]}
+        showComparison={false}
+        aboutContent={
+          <div className="space-y-3">
+            <p>
+              Merchant approval creates the business in the same transaction. New businesses use
+              their creation time; first approvals use the recorded decision time. These timestamps
+              can fall on different reporting boundaries. First-approval reporting remains in
+              Platform Growth and Merchant Onboarding.
+            </p>
+            {Object.entries(data?.definitions ?? {}).map(([key, value]) => (
+              <p key={key}>{value}</p>
+            ))}
+          </div>
+        }
+        dataContent={hierarchyAvailable ? (
+          <div className="space-y-3">
+            <BusinessAcquisitionTable
+              clusters={data.hierarchy}
+              total={data.totals?.created}
+              collapsible={false}
+            />
+            <p className="text-xs leading-relaxed text-text-secondary">
+              Cluster values are subtotals of their categories. Each new business contributes once
+              to the report total. Missing classifications stay under Unclassified. Classifications
+              with first approvals but no creations in this period remain visible with zero new businesses.
+            </p>
+          </div>
+        ) : missingHierarchy}
       />
     </>
   );

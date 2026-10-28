@@ -18,9 +18,9 @@ export const reportExplanations = {
     "Planning a route does not mean the journey happened. Activity before recording began cannot be measured. Other methods are counted separately. Requests that cannot be linked to an account stay in request totals but are excluded from distinct account counts. For these daily limits, a new counting day begins at 8 AM Philippine time.",
   ],
   "Business Acquisition": [
-    "Which business categories and clusters gained new businesses or recorded first approvals during the selected period.",
-    "Created counts businesses added during the period. Approved counts businesses receiving their first recorded approval during the period.",
-    "Businesses use their current category or cluster, which may differ from when they joined. Creation and approval can occur in different periods; these counts are not a conversion funnel. Missing classifications remain Unclassified.",
+    "New businesses during the selected period, grouped by their current cluster and category.",
+    "Each business is counted once using its creation date. Category counts break down each cluster subtotal; do not add parent and child rows together.",
+    "Current classifications can differ from when a business joined. Removed records can revise earlier counts. Missing classifications remain Unclassified. First approvals are reported separately in Platform Growth and Merchant Onboarding.",
   ],
   "Platform Growth": [
     "New accounts, new businesses and first recorded business approvals during the selected period.",
