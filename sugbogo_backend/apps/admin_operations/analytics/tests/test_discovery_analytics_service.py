@@ -119,3 +119,72 @@ class DiscoveryAnalyticsServiceTests(SimpleTestCase):
             with self.subTest(options=options), self.assertRaises(ValidationError):
                 DiscoveryAnalyticsService.get_report(self.period, **options)
         self.assertEqual(self.collection.calls, [])
+
+
+    def test_summary_reads_three_totals_once_without_trends(self):
+        report = DiscoveryAnalyticsService.get_summary(self.period)
+        self.assertEqual(report["totals"], {
+            "profile_visits": 2,
+            "impressions": 1,
+            "saves": 1,
+        })
+        self.assertEqual(len(self.collection.calls), 1)
+        window = self.collection.calls[0][0]["$match"]["occurred_at"]
+        self.assertEqual(window["$gte"], self.period.start)
+        self.assertEqual(window["$lt"], self.period.end)
+        self.assertFalse(report["meta"]["coverage_verified"])
+        self.assertIsNone(report["meta"]["data_through"])
+
+    def test_summary_excludes_exact_end_and_prior_records(self):
+        self.collection.documents.append({
+            "event_type": "SAVE", "explorer_id": 8,
+            "business_id": 10, "occurred_at": self.period.end,
+        })
+        report = DiscoveryAnalyticsService.get_summary(self.period)
+        self.assertEqual(report["totals"]["saves"], 1)
+        self.assertEqual(report["totals"]["impressions"], 1)
+
+    def test_summary_empty_read_is_zero_but_outage_is_null(self):
+        self.collection.documents = []
+        report = DiscoveryAnalyticsService.get_summary(self.period)
+        self.assertEqual(set(report["totals"].values()), {0})
+        with patch.object(
+            VisibilityEventService,
+            "get_analytics_totals",
+            side_effect=VisibilityTrackingUnavailable(),
+        ):
+            unavailable = DiscoveryAnalyticsService.get_summary(self.period)
+        self.assertEqual(set(unavailable["totals"].values()), {None})
+        self.assertEqual(unavailable["meta"]["availability"], "unavailable")
+
+    def test_timeline_extends_beyond_last_event_with_null_not_zero(self):
+        report = DiscoveryAnalyticsService.get_report(self.period)
+        self.assertEqual(len(report["series"]), 1)
+        self.assertEqual(len(report["timeline"]), 2)
+        self.assertEqual(report["timeline"][0]["value"], 2)
+        self.assertIsNone(report["timeline"][1]["value"])
+        self.assertEqual(report["timeline"][-1]["end_exclusive"], self.period.end.isoformat())
+        self.assertIsNone(report["meta"]["data_through"])
+
+    def test_timeline_preserves_explicit_zero_and_unavailable_series(self):
+        timeline = DiscoveryAnalyticsService.build_timeline(
+            self.period,
+            "daily",
+            [{"date": "2026-10-05", "value": 0}],
+        )
+        self.assertEqual(timeline[0]["value"], 0)
+        self.assertIsNone(timeline[1]["value"])
+        self.assertIsNone(DiscoveryAnalyticsService.build_timeline(
+            self.period, "daily", None,
+        ))
+
+    def test_only_current_capped_bucket_is_in_progress(self):
+        current = resolve_period(
+            preset="custom", start_date="2026-10-05", end_date="2026-10-06",
+            now=datetime(2026, 10, 6, 4, tzinfo=UTC),
+        )
+        timeline = DiscoveryAnalyticsService.build_timeline(current, "weekly", [])
+        self.assertTrue(timeline[-1]["in_progress"])
+        self.assertEqual(timeline[-1]["end_exclusive"], current.end.isoformat())
+        historical = DiscoveryAnalyticsService.build_timeline(self.period, "weekly", [])
+        self.assertFalse(historical[-1]["in_progress"])

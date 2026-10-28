@@ -129,6 +129,40 @@ class DiscoverySourcesSerializer(serializers.Serializer):
     visibility_previous = AnalyticsMetaSerializer()
 
 
+class DiscoveryDefinitionsSerializer(serializers.Serializer):
+    """Disclose stored-event populations, gap semantics and comparison limitations."""
+
+    profile_visits = serializers.CharField()
+    impressions = serializers.CharField()
+    saves = serializers.CharField()
+    deduplication = serializers.CharField()
+    missing_observations = serializers.CharField()
+    comparisons = serializers.CharField()
+
+
+class DiscoverySummaryTotalsSerializer(serializers.Serializer):
+    """Keep unavailable totals distinct from successful recorded zeroes."""
+
+    profile_visits = serializers.IntegerField(allow_null=True)
+    impressions = serializers.IntegerField(allow_null=True)
+    saves = serializers.IntegerField(allow_null=True)
+
+
+class DiscoverySummarySerializer(serializers.Serializer):
+    """Expose one compact selected-period summary with source metadata."""
+
+    totals = DiscoverySummaryTotalsSerializer()
+    definitions = DiscoveryDefinitionsSerializer()
+    meta = AnalyticsMetaSerializer()
+
+
+class DiscoveryTimelinePointSerializer(AnalyticsSeriesPointSerializer):
+    """Represent unobserved calendar buckets without inventing zero events."""
+
+    value = serializers.IntegerField(allow_null=True)
+    in_progress = serializers.BooleanField()
+
+
 class DiscoveryTrendSerializer(serializers.Serializer):
     """Expose one selectable metric with sparse series and source disclosures."""
 
@@ -144,3 +178,5 @@ class DiscoveryTrendSerializer(serializers.Serializer):
     series_is_sparse = serializers.BooleanField()
     meta = AnalyticsMetaSerializer()
     sources = DiscoverySourcesSerializer()
+    timeline = DiscoveryTimelinePointSerializer(many=True, allow_null=True, required=False)
+    definitions = DiscoveryDefinitionsSerializer(required=False)

@@ -1,6 +1,6 @@
 // Test-only transport fixtures; production sections contain no static analytics values.
 export const meta = {
-  period: { start_date: "2026-10-01", end_date: "2026-10-30", timezone: "Asia/Manila" },
+  period: { start_date: "2026-10-01", end_date: "2026-10-30", timezone: "Asia/Manila", start: "2026-09-30T16:00:00Z", end_exclusive: "2026-10-30T04:00:00Z", previous_start: "2026-09-01T04:00:00Z", previous_end_exclusive: "2026-09-30T16:00:00Z" },
   generated_at: "2026-10-30T04:00:00Z", data_through: "2026-10-30T04:00:00Z",
   availability: "partial", is_partial: true, coverage_verified: false,
 };
@@ -25,9 +25,18 @@ export function fixtureReport(route, params = {}) {
     definitions: { consumer_accounts: "Accounts exclude staff and Admin roles using current roles.", new_businesses: "Business records created during the selected period.", newly_approved_businesses: "First recorded approval decisions currently linked to businesses." },
     series: [point("2026-10-01", { new_consumer_accounts: 4, new_businesses: 2, newly_approved_businesses: 1 }), point("2026-10-02", { new_consumer_accounts: null, new_businesses: 0, newly_approved_businesses: 0 }), point("2026-10-03", { new_consumer_accounts: 0, new_businesses: 1, newly_approved_businesses: 0 })], meta,
   };
+  if (route === "discovery-summary/") return {
+    totals: { profile_visits: 10, impressions: 20, saves: 3 },
+    definitions: { profile_visits: "Recorded profile visit events.", impressions: "Recorded impression events.", saves: "Recorded save events, not current Pocket inventory.", deduplication: "UTC-day deduplication is preserved.", comparisons: "Previous-period comparisons are hidden while discovery tracking coverage is not fully verified.", missing_observations: "Unobserved buckets are null, not measured zero." },
+    meta,
+  };
   if (route === "discovery-trend/") return {
     value: 10, previous_value: 8, change: { value: null, reason: "coverage_unverified" },
     label: "Recorded activity", metric: params.metric, interval: params.interval,
+    timeline: Array.from({ length: 30 }, (_, index) => ({
+      ...point(`2026-10-${String(index + 1).padStart(2, "0")}`, { value: [10, null, 0][index] ?? null }),
+      in_progress: index === 29,
+    })),
     series: [point("2026-10-01", { value: 10 }), point("2026-10-02", { value: null }), point("2026-10-03", { value: 0 })], meta,
   };
   if (route === "onboarding/") return {

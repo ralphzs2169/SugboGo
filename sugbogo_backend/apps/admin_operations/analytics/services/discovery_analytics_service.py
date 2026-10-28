@@ -14,6 +14,8 @@ from apps.shared.analytics.comparisons import compare_values
 from apps.shared.analytics.date_ranges import MANILA
 from apps.shared.analytics.metadata import build_meta
 
+from .reporting_helpers import calendar_buckets
+
 
 class DiscoveryAnalyticsService:
     """Build source-aware discovery results without asserting tracking completeness."""
@@ -34,6 +36,86 @@ class DiscoveryAnalyticsService:
         "including Explorer and Merchant actors. This is not total app MAU. "
         "Historical roles are not reconstructed from event identities."
     )
+
+    DEFINITIONS = {
+        "profile_visits": "Recorded PROFILE_VISIT events during the selected period.",
+        "impressions": "Recorded IMPRESSION events during the selected period.",
+        "saves": (
+            "Recorded SAVE events during the selected period; "
+            "not current Pocket inventory or churn."
+        ),
+        "deduplication": (
+            "Stored events retain the event-type, actor, business "
+            "and UTC-day deduplication key."
+        ),
+        "missing_observations": (
+            "Timeline buckets without an observed aggregate are null, not measured zero. "
+            "No tracking completeness or source watermark is inferred from the last event."
+        ),
+        "comparisons": (
+            "Previous-period comparisons are hidden while discovery tracking "
+            "coverage is not fully verified."
+        ),
+    }
+
+    @classmethod
+    def get_summary(
+        cls,
+        period,
+    ):
+        """Read all three recorded period totals in one existing visibility aggregation."""
+        values = {
+            metric: None
+            for metric in cls.EVENT_METRICS
+        }
+        availability = "available"
+        reasons = ()
+        try:
+            totals = VisibilityEventService.get_analytics_totals(
+                start_time=period.start,
+                end_time=period.end,
+            )
+            values = {
+                metric: totals[event.value]
+                for metric, event in cls.EVENT_METRICS.items()
+            }
+        except VisibilityTrackingUnavailable:
+            availability = "unavailable"
+            reasons = ("total_read_unavailable",)
+        return {
+            "totals": values,
+            "definitions": cls.DEFINITIONS,
+            "meta": build_meta(
+                period,
+                availability=availability,
+                partial_reasons=reasons,
+            ),
+        }
+
+    @staticmethod
+    def build_timeline(
+        period,
+        interval,
+        series,
+    ):
+        """Add every effective calendar bucket while keeping unobserved counts null."""
+        if series is None:
+            return None
+        observed = {
+            row["date"]: row["value"]
+            for row in series
+        }
+        timeline = []
+        for bucket in calendar_buckets(period, interval):
+            timeline.append({
+                **bucket,
+                "value": observed.get(bucket["date"]),
+                "in_progress": (
+                    period.includes_partial_day
+                    and bucket["end_exclusive"] == period.end.isoformat()
+                ),
+            })
+        return timeline
 
     @staticmethod
     def previous_period(period):
@@ -129,6 +211,13 @@ class DiscoveryAnalyticsService:
             if meta["availability"] == "available":
                 meta["availability"] = "partial"
             meta["partial_reasons"] = [*meta["partial_reasons"], "previous_period_unavailable"]
+        timeline = None
+        if include_series:
+            timeline = cls.build_timeline(
+                period,
+                interval,
+                current["series"],
+            )
         return {
             "metric": metric,
             "label": cls.LABELS[metric],
@@ -142,6 +231,8 @@ class DiscoveryAnalyticsService:
             "interval": interval,
             "series": current["series"],
             "series_is_sparse": True,
+            "timeline": timeline,
+            "definitions": cls.DEFINITIONS,
             "meta": meta,
             "sources": {
                 "visibility_current": current["meta"],

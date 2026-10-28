@@ -281,3 +281,24 @@ Backlog counts current pending requests regardless of selected dates. Aging uses
 Focused query-count tests establish growth 8, community 3, specialty 2, change requests 9 (three per fixed request type), and application processing 4 additional queries. These counts do not grow per business, tag or chart day. SQL performs count/group/distinct/Exists operations. Python fills calendar buckets and calculates durations using projected timestamp columns rather than full ORM rows.
 
 Exact medians currently buffer selected duration samples, following existing operational reporting practice. Broad date ranges, first-approval anti-Exists queries, whole-population distinct evidence and cohort scans require representative production query-plan/latency evaluation later. No speculative index, cache, Celery rollup or storage change is included. Large specialty inventories may eventually need pagination. Existing custom-date limits are unchanged.
+
+
+## Discovery Activity acquisition and timeline contract
+
+The independent `discovery-summary/` report exposes recorded profile visits, impressions
+and saves through one existing visibility totals aggregation. It uses the shared reporting
+period, permissions, metadata and response envelope. Zero is a successful recorded count;
+null is an unavailable source. Event deduplication and MongoDB ingestion are unchanged.
+
+The selectable `discovery-trend/` keeps its sparse legacy series and adds a nullable,
+complete calendar `timeline`. Missing rows are not measured zeroes, and the last event is
+not a data-through watermark. The dashboard uses the effective reporting bounds for its
+axis and keeps null gaps in both line and area. Only a backend current-time-capped final
+bucket is in progress; historical clipped weeks are not. A known early source cutoff can
+be marked separately; current freshness remains explicitly unknown.
+
+Comparisons stay suppressed while discovery tracking coverage is unverified. Three
+selectable MetricCards drive one trend request; the summary query is independent and
+unchanged by metric/interval selection. Details and exact nullable buckets use the shared
+right-side drawer. No conversion, MAU, retention or new tracking metric is introduced.
+See `docs/admin-analytics-api-contract.md` for fields and performance boundaries.

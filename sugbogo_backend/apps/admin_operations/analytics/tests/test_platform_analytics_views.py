@@ -143,3 +143,60 @@ class PlatformAnalyticsViewTests(APIResponseAssertionsMixin, APISimpleTestCase):
     def test_existing_discovery_score_route_names_are_preserved(self):
         self.assertEqual(reverse("discovery-score-list"), "/api/admin/analytics/discovery-scores/")
         self.assertEqual(reverse("discovery-score-recompute"), "/api/admin/analytics/discovery-scores/recompute/")
+
+
+    def test_summary_permissions_validation_and_explicit_contract(self):
+        url = reverse("admin-discovery-summary")
+        self.assertEqual(self.client.get(url).status_code, 401)
+        for role in (User.UserRole.EXPLORER, User.UserRole.MERCHANT):
+            self.authenticate(role)
+            self.assertEqual(self.client.get(url).status_code, 403)
+        self.authenticate(User.UserRole.ADMIN, User.UserStatus.SUSPENDED)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        for role in (User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN):
+            self.authenticate(role)
+            with patch.object(
+                VisibilityEventService,
+                "get_analytics_totals",
+                return_value={"PROFILE_VISIT": 3, "IMPRESSION": 8, "SAVE": 0},
+            ) as totals:
+                response = self.client.get(url)
+            self.assertSuccessResponse(response, message="Discovery summary retrieved successfully.")
+            self.assertEqual(response.data["data"]["totals"], {
+                "profile_visits": 3, "impressions": 8, "saves": 0,
+            })
+            self.assertEqual(set(response.data["data"]), {"totals", "definitions", "meta"})
+            self.assertEqual(totals.call_count, 1)
+            self.assertEqual(totals.call_args.kwargs["start_time"], self.period.start)
+            self.assertEqual(totals.call_args.kwargs["end_time"], self.period.end)
+        with patch.object(DiscoveryAnalyticsService, "get_summary") as service:
+            self.assertEqual(self.client.get(url, {"metric": "saves"}).status_code, 400)
+            self.assertEqual(self.client.get(url, {"period": "14"}).status_code, 400)
+        service.assert_not_called()
+
+    def test_summary_unavailable_remains_success_with_null_counts(self):
+        self.authenticate()
+        with patch.object(
+            VisibilityEventService,
+            "get_analytics_totals",
+            side_effect=VisibilityTrackingUnavailable(),
+        ):
+            response = self.client.get(reverse("admin-discovery-summary"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(set(response.data["data"]["totals"].values()), {None})
+        self.assertEqual(response.data["data"]["meta"]["availability"], "unavailable")
+
+    def test_trend_adds_nullable_full_timeline_without_changing_sparse_series(self):
+        self.authenticate()
+        with patch.object(
+            VisibilityEventService,
+            "get_analytics_totals",
+            return_value={"PROFILE_VISIT": 0, "IMPRESSION": 0, "SAVE": 0},
+        ), patch.object(VisibilityEventService, "get_analytics_series", return_value=[]):
+            response = self.client.get(self.trend_url)
+        data = response.data["data"]
+        self.assertEqual(data["series"], [])
+        self.assertTrue(data["series_is_sparse"])
+        self.assertTrue(data["timeline"])
+        self.assertIsNone(data["timeline"][0]["value"])
+        self.assertIn("in_progress", data["timeline"][-1])

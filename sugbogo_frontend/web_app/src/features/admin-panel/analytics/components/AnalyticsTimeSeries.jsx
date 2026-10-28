@@ -1,4 +1,5 @@
-import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useId } from "react";
+import { Area, Bar, BarChart, ComposedChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCount, formatDate, formatTimestamp } from "../utils/presentation";
 import AnalyticsExactTable from "./AnalyticsExactTable";
 import AnalyticsDisclosure from "./AnalyticsDisclosure";
@@ -14,20 +15,50 @@ export default function AnalyticsTimeSeries({
   tooltipContent,
   legendContent,
   children,
+  areaFade = false,
+  timeDomain,
+  timeTicks,
+  barTimeAxis = false,
+  maxBarSize = 28,
 }) {
+  const gradientId = useId().replaceAll(":", "");
   const data = rows.map((row) => ({ ...row, time: Date.parse(row.start ?? `${row.date}T00:00:00+08:00`) }));
   const isBar = chartType === "bar";
-  const Chart = isBar ? BarChart : LineChart;
+  const Chart = isBar ? BarChart : areaFade ? ComposedChart : LineChart;
   return (
     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
       {/* Bar categories retain every reporting bucket; lines keep their numeric time axis */}
-      <Chart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} {...(isBar ? { barCategoryGap: "28%", maxBarSize: 28 } : {})}>
+      <Chart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} {...(isBar ? { barCategoryGap: "28%", maxBarSize } : {})}>
         {children}
+        {areaFade && !isBar && (
+          <defs>
+            {lines.map((line) => (
+              <linearGradient key={line.key} id={`${gradientId}-${line.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={line.color ?? "var(--color-primary)"} stopOpacity={0.12} />
+                <stop offset="100%" stopColor={line.color ?? "var(--color-primary)"} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
+        )}
         <CartesianGrid vertical={false} stroke="var(--color-stroke)" strokeDasharray="3 4" />
-        <XAxis dataKey={isBar ? "date" : "time"} {...(isBar ? { type: "category" } : { type: "number", scale: "time", domain: ["dataMin", "dataMax"] })} tickFormatter={formatDate} minTickGap={35} tick={{ fill: "var(--color-text-secondary)", fontSize: 12 }} />
+        <XAxis dataKey={isBar && !barTimeAxis ? "date" : "time"} {...(isBar && !barTimeAxis ? { type: "category" } : { type: "number", scale: "time", domain: timeDomain ?? ["dataMin", "dataMax"], ticks: timeTicks, padding: isBar && barTimeAxis ? { left: maxBarSize / 2 + 8, right: maxBarSize / 2 + 8 } : undefined })} tickFormatter={formatDate} minTickGap={35} tick={{ fill: "var(--color-text-secondary)", fontSize: 12 }} />
         <YAxis allowDecimals={false} width={34} tick={{ fill: "var(--color-text-secondary)", fontSize: 11 }} />
-        <Tooltip content={tooltipContent} {...(isBar ? { filterNull: false } : {})} labelFormatter={formatDate} formatter={(value, name) => [formatCount(value), name]} contentStyle={{ background: "var(--color-background)", border: "1px solid var(--color-stroke)", color: "var(--color-text-primary)", borderRadius: 8 }} />
+        <Tooltip content={tooltipContent} {...(isBar || areaFade ? { filterNull: false } : {})} labelFormatter={formatDate} formatter={(value, name) => [formatCount(value), name]} contentStyle={{ background: "var(--color-background)", border: "1px solid var(--color-stroke)", color: "var(--color-text-primary)", borderRadius: 8 }} />
         {showLegend && <Legend content={legendContent} wrapperStyle={{ fontSize: 12 }} formatter={(value) => <span className="text-text-primary">{value}</span>} />}
+        {areaFade && !isBar && lines.map((line) => (
+          <Area
+            key={`area-${line.key}`}
+            dataKey={line.key}
+            type="linear"
+            connectNulls={false}
+            baseValue={0}
+            stroke="none"
+            fill={`url(#${gradientId}-${line.key})`}
+            isAnimationActive={false}
+            tooltipType="none"
+            legendType="none"
+          />
+        ))}
         {lines.map((line, index) => (
           isBar ? (
             <Bar key={line.key} dataKey={line.key} name={line.label} minPointSize={0} fill={line.color ?? "var(--color-primary)"} isAnimationActive={false} />

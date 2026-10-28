@@ -44,6 +44,7 @@ const table = { page: 1, page_size: 10, ordering: "-profile_visits" };
 const reports = [
   ["platformOverview", "fetchPlatformAnalytics", "", dated],
   ["platformGrowth", "fetchPlatformGrowthAnalytics", "platform-growth/", series],
+  ["discoverySummary", "fetchDiscoveryActivitySummary", "discovery-summary/", dated],
   ["discoveryTrend", "fetchDiscoveryTrend", "discovery-trend/", { ...series, metric: "profile_visits" }],
   ["onboarding", "fetchOnboardingAnalytics", "onboarding/", dated],
   ["attentionQueue", "fetchAttentionQueueAnalytics", "attention-queue/", dated],
@@ -75,7 +76,7 @@ test("canonical period defaults and custom dates define cache identity", () => {
     assert.notDeepEqual(keys[report](custom), keys[report]({ ...custom, end_date: "2026-10-08" }));
     assert.notDeepEqual(keys[report](custom), keys[report]({ ...custom, start_date: "2026-10-02" }));
   }
-  assert.equal(new Set(reports.map(([report]) => JSON.stringify(keys[report]()))).size, 13);
+  assert.equal(new Set(reports.map(([report]) => JSON.stringify(keys[report]()))).size, 14);
 });
 
 test("discovery metric and interval and growth/community interval affect keys", () => {
@@ -198,4 +199,11 @@ test("query options preserve global retry/focus behavior and avoid polling or ol
     assert.deepEqual(requested.params, query.queryKey[3]);
     assert.equal(requested.signal, signal);
   }
+});
+
+
+test("discovery summary keys ignore metric and interval while preserving reporting dates", () => {
+  assert.deepEqual(keys.discoverySummary(dated), keys.discoverySummary({ ...dated, metric: "saves", interval: "weekly" }));
+  assert.notDeepEqual(keys.discoverySummary(dated), keys.discoverySummary({ period: "7" }));
+  assert.deepEqual(normalize("discoverySummary", { ...custom, metric: "impressions", interval: "daily" }), custom);
 });

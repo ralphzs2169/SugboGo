@@ -6,7 +6,14 @@ import { growthPeriodLabel } from "../utils/growthPresentation";
 import { formatCount, formatTimestamp } from "../utils/presentation";
 
 /** Presents report methodology and exact values in one right-side modal with native focus containment. */
-export default function AnalyticsDetailDrawer({ mode, onClose, report, interval, series }) {
+export default function AnalyticsDetailDrawer({
+  mode, onClose, report, interval, series,
+  title = "Platform Growth",
+  aboutContent,
+  dataDescription,
+  showComparison = true,
+  dateColumn,
+}) {
   const ref = useRef(null);
   const titleId = useId();
   const panelRef = useRef(null);
@@ -86,11 +93,11 @@ export default function AnalyticsDetailDrawer({ mode, onClose, report, interval,
         {/* Fixed drawer heading and close action */}
         <header className="flex items-center justify-between gap-3 border-b border-stroke p-5">
           <h2 id={titleId} className="flex items-center gap-2 text-lg font-semibold">
-            {displayMode === "about" ? "About Platform Growth" : "Platform Growth — Exact Data"}
+            {displayMode === "about" ? `About ${title}` : `${title} — Exact Data`}
           </h2>
           <button
             type="button"
-            aria-label="Close Platform Growth details"
+            aria-label={`Close ${title} details`}
             onClick={onClose}
             className="cursor-pointer rounded p-2 text-text-secondary transition-colors hover:bg-stroke/50 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-info"
           >
@@ -104,7 +111,7 @@ export default function AnalyticsDetailDrawer({ mode, onClose, report, interval,
             <h3 className="text-xs font-semibold uppercase text-text-secondary">Report details</h3>
             <dl className="space-y-4 rounded-xl bg-surface p-4">
               {[
-                ["Compared with", growthPeriodLabel(meta?.period?.previous_start, meta?.period?.previous_end_exclusive), CalendarDays],
+                ...(showComparison ? [["Compared with", growthPeriodLabel(meta?.period?.previous_start, meta?.period?.previous_end_exclusive), CalendarDays]] : []),
                 ["Report generated", formatTimestamp(meta?.generated_at), Clock3],
                 ["Data through", formatTimestamp(meta?.data_through), CalendarDays],
                 ["Source availability", meta?.availability ?? "Unavailable", Database],
@@ -119,7 +126,7 @@ export default function AnalyticsDetailDrawer({ mode, onClose, report, interval,
                 </div>
               ))}
             </dl>
-            <div className="space-y-4 border-t border-stroke pt-5">
+            {aboutContent ?? <div className="space-y-4 border-t border-stroke pt-5">
               <h3 className="text-xs font-semibold uppercase text-text-secondary">How these metrics work</h3>
               {series.map((item) => (
                 <div key={item.key} className="flex items-start gap-3">
@@ -138,20 +145,25 @@ export default function AnalyticsDetailDrawer({ mode, onClose, report, interval,
                 </div>
               ))}
               <p className="flex items-start gap-2 text-xs leading-relaxed text-text-secondary"><Info aria-hidden="true" className="h-4 w-4 shrink-0" />{report?.definitions?.comparisons}</p>
-            </div>
+            </div>}
           </> : (
-            <AnalyticsExactTable
-              caption="Platform Growth exact reporting buckets"
+            <>
+            {dataDescription && <p className="font-medium">{dataDescription}</p>}
+            {report?.series === null ? (
+              <p className="text-text-secondary">Exact observations are currently unavailable.</p>
+            ) : <AnalyticsExactTable
+              caption={`${title} exact reporting buckets`}
               rows={report?.series}
               columns={[
-                { key: "date", label: "Calendar bucket" },
+                dateColumn ?? { key: "date", label: "Calendar bucket" },
                 ...series.map((item) => ({
                   key: item.key,
                   label: item.label,
                   render: (row) => formatCount(row[item.key]),
                 })),
               ]}
-            />
+            />}
+            </>
           )}
         </div>
       </div>

@@ -34,16 +34,23 @@ before(async () => {
       load(id) {
         if (id.replaceAll("\\", "/").endsWith("/shared/api/apiClient.js")) return "export default { get: (...args) => globalThis.__dashboardTransport(...args) };";
         if (id === "\0analytics-recharts") return `import React from 'react';
+          const SeriesData = React.createContext([]);
           export const ResponsiveContainer = ({children}) => React.createElement('div', null, children);
           export const LineChart = ({data, children}) => React.createElement('div', {'data-chart': JSON.stringify(data),'data-chart-type':'line'}, children);
           export const BarChart = ({data, children, maxBarSize}) => React.createElement('div', {'data-chart': JSON.stringify(data),'data-chart-type':'bar','data-max-bar-size':maxBarSize}, React.Children.map(children, (child) => child?.type === 'defs' ? React.createElement('svg', null, child) : child));
-          export const Line = ({dataKey,connectNulls}) => React.createElement('span', {'data-series':dataKey,'data-series-type':'line','data-connect-nulls':String(connectNulls)});
+          export const ComposedChart = ({data,children}) => React.createElement(SeriesData.Provider, {value:data}, React.createElement('div', {'data-chart':JSON.stringify(data),'data-chart-type':'line','data-area-fade':'true'}, React.Children.map(children, (child) => child?.type === 'defs' ? React.createElement('svg', null, child) : child)));
+          export const Area = ({connectNulls}) => React.createElement('span', {'data-area-connect-nulls':String(connectNulls)});
+          export const Line = ({dataKey,connectNulls,dot}) => {
+            const rows = React.useContext(SeriesData);
+            return React.createElement('span', {'data-series':dataKey,'data-series-type':'line','data-connect-nulls':String(connectNulls)},
+              React.createElement('svg', {'data-observation-markers':true}, typeof dot === 'function' ? rows.map((row,index) => dot({index,cx:index * 10,cy:20,payload:row})) : null));
+          };
           export const Bar = ({dataKey,fill,stackId}) => React.createElement('span', {'data-series':dataKey,'data-series-type':'bar','data-fill':fill,'data-stack':stackId});
-          export const XAxis = ({type,dataKey}) => React.createElement('span',{'data-axis-type':type,'data-axis-key':dataKey});
+          export const XAxis = ({type,dataKey,domain,ticks}) => React.createElement('span',{'data-axis-type':type,'data-axis-key':dataKey,'data-domain':JSON.stringify(domain),'data-ticks':JSON.stringify(ticks)});
           export const YAxis = ({allowDecimals}) => React.createElement('span',{'data-allow-decimals':String(allowDecimals)});
           export const Tooltip = ({filterNull,formatter}) => React.createElement('span',{'data-filter-null':String(filterNull),'data-tooltip-zero':formatter(0,'Selected metric')[0],'data-tooltip-missing':formatter(null,'Selected metric')[0]});
           export const ReferenceArea = ({x1,x2}) => React.createElement("span", {"data-partial-start":x1,"data-partial-end":x2});
-          export const CartesianGrid = () => null; export const Legend = () => null;`;
+          export const CartesianGrid = () => null; export const Legend = () => React.createElement("span", {"data-legend":"true"});`;
       },
     }],
   });
@@ -88,7 +95,7 @@ async function until(predicate) {
 }
 async function mount() {
   await act(async () => root.render(React.createElement(QueryClientProvider, { client }, React.createElement(MemoryRouter, null, React.createElement(Page)))));
-  await until(() => reads.length >= 13 && client.isFetching() === 0);
+  await until(() => reads.length >= 14 && client.isFetching() === 0);
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
 const section = (title) => [...container.querySelectorAll("h2")].find((heading) => heading.textContent === title)?.closest("section");
@@ -97,6 +104,13 @@ const requests = (route) => reads.filter(({ url }) => url === `/admin/analytics/
 const metric = (label) => [...container.querySelectorAll("h3")].find((heading) => heading.textContent === label)?.closest(".relative");
 const click = async (element) => act(async () => element.click());
 async function choose(label, value) {
+  if (label === "Discovery metric") {
+    const name = { profile_visits: "profile visits", impressions: "impressions", saves: "saves" }[value];
+    await click(container.querySelector(`[aria-label="Show recorded ${name}"]`));
+    await until(() => client.isFetching() === 0);
+    await act(async () => new Promise((done) => setTimeout(done, 10)));
+    return;
+  }
   await act(async () => { const input = select(label); input.value = value; input.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
   await until(() => client.isFetching() === 0);
   await act(async () => new Promise((done) => setTimeout(done, 10)));
@@ -114,8 +128,8 @@ const disclosure = (element, label) => [...element.querySelectorAll("summary")].
 
 test("MVP mounts reports once, shares taxonomy options, and defers low exposure and heatmap", async () => {
   await mount();
-  assert.equal(reads.length, 13);
-  assert.equal(new Set(reads.map(({ url }) => url)).size, 13);
+  assert.equal(reads.length, 14);
+  assert.equal(new Set(reads.map(({ url }) => url)).size, 14);
   assert.equal(requests("low-exposure/").length, 0);
   assert.equal(requests("discovery-heatmap/").length, 0);
   assert.equal(requests("discovery-scores/")[0].params.page_size, 1);
@@ -188,7 +202,7 @@ test("discovery failure leaves onboarding/community usable and Retry only reques
   assert.match(section("Community Health").textContent, /Unclassified reviews1/);
   const total = reads.length;
   failures.clear();
-  await click(section("Discovery Activity").querySelector("button"));
+  await click([...section("Discovery Activity").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
   await until(() => client.isFetching() === 0);
   assert.equal(reads.length, total + 1);
   await until(() => !section("Discovery Activity").querySelector("[role='alert']"));
@@ -199,18 +213,19 @@ test("discovery controls request only supported metric/interval variants and sho
   await mount();
   await choose("Discovery metric", "saves");
   assert.equal(requests("discovery-trend/").at(-1).params.metric, "saves");
-  const localInterval = section("Discovery Activity").querySelectorAll("select")[1];
-  await act(async () => { localInterval.value = "weekly"; localInterval.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  const localInterval = section("Discovery Activity").querySelector("select");
+  await act(async () => { localInterval.value = "daily"; localInterval.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
   await until(() => client.isFetching() === 0);
-  assert.equal(requests("discovery-trend/").at(-1).params.interval, "weekly");
+  assert.equal(requests("discovery-trend/").at(-1).params.interval, "daily");
   await until(() => section("Discovery Activity").querySelector("[data-chart]"));
-  assert.match(section("Discovery Activity").textContent, /Tracking coverage is unverified/);
-  assert.match(section("Discovery Activity").textContent, /Comparison unavailable/);
+  assert.match(section("Discovery Activity").textContent, /Partial coverage/);
+  assert.doesNotMatch(section("Discovery Activity").textContent, /Tracking coverage is unverified/);
+  assert.match(section("Discovery Activity").textContent, /Partial coverage/);
   assert.equal(requests("onboarding/").length, 1);
 });
 
 test("successful unavailable discovery is not an HTTP failure or a zero and preserves other sections", async () => {
-  overrides.set("/admin/analytics/discovery-trend/", (report) => ({ ...report, value: null, series: null, meta: { ...report.meta, availability: "unavailable" } }));
+  overrides.set("/admin/analytics/discovery-trend/", (report) => ({ ...report, value: null, series: null, timeline: null, meta: { ...report.meta, availability: "unavailable" } }));
   await mount();
   assert.match(section("Discovery Activity").textContent, /Discovery activity is currently unavailable/);
   assert.equal(section("Discovery Activity").querySelector("[role='alert']"), null);
@@ -367,11 +382,13 @@ test("report metadata and coverage caveats are secondary but remain available on
   assert.match(drawer.textContent, /Accounts exclude staff/);
   await click(drawer.querySelector("button"));
   assert.equal(document.activeElement, trigger);
-  const partial = disclosure(section("Discovery Activity"), "Partial coverage");
-  assert.equal(partial.parentElement.open, false);
+  const partial = section("Discovery Activity").querySelector("[aria-label='About Discovery Activity']");
   await click(partial);
-  assert.match(primaryText(section("Discovery Activity")), /Tracking coverage is unverified/);
-  assert.equal(reads.length, 13);
+  const discoveryDrawer = document.querySelector("dialog[open]");
+  assert.match(discoveryDrawer.textContent, /About Discovery Activity/);
+  assert.match(discoveryDrawer.textContent, /coverage is not fully verified/);
+  await click(discoveryDrawer.querySelector("button"));
+  assert.equal(reads.length, 14);
 });
 
 test("onboarding foregrounds core decisions and keeps samples and full rejection rows disclosed", async () => {
@@ -425,7 +442,7 @@ test("attention retains all metrics in fewer columns and section navigation targ
   assert.equal(attention.querySelectorAll("th").length, 6);
   assert.match(attention.querySelector("tbody").textContent, /Cafes · Food/);
   for (const link of container.querySelectorAll("nav[aria-label='Analytics sections'] a")) assert.ok(container.querySelector(link.getAttribute("href")));
-  assert.equal(reads.length, 13);
+  assert.equal(reads.length, 14);
 });
 
 test("all growth metrics use independent bars while daily/weekly controls preserve request reuse", async () => {
@@ -553,4 +570,178 @@ test("growth exposes period context and marks only a currently capped incomplete
   assert.equal(growthWeekInProgress({ series: [row], meta: { generated_at: row.end_exclusive } }, "daily"), null);
   assert.equal(growthBucketLabel(row), "Oct 26 – Oct 28");
   assert.equal(growthBucketLabel({ start: "2026-10-18T16:00:00Z", end_exclusive: "2026-10-25T16:00:00Z" }), "Oct 19 – Oct 25");
+});
+
+
+test("discovery uses one recorded-activity series with consistent colors and shared data drawer", async () => {
+  await mount();
+  const discovery = section("Discovery Activity");
+  assert.match(discovery.textContent, /Recorded profile visits by week/);
+  assert.equal(requests("discovery-trend/")[0].params.interval, "weekly");
+  assert.equal(discovery.querySelector("[data-legend]"), null);
+  assert.equal(discovery.querySelectorAll("[data-series-type='bar']").length, 1);
+  assert.equal(discovery.querySelector("[data-series-type='line']"), null);
+  assert.equal(discovery.querySelector("linearGradient"), null);
+  const rows = JSON.parse(discovery.querySelector("[data-chart]").dataset.chart);
+  assert.equal(rows[1].value, null);
+  assert.equal(rows[2].value, 0);
+  assert.equal(discovery.querySelector("[data-fill]").dataset.fill, "var(--color-info)");
+  await choose("Discovery metric", "impressions");
+  assert.equal(discovery.querySelector("[data-fill]").dataset.fill, "var(--color-primary)");
+  await choose("Discovery metric", "saves");
+  assert.equal(discovery.querySelector("[data-fill]").dataset.fill, "var(--color-success)");
+  const trigger = [...discovery.querySelectorAll("button")].find((button) => button.textContent.trim() === "View data");
+  await click(trigger);
+  const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Discovery Activity — Exact Data/);
+  assert.match(drawer.textContent, /Saves/);
+  assert.match(drawer.textContent, /Unavailable/);
+  assert.equal(discovery.querySelector("table"), null);
+  await click(drawer.querySelector("button"));
+  assert.equal(requests("discovery-trend/").length, 3);
+  assert.equal(requests("discovery-summary/").length, 1);
+});
+
+test("discovery measured zero is empty recorded activity rather than unavailable", async () => {
+  overrides.set("/admin/analytics/discovery-trend/", (report) => ({
+    ...report, value: 0, series: report.series.map((row) => ({ ...row, value: 0 })), timeline: report.timeline.map((row) => ({ ...row, value: 0 })),
+  }));
+  await mount();
+  const discovery = section("Discovery Activity");
+  assert.match(discovery.textContent, /0profile visits/);
+  assert.match(discovery.textContent, /No profile visits were recorded during this period/);
+  assert.doesNotMatch(discovery.textContent, /Discovery activity is currently unavailable/);
+  assert.match(discovery.textContent, /Previous-period comparison unavailable/);
+});
+
+
+test("discovery summary remains independent of card selection, intervals and a failed trend", async () => {
+  failures.add("/admin/analytics/discovery-trend/");
+  await mount();
+  const discovery = section("Discovery Activity");
+  assert.match(metric("Profile visits").textContent, /10/);
+  assert.match(metric("Impressions").textContent, /20/);
+  assert.match(metric("Saves").textContent, /3/);
+  assert.match(discovery.textContent, /Unable to load discovery activity/);
+  assert.equal(requests("discovery-summary/").length, 1);
+  failures.clear();
+  await click([...discovery.querySelectorAll("button")].find((button) => button.textContent === "Retry"));
+  await until(() => discovery.querySelector("[data-chart]") && client.isFetching() === 0);
+  await choose("Discovery metric", "saves");
+  assert.equal(discovery.querySelector("[aria-label='Show recorded saves']").getAttribute("aria-pressed"), "true");
+  assert.equal(discovery.querySelector("[aria-label='Show recorded profile visits']").getAttribute("aria-pressed"), "false");
+  assert.equal(requests("discovery-summary/").length, 1);
+  const interval = discovery.querySelector("select");
+  await act(async () => { interval.value = "weekly"; interval.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  await until(() => client.isFetching() === 0);
+  assert.equal(requests("discovery-summary/").length, 1);
+  await until(() => discovery.textContent.includes("Week in progress"));
+  const before = requests("discovery-trend/").length;
+  await click(periodButton("7"));
+  await until(() => client.isFetching() === 0);
+  assert.equal(requests("discovery-summary/").length, 2);
+  assert.equal(requests("discovery-trend/").length, before + 1);
+});
+
+test("discovery summary retries without removing or refetching a successful trend", async () => {
+  failures.add("/admin/analytics/discovery-summary/");
+  await mount();
+  const discovery = section("Discovery Activity");
+  assert.ok(discovery.querySelector("[data-chart]"));
+  assert.match(metric("Saves").textContent, /Unavailable/);
+  assert.match(discovery.textContent, /Unable to load discovery summary/);
+  failures.clear();
+  await click([...discovery.querySelectorAll("button")].find((button) => button.textContent === "Retry summary"));
+  await until(() => client.isFetching() === 0 && metric("Saves").textContent.includes("3"));
+  assert.match(metric("Saves").textContent, /3/);
+  assert.equal(requests("discovery-trend/").length, 1);
+  assert.equal(requests("discovery-summary/").length, 2);
+});
+
+test("discovery keeps full reporting axis and null tail without inferring a watermark", async () => {
+  overrides.set("/admin/analytics/discovery-trend/", (report) => ({
+    ...report, meta: { ...report.meta, data_through: null },
+  }));
+  await mount();
+  const discovery = section("Discovery Activity");
+  const domain = JSON.parse(discovery.querySelector("[data-domain]").dataset.domain);
+  assert.equal(domain[0], Date.parse("2026-09-30T16:00:00Z"));
+  assert.equal(domain[1], Date.parse("2026-10-30T04:00:00Z") - 1);
+  const rows = JSON.parse(discovery.querySelector("[data-chart]").dataset.chart);
+  assert.equal(rows.length, 30);
+  assert.equal(rows.at(-1).value, null);
+  assert.equal(rows[2].value, 0);
+  assert.doesNotMatch(discovery.textContent, /Recorded coverage through/);
+  assert.match(discovery.textContent, /Previous-period comparison unavailable/);
+  await click(discovery.querySelector("[aria-label='Why previous-period comparison is unavailable']"));
+  assert.match(document.querySelector("dialog[open]").textContent, /last event does not establish coverage/);
+});
+
+test("discovery marks a supplied earlier coverage cutoff without making missing values zero", async () => {
+  overrides.set("/admin/analytics/discovery-trend/", (report) => ({
+    ...report, meta: { ...report.meta, data_through: "2026-10-22T16:00:00Z" },
+  }));
+  await mount();
+  const discovery = section("Discovery Activity");
+  assert.match(discovery.textContent, /Recorded coverage through/);
+  assert.equal(Number(discovery.querySelector("[data-partial-start]").dataset.partialStart), Date.parse("2026-10-22T16:00:00Z"));
+  assert.equal(JSON.parse(discovery.querySelector("[data-chart]").dataset.chart).at(-1).value, null);
+});
+
+
+test("discovery displays a future valid backend comparison without calculating a replacement", async () => {
+  overrides.set("/admin/analytics/discovery-trend/", (report) => ({
+    ...report, previous_value: 8,
+    change: { value: 25, direction: "up", unit: "percent", reason: null },
+    meta: { ...report.meta, coverage_verified: true },
+  }));
+  await mount();
+  const discovery = section("Discovery Activity");
+  assert.match(discovery.textContent, /Increase: 25% vs previous period/);
+  assert.match(discovery.textContent, /compared with/);
+  assert.equal(discovery.querySelector("[aria-label='Why previous-period comparison is unavailable']"), null);
+});
+
+
+test("recorded discovery columns preserve all time positions and distinguish null from measured zero", async () => {
+  await mount();
+  const discovery = section("Discovery Activity");
+  const rows = JSON.parse(discovery.querySelector("[data-chart]").dataset.chart);
+  assert.equal(rows.length, 30);
+  assert.equal(rows[1].value, null);
+  assert.equal(rows[2].value, 0);
+  assert.equal(rows.at(-1).value, null);
+  assert.equal(discovery.querySelector("[data-axis-type]").dataset.axisType, "number");
+  assert.equal(discovery.querySelector("[data-axis-key]").dataset.axisKey, "time");
+  assert.equal(discovery.querySelector("[data-max-bar-size]").dataset.maxBarSize, "40");
+  assert.equal(discovery.querySelector("[data-filter-null]").dataset.filterNull, "false");
+  assert.equal(discovery.querySelector("[data-tooltip-zero]").dataset.tooltipZero, "0");
+  assert.equal(discovery.querySelector("[data-tooltip-missing]").dataset.tooltipMissing, "Unavailable");
+  const selected = discovery.querySelector("[aria-label='Show recorded profile visits']");
+  assert.match(selected.textContent, /Selected/);
+  assert.equal(selected.style.borderColor, "");
+  assert.match(selected.style.boxShadow, /inset/);
+  const interval = discovery.querySelector("select");
+  await act(async () => { interval.value = "daily"; interval.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  await until(() => discovery.textContent.includes("Recorded profile visits by day") && discovery.querySelector("[data-max-bar-size]") && client.isFetching() === 0);
+  assert.equal(discovery.querySelector("[data-max-bar-size]").dataset.maxBarSize, "18");
+  assert.equal(requests("discovery-summary/").length, 1);
+});
+
+
+test("final discovery polish labels bucket starts and keeps totals only in selectable cards", async () => {
+  await mount();
+  const discovery = section("Discovery Activity");
+  assert.match(discovery.textContent, /Recorded profile visits by week/);
+  assert.doesNotMatch(discovery.textContent, /10profile visits|Previous-period comparison unavailable/);
+  const selected = discovery.querySelector("[aria-label='Show recorded profile visits']");
+  assert.equal(selected.getAttribute("aria-pressed"), "true");
+  assert.equal(selected.textContent.trim(), "");
+  const rows = JSON.parse(discovery.querySelector("[data-chart]").dataset.chart);
+  const ticks = JSON.parse(discovery.querySelector("[data-ticks]").dataset.ticks);
+  assert.deepEqual(ticks, rows.map((row) => Date.parse(row.start)));
+  assert.equal(rows[1].value, null);
+  assert.equal(rows[2].value, 0);
+  await click(discovery.querySelector("[aria-label='About Discovery Activity']"));
+  assert.match(document.querySelector("dialog[open]").textContent, /comparisons are hidden/);
 });

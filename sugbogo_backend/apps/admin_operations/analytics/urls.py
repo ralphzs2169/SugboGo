@@ -10,7 +10,7 @@ from .reporting_views import (
 )
 
 from .views import DiscoveryScoreListView, DiscoveryScoreRecomputeView, DiscoveryTrendView
-from .views import get_analytics_data
+from .views import DiscoverySummaryView, get_analytics_data
 from .views import VisibilityGapDiagnosticView
 from .views import BusinessAttentionView, CoverageAnalyticsView, LowExposureView
 
@@ -42,6 +42,11 @@ urlpatterns = [
     path("coverage/", CoverageAnalyticsView.as_view(), name="admin-analytics-coverage"),
     path("business-attention/", BusinessAttentionView.as_view(), name="admin-business-attention"),
     path("low-exposure/", LowExposureView.as_view(), name="admin-low-exposure"),
+    path(
+        "discovery-summary/",
+        DiscoverySummaryView.as_view(),
+        name="admin-discovery-summary",
+    ),
     path(
         "discovery-trend/",
         DiscoveryTrendView.as_view(),

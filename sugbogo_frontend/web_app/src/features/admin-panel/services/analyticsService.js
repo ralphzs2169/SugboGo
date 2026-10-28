@@ -15,6 +15,7 @@ async function fetchReport(report, params, { signal } = {}) {
 
 export const fetchPlatformAnalytics = (params, options) => fetchReport("platformOverview", params, options);
 export const fetchPlatformGrowthAnalytics = (params, options) => fetchReport("platformGrowth", params, options);
+export const fetchDiscoveryActivitySummary = (params, options) => fetchReport("discoverySummary", params, options);
 export const fetchDiscoveryTrend = (params, options) => fetchReport("discoveryTrend", params, options);
 export const fetchOnboardingAnalytics = (params, options) => fetchReport("onboarding", params, options);
 export const fetchAttentionQueueAnalytics = (params, options) => fetchReport("attentionQueue", params, options);

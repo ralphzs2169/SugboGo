@@ -15,6 +15,10 @@ export function usePlatformGrowthAnalytics(params, options) {
   return useReportQuery("platformGrowth", params, options);
 }
 
+export function useDiscoveryActivitySummary(params, options) {
+  return useReportQuery("discoverySummary", params, options);
+}
+
 export function useDiscoveryTrend(params, options) {
   return useReportQuery("discoveryTrend", params, options);
 }

@@ -9,6 +9,7 @@ Both endpoints require authentication and an active ADMIN or SUPER_ADMIN account
 | Method and route | Purpose |
 |---|---|
 | `GET /api/admin/analytics/` | Platform overview KPIs plus weekly new-explorer registrations; replaces the placeholder response while retaining route name `get_analytics_data`. |
+| `GET /api/admin/analytics/discovery-summary/` | All three selected-period recorded event totals in one aggregation. Route name: `admin-discovery-summary`. |
 | `GET /api/admin/analytics/discovery-trend/` | One selectable discovery metric and daily/weekly sparse series. Route name: `admin-discovery-trend`. |
 
 Existing Discovery Score list/recompute routes remain unchanged. These GET reports never recompute Discovery Score, create indexes, write tracking data, or invoke Gemini.
@@ -405,3 +406,51 @@ Period outcomes use current terminal status plus resolved time in `[start,end)`.
 Service/API tests cover empty populations, date boundaries, current snapshots, approval deduplication, linked duration exclusions, multi-section feedback deduplication, sentiment denominators, global supporter deduplication, withdrawals, backlog aging, permissions, validation, output allowlists and method restrictions. Query-count budgets: growth 8, community 3, specialty 2, change requests 9, onboarding additions 4. No per-business/tag/day SQL loop is used.
 
 Representative production query plans are still needed for wide date ranges, creation/review scans, first-approval anti-Exists and distinct support. Duration medians buffer projected selected timestamp samples. No new index, cache or precomputation is justified by these correctness tests alone.
+
+
+## Discovery Activity summary and complete display timeline
+
+`GET /api/admin/analytics/discovery-summary/` accepts the shared `period=7|30|90|custom`
+and custom `start_date`/`end_date` parameters only. Active Admin/Super Admin permissions,
+Manila calendar interpretation, capped half-open UTC bounds and the `success_response`
+envelope are unchanged. Metric/interval filters are deliberately unsupported here.
+
+```text
+data:
+  totals: {profile_visits: integer|null, impressions: integer|null, saves: integer|null}
+  definitions: {profile_visits, impressions, saves, deduplication, missing_observations, comparisons}
+  meta: existing AnalyticsMetaSerializer fields
+```
+
+The summary delegates once to `VisibilityEventService.get_analytics_totals`; it does not
+read series, prior periods or individual businesses. A successful empty read returns three
+recorded zeroes. A source outage returns HTTP 200, three null totals and unavailable
+metadata. Counts retain existing event-type/actor/business/UTC-day deduplication. Saves
+are recorded SAVE events, not current Pocket membership, removal or churn.
+
+`discovery-trend/` retains every existing field, including sparse `series`, its null-on-read-
+failure behavior, and `series_is_sparse=true`. Two additive fields support the dashboard:
+
+- `definitions`: the same explicit event/gap/comparison descriptions as the summary.
+- `timeline`: every clipped Manila daily/Monday-week bucket in the effective selected
+  period, with `date`, `start`, `end_exclusive`, `value: integer|null`, and `in_progress`.
+  Existing observed counts (including explicit zero) are copied without transformation.
+  Unobserved buckets are null, never fabricated zeroes. A failed series read gives null
+  timeline, while an otherwise successful empty series gives a full nullable timeline.
+  No additional Mongo query is required to generate calendar buckets.
+
+`in_progress` identifies the final current-time-capped bucket from the resolved backend
+period. A historical selection ending part-way through a week is not labelled in progress.
+Weekly UI may hatch the in-progress interval; the daily UI does not add a large hatch.
+The display axis uses effective period bounds even when later timeline values are null.
+
+`data_through=null` means freshness/coverage is unknown, not the last event date. Event
+timestamps cannot establish an ingestion watermark. If a real earlier data-through bound
+is supplied, the UI marks the remaining axis region without inventing observations.
+Current tracking coverage remains unverified, so comparisons remain suppressed.
+
+The UI mounts one period-only summary query and one metric/interval trend query. Changing
+metric/interval leaves summary cached; changing period changes both keys. Summary and
+trend loading/errors/retries are independent. The summary adds one totals aggregate to
+the existing trend's current-total, series and previous-total reads; no additional trend
+report, event tracking, cache, index or rollup is introduced.
