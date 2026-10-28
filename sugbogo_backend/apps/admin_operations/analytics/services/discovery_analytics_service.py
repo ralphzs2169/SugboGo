@@ -27,11 +27,12 @@ class DiscoveryAnalyticsService:
         "impressions": "Recorded impressions",
         "profile_visits": "Recorded profile visits",
         "saves": "Recorded Pocket SAVE events",
-        "distinct_engaged_explorers": "Discovery-active explorers (not total app MAU)",
+        "distinct_engaged_explorers": "Discovery-active accounts (not total app MAU)",
     }
     EXPLORER_DESCRIPTION = (
-        "Unique explorers with recorded discovery activity during this period. "
-        "This is not total app MAU."
+        "Unique accounts with recorded discovery activity during this period, "
+        "including Explorer and Merchant actors. This is not total app MAU. "
+        "Historical roles are not reconstructed from event identities."
     )
 
     @staticmethod

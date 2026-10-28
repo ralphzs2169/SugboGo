@@ -12,10 +12,10 @@ export default function useBusinessApplicationStatistics({
   enabled = true,
 } = {}) {
   const [statistics, setStatistics] = useState({
-    pending_review: 0,
-    approved: 0,
-    rejected: 0,
-    total_applications: 0,
+    pending_review: null,
+    approved: null,
+    rejected: null,
+    total_applications: null,
 
     approval_rate: null,
     resubmission_rate: null,
@@ -46,10 +46,10 @@ export default function useBusinessApplicationStatistics({
       const response = await fetchBusinessApplicationStatistics();
 
       setStatistics({
-        pending_review: response.pending_review ?? 0,
-        approved: response.approved ?? 0,
-        rejected: response.rejected ?? 0,
-        total_applications: response.total_applications ?? 0,
+        pending_review: response.pending_review ?? null,
+        approved: response.approved ?? null,
+        rejected: response.rejected ?? null,
+        total_applications: response.total_applications ?? null,
 
         approval_rate: response.approval_rate ?? null,
         resubmission_rate: response.resubmission_rate ?? null,
@@ -83,7 +83,16 @@ export default function useBusinessApplicationStatistics({
       return;
     }
 
-    loadStatistics();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        loadStatistics();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, loadStatistics]);
 
   return {

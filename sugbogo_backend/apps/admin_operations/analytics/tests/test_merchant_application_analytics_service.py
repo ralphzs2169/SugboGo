@@ -13,9 +13,16 @@ from apps.merchant_application.models import (
     MerchantApplicationSubmission,
 )
 from apps.users.models import User
+from apps.admin_operations.system_configuration.models import (
+    AnalyticsPolicyConfiguration,
+)
 
 
 class MerchantApplicationAnalyticsServiceTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
+
     def test_sla_compliance_rate_returns_none_when_no_reviews_exist(self):
         result = (
             MerchantApplicationAnalyticsService
@@ -502,7 +509,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             MAPP_SUBMISSION_COUNT=1,
         )
 
-        reviewed_at = timezone.now()
+        reviewed_at = timezone.now() - timedelta(hours=2)
 
         submission = MerchantApplicationSubmission.objects.create(
             MAPP_ID=application,
@@ -552,7 +559,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
                 MAPP_SUBMISSION_COUNT=2 if is_resubmitted else 1,
             )
 
-            reviewed_at = timezone.now()
+            reviewed_at = timezone.now() - timedelta(hours=2)
 
             first_submission = (
                 MerchantApplicationSubmission.objects.create(
@@ -578,7 +585,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
                 MerchantApplicationSubmission.objects.create(
                     MAPP_ID=application,
                     MASUB_SUBMISSION_NUMBER=2,
-                    MASUB_SUBMITTED_AT=timezone.now(),
+                    MASUB_SUBMITTED_AT=reviewed_at + timedelta(seconds=1),
                 )
 
         result = MerchantApplicationAnalyticsService.get_resubmission_rate()
@@ -601,7 +608,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             MAPP_SUBMISSION_COUNT=2,
         )
 
-        reviewed_at = timezone.now()
+        reviewed_at = timezone.now() - timedelta(hours=2)
 
         first_submission = MerchantApplicationSubmission.objects.create(
             MAPP_ID=resubmitted_application,
@@ -620,7 +627,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
         MerchantApplicationSubmission.objects.create(
             MAPP_ID=resubmitted_application,
             MASUB_SUBMISSION_NUMBER=2,
-            MASUB_SUBMITTED_AT=timezone.now(),
+            MASUB_SUBMITTED_AT=reviewed_at + timedelta(seconds=1),
         )
 
         unreviewed_merchant = User.objects.create_user(
@@ -676,11 +683,13 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
             MAPP_SUBMISSION_COUNT=3,
         )
 
+        started_at = timezone.now() - timedelta(hours=2)
         for submission_number in range(1, 4):
+            submitted_at = started_at + timedelta(minutes=submission_number * 2)
             submission = MerchantApplicationSubmission.objects.create(
                 MAPP_ID=application,
                 MASUB_SUBMISSION_NUMBER=submission_number,
-                MASUB_SUBMITTED_AT=timezone.now(),
+                MASUB_SUBMITTED_AT=submitted_at,
             )
 
             MerchantApplicationReview.objects.create(
@@ -692,7 +701,7 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
                     if submission_number == 3
                     else MerchantApplicationReview.Decision.REJECTED
                 ),
-                MAREV_REVIEWED_AT=timezone.now(),
+                MAREV_REVIEWED_AT=submitted_at + timedelta(minutes=1),
             )
 
         result = MerchantApplicationAnalyticsService.get_resubmission_rate()

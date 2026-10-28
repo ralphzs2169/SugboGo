@@ -1,4 +1,4 @@
-"""Compose unchanged onboarding statistics with additive operational aggregates."""
+"""Compose native-timezone onboarding statistics with selectable operational aggregates."""
 
 from datetime import timedelta
 from zoneinfo import ZoneInfo
@@ -10,6 +10,9 @@ from django.utils import timezone
 
 from apps.admin_operations.analytics.services.merchant_application_analytics_service import (
     MerchantApplicationAnalyticsService,
+)
+from apps.admin_operations.analytics.services.application_processing_analytics_service import (
+    ApplicationProcessingAnalyticsService,
 )
 from apps.merchant_application.constants import (
     APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
@@ -24,7 +27,7 @@ from apps.shared.analytics.metadata import build_meta
 
 
 class OnboardingAnalyticsService:
-    """Keep legacy KPI semantics separate from selectable Manila event series."""
+    """Keep native UTC comparisons separate from selectable Manila event series."""
 
     @staticmethod
     def pending_aging(now):
@@ -85,12 +88,16 @@ class OnboardingAnalyticsService:
 
     @staticmethod
     def get_report(period):
-        """Expose native legacy statistics alongside separately scoped operational data."""
-        # Approved exception: do not rewrite the existing UTC windows or trends.
+        """Preserve native UTC reporting while exposing corrected comparison definitions."""
         with timezone.override(settings.TIME_ZONE):
-            statistics = MerchantApplicationAnalyticsService.get_application_statistics()
-            legacy_windows = MerchantApplicationAnalyticsService.get_weekly_analytics_periods()
+            statistics = MerchantApplicationAnalyticsService.get_application_statistics(
+                now=period.generated_at,
+            )
+            legacy_windows = MerchantApplicationAnalyticsService.get_weekly_analytics_periods(
+                now=period.generated_at,
+            )
         return {
+            **ApplicationProcessingAnalyticsService.get_report(period),
             "legacy_statistics": statistics,
             "legacy_meta": {
                 "timezone": settings.TIME_ZONE,
@@ -100,8 +107,17 @@ class OnboardingAnalyticsService:
                 "daily_history_days": 7,
                 "policy_version": statistics["policy_version"],
                 "comparison_minimum_sample": statistics["comparison_minimum_sample"],
-                "definitions": "Existing onboarding populations/windows; comparison eligibility uses versioned analytics policy.",
-                "exception": "Approved legacy timezone and comparison-window exception; these outputs do not use the selected Manila period.",
+                "definitions": (
+                    "Native calendar labels are retained. Exact equal-elapsed trend bounds "
+                    "and cumulative post-rejection recovery semantics are exposed in "
+                    "legacy_statistics.comparison_meta. Comparison eligibility uses "
+                    "versioned analytics policy."
+                ),
+                "exception": (
+                    "Native timezone and non-selectable window retained; comparisons now "
+                    "cap the prior day at the equivalent elapsed time. These outputs "
+                    "do not use the selected Manila period."
+                ),
             },
             "pending_aging": OnboardingAnalyticsService.pending_aging(period.generated_at),
             "aging_meta": {

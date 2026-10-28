@@ -2,6 +2,12 @@ from django.urls import path
 
 from .discovery_heatmap_views import DiscoveryHeatmapView
 from .operations_views import AttentionQueueView, OnboardingAnalyticsView
+from .reporting_views import (
+    ChangeRequestAnalyticsView,
+    CommunityHealthView,
+    PlatformGrowthView,
+    SpecialtySupportView,
+)
 
 from .views import DiscoveryScoreListView, DiscoveryScoreRecomputeView, DiscoveryTrendView
 from .views import get_analytics_data
@@ -9,6 +15,26 @@ from .views import VisibilityGapDiagnosticView
 from .views import BusinessAttentionView, CoverageAnalyticsView, LowExposureView
 
 urlpatterns = [
+    path(
+        "platform-growth/",
+        PlatformGrowthView.as_view(),
+        name="admin-analytics-platform-growth",
+    ),
+    path(
+        "community-health/",
+        CommunityHealthView.as_view(),
+        name="admin-analytics-community-health",
+    ),
+    path(
+        "specialty-support/",
+        SpecialtySupportView.as_view(),
+        name="admin-analytics-specialty-support",
+    ),
+    path(
+        "change-requests/",
+        ChangeRequestAnalyticsView.as_view(),
+        name="admin-analytics-change-requests",
+    ),
     path("discovery-heatmap/", DiscoveryHeatmapView.as_view(), name="admin-discovery-heatmap"),
     path("onboarding/", OnboardingAnalyticsView.as_view(), name="admin-analytics-onboarding"),
     path("attention-queue/", AttentionQueueView.as_view(), name="admin-analytics-attention-queue"),

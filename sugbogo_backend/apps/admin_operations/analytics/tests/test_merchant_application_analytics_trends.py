@@ -12,10 +12,17 @@ from apps.merchant_application.models import (
     MerchantApplicationSubmission,
 )
 from apps.users.models import User
+from apps.admin_operations.system_configuration.models import (
+    AnalyticsPolicyConfiguration,
+)
 
 
 class MerchantApplicationAnalyticsTrendTests(TestCase):
     """Test weekly trend calculations for merchant application analytics."""
+
+    @classmethod
+    def setUpTestData(cls):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
 
     def _timestamp(self, date):
         return timezone.make_aware(
@@ -450,7 +457,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                 MerchantApplicationSubmission(
                     MAPP_ID=application,
                     MASUB_SUBMISSION_NUMBER=2,
-                    MASUB_SUBMITTED_AT=current_reviewed_at,
+                    MASUB_SUBMITTED_AT=current_reviewed_at + timedelta(seconds=1),
                 )
                 for application in current_applications[:5]
             ]
@@ -483,7 +490,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
         self.assertEqual(
             result,
             {
-                "value": 50.0,
+                "value": 25.0,
                 "direction": "up",
                 "unit": "percentage_points",
             },
@@ -537,7 +544,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                 MerchantApplicationSubmission(
                     MAPP_ID=application,
                     MASUB_SUBMISSION_NUMBER=2,
-                    MASUB_SUBMITTED_AT=previous_reviewed_at,
+                    MASUB_SUBMITTED_AT=previous_reviewed_at + timedelta(seconds=1),
                 )
                 for application in previous_applications[:5]
             ]
@@ -624,7 +631,7 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
         self.assertEqual(
             result,
             {
-                "value": 50.0,
+                "value": 25.0,
                 "direction": "down",
                 "unit": "percentage_points",
             },
@@ -693,6 +700,17 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                         submissions,
                         users,
                     )
+                ]
+            )
+
+            MerchantApplicationSubmission.objects.bulk_create(
+                [
+                    MerchantApplicationSubmission(
+                        MAPP_ID=application,
+                        MASUB_SUBMISSION_NUMBER=2,
+                        MASUB_SUBMITTED_AT=reviewed_at + timedelta(seconds=1),
+                    )
+                    for application in applications[:5]
                 ]
             )
 
@@ -1125,11 +1143,14 @@ class MerchantApplicationAnalyticsTrendTests(TestCase):
                             MerchantApplicationReview.Decision.APPROVED
                         ),
                         MAREV_REVIEWED_AT=reviewed_at,
+                        MAREV_SLA_COMPLIANT=index < 5,
                     )
-                    for application, submission, user in zip(
-                        applications,
-                        submissions,
-                        users,
+                    for index, (application, submission, user) in enumerate(
+                        zip(
+                            applications,
+                            submissions,
+                            users,
+                        )
                     )
                 ]
             )

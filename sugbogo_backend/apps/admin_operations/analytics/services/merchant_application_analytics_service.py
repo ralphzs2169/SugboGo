@@ -1,5 +1,6 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
+from django.conf import settings
 from django.db.models import Count, Exists, OuterRef, Q
 from django.utils import timezone
 
@@ -21,9 +22,17 @@ class MerchantApplicationAnalyticsService:
 
     @staticmethod
     @with_policy_snapshot
-    def get_application_statistics():
+    def get_application_statistics(now=None):
         """Retrieve aggregate merchant application statistics."""
 
+        if now is None:
+            reference_time = timezone.now()
+        else:
+            reference_time = now
+        comparison_periods = (
+            MerchantApplicationAnalyticsService
+            .get_weekly_comparison_periods(reference_time)
+        )
         statistics = MerchantApplication.objects.aggregate(
             pending_review=Count(
                 "MAPP_ID",
@@ -53,6 +62,21 @@ class MerchantApplicationAnalyticsService:
 
         return {
             **statistics,
+            "comparison_meta": {
+                "timezone": settings.TIME_ZONE,
+                "strategy": "equal_elapsed_week_to_date",
+                "bounds": {
+                    key: value.isoformat()
+                    for key, value in comparison_periods.items()
+                },
+                "resubmission_basis": "cumulative_as_of_comparison_end",
+                "resubmission_definition": (
+                    "Applications with a recorded rejection before the cutoff that "
+                    "have a submission strictly after a rejection and before the cutoff, "
+                    "divided by applications rejected before the cutoff. "
+                    "Each application counts once, including later-approved applications."
+                ),
+            },
             "policy_version": current_policy().version,
             "comparison_minimum_sample": current_policy()["onboarding_comparison_min_sample"],
             "approval_rate": (
@@ -61,7 +85,7 @@ class MerchantApplicationAnalyticsService:
             ),
             "resubmission_rate": (
                 MerchantApplicationAnalyticsService
-                .get_resubmission_rate()
+                .get_resubmission_rate(reference_time)
             ),
             "sla_compliance_rate": (
                 MerchantApplicationAnalyticsService
@@ -69,11 +93,11 @@ class MerchantApplicationAnalyticsService:
             ),
             "approval_rate_trend": (
                 MerchantApplicationAnalyticsService
-                .get_approval_rate_trend()
+                .get_approval_rate_trend(reference_time)
             ),
             "resubmission_rate_trend": (
                 MerchantApplicationAnalyticsService
-                .get_resubmission_rate_trend()
+                .get_resubmission_rate_trend(reference_time)
             ),
             "pending_review_this_week": (
                 MerchantApplicationAnalyticsService
@@ -81,7 +105,7 @@ class MerchantApplicationAnalyticsService:
             ),
             "sla_compliance_rate_trend": (
                 MerchantApplicationAnalyticsService
-                .get_sla_compliance_rate_trend()
+                .get_sla_compliance_rate_trend(reference_time)
             ),
             "pending_review_history": (
                 MerchantApplicationAnalyticsService
@@ -93,7 +117,7 @@ class MerchantApplicationAnalyticsService:
             ),
             "resubmission_rate_history": (
                 MerchantApplicationAnalyticsService
-                .get_resubmission_rate_history()
+                .get_resubmission_rate_history(reference_time)
             ),
             "sla_compliance_rate_history": (
                 MerchantApplicationAnalyticsService
@@ -106,17 +130,21 @@ class MerchantApplicationAnalyticsService:
         }
 
     @staticmethod
-    def get_weekly_analytics_periods():
+    def get_weekly_analytics_periods(now=None):
         """
-        Return the current weekly period and the equivalent previous-week
-        period using the same number of elapsed days.
+        Return legacy inclusive calendar labels for workload counts and metadata.
 
-        The current period starts on Monday and ends on today's date.
-        The previous period covers the same number of weekdays immediately
-        preceding the current week.
+        Trend queries use get_weekly_comparison_periods() instead, so these
+        date-only labels cannot include a complete prior day in a live comparison.
         """
 
-        today = timezone.localdate()
+        if now is None:
+            today = timezone.localdate()
+        else:
+            today = timezone.localtime(
+                now,
+                timezone.get_default_timezone(),
+            ).date()
         current_week_start = today - timedelta(days=today.weekday())
 
         elapsed_days = (today - current_week_start).days
@@ -132,7 +160,34 @@ class MerchantApplicationAnalyticsService:
         }
 
     @staticmethod
-    def get_daily_analytics_periods(days=7):
+    def get_weekly_comparison_periods(now=None):
+        """Retain the configured timezone and compare half-open weeks of equal elapsed time."""
+        if now is None:
+            reference_time = timezone.now()
+        else:
+            reference_time = now
+        local_now = timezone.localtime(
+            reference_time,
+            timezone.get_default_timezone(),
+        )
+        monday = local_now.date() - timedelta(days=local_now.weekday())
+        current_start = datetime.combine(
+            monday,
+            time.min,
+            tzinfo=timezone.get_default_timezone(),
+        )
+        return {
+            "current_start": current_start,
+            "current_end_exclusive": local_now,
+            "previous_start": current_start - timedelta(days=7),
+            "previous_end_exclusive": local_now - timedelta(days=7),
+        }
+
+    @staticmethod
+    def get_daily_analytics_periods(
+        days=7,
+        now=None,
+    ):
         """
         Return the daily periods used for KPI sparkline history.
 
@@ -140,7 +195,13 @@ class MerchantApplicationAnalyticsService:
         including today.
         """
 
-        today = timezone.localdate()
+        if now is None:
+            today = timezone.localdate()
+        else:
+            today = timezone.localtime(
+                now,
+                timezone.get_default_timezone(),
+            ).date()
 
         return [
             today - timedelta(days=offset)
@@ -163,7 +224,7 @@ class MerchantApplicationAnalyticsService:
         Rate-based trends are expressed in percentage points.
         """
 
-        # Only interpretation eligibility is configurable; existing populations/windows remain intact.
+        # The versioned policy controls comparison sample eligibility.
         if minimum_sample_size is None:
             minimum_sample_size = current_policy()["onboarding_comparison_min_sample"]
         if (
@@ -191,35 +252,43 @@ class MerchantApplicationAnalyticsService:
         }
 
     @staticmethod
-    def get_sla_compliance_rate():
-        """
-        Calculate the percentage of completed review events resolved
-        within the configured application review SLA.
-
-        Each completed review is measured against the specific submission
-        it reviewed, so resubmissions are evaluated independently.
-        """
-
-        completed_reviews = MerchantApplicationReview.objects.filter(
-            MAREV_SLA_COMPLIANT__isnull=False,
+    def get_sla_outcomes(reviews):
+        """Calculate classified compliance while retaining unknown outcomes separately."""
+        outcomes = reviews.aggregate(
+            compliant=Count(
+                "MAREV_ID",
+                filter=Q(MAREV_SLA_COMPLIANT=True),
+            ),
+            non_compliant=Count(
+                "MAREV_ID",
+                filter=Q(MAREV_SLA_COMPLIANT=False),
+            ),
+            unknown=Count(
+                "MAREV_ID",
+                filter=Q(MAREV_SLA_COMPLIANT__isnull=True),
+            ),
         )
+        classified = outcomes["compliant"] + outcomes["non_compliant"]
+        if classified:
+            rate = round(outcomes["compliant"] / classified * 100, 1)
+        else:
+            rate = None
+        return {
+            **outcomes,
+            "classified": classified,
+            "rate": rate,
+        }
 
-        total_reviews = completed_reviews.count()
-
-        if total_reviews == 0:
-            return None
-
-        compliant_reviews = completed_reviews.filter(
-            MAREV_SLA_COMPLIANT=True,
-        ).count()
-
-        return round(
-            (compliant_reviews / total_reviews) * 100,
-            1,
-        )
-    
     @staticmethod
-    def get_sla_compliance_rate_trend():
+    def get_sla_compliance_rate():
+        """Return compliant / classified persisted outcomes, excluding unknown SLA results."""
+        outcomes = MerchantApplicationAnalyticsService.get_sla_outcomes(
+            MerchantApplicationReview.objects.all(),
+        )
+        return outcomes["rate"]
+
+    @staticmethod
+    def get_sla_compliance_rate_trend(now=None):
         """
         Calculate the weekly SLA-compliance-rate trend.
 
@@ -230,44 +299,32 @@ class MerchantApplicationAnalyticsService:
 
         periods = (
             MerchantApplicationAnalyticsService
-            .get_weekly_analytics_periods()
+            .get_weekly_comparison_periods(now)
         )
 
-        def get_period_rate(start, end):
-            reviews = (
-                MerchantApplicationReview.objects
-                .filter(
-                    MASUB_ID__isnull=False,
-                    MAREV_REVIEWED_AT__date__gte=start,
-                    MAREV_REVIEWED_AT__date__lte=end,
-                )
+        def get_period_rate(
+            start,
+            end,
+        ):
+            """Use known outcomes as both the rate denominator and comparison sample."""
+            reviews = MerchantApplicationReview.objects.filter(
+                MASUB_ID__isnull=False,
+                MAREV_REVIEWED_AT__gte=start,
+                MAREV_REVIEWED_AT__lt=end,
             )
-
-            total_reviews = reviews.count()
-
-            if total_reviews == 0:
-                return None, 0
-
-            compliant_reviews = reviews.filter(
-                MAREV_SLA_COMPLIANT=True,
-            ).count()
-
-            return (
-                round(
-                    (compliant_reviews / total_reviews) * 100,
-                    1,
-                ),
-                total_reviews,
+            outcomes = MerchantApplicationAnalyticsService.get_sla_outcomes(
+                reviews,
             )
+            return outcomes["rate"], outcomes["classified"]
 
         current_rate, current_sample = get_period_rate(
             periods["current_start"],
-            periods["current_end"],
+            periods["current_end_exclusive"],
         )
 
         previous_rate, previous_sample = get_period_rate(
             periods["previous_start"],
-            periods["previous_end"],
+            periods["previous_end_exclusive"],
         )
 
         if current_rate is None or previous_rate is None:
@@ -320,117 +377,94 @@ class MerchantApplicationAnalyticsService:
     
 
     @staticmethod
-    def get_resubmission_rate():
-        """
-        Calculate the percentage of rejected applications that have been
-        resubmitted.
-
-        Each application is counted once regardless of how many times it
-        was resubmitted.
-
-        The denominator contains applications that have been rejected.
-        Draft, submitted-only, and approved applications are excluded.
-        """
-
-        rejected_applications = (
-            MerchantApplication.objects
-            .filter(
-                reviews__MAREV_DECISION=(
-                    MerchantApplicationReview.Decision.REJECTED
-                ),
-            )
-            .distinct()
+    def get_post_rejection_submissions(as_of):
+        """Select submission events strictly after a rejection of the same application."""
+        preceding_rejection = MerchantApplicationReview.objects.filter(
+            MAPP_ID=OuterRef("MAPP_ID"),
+            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+            MAREV_REVIEWED_AT__lt=OuterRef("MASUB_SUBMITTED_AT"),
         )
-
-        total_rejected = rejected_applications.count()
-
-        if total_rejected == 0:
-            return None
-
-        resubmitted = rejected_applications.filter(
-            MAPP_SUBMISSION_COUNT__gte=2,
-        ).count()
-
-        return round(
-            (resubmitted / total_rejected) * 100,
-            1,
+        return MerchantApplicationSubmission.objects.filter(
+            MASUB_SUBMITTED_AT__lt=as_of,
+        ).filter(
+            Exists(preceding_rejection),
         )
 
     @staticmethod
-    def get_resubmission_rate_trend():
-        """
-        Calculate the weekly resubmission-rate trend.
+    def get_resubmission_counts(as_of):
+        """Count rejected applications and those recovered by the same exclusive cutoff."""
+        rejections = MerchantApplicationReview.objects.filter(
+            MAPP_ID=OuterRef("pk"),
+            MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+            MAREV_REVIEWED_AT__lt=as_of,
+        )
+        resubmissions = (
+            MerchantApplicationAnalyticsService
+            .get_post_rejection_submissions(as_of)
+            .filter(MAPP_ID=OuterRef("pk"))
+        )
+        applications = MerchantApplication.objects.annotate(
+            has_rejection=Exists(rejections),
+            has_resubmission=Exists(resubmissions),
+        ).filter(
+            has_rejection=True,
+        )
+        return applications.aggregate(
+            eligible=Count("MAPP_ID"),
+            resubmitted=Count(
+                "MAPP_ID",
+                filter=Q(has_resubmission=True),
+            ),
+        )
 
-        For each period, the denominator contains applications that received
-        a rejection review during that period.
+    @staticmethod
+    def get_resubmission_rate(as_of=None):
+        """Return the cumulative share of rejected applications subsequently resubmitted."""
+        if as_of is None:
+            cutoff = timezone.now()
+        else:
+            cutoff = as_of
+        counts = MerchantApplicationAnalyticsService.get_resubmission_counts(
+            cutoff,
+        )
+        if counts["eligible"] == 0:
+            return None
+        return round(counts["resubmitted"] / counts["eligible"] * 100, 1)
 
-        The numerator contains rejected applications that were resubmitted
-        during the same period.
-
-        Each application is counted once per period.
-        """
-
+    @staticmethod
+    def get_resubmission_rate_trend(now=None):
+        """Compare cumulative rejection-recovery rates now and at the same time last week."""
         periods = (
             MerchantApplicationAnalyticsService
-            .get_weekly_analytics_periods()
+            .get_weekly_comparison_periods(now)
         )
-
-        def get_period_rate(start, end):
-            rejected_applications = (
-                MerchantApplication.objects
-                .filter(
-                    reviews__MAREV_DECISION=(
-                        MerchantApplicationReview.Decision.REJECTED
-                    ),
-                    reviews__MAREV_REVIEWED_AT__date__gte=start,
-                    reviews__MAREV_REVIEWED_AT__date__lte=end,
-                )
-                .distinct()
-            )
-
-            total_rejected = rejected_applications.count()
-
-            if total_rejected == 0:
-                return None, 0
-
-            resubmitted = rejected_applications.filter(
-                submissions__MASUB_SUBMISSION_NUMBER__gte=2,
-                submissions__MASUB_SUBMITTED_AT__date__gte=start,
-                submissions__MASUB_SUBMITTED_AT__date__lte=end,
-            ).distinct().count()
-
-            return (
-                round(
-                    (resubmitted / total_rejected) * 100,
-                    1,
-                ),
-                total_rejected,
-            )
-
-        current_rate, current_sample = get_period_rate(
-            periods["current_start"],
-            periods["current_end"],
+        current = MerchantApplicationAnalyticsService.get_resubmission_counts(
+            periods["current_end_exclusive"],
         )
-
-        previous_rate, previous_sample = get_period_rate(
-            periods["previous_start"],
-            periods["previous_end"],
+        previous = MerchantApplicationAnalyticsService.get_resubmission_counts(
+            periods["previous_end_exclusive"],
         )
-
-        if current_rate is None or previous_rate is None:
+        if (
+            not current["eligible"]
+            or not previous["eligible"]
+        ):
             return None
-
         return MerchantApplicationAnalyticsService.calculate_trend(
-            current_value=current_rate,
-            previous_value=previous_rate,
-            current_sample_size=current_sample,
-            previous_sample_size=previous_sample,
+            current_value=round(
+                current["resubmitted"] / current["eligible"] * 100,
+                1,
+            ),
+            previous_value=round(
+                previous["resubmitted"] / previous["eligible"] * 100,
+                1,
+            ),
+            current_sample_size=current["eligible"],
+            previous_sample_size=previous["eligible"],
             unit="percentage_points",
         )
-    
 
     @staticmethod
-    def get_approval_rate_trend():
+    def get_approval_rate_trend(now=None):
         """
         Calculate the weekly approval-rate trend.
 
@@ -441,16 +475,20 @@ class MerchantApplicationAnalyticsService:
 
         periods = (
             MerchantApplicationAnalyticsService
-            .get_weekly_analytics_periods()
+            .get_weekly_comparison_periods(now)
         )
 
         # Helper function to calculate the approval rate for a given period
-        def get_period_rate(start, end):
+        def get_period_rate(
+            start,
+            end,
+        ):
+            """Count the latest application decision inside one half-open time window."""
             reviews = list(
                 MerchantApplicationReview.objects
                 .filter(
-                    MAREV_REVIEWED_AT__date__gte=start,
-                    MAREV_REVIEWED_AT__date__lte=end,
+                    MAREV_REVIEWED_AT__gte=start,
+                    MAREV_REVIEWED_AT__lt=end,
                     MAREV_DECISION__in=[
                         MerchantApplicationReview.Decision.APPROVED,
                         MerchantApplicationReview.Decision.REJECTED,
@@ -488,12 +526,12 @@ class MerchantApplicationAnalyticsService:
 
         current_rate, current_sample = get_period_rate(
             periods["current_start"],
-            periods["current_end"],
+            periods["current_end_exclusive"],
         )
 
         previous_rate, previous_sample = get_period_rate(
             periods["previous_start"],
-            periods["previous_end"],
+            periods["previous_end_exclusive"],
         )
 
         if current_rate is None or previous_rate is None:
@@ -585,67 +623,31 @@ class MerchantApplicationAnalyticsService:
 
 
     @staticmethod
-    def get_resubmission_rate_history():
-        """
-        Return daily resubmission-rate values for the KPI sparkline.
-
-        An application is considered resubmitted only if a second or later
-        submission existed by the historical date being evaluated.
-        """
-
-        dates = (
-            MerchantApplicationAnalyticsService
-            .get_daily_analytics_periods()
+    def get_resubmission_rate_history(now=None):
+        """Apply the headline recovery definition at each day-end, capping today at now."""
+        if now is None:
+            reference_time = timezone.now()
+        else:
+            reference_time = now
+        dates = MerchantApplicationAnalyticsService.get_daily_analytics_periods(
+            now=reference_time,
         )
-
         history = []
-
         for date in dates:
-            reviewed_applications = (
-                MerchantApplicationReview.objects
-                .filter(
-                    MAREV_REVIEWED_AT__date=date,
-                )
-                .values("MAPP_ID")
-                .distinct()
+            next_midnight = datetime.combine(
+                date + timedelta(days=1),
+                time.min,
+                tzinfo=timezone.get_default_timezone(),
             )
-
-            application_ids = list(
-                reviewed_applications.values_list(
-                    "MAPP_ID",
-                    flat=True,
-                )
+            cutoff = min(next_midnight, reference_time)
+            value = MerchantApplicationAnalyticsService.get_resubmission_rate(
+                cutoff,
             )
-
-            total_reviewed = len(application_ids)
-
-            if total_reviewed == 0:
-                value = None
-            else:
-                resubmitted = (
-                    MerchantApplicationSubmission.objects
-                    .filter(
-                        MAPP_ID__in=application_ids,
-                        MASUB_SUBMISSION_NUMBER__gte=2,
-                        MASUB_SUBMITTED_AT__date__lte=date,
-                    )
-                    .values("MAPP_ID")
-                    .distinct()
-                    .count()
-                )
-
-                value = round(
-                    (resubmitted / total_reviewed) * 100,
-                    1,
-                )
-
             history.append({
                 "date": date.isoformat(),
                 "value": value,
             })
-
         return history
-
 
     @staticmethod
     def get_sla_compliance_rate_history():

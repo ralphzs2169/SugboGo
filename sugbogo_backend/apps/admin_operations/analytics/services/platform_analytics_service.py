@@ -76,10 +76,11 @@ class PlatformAnalyticsService:
                 "value": row["value"],
             })
         return {
-            "label": "New explorer accounts",
+            "label": "New current-Explorer accounts",
             "description": (
                 "Accounts created during the period with the explorer role at query time, "
-                "including all account statuses. Later role changes can revise this count."
+                "including all account statuses. Later role changes can revise this count. "
+                "This is not immutable Explorer acquisition or all consumer registrations."
             ),
             "measurement_type": "period_current_state",
             "value": counts["current"],

@@ -8,11 +8,15 @@ from rest_framework.test import APITestCase
 
 from apps.admin_operations.analytics.tests.test_attention_queue_service import OperationsFixtures
 from apps.users.models import User
+from apps.admin_operations.system_configuration.models import (
+    AnalyticsPolicyConfiguration,
+)
 from core.tests.assertions import APIResponseAssertionsMixin
 
 
 class OperationsAnalyticsViewTests(OperationsFixtures, APIResponseAssertionsMixin, APITestCase):
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         self.urls = [reverse("admin-analytics-onboarding"), reverse("admin-analytics-attention-queue")]
         clock = patch("django.utils.timezone.now", return_value=self.NOW)
         clock.start()
@@ -59,6 +63,15 @@ class OperationsAnalyticsViewTests(OperationsFixtures, APIResponseAssertionsMixi
         self.assertEqual(result["legacy_meta"]["timezone"], "UTC")
         self.assertFalse(result["legacy_meta"]["selected_period_applies"])
         self.assertIsNone(result["legacy_statistics"]["approval_rate"])
+        comparison = result["legacy_statistics"]["comparison_meta"]
+        self.assertEqual(
+            comparison["strategy"],
+            "equal_elapsed_week_to_date",
+        )
+        self.assertEqual(
+            comparison["resubmission_basis"],
+            "cumulative_as_of_comparison_end",
+        )
         self.assertIn("legacy_onboarding_timezone_and_window_exception", result["meta"]["partial_reasons"])
         self.assertIn("approaching_business_days", result["aging_meta"])
 
