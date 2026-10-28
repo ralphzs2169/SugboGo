@@ -108,7 +108,7 @@ const section = (title) => [...container.querySelectorAll("h2")].find((heading) 
 const select = (label) => [...container.querySelectorAll("select")].find((element) => element.labels[0]?.textContent === label);
 const requests = (route) => reads.filter(({ url }) => url === `/admin/analytics/${route}`);
 const metric = (label) => [...container.querySelectorAll("h3")].find((heading) => heading.textContent === label)?.closest(".relative");
-const click = async (element) => act(async () => element.click());
+const click = async (element) => act(async () => { await element.click(); });
 async function choose(label, value) {
   if (label === "Discovery metric") {
     const name = { profile_visits: "profile visits", impressions: "impressions", saves: "saves" }[value];
@@ -121,7 +121,10 @@ async function choose(label, value) {
   await until(() => client.isFetching() === 0);
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
-const periodButton = (period) => [...container.querySelectorAll("button")].find((button) => button.textContent === `${period}D`);
+async function choosePeriod(period) {
+  await click(container.querySelector('[aria-label^="Reporting period:"]'));
+  await click([...container.querySelectorAll('[role="menuitemradio"]')].find((button)=>button.textContent === `Last ${period} days`));
+}
 
 /** Exposes router navigation in the integration harness without replacing browser history semantics. */
 function RouterProbe() {
@@ -140,11 +143,10 @@ async function tab(name) {
 
 test("workspace mounts only Growth reports and reuses cached queries with retained selections", async () => {
   await mount();
-  assert.equal(reads.length, 7);
+  assert.equal(reads.length, 6);
   assert.equal(requests("onboarding/").length, 0);
   assert.equal(requests("attention-queue/").length, 0);
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 0);
-  assert.match(metric("Active businesses").textContent, /0/);
   await choose("Discovery metric", "saves");
   const count = requests("discovery-trend/").length;
   await tab("Operations");
@@ -160,7 +162,7 @@ test("workspace mounts only Growth reports and reuses cached queries with retain
 
 test("workspace preserves global dates, URL parameters and browser Back/Forward", async () => {
   await mount();
-  await click(periodButton("90"));
+  await choosePeriod("90");
   await until(() => client.isFetching() === 0);
   await tab("Operations");
   assert.equal(requests("onboarding/").at(-1).params.period, "90");
@@ -170,7 +172,7 @@ test("workspace preserves global dates, URL parameters and browser Back/Forward"
   assert.equal(requests("community-health/").at(-1).params.period, "90");
   await click(container.querySelector("[data-back]"));
   await until(() => Boolean(section("Merchant Onboarding")));
-  assert.equal(periodButton("90").getAttribute("aria-pressed"), "true");
+  assert.match(container.querySelector('[aria-label^="Reporting period:"]').textContent,/Last 90 days/);
   await click(container.querySelector("[data-forward]"));
   await until(() => Boolean(section("Reports & disputes")));
 });
@@ -257,7 +259,7 @@ test("shared table tabs retain their default click and count presentation withou
   const count = requests("discovery-sources/").length;
   await tab("Growth & Discovery");
   assert.equal(requests("discovery-sources/").length, count);
-  await click(periodButton("90"));
+  await choosePeriod("90");
   await until(() => client.isFetching() === 0);
   assert.equal(requests("discovery-sources/").at(-1).params.period, "90");
  });
@@ -329,12 +331,12 @@ test("discovery accounts reuse trend parameters, bucket values, drawer and cache
   await act(async () => { interval.value = "daily"; interval.dispatchEvent(new dom.window.Event("change", {bubbles:true})); });
   await until(() => client.isFetching() === 0);
   assert.equal(requests("discovery-trend/").at(-1).params.interval, "daily");
-  await click(periodButton("7"));
+  await choosePeriod("7");
   await until(() => client.isFetching() === 0);
   assert.equal(requests("discovery-trend/").at(-1).params.period, "7");
   await tab("Operations");
   const inactiveCount = requests("discovery-trend/").length;
-  await click(periodButton("90"));
+  await choosePeriod("90");
   await until(() => client.isFetching() === 0);
   assert.equal(requests("discovery-trend/").length, inactiveCount);
 });
@@ -346,8 +348,8 @@ test("account trend handles unavailable and healthy zero without fabricated obse
   await until(() => section("Discovery Activity").textContent.includes("Discovery activity is currently unavailable"));
   assert.equal(section("Discovery Activity").querySelector("[data-chart]"), null);
   overrides.set("/admin/analytics/discovery-trend/", (report) => ({...report,value:0,series:[],timeline:report.timeline.map((row) => ({...row,value:null}))}));
-  await click(periodButton("7"));
-  await until(() => section("Discovery Activity").textContent.includes("No discovery-active accounts were recorded"));
+  await choosePeriod("7");
+  await until(() => section("Discovery Activity").textContent.includes("No accounts participating were recorded"));
   const rows = JSON.parse(section("Discovery Activity").querySelector("[data-chart]").getAttribute("data-chart"));
   assert.ok(rows.every((row) => row.value === null));
 });
@@ -397,7 +399,7 @@ test("transportation donut reconciles methods and drawer destinations with perio
   await act(async () => { mountedInterval.value="daily"; mountedInterval.dispatchEvent(new dom.window.Event("change",{bubbles:true})); });
   await until(() => client.isFetching() === 0);
   assert.equal(requests("transportation-planning/").at(-1).params.interval,"daily");
-  await click(periodButton("7"));
+  await choosePeriod("7");
   await until(() => client.isFetching() === 0);
   assert.equal(requests("transportation-planning/").at(-1).params.period,"7");
 });
@@ -417,7 +419,7 @@ test("transportation separates zero, unavailable and request failure with indepe
   assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
   assert.equal(requests("discovery-sources/").length,sources);
   overrides.set("/admin/analytics/transportation-planning/", (report) => ({...report,total_requests:null,methods:null,meta:{...report.meta,availability:"unavailable"}}));
-  await click(periodButton("7"));
+  await choosePeriod("7");
   await until(()=>section("Transportation Planning").textContent.includes("unavailable, not zero"));
   assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
 });
@@ -430,7 +432,7 @@ test("transportation keeps cached donut on refresh failure and discloses pretrac
   assert.ok(section("Transportation Planning").querySelector("[data-pie]"));
   failures.clear();
   overrides.set("/admin/analytics/transportation-planning/", (report) => ({...report,total_requests:null,methods:null,meta:{...report.meta,availability:"unavailable",partial_reasons:["tracking_not_started_in_period"]}}));
-  await click(periodButton("7"));
+  await choosePeriod("7");
   await until(()=>section("Transportation Planning").textContent.includes("before transportation tracking began"));
   assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
 });
@@ -450,7 +452,7 @@ test("business acquisition switches grouping without a request and preserves per
   assert.match(document.querySelector("dialog[open]").textContent,/Created: 1/);
   await click(document.querySelector('[aria-label="Close Business Acquisition details"]'));
   failures.add("/admin/analytics/business-acquisition/");
-  await click(periodButton("7"));
+  await choosePeriod("7");
   await until(()=>section("Business Acquisition").textContent.includes("Unable to load report"));
   assert.equal(requests("business-acquisition/").at(-1).params.period,"7");
   failures.clear();
@@ -521,7 +523,7 @@ test("acquisition loading is independent and inactive tabs do not fetch it", asy
   await until(()=>section("Business Acquisition").textContent.includes("Cafes"));
   await tab("Operations");
   const count=requests("business-acquisition/").length;
-  await click(periodButton("90"));
+  await choosePeriod("90");
   await until(()=>client.isFetching() === 0);
   assert.equal(requests("business-acquisition/").length,count);
 });
@@ -545,4 +547,11 @@ test("growth layout keeps full-width acquisition above paired discovery panels",
   }
   assert.ok(section("Business Acquisition"));
   assert.ok(section("Transportation Planning"));
+});
+
+test("overview is removed and its endpoint remains dormant", async () => {
+  await mount();
+  assert.equal(section("Overview"),undefined);
+  assert.equal(requests("").length,0);
+  assert.equal(container.querySelector('[role="tabpanel"] h2').textContent,"Platform Growth");
 });

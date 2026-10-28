@@ -157,51 +157,56 @@ test("failed background refresh retains report values beside a persistent retry 
   assert.equal(retries, 1);
 });
 
-test("period defaults to 30D and presets emit the shared canonical structures", async () => {
-  const selections = [];
-  await render("AnalyticsPeriodControl", { onChange: (selection) => selections.push(selection) });
-  assert.equal(button("30D").getAttribute("aria-pressed"), "true");
-  for (const period of ["7", "30", "90"]) {
-    await act(async () => button(`${period}D`).click());
+
+async function openPeriod() {
+  await act(async()=>container.querySelector('[aria-label^="Reporting period:"]').click());
+}
+async function openCustom() {
+  await openPeriod();
+  await act(async()=>button("Custom range").click());
+}
+test("date dropdown applies presets immediately without permanent preset buttons", async () => {
+  const selections=[];
+  await render("AnalyticsPeriodControl",{onChange:(value)=>selections.push(value)});
+  assert.equal(container.querySelectorAll("button").length,1);
+  for(const period of ["7","30","90"]) {
+    await openPeriod();
+    await act(async()=>[...container.querySelectorAll('[role="menuitemradio"]')].find((node)=>node.textContent === `Last ${period} days`).click());
   }
-  assert.deepEqual(selections, [{ period: "7" }, { period: "30" }, { period: "90" }]);
+  assert.deepEqual(selections,[{period:"7"},{period:"30"},{period:"90"}]);
 });
-
-test("custom dates stay draft until both dates are applied and callbacks contain calendar strings", async () => {
-  const selections = [];
-  await render("AnalyticsPeriodControl", { onChange: (selection) => selections.push(selection) });
-  await act(async () => button("Custom").click());
-  assert.equal(button("Custom").getAttribute("aria-expanded"), "true");
-  assert.equal(button("Apply range").disabled, true);
-  const [start, end] = container.querySelectorAll("input[type='date']");
-  assert.ok(start.labels.length && end.labels.length);
-  await act(async () => changeDate(start, "2026-10-01"));
-  assert.equal(button("Apply range").disabled, true);
-  assert.equal(selections.length, 0);
-  await act(async () => changeDate(end, "2026-10-07"));
-  assert.equal(button("Apply range").disabled, false);
-  await act(async () => button("Apply range").click());
-  assert.deepEqual(selections, [{ period: "custom", start_date: "2026-10-01", end_date: "2026-10-07" }]);
+test("custom dates require Apply and preserve calendar strings", async()=>{
+  const selections=[];
+  await render("AnalyticsPeriodControl",{onChange:(value)=>selections.push(value)});
+  await openCustom();
+  assert.equal(button("Apply range").disabled,true);
+  const [start,end]=container.querySelectorAll('input[type="date"]');
+  await act(async()=>changeDate(start,"2026-10-01"));
+  await act(async()=>changeDate(end,"2026-10-07"));
+  assert.equal(selections.length,0);
+  await act(async()=>button("Apply range").click());
+  assert.deepEqual(selections,[{period:"custom",start_date:"2026-10-01",end_date:"2026-10-07"}]);
+  assert.equal(container.querySelector('[role="dialog"]'),null);
 });
-
-test("reversed custom input is described inline and cannot be applied", async () => {
-  let applications = 0;
-  await render("AnalyticsPeriodControl", { value: { period: "custom", start_date: "2026-10-07", end_date: "2026-10-01" }, onChange: () => { applications += 1; } });
-  assert.equal(button("Apply range").disabled, true);
-  const start = container.querySelector("input");
-  assert.equal(start.getAttribute("aria-invalid"), "true");
-  assert.match(document.getElementById(start.getAttribute("aria-describedby")).textContent, /End date must be/);
-  await act(async () => container.querySelector("form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })));
-  assert.equal(applications, 0);
+test("Cancel, Escape and outside dismissal discard unapplied custom edits",async()=>{
+  let changes=0;
+  await render("AnalyticsPeriodControl",{onChange:()=>{changes+=1;}});
+  for(const dismissal of ["cancel","escape","outside"]) {
+    await openCustom();
+    assert.equal(container.querySelector("input").value,"");
+    await act(async()=>changeDate(container.querySelector("input"),"2026-10-01"));
+    if(dismissal === "cancel") await act(async()=>button("Cancel").click());
+    else if(dismissal === "escape") await act(async()=>container.querySelector("input").dispatchEvent(new dom.window.KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+    else await act(async()=>document.body.dispatchEvent(new dom.window.MouseEvent("mousedown",{bubbles:true})));
+    assert.equal(container.querySelector("input"),null);
+    assert.equal(changes,0);
+  }
 });
-
-test("preset selection clears custom dates and external range changes reset the editor", async () => {
-  let selection;
-  await render("AnalyticsPeriodControl", { value: { period: "custom", start_date: "2026-10-01", end_date: "2026-10-07" }, onChange: (next) => { selection = next; } });
-  await act(async () => button("7D").click());
-  assert.deepEqual(selection, { period: "7" });
-  await render("AnalyticsPeriodControl", { value: { period: "custom", start_date: "2026-10-02", end_date: "2026-10-08" }, onChange: () => {} });
-  assert.equal(container.querySelector("input").value, "2026-10-02");
+test("reversed dates remain invalid and unapplied",async()=>{
+  await render("AnalyticsPeriodControl",{value:{period:"custom",start_date:"2026-10-07",end_date:"2026-10-01"},onChange:()=>assert.fail("Invalid apply")});
+  await openCustom();
+  assert.equal(container.querySelector("input").getAttribute("aria-invalid"),"true");
+  assert.equal(button("Apply range").disabled,true);
 });
 
 test("interval and metric controls use labelled native selects and emit only selected values", async () => {
@@ -262,4 +267,19 @@ test("ranking values distinguish measured zero from unavailable support", () => 
   });
   assert.match(html, /Measured zero<\/span><span[^>]*>0<\/span>/);
   assert.match(html, /Missing evidence<\/span><span[^>]*>Unavailable<\/span>/);
+});
+
+test("reused Moderation sort menu retains default keyboard selection and focus recovery",async()=>{
+  ({default:components.SortMenu}=await server.ssrLoadModule("/src/features/admin-panel/components/data-table/SortMenu.jsx"));
+  let selected;
+  await render("SortMenu",{value:"new",options:[{value:"new",label:"Newest first"},{value:"old",label:"Oldest first"}],onChange:(value)=>{selected=value;}});
+  const trigger=container.querySelector('[aria-label="Sort items: Newest first"]');
+  await act(async()=>trigger.click());
+  assert.equal(container.querySelector('[role="dialog"]'),null);
+  assert.equal(document.activeElement.textContent,"Newest first");
+  await act(async()=>document.activeElement.dispatchEvent(new dom.window.KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true})));
+  assert.equal(document.activeElement.textContent,"Oldest first");
+  await act(async()=>document.activeElement.click());
+  assert.equal(selected,"old");
+  assert.equal(document.activeElement,trigger);
 });

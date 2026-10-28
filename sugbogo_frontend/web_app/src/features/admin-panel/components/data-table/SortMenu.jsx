@@ -1,14 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDownUp, Check, ChevronDown } from "lucide-react";
 
-/** Show a controlled sort choice in the Admin filter popover style. */
+/** Keeps custom form rendering separate from the menu's close event handler. */
+function CustomMenuPanel({ renderContent, onClose }) {
+  // The parent supplies the established dismissal and focus recovery behavior.
+  return renderContent(onClose);
+}
+
+/** Shares anchored choices and optional custom input while preserving sort-menu defaults. */
 export default function SortMenu({
   value,
   options,
   onChange,
   ariaLabel = "Sort items",
+  triggerLabel,
+  icon: Icon = ArrowDownUp,
+  disabled = false,
+  customContent,
+  customValue = "custom",
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
+  const panelRef = useRef(null);
   const containerRef = useRef(null);
   const triggerRef = useRef(null);
   const optionRefs = useRef([]);
@@ -20,7 +33,8 @@ export default function SortMenu({
       return undefined;
     }
 
-    optionRefs.current[Math.max(selectedIndex, 0)]?.focus();
+    if (showCustom) panelRef.current?.querySelector("input")?.focus();
+    else optionRefs.current[Math.max(selectedIndex, 0)]?.focus();
 
     function handlePointerDown(event) {
       if (!containerRef.current?.contains(event.target)) {
@@ -30,7 +44,7 @@ export default function SortMenu({
 
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [isOpen, selectedIndex]);
+  }, [isOpen, selectedIndex, showCustom]);
 
   function handleKeyDown(event) {
     if (event.key === "Escape" && isOpen) {
@@ -40,7 +54,7 @@ export default function SortMenu({
       return;
     }
 
-    if (!isOpen || options.length === 0) {
+    if (!isOpen || showCustom || options.length === 0) {
       return;
     }
 
@@ -58,7 +72,16 @@ export default function SortMenu({
     }
   }
 
+  function closeMenu() {
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  }
+
   function chooseOption(optionValue) {
+    if (customContent && optionValue === customValue) {
+      setShowCustom(true);
+      return;
+    }
     onChange(optionValue);
     setIsOpen(false);
     triggerRef.current?.focus();
@@ -78,23 +101,25 @@ export default function SortMenu({
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`${ariaLabel}: ${selectedOption?.label ?? "Select sort"}`}
-        aria-haspopup="menu"
+        aria-label={`${ariaLabel}: ${triggerLabel ?? selectedOption?.label ?? "Select sort"}`}
+        disabled={disabled}
+        aria-haspopup={showCustom ? "dialog" : "menu"}
         aria-expanded={isOpen}
-        onClick={() => setIsOpen((previous) => !previous)}
-        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-stroke-strong bg-background px-3 text-xs font-medium text-text-primary transition-colors hover:bg-interaction-hover focus:border-stroke-active focus:outline-none focus:ring-2 focus:ring-stroke-active/10"
+        onClick={() => { setShowCustom(false); setIsOpen((previous) => !previous); }}
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-stroke-strong bg-background px-3 text-xs font-medium text-text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:bg-interaction-hover focus:border-stroke-active focus:outline-none focus:ring-2 focus:ring-stroke-active/10"
       >
-        <ArrowDownUp className="h-3.5 w-3.5 text-text-secondary" aria-hidden="true" />
-        <span>{selectedOption?.label ?? "Sort"}</span>
+        <Icon className="h-3.5 w-3.5 text-text-secondary" aria-hidden="true" />
+        <span>{triggerLabel ?? selectedOption?.label ?? "Sort"}</span>
         <ChevronDown className="h-3.5 w-3.5 text-text-secondary" aria-hidden="true" />
       </button>
       {isOpen && (
         <div
-          role="menu"
+          ref={panelRef}
+          role={showCustom ? "dialog" : "menu"}
           aria-label={ariaLabel}
-          className="absolute right-0 top-full z-50 mt-2 min-w-44 rounded-lg border border-stroke-strong bg-background py-1 shadow-lg"
+          className={`absolute right-0 top-full z-50 mt-2 max-h-[80vh] max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border border-stroke-strong bg-background shadow-lg ${showCustom ? "w-80 p-3" : "min-w-44 py-1"}`}
         >
-          {options.map((option, index) => (
+          {showCustom ? <CustomMenuPanel renderContent={customContent} onClose={closeMenu} /> : options.map((option, index) => (
             <button
               key={option.value}
               ref={(element) => { optionRefs.current[index] = element; }}

@@ -1,4 +1,6 @@
 import { readablePeriod } from "../utils/reportClarity";
+import SortMenu from "../../components/data-table/SortMenu";
+import { CalendarDays } from "lucide-react";
 import { useId, useState } from "react";
 import Button from "@/shared/components/Button";
 import { DEFAULT_ANALYTICS_PERIOD, serializeReportingPeriod } from "../utils/reportingPeriod";
@@ -8,7 +10,7 @@ const DEFAULT_SELECTION = { period: DEFAULT_ANALYTICS_PERIOD };
 const INPUT_CLASS = "min-h-11 w-full min-w-0 cursor-pointer rounded-md border-2 border-stroke bg-background px-3 py-2 text-sm text-text-primary focus:border-stroke-active focus:outline-none";
 
 /** Keeps custom dates in a local draft until a complete ordered range is applied. */
-function CustomRangeEditor({ initialRange, onApply }) {
+function CustomRangeEditor({ initialRange, onApply, onCancel }) {
   const [start, setStart] = useState(initialRange.start_date ?? "");
   const [end, setEnd] = useState(initialRange.end_date ?? "");
   const id = useId();
@@ -33,6 +35,7 @@ function CustomRangeEditor({ initialRange, onApply }) {
           <label htmlFor={`${id}-end`} className="mb-1 block text-sm font-medium text-text-primary">End date</label>
           <input id={`${id}-end`} type="date" required value={end} onChange={(event) => setEnd(event.target.value)} aria-describedby={`${id}-help`} aria-invalid={reversed} className={INPUT_CLASS} />
         </div>
+        <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
         <Button type="submit" variant="secondary" disabled={!complete} className="min-h-11">Apply range</Button>
       </div>
       <p id={`${id}-help`} className="text-sm text-text-secondary">
@@ -46,57 +49,16 @@ function CustomRangeEditor({ initialRange, onApply }) {
  * It sends calendar dates unchanged and leaves reporting timezone rules to the API.
  */
 export default function AnalyticsPeriodControl({ value = DEFAULT_SELECTION, onChange, disabled = false, compact = false }) {
-  const [customOpen, setCustomOpen] = useState(false);
   const selected = String(value.period);
-  const showCustom = customOpen || selected === "custom";
-  const appliedLabel = selected === "custom"
-    ? readablePeriod(value)
-    : `Last ${selected} days`;
-
-  function choosePreset(period) {
-    setCustomOpen(false);
-    onChange(serializeReportingPeriod({ period }));
-  }
-
+  const appliedLabel = selected === "custom" ? readablePeriod(value) : `Last ${selected} days`;
   return (
-    <fieldset disabled={disabled} className={compact ? "min-w-0 max-w-xl" : "min-w-0 rounded-xl border border-stroke bg-background p-4"}>
-      {/* Applied selection and accessible preset buttons */}
-      <legend className={compact ? "sr-only" : "px-1 text-sm font-medium text-text-primary"}>Reporting period</legend>
-      <div className="flex flex-wrap items-center gap-2">
-        {PRESETS.map((period) => (
-          <button
-            key={period}
-            type="button"
-            aria-pressed={!customOpen && selected === period}
-            onClick={() => choosePreset(period)}
-            className={`min-h-11 cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-60 ${!customOpen && selected === period ? "border-primary bg-primary/10 text-text-primary" : "border-stroke text-text-secondary hover:bg-surface"}`}
-          >
-            {period}D
-          </button>
-        ))}
-        <button
-          type="button"
-          aria-pressed={showCustom}
-          aria-expanded={showCustom}
-          onClick={() => setCustomOpen(true)}
-          className={`min-h-11 cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-60 ${showCustom ? "border-primary bg-primary/10 text-text-primary" : "border-stroke text-text-secondary hover:bg-surface"}`}
-        >
-          Custom
-        </button>
-        <p className={compact ? "basis-full text-right text-xs text-text-secondary" : "basis-full text-sm text-text-secondary sm:ml-auto sm:basis-auto"}>Applied: {appliedLabel}</p>
-      </div>
-
-      {/* Custom draft never changes the applied range until submission */}
-      {showCustom && (
-        <CustomRangeEditor
-          key={`${selected}:${value.start_date ?? ""}:${value.end_date ?? ""}`}
-          initialRange={value}
-          onApply={(range) => {
-            onChange(range);
-            setCustomOpen(false);
-          }}
-        />
-      )}
-    </fieldset>
+    <div className={compact ? "min-w-0" : "min-w-0 rounded-xl border border-stroke bg-background p-4"}>
+      {/* Reuse Moderation's anchored menu, keyboard navigation and dismissal behavior. */}
+      <SortMenu value={selected} disabled={disabled} ariaLabel="Reporting period" icon={CalendarDays} triggerLabel={appliedLabel}
+        options={[...PRESETS.map((period) => ({value:period,label:`Last ${period} days`})),{value:"custom",label:"Custom range"}]}
+        onChange={(period) => onChange(serializeReportingPeriod({period}))}
+        customContent={(close) => <CustomRangeEditor key={`${selected}:${value.start_date}:${value.end_date}`} initialRange={value} onCancel={close} onApply={(range) => { onChange(range); close(); }} />}
+      />
+    </div>
   );
 }
