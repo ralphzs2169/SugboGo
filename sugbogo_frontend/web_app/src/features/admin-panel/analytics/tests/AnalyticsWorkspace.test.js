@@ -107,12 +107,10 @@ async function mount() {
 const section = (title) => [...container.querySelectorAll("h2")].find((heading) => heading.textContent === title)?.closest("section");
 const select = (label) => [...container.querySelectorAll("select")].find((element) => element.labels[0]?.textContent === label);
 const requests = (route) => reads.filter(({ url }) => url === `/admin/analytics/${route}`);
-const metric = (label) => [...container.querySelectorAll("h3")].find((heading) => heading.textContent === label)?.closest(".relative");
 const click = async (element) => act(async () => { await element.click(); });
 async function choose(label, value) {
   if (label === "Discovery metric") {
-    const name = { profile_visits: "profile visits", impressions: "impressions", saves: "saves" }[value];
-    await click(container.querySelector(`[aria-label="Show recorded ${name}"]`));
+    await click(container.querySelector(`#discovery-trend-metrics-${value}`));
     await until(() => client.isFetching() === 0);
     await act(async () => new Promise((done) => setTimeout(done, 10)));
     return;
@@ -155,7 +153,7 @@ test("workspace mounts only Growth reports and reuses cached queries with retain
   assert.equal(requests("attention-queue/").length, 0);
   assert.equal(section("Discovery Activity"), undefined);
   await tab("Growth & Discovery");
-  assert.equal(container.querySelector("[aria-label='Show recorded saves']").getAttribute("aria-pressed"), "true");
+  assert.equal(container.querySelector("#discovery-trend-metrics-saves").getAttribute("aria-selected"), "true");
   assert.equal(requests("discovery-trend/").length, count);
   assert.equal(requests("discovery-summary/").length, 1);
 });
@@ -293,7 +291,7 @@ test("sources remain dormant on other tabs and retain cached data after refresh 
   await until(() => !section("Discovery Sources").textContent.includes("Refresh failed"));
 });
 
-const accountTrendButton = () => container.querySelector('[aria-label="Show recorded discovery-active accounts"]');
+const accountTrendButton = () => container.querySelector("#discovery-trend-metrics-distinct_engaged_explorers");
 
 async function selectAccounts() {
   await click(accountTrendButton());
@@ -307,21 +305,21 @@ test("discovery accounts reuse trend parameters, bucket values, drawer and cache
   } : report);
   await mount();
   await selectAccounts();
-  assert.equal(accountTrendButton().getAttribute("aria-pressed"), "true");
+  assert.equal(accountTrendButton().getAttribute("aria-selected"), "true");
   assert.equal(requests("discovery-trend/").at(-1).params.metric, "distinct_engaged_explorers");
   assert.equal(requests("discovery-trend/").at(-1).params.interval, "weekly");
   const report = section("Discovery Activity");
-  assert.match(report.textContent, /Recorded accounts participating by week/);
+  assert.match(report.textContent, /Distinct discovery participants by week/);
   const rows = JSON.parse(report.querySelector("[data-chart]").getAttribute("data-chart"));
   assert.deepEqual(rows.map((row) => row.value), [2,2,null,0]);
-  assert.equal(report.querySelectorAll('[aria-label="Recorded discovery metric"] button').length, 3);
+  assert.equal(report.querySelectorAll('[aria-label="Recorded discovery summaries"] button').length, 0);
   await click(report.querySelector('[aria-label="About Discovery Activity"]'));
   await until(() => document.querySelector("dialog[open]"));
   assert.match(document.querySelector("dialog[open]").textContent, /must never be summed/);
   assert.match(document.querySelector("dialog[open]").textContent, /not general app activity/);
   await click(document.querySelector('[aria-label="Close Discovery Activity details"]'));
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
-  assert.match(document.querySelector("dialog[open]").textContent, /Accounts participating/);
+  assert.match(document.querySelector("dialog[open]").textContent, /Participating Accounts/);
   await click(document.querySelector('[aria-label="Close Discovery Activity details"]'));
   const count = requests("discovery-trend/").length;
   await choose("Discovery metric", "saves");
@@ -349,7 +347,7 @@ test("account trend handles unavailable and healthy zero without fabricated obse
   assert.equal(section("Discovery Activity").querySelector("[data-chart]"), null);
   overrides.set("/admin/analytics/discovery-trend/", (report) => ({...report,value:0,series:[],timeline:report.timeline.map((row) => ({...row,value:null}))}));
   await choosePeriod("7");
-  await until(() => section("Discovery Activity").textContent.includes("No accounts participating were recorded"));
+  await until(() => section("Discovery Activity").textContent.includes("No participating accounts were recorded"));
   const rows = JSON.parse(section("Discovery Activity").querySelector("[data-chart]").getAttribute("data-chart"));
   assert.ok(rows.every((row) => row.value === null));
 });
@@ -537,13 +535,12 @@ test("growth layout keeps full-width acquisition above paired discovery panels",
   assert.ok(activity.parentElement.classList.contains("xl:grid-cols-2"));
   assert.equal(growth.parentElement,activity.parentElement.parentElement);
   await selectAccounts();
-  assert.match(activity.textContent,/Accounts participating/);
-  assert.match(activity.textContent,/Distinct accounts with recorded discovery activity during each interval/);
+  assert.match(activity.textContent,/Participating Accounts/);
+  assert.match(activity.textContent,/Accounts with recorded discovery activity during each interval/);
   for(const metric of ["profile_visits","impressions","saves"]) {
     await choose("Discovery metric",metric);
-    const label={profile_visits:"profile visits",impressions:"impressions",saves:"saves"}[metric];
-    assert.equal(activity.querySelector(`[aria-label="Show recorded ${label}"]`).getAttribute("aria-pressed"),"true");
-    assert.equal(accountTrendButton().getAttribute("aria-pressed"),"false");
+    assert.equal(activity.querySelector(`#discovery-trend-metrics-${metric}`).getAttribute("aria-selected"),"true");
+    assert.equal(accountTrendButton().getAttribute("aria-selected"),"false");
   }
   assert.ok(section("Business Acquisition"));
   assert.ok(section("Transportation Planning"));
@@ -554,4 +551,20 @@ test("overview is removed and its endpoint remains dormant", async () => {
   assert.equal(section("Overview"),undefined);
   assert.equal(requests("").length,0);
   assert.equal(container.querySelector('[role="tabpanel"] h2').textContent,"Platform Growth");
+});
+
+test("discovery summaries are noninteractive and Activity Trend tabs support keyboard selection",async()=>{
+  await mount();
+  const report=section("Discovery Activity");
+  const summary=report.querySelector('[aria-label="Recorded discovery summaries"]');
+  assert.equal(summary.querySelectorAll("dd").length,3);
+  assert.equal(summary.querySelectorAll("button").length,0);
+  const tabs=report.querySelector('[aria-label="Activity Trend"][role="tablist"]');
+  assert.deepEqual([...tabs.querySelectorAll("button")].map((node)=>node.textContent),["Visits","Impressions","Saves","Participating Accounts"]);
+  await act(async()=>tabs.querySelector('[aria-selected="true"]').dispatchEvent(new dom.window.KeyboardEvent("keydown",{key:"End",bubbles:true})));
+  await until(()=>client.isFetching() === 0);
+  assert.equal(accountTrendButton().getAttribute("aria-selected"),"true");
+  assert.match(report.textContent,/Distinct discovery participants by week/);
+  assert.equal(document.activeElement,accountTrendButton());
+  assert.ok(report.querySelector(`#${accountTrendButton().getAttribute("aria-controls")}`));
 });

@@ -1,3 +1,4 @@
+import TableTabs from "../../components/data-table/TableTabs";
 import AnalyticsTooltip from "../components/AnalyticsTooltip";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
@@ -19,7 +20,7 @@ const OPTIONS = [
   { value: "profile_visits", label: "Profile visits", color: "var(--color-info)" },
   { value: "impressions", label: "Impressions", color: "var(--color-primary)" },
   { value: "saves", label: "Saves", color: "var(--color-success)" },
-  { value: "distinct_engaged_explorers", label: "Accounts participating", color: "var(--color-neutral)" },
+  { value: "distinct_engaged_explorers", label: "Participating Accounts", color: "var(--color-neutral)" },
 ];
 const day = new Intl.DateTimeFormat("en-PH", {
   timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric",
@@ -36,30 +37,18 @@ export function DiscoveryTooltip({ active, payload, interval, selected }) {
   />;
 }
 
-/** Keeps summary totals selectable and recoverable independently of the trend request. */
-function DiscoverySummary({ query, metric, onSelect }) {
+/** Keeps summary totals compact and recoverable independently of the trend request. */
+function DiscoverySummary({ query }) {
   const state = useAnalyticsSectionState(query, "discovery-summary", "discovery summary");
   return (
     <div className="mb-4" aria-busy={query.isFetching}>
       {/* An isolated failure never removes the trend or metric controls */}
       {query.error && <DataErrorState compact title="Unable to load discovery summary" message={state.errorMessage} onRetry={state.onRetry} retrying={query.isFetching} retryLabel="Retry summary" />}
       {query.data?.meta?.availability === "unavailable" && <p className="mb-2 text-xs text-text-secondary">Discovery summary is currently unavailable.</p>}
-      {/* Primary event metrics remain prominent above secondary account participation. */}
-      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3" role="group" aria-label="Recorded discovery metric">
-        {OPTIONS.slice(0, 3).map((option) => (
-          <button key={option.value} type="button" aria-label={`Show recorded ${option.label.toLowerCase()}`} aria-pressed={metric === option.value} onClick={() => onSelect(option.value)}
-            className={`min-h-20 min-w-0 cursor-pointer rounded-lg border p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info ${metric === option.value ? "border-text-primary bg-surface text-text-primary" : "border-stroke text-text-secondary hover:bg-surface-hover"}`}>
-            <span className="block text-xs font-medium">{option.label}</span>
-            <span className="mt-2 block text-sm font-semibold tabular-nums">{query.isLoading && !query.data ? "Loading..." : formatCount(query.data?.totals?.[option.value])}</span>
-          </button>
-        ))}
-      </div>
-      {/* Secondary participation analysis uses the same chart and query selection. */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button type="button" aria-label="Show recorded discovery-active accounts" aria-pressed={metric === "distinct_engaged_explorers"} onClick={() => onSelect("distinct_engaged_explorers")}
-          className={`min-h-9 cursor-pointer rounded-lg border px-3 py-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info ${metric === "distinct_engaged_explorers" ? "border-text-primary bg-surface text-text-primary" : "border-stroke text-text-secondary hover:bg-surface-hover"}`}>Accounts participating</button>
-        <p className="text-xs text-text-secondary">Distinct accounts with recorded discovery activity during each interval.</p>
-      </div>
+      {/* Summary counts remain independent of the selected chart metric. */}
+      <dl className="grid min-w-0 grid-cols-3 gap-3" aria-label="Recorded discovery summaries">
+        {OPTIONS.slice(0, 3).map((option) => <div key={option.value} className="min-w-0"><dt className="text-xs font-medium text-text-secondary">{option.value === "profile_visits" ? "Profile Visits" : option.label}</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-text-primary">{query.isLoading && !query.data ? "Loading..." : formatCount(query.data?.totals?.[option.value])}</dd></div>)}
+      </dl>
     </div>
   );
 }
@@ -108,16 +97,23 @@ export default function DiscoveryActivitySection({ period }) {
         footer={<AnalyticsReportFooter title="Discovery Activity" meta={meta} hasData={Boolean(data)} hasDetails={Boolean(data || summaryQuery.data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
       >
         <AnalyticsPeriodLabel period={reporting}>{hasComparison && <> / compared with {growthPeriodLabel(reporting?.previous_start, reporting?.previous_end_exclusive, true)}</>}</AnalyticsPeriodLabel>
-        <DiscoverySummary query={summaryQuery} metric={metric} onSelect={setMetric} />
+        <DiscoverySummary query={summaryQuery} />
+        {/* Shared DataTable tabs select one trend without changing summary totals. */}
+        <div className="mb-4 min-w-0 border-t border-stroke pt-3">
+          <p className="text-xs font-medium text-text-secondary">Activity Trend</p>
+          <div className="overflow-x-auto pb-1"><TableTabs ariaLabel="Activity Trend" tabListId="discovery-trend-metrics" activeTab={metric} onTabChange={setMetric} tabs={OPTIONS.map((option) => ({id:option.value,label:option.value === "profile_visits" ? "Visits" : option.value === "impressions" ? "Impressions" : option.value === "saves" ? "Saves" : "Participating Accounts"}))} /></div>
+        </div>
+        <div role="tabpanel" id={`discovery-trend-metrics-panel-${metric}`} aria-labelledby={`discovery-trend-metrics-${metric}`} tabIndex={0} className="min-w-0 rounded focus-visible:outline-2 focus-visible:outline-info">
         <AnalyticsChartCard
           compact
           framed={false}
-          title={`Recorded ${selected.label.toLowerCase()} by ${interval === "weekly" ? "week" : "day"}`}
+          title={metric === "distinct_engaged_explorers" ? `Distinct discovery participants by ${interval === "weekly" ? "week" : "day"}` : `Recorded ${selected.label.toLowerCase()} by ${interval === "weekly" ? "week" : "day"}`}
           {...state}
           unavailable={unavailable}
           unavailableMessage="Discovery activity is currently unavailable. Summary totals remain independently recoverable."
           summaryContent={
             <div className="mb-3">
+              {metric === "distinct_engaged_explorers" && <p className="text-xs text-text-secondary">Accounts with recorded discovery activity during each interval.</p>}
               {empty && <p className="mt-2 text-xs text-text-secondary">No {selected.label.toLowerCase()} were recorded during this period.</p>}
               {earlyCutoff && <p className="mt-2 text-xs text-text-secondary">Recorded coverage through {formatTimestamp(data.meta.data_through)} (PHT).</p>}
               {partialWeek && <p className="mt-2 text-xs text-text-secondary">Week in progress · {growthBucketLabel(partialWeek)}</p>}
@@ -148,6 +144,7 @@ export default function DiscoveryActivitySection({ period }) {
             </AnalyticsTimeSeries>
           )}
         </AnalyticsChartCard>
+        </div>
       </AnalyticsSection>
       {/* Shared animated drawer keeps methodology and exact data outside the card */}
       <AnalyticsDetailDrawer
