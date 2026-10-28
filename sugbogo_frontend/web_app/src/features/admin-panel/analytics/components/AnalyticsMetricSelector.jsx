@@ -5,7 +5,7 @@ import SelectInput from "@/shared/components/forms/SelectInput";
 export default function AnalyticsMetricSelector({ label = "Metric", value, onChange, options, disabled = false }) {
   const id = useId();
   return (
-    <div className="w-full min-w-0 sm:w-auto sm:min-w-40">
+    <div className={label === "Interval" ? "w-24 min-w-0" : "w-40 max-w-full min-w-0"}>
       {/* Native keyboard-accessible metric selection */}
       <SelectInput
         id={id}
@@ -14,6 +14,7 @@ export default function AnalyticsMetricSelector({ label = "Metric", value, onCha
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
         placeholder={null}
+        compact
       >
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </SelectInput>

@@ -14,7 +14,7 @@ export default function OverviewSection({ period }) {
   const state = useAnalyticsSectionState(query, "overview", "platform overview");
   const data = query.data;
   return (
-    <AnalyticsSection title="Overview" {...state}
+    <AnalyticsSection framed={false} title="Overview" {...state}
       partialNotice={data?.meta?.is_partial ? "Inventory is current state; recorded discovery coverage may be incomplete. Discovery-active accounts are not general platform MAU." : null}
       footer={<AnalyticsReportContext meta={data?.meta} />}
     >
@@ -22,8 +22,12 @@ export default function OverviewSection({ period }) {
       <AnalyticsMetricGrid>
         {METRICS.map((key) => {
           const metric = data?.kpis?.[key];
-          return <AnalyticsMetricCard key={key} label={metric?.label ?? key.replaceAll("_", " ")} value={metric?.value} formatValue={formatCount}
+          const label = key === "new_explorer_accounts" ? "New Explorer accounts" : key === "discovery_active_explorers" ? "Discovery-active accounts" : metric?.label ?? key.replaceAll("_", " ");
+          const definition = key === "new_explorer_accounts" ? "Accounts created during the selected period whose current role is Explorer. Later promotion to Merchant can revise this cohort." : key === "discovery_active_explorers" ? "Recorded discovery-active accounts include eligible Explorer and Merchant actors. This is not general platform MAU." : null;
+          return <AnalyticsMetricCard compact key={key} label={label} value={metric?.value} formatValue={formatCount}
+            details={definition}
             measurementType={metric?.measurement_type} context={metric?.description}
+            measurementLabel={metric?.measurement_type === "current_snapshot" ? "Current snapshot" : period.period === "custom" ? "Selected dates" : `Last ${period.period} days`}
             comparison={metric?.measurement_type === "current_snapshot" ? undefined : metric?.change}
             unavailableMessage={metric?.source === "visibility" ? "Recorded visibility activity is unavailable." : undefined} />;
         })}

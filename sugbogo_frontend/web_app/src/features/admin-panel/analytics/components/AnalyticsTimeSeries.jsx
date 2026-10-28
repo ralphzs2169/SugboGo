@@ -1,35 +1,50 @@
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCount, formatDate, formatTimestamp } from "../utils/presentation";
 import AnalyticsExactTable from "./AnalyticsExactTable";
+import AnalyticsDisclosure from "./AnalyticsDisclosure";
 
-/** Plots reporting buckets at their actual times without joining missing observations.
- * Solid/dashed series and an exact-value alternative avoid color-only interpretation.
+/** Plots reporting buckets as lines by default, or independent bars for event counts.
+ * Missing observations retain their buckets; exact-value alternatives remain shared.
  */
-export default function AnalyticsTimeSeries({ rows = [], lines }) {
+export default function AnalyticsTimeSeries({
+  rows = [],
+  lines,
+  chartType = "line",
+  showLegend = true,
+  tooltipContent,
+  legendContent,
+  children,
+}) {
   const data = rows.map((row) => ({ ...row, time: Date.parse(row.start ?? `${row.date}T00:00:00+08:00`) }));
+  const isBar = chartType === "bar";
+  const Chart = isBar ? BarChart : LineChart;
   return (
     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-      {/* Numeric time axis preserves temporal spacing and null gaps */}
-      <LineChart data={data} margin={{ top: 12, right: 16, bottom: 8, left: 0 }}>
-        <CartesianGrid vertical={false} stroke="var(--color-stroke)" />
-        <XAxis dataKey="time" type="number" scale="time" domain={["dataMin", "dataMax"]} tickFormatter={formatDate} minTickGap={35} tick={{ fill: "var(--color-text-secondary)", fontSize: 12 }} />
-        <YAxis allowDecimals={false} width={48} tick={{ fill: "var(--color-text-secondary)", fontSize: 12 }} />
-        <Tooltip labelFormatter={formatDate} formatter={(value, name) => [formatCount(value), name]} contentStyle={{ background: "var(--color-background)", border: "1px solid var(--color-stroke)", color: "var(--color-text-primary)", borderRadius: 8 }} />
-        <Legend wrapperStyle={{ fontSize: 12 }} formatter={(value) => <span className="text-text-primary">{value}</span>} />
+      {/* Bar categories retain every reporting bucket; lines keep their numeric time axis */}
+      <Chart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} {...(isBar ? { barCategoryGap: "28%", maxBarSize: 28 } : {})}>
+        {children}
+        <CartesianGrid vertical={false} stroke="var(--color-stroke)" strokeDasharray="3 4" />
+        <XAxis dataKey={isBar ? "date" : "time"} {...(isBar ? { type: "category" } : { type: "number", scale: "time", domain: ["dataMin", "dataMax"] })} tickFormatter={formatDate} minTickGap={35} tick={{ fill: "var(--color-text-secondary)", fontSize: 12 }} />
+        <YAxis allowDecimals={false} width={34} tick={{ fill: "var(--color-text-secondary)", fontSize: 11 }} />
+        <Tooltip content={tooltipContent} {...(isBar ? { filterNull: false } : {})} labelFormatter={formatDate} formatter={(value, name) => [formatCount(value), name]} contentStyle={{ background: "var(--color-background)", border: "1px solid var(--color-stroke)", color: "var(--color-text-primary)", borderRadius: 8 }} />
+        {showLegend && <Legend content={legendContent} wrapperStyle={{ fontSize: 12 }} formatter={(value) => <span className="text-text-primary">{value}</span>} />}
         {lines.map((line, index) => (
-          <Line key={line.key} dataKey={line.key} name={line.label} type="linear" connectNulls={false} stroke={index === 0 ? "var(--color-primary)" : "var(--color-info)"} strokeDasharray={index === 0 ? undefined : "5 4"} strokeWidth={2} dot={rows.length < 8 ? { r: 3 } : false} isAnimationActive={false} />
+          isBar ? (
+            <Bar key={line.key} dataKey={line.key} name={line.label} minPointSize={0} fill={line.color ?? "var(--color-primary)"} isAnimationActive={false} />
+          ) : (
+            <Line key={line.key} dataKey={line.key} name={line.label} type="linear" connectNulls={false} stroke={line.color ?? (index === 0 ? "var(--color-primary)" : "var(--color-info)")} strokeDasharray={index === 0 ? undefined : "5 4"} strokeWidth={2} dot={rows.length < 8 ? { r: 3 } : false} isAnimationActive={false} />
+          )
         ))}
-      </LineChart>
+      </Chart>
     </ResponsiveContainer>
   );
 }
 
 /** Keeps chart values keyboard-accessible in a native disclosure and compact table. */
-export function AnalyticsSeriesValues({ title, rows = [], lines }) {
+export function AnalyticsSeriesValues({ title, rows = [], lines, label }) {
   return (
-    <details className="mt-4">
+    <AnalyticsDisclosure label={label ?? `View exact values: ${title}`}>
       {/* Optional exact-value disclosure */}
-      <summary className="cursor-pointer rounded py-2 text-sm font-medium text-text-primary focus-visible:outline-2 focus-visible:outline-info">View exact values: {title}</summary>
       <div className="mt-2 max-h-80 overflow-y-auto">
         <AnalyticsExactTable caption={title} rows={rows} columns={[
           { key: "date", label: "Calendar bucket", render: (row) => row.date },
@@ -38,6 +53,6 @@ export function AnalyticsSeriesValues({ title, rows = [], lines }) {
           ...lines.map((line) => ({ key: line.key, label: line.label, render: (row) => formatCount(row[line.key]) })),
         ]} />
       </div>
-    </details>
+    </AnalyticsDisclosure>
   );
 }

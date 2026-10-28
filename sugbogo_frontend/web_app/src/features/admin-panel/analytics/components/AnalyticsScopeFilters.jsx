@@ -12,12 +12,12 @@ export default function AnalyticsScopeFilters({ scope, value, onChange }) {
   useApiErrorNotification(categories.error, { toastId: "analytics-categories-error", fallbackMessage: "Unable to load category options." });
   const categoryOptions = (categories.data ?? []).filter((row) => !value.cluster || String(row.cluster_id) === String(value.cluster));
   return (
-    <div className="flex max-w-full flex-wrap items-end gap-3">
+    <div className="flex max-w-full flex-wrap items-end gap-2">
       {/* Native labelled filters keep category selections compatible with the cluster */}
-      <div className="min-w-40 flex-1"><SelectInput id={`${id}-cluster`} label={`${scope} cluster`} value={value.cluster ?? ""} onChange={(event) => onChange({ cluster: event.target.value, category: "" })} placeholder={clusters.isLoading ? "Loading clusters..." : "All clusters"} disabled={!clusters.data}>
+      <div className="w-32 min-w-0 flex-1"><SelectInput compact id={`${id}-cluster`} label={`${scope} cluster`} value={value.cluster ?? ""} onChange={(event) => onChange({ cluster: event.target.value, category: "" })} placeholder={clusters.isLoading ? "Loading clusters..." : "All clusters"} disabled={!clusters.data}>
         {(clusters.data ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
       </SelectInput></div>
-      <div className="min-w-40 flex-1"><SelectInput id={`${id}-category`} label={`${scope} category`} value={value.category ?? ""} onChange={(event) => onChange({ ...value, category: event.target.value })} placeholder={categories.isLoading ? "Loading categories..." : "All categories"} disabled={!categories.data}>
+      <div className="w-32 min-w-0 flex-1"><SelectInput compact id={`${id}-category`} label={`${scope} category`} value={value.category ?? ""} onChange={(event) => onChange({ ...value, category: event.target.value })} placeholder={categories.isLoading ? "Loading categories..." : "All categories"} disabled={!categories.data}>
         {categoryOptions.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
       </SelectInput></div>
       {/* Option-source failures do not discard a healthy report */}

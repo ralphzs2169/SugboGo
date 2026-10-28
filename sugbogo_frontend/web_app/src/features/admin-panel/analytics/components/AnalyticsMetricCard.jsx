@@ -1,4 +1,5 @@
 import MetricCard from "../../components/MetricCard";
+import AnalyticsDisclosure from "./AnalyticsDisclosure";
 
 const MEASUREMENT_LABELS = {
   current_snapshot: "Current snapshot",
@@ -24,6 +25,8 @@ export default function AnalyticsMetricCard({
   measurementLabel,
   context,
   unavailableMessage,
+  compact = false,
+  details,
 }) {
   const available = value !== null && value !== undefined;
   const comparable = available && comparison?.value != null;
@@ -39,17 +42,19 @@ export default function AnalyticsMetricCard({
       icon={icon}
       value={available ? formatValue(value) : null}
       wrapTitle
+      compact={compact}
+      headerAction={compact && (details || context || unavailableMessage) ? <AnalyticsDisclosure label={`About ${label}`} inline iconOnly>{details}{context}{!available && <p>{unavailableMessage ?? "This metric is currently unavailable."}</p>}</AnalyticsDisclosure> : undefined}
       trend={trend}
       footerLabel={comparisonLabel}
       measurementLabel={measurementLabel ?? MEASUREMENT_LABELS[measurementType]}
-      context={(
+      context={(!available && !compact) || (available && comparison && !comparable) || (!compact && context) ? (
         <>
           {/* Metric scope and unavailable comparison context */}
-          {!available && <p>{unavailableMessage ?? "This metric is currently unavailable."}</p>}
+          {!available && !compact && <p>{unavailableMessage ?? "This metric is currently unavailable."}</p>}
           {available && comparison && !comparable && <p>{comparisonUnavailableMessage}</p>}
-          {context && <div>{context}</div>}
+          {!compact && context && <div>{context}</div>}
         </>
-      )}
+      ) : null}
     />
   );
 }

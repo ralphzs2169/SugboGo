@@ -4,6 +4,7 @@ import Button from "@/shared/components/Button";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import AnalyticsDataNotice from "./AnalyticsDataNotice";
 import AnalyticsReportSkeleton from "./AnalyticsReportSkeleton";
+import AnalyticsDisclosure from "./AnalyticsDisclosure";
 
 /** Frames an independent report with explicit data states and retained refresh content.
  * Fetching and notifications remain owned by the consuming hook and page.
@@ -27,6 +28,7 @@ export default function AnalyticsSection({
   unavailableMessage = "This report's data source is currently unavailable.",
   partialNotice,
   skeleton = <AnalyticsReportSkeleton />,
+  framed = true,
 }) {
   const headingId = useId();
   const descriptionId = useId();
@@ -58,15 +60,15 @@ export default function AnalyticsSection({
       aria-labelledby={headingId}
       aria-describedby={description ? descriptionId : undefined}
       aria-busy={isLoading || isFetching}
-      className="min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-6"
+      className={framed ? "min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-5" : "min-w-0"}
     >
       {/* Report heading and independent controls */}
-      <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 basis-48">
+      <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-36">
           <h2 id={headingId} className="text-base font-semibold text-text-primary">{title}</h2>
-          {description && <p id={descriptionId} className="mt-1 text-sm leading-relaxed text-text-secondary">{description}</p>}
+          {description && <p id={descriptionId} className="mt-1 text-xs leading-relaxed text-text-secondary">{description}</p>}
         </div>
-        <div className="flex max-w-full flex-wrap items-end gap-3">
+        <div className="flex max-w-full flex-wrap items-end gap-2">
           {controls}
           {action}
           {isFetching && hasData && (
@@ -86,12 +88,12 @@ export default function AnalyticsSection({
         </div>
       )}
       {partialNotice && !unavailable && !isLoading && !(error && !hasData) && (
-        <div className="mb-4"><AnalyticsDataNotice kind="partial">{partialNotice}</AnalyticsDataNotice></div>
+        <div className="mb-2 flex justify-end"><AnalyticsDisclosure label="Partial coverage" inline>{partialNotice}</AnalyticsDisclosure></div>
       )}
 
       {/* Report body and optional context */}
       <div className="min-w-0">{content}</div>
-      {footer && <footer className="mt-4 border-t border-stroke pt-4 text-sm text-text-secondary">{footer}</footer>}
+      {footer && <footer className="mt-3 text-sm text-text-secondary">{footer}</footer>}
     </section>
   );
 }

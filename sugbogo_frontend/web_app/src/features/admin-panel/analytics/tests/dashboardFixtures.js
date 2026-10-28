@@ -22,6 +22,7 @@ export function fixtureReport(route, params = {}) {
   };
   if (route === "platform-growth/") return {
     activity: { new_consumer_accounts: count, new_businesses: count, newly_approved_businesses: count },
+    definitions: { consumer_accounts: "Accounts exclude staff and Admin roles using current roles.", new_businesses: "Business records created during the selected period.", newly_approved_businesses: "First recorded approval decisions currently linked to businesses." },
     series: [point("2026-10-01", { new_consumer_accounts: 4, new_businesses: 2, newly_approved_businesses: 1 }), point("2026-10-02", { new_consumer_accounts: null, new_businesses: 0, newly_approved_businesses: 0 }), point("2026-10-03", { new_consumer_accounts: 0, new_businesses: 1, newly_approved_businesses: 0 })], meta,
   };
   if (route === "discovery-trend/") return {

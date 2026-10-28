@@ -30,7 +30,12 @@ function MetricCard({
   context,
   wrapTitle = false,
   unavailableLabel = "Unavailable",
+  compact = false,
+  dense = false,
+  headerAction,
 }) {
+  const compactSpacing = dense ? "min-h-28 px-4 py-2.5" : "min-h-32 p-4";
+  const compactBodySpacing = dense ? "items-start pt-2" : "items-start pt-3";
   const trendColor = trend ? getMetricVariant(trend.variant).text : null;
 
   const TrendIcon = trend ? (TREND_ICONS[trend.direction] ?? Minus) : null;
@@ -41,12 +46,13 @@ function MetricCard({
     ).length >= 2;
 
   return (
-    <div className="flex min-h-[165px] flex-col overflow-hidden rounded-xl border border-stroke bg-background transition-shadow hover:shadow-md">
+    <div className={`relative flex flex-col rounded-xl border border-stroke bg-background ${compact ? compactSpacing : "min-h-[165px] overflow-hidden transition-shadow hover:shadow-md"}`}>
       {/* Metric header */}
-      <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-4 py-3">
+      <div className={compact ? "flex items-start justify-between gap-2" : "flex items-center justify-between border-b border-stroke bg-metric-header px-4 py-3"}>
         <h3 className={`min-w-0 text-xs font-medium text-text-primary ${wrapTitle ? "break-words" : "truncate"}`}>
           {title}
         </h3>
+        {headerAction}
 
         {Icon && (
           <div className="text-text-primary">
@@ -56,7 +62,7 @@ function MetricCard({
       </div>
 
       {/* KPI body */}
-      <div className="flex flex-1 items-end justify-between gap-3 p-5">
+      <div className={`flex flex-1 justify-between gap-3 ${compact ? compactBodySpacing : "items-end p-5"}`}>
         <div className="min-w-0">
           <div className="break-words text-3xl font-bold tracking-tight text-text-primary">
             {value ?? unavailableLabel}
@@ -89,7 +95,7 @@ function MetricCard({
           )}
 
           {/* Measurement scope and explanatory context */}
-          {measurementLabel && <p className="mt-3 text-xs text-text-secondary">{measurementLabel}</p>}
+          {measurementLabel && <p className={`${compact ? "mt-2" : "mt-3"} text-xs text-text-secondary`}>{measurementLabel}</p>}
           {context && <div className="mt-2 text-sm leading-relaxed text-text-secondary">{context}</div>}
         </div>
 

@@ -16,7 +16,7 @@ const components = {};
 const names = [
   "AnalyticsSection", "AnalyticsMetricCard", "AnalyticsMetricGrid", "AnalyticsChartCard",
   "AnalyticsDataNotice", "AnalyticsPeriodControl", "AnalyticsIntervalControl",
-  "AnalyticsMetricSelector", "AnalyticsTableSection", "AnalyticsReportSkeleton",
+  "AnalyticsMetricSelector", "AnalyticsTableSection", "AnalyticsReportSkeleton", "AnalyticsDisclosure", "AnalyticsRanking",
 ];
 
 before(async () => {
@@ -134,7 +134,7 @@ test("empty results and source unavailability remain distinct report states", ()
 test("partial data remains visible with a secondary notice rather than an error", () => {
   const html = markup("AnalyticsChartCard", { title: "Coverage", hasData: true, partialNotice: "Tracking coverage is incomplete." }, "available observations");
   assert.match(html, /available observations/);
-  assert.match(html, /Partial data/);
+  assert.match(html, /Partial coverage/);
   assert.match(html, /Tracking coverage is incomplete/);
   assert.doesNotMatch(html, /role="alert"/);
 });
@@ -253,4 +253,13 @@ test("chart exact-value alternative and compact source context remain readable t
   assert.match(html, /Exact values: zero observations/);
   assert.match(markup("AnalyticsDataNotice", { kind: "fixed" }, "30 completed days"), /Fixed observation window/);
   assert.match(markup("AnalyticsDataNotice", { kind: "snapshot" }), /Current snapshot/);
+});
+
+test("ranking values distinguish measured zero from unavailable support", () => {
+  const html = markup("AnalyticsRanking", {
+    label: "Support ranking",
+    rows: [{ id: 1, name: "Observed support", value: 2 }, { id: 2, name: "Measured zero", value: 0 }, { id: 3, name: "Missing evidence", value: null }],
+  });
+  assert.match(html, /Measured zero<\/span><span[^>]*>0<\/span>/);
+  assert.match(html, /Missing evidence<\/span><span[^>]*>Unavailable<\/span>/);
 });

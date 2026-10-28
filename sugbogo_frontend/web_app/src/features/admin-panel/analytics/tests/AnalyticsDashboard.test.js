@@ -23,6 +23,8 @@ let overrides;
 before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost", pretendToBeVisual: true });
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
+  dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
   ({ createRoot } = await import("react-dom/client"));
   server = await createServer({
     appType: "custom", ssr: { noExternal: ["recharts"] }, optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false },
@@ -33,10 +35,14 @@ before(async () => {
         if (id.replaceAll("\\", "/").endsWith("/shared/api/apiClient.js")) return "export default { get: (...args) => globalThis.__dashboardTransport(...args) };";
         if (id === "\0analytics-recharts") return `import React from 'react';
           export const ResponsiveContainer = ({children}) => React.createElement('div', null, children);
-          export const LineChart = ({data, children}) => React.createElement('div', {'data-chart': JSON.stringify(data)}, children);
-          export const Line = ({dataKey,connectNulls}) => React.createElement('span', {'data-series':dataKey,'data-connect-nulls':String(connectNulls)});
-          export const XAxis = ({type}) => React.createElement('span',{'data-axis-type':type});
-          export const YAxis = () => null; export const Tooltip = () => null;
+          export const LineChart = ({data, children}) => React.createElement('div', {'data-chart': JSON.stringify(data),'data-chart-type':'line'}, children);
+          export const BarChart = ({data, children, maxBarSize}) => React.createElement('div', {'data-chart': JSON.stringify(data),'data-chart-type':'bar','data-max-bar-size':maxBarSize}, React.Children.map(children, (child) => child?.type === 'defs' ? React.createElement('svg', null, child) : child));
+          export const Line = ({dataKey,connectNulls}) => React.createElement('span', {'data-series':dataKey,'data-series-type':'line','data-connect-nulls':String(connectNulls)});
+          export const Bar = ({dataKey,fill,stackId}) => React.createElement('span', {'data-series':dataKey,'data-series-type':'bar','data-fill':fill,'data-stack':stackId});
+          export const XAxis = ({type,dataKey}) => React.createElement('span',{'data-axis-type':type,'data-axis-key':dataKey});
+          export const YAxis = ({allowDecimals}) => React.createElement('span',{'data-allow-decimals':String(allowDecimals)});
+          export const Tooltip = ({filterNull,formatter}) => React.createElement('span',{'data-filter-null':String(filterNull),'data-tooltip-zero':formatter(0,'Selected metric')[0],'data-tooltip-missing':formatter(null,'Selected metric')[0]});
+          export const ReferenceArea = ({x1,x2}) => React.createElement("span", {"data-partial-start":x1,"data-partial-end":x2});
           export const CartesianGrid = () => null; export const Legend = () => null;`;
       },
     }],
@@ -88,6 +94,7 @@ async function mount() {
 const section = (title) => [...container.querySelectorAll("h2")].find((heading) => heading.textContent === title)?.closest("section");
 const select = (label) => [...container.querySelectorAll("select")].find((element) => element.labels[0]?.textContent === label);
 const requests = (route) => reads.filter(({ url }) => url === `/admin/analytics/${route}`);
+const metric = (label) => [...container.querySelectorAll("h3")].find((heading) => heading.textContent === label)?.closest(".relative");
 const click = async (element) => act(async () => element.click());
 async function choose(label, value) {
   await act(async () => { const input = select(label); input.value = value; input.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
@@ -95,6 +102,15 @@ async function choose(label, value) {
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
 const periodButton = (period) => [...container.querySelectorAll("button")].find((button) => button.textContent === `${period}D`);
+
+function primaryText(element) {
+  const clone = element.cloneNode(true);
+  clone.querySelectorAll("details:not([open])").forEach((details) => details.replaceWith(details.querySelector("summary").cloneNode(true)));
+  clone.querySelectorAll(".sr-only").forEach((item) => item.remove());
+  return clone.textContent;
+}
+
+const disclosure = (element, label) => [...element.querySelectorAll("summary")].find((summary) => summary.getAttribute("aria-label") === label);
 
 test("MVP mounts reports once, shares taxonomy options, and defers low exposure and heatmap", async () => {
   await mount();
@@ -112,22 +128,26 @@ test("overview preserves measured zero, missing activity, valid comparison and s
   const active = [...overview.querySelectorAll("h3")].find((item) => item.textContent === "Active businesses").parentElement.parentElement;
   assert.match(active.textContent, /0Current snapshot/);
   assert.doesNotMatch(active.textContent, /Increase|previous period/);
-  assert.match(overview.textContent, /New current-Explorer accounts/);
+  assert.match(overview.textContent, /New Explorer accounts/);
+  assert.match(overview.textContent, /whose current role is Explorer/);
   assert.match(overview.textContent, /Increase: 2/);
-  assert.match(overview.textContent, /Discovery-active accounts \(not total app MAU\)Unavailable/);
+  assert.equal(metric("Discovery-active accounts").querySelector(".text-3xl").textContent, "Unavailable");
+  assert.match(overview.textContent, /not general platform MAU/);
 });
 
-test("growth switches locally between persisted series and preserves temporal nulls and zeroes", async () => {
+test("growth displays all three persisted series and preserves temporal nulls and zeroes", async () => {
   await mount();
   const growth = section("Platform Growth");
   const rows = JSON.parse(growth.querySelector("[data-chart]").dataset.chart);
   assert.equal(rows[1].new_consumer_accounts, null);
   assert.equal(rows[2].new_consumer_accounts, 0);
   assert.equal(rows[2].time - rows[0].time, 2 * 24 * 60 * 60 * 1000);
-  assert.ok([...growth.querySelectorAll("[data-connect-nulls]")].every((line) => line.dataset.connectNulls === "false"));
-  await choose("Growth metric", "newly_approved_businesses");
+  assert.equal(growth.querySelector("[data-chart-type]").dataset.chartType, "bar");
+  assert.equal(growth.querySelector("[data-axis-type]").dataset.axisType, "category");
+  assert.equal(growth.querySelector("[data-series]").dataset.seriesType, "bar");
+  assert.equal(select("Growth metric"), undefined);
   assert.equal(requests("platform-growth/").length, 1);
-  assert.equal(growth.querySelector("[data-series]").dataset.series, "newly_approved_businesses");
+  assert.equal(growth.querySelectorAll("[data-series-type='bar']").length, 3);
 });
 
 test("7/90/30 presets change affected queries but do not refetch current-only reports", async () => {
@@ -194,7 +214,7 @@ test("successful unavailable discovery is not an HTTP failure or a zero and pres
   await mount();
   assert.match(section("Discovery Activity").textContent, /Discovery activity is currently unavailable/);
   assert.equal(section("Discovery Activity").querySelector("[role='alert']"), null);
-  assert.match(section("Overview").textContent, /Approved businesses12/);
+  assert.equal(metric("Approved businesses").querySelector(".text-3xl").textContent, "12");
 });
 
 test("onboarding exposes workload, paired throughput, null turnaround and overlapping rejection sections", async () => {
@@ -202,7 +222,7 @@ test("onboarding exposes workload, paired throughput, null turnaround and overla
   const onboarding = section("Merchant Onboarding");
   assert.match(onboarding.textContent, /On time3/);
   assert.match(onboarding.textContent, /Overdue2/);
-  assert.match(onboarding.textContent, /Median review turnaroundUnavailable/);
+  assert.equal(metric("Median review turnaround").querySelector(".text-3xl").textContent, "Unavailable");
   assert.doesNotMatch(onboarding.textContent, /Median review turnaround0 hours/);
   assert.equal(onboarding.querySelector("[data-series='submissions']").dataset.connectNulls, "false");
   assert.ok(onboarding.querySelector("[data-series='completed_reviews']"));
@@ -215,9 +235,9 @@ test("onboarding exposes workload, paired throughput, null turnaround and overla
 test("community uses persisted sentiment, classified shares, and discloses unclassified current-state history", async () => {
   await mount();
   const community = section("Community Health");
-  assert.match(community.textContent, /positive1100%/);
-  assert.match(community.textContent, /neutral00%/);
-  assert.match(community.textContent, /unclassified1Excluded from denominator/);
+  assert.match(community.textContent, /Positive100% · 1/);
+  assert.match(community.textContent, /Neutral0% · 0/);
+  assert.match(community.textContent, /Unclassified1Excluded from denominator/);
   assert.match(community.textContent, /not immutable publication history/);
 });
 
@@ -284,7 +304,7 @@ test("merchant request failure does not hide reports or disputes", async () => {
   failures.add("/admin/analytics/change-requests/");
   await mount();
   assert.ok(section("Merchant change requests").querySelector("[role='alert']"));
-  assert.match(section("Reports & disputes").textContent, /Median dispute resolution · selected period4 hours/);
+  assert.match(section("Reports & disputes").textContent, /Median dispute resolution4 hours/);
 });
 
 test("unavailable attention selection remains unavailable rather than an empty table", async () => {
@@ -318,4 +338,219 @@ test("background refetch retains rendered values and shows section refresh progr
   assert.match(section("Community Health").textContent, /Published reviews in period2/);
   assert.equal(section("Community Health").querySelector("[aria-label='Loading report']"), null);
   await act(async () => { finish(); await refetch; });
+});
+
+test("compact overview keeps definitions behind named keyboard-operable info disclosures", async () => {
+  await mount();
+  const card = metric("New Explorer accounts");
+  assert.doesNotMatch(primaryText(card), /whose current role|promotion to Merchant/);
+  assert.match(primaryText(card), /Last 30 days/);
+  const trigger = disclosure(card, "About New Explorer accounts");
+  assert.equal(trigger.parentElement.open, false);
+  await click(trigger);
+  assert.equal(trigger.parentElement.open, true);
+  assert.match(primaryText(card), /whose current role is Explorer/);
+  await act(async () => trigger.parentElement.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  assert.equal(trigger.parentElement.open, false);
+  assert.equal(document.activeElement, trigger);
+});
+
+test("report metadata and coverage caveats are secondary but remain available on expansion", async () => {
+  await mount();
+  const growth = section("Platform Growth");
+  assert.doesNotMatch(primaryText(growth), /Report generated:|Data through:|Accounts exclude staff/);
+  const trigger = growth.querySelector("[aria-label='About Platform Growth']");
+  trigger.focus();
+  await click(trigger);
+  const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Report generated|Data through/);
+  assert.match(drawer.textContent, /Accounts exclude staff/);
+  await click(drawer.querySelector("button"));
+  assert.equal(document.activeElement, trigger);
+  const partial = disclosure(section("Discovery Activity"), "Partial coverage");
+  assert.equal(partial.parentElement.open, false);
+  await click(partial);
+  assert.match(primaryText(section("Discovery Activity")), /Tracking coverage is unverified/);
+  assert.equal(reads.length, 13);
+});
+
+test("onboarding foregrounds core decisions and keeps samples and full rejection rows disclosed", async () => {
+  overrides.set("/admin/analytics/onboarding/", (report) => ({ ...report, rejection_insights: { ...report.rejection_insights, sections: [...report.rejection_insights.sections].reverse().map((row) => ({ ...row, rejection_decisions: row.section === "identity" ? 4 : 1 })) } }));
+  await mount();
+  const onboarding = section("Merchant Onboarding");
+  for (const name of ["Pending applications", "Overdue", "SLA compliance", "Median review turnaround"]) assert.ok(metric(name));
+  assert.doesNotMatch(primaryText(onboarding), /Mean review turnaround|Unassignable missing decision times/);
+  const ranking = onboarding.querySelector("ol[aria-label='Rejected application sections']");
+  assert.deepEqual([...ranking.querySelectorAll("li")].map((row) => row.textContent), ["Identity4", "Location1"]);
+  assert.match(primaryText(onboarding), /50% post-rejection recovery/);
+  const full = disclosure(onboarding, "Full rejection breakdown");
+  assert.equal(full.parentElement.open, false);
+  await click(full);
+  assert.match(primaryText(onboarding), /Distinct applications|Share of decisions/);
+});
+
+test("sentiment primary composition retains backend shares and unclassified count without a raw table", async () => {
+  await mount();
+  const community = section("Community Health");
+  assert.match(primaryText(community), /Positive100% · 1/);
+  assert.match(primaryText(community), /Unclassified reviews1/);
+  assert.equal(community.querySelector("table").closest("details").open, false);
+  await click(disclosure(community, "Sentiment details"));
+  assert.match(primaryText(community), /Excluded from denominator/);
+});
+
+test("coverage surfaces the pooled insight before its expandable full denominator table", async () => {
+  await mount();
+  const coverage = section("Business Coverage");
+  assert.match(primaryText(coverage), /50% coverage/);
+  assert.match(primaryText(coverage), /2 of 4 eligible businesses/);
+  assert.doesNotMatch(primaryText(coverage), /Empty category/);
+  await click(disclosure(coverage, "View full coverage"));
+  assert.match(primaryText(coverage), /Empty category000Unavailable/);
+});
+
+test("specialty ranking uses endorsement counts while full distinct populations stay available", async () => {
+  await mount();
+  const specialty = section("Specialty Support");
+  assert.match(primaryText(specialty), /Distinct supporters2/);
+  assert.deepEqual([...specialty.querySelectorAll("ol li")].map((row) => row.textContent), ["Coffee4", "Desserts2"]);
+  assert.equal(specialty.querySelector("table").closest("details").open, false);
+  await click(disclosure(specialty, "View specialty breakdown"));
+  assert.match(primaryText(specialty), /Coffee422/);
+});
+
+test("attention retains all metrics in fewer columns and section navigation targets existing regions", async () => {
+  await mount();
+  const attention = section("Businesses Needing Attention");
+  assert.equal(attention.querySelectorAll("th").length, 6);
+  assert.match(attention.querySelector("tbody").textContent, /Cafes · Food/);
+  for (const link of container.querySelectorAll("nav[aria-label='Analytics sections'] a")) assert.ok(container.querySelector(link.getAttribute("href")));
+  assert.equal(reads.length, 13);
+});
+
+test("all growth metrics use independent bars while daily/weekly controls preserve request reuse", async () => {
+  await mount();
+  for (const key of ["new_consumer_accounts", "new_businesses", "newly_approved_businesses"]) {
+
+    const growth = section("Platform Growth");
+    assert.equal(growth.querySelector("[data-chart-type]").dataset.chartType, "bar");
+    assert.ok([...growth.querySelectorAll("[data-series]")].some((bar) => bar.dataset.series === key));
+    assert.equal(new Set([...growth.querySelectorAll("[data-fill]")].map((bar) => bar.dataset.fill)).size, 3);
+    assert.equal(growth.querySelector("[data-series-type='line']"), null);
+    assert.equal(growth.querySelector("[data-stack]"), null);
+    assert.equal(growth.querySelector("[data-allow-decimals]").dataset.allowDecimals, "false");
+    assert.equal(growth.querySelector("[data-filter-null]").dataset.filterNull, "false");
+    assert.equal(growth.querySelector("[data-axis-key]").dataset.axisKey, "date");
+    assert.equal(growth.querySelector("[data-tooltip-zero]").dataset.tooltipZero, "0");
+    assert.equal(growth.querySelector("[data-tooltip-missing]").dataset.tooltipMissing, "Unavailable");
+    assert.equal(growth.querySelector("[data-max-bar-size]").dataset.maxBarSize, "28");
+  }
+  assert.equal(requests("platform-growth/").length, 1);
+  assert.equal(requests("platform-growth/")[0].params.interval, "weekly");
+  const interval = section("Platform Growth").querySelector("select");
+  await act(async () => { interval.value = "daily"; interval.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  await until(() => section("Platform Growth").querySelector("[data-chart-type='bar']") && client.isFetching() === 0);
+  assert.equal(requests("platform-growth/").at(-1).params.interval, "daily");
+  assert.equal(requests("platform-growth/").length, 2);
+  await act(async () => { interval.value = "weekly"; interval.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  await until(() => section("Platform Growth").querySelector("[data-chart-type='bar']") && client.isFetching() === 0);
+  assert.equal(requests("platform-growth/").length, 2);
+  assert.equal(requests("discovery-trend/").length, 1);
+  assert.equal(requests("onboarding/").length, 1);
+});
+
+test("growth exact values retain null/zero and other analytics charts remain lines", async () => {
+  await mount();
+  const growth = section("Platform Growth");
+  const rows = JSON.parse(growth.querySelector("[data-chart]").dataset.chart);
+  assert.equal(rows[1].new_consumer_accounts, null);
+  assert.equal(rows[2].new_consumer_accounts, 0);
+  const exact = [...growth.querySelectorAll("button")].find((button) => button.textContent === "View data →");
+  await click(exact);
+  const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Platform Growth — Exact Data/);
+  assert.match(drawer.textContent, /Unavailable/);
+  assert.match(drawer.textContent, /Accounts/);
+  await act(async () => drawer.dispatchEvent(new dom.window.Event("cancel", { cancelable: true })));
+  assert.equal(document.querySelector("dialog[open]"), null);
+  for (const title of ["Discovery Activity", "Merchant Onboarding", "Community Health"]) {
+    const report = section(title);
+    assert.equal(report.querySelector("[data-chart-type]").dataset.chartType, "line");
+    assert.equal(report.querySelector("[data-series-type='bar']"), null);
+    assert.ok([...report.querySelectorAll("[data-connect-nulls]")].every((line) => line.dataset.connectNulls === "false"));
+  }
+});
+
+
+test("growth measured-zero activity keeps three KPIs and an explicit empty chart state", async () => {
+  overrides.set("/admin/analytics/platform-growth/", (report) => ({
+    ...report,
+    activity: Object.fromEntries(Object.entries(report.activity).map(([key, value]) => [key, { ...value, value: 0 }])),
+    series: report.series.map((row) => ({ ...row, new_consumer_accounts: 0, new_businesses: 0, newly_approved_businesses: 0 })),
+  }));
+  await mount();
+  const growth = section("Platform Growth");
+  for (const title of ["New accounts", "New businesses", "Business approvals"]) {
+    assert.match(metric(title).textContent, /0/);
+  }
+  assert.match(growth.textContent, /No growth activity in this period/);
+  assert.equal(growth.querySelector("[data-chart]"), null);
+});
+
+test("growth request failure retries independently without enabling report drawers", async () => {
+  failures.add("/admin/analytics/platform-growth/");
+  await mount();
+  const growth = section("Platform Growth");
+  assert.match(growth.textContent, /Unable to load platform growth/);
+  assert.equal(growth.querySelector("[aria-label='About Platform Growth']").disabled, true);
+  assert.ok(section("Discovery Activity").querySelector("[data-chart]"));
+  const discoveryRequests = requests("discovery-trend/").length;
+  failures.clear();
+  await click([...growth.querySelectorAll("button")].find((button) => button.textContent.includes("Retry")));
+  await until(() => growth.querySelector("[data-chart]") && client.isFetching() === 0);
+  assert.equal(requests("platform-growth/").length, 2);
+  assert.equal(requests("discovery-trend/").length, discoveryRequests);
+});
+
+
+test("growth comparisons remain numeric, neutral and explicit about previous values", async () => {
+  overrides.set("/admin/analytics/platform-growth/", (report) => ({
+    ...report,
+    activity: {
+      ...report.activity,
+      new_businesses: { ...report.activity.new_businesses, change: { value: -3, direction: "down", unit: "count" } },
+      newly_approved_businesses: { ...report.activity.newly_approved_businesses, change: { value: 0, direction: "unchanged", unit: "count" } },
+    },
+  }));
+  await mount();
+  assert.match(metric("New accounts").textContent, /Previous 2 · ↑ 2/);
+  assert.equal(metric("New accounts").querySelector(".text-emerald-600"), null);
+  assert.match(metric("New businesses").textContent, /Previous 2 · ↓ 3/);
+  assert.equal(metric("New businesses").querySelector(".text-rose-600"), null);
+  assert.match(metric("Business approvals").textContent, /Previous 2 · No change/);
+});
+
+
+test("growth exposes period context and marks only a currently capped incomplete week", async () => {
+  const { growthWeekInProgress, growthBucketLabel } = await server.ssrLoadModule("/src/features/admin-panel/analytics/utils/growthPresentation.js");
+  const row = { date: "2026-10-26", start: "2026-10-25T16:00:00Z", end_exclusive: "2026-10-28T07:50:00Z", new_consumer_accounts: 0, new_businesses: null, newly_approved_businesses: 0 };
+  overrides.set("/admin/analytics/platform-growth/", (report) => ({
+    ...report,
+    series: [row],
+    meta: {
+      ...report.meta,
+      generated_at: row.end_exclusive,
+      period: { ...report.meta.period, previous_start: "2026-09-01T16:00:00Z", previous_end_exclusive: "2026-09-30T16:00:00Z" },
+    },
+  }));
+  await mount();
+  const growth = section("Platform Growth");
+  assert.match(growth.textContent, /Selected period:/);
+  assert.match(growth.textContent, /Compared with: Sep 2, 2026 – Sep 30, 2026/);
+  assert.match(growth.textContent, /Weekly activity · selected period only/);
+  assert.equal(growth.querySelector("[data-partial-start]").dataset.partialStart, row.date);
+  assert.equal(growthWeekInProgress({ series: [row], meta: { generated_at: "2026-11-02T00:00:00Z" } }, "weekly"), null);
+  assert.equal(growthWeekInProgress({ series: [row], meta: { generated_at: row.end_exclusive } }, "daily"), null);
+  assert.equal(growthBucketLabel(row), "Oct 26 – Oct 28");
+  assert.equal(growthBucketLabel({ start: "2026-10-18T16:00:00Z", end_exclusive: "2026-10-25T16:00:00Z" }), "Oct 19 – Oct 25");
 });

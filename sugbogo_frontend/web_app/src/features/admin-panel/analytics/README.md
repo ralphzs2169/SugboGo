@@ -167,7 +167,7 @@ future bounds. Presets discard custom dates through the Phase 3 serializer.
 
 Chart consumers should supply a concise summary and exact values through text or
 an accessible table in `accessibleData`. Do not make every SVG point focusable.
-The chart slot is 256px high, increasing to 288px at the existing small breakpoint.
+The compact chart slot is 224px high, increasing to 240px at the existing small breakpoint.
 Headers wrap, grids collapse to two/one columns, and DataTable retains horizontal
 scrolling. Existing light/dark tokens and Lucide icons are reused.
 
@@ -180,9 +180,8 @@ review fixtures are temporary and are not shipped.
 components in `sections/` own their report hooks, local selectors and independent
 notification/Retry states through `useAnalyticsSectionState`.
 
-The page order is overview, platform growth, discovery activity, merchant
-onboarding, community health, trust/operations, business coverage, business
-attention, specialty support and Discovery Score health.
+The page is grouped into Overview, Growth & Discovery, Operations, Community &
+Discovery Quality, and Business Health. Attention remains the final actionable table.
 
 - Overview preserves backend labels and current snapshot/current-role/recorded
   activity meanings. Inventory cards never receive period comparison badges.
@@ -214,9 +213,15 @@ attention, specialty support and Discovery Score health.
 
 ### Charts, tables and navigation
 
-`AnalyticsTimeSeries` uses numeric timestamp positions from backend bucket starts,
-linear lines with `connectNulls=false`, disabled animation, and solid/dashed
-distinction for the paired workload series. Existing theme variables supply colors.
+`AnalyticsTimeSeries` defaults to numeric timestamp positions and linear lines with
+`connectNulls=false`, disabled animation, and solid/dashed distinction for paired
+workload series. Platform Growth alone opts into `chartType="bar"`: independent,
+vertical count bars on the backend calendar-bucket labels, integer Y-axis ticks,
+maximum bar width 28px and the existing brand accent. It uses a 224px plot area on
+normal layouts, increasing to 240px on extra-wide layouts. Zero-height bars remain
+measured zeroes; null values remain missing, including in tooltip/exact-value text.
+Metric changes remain local; interval changes retain their existing query keys.
+Discovery, onboarding and community remain line charts. Existing theme variables supply colors.
 Every chart includes a native disclosure with an exact-value table; there is no
 interpolation, null deletion, or zero substitution. All-zero observations remain
 measured data. Four charts serve four different administrative questions; rankings,
@@ -250,3 +255,55 @@ transport data and is not imported by production components.
 ```sh
 node --test --test-concurrency=1 src/features/admin-panel/analytics/tests/AnalyticsDashboard.test.js src/features/admin-panel/analytics/components/analyticsFoundation.test.js src/features/admin-panel/analytics/queries/analyticsData.test.js src/features/admin-panel/analytics/hooks/useAnalyticsReports.test.js
 ```
+
+
+## Phase 5.1: density and progressive disclosure
+
+The data architecture is unchanged. No hooks, query options, request parameters,
+service functions or cache defaults were changed in this presentation pass.
+
+- Header and applied period share a row when space permits. A lightweight,
+  non-sticky anchor navigation helps jump across the five analytical themes.
+- Existing MetricCard now has optional compact/header-action support; its defaults
+  preserve other Admin consumers. Overview and onboarding reuse that card through
+  the existing adapter, rather than adding another metric-card implementation.
+- Short Overview labels retain adjacent named info disclosures for current-role
+  Explorer and recorded discovery-account semantics. Main values, comparisons and
+  snapshot/period labels remain visible. Zero and unavailable values stay distinct.
+- Growth/discovery, community/specialty and coverage/score health use paired desktop
+  grids and stack below the existing extra-large breakpoint. Controls use an
+  opt-in compact SelectInput style, retaining native labels and keyboard behavior.
+- AnalyticsDisclosure consolidates the existing native-details pattern for info,
+  report methodology, full breakdowns and exact values. Triggers have accessible
+  names; Escape closes disclosures and restores trigger focus. Ordinary partial
+  coverage uses a compact indicator, while meaningful source unavailability and
+  request failures retain persistent states and Retry.
+- Metadata defaults to a short Updated time. About this report retains effective
+  dates, generated/data-through timestamps, source availability and caveats.
+- Onboarding prioritizes pending, overdue, overall classified-only SLA and median
+  selected-decision turnaround. On-time/approaching/unknown ages, thresholds, mean,
+  samples and exclusion diagnostics remain in report detail. Throughput and ranked
+  rejection decision bars share a row; all section/app/share values remain in the
+  expandable rejection table. Cumulative post-rejection recovery remains visible.
+- Community uses backend classified sentiment shares directly as segment widths,
+  with exact shares/counts and unclassified count visible. No neutral classification
+  or measured percentage is fabricated for unclassified/missing data.
+- Coverage leads with the pooled percentage and recorded-visited/eligible counts.
+  Highlights sort existing group percentages, excluding undefined/zero-denominator
+  rows only from highlights; the full table retains every row and denominator.
+- Specialty support leads with global distinct totals, then five ranked endorsement
+  bars. All backend top-specialty rows and supporter/business counts remain in the
+  full breakdown. Relative bar lengths are visual scale, not new percentage metrics.
+- Trust cards show pending/aged counts and resolution time; aging, outcomes and
+  timestamp exclusions remain expandable. Score health prioritizes four counters,
+  with missing/provisional secondary and overlap/freshness context in report detail.
+- Attention keeps the existing server DataTable, filters, ordering and pagination.
+  Category/cluster are secondary business-row text instead of redundant columns.
+  Opt-in compact table/empty states remove the forced 520px blank area and nested
+  outer frame; shared defaults remain unchanged for existing Admin pages.
+
+Dashboard tests exercise compact primary content separately from expanded detail,
+including focus/escape behavior, coverage/full-table access, sentiment shares,
+ranking order and unchanged request counts. No mock production numbers or preview
+routes are added. Automated presentation and interaction checks verify the
+information-disclosure behavior without brittle pixel snapshots.

@@ -60,6 +60,7 @@ function DataTable({
     onTabChange,
     searchPlaceholder = "Search...",
     showSearch = true,
+    compact = false,
 
     emptyState = {},
     noResultsState = {},
@@ -109,7 +110,7 @@ function DataTable({
 
   return (
     <div
-      className={`relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 ${tabs.length > 0 ? "pt-2" : "pt-6"}`}
+      className={compact ? "relative min-w-0 w-full" : `relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 ${tabs.length > 0 ? "pt-2" : "pt-6"}`}
       aria-busy={isLoading || isFetching}
     >
       {tabs.length > 0 && (
@@ -122,7 +123,7 @@ function DataTable({
         </div>
       )}
 
-      <TableControls
+      {(!compact || showSearch || renderFilters || renderHeaderActions || hasActiveFilters) && <TableControls
         globalFilter={state.globalFilter ?? ""}
         setGlobalFilter={onGlobalFilterChange}
         searchPlaceholder={searchPlaceholder}
@@ -132,12 +133,12 @@ function DataTable({
         hasActiveFilters={hasActiveFilters}
         onResetFilters={onResetFilters}
         isSearching={isSearching}
-      />
+      />}
 
       {renderContent ? (
         renderContent()
       ) : (
-        <div className="min-h-[520px] overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface">
+        <div className={`${compact ? "" : "min-h-[520px]"} overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface`}>
           <table className="w-full min-w-[720px] table-fixed border-collapse text-left">
             <TableHeader table={table} />
 
@@ -164,6 +165,7 @@ function DataTable({
               </tbody>
             ) : (
               <TableBody
+                compact={compact}
                 table={table}
                 emptyState={activeEmptyState}
                 onRowClick={onRowClick}

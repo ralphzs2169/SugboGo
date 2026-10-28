@@ -4,7 +4,7 @@ import TableEmptyState from "./TableEmptyState";
 /**
  * Renders the table body rows and the table's empty state.
  */
-export default function TableBody({ table, emptyState, onRowClick }) {
+export default function TableBody({ table, emptyState, onRowClick, compact = false }) {
   const rows = table.getRowModel().rows;
 
   return (
@@ -14,7 +14,7 @@ export default function TableBody({ table, emptyState, onRowClick }) {
           <tr
             key={row.id}
             onClick={() => onRowClick?.(row.original)}
-            className={`h-[60px] border-b border-stroke transition-colors hover:bg-interaction-hover last:border-b-0 ${
+            className={`${compact ? "h-12" : "h-[60px]"} border-b border-stroke transition-colors hover:bg-interaction-hover last:border-b-0 ${
               onRowClick ? "cursor-pointer" : ""
             }`}
           >
@@ -35,7 +35,7 @@ export default function TableBody({ table, emptyState, onRowClick }) {
       ) : (
         <tr>
           <td colSpan={table.getVisibleLeafColumns().length} className="p-0">
-            <TableEmptyState {...emptyState} />
+            <TableEmptyState {...emptyState} compact={compact} />
           </td>
         </tr>
       )}

@@ -44,7 +44,7 @@ function CustomRangeEditor({ initialRange, onApply }) {
 /** Controls applied reporting periods while keeping incomplete custom edits out of requests.
  * It sends calendar dates unchanged and leaves reporting timezone rules to the API.
  */
-export default function AnalyticsPeriodControl({ value = DEFAULT_SELECTION, onChange, disabled = false }) {
+export default function AnalyticsPeriodControl({ value = DEFAULT_SELECTION, onChange, disabled = false, compact = false }) {
   const [customOpen, setCustomOpen] = useState(false);
   const selected = String(value.period);
   const showCustom = customOpen || selected === "custom";
@@ -58,9 +58,9 @@ export default function AnalyticsPeriodControl({ value = DEFAULT_SELECTION, onCh
   }
 
   return (
-    <fieldset disabled={disabled} className="min-w-0 rounded-xl border border-stroke bg-background p-4">
+    <fieldset disabled={disabled} className={compact ? "min-w-0 max-w-xl" : "min-w-0 rounded-xl border border-stroke bg-background p-4"}>
       {/* Applied selection and accessible preset buttons */}
-      <legend className="px-1 text-sm font-medium text-text-primary">Reporting period</legend>
+      <legend className={compact ? "sr-only" : "px-1 text-sm font-medium text-text-primary"}>Reporting period</legend>
       <div className="flex flex-wrap items-center gap-2">
         {PRESETS.map((period) => (
           <button
@@ -82,7 +82,7 @@ export default function AnalyticsPeriodControl({ value = DEFAULT_SELECTION, onCh
         >
           Custom
         </button>
-        <p className="basis-full text-sm text-text-secondary sm:ml-auto sm:basis-auto">Applied: {appliedLabel}</p>
+        <p className={compact ? "basis-full text-right text-xs text-text-secondary" : "basis-full text-sm text-text-secondary sm:ml-auto sm:basis-auto"}>Applied: {appliedLabel}</p>
       </div>
 
       {/* Custom draft never changes the applied range until submission */}
