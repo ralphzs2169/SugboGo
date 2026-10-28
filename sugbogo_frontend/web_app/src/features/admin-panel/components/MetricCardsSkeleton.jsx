@@ -8,7 +8,7 @@ export default function MetricCardsSkeleton({
   count = 4,
   includeSparkline = false,
 }) {
-  const base = "animate-pulse rounded bg-skeleton";
+  const base = "motion-safe:animate-pulse rounded bg-skeleton";
 
   return (
     <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

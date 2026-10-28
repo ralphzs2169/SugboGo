@@ -35,14 +35,14 @@ export default function SelectInput({
         onChange={onChange}
         disabled={disabled}
         className={clsx(
-          "w-full rounded-md border-2 bg-background px-4 py-3 text-sm text-text-primary outline-none transition",
+          "w-full cursor-pointer rounded-md border-2 bg-background px-4 py-3 text-sm text-text-primary outline-none transition",
           disabled && "cursor-not-allowed opacity-60",
           error
             ? "border-danger focus:border-danger "
             : "border-stroke focus:border-stroke-active ",
         )}
       >
-        <option value="">{placeholder}</option>
+        {placeholder !== null && <option value="">{placeholder}</option>}
         {children}
       </select>
 
