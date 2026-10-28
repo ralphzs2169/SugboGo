@@ -36,3 +36,29 @@ export function growthWeekInProgress(report, interval) {
   const generated = Date.parse(report.meta.generated_at);
   return end === generated && end < calendarEnd ? last.date : null;
 }
+
+/** Explains acquisition coverage from metadata without treating it as event tracking. */
+export function growthCoverageDescription(meta) {
+  if (!meta?.is_partial) {
+    return null;
+  }
+
+  const descriptions = {
+    current_role_and_retained_rows: "Past counts can change when account roles change or records are removed.",
+    recorded_approval_history_only: "Approvals use recorded history only; missing earlier approvals cannot be reconstructed.",
+    current_day_incomplete: "Today's reporting period is still in progress.",
+    data_lag: "Confirmed data does not yet cover the end of the selected period.",
+    coverage_unverified: "Complete reporting coverage has not been confirmed.",
+    freshness_unverified: "The latest confirmed data time is unavailable.",
+    source_partial: "The source supplied limited data.",
+    source_unavailable: "The data source is unavailable; this does not mean there was no activity.",
+  };
+  const reasons = meta.partial_reasons ?? [];
+  const notes = reasons.map((reason) => descriptions[reason]).filter(Boolean);
+
+  if (!notes.length || reasons.some((reason) => !descriptions[reason])) {
+    notes.push("See About Platform Growth for additional reporting limitations.");
+  }
+
+  return notes.join(" ");
+}

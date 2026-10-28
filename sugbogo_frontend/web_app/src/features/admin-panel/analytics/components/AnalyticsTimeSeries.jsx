@@ -20,6 +20,10 @@ export default function AnalyticsTimeSeries({
   timeTicks,
   barTimeAxis = false,
   maxBarSize = 28,
+  barSize,
+  barGap = 4,
+  barCategoryGap = "28%",
+  margin = { top: 8, right: 8, bottom: 0, left: 0 },
 }) {
   const gradientId = useId().replaceAll(":", "");
   const data = rows.map((row) => ({ ...row, time: Date.parse(row.start ?? `${row.date}T00:00:00+08:00`) }));
@@ -28,7 +32,11 @@ export default function AnalyticsTimeSeries({
   return (
     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
       {/* Bar categories retain every reporting bucket; lines keep their numeric time axis */}
-      <Chart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} {...(isBar ? { barCategoryGap: "28%", maxBarSize } : {})}>
+      <Chart
+        data={data}
+        margin={margin}
+        {...(isBar ? { barCategoryGap, barGap, maxBarSize } : {})}
+      >
         {children}
         {areaFade && !isBar && (
           <defs>
@@ -61,7 +69,15 @@ export default function AnalyticsTimeSeries({
         ))}
         {lines.map((line, index) => (
           isBar ? (
-            <Bar key={line.key} dataKey={line.key} name={line.label} minPointSize={0} fill={line.color ?? "var(--color-primary)"} isAnimationActive={false} />
+            <Bar
+              key={line.key}
+              dataKey={line.key}
+              name={line.label}
+              barSize={barSize}
+              minPointSize={0}
+              fill={line.color ?? "var(--color-primary)"}
+              isAnimationActive={false}
+            />
           ) : (
             <Line key={line.key} dataKey={line.key} name={line.label} type="linear" connectNulls={false} stroke={line.color ?? (index === 0 ? "var(--color-primary)" : "var(--color-info)")} strokeDasharray={index === 0 ? undefined : "5 4"} strokeWidth={2} dot={rows.length < 8 ? { r: 3 } : false} isAnimationActive={false} />
           )
