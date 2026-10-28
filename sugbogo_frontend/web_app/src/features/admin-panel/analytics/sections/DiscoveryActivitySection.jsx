@@ -18,6 +18,7 @@ const OPTIONS = [
   { value: "profile_visits", label: "Profile visits", color: "var(--color-info)" },
   { value: "impressions", label: "Impressions", color: "var(--color-primary)" },
   { value: "saves", label: "Saves", color: "var(--color-success)" },
+  { value: "distinct_engaged_explorers", label: "Discovery-active accounts", color: "var(--color-neutral)" },
 ];
 const day = new Intl.DateTimeFormat("en-PH", {
   timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric",
@@ -52,11 +53,11 @@ function DiscoverySummary({ query, metric, onSelect }) {
       {query.data?.meta?.availability === "unavailable" && <p className="mb-2 text-xs text-text-secondary">Discovery summary is currently unavailable.</p>}
       {query.isLoading && !query.data ? (
         <div role="status" aria-label="Loading discovery summary" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {OPTIONS.map((option) => <div key={option.value} aria-hidden="true" className="h-28 rounded-xl bg-skeleton motion-safe:animate-pulse" />)}
+          {OPTIONS.slice(0, 3).map((option) => <div key={option.value} aria-hidden="true" className="h-28 rounded-xl bg-skeleton motion-safe:animate-pulse" />)}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="group" aria-label="Recorded discovery metric">
-          {OPTIONS.map((option) => (
+          {OPTIONS.slice(0, 3).map((option) => (
             <MetricCard
               key={option.value}
               compact
@@ -80,6 +81,16 @@ function DiscoverySummary({ query, metric, onSelect }) {
           ))}
         </div>
       )}
+      {/* A compact fourth choice avoids repeating Overview's period-wide account total. */}
+      <button
+        type="button"
+        aria-label="Show recorded discovery-active accounts"
+        aria-pressed={metric === "distinct_engaged_explorers"}
+        onClick={() => onSelect("distinct_engaged_explorers")}
+        className={`mt-3 cursor-pointer rounded-lg border px-3 py-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-info ${metric === "distinct_engaged_explorers" ? "border-text-primary bg-surface text-text-primary" : "border-stroke text-text-secondary"}`}
+      >
+        Discovery-active accounts
+      </button>
     </div>
   );
 }
@@ -117,7 +128,7 @@ export default function DiscoveryActivitySection({ period }) {
       {/* Selected metric, compact headline and independent report states */}
       <AnalyticsSection
         title="Discovery Activity"
-        description="Recorded profile visits, impressions, and saves."
+        description="Recorded discovery activity and distinct accounts."
         hasData={Boolean(data || summaryQuery.data)}
         isFetching={Boolean((data || summaryQuery.data) && (query.isFetching || summaryQuery.isFetching))}
         controls={
@@ -177,7 +188,7 @@ export default function DiscoveryActivitySection({ period }) {
           {/* Recorded counts retain every bucket; unavailable observations have no bar */}
           {timeline === null ? (
             <div className="flex h-full items-center justify-center text-center text-sm text-text-secondary">
-              Recorded discovery activity is currently unavailable. The recorded total remains available above.
+              Recorded discovery observations are currently unavailable. Summary event totals are reported independently above.
             </div>
           ) : (
             <AnalyticsTimeSeries
@@ -218,7 +229,8 @@ export default function DiscoveryActivitySection({ period }) {
         aboutContent={
           <div className="space-y-3 border-t border-stroke pt-5 text-sm text-text-secondary">
             <h3 className="font-semibold text-text-primary">How these metrics work</h3>
-            {OPTIONS.map((option) => <div key={option.value}><h4 className="font-medium text-text-primary">{option.label}</h4><p>{definitions?.[option.value] ?? "Definition unavailable"}</p></div>)}
+            {OPTIONS.map((option) => <div key={option.value}><h4 className="font-medium text-text-primary">{option.label}</h4><p>{option.value === "distinct_engaged_explorers" ? "Distinct accounts with recorded impressions, profile visits or saves, including Explorer and Merchant actors. Historical account roles are not reconstructed. This is not general app activity, DAU, MAU or retention." : definitions?.[option.value] ?? "Definition unavailable"}</p></div>)}
+            <p>Account counts are distinct within each day or week. The same account may appear in several buckets, so bucket counts must never be summed into a period total. No additional account total is calculated here.</p>
             <p>{definitions?.deduplication ?? data?.description}</p>
             <p>{definitions?.missing_observations ?? "Unobserved buckets are unavailable, not measured zeroes. No source watermark is inferred from the last event."}</p>
             <p>Tracking freshness: {meta?.data_through ? formatTimestamp(meta.data_through) : "Unknown; the last event does not establish coverage."}</p>

@@ -287,3 +287,81 @@ test("sources remain dormant on other tabs and retain cached data after refresh 
   await until(() => client.isFetching() === 0);
   await until(() => !section("Discovery Sources").textContent.includes("Refresh failed"));
 });
+
+const accountTrendButton = () => container.querySelector('[aria-label="Show recorded discovery-active accounts"]');
+
+async function selectAccounts() {
+  await click(accountTrendButton());
+  await until(() => client.isFetching() === 0 && section("Discovery Activity").querySelector("[data-chart]"));
+}
+
+test("discovery accounts reuse trend parameters, bucket values, drawer and cache without summing", async () => {
+  overrides.set("/admin/analytics/discovery-trend/", (report, params) => params.metric === "distinct_engaged_explorers" ? {
+    ...report, value: 3, series: [{date:"2026-10-01",value:2},{date:"2026-10-02",value:2}],
+    timeline: report.timeline.slice(0, 4).map((row, index) => ({...row,value:[2,2,null,0][index]})),
+  } : report);
+  await mount();
+  await selectAccounts();
+  assert.equal(accountTrendButton().getAttribute("aria-pressed"), "true");
+  assert.equal(requests("discovery-trend/").at(-1).params.metric, "distinct_engaged_explorers");
+  assert.equal(requests("discovery-trend/").at(-1).params.interval, "weekly");
+  const report = section("Discovery Activity");
+  assert.match(report.textContent, /Recorded discovery-active accounts by week/);
+  const rows = JSON.parse(report.querySelector("[data-chart]").getAttribute("data-chart"));
+  assert.deepEqual(rows.map((row) => row.value), [2,2,null,0]);
+  assert.equal(report.querySelectorAll('[aria-label="Recorded discovery metric"] button').length, 3);
+  await click(report.querySelector('[aria-label="About Discovery Activity"]'));
+  await until(() => document.querySelector("dialog[open]"));
+  assert.match(document.querySelector("dialog[open]").textContent, /must never be summed/);
+  assert.match(document.querySelector("dialog[open]").textContent, /not general app activity/);
+  await click(document.querySelector('[aria-label="Close Discovery Activity details"]'));
+  await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  assert.match(document.querySelector("dialog[open]").textContent, /Discovery-active accounts/);
+  await click(document.querySelector('[aria-label="Close Discovery Activity details"]'));
+  const count = requests("discovery-trend/").length;
+  await choose("Discovery metric", "saves");
+  await selectAccounts();
+  assert.equal(requests("discovery-trend/").length, count + 1);
+  const interval = report.querySelector("select");
+  await act(async () => { interval.value = "daily"; interval.dispatchEvent(new dom.window.Event("change", {bubbles:true})); });
+  await until(() => client.isFetching() === 0);
+  assert.equal(requests("discovery-trend/").at(-1).params.interval, "daily");
+  await click(periodButton("7"));
+  await until(() => client.isFetching() === 0);
+  assert.equal(requests("discovery-trend/").at(-1).params.period, "7");
+  await tab("Operations");
+  const inactiveCount = requests("discovery-trend/").length;
+  await click(periodButton("90"));
+  await until(() => client.isFetching() === 0);
+  assert.equal(requests("discovery-trend/").length, inactiveCount);
+});
+
+test("account trend handles unavailable and healthy zero without fabricated observations", async () => {
+  overrides.set("/admin/analytics/discovery-trend/", (report, params) => params.metric === "distinct_engaged_explorers" ? {...report,value:null,series:null,timeline:null,meta:{...report.meta,availability:"unavailable"}} : report);
+  await mount();
+  await click(accountTrendButton());
+  await until(() => section("Discovery Activity").textContent.includes("Discovery activity is currently unavailable"));
+  assert.equal(section("Discovery Activity").querySelector("[data-chart]"), null);
+  overrides.set("/admin/analytics/discovery-trend/", (report) => ({...report,value:0,series:[],timeline:report.timeline.map((row) => ({...row,value:null}))}));
+  await click(periodButton("7"));
+  await until(() => section("Discovery Activity").textContent.includes("No discovery-active accounts were recorded"));
+  const rows = JSON.parse(section("Discovery Activity").querySelector("[data-chart]").getAttribute("data-chart"));
+  assert.ok(rows.every((row) => row.value === null));
+});
+
+test("account trend retry is independent and retains cached observations on refresh failure", async () => {
+  await mount();
+  failures.add("/admin/analytics/discovery-trend/");
+  await click(accountTrendButton());
+  await until(() => section("Discovery Activity").textContent.includes("Unable to load report"));
+  assert.equal(section("Discovery Activity").querySelector("[data-chart]"), null);
+  const sourceCount = requests("discovery-sources/").length;
+  failures.clear();
+  await click([...section("Discovery Activity").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
+  await until(() => section("Discovery Activity").querySelector("[data-chart]"));
+  failures.add("/admin/analytics/discovery-trend/");
+  await act(async () => { await client.invalidateQueries({queryKey:["admin","analytics","discoveryTrend"]}); });
+  await until(() => section("Discovery Activity").textContent.includes("Previously loaded data"));
+  assert.ok(section("Discovery Activity").querySelector("[data-chart]"));
+  assert.equal(requests("discovery-sources/").length, sourceCount);
+});
