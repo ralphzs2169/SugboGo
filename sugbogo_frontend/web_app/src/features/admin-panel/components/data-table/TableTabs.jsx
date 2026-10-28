@@ -6,13 +6,13 @@ import TableTabItem from "./TableTabItem";
  * The active background smoothly slides between tabs while inactive tabs
  * transition their text styling.
  */
-function TableTabs({ tabs = [], activeTab, onTabChange, tabListId }) {
+function TableTabs({ tabs = [], activeTab, onTabChange, tabListId, ariaLabel = "Analytics topics" }) {
   if (tabs.length === 0) {
     return null;
   }
 
   return (
-    <div style={tabListId ? { minWidth: "max-content" } : undefined} role={tabListId ? "tablist" : undefined} aria-label={tabListId ? "Analytics topics" : undefined} className="mt-2 inline-flex items-center rounded-lg bg-sidebar-active p-1">
+    <div style={tabListId ? { minWidth: "max-content" } : undefined} role={tabListId ? "tablist" : undefined} aria-label={tabListId ? ariaLabel : undefined} className="mt-2 inline-flex items-center rounded-lg bg-sidebar-active p-1">
 
       {tabs.map((tab) => (
         <TableTabItem

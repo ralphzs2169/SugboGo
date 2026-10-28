@@ -4,6 +4,7 @@ from .discovery_heatmap_views import DiscoveryHeatmapView
 from .operations_views import AttentionQueueView, OnboardingAnalyticsView
 from .reporting_views import (
     ChangeRequestAnalyticsView,
+    BusinessAcquisitionView,
     DiscoverySourcesView,
     TransportationPlanningView,
     CommunityHealthView,
@@ -17,6 +18,11 @@ from .views import VisibilityGapDiagnosticView
 from .views import BusinessAttentionView, CoverageAnalyticsView, LowExposureView
 
 urlpatterns = [
+    path(
+        "business-acquisition/",
+        BusinessAcquisitionView.as_view(),
+        name="admin-analytics-business-acquisition",
+    ),
     path(
         "transportation-planning/",
         TransportationPlanningView.as_view(),

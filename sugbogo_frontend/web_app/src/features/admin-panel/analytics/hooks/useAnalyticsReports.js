@@ -71,3 +71,8 @@ export function useDiscoverySources(params, options) {
 export function useTransportationPlanning(params, options) {
   return useReportQuery("transportationPlanning", params, options);
 }
+
+/** Reads acquisition events by current classification. */
+export function useBusinessAcquisition(params, options) {
+  return useReportQuery("businessAcquisition", params, options);
+}

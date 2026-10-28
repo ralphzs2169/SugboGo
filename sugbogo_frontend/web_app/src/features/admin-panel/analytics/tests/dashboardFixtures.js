@@ -52,6 +52,10 @@ export function fixtureReport(route, params = {}) {
     current: { published_review_count: 2, classified_review_count: 1, unclassified_review_count: 1, sentiment: { positive: { count: 1, percentage: 100 }, neutral: { count: 0, percentage: 0 }, negative: { count: 0, percentage: 0 } } },
     published_review_count_change: change, series: [point("2026-10-01", { published_review_count: 2 })], meta,
   };
+  if (route === "business-acquisition/") return {
+    categories:[{id:2,name:"Cafes",created:1,approved:0}], clusters:[{id:1,name:"Food",created:1,approved:0}],
+    totals:{created:1,approved:0},definitions:{classification:"Current category; no historical transitions."},meta,
+  };
   if (route === "transportation-planning/") return {
     total_requests: 5, distinct_requesting_accounts: 2, requests_without_account_identity: 0,
     methods: [{method:"ROAD_ROUTE",label:"Road routes",count:3,share_percent:60},{method:"JEEPNEY",label:"Jeepney guidance",count:2,share_percent:40},{method:"OTHER",label:"Other recorded methods",count:0,share_percent:0}],

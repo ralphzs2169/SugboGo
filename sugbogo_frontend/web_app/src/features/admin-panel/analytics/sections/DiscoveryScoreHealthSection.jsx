@@ -12,7 +12,7 @@ export default function DiscoveryScoreHealthSection() {
   return (
     <AnalyticsSection title="Discovery Score Health" description="Current active-business score coverage." {...state}
       action={<AnalyticsDrilldown to="/admin-panel/analytics/discovery-scores">View Discovery Scores</AnalyticsDrilldown>}
-      footer={<AnalyticsReportContext asOf={coverage?.snapshot_at}><p>Counters can overlap and are not an exclusive composition. Freshness threshold: {formatCount(coverage?.max_score_age_hours)} hours. A fresh computation does not establish complete visibility telemetry.</p></AnalyticsReportContext>}
+      footer={<AnalyticsReportContext asOf={coverage?.snapshot_at}><p>A business can appear in more than one status, so these counts should not be added together. Freshness threshold: {formatCount(coverage?.max_score_age_hours)} hours. A recently calculated score does not confirm that all discovery activity was recorded.</p></AnalyticsReportContext>}
     >
       {/* Coverage uses global counters, never the single returned score row */}
       <AnalyticsSummary compact items={[["fresh", "Fresh"], ["stale", "Stale"], ["pending", "Pending"], ["failed", "Failed"]].map(([key, label]) => ({ label, value: formatCount(coverage?.[key]) }))} />

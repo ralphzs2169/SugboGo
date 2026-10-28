@@ -16,6 +16,7 @@ function reportOptions(report, fetchReport, params) {
 export const analyticsQueryOptions = {
   platformOverview: (params) => reportOptions("platformOverview", service.fetchPlatformAnalytics, params),
   platformGrowth: (params) => reportOptions("platformGrowth", service.fetchPlatformGrowthAnalytics, params),
+  businessAcquisition: (params) => reportOptions("businessAcquisition", service.fetchBusinessAcquisition, params),
   transportationPlanning: (params) => reportOptions("transportationPlanning", service.fetchTransportationPlanning, params),
   discoverySources: (params) => reportOptions("discoverySources", service.fetchDiscoverySources, params),
   discoverySummary: (params) => reportOptions("discoverySummary", service.fetchDiscoveryActivitySummary, params),

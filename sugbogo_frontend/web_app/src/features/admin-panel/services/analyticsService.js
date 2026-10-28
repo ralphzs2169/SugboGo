@@ -31,3 +31,5 @@ export const fetchDiscoveryScoreAnalytics = (params, options) => fetchReport("di
 export const fetchDiscoverySources = (params, options) => fetchReport("discoverySources", params, options);
 
 export const fetchTransportationPlanning = (params, options) => fetchReport("transportationPlanning", params, options);
+
+export const fetchBusinessAcquisition = (params, options) => fetchReport("businessAcquisition", params, options);

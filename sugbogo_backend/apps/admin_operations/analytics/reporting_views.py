@@ -7,6 +7,7 @@ from apps.authentication.permissions import HasRole
 from apps.users.models import User
 from core.responses import success_response
 
+from .serializers.business_acquisition_serializers import BusinessAcquisitionSerializer
 from .serializers.transportation_planning_serializers import TransportationPlanningSerializer
 from .serializers.discovery_sources_serializers import AdminDiscoverySourcesSerializer
 from .serializers.change_request_serializers import ChangeRequestAnalyticsSerializer
@@ -16,6 +17,7 @@ from .serializers.platform_growth_serializers import PlatformGrowthSerializer
 from .serializers.reporting_serializers import ReportingSeriesQuerySerializer
 from .serializers.specialty_support_serializers import SpecialtySupportSerializer
 from .services.discovery_sources_service import AdminDiscoverySourcesService
+from .services.business_acquisition_service import BusinessAcquisitionService
 from .services.change_request_analytics_service import ChangeRequestAnalyticsService
 from .services.community_health_service import CommunityHealthService
 from .services.platform_growth_service import PlatformGrowthService
@@ -102,3 +104,11 @@ class TransportationPlanningView(AdminReportingView):
     service = TransportationPlanningService
     response_serializer = TransportationPlanningSerializer
     message = "Transportation planning analytics retrieved successfully."
+
+
+class BusinessAcquisitionView(AdminReportingView):
+    """Report independent creation and first approval counts to administrators."""
+
+    service = BusinessAcquisitionService
+    response_serializer = BusinessAcquisitionSerializer
+    message = "Business acquisition analytics retrieved successfully."

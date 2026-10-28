@@ -31,7 +31,7 @@ export default function CommunityHealthSection({ period }) {
         <AnalyticsDisclosure label="Sentiment details"><p>Classified sentiment sample: {formatCount(cohort?.classified_review_count)}. Shares use classified reviews only; unclassified reviews are excluded from the denominator.</p><AnalyticsExactTable caption="Current-period review sentiment" rows={[...rows, { name: "unclassified", label: "Unclassified", count: cohort?.unclassified_review_count, percentage: null }]} columns={[{ key: "label", label: "Classification" }, { key: "count", label: "Reviews", render: (row) => formatCount(row.count) }, { key: "percentage", label: "Share of classified sample", render: (row) => row.name === "unclassified" ? "Excluded from denominator" : formatPercentage(row.percentage) }]} /></AnalyticsDisclosure>
         <AnalyticsSeriesValues title="Review activity" rows={data?.series} lines={LINES} />
       </div>}
-      footer={<AnalyticsReportContext meta={data?.meta}><p>Reviews created during the period that remain published now. Later moderation, deletion or classification can revise cohorts; this is not immutable publication history. Sentiment shares use classified reviews only. No numeric ratings are collected.</p></AnalyticsReportContext>}
+      footer={<AnalyticsReportContext meta={data?.meta}><p>Reviews written during the period that are still published today. Later removal or changes to sentiment can revise earlier counts. Sentiment percentages include only classified reviews; unclassified reviews are shown separately. Reviews do not include star ratings.</p></AnalyticsReportContext>}
     >
       {/* Retained-publication trend preserves missing observations */}
       <AnalyticsTimeSeries rows={data?.series} lines={LINES} />

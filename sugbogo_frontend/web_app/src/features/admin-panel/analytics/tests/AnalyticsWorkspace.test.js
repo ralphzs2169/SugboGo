@@ -140,7 +140,7 @@ async function tab(name) {
 
 test("workspace mounts only Growth reports and reuses cached queries with retained selections", async () => {
   await mount();
-  assert.equal(reads.length, 6);
+  assert.equal(reads.length, 7);
   assert.equal(requests("onboarding/").length, 0);
   assert.equal(requests("attention-queue/").length, 0);
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 0);
@@ -433,4 +433,95 @@ test("transportation keeps cached donut on refresh failure and discloses pretrac
   await click(periodButton("7"));
   await until(()=>section("Transportation Planning").textContent.includes("before transportation tracking began"));
   assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
+});
+
+test("business acquisition switches grouping without a request and preserves period/retry", async () => {
+  await mount();
+  assert.match(section("Business Acquisition").textContent,/Cafes/);
+  const count=requests("business-acquisition/").length;
+  await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent === "By Cluster"));
+  await until(()=>section("Business Acquisition").textContent.includes("Food"));
+  assert.equal(requests("business-acquisition/").length,count);
+  const selected=section("Business Acquisition").querySelector('[aria-selected="true"]');
+  await act(async()=>selected.dispatchEvent(new dom.window.KeyboardEvent("keydown",{key:"ArrowLeft",bubbles:true})));
+  assert.match(section("Business Acquisition").textContent,/Cafes/);
+  await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent.includes("View data")));
+  assert.match(document.querySelector("dialog[open]").textContent,/Acquisition by category/);
+  assert.match(document.querySelector("dialog[open]").textContent,/Created: 1/);
+  await click(document.querySelector('[aria-label="Close Business Acquisition details"]'));
+  failures.add("/admin/analytics/business-acquisition/");
+  await click(periodButton("7"));
+  await until(()=>section("Business Acquisition").textContent.includes("Unable to load report"));
+  assert.equal(requests("business-acquisition/").at(-1).params.period,"7");
+  failures.clear();
+  overrides.set("/admin/analytics/business-acquisition/",(report)=>({...report,categories:[],clusters:[],totals:{created:0,approved:0}}));
+  await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent === "Retry"));
+  await until(()=>section("Business Acquisition").textContent.includes("No business creations"));
+});
+
+test("report drawers lead with readable methodology and hide raw flags in technical details", async () => {
+  overrides.set("/admin/analytics/discovery-sources/",(report)=>({...report,meta:{...report.meta,data_through:null,partial_reasons:["best_effort_delivery","current_day_incomplete","coverage_unverified","freshness_unverified"]}}));
+  await mount();
+  for (const title of ["Discovery Sources","Transportation Planning","Business Acquisition","Discovery Activity","Platform Growth"]) {
+    const trigger=section(title).querySelector(`[aria-label="About ${title}"]`);
+    await click(trigger);
+    const drawer=document.querySelector("dialog[open]");
+    const primary=drawer.cloneNode(true);
+    primary.querySelectorAll("details").forEach((node)=>node.remove());
+    assert.match(primary.textContent,/What this report shows/);
+    assert.match(primary.textContent,/How the numbers are calculated/);
+    assert.match(primary.textContent,/Data reliability/);
+    assert.match(primary.textContent,/Philippine time/);
+    assert.doesNotMatch(primary.textContent,/best_effort_delivery|coverage_unverified|PROFILE_VISIT|MongoDB|positive numeric|half-open|Asia\/Manila/);
+    const technical=[...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details");
+    assert.equal(technical.parentElement.open,false);
+    await click(technical);
+    assert.equal(technical.parentElement.open,true);
+    if(title === "Discovery Sources") {
+      assert.match(primary.textContent,/latest fully captured date has not been confirmed/);
+      assert.match(primary.textContent,/first recorded source/);
+      assert.match(primary.textContent,/still in progress/);
+      assert.match(technical.parentElement.textContent,/best_effort_delivery/);
+    }
+    await click(drawer.querySelector(`[aria-label="Close ${title} details"]`));
+  }
+});
+
+test("shared explanations preserve Operations, Community and Ecosystem report details", async () => {
+  await mount();
+  await tab("Operations");
+  const onboarding=section("Merchant Onboarding");
+  await click([...onboarding.querySelectorAll("button")].find((button)=>button.textContent.includes("About this report")));
+  let drawer=document.querySelector("dialog[open]");
+  assert.match(drawer.textContent,/Overall SLA compliance uses classified outcomes/);
+  assert.ok([...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
+  await click(drawer.querySelector('[aria-label="Close Merchant Onboarding details"]'));
+  await tab("Community & Trust");
+  const community=section("Community Health");
+  const explanation=[...community.querySelectorAll("summary")].find((node)=>node.textContent === "About this report");
+  await click(explanation);
+  assert.match(explanation.parentElement.textContent,/Last updated/);
+  assert.match(explanation.parentElement.textContent,/still published today/);
+  await tab("Business Ecosystem");
+  assert.match(section("Discovery Score Health").textContent,/should not be added together/);
+  const coverage=section("Business Coverage");
+  await click([...coverage.querySelectorAll("summary")].find((node)=>node.textContent === "About this report"));
+  assert.match(coverage.textContent,/Complete recording has not been confirmed/);
+  assert.ok([...coverage.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
+});
+
+test("acquisition loading is independent and inactive tabs do not fetch it", async () => {
+  let release;
+  overrides.set("/admin/analytics/business-acquisition/", (report) => new Promise((resolveReport) => { release=()=>resolveReport(report); }));
+  await act(async () => root.render(React.createElement(QueryClientProvider, {client}, React.createElement(MemoryRouter, {initialEntries}, React.createElement(Page)))));
+  await until(()=>release && section("Business Acquisition"));
+  assert.equal(section("Business Acquisition").getAttribute("aria-busy"),"true");
+  assert.ok(section("Platform Growth"));
+  await act(async()=>release());
+  await until(()=>section("Business Acquisition").textContent.includes("Cafes"));
+  await tab("Operations");
+  const count=requests("business-acquisition/").length;
+  await click(periodButton("90"));
+  await until(()=>client.isFetching() === 0);
+  assert.equal(requests("business-acquisition/").length,count);
 });

@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { formatTimestamp } from "../utils/presentation";
+import AnalyticsReliability from "./AnalyticsReliability";
+import { readablePeriod } from "../utils/reportClarity";
 import AnalyticsDisclosure from "./AnalyticsDisclosure";
 
 const clock = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
@@ -12,11 +14,11 @@ export default function AnalyticsReportContext({ meta, asOf, children }) {
       {/* Effective dates and known source limitations */}
       <span>Updated {(asOf ?? meta?.generated_at) ? clock.format(new Date(asOf ?? meta.generated_at)) : "Unknown"}</span>
       <AnalyticsDisclosure label="About this report">
-      {asOf ? <p>Current snapshot as of {formatTimestamp(asOf)} Manila time. Global dates do not filter this snapshot.</p> : meta?.period && <p>Reporting dates: {meta.period.start_date} to {meta.period.end_date} · Asia/Manila.</p>}
-      {asOf && meta?.period && <p>Period measures: {meta.period.start_date} to {meta.period.end_date} · Asia/Manila.</p>}
-      {meta && <p>Report generated: {formatTimestamp(meta.generated_at)}. Data through: {formatTimestamp(meta.data_through)}.</p>}
-      {meta && <p>Source availability: {meta.availability ?? "Unknown"}. Coverage verified: {meta.coverage_verified === true ? "Yes" : meta.coverage_verified === false ? "No" : "Unknown"}.</p>}
+      {asOf && <p>Current snapshot as of {formatTimestamp(asOf)} Philippine time. Selected dates do not filter this snapshot.</p>}
+      {meta?.period && <p>{readablePeriod(meta.period)} � Philippine time.</p>}
+      <AnalyticsReliability meta={meta} />
       {children}
+      {meta && <AnalyticsDisclosure label="Technical details"><pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(meta, null, 2)}</pre></AnalyticsDisclosure>}
       </AnalyticsDisclosure>
     </div>
   );

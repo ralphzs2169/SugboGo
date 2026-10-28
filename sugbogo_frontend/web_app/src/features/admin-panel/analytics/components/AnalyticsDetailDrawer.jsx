@@ -1,9 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BadgeCheck, CalendarDays, Clock3, Database, Info, ShieldCheck, Store, Users, X } from "lucide-react";
+import { BadgeCheck, CalendarDays, Info, Store, Users, X } from "lucide-react";
+import AnalyticsDisclosure from "./AnalyticsDisclosure";
+import AnalyticsReliability from "./AnalyticsReliability";
+import AnalyticsReportExplanation from "./AnalyticsReportExplanation";
+import { readablePeriod } from "../utils/reportClarity";
 import AnalyticsExactTable from "./AnalyticsExactTable";
 import { growthPeriodLabel } from "../utils/growthPresentation";
-import { formatCount, formatTimestamp } from "../utils/presentation";
+import { formatCount } from "../utils/presentation";
 
 /** Presents report methodology and exact values in one right-side modal with native focus containment. */
 export default function AnalyticsDetailDrawer({
@@ -107,26 +111,13 @@ export default function AnalyticsDetailDrawer({
         </header>
         {/* Scrollable report details preserve dashboard position */}
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 text-sm">
-          <p className="flex items-center gap-2 text-xs text-text-secondary"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{meta?.period ? `${meta.period.start_date} – ${meta.period.end_date} · ${displayMode === "data" ? interval : meta.period.timezone}` : "Reporting dates unavailable"}</p>
+          <div className="text-sm text-text-secondary"><p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{readablePeriod(meta?.period)}</p><p className="mt-1">Philippine time{displayMode === "data" ? ` � ${interval}` : ""}</p></div>
           {displayMode === "about" ? <>
-            <h3 className="text-xs font-semibold uppercase text-text-secondary">Report details</h3>
-            <dl className="space-y-4 rounded-xl bg-surface p-4">
-              {[
-                ...(showComparison ? [["Compared with", growthPeriodLabel(meta?.period?.previous_start, meta?.period?.previous_end_exclusive), CalendarDays]] : []),
-                ["Report generated", formatTimestamp(meta?.generated_at), Clock3],
-                ["Data through", formatTimestamp(meta?.data_through), CalendarDays],
-                ["Source availability", meta?.availability ?? "Unavailable", Database],
-                ["Coverage verified", meta?.coverage_verified === true ? "Yes" : meta?.coverage_verified === false ? "No" : "Unknown", ShieldCheck],
-              ].map(([label, value, Icon]) => (
-                <div key={label} className="flex items-start gap-3">
-                  <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-text-secondary" />
-                  <div>
-                  <dt className="text-xs text-text-secondary">{label}</dt>
-                  <dd className="mt-1 font-medium capitalize">{value}</dd>
-                  </div>
-                </div>
-              ))}
-            </dl>
+            <AnalyticsReportExplanation title={title} report={report} />
+            <AnalyticsReliability meta={meta} />
+            {showComparison && <p className="text-xs text-text-secondary">Compared with {growthPeriodLabel(meta?.period?.previous_start, meta?.period?.previous_end_exclusive)} Philippine time.</p>}
+            <AnalyticsDisclosure label="Technical details">
+              <pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(meta, null, 2)}</pre>
             {aboutContent ?? <div className="space-y-4 border-t border-stroke pt-5">
               <h3 className="text-xs font-semibold uppercase text-text-secondary">How these metrics work</h3>
               {series.map((item) => (
@@ -147,6 +138,7 @@ export default function AnalyticsDetailDrawer({
               ))}
               <p className="flex items-start gap-2 text-xs leading-relaxed text-text-secondary"><Info aria-hidden="true" className="h-4 w-4 shrink-0" />{report?.definitions?.comparisons}</p>
             </div>}
+            </AnalyticsDisclosure>
           </> : (
             <>
             {dataDescription && <p className="font-medium">{dataDescription}</p>}
