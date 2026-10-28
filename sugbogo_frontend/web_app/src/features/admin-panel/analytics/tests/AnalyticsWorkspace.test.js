@@ -309,17 +309,17 @@ test("discovery accounts reuse trend parameters, bucket values, drawer and cache
   assert.equal(requests("discovery-trend/").at(-1).params.metric, "distinct_engaged_explorers");
   assert.equal(requests("discovery-trend/").at(-1).params.interval, "weekly");
   const report = section("Discovery Activity");
-  assert.match(report.textContent, /Recorded discovery-active accounts by week/);
+  assert.match(report.textContent, /Recorded accounts participating by week/);
   const rows = JSON.parse(report.querySelector("[data-chart]").getAttribute("data-chart"));
   assert.deepEqual(rows.map((row) => row.value), [2,2,null,0]);
-  assert.equal(report.querySelectorAll('[aria-label="Recorded discovery metric"] button').length, 4);
+  assert.equal(report.querySelectorAll('[aria-label="Recorded discovery metric"] button').length, 3);
   await click(report.querySelector('[aria-label="About Discovery Activity"]'));
   await until(() => document.querySelector("dialog[open]"));
   assert.match(document.querySelector("dialog[open]").textContent, /must never be summed/);
   assert.match(document.querySelector("dialog[open]").textContent, /not general app activity/);
   await click(document.querySelector('[aria-label="Close Discovery Activity details"]'));
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
-  assert.match(document.querySelector("dialog[open]").textContent, /Discovery-active accounts/);
+  assert.match(document.querySelector("dialog[open]").textContent, /Accounts participating/);
   await click(document.querySelector('[aria-label="Close Discovery Activity details"]'));
   const count = requests("discovery-trend/").length;
   await choose("Discovery metric", "saves");
@@ -524,4 +524,25 @@ test("acquisition loading is independent and inactive tabs do not fetch it", asy
   await click(periodButton("90"));
   await until(()=>client.isFetching() === 0);
   assert.equal(requests("business-acquisition/").length,count);
+});
+
+test("growth layout keeps full-width acquisition above paired discovery panels", async () => {
+  await mount();
+  const growth=section("Platform Growth");
+  const activity=section("Discovery Activity");
+  const sources=section("Discovery Sources");
+  assert.equal(activity.parentElement,sources.parentElement);
+  assert.ok(activity.parentElement.classList.contains("xl:grid-cols-2"));
+  assert.equal(growth.parentElement,activity.parentElement.parentElement);
+  await selectAccounts();
+  assert.match(activity.textContent,/Accounts participating/);
+  assert.match(activity.textContent,/Distinct accounts with recorded discovery activity during each interval/);
+  for(const metric of ["profile_visits","impressions","saves"]) {
+    await choose("Discovery metric",metric);
+    const label={profile_visits:"profile visits",impressions:"impressions",saves:"saves"}[metric];
+    assert.equal(activity.querySelector(`[aria-label="Show recorded ${label}"]`).getAttribute("aria-pressed"),"true");
+    assert.equal(accountTrendButton().getAttribute("aria-pressed"),"false");
+  }
+  assert.ok(section("Business Acquisition"));
+  assert.ok(section("Transportation Planning"));
 });

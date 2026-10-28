@@ -19,7 +19,7 @@ const OPTIONS = [
   { value: "profile_visits", label: "Profile visits", color: "var(--color-info)" },
   { value: "impressions", label: "Impressions", color: "var(--color-primary)" },
   { value: "saves", label: "Saves", color: "var(--color-success)" },
-  { value: "distinct_engaged_explorers", label: "Discovery-active accounts", color: "var(--color-neutral)" },
+  { value: "distinct_engaged_explorers", label: "Accounts participating", color: "var(--color-neutral)" },
 ];
 const day = new Intl.DateTimeFormat("en-PH", {
   timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric",
@@ -44,15 +44,21 @@ function DiscoverySummary({ query, metric, onSelect }) {
       {/* An isolated failure never removes the trend or metric controls */}
       {query.error && <DataErrorState compact title="Unable to load discovery summary" message={state.errorMessage} onRetry={state.onRetry} retrying={query.isFetching} retryLabel="Retry summary" />}
       {query.data?.meta?.availability === "unavailable" && <p className="mb-2 text-xs text-text-secondary">Discovery summary is currently unavailable.</p>}
-      {/* All four options share one responsive, keyboard-accessible selection system. */}
-      <div className="grid min-w-0 grid-cols-2 gap-2 2xl:grid-cols-4" role="group" aria-label="Recorded discovery metric">
-        {OPTIONS.map((option) => (
+      {/* Primary event metrics remain prominent above secondary account participation. */}
+      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3" role="group" aria-label="Recorded discovery metric">
+        {OPTIONS.slice(0, 3).map((option) => (
           <button key={option.value} type="button" aria-label={`Show recorded ${option.label.toLowerCase()}`} aria-pressed={metric === option.value} onClick={() => onSelect(option.value)}
             className={`min-h-20 min-w-0 cursor-pointer rounded-lg border p-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info ${metric === option.value ? "border-text-primary bg-surface text-text-primary" : "border-stroke text-text-secondary hover:bg-surface-hover"}`}>
             <span className="block text-xs font-medium">{option.label}</span>
-            <span className="mt-2 block text-sm font-semibold tabular-nums">{option.value === "distinct_engaged_explorers" ? "Account trend" : query.isLoading && !query.data ? "Loading..." : formatCount(query.data?.totals?.[option.value])}</span>
+            <span className="mt-2 block text-sm font-semibold tabular-nums">{query.isLoading && !query.data ? "Loading..." : formatCount(query.data?.totals?.[option.value])}</span>
           </button>
         ))}
+      </div>
+      {/* Secondary participation analysis uses the same chart and query selection. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button type="button" aria-label="Show recorded discovery-active accounts" aria-pressed={metric === "distinct_engaged_explorers"} onClick={() => onSelect("distinct_engaged_explorers")}
+          className={`min-h-9 cursor-pointer rounded-lg border px-3 py-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info ${metric === "distinct_engaged_explorers" ? "border-text-primary bg-surface text-text-primary" : "border-stroke text-text-secondary hover:bg-surface-hover"}`}>Accounts participating</button>
+        <p className="text-xs text-text-secondary">Distinct accounts with recorded discovery activity during each interval.</p>
       </div>
     </div>
   );
