@@ -13,6 +13,10 @@ export default function Tooltip({
   children,
   place = "right",
   asChild = false,
+  className,
+  openOnClick = false,
+  closeEvents,
+  globalCloseEvents,
 }) {
   const [id] = useState(() => {
     tooltipCounter += 1;
@@ -38,7 +42,10 @@ export default function Tooltip({
         id={id}
         place={place}
         positionStrategy="fixed"
-        className="!rounded-md !bg-tooltip-background !text-tooltip-text !px-1 !py-1 !text-xs !font-medium"
+        openOnClick={openOnClick}
+        closeEvents={closeEvents}
+        globalCloseEvents={globalCloseEvents}
+        className={`!rounded-md !bg-tooltip-background !text-tooltip-text !text-xs !font-medium ${className ?? "!px-1 !py-1"}`}
       />
     </>
   );

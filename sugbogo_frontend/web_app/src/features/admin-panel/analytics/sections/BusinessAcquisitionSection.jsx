@@ -1,6 +1,7 @@
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
 import { useState } from "react";
+import { Layers, Tags } from "lucide-react";
 import TableTabs from "../../components/data-table/TableTabs";
 import { useBusinessAcquisition } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
@@ -10,7 +11,10 @@ import AnalyticsExactTable from "../components/AnalyticsExactTable";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import { formatCount } from "../utils/presentation";
 
-const TABS = [{ id: "categories", label: "By Category" }, { id: "clusters", label: "By Cluster" }];
+const TABS = [
+  { id: "categories", label: "By Category", icon: Tags },
+  { id: "clusters", label: "By Cluster", icon: Layers },
+];
 const COLUMNS = [
   { key: "name", label: "Classification" },
   { key: "created", label: "Created", render: (row) => formatCount(row.created) },

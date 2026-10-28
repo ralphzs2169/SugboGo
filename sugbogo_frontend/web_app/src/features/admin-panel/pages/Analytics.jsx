@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router-dom";
+import { Settings2, ShieldCheck, Store, TrendingUp } from "lucide-react";
 import TableTabs from "../components/data-table/TableTabs";
 import { WorkspaceSelections } from "../analytics/hooks/useWorkspaceSelection";
 import { useState } from "react";
@@ -20,10 +21,10 @@ import SpecialtySupportSection from "../analytics/sections/SpecialtySupportSecti
 import DiscoveryScoreHealthSection from "../analytics/sections/DiscoveryScoreHealthSection";
 
 const TABS = [
-  { id: "growth-discovery", label: "Growth & Discovery" },
-  { id: "operations", label: "Operations" },
-  { id: "community-trust", label: "Community & Trust" },
-  { id: "business-ecosystem", label: "Business Ecosystem" },
+  { id: "growth-discovery", label: "Growth & Discovery", icon: TrendingUp },
+  { id: "operations", label: "Operations", icon: Settings2 },
+  { id: "community-trust", label: "Community & Trust", icon: ShieldCheck },
+  { id: "business-ecosystem", label: "Business Ecosystem", icon: Store },
 ];
 
 /** Mounts one topic's independent reports while preserving report controls and shared period state. */

@@ -1,9 +1,9 @@
 import { useId, useState } from "react";
-import { Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Info, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { ReferenceArea } from "recharts";
 
 import { getMetricVariant } from "../../constants/metricVariants";
-import AnalyticsDisclosure from "../components/AnalyticsDisclosure";
+import Tooltip from "@/shared/components/actions/Tooltip";
 import AnalyticsTooltip from "../components/AnalyticsTooltip";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
@@ -102,18 +102,33 @@ function GrowthStatistics({ activity }) {
         return (
           <div
             key={series.key}
-            className={`relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0 min-[480px]:block min-[480px]:px-3 min-[480px]:py-0 min-[480px]:first:pl-0 min-[480px]:last:pr-0 sm:px-5 [&_details]:static ${
-              series.key === "new_consumer_accounts"
-                ? "[&_details>div]:left-0 [&_details>div]:right-auto"
-                : ""
-            }`}
+            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0 min-[480px]:block min-[480px]:px-3 min-[480px]:py-0 min-[480px]:first:pl-0 min-[480px]:last:pr-0 sm:px-5"
           >
             <dt className="flex min-h-8 flex-wrap items-center gap-x-1 text-xs font-medium leading-5 text-text-secondary">
               <span>{series.title}</span>
               {series.explanation && (
-                <AnalyticsDisclosure label={`About ${series.title}`} inline iconOnly>
-                  {series.explanation}
-                </AnalyticsDisclosure>
+                <Tooltip
+                  content={series.explanation}
+                  place="top"
+                  asChild
+                  openOnClick
+                  closeEvents={{ blur: true }}
+                  globalCloseEvents={{
+                    escape: true,
+                    clickOutsideAnchor: true,
+                    scroll: true,
+                    resize: true,
+                  }}
+                  className="!z-50 max-w-[min(18rem,calc(100vw-2rem))] whitespace-normal !px-3 !py-2 leading-relaxed"
+                >
+                  <button
+                    type="button"
+                    aria-label={`About ${series.title}`}
+                    className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
+                  >
+                    <Info aria-hidden="true" className="h-3.5 w-3.5" />
+                  </button>
+                </Tooltip>
               )}
             </dt>
             <dd className="text-2xl font-semibold tracking-tight text-text-primary tabular-nums min-[480px]:mt-1">
