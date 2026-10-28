@@ -6,10 +6,12 @@ import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
 import AnalyticsSection from "../components/AnalyticsSection";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import BusinessAcquisitionTable from "../components/BusinessAcquisitionTable";
+import BusinessAcquisitionDistribution from "../components/BusinessAcquisitionDistribution";
 import { useBusinessAcquisition } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
+import { formatCount } from "../utils/presentation";
 
-/** Reports new businesses through their current cluster and category hierarchy. */
+/** Presents ranked acquisition shares while retaining complete classification counts in View Data. */
 export default function BusinessAcquisitionSection({ period }) {
   const [mode, setMode] = useState(null);
   const query = useBusinessAcquisition(period);
@@ -38,11 +40,19 @@ export default function BusinessAcquisitionSection({ period }) {
 
   return (
     <>
-      {/* One hierarchy replaces independent category and cluster views. */}
+      {/* Ranked distribution and one overall total preserve the report's original scope. */}
       <AnalyticsSection
         title="Business Acquisition"
         description="New businesses by current cluster and category."
         {...state}
+        controls={data ? (
+          <dl className="text-right">
+            <dt className="text-xs text-text-secondary">Total new businesses</dt>
+            <dd className="mt-0.5 text-xl font-semibold text-text-primary tabular-nums">
+              {formatCount(data.totals?.created)}
+            </dd>
+          </dl>
+        ) : undefined}
         footer={
           <AnalyticsReportFooter
             title="Business Acquisition"
@@ -55,16 +65,13 @@ export default function BusinessAcquisitionSection({ period }) {
         }
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
-        <p className="mb-3 text-xs leading-relaxed text-text-secondary">
-          Categories break down each cluster total. Select a cluster to hide or show its categories.
-        </p>
         {hierarchyAvailable && data.hierarchy.length > 0 && data.totals?.created === 0 && (
           <p className="mb-3 text-xs text-text-secondary">
             No new businesses were recorded during this period.
           </p>
         )}
         {hierarchyAvailable ? (
-          <BusinessAcquisitionTable
+          <BusinessAcquisitionDistribution
             key={populationKey}
             clusters={data.hierarchy}
             total={data.totals?.created}
