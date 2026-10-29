@@ -78,9 +78,29 @@ class BusinessRatingService:
                 "RRSR_SCORE": float(score),
                 "RRSR_LABEL": label,
                 "RRSR_SCORING_VERSION": scoring_version,
+                "RRSR_IS_VALID": True,
             },
         )
+        from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
+
+        BusinessRatingWorkService.request_change(review.BUSN_ID_id)
         return result
+
+    @staticmethod
+    @transaction.atomic
+    def invalidate_result(review_id):
+        """Revoke a versioned input without falling back to unverified legacy scores."""
+        from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
+
+        try:
+            review = Review.objects.select_for_update().get(pk=review_id)
+        except Review.DoesNotExist:
+            raise NotFound("The review could not be found.") from None
+        ReviewRatingResult.objects.filter(REVW_ID=review).update(
+            RRSR_IS_VALID=False,
+            RRSR_UPDATED_AT=timezone.now(),
+        )
+        BusinessRatingWorkService.request_change(review.BUSN_ID_id)
 
     @classmethod
     def eligible_reviews(
@@ -105,6 +125,7 @@ class BusinessRatingService:
         else:
             reviews = reviews.filter(
                 rating_result__RRSR_SCORING_VERSION=scoring_version,
+                rating_result__RRSR_IS_VALID=True,
                 rating_result__RRSR_SOURCE_TEXT=F("REVW_TEXT"),
             )
             score_field = "rating_result__RRSR_SCORE"
@@ -125,6 +146,7 @@ class BusinessRatingService:
         business_id,
         scoring_version,
         allow_legacy=False,
+        expected_revision=None,
     ):
         """Serialize full recomputation and store count/value from one SQL snapshot."""
         cls.validate_version(
@@ -142,6 +164,11 @@ class BusinessRatingService:
                 "BRAT_CALCULATION_VERSION": cls.CALCULATION_VERSION,
             },
         )
+        if expected_revision is not None and (
+            aggregate.BRAT_REQUESTED_REVISION != expected_revision
+            or aggregate.BRAT_SCORING_VERSION != scoring_version
+        ):
+            return aggregate
         reviews, score_field = cls.eligible_reviews(
             business_id,
             scoring_version,
@@ -168,8 +195,12 @@ class BusinessRatingService:
         aggregate.BRAT_SCORING_VERSION = scoring_version
         aggregate.BRAT_CALCULATION_VERSION = cls.CALCULATION_VERSION
         aggregate.BRAT_STATE = state
-        aggregate.BRAT_REQUESTED_REVISION += 1
+        if expected_revision is None:
+            aggregate.BRAT_REQUESTED_REVISION += 1
         aggregate.BRAT_COMPLETED_REVISION = aggregate.BRAT_REQUESTED_REVISION
+        aggregate.BRAT_ATTEMPTS = 0
+        aggregate.BRAT_RETRY_AT = None
+        aggregate.BRAT_LAST_ERROR = ""
         aggregate.save()
         return aggregate
 

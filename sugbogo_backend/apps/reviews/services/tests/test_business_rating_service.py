@@ -160,7 +160,7 @@ class BusinessRatingServiceTests(SummaryFixtureMixin, TestCase):
         ).data
         self.assertEqual(data["provenance"], "legacy_unverified")
         self.assertTrue(data["experimental"])
-        self.assertFalse(data["automatic_updates_enabled"])
+        self.assertTrue(data["automatic_updates_enabled"])
 
     def test_versions_never_mix_and_stale_text_is_excluded(self):
         """Select precisely one method and prevent legacy fallback for explicit inputs."""

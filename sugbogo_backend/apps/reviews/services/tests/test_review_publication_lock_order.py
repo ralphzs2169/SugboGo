@@ -121,6 +121,10 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
             context,
         ):
             counter_update = sql.startswith(f"UPDATE {business_table} ")
+            business_lock = (
+                f"FROM {business_table} " in sql
+                and "FOR UPDATE" in sql
+            )
             policy_lock = policy_table in sql and "FOR UPDATE" in sql
             user_lock = (
                 f"FROM {user_table} " in sql
@@ -129,10 +133,11 @@ class ReviewPublicationLockOrderTests(SummaryFixtureMixin, TransactionTestCase):
             shared_user_lock = shared_reporter and user_lock
             if (
                 not publisher
-                and (counter_update or shared_user_lock)
+                and (counter_update or business_lock or shared_user_lock)
             ):
                 # Signal before a possible wait on publication's first shared
-                # lock: the account for reporter races, otherwise the counter.
+                # lock: the account for reporter races, otherwise the business
+                # row (rating deletion invalidation can lock it before UPDATE).
                 self.contender_ready.set()
             result = execute(sql, params, many, context)
             if (

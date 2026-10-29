@@ -1,5 +1,9 @@
 # Experimental business rating foundation (Phase 3)
 
+This records the original Phase 3 contract. Automatic delivery, invalidation,
+recovery and the current API freshness behavior are now described in
+[the Phase 4 lifecycle guide](experimental-business-rating-lifecycle.md).
+
 ## Scope and exposure
 
 Ratings are manual development snapshots. They are not validated quality scores.

@@ -27,8 +27,10 @@ from apps.reviews.models import (
     ReviewMediaCleanup,
     ReviewPhoto,
     ReviewReport,
+    ReviewRatingResult,
     ReviewReply,
 )
+from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
@@ -195,6 +197,7 @@ class ReviewService:
             BUSN_REVIEW_COUNT=models.F("BUSN_REVIEW_COUNT") + 1,
         )
 
+        BusinessRatingWorkService.request_change(review.BUSN_ID_id)
         ReviewService._queue_sentiment_after_commit(
             review.REVW_ID,
             review.BUSN_ID_id,
@@ -1211,6 +1214,10 @@ class ReviewService:
             review.REVW_TEXT = text
             review.REVW_IS_OUTLIER_SENTIMENT = False
             text_changed = True
+            ReviewRatingResult.objects.filter(REVW_ID=review).update(
+                RRSR_IS_VALID=False,
+                RRSR_UPDATED_AT=timezone.now(),
+            )
             review.save(
                 update_fields=[
                     "REVW_TEXT",
@@ -1292,6 +1299,7 @@ class ReviewService:
             )
 
         if text_changed:
+            BusinessRatingWorkService.request_change(review.BUSN_ID_id)
             ReviewInsightSchedulingService.review_changed(
                 review.BUSN_ID_id,
                 previous_input,

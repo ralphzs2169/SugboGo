@@ -27,6 +27,7 @@ class ReviewRatingResult(models.Model):
     RRSR_SCORING_VERSION = models.CharField(max_length=100)
     RRSR_SOURCE_TEXT = models.TextField(max_length=1000)
     RRSR_SCORE = models.FloatField()
+    RRSR_IS_VALID = models.BooleanField(default=True)
     RRSR_LABEL = models.CharField(
         max_length=20,
         choices=(
@@ -80,6 +81,9 @@ class BusinessRating(models.Model):
     )
     BRAT_REQUESTED_REVISION = models.PositiveBigIntegerField(default=0)
     BRAT_COMPLETED_REVISION = models.PositiveBigIntegerField(default=0)
+    BRAT_ATTEMPTS = models.PositiveIntegerField(default=0)
+    BRAT_RETRY_AT = models.DateTimeField(null=True, blank=True, db_index=True)
+    BRAT_LAST_ERROR = models.CharField(max_length=64, blank=True, default="")
     BRAT_CREATED_AT = models.DateTimeField(auto_now_add=True)
     BRAT_UPDATED_AT = models.DateTimeField(auto_now=True)
 

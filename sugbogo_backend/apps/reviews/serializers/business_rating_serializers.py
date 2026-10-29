@@ -2,6 +2,8 @@
 
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.conf import settings
+
 from rest_framework import serializers
 
 from apps.reviews.services.business_rating_service import BusinessRatingService
@@ -25,7 +27,7 @@ class BusinessRatingSerializer(serializers.Serializer):
             "scoring_version": None,
             "calculation_version": BusinessRatingService.CALCULATION_VERSION,
             "computed_at": None,
-            "automatic_updates_enabled": False,
+            "automatic_updates_enabled": settings.BUSINESS_RATING_AUTO_UPDATES_ENABLED,
         }
         if aggregate is None:
             return data
@@ -45,8 +47,13 @@ class BusinessRatingSerializer(serializers.Serializer):
         })
         if aggregate.BRAT_CALCULATION_VERSION != BusinessRatingService.CALCULATION_VERSION:
             data["state"] = "unavailable"
+            data["contributing_review_count"] = None
         elif aggregate.BRAT_REQUESTED_REVISION > aggregate.BRAT_COMPLETED_REVISION:
-            data["state"] = "pending"
+            if aggregate.BRAT_LAST_ERROR:
+                data["state"] = "unavailable"
+            else:
+                data["state"] = "pending"
+            data["contributing_review_count"] = None
         elif aggregate.BRAT_VALUE is not None:
             data["value"] = float(aggregate.BRAT_VALUE.quantize(
                 Decimal("0.1"),
