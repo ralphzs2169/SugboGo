@@ -7,10 +7,7 @@ import type {
   BusinessReviewInsights,
   ReviewInsightRegeneration,
 } from "../../../../types/exploreBusiness.types";
-import type {
-  BusinessReviewFilters,
-  ReviewSentiment,
-} from "../../../../types/review.types";
+import type { BusinessReviewFilters } from "../../../../types/review.types";
 import RecentReviewInsightsSection from "../RecentReviewInsightsSection";
 import ReviewFilterControls from "./ReviewFilterControls";
 
@@ -71,13 +68,6 @@ export default function ReviewFiltersSection({
     onChange,
   ]);
 
-  const toggleSentiment = (sentiment: ReviewSentiment) => {
-    onChange({
-      ...filters,
-      sentiment: filters.sentiment === sentiment ? null : sentiment,
-    });
-  };
-
   return (
     <View className="gap-5 pt-5">
       {/* Recent insights and evidence-backed topic filters */}
@@ -87,8 +77,6 @@ export default function ReviewFiltersSection({
         isLoading={insightsLoading}
         error={insightsError}
         onRetry={onRetryInsights}
-        selectedSentiment={filters.sentiment}
-        onSentimentPress={toggleSentiment}
       >
         <ReviewMentionedAspects
           mentions={insights?.frequent_mentions ?? []}

@@ -85,7 +85,7 @@ describe("ReviewFiltersSection", () => {
     await press(screen.getByLabelText("Filter reviews, 0 active filters"));
     expect(onOpenFilter).toHaveBeenCalledTimes(1);
 
-    expect(screen.getByText("Positive")).toBeTruthy();
+    expect(screen.queryByText("Positive")).toBeNull();
     expect(screen.getByText("Frequently mentioned")).toBeTruthy();
 
     await press(topicButtons[0]);
@@ -151,6 +151,6 @@ describe("ReviewFiltersSection", () => {
     expect(
       screen.queryByLabelText("Friendly service, mentioned in 8 reviews"),
     ).toBeNull();
-    expect(screen.getByText("Mostly positive")).toBeTruthy();
+    expect(screen.queryByText("Review Insights")).toBeNull();
   });
 });

@@ -16,11 +16,6 @@ const RULES = [
     text: "Counts reviews created during the selected dates that are still published when the report is prepared. It is not a record of every past publication or removal.",
   },
   {
-    icon: "emoticon-outline",
-    title: "Customer feedback",
-    text: "Reviews are grouped as positive, neutral, or negative using their saved classifications. The overall label and percentages describe the selected dates and appear only when enough reviews are categorized. Reviews without a category remain included in the review total.",
-  },
-  {
     icon: "message-reply-text-outline",
     title: "Your replies",
     text: "The reply rate is the share of this period’s published reviews with a valid merchant reply at the reporting cutoff. Comparisons use percentage points (pp). Recent reviews have had less time to receive replies.",
