@@ -4,7 +4,6 @@ import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useId, useState } from "react";
-import { Bookmark, Eye, MousePointerClick, Users } from "lucide-react";
 import { ReferenceArea } from "recharts";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import AnalyticsSection from "../components/AnalyticsSection";
@@ -18,10 +17,10 @@ import { comparisonText, formatCount, formatTimestamp } from "../utils/presentat
 import { growthBucketLabel, growthPeriodLabel } from "../utils/growthPresentation";
 
 const OPTIONS = [
-  { value: "profile_visits", label: "Profile visits", icon: MousePointerClick, color: "var(--color-info)" },
-  { value: "impressions", label: "Impressions", icon: Eye, color: "var(--color-primary)" },
-  { value: "saves", label: "Saves", icon: Bookmark, color: "var(--color-success)" },
-  { value: "distinct_engaged_explorers", label: "Participating Accounts", icon: Users, color: "var(--color-neutral)" },
+  { value: "profile_visits", label: "Profile visits", color: "var(--color-info)" },
+  { value: "impressions", label: "Impressions", color: "var(--color-primary)" },
+  { value: "saves", label: "Saves", color: "var(--color-success)" },
+  { value: "distinct_engaged_explorers", label: "Participating Accounts", color: "var(--color-neutral)" },
 ];
 const day = new Intl.DateTimeFormat("en-PH", {
   timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric",
@@ -104,6 +103,7 @@ export default function DiscoveryActivitySection({ period }) {
           <p className="text-xs font-medium text-text-secondary">Activity Trend</p>
           <div className="overflow-x-auto pb-1">
             <TableTabs
+              size="sm"
               ariaLabel="Activity Trend"
               tabListId="discovery-trend-metrics"
               activeTab={metric}
@@ -111,7 +111,6 @@ export default function DiscoveryActivitySection({ period }) {
               tabs={OPTIONS.map((option) => ({
                 id: option.value,
                 label: option.value === "profile_visits" ? "Visits" : option.label,
-                icon: option.icon,
               }))}
             />
           </div>

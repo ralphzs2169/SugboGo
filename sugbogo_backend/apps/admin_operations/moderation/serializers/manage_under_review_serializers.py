@@ -2,6 +2,7 @@
 
 from rest_framework import serializers
 
+from apps.admin_operations.activity_management.models import AdminActivity
 from apps.reviews.models import Review, ReviewReply
 from apps.reviews.serializers.review_serializers import (
     ReviewAuthorResponseSerializer,
@@ -42,6 +43,11 @@ class AdminUnderReviewFilterSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
         trim_whitespace=True,
+    )
+    status = serializers.ChoiceField(
+        choices=("pending", "approved", "rejected", "all"),
+        required=False,
+        default="pending",
     )
     reason = serializers.ChoiceField(
         choices=(
@@ -86,6 +92,7 @@ class AdminUnderReviewListSerializer(serializers.ModelSerializer):
     submitted_at = serializers.DateTimeField(source="REVW_CREATED_AT")
     status = serializers.CharField(source="REVW_STATUS")
     hold_reasons = serializers.SerializerMethodField()
+    decision_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
@@ -101,7 +108,16 @@ class AdminUnderReviewListSerializer(serializers.ModelSerializer):
             "submitted_at",
             "status",
             "hold_reasons",
+            "decision_status",
         )
+
+    def get_decision_status(self, review):
+        """Expose the manual decision separately from the current review status."""
+        if review.REVW_STATUS == Review.ReviewStatus.UNDER_REVIEW:
+            return "pending"
+        if review.moderation_action == AdminActivity.Action.REVIEW_MODERATION_APPROVED:
+            return "approved"
+        return "rejected"
 
     def get_business(self, review):
         """Return a small linked business identity."""
@@ -159,6 +175,7 @@ class AdminUnderReviewDetailSerializer(AdminUnderReviewListSerializer):
         allow_null=True,
     )
     reply = serializers.SerializerMethodField()
+    decision = serializers.SerializerMethodField()
 
     class Meta(AdminUnderReviewListSerializer.Meta):
         fields = AdminUnderReviewListSerializer.Meta.fields + (
@@ -169,7 +186,25 @@ class AdminUnderReviewDetailSerializer(AdminUnderReviewListSerializer):
             "reliability_check_outcome",
             "edited_at",
             "reply",
+            "decision",
         )
+
+    def get_decision(self, review):
+        """Return the recorded reviewer, decision time, and original internal notes."""
+        activity = review.moderation_decision
+        if activity is None:
+            return None
+        actor = activity.ACTOR_ID
+        return {
+            "status": self.get_decision_status(review),
+            "reviewed_by": {
+                "id": actor.pk,
+                "first_name": actor.USER_FNAME,
+                "last_name": actor.USER_LNAME,
+            },
+            "reviewed_at": activity.AACT_CREATED_AT,
+            "notes": activity.AACT_CONTEXT.get("moderation_notes"),
+        }
 
     def get_reply(self, review):
         """Expose an existing merchant reply only inside Admin detail."""

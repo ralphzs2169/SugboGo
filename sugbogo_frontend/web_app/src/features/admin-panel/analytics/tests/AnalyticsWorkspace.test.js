@@ -248,8 +248,9 @@ test("shared table tabs retain their default click and count presentation withou
   const rows = JSON.parse(report.querySelector("[data-chart]").getAttribute("data-chart"));
   assert.equal(rows.length, 7);
   assert.equal(rows[0].label, "Map");
-  assert.equal(rows[1].label, "Unknown");
-  assert.equal(rows[2].label, "Explore");
+  assert.equal(rows.at(-1).label, "Unknown");
+  assert.equal(rows.at(-1).color, "var(--color-neutral)");
+  assert.equal(rows[1].label, "Explore");
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   assert.match(document.querySelector("dialog[open]").textContent, /66.67/);
   await click(document.querySelector('[aria-label="Close Discovery Sources details"]'));

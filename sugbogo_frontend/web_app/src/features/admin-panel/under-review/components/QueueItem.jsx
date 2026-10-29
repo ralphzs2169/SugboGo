@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import UserAvatar from "@/shared/components/UserAvatar";
+import StatusBadge from "@/shared/components/StatusBadge";
 import { formatDateTime } from "@/shared/utils/dateUtils";
 import { fetchBusiness } from "../../businesses/services/businessService";
 import { formatModerationQueueTime } from "../utils/underReviewPresentation";
@@ -45,7 +46,15 @@ const QUEUE_REASON_PRESENTATION = {
   },
 };
 
+const DECISION_PRESENTATION = {
+  pending: { label: "Pending", variant: "infoSoft" },
+  approved: { label: "Approved", variant: "successSoft" },
+  rejected: { label: "Rejected", variant: "dangerSoft" },
+};
+
 function QueueItem({ review, selected, onSelect }) {
+  const decisionPresentation = DECISION_PRESENTATION[review.decision_status]
+    || DECISION_PRESENTATION.pending;
   const { data: businessDetails } = useQuery({
     queryKey: ["admin", "businesses", "detail", review.business.id],
     queryFn: () => fetchBusiness(review.business.id),
@@ -104,6 +113,9 @@ function QueueItem({ review, selected, onSelect }) {
             {review.text_preview || "Photo review"}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <StatusBadge variant={decisionPresentation.variant}>
+              {decisionPresentation.label}
+            </StatusBadge>
             {review.hold_reasons.map((reason) => {
               const presentation = QUEUE_REASON_PRESENTATION[reason];
               if (!presentation) {

@@ -10,6 +10,7 @@ import ReviewIdentityHeader from "../../moderation/components/ReviewIdentityHead
 import ReviewContentCard from "../../moderation/components/ReviewContentCard";
 import ReviewStickyContextBar from "../../moderation/components/ReviewStickyContextBar";
 import ModerationDetailSkeleton from "../../moderation/components/ModerationDetailSkeleton";
+import { formatReviewTimestamp } from "../../moderation/components/reviewPresentation";
 
 function DetailPlaceholder({ title, description }) {
   return (
@@ -73,7 +74,7 @@ export default function UnderReviewDetail({
   if (isLoading) {
     return (
       <ModerationDetailSkeleton
-        label="Loading under-review review"
+        label="Loading moderation review"
         sections={["Moderation Findings"]}
         showDecision
       />
@@ -84,7 +85,7 @@ export default function UnderReviewDetail({
     return (
       <DataErrorState
         title="Unable to load this review"
-        message="The review may have been resolved by another Admin. Refresh the queue or try again."
+        message="The review may no longer be available. Refresh the queue or try again."
         onRetry={() => {
           if (error.response?.status === 404) {
             onStale?.();
@@ -101,6 +102,12 @@ export default function UnderReviewDetail({
   }
 
   const isSubmitting = isApproving || isRejecting;
+  const isPending = review.status === "under_review";
+  const decision = review.decision;
+  const reviewerName = [
+    decision?.reviewed_by?.first_name,
+    decision?.reviewed_by?.last_name,
+  ].filter(Boolean).join(" ") || "Unknown reviewer";
 
   return (
     <div className="flex min-h-[640px] flex-col">
@@ -120,33 +127,50 @@ export default function UnderReviewDetail({
         <div className="mx-5 my-6 lg:mx-6">
           <UnderReviewFindings review={review} />
         </div>
+        {!isPending && decision && (
+          <section className="mx-5 mb-6 rounded-xl border border-stroke p-4 lg:mx-6">
+            <h3 className="text-sm font-semibold text-text-primary">Moderation Decision</h3>
+            <p className="mt-2 text-sm text-text-primary">
+              {decision.status === "approved" ? "Approved" : "Rejected"} by {reviewerName}
+            </p>
+            <time dateTime={decision.reviewed_at} className="mt-1 block text-xs text-text-secondary">
+              {formatReviewTimestamp(decision.reviewed_at)}
+            </time>
+            <h4 className="mt-4 text-xs font-medium text-text-secondary">Decision notes</h4>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm text-text-primary">
+              {decision.notes || "No notes recorded."}
+            </p>
+          </section>
+        )}
       </div>
 
-      <div className="sticky bottom-0 z-20 flex flex-col gap-3 border-t border-stroke bg-background px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6 lg:px-6">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-text-primary">Admin Decision</h3>
-          <p className="mt-0.5 text-xs leading-5 text-text-secondary">
-            Review the content and findings before deciding whether to publish or reject this review.
-          </p>
+      {isPending && (
+        <div className="sticky bottom-0 z-20 flex flex-col gap-3 border-t border-stroke bg-background px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6 lg:px-6">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-text-primary">Admin Decision</h3>
+            <p className="mt-0.5 text-xs leading-5 text-text-secondary">
+              Review the content and findings before deciding whether to publish or reject this review.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <Button
+              variant="danger-outline"
+              onClick={onReject}
+              disabled={isSubmitting}
+            >
+              Reject Review
+            </Button>
+            <Button
+              variant="success"
+              onClick={onApprove}
+              loading={isApproving}
+              disabled={isSubmitting}
+            >
+              Approve &amp; Publish
+            </Button>
+          </div>
         </div>
-        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-          <Button
-            variant="danger-outline"
-            onClick={onReject}
-            disabled={isSubmitting}
-          >
-            Reject Review
-          </Button>
-          <Button
-            variant="success"
-            onClick={onApprove}
-            loading={isApproving}
-            disabled={isSubmitting}
-          >
-            Approve &amp; Publish
-          </Button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

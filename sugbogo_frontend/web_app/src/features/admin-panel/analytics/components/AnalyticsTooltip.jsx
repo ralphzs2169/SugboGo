@@ -17,7 +17,7 @@ export function AnalyticsCategoryTooltip({ active, payload, unit, colors }) {
   const row = payload?.[0]?.payload;
   if (!active || !row) return null;
   return <AnalyticsTooltip title={row.label} rows={[
-    { label: `Recorded ${unit}`, value: formatCount(row.count), color: colors?.[row.method] ?? "var(--color-primary)" },
+    { label: `Recorded ${unit}`, value: formatCount(row.count), color: colors?.[row.method] ?? row.color ?? "var(--color-primary)" },
     { label: "Share of recorded total", value: formatPercentage(row.share_percent) },
   ]} />;
 }

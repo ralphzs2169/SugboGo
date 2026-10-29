@@ -1,4 +1,4 @@
-import { Flag, Image as ImageIcon, Search } from "lucide-react";
+import { Flag, Image as ImageIcon, Search, Tag } from "lucide-react";
 
 import FilterMenu from "@/features/admin-panel/components/data-table/FilterMenu";
 import SortMenu from "@/features/admin-panel/components/data-table/SortMenu";
@@ -8,6 +8,13 @@ const REASON_OPTIONS = [
   { value: "image_flagged", label: "Image flagged" },
   { value: "local_cebuano_safety", label: "Potential violent threat" },
   { value: "provider_failure", label: "Check unavailable" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "all", label: "All statuses" },
 ];
 
 const CONTENT_OPTIONS = [
@@ -25,7 +32,7 @@ function QueueFilters({ filters, onChange }) {
     <div className="space-y-3 border-b border-stroke p-4">
       <label className="relative block">
         <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-text-secondary" />
-        <span className="sr-only">Search held reviews</span>
+        <span className="sr-only">Search moderation reviews</span>
         <input
           type="search"
           placeholder="Search reviews, authors, businesses"
@@ -37,6 +44,14 @@ function QueueFilters({ filters, onChange }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <FilterMenu
           filters={[
+            {
+              key: "status",
+              label: "Status",
+              icon: Tag,
+              options: STATUS_OPTIONS,
+              value: filters.status === "all" ? "" : filters.status || "pending",
+              onChange: (value) => onChange("status", value || "all"),
+            },
             {
               key: "reason",
               label: "Reason",
@@ -59,7 +74,7 @@ function QueueFilters({ filters, onChange }) {
           value={filters.ordering}
           options={SORT_OPTIONS}
           onChange={(value) => onChange("ordering", value)}
-          ariaLabel="Sort under review queue"
+          ariaLabel="Sort review moderation"
         />
       </div>
     </div>

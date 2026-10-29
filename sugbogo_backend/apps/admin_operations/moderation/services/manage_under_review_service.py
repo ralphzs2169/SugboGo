@@ -1,7 +1,9 @@
 """Administrator queue and decisions for reviews held before publication."""
 
 from django.db import transaction
-from django.db.models import Count, Exists, OuterRef, Q, Subquery
+from django.db.models import Count, Exists, OuterRef, Q, Subquery, TextField
+from django.db.models.fields.json import KeyTextTransform
+from django.db.models.functions import Cast
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.admin_operations.activity_management.models import AdminActivity
@@ -16,15 +18,34 @@ class ManageUnderReviewService:
 
     @staticmethod
     def queryset():
-        """Load held reviews with their linked author and business."""
+        """Load pending or manually moderated reviews with their latest decision."""
+        decisions = (
+            AdminActivity.objects
+            .filter(AACT_ACTION__in=[
+                AdminActivity.Action.REVIEW_MODERATION_APPROVED,
+                AdminActivity.Action.REVIEW_MODERATION_REJECTED,
+            ])
+            .annotate(
+                review_id_text=KeyTextTransform("review_id", "AACT_CONTEXT"),
+            )
+            .filter(
+                review_id_text=Cast(OuterRef("REVW_ID"), TextField()),
+            )
+            .order_by("-AACT_CREATED_AT", "-AACT_ID")
+        )
         return (
             Review.objects
             .select_related("USER_ID", "BUSN_ID")
-            .filter(REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW)
             .annotate(
+                moderation_activity_id=Subquery(decisions.values("AACT_ID")[:1]),
+                moderation_action=Subquery(decisions.values("AACT_ACTION")[:1]),
                 has_reply=Exists(
                     ReviewReply.objects.filter(REVW_ID_id=OuterRef("pk"))
                 ),
+            )
+            .filter(
+                Q(REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW)
+                | Q(moderation_activity_id__isnull=False)
             )
         )
 
@@ -41,6 +62,20 @@ class ManageUnderReviewService:
             photo_count=Count("photos", distinct=True),
             first_photo_url=Subquery(first_photo),
         )
+
+        status = filters.get("status", "pending")
+        if status == "pending":
+            queryset = queryset.filter(
+                REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+            )
+        elif status in ("approved", "rejected"):
+            if status == "approved":
+                action = AdminActivity.Action.REVIEW_MODERATION_APPROVED
+            else:
+                action = AdminActivity.Action.REVIEW_MODERATION_REJECTED
+            queryset = queryset.exclude(
+                REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+            ).filter(moderation_action=action)
 
         search = filters.get("search")
         if search:
@@ -88,15 +123,26 @@ class ManageUnderReviewService:
 
     @staticmethod
     def get_review(review_id):
-        """Return one held review or a controlled missing-resource error."""
+        """Return one pending or manually moderated review with its audit record."""
         try:
-            return (
+            review = (
                 ManageUnderReviewService.queryset()
                 .select_related("BUSN_ID__CTGRY_ID__CLUS_ID", "reply")
                 .get(REVW_ID=review_id)
             )
         except Review.DoesNotExist:
             raise NotFound("The under-review review could not be found.") from None
+        review.moderation_decision = None
+        if (
+            review.REVW_STATUS != Review.ReviewStatus.UNDER_REVIEW
+            and review.moderation_activity_id
+        ):
+            review.moderation_decision = (
+                AdminActivity.objects
+                .select_related("ACTOR_ID")
+                .get(pk=review.moderation_activity_id)
+            )
+        return review
 
     @staticmethod
     @transaction.atomic
