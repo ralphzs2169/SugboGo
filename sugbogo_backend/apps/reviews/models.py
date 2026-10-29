@@ -14,6 +14,112 @@ from apps.reviews.constants import (
 )
 
 
+class ReviewRatingResult(models.Model):
+    """Retains a versioned rating input bound to the exact text analyzed."""
+
+    RRSR_ID = models.BigAutoField(primary_key=True)
+    REVW_ID = models.OneToOneField(
+        "Review",
+        on_delete=models.CASCADE,
+        db_column="REVW_ID",
+        related_name="rating_result",
+    )
+    RRSR_SCORING_VERSION = models.CharField(max_length=100)
+    RRSR_SOURCE_TEXT = models.TextField(max_length=1000)
+    RRSR_SCORE = models.FloatField()
+    RRSR_LABEL = models.CharField(
+        max_length=20,
+        choices=(
+            ("positive", "Positive"),
+            ("neutral", "Neutral"),
+            ("negative", "Negative"),
+        ),
+    )
+    RRSR_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    RRSR_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "REVIEW_RATING_RESULT"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(RRSR_SCORE__gte=-1, RRSR_SCORE__lte=1),
+                name="rrsr_score_range",
+            ),
+        ]
+
+
+class BusinessRating(models.Model):
+    """Stores one explicitly experimental rating and its recalculation revision."""
+
+    class State(models.TextChoices):
+        PENDING = "pending", "Pending"
+        READY = "ready", "Ready"
+        INSUFFICIENT_DATA = "insufficient_data", "Insufficient data"
+
+    BRAT_ID = models.BigAutoField(primary_key=True)
+    BUSN_ID = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        db_column="BUSN_ID",
+        related_name="business_rating",
+    )
+    BRAT_VALUE = models.DecimalField(
+        max_digits=12,
+        decimal_places=10,
+        null=True,
+        blank=True,
+    )
+    BRAT_REVIEW_COUNT = models.PositiveIntegerField(default=0)
+    BRAT_COMPUTED_AT = models.DateTimeField(null=True, blank=True)
+    BRAT_SCORING_VERSION = models.CharField(max_length=100)
+    BRAT_CALCULATION_VERSION = models.CharField(max_length=50)
+    BRAT_STATE = models.CharField(
+        max_length=20,
+        choices=State.choices,
+        default=State.PENDING,
+    )
+    BRAT_REQUESTED_REVISION = models.PositiveBigIntegerField(default=0)
+    BRAT_COMPLETED_REVISION = models.PositiveBigIntegerField(default=0)
+    BRAT_CREATED_AT = models.DateTimeField(auto_now_add=True)
+    BRAT_UPDATED_AT = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "BUSINESS_RATING"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(BRAT_VALUE__isnull=True)
+                    | models.Q(BRAT_VALUE__gte=1, BRAT_VALUE__lte=5)
+                ),
+                name="brat_value_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    BRAT_COMPLETED_REVISION__lte=models.F("BRAT_REQUESTED_REVISION"),
+                ),
+                name="brat_revision_order",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        BRAT_STATE="ready",
+                        BRAT_VALUE__isnull=False,
+                        BRAT_REVIEW_COUNT__gte=5,
+                        BRAT_COMPUTED_AT__isnull=False,
+                    )
+                    | models.Q(
+                        BRAT_STATE="insufficient_data",
+                        BRAT_VALUE__isnull=True,
+                        BRAT_REVIEW_COUNT__lt=5,
+                        BRAT_COMPUTED_AT__isnull=False,
+                    )
+                    | models.Q(BRAT_STATE="pending", BRAT_VALUE__isnull=True)
+                ),
+                name="brat_state_consistent",
+            ),
+        ]
+
+
 class ReviewInsightRegeneration(models.Model):
     """Retains one business's regeneration demand and fenced worker ownership."""
 

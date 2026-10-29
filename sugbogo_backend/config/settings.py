@@ -51,6 +51,11 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG") == "True"
 
+# Phase 3 snapshots are manual and unvalidated; expose only by explicit opt-in.
+EXPERIMENTAL_BUSINESS_RATINGS_ENABLED = (
+    os.environ.get("EXPERIMENTAL_BUSINESS_RATINGS_ENABLED", "False") == "True"
+)
+
 ALLOWED_HOSTS = ["*"]
 
 

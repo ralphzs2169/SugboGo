@@ -108,6 +108,7 @@ class SimilarBusinessService:
                 "LOCT_ID",
                 "discovery_score",
                 "review_summary",
+                "business_rating",
             )
             .annotate(
                 is_pocketed=Exists(
