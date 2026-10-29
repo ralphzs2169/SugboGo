@@ -11,6 +11,9 @@ from apps.admin_operations.analytics.services.onboarding_analytics_service impor
 from apps.merchant_application.models import MerchantApplication, MerchantApplicationReview, MerchantApplicationSubmission
 from apps.shared.analytics.date_ranges import MANILA, resolve_period
 from apps.users.models import User
+from apps.admin_operations.system_configuration.models import (
+    AnalyticsPolicyConfiguration,
+)
 
 
 class OnboardingAnalyticsServiceTests(TestCase):
@@ -18,6 +21,7 @@ class OnboardingAnalyticsServiceTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         cls.period = resolve_period(now=cls.NOW)
         cls.owner = User.objects.create_user(
             email="onboarding-operations@example.com", password=None,
@@ -53,13 +57,13 @@ class OnboardingAnalyticsServiceTests(TestCase):
         }
         with timezone.override(MANILA), patch.object(
             MerchantApplicationAnalyticsService, "get_application_statistics",
-            side_effect=lambda: (self.assertEqual(timezone.get_current_timezone_name(), "UTC") or statistics),
+            side_effect=lambda **kwargs: (self.assertEqual(timezone.get_current_timezone_name(), "UTC") or statistics),
         ) as legacy, patch(
             "apps.admin_operations.analytics.services.merchant_application_analytics_service.timezone.localdate",
             return_value=self.NOW.date(),
         ):
             result = OnboardingAnalyticsService.get_report(self.period)
-        legacy.assert_called_once_with()
+        legacy.assert_called_once_with(now=self.period.generated_at)
         self.assertIs(result["legacy_statistics"], statistics)
         self.assertEqual(result["legacy_meta"]["timezone"], "UTC")
         self.assertFalse(result["legacy_meta"]["selected_period_applies"])

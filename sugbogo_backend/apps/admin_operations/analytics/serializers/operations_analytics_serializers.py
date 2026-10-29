@@ -3,6 +3,40 @@
 from rest_framework import serializers
 
 from apps.admin_operations.analytics.serializers.platform_analytics_serializers import AnalyticsMetaSerializer
+from apps.admin_operations.analytics.serializers.reporting_serializers import (
+    TurnaroundSummarySerializer,
+)
+
+
+class ApplicationTurnaroundSerializer(TurnaroundSummarySerializer):
+    """Describe linked review durations and globally unassignable missing decision times."""
+
+    missing_decision_timestamp_count = serializers.IntegerField()
+    missing_decision_timestamp_scope = serializers.CharField()
+    measurement_type = serializers.ChoiceField(choices=("review_decision_period",))
+    definition = serializers.CharField()
+
+
+class RejectionSectionSerializer(serializers.Serializer):
+    """Count overlapping decision and application populations per persisted section."""
+
+    section = serializers.CharField()
+    label = serializers.CharField()
+    rejection_decisions = serializers.IntegerField()
+    distinct_applications = serializers.IntegerField()
+    decision_share_percentage = serializers.FloatField(allow_null=True)
+    application_share_percentage = serializers.FloatField(allow_null=True)
+
+
+class RejectionInsightsSerializer(serializers.Serializer):
+    """Keep raw feedback-row multiplicity out of administrator rejection counts."""
+
+    rejected_decisions = serializers.IntegerField()
+    distinct_applications = serializers.IntegerField()
+    decisions_without_section_feedback = serializers.IntegerField()
+    decisions_with_unrecognized_section = serializers.IntegerField()
+    sections = RejectionSectionSerializer(many=True)
+    definition = serializers.CharField()
 
 
 class LegacyOnboardingMetaSerializer(serializers.Serializer):
@@ -53,6 +87,9 @@ class OnboardingAnalyticsSerializer(serializers.Serializer):
     """Preserve the existing statistics payload and explicitly scope new aggregates."""
 
     # Approved legacy exception: preserve the existing aggregate-only service contract.
+    review_turnaround = ApplicationTurnaroundSerializer()
+    rejection_insights = RejectionInsightsSerializer()
+    processing_meta = AnalyticsMetaSerializer()
     legacy_statistics = serializers.JSONField()
     legacy_meta = LegacyOnboardingMetaSerializer()
     pending_aging = PendingApplicationAgingSerializer()

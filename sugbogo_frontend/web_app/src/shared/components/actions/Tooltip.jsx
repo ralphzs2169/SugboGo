@@ -1,7 +1,5 @@
-import { cloneElement, useState } from "react";
+import { cloneElement, useId } from "react";
 import { Tooltip as ReactTooltip } from "react-tooltip";
-
-let tooltipCounter = 0;
 
 /**
  * Reusable tooltip wrapper.
@@ -13,11 +11,12 @@ export default function Tooltip({
   children,
   place = "right",
   asChild = false,
+  className,
+  openOnClick = false,
+  closeEvents,
+  globalCloseEvents,
 }) {
-  const [id] = useState(() => {
-    tooltipCounter += 1;
-    return `tooltip-${tooltipCounter}`;
-  });
+  const id = `tooltip-${useId().replaceAll(":", "")}`;
 
   const props = {
     "data-tooltip-id": id,
@@ -38,7 +37,10 @@ export default function Tooltip({
         id={id}
         place={place}
         positionStrategy="fixed"
-        className="!rounded-md !bg-tooltip-background !text-tooltip-text !px-1 !py-1 !text-xs !font-medium"
+        openOnClick={openOnClick}
+        closeEvents={closeEvents}
+        globalCloseEvents={globalCloseEvents}
+        className={`!rounded-md !bg-tooltip-background !text-tooltip-text !text-xs !font-medium ${className ?? "!px-1 !py-1"}`}
       />
     </>
   );

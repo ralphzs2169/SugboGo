@@ -12,7 +12,7 @@ import ReportedReviewWorkspace from "../reported-reviews/components/ReportedRevi
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 const MODERATION_TABS = [
-  { id: "under-review", label: "Under Review", icon: Clock3 },
+  { id: "under-review", label: "Review Moderation", icon: Clock3 },
   { id: "suspicious", label: "Suspicious", icon: ShieldAlert },
   { id: "reported", label: "Reported", icon: Flag },
   { id: "disputes", label: "Disputes", icon: MessageSquareText },

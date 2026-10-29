@@ -383,8 +383,99 @@ class ManageUnderReviewViewTests(TestCase):
         )
         self.assertEqual(
             self.client.get(reverse("admin-under-review-detail", args=[self.review.pk])).status_code,
+            200,
+        )
+
+    def test_status_filters_include_only_pending_and_manual_decisions(self):
+        """History excludes automatic decisions while the default count stays pending."""
+        automatic = Review.objects.create(
+            USER_ID=self.owner,
+            BUSN_ID=self.business,
+            REVW_TEXT="An automatically published review.",
+            REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+        )
+        approved = Review.objects.create(
+            USER_ID=self.admin,
+            BUSN_ID=self.business,
+            REVW_TEXT="A manually approved review.",
+            REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+        )
+        rejected = Review.objects.create(
+            USER_ID=self.super_admin,
+            BUSN_ID=self.business,
+            REVW_TEXT="A manually rejected review.",
+            REVW_STATUS=Review.ReviewStatus.REJECTED,
+        )
+        for review, action in (
+            (approved, AdminActivity.Action.REVIEW_MODERATION_APPROVED),
+            (rejected, AdminActivity.Action.REVIEW_MODERATION_REJECTED),
+        ):
+            AdminActivity.objects.create(
+                ACTOR_ID=self.admin,
+                TARGET_USER_ID=review.USER_ID,
+                AACT_ACTION=action,
+                AACT_CONTEXT={"review_id": review.pk},
+            )
+        list_url = reverse("admin-under-review-list")
+        for filters, expected in (
+            ({}, [self.review.pk]),
+            ({"status": "pending"}, [self.review.pk]),
+            ({"status": "approved"}, [approved.pk]),
+            ({"status": "rejected"}, [rejected.pk]),
+            ({"status": "all"}, [self.review.pk, approved.pk, rejected.pk]),
+            ({"status": "all", "search": "manually rejected"}, [rejected.pk]),
+        ):
+            with self.subTest(filters=filters):
+                response = self.client.get(list_url, filters)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(
+                    [item["id"] for item in response.data["data"]["items"]],
+                    expected,
+                )
+                self.assertEqual(
+                    response.data["data"]["pagination"]["total_items"],
+                    len(expected),
+                )
+        self.assertEqual(
+            self.client.get(list_url, {"status": "invalid"}).status_code,
+            400,
+        )
+        self.assertEqual(
+            self.client.get(
+                reverse("admin-under-review-detail", args=[automatic.pk]),
+            ).status_code,
             404,
         )
+
+    def test_completed_detail_uses_recorded_reviewer_time_and_notes(self):
+        """Completed detail preserves audit attribution and refuses another decision."""
+        notes = "The content contains a direct threat."
+        self.client.post(
+            reverse("admin-under-review-reject", args=[self.review.pk]),
+            {"moderation_notes": notes},
+        )
+        activity = AdminActivity.objects.get()
+        self.review.refresh_from_db()
+        self.review.REVW_MODERATION_NOTES = "Later unrelated moderation notes."
+        self.review.save(update_fields=["REVW_MODERATION_NOTES"])
+        response = self.client.get(
+            reverse("admin-under-review-detail", args=[self.review.pk]),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["decision_status"], "rejected")
+        decision = response.json()["data"]["decision"]
+        self.assertEqual(decision["status"], "rejected")
+        self.assertEqual(decision["reviewed_by"]["id"], self.admin.pk)
+        self.assertEqual(decision["reviewed_by"]["first_name"], "Queue")
+        self.assertEqual(decision["notes"], notes)
+        self.assertTrue(decision["reviewed_at"])
+        self.assertEqual(
+            self.client.post(
+                reverse("admin-under-review-approve", args=[self.review.pk]),
+            ).status_code,
+            400,
+        )
+        self.assertEqual(AdminActivity.objects.get().pk, activity.pk)
 
     def test_reject_endpoint_keeps_unpublished_count(self):
         """Rejecting held content records the decision without count loss."""

@@ -8,7 +8,8 @@ import { getMetricVariant } from "@/features/admin-panel/constants/metricVariant
  * Renders a compact interactive KPI sparkline with a subtle area gradient.
  *
  * Hovering a point reveals the formatted date and metric value while
- * keeping the chart visually lightweight and free of axes.
+ * keeping the chart visually lightweight and free of axes. Missing buckets
+ * retain their dates and break the curve; measured zeroes remain observations.
  */
 export default function MetricSparkline({
   data = [],
@@ -17,11 +18,11 @@ export default function MetricSparkline({
 }) {
   const gradientId = `metric-sparkline-${useId().replace(/:/g, "")}`;
 
-  const points = data.filter(
+  const observedPoints = data.filter(
     (item) => item.value !== null && item.value !== undefined,
   );
 
-  if (points.length < 2) {
+  if (observedPoints.length < 2) {
     return null;
   }
 
@@ -31,7 +32,7 @@ export default function MetricSparkline({
     <div className={`h-full w-full ${colorClass}`}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
-          data={points}
+          data={data}
           margin={{
             top: 6,
             right: 6,
@@ -51,6 +52,7 @@ export default function MetricSparkline({
           <Area
             type="monotone"
             dataKey="value"
+            connectNulls={false}
             name="Metric"
             stroke="currentColor"
             strokeWidth={2}
@@ -58,7 +60,7 @@ export default function MetricSparkline({
             strokeLinejoin="round"
             fill={`url(#${gradientId})`}
             fillOpacity={1}
-            dot={false}
+            dot={observedPoints.length < data.length ? { r: 2 } : false}
             activeDot={{
               r: 4,
               strokeWidth: 2,

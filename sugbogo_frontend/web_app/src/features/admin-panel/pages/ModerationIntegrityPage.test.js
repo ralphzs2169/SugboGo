@@ -126,6 +126,7 @@ function renderPage(url, {
         page: 1,
         page_size: 10,
         search: "",
+        status: "pending",
         reason: undefined,
         content: undefined,
         ordering: "oldest",
@@ -360,8 +361,8 @@ test("default and invalid tabs show the Under Review queue", () => {
     const html = renderPage(url);
 
     assert.match(html, /Moderation &amp; Integrity/);
-    assert.match(html, /Under Review Queue/);
-    assert.match(html, /Search held reviews/);
+    assert.match(html, /Review Moderation/);
+    assert.match(html, /Search moderation reviews/);
     assert.match(html, /Oldest first/);
     assert.match(html, /aria-busy="true"/);
     assert.match(html, /rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2/);
@@ -377,7 +378,7 @@ test("moderation tabs show queue totals including zero without blocking navigati
   const tabs = html.match(/<nav aria-label="Moderation &amp; Integrity sections"[\s\S]*?<\/nav>/)?.[0];
 
   assert.ok(tabs);
-  assert.match(tabs, /Under Review[\s\S]*?>8<\/span>/);
+  assert.match(tabs, /Review Moderation[\s\S]*?>8<\/span>/);
   assert.match(tabs, /Suspicious[\s\S]*?>12<\/span>/);
   assert.match(tabs, /Reported[\s\S]*?>0<\/span>/);
   assert.match(tabs, /Disputes[\s\S]*?>3<\/span>/);
@@ -386,13 +387,13 @@ test("moderation tabs show queue totals including zero without blocking navigati
 test("moderation count loading and errors keep tabs usable without false zeros", () => {
   const loading = renderPage("/admin-panel/moderation-integrity?tab=under-review");
   assert.match(loading, /animate-pulse rounded-full bg-surface-muted/);
-  assert.match(loading, /Under Review Queue/);
+  assert.match(loading, /Review Moderation/);
 
   const errored = renderPage(
     "/admin-panel/moderation-integrity?tab=under-review",
     { tabCounts: { "under-review": 4 }, countError: "reported" },
   );
-  assert.match(errored, /Under Review Queue/);
+  assert.match(errored, /Review Moderation/);
   assert.doesNotMatch(errored, /Reported[\s\S]{0,180}>0<\/span>/);
 });
 
@@ -528,7 +529,7 @@ test("Under Review filters use the shared sort popover and active filter chips",
 
   assert.match(html, /Reason: Image flagged/);
   assert.match(html, /Content: Has photos/);
-  assert.match(html, /aria-label="Sort under review queue: Newest first"/);
+  assert.match(html, /aria-label="Sort review moderation: Newest first"/);
   assert.doesNotMatch(html, /<select/);
 });
 
@@ -848,7 +849,7 @@ test("all four tabs render and Suspicious has its investigation workspace", () =
     "/admin-panel/moderation-integrity?tab=reported",
   );
 
-  for (const label of ["Under Review", "Suspicious", "Reported", "Disputes"]) {
+  for (const label of ["Review Moderation", "Suspicious", "Reported", "Disputes"]) {
     assert.match(suspicious, new RegExp(label));
   }
 
@@ -1911,8 +1912,57 @@ test("Disputes tab renders the moderation queue workspace", () => {
   assert.ok(!html.includes("data-table"));
   assert.ok(html.includes('aria-busy="true"'));
   assert.ok(html.includes("rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2"));
-  assert.ok(html.indexOf("Under Review") < html.indexOf("Search review disputes"));
+  assert.ok(html.indexOf("Review Moderation") < html.indexOf("Search review disputes"));
   assert.ok(html.includes("Status"));
   assert.ok(html.includes("Filter"));
   assert.ok(!html.includes("management is coming next"));
+});
+test("moderation status keeps pending actions and completed audit details", () => {
+  const reviewStatuses = {
+    pending: "under_review",
+    approved: "published",
+    rejected: "rejected",
+  };
+  for (const status of ["pending", "approved", "rejected"]) {
+    const detail = {
+      ...heldReview,
+      status: reviewStatuses[status],
+      decision_status: status,
+      text: "Previously moderated content",
+      photos: [],
+      moderation: { text_checked: true, text_flagged_categories: [] },
+      decision: {
+        status,
+        reviewed_by: { id: 3, first_name: "Queue", last_name: "Admin" },
+        reviewed_at: "2026-10-27T09:30:00Z",
+        notes: status === "rejected" ? "Original moderation decision notes." : null,
+      },
+    };
+    const html = renderPage(
+      "/admin-panel/moderation-integrity?tab=under-review&under_review_id=42",
+      { list: { ...heldList, items: [detail] }, detail },
+    );
+    const visible = html.replaceAll("<!-- -->", "");
+    if (status === "pending") {
+      assert.match(html, /Reject Review/);
+      assert.match(html, /Approve &amp; Publish/);
+      assert.doesNotMatch(html, /Moderation Decision/);
+      continue;
+    }
+    assert.match(visible, /Moderation Decision/);
+    assert.match(visible, /by Queue Admin/);
+    assert.match(visible, /dateTime="2026-10-27T09:30:00Z"/);
+    assert.match(visible, status === "rejected"
+      ? /Original moderation decision notes/
+      : /No notes recorded/);
+    assert.doesNotMatch(html, /Reject Review|Approve &amp; Publish/);
+    const filters = renderToString(React.createElement(UnderReviewQueueFilters, {
+      filters: { search: "", status, reason: "", content: "", ordering: "newest" },
+      onChange: () => {},
+    }));
+    assert.match(
+      filters.replaceAll("<!-- -->", ""),
+      new RegExp(`Status: ${status === "approved" ? "Approved" : "Rejected"}`),
+    );
+  }
 });

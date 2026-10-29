@@ -23,6 +23,7 @@ export default function UnderReviewWorkspace() {
   const selectedId = Number(searchParams.get("under_review_id")) || null;
   const [filters, setFilters] = useState({
     search: "",
+    status: "pending",
     reason: "",
     content: "",
     ordering: "oldest",
@@ -32,14 +33,25 @@ export default function UnderReviewWorkspace() {
   const [moderationNotes, setModerationNotes] = useState("");
   const [decisionError, setDecisionError] = useState("");
   const debouncedSearch = useDebounce(filters.search);
-  const params = useMemo(() => ({
-    page,
-    page_size: PAGE_SIZE,
-    search: debouncedSearch,
-    reason: filters.reason || undefined,
-    content: filters.content || undefined,
-    ordering: filters.ordering,
-  }), [page, debouncedSearch, filters.reason, filters.content, filters.ordering]);
+  const params = useMemo(
+    () => ({
+      page,
+      page_size: PAGE_SIZE,
+      search: debouncedSearch,
+      status: filters.status,
+      reason: filters.reason || undefined,
+      content: filters.content || undefined,
+      ordering: filters.ordering,
+    }),
+    [
+      page,
+      debouncedSearch,
+      filters.status,
+      filters.reason,
+      filters.content,
+      filters.ordering,
+    ],
+  );
   const {
     reviews,
     pagination,
@@ -116,12 +128,13 @@ export default function UnderReviewWorkspace() {
   return (
     <>
       <div className="grid min-h-[640px] overflow-hidden rounded-xl border border-stroke bg-background lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.5fr)]">
-        <aside className="min-w-0 border-b border-stroke lg:border-b-0 lg:border-r" aria-label="Under Review queue">
+        <aside className="min-w-0 border-b border-stroke lg:border-b-0 lg:border-r" aria-label="Review Moderation queue">
           <div className="flex items-center justify-between px-4 pt-4">
             <div>
-              <h2 className="text-base font-semibold text-text-primary">Under Review Queue</h2>
+              <h2 className="text-base font-semibold text-text-primary">Review Moderation</h2>
               <p className="mt-0.5 text-xs text-text-secondary">
-                {pagination?.total_items ?? 0} waiting for a decision
+                {pagination?.total_items ?? 0}{" "}
+                {filters.status === "pending" ? "waiting for a decision" : "matching reviews"}
               </p>
             </div>
             {isFetching && !isLoading && (
@@ -131,7 +144,7 @@ export default function UnderReviewWorkspace() {
           <QueueFilters filters={filters} onChange={updateFilter} />
 
           {isLoading ? (
-            <ModerationQueueSkeleton label="Loading under-review reviews" />
+            <ModerationQueueSkeleton label="Loading moderation reviews" />
           ) : error ? (
             <DataErrorState
               title="Unable to load reviews"
@@ -174,18 +187,20 @@ export default function UnderReviewWorkspace() {
             <div className="flex min-h-72 flex-col items-center justify-center px-6 text-center">
               <Inbox className="h-9 w-9 text-text-secondary" />
               <h3 className="mt-3 text-sm font-semibold text-text-primary">
-                {filters.search || filters.reason || filters.content
+                {filters.search || filters.reason || filters.content || filters.status !== "pending"
                   ? "No reviews match these filters"
                   : "No reviews currently need moderation"}
               </h3>
               <p className="mt-1 text-xs text-text-secondary">
-                New held reviews will appear here when they need a decision.
+                {filters.status === "pending"
+                  ? "New held reviews will appear here when they need a decision."
+                  : "Try another status or adjust your filters to find past decisions."}
               </p>
             </div>
           )}
         </aside>
 
-        <main className="min-w-0" aria-label="Under Review details">
+        <main className="min-w-0" aria-label="Review Moderation details">
           <UnderReviewDetail
             key={selectedId}
             reviewId={selectedId}

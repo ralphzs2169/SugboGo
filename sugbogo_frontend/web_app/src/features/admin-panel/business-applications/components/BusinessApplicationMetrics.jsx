@@ -88,14 +88,15 @@ export default function BusinessApplicationMetrics({
 
       {/* Resubmission rate KPI */}
       <MetricCard
-        title="Resubmission Rate"
+        title="Post-rejection Resubmission Rate"
         icon={RefreshCw}
         value={
           isError || resubmissionRate == null ? "—" : `${resubmissionRate}%`
         }
-        trend={isError ? null : getTrend(resubmissionRateTrend, "down")}
+        trend={isError ? null : getTrend(resubmissionRateTrend, "up")}
+        footerLabel="vs same time last week"
         sparklineData={isError ? [] : resubmissionRateHistory}
-        sparklineValueFormatter={(value) => [`${value}%`, "Resubmission Rate"]}
+        sparklineValueFormatter={(value) => [`${value}%`, "Post-rejection recovery"]}
       />
 
       {/* SLA compliance KPI */}

@@ -6,6 +6,8 @@ import BusinessApplicationMetrics from "../business-applications/components/Busi
 import ApplicationReviewSlaInfo from "../business-applications/components/ApplicationReviewSlaInfo";
 import MetricCardsSkeleton from "@/features/admin-panel/components/MetricCardsSkeleton";
 import ApplicationReviewSlaInfoSkeleton from "../business-applications/components/skeleton/ApplicationReviewSlaInfoSkeleton";
+import DataErrorState from "@/shared/components/errors/DataErrorState";
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 export default function BusinessApplicationsPage() {
   useDocumentTitle("Business Applications | SugboGo Admin");
@@ -14,9 +16,15 @@ export default function BusinessApplicationsPage() {
     statistics,
     isLoading: isStatisticsLoading,
     error: statisticsError,
+    refetch: refetchStatistics,
   } = useBusinessApplicationStatistics();
 
   const statisticsUnavailable = Boolean(statisticsError);
+
+  useApiErrorNotification(statisticsError, {
+    toastId: "business-application-statistics-error",
+    fallbackMessage: "Unable to load application statistics. Please try again.",
+  });
 
   return (
     <>
@@ -73,8 +81,17 @@ export default function BusinessApplicationsPage() {
       {/* Application metrics */}
       {isStatisticsLoading ? (
         <MetricCardsSkeleton count={4} includeSparkline={true} />
+      ) : statisticsUnavailable ? (
+        <div className="mb-6">
+          <DataErrorState
+            title="Unable to load application statistics"
+            message="Application metrics are currently unavailable. Please try again."
+            onRetry={refetchStatistics}
+          />
+        </div>
       ) : (
         <BusinessApplicationMetrics
+          isError={statisticsUnavailable}
           pendingReview={statistics.pending_review}
           approvalRate={statistics.approval_rate}
           resubmissionRate={statistics.resubmission_rate}

@@ -9,6 +9,7 @@ Both endpoints require authentication and an active ADMIN or SUPER_ADMIN account
 | Method and route | Purpose |
 |---|---|
 | `GET /api/admin/analytics/` | Platform overview KPIs plus weekly new-explorer registrations; replaces the placeholder response while retaining route name `get_analytics_data`. |
+| `GET /api/admin/analytics/discovery-summary/` | All three selected-period recorded event totals in one aggregation. Route name: `admin-discovery-summary`. |
 | `GET /api/admin/analytics/discovery-trend/` | One selectable discovery metric and daily/weekly sparse series. Route name: `admin-discovery-trend`. |
 
 Existing Discovery Score list/recompute routes remain unchanged. These GET reports never recompute Discovery Score, create indexes, write tracking data, or invoke Gemini.
@@ -65,9 +66,11 @@ Each of `active_businesses`, `approved_businesses`, `new_explorer_accounts`, `di
 | `active_businesses` | Current `Business.BUSN_STATUS=ACTIVE`; does not impose verification or owner-status filtering. | Null; `historical_snapshot_unavailable`. |
 | `approved_businesses` | Existing business linked to a current APPROVED merchant application, including suspended businesses. Unlinked applications do not count. | Null; `historical_snapshot_unavailable`. |
 | `new_explorer_accounts` | Current EXPLORER-role accounts created within the selected period, including pending/suspended/disabled accounts. | Count-based percentage change when prior value and samples permit it. |
-| `discovery_active_explorers` | Distinct recorded explorer IDs across all supported visibility events and businesses in the period. Historical events are not filtered by current account/business state. | Null while tracking coverage remains unverified; `coverage_unverified` or `data_unavailable`. |
+| `discovery_active_explorers` | Distinct recorded account IDs, including eligible Explorer and Merchant actors, across all supported visibility events and businesses in the period. The compatibility key remains `discovery_active_explorers`. Historical events are not filtered by current account/business state. | Null while tracking coverage remains unverified; `coverage_unverified` or `data_unavailable`. |
 
 The approved-business choice supersedes the plan's verified-business KPI. Maintained approval creates active businesses without setting the legacy verified flag; Task 2 neither changes that flow nor backfills flags. This is a documented product/implementation difference.
+
+The label `New current-Explorer accounts` explicitly identifies current-role membership; merchant promotion can revise this historical cohort. The compatibility key remains `new_explorer_accounts`.
 
 Snapshot metrics ignore the selected event dates and measure inventory when queried; they are not active/approved counts at the historical period end. `new_explorer_accounts` has `measurement_type=period_current_state`, because later role changes/deletion can revise historical registration counts. Neither email verification nor account activation defines this cohort.
 
@@ -110,7 +113,7 @@ Overview-level metadata is partial when visibility completeness is unverified. U
 2. Keep snapshot cards visibly labeled current, with their `as_of`; period selection must not imply historical inventory snapshots.
 3. Render `0` as zero recorded observations. Render null values as unavailable, never coerce them with `value || 0` or `value ?? 0`.
 4. Render null comparisons as unavailable with their reason, never `0%` or a green growth badge.
-5. Label discovery-active explorers as not total app MAU.
+5. Label discovery-active accounts (including Explorer and Merchant actors) as not total app MAU.
 6. Show incomplete-day, coverage and freshness disclosures from metadata. Do not call unknown `data_through` "up to date".
 7. Preserve successful current values when prior readings fail; preserve totals when series readings fail.
 8. Treat sparse series as observed buckets. Do not automatically fill visibility gaps with zeros or draw a continuous line through unknown gaps. Healthy SQL registration gaps may be filled only under an explicit current-state display policy.
@@ -227,7 +230,11 @@ data:
   meta: shared Manila period metadata plus legacy exception disclosure
 ```
 
-User-approved legacy exception: `legacy_statistics` retains existing configured UTC reporting, native trends/history and comparison windows. `legacy_meta` identifies the actual native weekly dates. The selected Manila period controls only `weekly_activity`; it does not filter legacy KPIs or pending aging. Never relabel legacy statistics as selected-period metrics or reinterpret an existing legacy trend as the shared percentage-change contract.
+The native configured UTC reporting timezone remains unchanged. `legacy_meta.weekly_window` retains the legacy calendar labels. Corrected approval/SLA comparisons now use exact half-open equal-elapsed timestamp bounds in `legacy_statistics.comparison_meta.bounds`, so a partial current day is never compared against a complete historical day. Existing trend object keys remain unchanged.
+
+Resubmission fields now consistently measure cumulative post-rejection recovery: applications rejected before the cutoff that have a submission strictly after a rejection of the same application and before that cutoff, divided by applications rejected before the cutoff. Each application counts once, even after later approval. The headline uses now; the trend compares now with the same time last week; daily history uses exclusive next-midnight cutoffs capped at now. `comparison_meta.resubmission_basis` and `resubmission_definition` disclose this deliberate semantic correction. Submission counts alone and equal timestamps cannot qualify.
+
+SLA percentages use classified outcomes only; null outcomes never count as non-compliance or toward the comparison sample. Unknown-only rates remain null. No public unknown-count field previously existed; `get_sla_outcomes()` retains the separate count internally. The selected Manila period controls only `weekly_activity`; it does not filter legacy KPIs or pending aging. Never relabel legacy statistics as selected-period metrics or reinterpret an existing legacy trend as the shared percentage-change contract.
 
 Render weekly submissions/completed reviews as grouped bars or two lines. They count events, including resubmissions and unlinked recorded review decisions. Weekly buckets start Monday Manila time, are clipped to the selected period and zero-filled. Render application aging as current backlog bands using the existing 3/5 business-day constants; unknown ages remain a separate count. Legacy rates with null denominators must display no result rather than 0%.
 
@@ -265,3 +272,185 @@ Current queues are snapshots, not historical queue series. Partial administrator
 8. Run the new operations tests and existing onboarding/analytics regressions against a disposable PostgreSQL/PostGIS test database. Production-scale query timing, representative datasets and frontend integration remain separate verification work.
 
 Task 4 changes no existing onboarding service, moderation decision logic, Discovery Score, Mongo visibility tracking, migrations, dependencies, payments or registered Django apps. Test execution/results are recorded after the approved verification run.
+
+
+## Phase 2: persisted-data reporting
+
+The four new routes use the existing active Admin/Super Admin permission and response envelope. PostgreSQL failures retain normal API error handling; they are not converted into successful zero reports. No event ingestion or reporting storage is added.
+
+### Queries and dates
+
+All routes below accept `period=7|30|90|custom`, default `30`; `custom` requires inclusive `start_date` and `end_date` in ISO format. Existing Manila calendar interpretation, half-open UTC query bounds, now capping and previous equal-elapsed period rules apply. `platform-growth/` and `community-health/` additionally accept `interval=daily|weekly`, default `daily`. Other query keys are rejected.
+
+Current snapshots carry `measurement_type=current_snapshot`, `as_of`, and `selected_period_applies=false`. Historical selectors never turn these into historical inventory. Specialty support uses dates only as report metadata context and always describes current evidence. Count comparisons use the existing absolute-count helper: `{value, direction, unit:"count", reason}`. They remain defined at zero counts; no relative percentage growth is fabricated.
+
+Every new report includes shared `meta` (period, generated_at, data_through, availability, coverage_verified and partial reasons). `data_through` is the SQL period-query cutoff, not an event completeness watermark or historical snapshot timestamp; use explicit `as_of` for current inventory. Current-state and recorded-history caveats are preserved in definitions/partial reasons. Duration sample/exclusion counts are exact for the selected candidate population; null means no valid duration or undefined share, not zero.
+
+### `GET /api/admin/analytics/platform-growth/`
+
+Route name: `admin-analytics-platform-growth`. Query: common dates plus interval.
+
+```text
+data:
+  inventory:
+    measurement_type=current_snapshot, as_of, selected_period_applies=false
+    consumer_accounts, current_explorer_accounts, current_merchant_accounts
+    total_businesses, active_businesses, suspended_businesses
+  activity:
+    new_consumer_accounts: {value, previous_value, change}
+    new_businesses: {value, previous_value, change}
+    newly_approved_businesses: {value, previous_value, change}
+  interval
+  series: [{date, start, end_exclusive,
+            new_consumer_accounts, new_businesses, newly_approved_businesses}]
+  series_is_sparse=false
+  definitions: {consumer_accounts, new_businesses, newly_approved_businesses, comparisons}
+  meta
+```
+
+Consumers are current Explorer/Merchant roles, all account statuses, excluding staff/superuser flags and Admin/Super Admin roles. Creation cohorts use current membership and can change after role/staff changes or deletion; no historical role is reconstructed. Business creation counts retained records regardless of current status.
+
+Approvals count each currently business-linked application's earliest recorded approved review once (ties by review ID). Repeated approvals do not create repeated new businesses. Unlinked approvals/missing decision times do not qualify. Current application/business status is not substituted for the recorded decision. Missing older approval history cannot be reconstructed; the label means first recorded approval. Inventory receives no comparison. Series are SQL-grouped, Monday-week/daily Manila buckets, clipped and zero-filled.
+
+### Additions to `GET /api/admin/analytics/onboarding/`
+
+Existing fields remain. New fields:
+
+```text
+  review_turnaround:
+    candidate_count, sample_count, median_hours, mean_hours
+    excluded_count, missing_timestamp_count, invalid_chronology_count, unrelated_record_count
+    missing_decision_timestamp_count, missing_decision_timestamp_scope
+    measurement_type=review_decision_period, definition
+  rejection_insights:
+    rejected_decisions, distinct_applications
+    decisions_without_section_feedback, decisions_with_unrecognized_section
+    sections: [{section, label, rejection_decisions, distinct_applications,
+                decision_share_percentage, application_share_percentage}]
+    definition
+  processing_meta: shared selected-Manila-period metadata
+```
+
+Turnaround candidates are approved/rejected review decisions with `MAREV_REVIEWED_AT` in the selected period. Start is the specifically linked `MASUB_SUBMITTED_AT`. Missing links/times, cross-application links and negative durations are mutually exclusively excluded in that order. Each review cycle counts independently, regardless of SLA classification. Zero hours is valid; no samples yields null mean/median. Missing decision times are an all-dates diagnostic outside selected-period candidate/exclusion counts.
+
+Rejections use decision timestamps. Section rows come only from the stored Section enum, retaining zero rows. Counts are distinct rejection decisions and applications, not feedback rows. Shares divide by all selected rejected decisions/applications, including those without section feedback; zero denominators yield null. A decision can affect several sections, so row shares may sum above 100%. Unknown stored sections are disclosed without creating new categories. No text interpretation is performed.
+
+Phase 1 classified SLA, chronological resubmission, native UTC legacy comparisons and current backlog semantics remain unchanged. The new processing fields use the selected Manila period; legacy statistics do not.
+
+### `GET /api/admin/analytics/community-health/`
+
+Route name: `admin-analytics-community-health`. Query: common dates plus interval.
+
+```text
+data:
+  inventory:
+    measurement_type=current_snapshot, as_of, selected_period_applies=false
+    retained_reviews, published, under_review, flagged, rejected
+  measurement_type=period_current_state
+  current / previous:
+    published_review_count, classified_review_count, unclassified_review_count
+    sentiment:
+      positive / neutral / negative: {count, percentage}
+  published_review_count_change: {value, direction, unit:"count", reason}
+  interval
+  series: [{date, start, end_exclusive, ...same cohort fields...}]
+  series_is_sparse=false
+  definition
+  meta
+```
+
+Period activity is retained reviews created in the period that are **currently published**, matching merchant creation-cohort semantics. All retained business statuses are included. Historical publication transitions are not reconstructed; later moderation/deletion/classification can revise cohorts.
+
+Recognized stored sentiment labels qualify regardless of numeric score availability, matching Merchant Analytics. Null/unrecognized labels are unclassified. Percentages pool classified counts and exclude unclassified reviews from the denominator. Empty classified populations produce null shares. No rating/stars, accuracy estimate, AI generation or sentiment conclusion is added.
+
+### `GET /api/admin/analytics/specialty-support/`
+
+Route name: `admin-analytics-specialty-support`. Query: common dates as context only; snapshot values ignore the historical selection.
+
+```text
+data:
+  measurement_type=current_snapshot, selected_period_applies=false, as_of
+  summary: {valid_vouches, distinct_supporters, supported_businesses, supported_specialties}
+  specialties: [{specialty_id, name, valid_vouches, distinct_supporters, supported_businesses}]
+  top_supported_specialties: [same row shape, first 10]
+  top_limit=10
+  definition
+  meta
+```
+
+Valid means non-withdrawn and evidence-valid, on the current active business/tag assignment, with creation times no later than `as_of`, matching VouchService. All retained business/account statuses are included; suspicion alone is not invalidation. Global distinct supporters/businesses are calculated from the entire evidence population, not sums of tag-level unique counts. Each tag endorsement is a separate record. Rows include supported tags only, sorted by endorsements descending, distinct supporters descending, tag ID ascending. Snapshot values have no previous-period comparison.
+
+### `GET /api/admin/analytics/change-requests/`
+
+Route name: `admin-analytics-change-requests`. Query: common dates.
+
+```text
+data:
+  backlog: {total, under_1_day, days_1_to_2, days_3_plus, unknown_age}
+  backlog_meta: {measurement_type=current_snapshot, selected_period_applies=false, as_of, age_basis}
+  period_outcomes: {approved, rejected, withdrawn}
+  turnaround: {candidate_count, sample_count, median_hours, mean_hours,
+               excluded_count, missing_timestamp_count, invalid_chronology_count, unrelated_record_count}
+  types: [{type, label, backlog, period_outcomes, turnaround, missing_resolution_timestamp_count}]
+  missing_resolution_timestamp_count, missing_resolution_timestamp_scope
+  definition
+  meta
+```
+
+Types are `name`, `classification`, `location`, using the actual request models. Backlog is current pending requests across all dates. Age is elapsed hours since submission: <24, 24–<72, >=72; missing/future starts are unknown.
+
+Period outcomes use current terminal status plus resolved time in `[start,end)`. Withdrawn is reported as a merchant outcome and excluded from administrator turnaround. Approved/rejected durations use submitted-to-resolved timestamps, excluding missing/negative chronology, preserving zero. Pooled median/mean use individual samples, not type summaries. Missing terminal resolution timestamps are an all-dates count, never assigned to the selected period or silently treated as zero duration. Status history is not reconstructed.
+
+### Verification and performance
+
+Service/API tests cover empty populations, date boundaries, current snapshots, approval deduplication, linked duration exclusions, multi-section feedback deduplication, sentiment denominators, global supporter deduplication, withdrawals, backlog aging, permissions, validation, output allowlists and method restrictions. Query-count budgets: growth 8, community 3, specialty 2, change requests 9, onboarding additions 4. No per-business/tag/day SQL loop is used.
+
+Representative production query plans are still needed for wide date ranges, creation/review scans, first-approval anti-Exists and distinct support. Duration medians buffer projected selected timestamp samples. No new index, cache or precomputation is justified by these correctness tests alone.
+
+
+## Discovery Activity summary and complete display timeline
+
+`GET /api/admin/analytics/discovery-summary/` accepts the shared `period=7|30|90|custom`
+and custom `start_date`/`end_date` parameters only. Active Admin/Super Admin permissions,
+Manila calendar interpretation, capped half-open UTC bounds and the `success_response`
+envelope are unchanged. Metric/interval filters are deliberately unsupported here.
+
+```text
+data:
+  totals: {profile_visits: integer|null, impressions: integer|null, saves: integer|null}
+  definitions: {profile_visits, impressions, saves, deduplication, missing_observations, comparisons}
+  meta: existing AnalyticsMetaSerializer fields
+```
+
+The summary delegates once to `VisibilityEventService.get_analytics_totals`; it does not
+read series, prior periods or individual businesses. A successful empty read returns three
+recorded zeroes. A source outage returns HTTP 200, three null totals and unavailable
+metadata. Counts retain existing event-type/actor/business/UTC-day deduplication. Saves
+are recorded SAVE events, not current Pocket membership, removal or churn.
+
+`discovery-trend/` retains every existing field, including sparse `series`, its null-on-read-
+failure behavior, and `series_is_sparse=true`. Two additive fields support the dashboard:
+
+- `definitions`: the same explicit event/gap/comparison descriptions as the summary.
+- `timeline`: every clipped Manila daily/Monday-week bucket in the effective selected
+  period, with `date`, `start`, `end_exclusive`, `value: integer|null`, and `in_progress`.
+  Existing observed counts (including explicit zero) are copied without transformation.
+  Unobserved buckets are null, never fabricated zeroes. A failed series read gives null
+  timeline, while an otherwise successful empty series gives a full nullable timeline.
+  No additional Mongo query is required to generate calendar buckets.
+
+`in_progress` identifies the final current-time-capped bucket from the resolved backend
+period. A historical selection ending part-way through a week is not labelled in progress.
+Weekly UI may hatch the in-progress interval; the daily UI does not add a large hatch.
+The display axis uses effective period bounds even when later timeline values are null.
+
+`data_through=null` means freshness/coverage is unknown, not the last event date. Event
+timestamps cannot establish an ingestion watermark. If a real earlier data-through bound
+is supplied, the UI marks the remaining axis region without inventing observations.
+Current tracking coverage remains unverified, so comparisons remain suppressed.
+
+The UI mounts one period-only summary query and one metric/interval trend query. Changing
+metric/interval leaves summary cached; changing period changes both keys. Summary and
+trend loading/errors/retries are independent. The summary adds one totals aggregate to
+the existing trend's current-total, series and previous-total reads; no additional trend
+report, event tracking, cache, index or rollup is introduced.

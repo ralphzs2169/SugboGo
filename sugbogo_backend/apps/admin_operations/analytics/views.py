@@ -13,6 +13,7 @@ from apps.admin_operations.analytics.serializers.platform_analytics_serializers 
     AnalyticsPeriodQuerySerializer,
     DiscoveryTrendQuerySerializer,
     DiscoveryTrendSerializer,
+    DiscoverySummarySerializer,
     PlatformAnalyticsSerializer,
 )
 from apps.admin_operations.analytics.services.discovery_analytics_service import (
@@ -47,6 +48,30 @@ def get_analytics_data(request):
         data=PlatformAnalyticsSerializer(report).data,
         message="Platform analytics retrieved successfully.",
     )
+
+
+class DiscoverySummaryView(APIView):
+    """Provide all recorded discovery totals without running three trend reports."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def get(
+        self,
+        request,
+    ):
+        """Validate one reporting period and serialize the existing totals aggregation."""
+        query = AnalyticsPeriodQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        report = DiscoveryAnalyticsService.get_summary(
+            query.validated_data["report_period"],
+        )
+        return success_response(
+            data=DiscoverySummarySerializer(report).data,
+            message="Discovery summary retrieved successfully.",
+        )
 
 
 class DiscoveryTrendView(APIView):

@@ -91,7 +91,11 @@ class PlatformAnalyticsServiceTests(TestCase):
         User.objects.filter(pk=self.explorers[0].pk).update(USER_ROLE=User.UserRole.MERCHANT)
         report = self.overview()
         self.assertEqual(report["kpis"]["new_explorer_accounts"]["value"], 1)
-        self.assertIn("Later role changes", report["kpis"]["new_explorer_accounts"]["description"])
+        registration = report["kpis"]["new_explorer_accounts"]
+        self.assertEqual(registration["label"], "New current-Explorer accounts")
+        self.assertEqual(registration["measurement_type"], "period_current_state")
+        self.assertIn("Later role changes", registration["description"])
+        self.assertIn("not immutable Explorer acquisition", registration["description"])
 
     def test_mongo_failure_keeps_sql_counts_and_reports_null_visibility(self):
         report = self.overview(side_effect=VisibilityTrackingUnavailable())
@@ -108,7 +112,8 @@ class PlatformAnalyticsServiceTests(TestCase):
         self.assertEqual(discovery["value"], 5)
         self.assertIsNone(discovery["previous_value"])
         self.assertIsNone(discovery["change"]["value"])
-        self.assertIn("not total app MAU", discovery["label"])
+        self.assertEqual(discovery["label"], "Discovery-active accounts (not total app MAU)")
+        self.assertIn("Explorer and Merchant actors", discovery["description"])
 
     def test_zero_registration_prior_count_returns_no_relative_comparison(self):
         User.objects.filter(pk=self.explorers[2].pk).update(USER_CREATED_AT=self.period.start)

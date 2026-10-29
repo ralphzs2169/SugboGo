@@ -771,9 +771,14 @@ class VisibilityEventService:
         business_ids,
         start_time,
         end_time,
+        platform=False,
     ):
         """Classify every recorded visit, including legacy unknowns, in one read."""
-        if business_ids is None:
+        if platform and business_ids is not None:
+            raise ValidationError({
+                "business_ids": "Platform scope cannot include business IDs.",
+            })
+        if business_ids is None and not platform:
             raise ValidationError({
                 "business_ids": "An explicit business scope is required.",
             })
