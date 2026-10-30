@@ -24,7 +24,7 @@ export default function BusinessSpecialtiesPresentation({
 }) {
   if (!tags.length) return null;
   return (
-    <View className="bg-surface px-4 py-4">
+    <View className="mt-2 overflow-hidden rounded-md bg-surface px-4 py-5">
       {/* Specialty identity stays visible independently of social state. */}
       <AppText weight="bold" className="text-base text-text-primary">
         Specialties

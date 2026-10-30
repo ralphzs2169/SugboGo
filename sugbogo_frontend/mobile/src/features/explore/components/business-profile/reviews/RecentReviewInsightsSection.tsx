@@ -5,6 +5,7 @@ import { ActivityIndicator, View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
+import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
 
 import type {
   BusinessReviewInsights,
@@ -15,11 +16,9 @@ import {
   resolveReviewInsightRegeneration,
   reviewInsightUpdateMessage,
 } from "../../../utils/reviewInsightRegeneration.utils";
-import type { ReviewSentiment } from "../../../types/review.types";
 import ReviewInsightsHeader from "./ReviewInsightsHeader";
 import ReviewInsightsStateCard from "./ReviewInsightsStateCard";
 import ReviewInsightsSummaryCard from "./ReviewInsightsSummaryCard";
-import ReviewVibeSection from "./ReviewVibeSection";
 
 type Props = {
   insights?: BusinessReviewInsights | null;
@@ -27,15 +26,14 @@ type Props = {
   isLoading?: boolean;
   error?: boolean;
   onRetry?: () => void;
-  selectedSentiment?: ReviewSentiment | null;
-  onSentimentPress?: (sentiment: ReviewSentiment) => void;
   children?: ReactNode;
+  hideUnavailable?: boolean;
 };
 
 /**
- * Presents recent generated Review Insights and sentiment in one compact section.
+ * Presents recent generated Review Insights in one compact section.
  *
- * Keeps generated content and sentiment availability independent while
+ * Keeps generated content and regeneration progress independent while
  * simplifying unavailable states so they do not repeat the section heading.
  */
 export default function RecentReviewInsightsSection({
@@ -44,9 +42,8 @@ export default function RecentReviewInsightsSection({
   isLoading = false,
   error = false,
   onRetry,
-  selectedSentiment,
-  onSentimentPress,
   children,
+  hideUnavailable = false,
 }: Props) {
   const recentCount = insights?.eligible_review_count ?? 0;
   const hasRecentReviews = recentCount > 0;
@@ -58,8 +55,9 @@ export default function RecentReviewInsightsSection({
   const showGeneratedContent = Boolean(
     insights?.content_available && (progress?.content_available ?? true),
   );
+  if (hideUnavailable && !showGeneratedContent) return null;
 
-  const showSentiment = Boolean(
+  const showOverallVibe = Boolean(
     insights?.has_sufficient_sentiment_data &&
     classifiedCount > 0 &&
     Object.values(insights.sentiment).some(
@@ -74,19 +72,25 @@ export default function RecentReviewInsightsSection({
     !showGeneratedContent,
   );
 
-  const showSectionHeader = showGeneratedContent || showSentiment;
+  const showSectionHeader = showGeneratedContent;
 
-  const overallVibe = showSentiment ? insights?.overall_vibe : null;
+  const overallVibe = showOverallVibe ? insights?.overall_vibe : null;
 
   return (
     <View className="gap-5 rounded-md bg-surface pb-2">
       {/* Review Insights heading and recent-review context */}
       {showSectionHeader && (
         <ReviewInsightsHeader
-          recentCount={showSentiment ? classifiedCount : recentCount}
-          reviewPopulation={showSentiment ? "classified" : "eligible"}
+          recentCount={recentCount}
           overallVibe={overallVibe}
         />
+      )}
+
+      {/* Preserve the overall vibe when generated content has no heading. */}
+      {!showSectionHeader && overallVibe && (
+        <View className="self-start">
+          <ReviewVibeBadge vibe={overallVibe} testID="overall-review-vibe" />
+        </View>
       )}
 
       {/* Loading, error, and unavailable states */}
@@ -104,11 +108,13 @@ export default function RecentReviewInsightsSection({
             <AppText className="text-xs leading-5 text-text-secondary">
               {updateMessage}
             </AppText>
-            {tracked && showGeneratedContent && !progress.content_is_current && (
-              <AppText className="text-xs leading-5 text-text-tertiary">
-                Showing the previous summary for now.
-              </AppText>
-            )}
+            {tracked &&
+              showGeneratedContent &&
+              !progress.content_is_current && (
+                <AppText className="text-xs leading-5 text-text-tertiary">
+                  Showing the previous summary for now.
+                </AppText>
+              )}
           </View>
         </View>
       )}
@@ -137,7 +143,7 @@ export default function RecentReviewInsightsSection({
             onPrimaryAction={onRetry}
           />
         </View>
-      ) : !insights ? (
+      ) : !showGeneratedContent && updateMessage ? null : !insights ? (
         <ReviewInsightsStateCard
           icon="chart-box-outline"
           title="Recent insights are not available yet"
@@ -166,8 +172,8 @@ export default function RecentReviewInsightsSection({
           {insights.state === "insufficient_reviews" && !showSectionHeader && (
             <ReviewInsightsStateCard
               icon="chart-box-outline"
-              title="Not enough recent reviews yet"
-              description={insights.state_message ?? ""}
+              title="More recent feedback needed"
+              description="Review insights are based on recent customer feedback, so older reviews may not be included."
             />
           )}
 
@@ -226,16 +232,6 @@ export default function RecentReviewInsightsSection({
                   </AppText>
                 ) : null
               }
-            />
-          )}
-
-          {/* Recent sentiment distribution */}
-          {showSentiment && (
-            <ReviewVibeSection
-              insights={insights}
-              selectedSentiment={selectedSentiment}
-              onSentimentPress={onSentimentPress}
-              showDescription={false}
             />
           )}
 

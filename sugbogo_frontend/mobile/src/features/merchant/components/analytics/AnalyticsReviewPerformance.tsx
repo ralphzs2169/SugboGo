@@ -1,7 +1,4 @@
-import {
-  AnalyticsChartSkeleton,
-  AnalyticsFeedbackSkeleton,
-} from "./AnalyticsLoadingSkeletons";
+import { AnalyticsChartSkeleton } from "./AnalyticsLoadingSkeletons";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef } from "react";
@@ -11,7 +8,6 @@ import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
-import ReviewFeedbackDistribution from "@/shared/components/reviews/ReviewFeedbackDistribution";
 import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { PlusReviewPerformanceReport } from "../../types/merchantPlusAnalytics.types";
@@ -30,7 +26,7 @@ const PERIOD_OPTIONS = [
   { label: "Last 90 days", value: "90" },
 ];
 
-/** Presents selected-period feedback and responses with persistent controls and localized recovery. */
+/** Presents selected-period review activity and responses with persistent controls and localized recovery. */
 export default function AnalyticsReviewPerformance({
   report,
   period,
@@ -51,7 +47,7 @@ export default function AnalyticsReviewPerformance({
   const pending = loading && !report;
   const unavailable = report?.meta.availability === "unavailable";
   const cohort = unavailable ? undefined : report?.current;
-  const showShares =
+  const showOverallVibe =
     !!cohort &&
     cohort.has_sufficient_sentiment_data &&
     cohort.classified_review_count > 0;
@@ -85,12 +81,18 @@ export default function AnalyticsReviewPerformance({
             >
               Review activity
             </AppText>
+            {showOverallVibe && (
+              <ReviewVibeBadge
+                vibe={cohort?.overall_vibe}
+                testID="analytics-review-vibe"
+              />
+            )}
             <AnalyticsHeaderControls
               period={period}
               onOpenPeriod={() => periodSheetRef.current?.present()}
               onOpenInformation={() => measurementSheetRef.current?.present()}
               informationLabel="About review activity"
-              informationHint="Opens information about reviews, feedback, and replies"
+              informationHint="Opens information about review activity and replies"
             />
           </View>
           <AppText className="text-sm leading-5 text-text-secondary">
@@ -156,63 +158,18 @@ export default function AnalyticsReviewPerformance({
           />
         )}
 
-        {/* Familiar faces and category counts preserve the backend's sample eligibility. */}
+        {/* Empty review period */}
         {cohort?.published_review_count === 0 && (
           <AnalyticsChartEmptyState
             title="No reviews during these dates"
-            description="Customer feedback, replies, and weekly activity will appear here when reviews are available."
+            description="Replies and weekly activity will appear here when reviews are available."
             icon="comment-text-outline"
           />
         )}
         {(pending || (cohort && cohort.published_review_count > 0)) && (
           <>
-            <View className="gap-3">
-              <View className="flex-row flex-wrap items-center justify-between gap-3">
-                <AppText weight="bold" className="text-base text-text-primary">
-                  Customer feedback
-                </AppText>
-                {showShares && (
-                  <ReviewVibeBadge
-                    vibe={cohort?.overall_vibe}
-                    testID="analytics-review-vibe"
-                  />
-                )}
-              </View>
-              {pending ? (
-                <AnalyticsFeedbackSkeleton />
-              ) : (
-                cohort && (
-                  <>
-                    {!showShares && (
-                      <AnalyticsChartEmptyState
-                        compact
-                        title="More reviews are needed"
-                        description="Exact counts are shown below. Percentages need more categorized reviews."
-                        icon="comment-text-outline"
-                      />
-                    )}
-                    <ReviewFeedbackDistribution
-                      sentiment={cohort.sentiment}
-                      showPercentages={showShares}
-                    />
-                    <View className="gap-1">
-                      <AppText className="text-xs leading-5 text-text-secondary">
-                        Based on {cohort.classified_review_count} of{" "}
-                        {cohort.published_review_count} reviews
-                      </AppText>
-                      {cohort.unclassified_review_count > 0 && (
-                        <AppText className="text-xs leading-5 text-text-secondary">
-                          {cohort.unclassified_review_count} not categorized
-                        </AppText>
-                      )}
-                    </View>
-                  </>
-                )
-              )}
-            </View>
-
             {/* Reply-rate progress uses the supplied percentage, never an inferred score. */}
-            <View className="gap-3 border-t border-border-primary/60 pt-5">
+            <View className="gap-3">
               <AppText weight="bold" className="text-base text-text-primary">
                 Your replies
               </AppText>

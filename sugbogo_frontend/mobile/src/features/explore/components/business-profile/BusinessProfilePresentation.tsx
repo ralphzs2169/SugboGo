@@ -68,7 +68,12 @@ export default function BusinessProfilePresentation({
         cluster: business.cluster,
         category: business.category,
         display_cover_photo_url: media.cover,
-        ...(live ? { is_pocketed: live.is_pocketed } : {}),
+        ...(live
+          ? {
+              is_pocketed: live.is_pocketed,
+              sentiment_rating: live.sentiment_rating,
+            }
+          : {}),
       }
     : null;
   const ownerPresentation = !!live?.is_own_business && !props.previewAsExplorer;
@@ -127,15 +132,14 @@ export default function BusinessProfilePresentation({
                 !business ? "no-hide-descendants" : "auto"
               }
             >
-              {/* Stable hero and overlapping information card */}
+              {/* Connected cover, identity, and inline business metadata */}
               <View className="bg-surface">
                 <ExploreBusinessHero
                   business={identity}
                   isOwnBusiness={ownerPresentation}
                   onShare={shareProfile}
                   onGoBack={goBack}
-                />
-                <View className="relative z-10 -mt-8 px-4">
+                >
                   {live ? (
                     <LiveBusinessQuickInfo {...props} business={live} />
                   ) : (
@@ -148,7 +152,7 @@ export default function BusinessProfilePresentation({
                       unavailable
                     />
                   )}
-                </View>
+                </ExploreBusinessHero>
               </View>
               {/* One contextual source label for the entire profile */}
               {!live && detail.snapshot && (

@@ -13,9 +13,14 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 
 import BusinessPocketButton from "./BusinessPocketButton";
+import BusinessSentimentRating from "./BusinessSentimentRating";
+import type { BusinessSentimentRating as Rating } from "../../types/businessRating.types";
+import { usePresentedBusinessRating } from "../../hooks/businessRatingSync";
+import { businessRatingValueAccessibilityLabel } from "../../utils/businessRating.utils";
 
 type Props = {
   businessId: number;
+  rating?: Rating | null;
   isPocketed: boolean | null;
   businessName: string;
   coverPhotoUrl: string | null;
@@ -45,6 +50,7 @@ type Props = {
  */
 export default function BusinessProfileStickyHeader({
   businessId,
+  rating,
   isPocketed,
   businessName,
   coverPhotoUrl,
@@ -62,6 +68,8 @@ export default function BusinessProfileStickyHeader({
   onIdentityLayout,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const currentRating = usePresentedBusinessRating(businessId, rating);
+  const ratingLabel = businessRatingValueAccessibilityLabel(currentRating);
   const [failedCover, setFailedCover] = useState<string | null>(null);
   const cover = coverPhotoUrl !== failedCover ? coverPhotoUrl : null;
 
@@ -188,7 +196,15 @@ export default function BusinessProfileStickyHeader({
             </View>
           )}
 
-          <View className="ml-2 flex-1">
+          <View
+            className="ml-2 min-w-0 flex-1"
+            accessible={ratingLabel ? true : undefined}
+            accessibilityLabel={
+              ratingLabel
+                ? `${businessName}. ${clusterName} · ${categoryName}. ${ratingLabel}`
+                : undefined
+            }
+          >
             <View className="flex-row items-center">
               <AppText
                 weight="bold"
@@ -209,7 +225,7 @@ export default function BusinessProfileStickyHeader({
               )}
             </View>
 
-            <View className="mt-0.5 flex-row items-center">
+            <View className="mt-0.5 min-w-0 flex-row items-center">
               <MaterialCommunityIcons
                 name={clusterIconName}
                 size={14}
@@ -218,11 +234,23 @@ export default function BusinessProfileStickyHeader({
 
               <AppText
                 weight="medium"
-                className="ml-1 flex-1 text-xs text-text-secondary"
+                className="ml-1 min-w-0 flex-1 text-xs text-text-secondary"
                 numberOfLines={1}
               >
-                {clusterName} · {categoryName}
+                {ratingLabel
+                  ? `${categoryName} · ${clusterName}`
+                  : `${clusterName} · ${categoryName}`}
               </AppText>
+              {ratingLabel && (
+                <View className="ml-1 shrink-0 flex-row items-center gap-1">
+                  <AppText className="text-xs text-text-secondary">·</AppText>
+                  <BusinessSentimentRating
+                    businessId={businessId}
+                    rating={currentRating}
+                    variant="inline"
+                  />
+                </View>
+              )}
             </View>
           </View>
         </View>

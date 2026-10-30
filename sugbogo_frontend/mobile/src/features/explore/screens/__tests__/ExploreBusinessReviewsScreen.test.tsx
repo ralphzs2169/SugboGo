@@ -9,6 +9,7 @@ import {
 import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
 import type { BusinessReview } from "../../types/review.types";
 import ExploreBusinessReviewsScreen from "../ReviewsCollectionScreen";
+import { businessRatingFixture } from "../../__tests__/review.fixtures";
 
 const mockSetOptions = jest.fn();
 
@@ -574,6 +575,79 @@ describe("ExploreBusinessReviewsScreen", () => {
 
     expect(mockSetOptions).toHaveBeenLastCalledWith({ title: "Reviews (28)" });
     expect(mockSetOptions).not.toHaveBeenCalledWith({ title: "Reviews (4)" });
+  });
+
+  it("places the rating before the title in the navigation header while retaining the published total", async () => {
+    (useBusinessReviewPreview as jest.Mock).mockReturnValue(
+      preview({ totalCount: 28 }),
+    );
+    const businessQuery = {
+      business: {
+        sentiment_rating: businessRatingFixture(),
+        review_insights: {
+          state: "insufficient_reviews",
+          eligible_review_count: 0,
+          content_available: false,
+        },
+      },
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    };
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue(businessQuery);
+    const view = await render(
+      <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+    );
+    const options = mockSetOptions.mock.calls.at(-1)![0];
+    expect(options.title).toBe("Reviews (28)");
+    const header = await render(options.headerTitle());
+    expect(options.headerRight).toBeUndefined();
+    expect(header.getByText("3.6")).toBeTruthy();
+    expect(header.getByText("Reviews (28)")).toBeTruthy();
+    expect(
+      header
+        .getAllByText(/^(3\.6|Reviews \(28\))$/)
+        .flatMap((node) => node.props.children)
+        .filter((child) => typeof child === "string"),
+    ).toEqual(["3.6", "Reviews (28)"]);
+    expect(header.getByLabelText("Business rating 3.6 out of 5")).toBeTruthy();
+    expect(
+      header.queryByText(/\(7\)|\/5|AI sentiment|Experimental/),
+    ).toBeNull();
+    await header.unmount();
+    (useBusinessReviewPreview as jest.Mock).mockReturnValue(
+      preview({ totalCount: 4300 }),
+    );
+    await view.rerender(
+      <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+    );
+    const compactTitle = await render(
+      mockSetOptions.mock.calls.at(-1)![0].headerTitle(),
+    );
+    expect(compactTitle.getByText("Reviews (4.3k)")).toBeTruthy();
+    expect(compactTitle.getByLabelText("Reviews (4300)")).toBeTruthy();
+    await compactTitle.unmount();
+    (useBusinessReviewPreview as jest.Mock).mockReturnValue(
+      preview({ totalCount: 28 }),
+    );
+    for (const state of [
+      "insufficient_data",
+      "pending",
+      "unavailable",
+    ] as const) {
+      (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+        ...businessQuery,
+        business: { sentiment_rating: businessRatingFixture({ state }) },
+      });
+      await view.rerender(
+        <ExploreBusinessReviewsScreen businessId={20} isOwnBusiness={false} />,
+      );
+      expect(mockSetOptions.mock.calls.at(-1)![0]).toEqual({
+        title: "Reviews (28)",
+        headerRight: undefined,
+        headerTitle: undefined,
+      });
+    }
   });
 
   it("prevents the business owner from writing", async () => {

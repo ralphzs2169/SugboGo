@@ -24,6 +24,64 @@ TRANSIENT_RETRY_LIMIT = 3
 
 @shared_task(
     bind=True,
+    name="apps.reviews.tasks.recalculate_business_rating",
+    max_retries=TRANSIENT_RETRY_LIMIT,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def recalculate_business_rating(
+    task,
+    business_id,
+):
+    """Recompute persisted inputs only and retain recoverable demand after failures."""
+    from apps.reviews.models import BusinessRating
+    from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
+
+    revision = None
+    try:
+        revision = (
+            BusinessRating.objects
+            .filter(BUSN_ID_id=business_id)
+            .values_list("BRAT_REQUESTED_REVISION", flat=True)
+            .first()
+        )
+        return BusinessRatingWorkService.process(business_id)
+    except Exception as exc:
+        try:
+            delay = BusinessRatingWorkService.record_failure(
+                business_id,
+                revision,
+                type(exc).__name__,
+            )
+        except Exception:
+            # A database outage can prevent recording backoff; bounded delivery
+            # retries and the durable pending revision still provide recovery.
+            logger.exception("Could not persist rating failure. business_id=%s", business_id)
+            delay = 30
+        logger.exception("Rating recalculation failed. business_id=%s", business_id)
+        if delay is not None and task.request.retries < task.max_retries:
+            raise task.retry(exc=exc, countdown=delay)
+        return "failed"
+
+
+@shared_task(name="apps.reviews.tasks.recover_business_ratings")
+def recover_business_ratings():
+    """Recover due aggregate demand without invoking sentiment inference."""
+    from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
+
+    return BusinessRatingWorkService.recover_pending()
+
+
+@shared_task(name="apps.reviews.tasks.reconcile_business_ratings")
+def reconcile_business_ratings():
+    """Repair all-time aggregate drift and bootstrap missing business snapshots."""
+    from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
+
+    return BusinessRatingWorkService.reconcile()
+
+
+@shared_task(
+    bind=True,
     name="apps.reviews.tasks.cleanup_review_media_asset",
     max_retries=TRANSIENT_RETRY_LIMIT,
 )

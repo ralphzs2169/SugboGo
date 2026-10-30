@@ -2,6 +2,7 @@ from django.db import models, transaction
 from django.db.models.functions import Greatest
 from rest_framework.exceptions import NotFound
 
+from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
 from apps.business.models import Business
 from apps.reviews.models import BusinessReviewSummary, Review, ReviewInsightRegeneration
 from apps.reviews.services.review_keyword_service import ReviewKeywordService
@@ -45,6 +46,7 @@ class ReviewModerationConsistencyService:
                 ),
             )
 
+        BusinessRatingWorkService.request_change(review.BUSN_ID_id)
         ReviewInsightSchedulingService.review_changed(
             review.BUSN_ID_id,
             previous_input,

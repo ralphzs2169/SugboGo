@@ -51,6 +51,24 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG") == "True"
 
+# Phase 3 snapshots are manual and unvalidated; expose only by explicit opt-in.
+EXPERIMENTAL_BUSINESS_RATINGS_ENABLED = (
+    os.environ.get("EXPERIMENTAL_BUSINESS_RATINGS_ENABLED", "False") == "True"
+)
+BUSINESS_RATING_AUTO_UPDATES_ENABLED = (
+    os.environ.get("BUSINESS_RATING_AUTO_UPDATES_ENABLED", "True") == "True"
+)
+BUSINESS_RATING_DEFAULT_SCORING_VERSION = os.environ.get(
+    "BUSINESS_RATING_DEFAULT_SCORING_VERSION",
+    "legacy-unverified-v1",
+)
+if (
+    not BUSINESS_RATING_DEFAULT_SCORING_VERSION.strip()
+    or BUSINESS_RATING_DEFAULT_SCORING_VERSION != BUSINESS_RATING_DEFAULT_SCORING_VERSION.strip()
+    or len(BUSINESS_RATING_DEFAULT_SCORING_VERSION) > 100
+):
+    raise ImproperlyConfigured("Provide a valid BUSINESS_RATING_DEFAULT_SCORING_VERSION.")
+
 ALLOWED_HOSTS = ["*"]
 
 
@@ -423,6 +441,14 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
+    "recover-business-ratings": {
+        "task": "apps.reviews.tasks.recover_business_ratings",
+        "schedule": 60.0,
+    },
+    "reconcile-business-ratings": {
+        "task": "apps.reviews.tasks.reconcile_business_ratings",
+        "schedule": 300.0,
+    },
     "daily-login-history-pruning": {
         "task": "apps.authentication.tasks.prune_login_history",
         "schedule": crontab(minute=0, hour=4),

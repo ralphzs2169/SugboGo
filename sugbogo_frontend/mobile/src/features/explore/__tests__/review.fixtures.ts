@@ -1,4 +1,23 @@
 import type { BusinessReview } from "../types/review.types";
+import type { BusinessSentimentRating } from "../types/businessRating.types";
+
+/** Creates a compatible server rating independently of total published reviews. */
+export function businessRatingFixture(
+  overrides: Partial<BusinessSentimentRating> = {},
+): BusinessSentimentRating {
+  return {
+    value: 3.6,
+    contributing_review_count: 7,
+    state: "ready",
+    experimental: true,
+    provenance: "legacy_unverified",
+    scoring_version: "legacy-unverified-v1",
+    calculation_version: "signed-average-v1",
+    computed_at: "2026-10-30T00:00:00Z",
+    automatic_updates_enabled: true,
+    ...overrides,
+  };
+}
 
 /** Creates a complete review fixture so tests retain the current API contract. */
 export function businessReviewFixture(

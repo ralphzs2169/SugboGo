@@ -117,19 +117,6 @@ export function AnalyticsHeatmapSkeleton() {
   );
 }
 
-export function AnalyticsFeedbackSkeleton() {
-  return (
-    <View
-      accessibilityLabel="Loading customer feedback"
-      accessibilityState={{ busy: true }}
-      className="gap-4"
-    >
-      <Skeleton className="h-3 w-full rounded-full" />
-      <AnalyticsRowsSkeleton />
-    </View>
-  );
-}
-
 export function AnalyticsRecommendationSkeleton() {
   return (
     <View

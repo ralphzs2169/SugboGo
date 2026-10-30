@@ -122,6 +122,7 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
     )
     review_count = serializers.SerializerMethodField()
     overall_vibe = serializers.SerializerMethodField()
+    sentiment_rating = serializers.SerializerMethodField()
 
     cluster = ExploreClusterSerializer(
         source="CTGRY_ID.CLUS_ID",
@@ -140,6 +141,24 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
         source="LOCT_ID",
         read_only=True,
     )
+
+    def get_fields(self):
+        """Expose the experimental snapshot only when development access is enabled."""
+        from django.conf import settings
+
+        fields = super().get_fields()
+        if not settings.EXPERIMENTAL_BUSINESS_RATINGS_ENABLED:
+            fields.pop("sentiment_rating", None)
+        return fields
+
+    @staticmethod
+    def get_sentiment_rating(instance):
+        """Read the stored snapshot without running inference or recalculation."""
+        from apps.reviews.serializers.business_rating_serializers import (
+            BusinessRatingSerializer,
+        )
+
+        return BusinessRatingSerializer(instance).data
 
     @staticmethod
     def get_review_count(instance):
@@ -180,6 +199,7 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
             "is_pocketed",
             "review_count",
             "overall_vibe",
+            "sentiment_rating",
             "cluster",
             "category",
             "specialty_tags",

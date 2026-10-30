@@ -75,16 +75,20 @@ export function LiveBusinessQuickInfo({
   const hours = useBusinessHours(business.operating_hours);
   const status = getQuickInfoStatus(hours);
   return (
-    <BusinessProfileQuickInfo
-      reviewCount={totalCount ?? business.review_count}
-      overallVibe={business.overall_vibe}
-      statusLabel={status.statusLabel}
-      statusDetail={status.statusDetail}
-      isOpenNow={status.isOpen}
-      distance={
-        distance !== null ? formatDistance(distance, distanceAccuracy) : null
-      }
-    />
+    <View>
+      <BusinessProfileQuickInfo
+        businessId={business.id}
+        rating={business.sentiment_rating}
+        reviewCount={totalCount ?? business.review_count}
+        overallVibe={business.overall_vibe}
+        statusLabel={status.statusLabel}
+        statusDetail={status.statusDetail}
+        isOpenNow={status.isOpen}
+        distance={
+          distance !== null ? formatDistance(distance, distanceAccuracy) : null
+        }
+      />
+    </View>
   );
 }
 

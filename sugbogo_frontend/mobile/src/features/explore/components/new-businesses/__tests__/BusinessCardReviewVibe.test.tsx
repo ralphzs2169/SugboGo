@@ -57,10 +57,10 @@ describe("BusinessCard review vibe", () => {
     );
   });
 
-  it("shows review count and vibe when available", async () => {
+  it("shows published review count without the removed vibe badge", async () => {
     const screen = await renderBusiness({});
     expect(screen.getByText("12 reviews")).toBeTruthy();
-    expect(screen.getByText("Mostly positive")).toBeTruthy();
+    expect(screen.queryByText("Mostly positive")).toBeNull();
   });
 
   it("shows only the review count when vibe is unavailable", async () => {
@@ -79,7 +79,7 @@ describe("BusinessCard review vibe", () => {
     expect(screen.getByText("No reviews yet")).toBeTruthy();
   });
 
-  it("keeps review metadata off compact cards", async () => {
+  it("keeps published review metadata on unrated compact cards", async () => {
     const screen = await render(
       <BusinessCard
         business={business}
@@ -89,6 +89,6 @@ describe("BusinessCard review vibe", () => {
         variant="compact"
       />,
     );
-    expect(screen.queryByText(/12 reviews/)).toBeNull();
+    expect(screen.getByText("12 reviews")).toBeTruthy();
   });
 });

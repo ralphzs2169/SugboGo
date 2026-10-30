@@ -185,6 +185,37 @@ it("omits missing sections and preserves long names when a cover fails", async (
   expect(view.getByText(local.feeds[0].items[0].business_name)).toBeTruthy();
 });
 
+it("omits cached rating aggregates on the local-only screen even while reconnecting", async () => {
+  onlineManager.setOnline(true);
+  const local = state();
+  local.feeds = local.feeds.map((feed) => ({
+    ...feed,
+    items: feed.items.map((business) => ({
+      ...business,
+      sentiment_rating: {
+        value: 4.2,
+        contributing_review_count: 7,
+        state: "ready",
+        experimental: true,
+        provenance: "legacy_unverified",
+        scoring_version: "legacy-unverified-v1",
+        calculation_version: "signed-average-v1",
+        computed_at: "2026-10-30T00:00:00Z",
+        automatic_updates_enabled: true,
+      },
+    })),
+  }));
+  jest.mocked(useRecentExplore).mockReturnValue(local as never);
+  const view = await render(<RecentExploreScreen />);
+  expect(view.queryByText(/4.2\/5/)).toBeNull();
+  expect(view.queryByText(/AI sentiment/)).toBeNull();
+  expect(
+    view.getByRole("button", {
+      name: "Open Local place 1 business profile",
+    }),
+  ).toBeTruthy();
+});
+
 it("provides intentional empty navigation without granting authentication", async () => {
   jest
     .mocked(useRecentExplore)

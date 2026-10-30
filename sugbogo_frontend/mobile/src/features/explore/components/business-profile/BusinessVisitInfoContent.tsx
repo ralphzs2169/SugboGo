@@ -195,8 +195,8 @@ export default function BusinessVisitInfoContent({
       </View>
 
       {/* Operating hours */}
-      <View className="mt-4 border-t border-border-primary/60 pt-4">
-        <View className="flex-row items-center">
+      <View className="mt-4 border-t border-border-primary/60">
+        <View className="min-h-14 flex-row items-center">
           <MaterialCommunityIcons
             name="clock-outline"
             size={18}
@@ -346,7 +346,7 @@ export default function BusinessVisitInfoContent({
       </View>
 
       {/* Contact details */}
-      <View className="mt-4 border-t border-border-primary/60">
+      <View className="border-t border-border-primary/60">
         {/* Phone */}
         <View className="min-h-14 flex-row items-center border-b border-border-primary/60">
           <MaterialCommunityIcons

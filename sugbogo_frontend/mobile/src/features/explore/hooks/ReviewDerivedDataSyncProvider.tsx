@@ -60,6 +60,14 @@ import {
   exploreBusinessDetailKey,
 } from "./reviewQueryKeys";
 
+import {
+  beginBusinessRatingSync,
+  observeBusinessRating,
+  shouldPollBusinessRating,
+  useBusinessRatingObservation,
+} from "./businessRatingSync";
+import { invalidateBusinessCardCollections } from "../utils/reviewCache.utils";
+
 const POLL_INTERVAL_MS = 2_000;
 const SENTIMENT_TIMEOUT_MS = 45_000;
 const AUTHOR_CHECK_TIMEOUT_MS = 12 * 60_000;
@@ -407,6 +415,8 @@ export function ReviewDerivedDataSyncProvider({
 }>) {
   const queryClient = useQueryClient();
   const isFocused = useIsFocused();
+  const ratingObservation = useBusinessRatingObservation(businessId);
+  const ratingPolling = shouldPollBusinessRating(ratingObservation);
   const currentOwnerId = useAuthStore((state) =>
     state.isAuthenticated ? (state.user?.id ?? null) : null,
   );
@@ -502,6 +512,7 @@ export function ReviewDerivedDataSyncProvider({
       isFocused &&
       Boolean(
         checkingSubmission ||
+        ratingPolling ||
         sentimentSession ||
         generatedSession ||
         (observeAuthorReview && needsAuthorCheck(cachedReview)),
@@ -595,7 +606,12 @@ export function ReviewDerivedDataSyncProvider({
     queryFn: () => fetchSyncDetail(businessId, ownerId, ownerGeneration),
     enabled: Boolean(businessId && authorized && isFocused),
     staleTime: (query) => {
-      if (sentimentSession || generatedSession) {
+      if (
+        sentimentSession ||
+        generatedSession ||
+        ratingPolling ||
+        (ratingObservation && !ratingObservation.completedAt)
+      ) {
         return 0;
       }
 
@@ -604,6 +620,13 @@ export function ReviewDerivedDataSyncProvider({
     refetchInterval: (query) => {
       if (!ownsPolling) return false;
       if (sentimentSession) return POLL_INTERVAL_MS;
+      if (
+        ratingPolling &&
+        query.state.data?.sentiment_rating?.automatic_updates_enabled &&
+        !query.state.error
+      ) {
+        return 5_000;
+      }
       if (!generatedSession) return false;
       const progress = resolveReviewInsightRegeneration(
         query.state.data?.review_insight_regeneration,
@@ -617,6 +640,41 @@ export function ReviewDerivedDataSyncProvider({
     },
     refetchIntervalInBackground: false,
   });
+
+  useEffect(() => {
+    if (
+      !authorized ||
+      !isFocused ||
+      detailQuery.isError ||
+      !ownsSession(ownerId!, ownerGeneration)
+    ) {
+      return;
+    }
+    const rating = detailQuery.data?.sentiment_rating;
+    if (
+      (rating?.state === "pending" || rating?.state === "unavailable") &&
+      rating.automatic_updates_enabled &&
+      (!ratingObservation ||
+        (ratingObservation.completedAt &&
+          rating.computed_at &&
+          Date.parse(rating.computed_at) >=
+            Date.parse(ratingObservation.completedAt)))
+    ) {
+      beginBusinessRatingSync(queryClient, businessId, rating, false);
+    } else if (observeBusinessRating(queryClient, businessId, rating)) {
+      void invalidateBusinessCardCollections(queryClient);
+    }
+  }, [
+    authorized,
+    businessId,
+    detailQuery.data,
+    detailQuery.isError,
+    isFocused,
+    ownerGeneration,
+    ownerId,
+    queryClient,
+    ratingObservation,
+  ]);
 
   const startSentimentSync = useCallback(
     (session: StartSentimentSync) => {

@@ -85,7 +85,7 @@ describe("ReviewFiltersSection", () => {
     await press(screen.getByLabelText("Filter reviews, 0 active filters"));
     expect(onOpenFilter).toHaveBeenCalledTimes(1);
 
-    expect(screen.getByText("Positive")).toBeTruthy();
+    expect(screen.queryByText("Positive")).toBeNull();
     expect(screen.getByText("Frequently mentioned")).toBeTruthy();
 
     await press(topicButtons[0]);
@@ -147,10 +147,74 @@ describe("ReviewFiltersSection", () => {
       />,
     );
 
-    expect(screen.getByText("Updating insights…")).toBeTruthy();
+    expect(screen.queryByText("Updating insights…")).toBeNull();
+    expect(screen.getByText("Filter & sort")).toBeTruthy();
     expect(
       screen.queryByLabelText("Friendly service, mentioned in 8 reviews"),
     ).toBeNull();
-    expect(screen.getByText("Mostly positive")).toBeTruthy();
+    expect(screen.queryByText("Review Insights")).toBeNull();
+  });
+
+  it.each([null, "outdated", "pending"] as const)(
+    "proceeds directly to filter controls when generated insights are %s",
+    async (state) => {
+      const screen = await render(
+        <ReviewFiltersSection
+          insights={
+            state
+              ? {
+                  ...insights,
+                  state,
+                  content_available: false,
+                  narrative: null,
+                }
+              : null
+          }
+          insightsLoading={false}
+          insightsError={false}
+          onRetryInsights={jest.fn()}
+          filters={DEFAULT_BUSINESS_REVIEW_FILTERS}
+          onChange={jest.fn()}
+          onClear={jest.fn()}
+          onOpenFilter={jest.fn()}
+        />,
+      );
+      expect(screen.getByText("Filter & sort")).toBeTruthy();
+      expect(screen.queryByText("Review Insights")).toBeNull();
+      expect(
+        screen.queryByText(
+          /Not enough recent|eligible recent reviews|insights are not available|Updating insights/,
+        ),
+      ).toBeNull();
+    },
+  );
+
+  it("explains recent feedback separately from all-time reviews above the filters", async () => {
+    const screen = await render(
+      <ReviewFiltersSection
+        insights={{
+          ...insights,
+          state: "insufficient_reviews",
+          content_available: false,
+          narrative: null,
+          minimum_eligible_review_count: 5,
+        }}
+        insightsLoading={false}
+        insightsError={false}
+        onRetryInsights={jest.fn()}
+        filters={DEFAULT_BUSINESS_REVIEW_FILTERS}
+        onChange={jest.fn()}
+        onClear={jest.fn()}
+        onOpenFilter={jest.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Review insights are based on recent customer feedback, so older reviews may not be included.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("More recent feedback needed")).toBeTruthy();
+    expect(screen.queryByText(/eligible|at least|five|30 days/i)).toBeNull();
+    expect(screen.getByText("Filter & sort")).toBeTruthy();
   });
 });

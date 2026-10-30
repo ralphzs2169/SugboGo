@@ -12,6 +12,8 @@ export function exploreBusinessDetailStaleTime(
     detail?.review_insights,
   );
   if (
+    detail?.sentiment_rating?.state === "pending" ||
+    detail?.sentiment_rating?.state === "unavailable" ||
     progress?.is_outstanding ||
     detail?.review_insights?.state === "pending" ||
     detail?.review_insights?.state === "outdated"

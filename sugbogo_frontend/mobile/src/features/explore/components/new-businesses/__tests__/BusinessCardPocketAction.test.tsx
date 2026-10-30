@@ -112,7 +112,7 @@ describe("Business card Pocket actions", () => {
           expect(navigate).not.toHaveBeenCalled();
           await fireEvent.press(
             screen.getByRole("button", {
-              name: "Open Card Cafe business profile",
+              name: /Open Card Cafe business profile/,
             }),
           );
           expect(navigate).toHaveBeenCalledTimes(1);
@@ -144,7 +144,7 @@ describe("Business card Pocket actions", () => {
       />,
     );
     const navigation = screen.getByRole("button", {
-      name: "Open Card Cafe business profile",
+      name: /Open Card Cafe business profile/,
     });
     const action = screen.getByRole("button", { name: "Remove Card Cafe" });
     expect(
@@ -178,7 +178,7 @@ describe("Business card Pocket actions", () => {
     );
     expect(openPicker).not.toHaveBeenCalled();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Open Card Cafe business profile" }),
+      screen.getByRole("button", { name: /Open Card Cafe business profile/ }),
     );
     expect(navigate).toHaveBeenCalledTimes(1);
   });
@@ -198,7 +198,7 @@ describe("Business card Pocket actions", () => {
       screen.queryByRole("button", { name: /Pocket collections/ }),
     ).toBeNull();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Open Card Cafe business profile" }),
+      screen.getByRole("button", { name: /Open Card Cafe business profile/ }),
     );
     expect(navigate).toHaveBeenCalledTimes(1);
   });

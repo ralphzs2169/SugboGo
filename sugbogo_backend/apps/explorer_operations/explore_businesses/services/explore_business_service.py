@@ -53,6 +53,7 @@ class ExploreBusinessService:
                     "CTGRY_ID__CLUS_ID",
                     "LOCT_ID",
                     "review_summary",
+                    "business_rating",
                     "review_insight_regeneration",
                 )
                 .annotate(

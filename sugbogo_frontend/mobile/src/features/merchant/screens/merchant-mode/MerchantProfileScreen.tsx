@@ -40,6 +40,7 @@ import MerchantProfileHeader from "../../components/business-profile/MerchantPro
 import MerchantProfileSkeleton from "../../components/business-profile/MerchantProfileSkeleton";
 import MerchantProfileStickyHeader from "../../components/business-profile/MerchantProfileStickyHeader";
 import useMerchantBusinessProfile from "../../hooks/business-profile/useMerchantBusinessProfile";
+import useMerchantBusinessRating from "../../hooks/business-profile/useMerchantBusinessRating";
 import useUpdateBusinessCoverPhoto from "../../hooks/business-profile/useUpdateBusinessCoverPhoto";
 import { useMerchantBusinessNameChangeRequests } from "../../hooks/business-name-change/useMerchantBusinessNameChanges";
 import { useMerchantClassificationChangeRequests } from "../../hooks/classification-change/useMerchantClassificationChanges";
@@ -69,6 +70,9 @@ export default function MerchantProfileScreen() {
   const bottomSpacing = useTabBarSpacing();
 
   const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const { rating, refetch: refetchRating } = useMerchantBusinessRating(
+    business?.status === "active" ? business.id : 0,
+  );
   const { clusters } = useClusters();
   const documentAccess = useMutation({
     mutationFn: async (documentId: number) =>
@@ -130,6 +134,7 @@ export default function MerchantProfileScreen() {
         refetchRequests(),
         refetchClassification(),
         refetchLocation(),
+        ...(business?.status === "active" ? [refetchRating()] : []),
       ]);
     } finally {
       setIsRefreshing(false);
@@ -346,6 +351,8 @@ export default function MerchantProfileScreen() {
           >
             {/* Cover hero and live business identity */}
             <MerchantProfileHeader
+              businessId={business.id}
+              rating={rating}
               businessName={business.business_name}
               classification={`${business.category.name} · ${business.cluster.name}`}
               clusterIcon={clusterIcon}

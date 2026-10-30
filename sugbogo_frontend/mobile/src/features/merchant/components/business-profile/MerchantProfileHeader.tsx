@@ -12,10 +12,14 @@ import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { CLUSTER_ICONS } from "@/shared/constants/clusterIcons";
 import type { ClusterIcon } from "@/shared/types/cluster.types";
 import Avatar from "@/shared/components/Avatar";
+import BusinessSentimentRating from "@/features/explore/components/business-profile/BusinessSentimentRating";
+import type { BusinessSentimentRating as Rating } from "@/features/explore/types/businessRating.types";
 
 import type { CoverPhotoUpdateAllowance } from "../../types/merchantBusinessProfile.types";
 
 type MerchantProfileHeaderProps = {
+  businessId?: number;
+  rating?: Rating | null;
   businessName: string;
   classification: string;
   clusterIcon?: ClusterIcon;
@@ -35,6 +39,8 @@ type MerchantProfileHeaderProps = {
  * cover-update allowance, confirmation, and uploading states.
  */
 export default function MerchantProfileHeader({
+  businessId = 0,
+  rating,
   businessName,
   classification,
   clusterIcon,
@@ -238,23 +244,11 @@ export default function MerchantProfileHeader({
 
       {/* Business identity overlapping the cover */}
       <View className="-mt-7 rounded-t-[28px] bg-surface px-5 pb-3">
-        <View className="flex-row items-end gap-3">
+        <View className="flex-row items-end justify-between gap-3">
           {/* Merchant avatar overlapping the business cover */}
           <View className="-mt-9 h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-surface bg-background">
             <Avatar imageUrl={avatarUrl} avatarKey={avatarKey} size={72} />
           </View>
-        </View>
-
-        {/* Business name and status */}
-        <View className="mt-2 flex-row items-start gap-3">
-          <AppText
-            weight="superbold"
-            className="min-w-0 flex-1 text-xl leading-7 text-text-primary"
-            numberOfLines={2}
-          >
-            {businessName}
-          </AppText>
-
           {/* Business status badge */}
           <View
             className={`mt-1 shrink-0 flex-row items-center gap-1.5 rounded-full px-3 py-1.5 ${
@@ -278,6 +272,22 @@ export default function MerchantProfileHeader({
               {status === "active" ? "Active" : "Suspended"}
             </AppText>
           </View>
+        </View>
+
+        {/* Business name and the same value-only rating used by Explorer. */}
+        <View className="mt-2 flex-row items-start gap-3">
+          <AppText
+            weight="superbold"
+            className="min-w-0 flex-1 text-xl leading-7 text-text-primary"
+            numberOfLines={2}
+          >
+            {businessName}
+          </AppText>
+          <BusinessSentimentRating
+            businessId={businessId}
+            rating={rating}
+            variant="stat"
+          />
         </View>
 
         <View className="mt-1.5 flex-row items-center gap-2">

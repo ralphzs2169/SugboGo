@@ -84,8 +84,12 @@ export default function BusinessReviewsPreviewSection({
   return (
     <View>
       {/* Reviews heading */}
-      <View className="mb-4 flex-row items-center justify-between">
-        <AppText weight="bold" className="text-base text-text-primary">
+      <View className="mb-3 flex-row items-center justify-between">
+        <AppText
+          accessibilityRole="header"
+          weight="bold"
+          className="text-base text-text-primary"
+        >
           Reviews {reviewCount > 0 ? `(${reviewCount})` : ""}
         </AppText>
 
@@ -96,7 +100,8 @@ export default function BusinessReviewsPreviewSection({
                 onPress={openReviews}
                 accessibilityRole="button"
                 accessibilityLabel="See more business reviews"
-                className="min-h-12 cursor-pointer flex-row items-center active:opacity-70"
+                hitSlop={{ top: 14, bottom: 14, left: 4, right: 4 }}
+                className="cursor-pointer flex-row items-center active:opacity-70"
               >
                 <AppText weight="semibold" className="text-sm text-brand">
                   See more

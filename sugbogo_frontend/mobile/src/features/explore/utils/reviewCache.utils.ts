@@ -30,6 +30,7 @@ const BUSINESS_CARD_COLLECTION_QUERY_KEYS = [
   DISCOVERY_RESULTS_QUERY_KEY,
   SIMILAR_BUSINESSES_QUERY_KEY,
   EXPLORE_COLLECTIONS_QUERY_KEY,
+  ["pockets"] as const,
 ] as const;
 
 /** Refreshes existing business-card collections after counts or vibe change. */
@@ -37,6 +38,15 @@ export function invalidateBusinessCardCollections(queryClient: QueryClient) {
   return Promise.all(
     BUSINESS_CARD_COLLECTION_QUERY_KEYS.map((queryKey) =>
       queryClient.invalidateQueries({ queryKey }),
+    ),
+  );
+}
+
+/** Discard pre-mutation card responses before observing asynchronous rating work. */
+export function cancelBusinessCardCollections(queryClient: QueryClient) {
+  return Promise.all(
+    BUSINESS_CARD_COLLECTION_QUERY_KEYS.map((queryKey) =>
+      queryClient.cancelQueries({ queryKey }),
     ),
   );
 }

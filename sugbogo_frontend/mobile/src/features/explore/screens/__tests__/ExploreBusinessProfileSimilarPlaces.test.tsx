@@ -3,9 +3,7 @@ import { onlineManager } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Share } from "react-native";
-
-// Native screen initialization can exceed Jest's default timeout on Windows.
-jest.setTimeout(20000);
+import { businessRatingFixture } from "../../__tests__/review.fixtures";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
@@ -29,6 +27,13 @@ import SimilarPlacesSection from "../../components/business-profile/SimilarPlace
 import ReviewComposerSheet from "../../components/business-profile/ReviewComposerSheet";
 import RideProviderSheet from "../../components/business-profile/RideProviderSheet";
 import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
+
+// Native screen initialization can exceed Jest's default timeout on Windows.
+jest.setTimeout(20000);
+jest.mock("@/shared/components/ParticleBurst", () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 const mockRecordRouteIntent = jest.fn();
 const mockVouch = jest.fn();
@@ -133,7 +138,10 @@ jest.mock("expo-router", () => ({
   },
   useIsFocused: () => true,
   router: { back: jest.fn(), canGoBack: () => true, push: jest.fn() },
-  useNavigation: () => ({ isFocused: () => true }),
+  useNavigation: () => ({
+    isFocused: () => true,
+    addListener: () => () => undefined,
+  }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: jest.requireActual("react-native").View,
@@ -228,13 +236,40 @@ it("uses the detail review count until preview resolves, including a confirmed z
     .mocked(useBusinessReviewPreview)
     .mockReturnValue({ totalCount: null } as never);
   const view = await render(profile());
-  expect(view.getByText(String(business.review_count))).toBeTruthy();
+  expect(view.getByText(`${business.review_count} reviews`)).toBeTruthy();
   expect(view.queryByText("0")).toBeNull();
   jest
     .mocked(useBusinessReviewPreview)
     .mockReturnValue({ totalCount: 0 } as never);
   await view.rerender(profile());
-  expect(view.getByText("0")).toBeTruthy();
+  expect(view.getByText("0 reviews")).toBeTruthy();
+});
+
+it("integrates the live rating into hero and sticky identity without a duplicate block or offline rating", async () => {
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("live"),
+    business: { ...business, sentiment_rating: businessRatingFixture() },
+  } as never);
+  const view = await render(profile());
+  expect(view.queryByText("rating")).toBeNull();
+  expect(view.getByLabelText("Business rating 3.6 out of 5")).toBeTruthy();
+  expect(
+    view.queryByText(/AI sentiment|Experimental|scored reviews|\/5/),
+  ).toBeNull();
+  await fireEvent.scroll(view.getByTestId("business-profile-scroll"), {
+    nativeEvent: { contentOffset: { y: 300 } },
+  });
+  await waitFor(() => {
+    expect(
+      view.getByLabelText(/Sugbo Cafe.*Business rating 3.6 out of 5/),
+    ).toBeTruthy();
+  });
+  jest
+    .mocked(useBusinessDetailSource)
+    .mockReturnValue(source("recent") as never);
+  await view.rerender(profile());
+  expect(view.queryByText("3.6")).toBeNull();
+  expect(view.queryByLabelText(/Business rating/)).toBeNull();
 });
 
 it("shares from both visible headers and hides sticky controls at the top", async () => {
@@ -496,48 +531,45 @@ it("shows loading while offline sources resolve, then a viewport-filling error w
   expect(refetch).toHaveBeenCalled();
 });
 
-it("previews loading, local, recovery and unavailable states without mounting live behavior", async () => {
+it("keeps loading, local recovery, and unavailable sources free of live behavior", async () => {
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("unavailable"),
+    isLoading: true,
+    isInitialLoading: true,
+  } as never);
+  const view = await render(profile());
+  expect(view.getByText("Vouch for what this place gets right")).toBeTruthy();
+  expect(view.queryByLabelText("Current status unavailable")).toBeNull();
+
+  for (const mode of ["offline-pocket", "recent"] as const) {
+    for (const recovery of [
+      { isFetching: false, error: null },
+      { isFetching: true, error: null },
+      { isFetching: false, error: { code: "NETWORK_ERROR" } },
+    ]) {
+      jest.mocked(useBusinessDetailSource).mockReturnValue({
+        ...source(mode),
+        ...recovery,
+      } as never);
+      await view.rerender(profile());
+      expect(view.getByLabelText("Current status unavailable")).toBeTruthy();
+      expect(
+        view.getByLabelText("View road route").props.accessibilityState
+          .disabled,
+      ).toBe(true);
+      expect(view.queryByTestId("profile-reviews")).toBeNull();
+    }
+  }
   jest
     .mocked(useBusinessDetailSource)
     .mockReturnValue(source("unavailable") as never);
-  const view = await render(profile());
-  await fireEvent.press(
-    view.getByLabelText("Toggle business profile state preview"),
-  );
-  for (const label of ["Online loading", "Local loading"]) {
-    await fireEvent.press(view.getByLabelText(`Preview ${label}`));
-    expect(view.getByText("Vouch for what this place gets right")).toBeTruthy();
-    expect(view.queryByLabelText("Current status unavailable")).toBeNull();
-  }
-  for (const label of [
-    "Pocket",
-    "Recent",
-    "Recovering",
-    "Recovery failed",
-    "Long name",
-    "Missing info",
-  ]) {
-    await fireEvent.press(view.getByLabelText(`Preview ${label}`));
-    expect(view.getByLabelText("Current status unavailable")).toBeTruthy();
-    expect(
-      view.getByLabelText("View road route").props.accessibilityState.disabled,
-    ).toBe(true);
-    expect(view.queryByTestId("profile-reviews")).toBeNull();
-  }
-  for (const label of ["Unavailable", "Denied"]) {
-    await fireEvent.press(view.getByLabelText(`Preview ${label}`));
-    expect(view.getByTestId("business-profile-error-hero")).toBeTruthy();
-    expect(view.getByText("Unable to load business")).toBeTruthy();
-    expect(view.queryByLabelText("Current status unavailable")).toBeNull();
-  }
-  await fireEvent.press(view.getByLabelText("Preview Live"));
-  expect(view.getByText(/^Live is unavailable/)).toBeTruthy();
+  await view.rerender(profile());
+  expect(view.getByText("Unable to load business")).toBeTruthy();
+  expect(view.queryByLabelText("Current status unavailable")).toBeNull();
   expect(useBusinessVouch).not.toHaveBeenCalled();
   expect(BusinessReviewsSection).not.toHaveBeenCalled();
   expect(mockRecordRouteIntent).not.toHaveBeenCalled();
   expect(refetch).not.toHaveBeenCalled();
-  await fireEvent.press(view.getByLabelText("Preview Actual"));
-  expect(view.getByText("Unable to load business")).toBeTruthy();
 });
 
 it("does not expose the development preview toggle in release", async () => {
@@ -594,8 +626,8 @@ it.each(["recent", "offline-pocket"] as const)(
     expect(view.getByLabelText("Hide full business hours")).toBeTruthy();
     expect(view.getByText("Plan Your Visit")).toBeTruthy();
     expect(view.getByLabelText("Current status unavailable")).toBeTruthy();
-    expect(view.getByLabelText("Reviews unavailable")).toBeTruthy();
-    expect(view.getByLabelText("Distance unavailable")).toBeTruthy();
+    expect(view.queryByLabelText("Reviews unavailable")).toBeNull();
+    expect(view.queryByLabelText("Distance unavailable")).toBeNull();
     expect(view.queryByText("12")).toBeNull();
     const route = view.getByLabelText("View road route");
     expect(route.props.accessibilityState.disabled).toBe(true);

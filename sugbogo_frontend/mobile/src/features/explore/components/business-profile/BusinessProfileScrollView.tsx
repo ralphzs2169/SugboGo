@@ -25,6 +25,7 @@ type Props = {
         | "display_cover_photo_url"
       > & {
         is_pocketed?: boolean;
+        sentiment_rating?: ExploreBusiness["sentiment_rating"];
       })
     | null;
   isRefreshing: boolean;
@@ -185,6 +186,7 @@ export default function BusinessProfileScrollView({
       {business && (
         <BusinessProfileStickyHeader
           businessId={business.id}
+          rating={business.sentiment_rating}
           isPocketed={business.is_pocketed ?? null}
           businessName={business.business_name}
           coverPhotoUrl={business.display_cover_photo_url}

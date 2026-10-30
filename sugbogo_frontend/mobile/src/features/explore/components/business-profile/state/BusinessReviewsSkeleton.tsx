@@ -50,23 +50,6 @@ export default function BusinessReviewsSkeleton({
             </View>
           </View>
 
-          {/* Compact sentiment rows */}
-          <View className="gap-1.5">
-            {[0, 1, 2].map((row) => (
-              <View key={row} className="flex-row items-center px-2 py-2">
-                <View className="w-[92px] flex-row items-center gap-2">
-                  <Skeleton className="h-[22px] w-[22px] rounded-full" />
-                  <View className="gap-1">
-                    <Skeleton className="h-3 w-14 rounded-md" />
-                    <Skeleton className="h-2 w-10 rounded-md" />
-                  </View>
-                </View>
-                <Skeleton className="mx-3 h-2 flex-1 rounded-full" />
-                <Skeleton className="h-3 w-8 rounded-md" />
-              </View>
-            ))}
-          </View>
-
           {/* Frequently mentioned topics */}
           <View>
             <Skeleton className="mb-3 h-4 w-36 rounded-md" />

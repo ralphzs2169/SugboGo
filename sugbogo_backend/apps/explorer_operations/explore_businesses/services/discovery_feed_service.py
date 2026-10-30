@@ -285,6 +285,7 @@ class DiscoveryFeedService:
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
                 "review_summary",
+                "business_rating",
             )
             .annotate(
                 is_pocketed=Exists(

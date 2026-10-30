@@ -4,6 +4,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from apps.reviews.models import Review
+from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
@@ -78,6 +79,7 @@ class ReviewSentimentService:
                             "REVW_UPDATED_AT",
                         ],
                     )
+                    BusinessRatingWorkService.request_change(business_id)
                     outcome = "updated"
 
         # Classification stays committed if this separate, serialized repair fails.
@@ -89,13 +91,23 @@ class ReviewSentimentService:
     def reconcile_business(
         business_id: int,
         reference_time=None,
+        all_time=False,
     ) -> dict:
-        """Attempts each eligible incomplete review before summary aggregation."""
-        review_ids = (
-            BusinessReviewSummaryService.eligible_reviews(
+        """Repair missing classifications in the existing window or explicit all-time lane."""
+        if all_time:
+            population = Review.objects.filter(
+                BUSN_ID_id=business_id,
+                REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+                rating_result__isnull=True,
+                REVW_TEXT__regex=r"\S",
+            )
+        else:
+            population = BusinessReviewSummaryService.eligible_reviews(
                 business_id,
                 reference_time=reference_time,
             )
+        review_ids = (
+            population
             .filter(
                 Q(REVW_SENTIMENT_SCORE__isnull=True)
                 | Q(REVW_SENTIMENT_LABEL__isnull=True),

@@ -9,8 +9,14 @@ import {
   businessReviewsKey,
   exploreBusinessDetailKey,
 } from "../hooks/reviewQueryKeys";
-import { invalidateBusinessCardCollections } from "./reviewCache.utils";
+import {
+  cancelBusinessCardCollections,
+  invalidateBusinessCardCollections,
+} from "./reviewCache.utils";
 import type { BusinessReview } from "../types/review.types";
+
+import { beginBusinessRatingSync } from "../hooks/businessRatingSync";
+import type { ExploreBusinessDetail } from "../types/exploreBusiness.types";
 
 const observedDecisions = new WeakMap<QueryClient, Set<string>>();
 const observedSentiment = new WeakMap<QueryClient, Map<string, string>>();
@@ -58,6 +64,18 @@ export async function refreshAuthorReviewDecision(
   }
   if (observed.has(identity)) return;
   observed.add(identity);
+  const baseline = client.getQueryData<ExploreBusinessDetail>(
+    exploreBusinessDetailKey(businessId),
+  )?.sentiment_rating;
+  if (status === "published" && baseline) {
+    const generation = getAuthSessionGeneration();
+    await Promise.all([
+      cancelBusinessCardCollections(client),
+      client.cancelQueries({ queryKey: exploreBusinessDetailKey(businessId) }),
+    ]);
+    if (generation !== getAuthSessionGeneration()) return;
+    beginBusinessRatingSync(client, businessId, baseline);
+  }
   await refreshAuthorReviewReads(client, businessId, userId);
 }
 

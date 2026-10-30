@@ -233,29 +233,12 @@ describe("lazy Core Plus detail reports", () => {
     },
   );
 
-  it("uses backend sentiment percentages and percentage-point reply comparisons", async () => {
+  it("preserves reply comparisons without sentiment distributions", async () => {
     const screen = await renderDetail("reviews");
     await screen.findByLabelText("Reviews replied to: 25%");
-    expect(
-      screen.getByLabelText(
-        "Positive: 2 reviews, 66.67% of categorized reviews",
-      ),
-    ).toBeTruthy();
-    expect(
-      screen.getByLabelText("Negative: 0 reviews, 0% of categorized reviews"),
-    ).toBeTruthy();
-    expect(screen.getByText("Based on 3 of 4 reviews")).toBeTruthy();
+    expect(screen.queryByTestId("review-feedback-bar")).toBeNull();
     expect(screen.getByText("+25 pp")).toBeTruthy();
     expect(screen.getByText("1 hr")).toBeTruthy();
-    expect(screen.getByTestId("review-feedback-fill-positive")).toHaveStyle({
-      width: "66.67%",
-    });
-    expect(screen.getByTestId("review-feedback-fill-neutral")).toHaveStyle({
-      width: "33.33%",
-    });
-    expect(screen.getByTestId("review-feedback-fill-negative")).toHaveStyle({
-      width: "0%",
-    });
   });
 
   it("withholds sentiment shares for insufficient samples and preserves zero/null reply measures", async () => {
@@ -271,9 +254,11 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("reviews");
-    await screen.findByText("More reviews are needed to show percentages.");
+    await screen.findByLabelText(
+      `New reviews: ${report.current.published_review_count}`,
+    );
     expect(screen.queryByText(/66\.67%/)).toBeNull();
-    expect(screen.getByLabelText("Positive: 2 reviews")).toBeTruthy();
+    expect(screen.queryByTestId("review-feedback-bar")).toBeNull();
     expect(screen.getByLabelText("Reviews replied to: 0%")).toBeTruthy();
     expect(screen.getByText("No usable reply times")).toBeTruthy();
     expect(screen.queryByText("vs prev")).toBeNull();
@@ -295,7 +280,7 @@ describe("lazy Core Plus detail reports", () => {
     expect(
       screen.getByRole("header", { name: "Review activity" }),
     ).toBeTruthy();
-    expect(screen.getByText("Customer feedback")).toBeTruthy();
+    expect(screen.queryByText("Customer feedback")).toBeNull();
     expect(screen.getByText("Your replies")).toBeTruthy();
     expect(screen.getByLabelText("Loading review activity")).toBeTruthy();
     expect(screen.queryByText("Reporting period")).toBeNull();
@@ -370,11 +355,7 @@ describe("lazy Core Plus detail reports", () => {
     );
     await screen.findByText("Unable to refresh review activity");
     expect(screen.getByLabelText("New reviews: 4")).toBeTruthy();
-    expect(
-      screen.getByLabelText(
-        "Positive: 2 reviews, 66.67% of categorized reviews",
-      ),
-    ).toBeTruthy();
+    expect(screen.queryByTestId("review-feedback-bar")).toBeNull();
   });
 
   it("keeps an unavailable review report distinct from a zero-review period", async () => {
@@ -505,7 +486,7 @@ describe("lazy Core Plus detail reports", () => {
     ).toBeNull();
   });
 
-  it("keeps a single classified review as counts rather than a sentiment conclusion", async () => {
+  it("preserves single-review reply metrics without a distribution", async () => {
     const report = reviewReport();
     Object.assign(report.current, {
       published_review_count: 1,
@@ -523,14 +504,16 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("reviews");
-    await screen.findByText("More reviews are needed to show percentages.");
-    expect(screen.getByLabelText("Positive: 1 review")).toBeTruthy();
+    await screen.findByLabelText(
+      `New reviews: ${report.current.published_review_count}`,
+    );
+    expect(screen.queryByTestId("review-feedback-bar")).toBeNull();
     expect(screen.queryAllByTestId("review-feedback-bar")).toHaveLength(0);
     expect(screen.getByText(/Based on 1 review/)).toBeTruthy();
     expect(screen.getByText("Based on 1 reply")).toBeTruthy();
   });
 
-  it("preserves a null sentiment share and a valid zero-second reply median", async () => {
+  it("preserves a zero-second reply median when sentiment shares are unavailable", async () => {
     const report = reviewReport();
     report.current.sentiment.positive.percentage = null;
     report.current.median_first_reply_seconds = 0;
@@ -539,32 +522,10 @@ describe("lazy Core Plus detail reports", () => {
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("reviews");
     await screen.findByText("0 sec");
-    expect(screen.getByLabelText("Positive: 2 reviews")).toBeTruthy();
-    expect(screen.getByText(/Percentage unavailable/)).toBeTruthy();
-    expect(screen.getAllByTestId("review-feedback-bar")).toHaveLength(2);
+    expect(screen.queryByTestId("review-feedback-bar")).toBeNull();
+    expect(screen.queryAllByTestId("review-feedback-bar")).toHaveLength(0);
     expect(screen.queryByTestId("review-feedback-fill-positive")).toBeNull();
-    expect(screen.getByTestId("review-feedback-fill-negative")).toHaveStyle({
-      width: "0%",
-    });
   });
-
-  it.each([-1, 101, Number.NaN])(
-    "retains counts without drawing an invalid sentiment percentage %s",
-    async (percentage) => {
-      const report = reviewReport();
-      report.current.sentiment.positive.percentage = percentage;
-      jest
-        .mocked(service.getMerchantPlusReviewPerformance)
-        .mockResolvedValueOnce(plusSuccess(report));
-      const screen = await renderDetail("reviews");
-      await screen.findByLabelText("Positive: 2 reviews");
-      expect(screen.queryByTestId("review-feedback-fill-positive")).toBeNull();
-      expect(screen.getByText(/Percentage unavailable/)).toBeTruthy();
-      expect(screen.getByTestId("review-feedback-fill-neutral")).toHaveStyle({
-        width: "33.33%",
-      });
-    },
-  );
 
   it("shows an empty review volume and null reply rate for an empty published cohort", async () => {
     const report = reviewReport();
