@@ -9,6 +9,7 @@ import AnalyticsRanking from "../components/AnalyticsRanking";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsTooltip from "../components/AnalyticsTooltip";
+import OperationsStats, { OperationsHelp } from "../components/OperationsStats";
 import { AnalyticsDrilldown, AnalyticsSummary } from "../components/AnalyticsReportContext";
 import { formatCount, formatDuration, formatPercentage } from "../utils/presentation";
 import { growthBucketLabel } from "../utils/growthPresentation";
@@ -59,8 +60,10 @@ export default function OnboardingSection({ period }) {
         <div className="grid min-w-0 gap-5 lg:grid-cols-2">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-text-primary">Application workload</h3>
-            <p className="mt-1 text-xs text-text-secondary">Applications submitted vs. review decisions completed each week</p>
-            <p className="mt-2 text-xs leading-relaxed text-text-secondary">Independent workloads: decisions may review earlier applications, while new applications may be reviewed later. The difference is not a backlog change.</p>
+            <div className="mt-1 flex items-center gap-1 text-xs text-text-secondary">
+              <p>Applications submitted vs. review decisions completed each week</p>
+              <OperationsHelp label="About application workload">Submissions and review decisions are independent event counts and may refer to different applications. Decisions can review earlier applications; new applications may be reviewed later. Their difference is not backlog change or conversion.</OperationsHelp>
+            </div>
             <div className="mt-3 h-56 min-w-0"><AnalyticsTimeSeries chartType="bar" rows={data?.weekly_activity} lines={LINES} tooltipContent={<WorkloadTooltip />} /></div>
           </div>
           <div className="min-w-0">
@@ -72,10 +75,10 @@ export default function OnboardingSection({ period }) {
         </div>
         {/* Unbordered statistics make their different populations explicit */}
         <div className="mt-5 border-t border-stroke pt-4">
-          <AnalyticsSummary items={[
+          <OperationsStats items={[
             { label: "Current workload", value: `${formatCount(data?.legacy_statistics?.pending_review)} pending · ${formatCount(aging?.overdue)} overdue` },
-            { label: "SLA compliance", value: formatPercentage(data?.legacy_statistics?.sla_compliance_rate), context: "All classified recorded reviews" },
-            { label: "Median review turnaround", value: formatDuration(duration?.median_hours), context: "Selected decision period" },
+            { label: "SLA compliance", value: formatPercentage(data?.legacy_statistics?.sla_compliance_rate), help: "All classified recorded reviews, regardless of the selected dates. Reviews without an SLA classification are excluded." },
+            { label: "Median turnaround", value: formatDuration(duration?.median_hours), help: "Valid review decisions during the selected period, linked to their corresponding application submissions." },
           ]} />
         </div>
         {/* Recovery is cumulative, never presented as a period-filtered trend */}

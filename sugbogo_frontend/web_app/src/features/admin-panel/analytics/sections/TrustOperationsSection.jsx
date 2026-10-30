@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Tooltip from "@/shared/components/actions/Tooltip";
 import { useAttentionQueueAnalytics, useChangeRequestAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
@@ -6,6 +7,7 @@ import AnalyticsExactTable from "../components/AnalyticsExactTable";
 import AnalyticsDisclosure from "../components/AnalyticsDisclosure";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
+import OperationsStats from "../components/OperationsStats";
 import AnalyticsReportContext, { AnalyticsDrilldown, AnalyticsSummary } from "../components/AnalyticsReportContext";
 import { formatCount, formatDuration, formatHours, formatTimestamp } from "../utils/presentation";
 
@@ -51,6 +53,47 @@ const processingColumns = [
   })),
 ];
 
+/** Compares observed medians on one zero-based scale; missing samples never become zero. */
+function ProcessingSpeed({ types }) {
+  const rows = types.map((row) => ({
+    ...row,
+    median: row.turnaround?.sample_count > 0 ? row.turnaround?.median_hours ?? null : null,
+  })).sort((left, right) => {
+    if (left.median === null) return right.median === null ? 0 : 1;
+    if (right.median === null) return -1;
+    return right.median - left.median;
+  });
+  const maximum = Math.max(0, ...rows.map((row) => row.median ?? 0));
+  return (
+    <ol aria-label="Median decision time by request type" className="space-y-3">
+      {/* Exact text and proportional lengths remain useful with sparse or tiny durations. */}
+      {rows.map((row) => (
+        <li key={row.type} className="min-w-0">
+          <Tooltip asChild place="top" openOnClick
+            content={`${row.label}: ${formatDuration(row.median)} median decision time · ${formatCount(row.turnaround?.sample_count)} valid decisions. Selected decision period.`}
+            closeEvents={{ blur: true }}
+            globalCloseEvents={{ escape: true, clickOutsideAnchor: true, scroll: true, resize: true }}
+            className="!z-50 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal !px-3 !py-2 leading-relaxed"
+          >
+            <button type="button" aria-label={`${row.label}: ${formatDuration(row.median)} median; ${formatCount(row.turnaround?.sample_count)} valid decisions`}
+              className="block w-full cursor-pointer rounded py-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
+            >
+              <span className="mb-2 flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 text-text-primary">{row.label}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-text-primary">{formatDuration(row.median)}</span>
+              </span>
+              <span aria-hidden="true" className="block h-3 overflow-hidden rounded-sm bg-surface-muted">
+                <span className="block h-full rounded-sm bg-info/75" style={{ width: maximum > 0 && row.median !== null ? `${row.median / maximum * 100}%` : "0%" }} />
+              </span>
+            </button>
+          </Tooltip>
+        </li>
+      ))}
+      {!rows.length && <li className="py-4 text-sm text-text-secondary">No request-type observations available.</li>}
+    </ol>
+  );
+}
+
 /** Compares request-type processing, keeping current queues separate from dated outcomes. */
 export function ChangeRequestWorkload({ period }) {
   const [mode, setMode] = useState(null);
@@ -63,21 +106,53 @@ export function ChangeRequestWorkload({ period }) {
   );
   return (
     <>
-      <AnalyticsSection title="Merchant change requests" description="Current workload and request-type processing." {...state}
+      <AnalyticsSection title="Merchant change requests" description="Current workload · selected-period processing." {...state}
         action={<AnalyticsDrilldown to="/admin-panel/businesses/update-requests">View change requests</AnalyticsDrilldown>}
         footer={<AnalyticsReportFooter title="Merchant change requests" meta={data?.meta} hasData={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
       >
         {/* Compact statistics preserve snapshot and decision-period scopes. */}
-        <AnalyticsSummary items={[
-          { label: "Current workload", value: `${formatCount(data?.backlog?.total)} pending`, context: `${formatCount(data?.backlog?.days_3_plus)} overdue (72h+)` },
-          { label: "Median decision time", value: formatDuration(data?.turnaround?.median_hours), context: "Selected decision period" },
-          { label: "Valid decision sample", value: formatCount(data?.turnaround?.sample_count), context: "Approved / rejected reviews with usable dates" },
+        <OperationsStats items={[
+          { label: "Current workload", value: `${formatCount(data?.backlog?.total)} pending` },
+          { label: "72h+", value: `${formatCount(data?.backlog?.days_3_plus)} overdue` },
+          { label: "Median decision time", value: formatDuration(data?.turnaround?.median_hours), help: `Selected decision period · ${formatCount(data?.turnaround?.sample_count)} valid approval/rejection decisions. Merchant withdrawals are excluded.` },
         ]} />
-        {/* Request-type comparison is primary; detailed aging remains in View data. */}
+        {/* Processing speeds share a proportional scale; aging stays in View data. */}
         <div className="mt-4 border-t border-stroke pt-4">
-          <h3 className="text-sm font-semibold text-text-primary">Processing by request type</h3>
-          <p className="mb-3 mt-1 text-xs leading-relaxed text-text-secondary">Pending shows the current queue. Decisions and withdrawals use the selected resolution period. Withdrawals are merchant actions and are excluded from decision times.</p>
-          {processingTable}
+          <h3 className="text-sm font-semibold text-text-primary">Processing speed by request type</h3>
+          <p className="mb-3 mt-1 text-xs text-text-secondary">Median decision time · selected period</p>
+          <ProcessingSpeed types={types} />
+        </div>
+        {/* Compact outcomes visually separate administrator decisions from merchant actions. */}
+        <div className="mt-5 border-t border-stroke pt-4">
+          <h3 className="mb-3 text-sm font-semibold text-text-primary">Outcomes by request type</h3>
+          <div className="max-w-full overflow-x-auto rounded-lg border border-stroke">
+            <table className="w-full text-left text-sm">
+              <caption className="sr-only">Selected-period outcomes by request type. Approvals and rejections are administrator decisions; withdrawals are merchant actions.</caption>
+              <thead className="bg-surface-muted text-text-primary">
+                <tr className="text-xs text-text-secondary">
+                  <th scope="col" rowSpan={2} className="px-3 py-2 font-medium">Request type</th>
+                  <th scope="colgroup" colSpan={2} className="px-3 pt-2 text-center font-medium">Administrator decisions</th>
+                  <th scope="colgroup" className="border-l border-stroke px-3 pt-2 text-center font-medium">Merchant action</th>
+                </tr>
+                <tr>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Approved</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Rejected</th>
+                  <th scope="col" className="border-l border-stroke px-3 py-2 text-right font-medium">Withdrawn</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stroke text-text-primary">
+                {types.map((row) => (
+                  <tr key={row.type}>
+                    <th scope="row" className="px-3 py-2 font-normal">{row.label}</th>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.period_outcomes?.approved)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.period_outcomes?.rejected)}</td>
+                    <td className="border-l border-stroke px-3 py-2 text-right tabular-nums">{formatCount(row.period_outcomes?.withdrawn)}</td>
+                  </tr>
+                ))}
+                {!types.length && <tr><td colSpan={4} className="px-3 py-4 text-center text-text-secondary">No request-type observations available.</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
       </AnalyticsSection>
       {/* Shared drawer retains exact outcomes, queue aging, exclusions and methodology. */}
