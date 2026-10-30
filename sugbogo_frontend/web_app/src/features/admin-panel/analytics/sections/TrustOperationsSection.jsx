@@ -4,32 +4,97 @@ import { useAttentionQueueAnalytics, useChangeRequestAnalytics } from "../hooks/
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
 import AnalyticsExactTable from "../components/AnalyticsExactTable";
-import AnalyticsDisclosure from "../components/AnalyticsDisclosure";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
-import OperationsStats from "../components/OperationsStats";
-import AnalyticsReportContext, { AnalyticsDrilldown, AnalyticsSummary } from "../components/AnalyticsReportContext";
-import { formatCount, formatDuration, formatHours, formatTimestamp } from "../utils/presentation";
+import OperationsStats, { OperationsHelp } from "../components/OperationsStats";
+import AnalyticsReportExplanation from "../components/AnalyticsReportExplanation";
+import AnalyticsReliability from "../components/AnalyticsReliability";
+import { AnalyticsDrilldown, AnalyticsSummary } from "../components/AnalyticsReportContext";
+import { formatCount, formatDuration, formatTimestamp } from "../utils/presentation";
 
 const agingColumns = [
   { key: "label", label: "Queue" },
   ...[["total", "Pending"], ["under_1_day", "<24h"], ["days_1_to_2", "24–<72h"], ["days_3_plus", "72h+"], ["unknown_age", "Unknown age"]].map(([key, label]) => ({ key, label, render: (row) => formatCount(row[key]) })),
 ];
 
-/** Keeps moderation queues independently recoverable from merchant change requests. */
+/** Compares current queue counts and keeps detailed aging independently accessible. */
 export function ModerationWorkload({ period }) {
+  const [mode, setMode] = useState(null);
   const query = useAttentionQueueAnalytics(period);
   const state = useAnalyticsSectionState(query, "queues", "reports and disputes");
   const data = query.data;
+  const turnaround = data?.completed_dispute_turnaround;
+  const queues = [
+    { label: "Review reports", ...data?.open_reports },
+    { label: "Disputes", ...data?.open_disputes },
+  ];
+  const maximum = Math.max(0, ...queues.map((row) => row.total ?? 0));
+  const report = { ...data, meta: data?.turnaround_meta ?? data?.meta };
   return (
-    <AnalyticsSection title="Reports & disputes" description="Current backlog · selected-period resolution time." {...state} action={<AnalyticsDrilldown to="/admin-panel/moderation-integrity">View moderation</AnalyticsDrilldown>}
-      footer={<AnalyticsReportContext meta={data?.turnaround_meta} asOf={data?.queue_meta?.as_of}><p>Current backlog cannot reconstruct historical queue size. Resolution values use the selected decision period. Withdrawn disputes are excluded from resolution turnaround.</p></AnalyticsReportContext>}
-    >
-      {/* Pending age bands are snapshots; resolution time uses selected-period decisions */}
-      <AnalyticsSummary items={[{ label: "Pending review reports", value: formatCount(data?.open_reports?.total), context: `${formatCount(data?.open_reports?.days_3_plus)} aged 72h+` }, { label: "Pending disputes", value: formatCount(data?.open_disputes?.total), context: `${formatCount(data?.open_disputes?.days_3_plus)} aged 72h+` }, { label: "Median dispute resolution", value: formatHours(data?.completed_dispute_turnaround?.median_hours), context: `${formatCount(data?.completed_dispute_turnaround?.sample_count)} valid samples` }]} />
-      <AnalyticsDisclosure label="Queue breakdown"><AnalyticsExactTable caption="Current moderation queue aging" rows={[{ label: "Reports", ...data?.open_reports }, { label: "Disputes", ...data?.open_disputes }]} columns={agingColumns} />
-      <p className="mt-3 text-xs text-text-secondary">Invalid duration exclusions: {formatCount(data?.completed_dispute_turnaround?.excluded_invalid_duration_count)}. Missing resolution timestamps across all completed disputes: {formatCount(data?.completed_dispute_turnaround?.missing_resolution_timestamp_count)}.</p></AnalyticsDisclosure>
-    </AnalyticsSection>
+    <>
+      <AnalyticsSection title="Reports & disputes" description="Current backlog · selected-period resolution time." {...state}
+        action={<AnalyticsDrilldown to="/admin-panel/moderation-integrity">View moderation</AnalyticsDrilldown>}
+        footer={<AnalyticsReportFooter title="Reports & disputes" meta={data?.meta ?? data?.turnaround_meta} hasData={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+      >
+        {/* Compact context separates current pending counts from dated resolutions. */}
+        <OperationsStats items={[
+          { label: "Pending review reports", value: formatCount(data?.open_reports?.total) },
+          { label: "Pending disputes", value: formatCount(data?.open_disputes?.total) },
+          { label: "Median dispute resolution time", value: formatDuration(turnaround?.median_hours), help: "Upheld or dismissed disputes resolved during the selected period. Merchant withdrawals are excluded. Valid samples and timestamp exclusions are available in View data." },
+        ]} />
+        {/* Bar lengths compare counts on a common scale; overdue is a pending subset. */}
+        <div className="mt-4 border-t border-stroke pt-4">
+          <div className="mb-2 flex items-center gap-1">
+            <h3 className="text-sm font-semibold text-text-primary">Queue Health</h3>
+            <OperationsHelp label="About queue health">Both queues use the same count scale, not percentages. The pending bar includes overdue items; the highlighted portion shows those pending for at least 72 hours. These are current queues, regardless of selected dates.</OperationsHelp>
+          </div>
+          <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
+            <span><span aria-hidden="true" className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-info/75" />Pending total</span>
+            <span><span aria-hidden="true" className="mr-1.5 inline-block h-2 w-2 rounded-sm bg-primary" />Overdue 72h+</span>
+          </div>
+          <ul aria-label="Current queue health" className="space-y-4">
+            {queues.map((row) => (
+              <li key={row.label}>
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                  <span className="text-text-primary">{row.label}</span>
+                  <span className="font-semibold tabular-nums text-text-primary">{formatCount(row.total)} pending</span>
+                </div>
+                <div aria-hidden="true" className="relative h-3 overflow-hidden rounded-sm bg-surface-muted">
+                  <div className="absolute inset-y-0 left-0 bg-info/75" style={{ width: maximum > 0 && row.total != null ? `${row.total / maximum * 100}%` : "0%" }} />
+                  <div className="absolute inset-y-0 left-0 bg-primary" style={{ width: maximum > 0 && row.days_3_plus != null ? `${row.days_3_plus / maximum * 100}%` : "0%" }} />
+                </div>
+                <p className="mt-1 text-xs tabular-nums text-text-secondary">{formatCount(row.days_3_plus)} overdue 72h+</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </AnalyticsSection>
+      {/* One shared drawer contains all age bands, valid samples and exclusions. */}
+      <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Reports & disputes"
+        report={report} interval="selected resolution period" series={[]} showComparison={false}
+        dataContent={<div className="space-y-5">
+          <div>
+            <h3 className="mb-2 font-semibold">Current queue aging</h3>
+            <p className="mb-3 text-xs text-text-secondary">As of {formatTimestamp(data?.queue_meta?.as_of)} PHT. Selected dates do not filter these queues.</p>
+            <AnalyticsExactTable caption="Current moderation queue aging" rows={queues} columns={agingColumns} />
+          </div>
+          <div>
+            <h3 className="mb-3 font-semibold">Dispute resolution samples</h3>
+            <AnalyticsSummary items={[
+              { label: "Median resolution time", value: formatDuration(turnaround?.median_hours) },
+              { label: "Valid samples", value: formatCount(turnaround?.sample_count) },
+              { label: "Invalid duration exclusions", value: formatCount(turnaround?.excluded_invalid_duration_count) },
+              { label: "Missing resolution timestamps", value: formatCount(turnaround?.missing_resolution_timestamp_count), context: "All currently completed disputes, across all dates" },
+            ]} />
+            <p className="text-xs text-text-secondary">{turnaround?.definition}</p>
+            <p className="mt-2 text-xs text-text-secondary">{turnaround?.missing_timestamp_scope}</p>
+          </div>
+          <AnalyticsReportExplanation title="Reports & disputes" report={report} />
+          <AnalyticsReliability meta={data?.turnaround_meta} />
+        </div>}
+        aboutContent={<pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ queue: data?.queue_meta, queue_reporting: data?.meta, turnaround, turnaround_reporting: data?.turnaround_meta }, null, 2)}</pre>}
+      />
+    </>
   );
 }
 

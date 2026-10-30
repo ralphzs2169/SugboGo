@@ -7,6 +7,11 @@ export function readablePeriod(period) {
 }
 
 export const reportExplanations = {
+  "Reports & disputes": [
+    "Current pending review reports and disputes, plus the time taken to resolve eligible disputes during the selected period.",
+    "Queue counts include all currently pending items, regardless of selected dates. Overdue means pending for at least 72 elapsed hours. Median resolution time uses upheld or dismissed disputes resolved during the selected period, measured from creation; withdrawals are excluded.",
+    "Current queues cannot reconstruct historical backlog. Missing or future creation dates have unknown age. Missing or inconsistent timestamps are excluded from resolution durations; missing resolution dates across all completed disputes cannot be assigned to a selected period.",
+  ],
   "Community Health": [
     "Reviews written during the selected period that are still published today, alongside their recorded sentiment.",
     "Activity counts reviews by their creation dates in Philippine daily or weekly buckets. Sentiment shares use classified reviews only; unclassified reviews remain separate and are excluded from the denominator.",
