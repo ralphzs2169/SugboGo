@@ -28,14 +28,22 @@ function GeographicReport({ period }) {
   const [metric, setMetric] = useWorkspaceSelection("geography.metric", "eligible_businesses");
   const [selected, setSelected] = useState("");
   const [hovered, setHovered] = useState(null);
+  const [selectionContext, setSelectionContext] = useState(null);
   const [drawer, setDrawer] = useState(null);
   const selectCell = useCallback((id) => setSelected(id), []);
   const query = useDiscoveryHeatmap({ ...period, ...scope });
   const state = useAnalyticsSectionState(query, "geography", "geographic distribution");
   const data = query.data;
   const cells = data?.cells ?? NO_CELLS;
-  const current = cells.find((cell) => cell.id === selected);
-  const hoveredCell = cells.find((cell) => cell.id === hovered?.id);
+  const current = cells.find((cell) => cell.id === selected && cell.eligible_businesses > 0);
+  const hoveredCell = cells.find((cell) => cell.id === hovered?.id && cell.eligible_businesses > 0);
+  const nextSelectionContext = JSON.stringify({ definition: data?.definition, scope: data?.scope });
+  // Discard stale interaction state before rendering a changed grid or population.
+  if (selectionContext !== nextSelectionContext || (selected && !current) || (hovered && !hoveredCell)) {
+    setSelectionContext(nextSelectionContext);
+    setSelected("");
+    setHovered(null);
+  }
   const ranges = geographicRanges(cells, metric);
   const { clusters, categories } = useAnalyticsTaxonomy();
   const clusterName = clusters.data?.find((row) => String(row.id) === String(scope.cluster))?.name;
@@ -48,48 +56,50 @@ function GeographicReport({ period }) {
     setHovered(null);
     setScope(next);
   }
+  function changeMetric(next) {
+    setHovered(null);
+    setMetric(next);
+  }
   return (
     <>
-      <AnalyticsSection title="Geographic Distribution" description={metric === "eligible_businesses" ? "Current eligible businesses by area across Cebu City." : "Selected-period profile visits at current business locations across Cebu City."} {...state}
+      <AnalyticsSection title="Geographic Distribution" description="Business locations across Cebu City." {...state}
         controls={<>
-          <AnalyticsMetricSelector label="Metric" options={MODES} value={metric} onChange={setMetric} />
+          <AnalyticsMetricSelector label="Metric" options={MODES} value={metric} onChange={changeMetric} />
           <AnalyticsScopeFilters scope="Geographic" clusterLabel="Cluster" categoryLabel="Category" value={scope} onChange={changeScope} />
         </>}
         unavailable={data?.cells === null}
         unavailableMessage="The approved geographic grid is unavailable. This does not mean there are no businesses or visits."
-        footer={<AnalyticsReportFooter title="Geographic Distribution" meta={data?.meta} coverageLabel="Visit recording coverage unverified" coverageDescription="Business inventory reflects current records. Recorded profile activity may be incomplete; complete event recording has not been verified." hasData={Array.isArray(data?.cells)} hasDetails={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
+        footer={<AnalyticsReportFooter title="Geographic Distribution" meta={data?.meta} coverageLabel="Visit recording coverage unverified" hasData={Array.isArray(data?.cells)} hasDetails={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
       >
         {/* Backend geometries determine the extent, cell boundaries and intensity population. */}
         {visibilityUnavailable && <p role="status" className="mb-3 text-sm text-text-secondary">Recorded visits are unavailable; current business counts remain available.</p>}
         <GeographicDistributionMap cells={cells} metric={metric} selected={selected} onSelect={selectCell} onHover={setHovered} hovered={hovered} hoveredCell={hoveredCell} scopeText={scopeText} />
         {/* Metric-specific ranges share the same classes as the map intensity. */}
         <div aria-label="Geographic intensity legend" className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-secondary">
-          <span className="font-medium text-text-primary">{metric === "eligible_businesses" ? "Businesses per area" : "Recorded profile visits per area"}</span>
+          <span className="basis-full font-medium text-text-primary sm:basis-auto">{metric === "eligible_businesses" ? "Businesses per grid area" : "Recorded profile visits per grid area"}</span>
           {metric === "profile_visits" && visibilityUnavailable ? <span>Visit intensity unavailable</span> : ranges.length === 0 ? <span>No positive counts in this scope</span> : ranges.map((range) => (
-            <span key={range.lower} className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-5 rounded-sm bg-primary" style={{ opacity: range.opacity }} />{range.label}</span>
+            <span key={range.lower} className="inline-flex items-center gap-1.5 whitespace-nowrap"><span aria-hidden="true" className="h-3 w-5 rounded-sm bg-primary" style={{ opacity: range.opacity }} />{range.label}</span>
           ))}
           {metric === "profile_visits" && <><span>Zero visits: unfilled</span><span>Unavailable: gray</span></>}
         </div>
-        <p className="mt-2 text-xs text-text-secondary">Areas without eligible businesses are hidden. This shows business locations, not foot traffic.</p>
+        <p className="mt-2 text-xs text-text-secondary">Areas without eligible businesses are hidden.</p>
         {/* Selection stays separate from hover and emphasizes the active measure. */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-stroke pt-3">
-          <div role="status">
+        {current ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-info/40 bg-info/5 p-3">
+          <div role="status" aria-atomic="true" className="min-w-0 flex-1 basis-48">
             <h3 className="text-sm font-medium text-text-primary">Selected area</h3>
-            {current ? <>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-text-primary">{formatCount(current[metric])} {metric === "eligible_businesses" ? "businesses" : "recorded profile visits"}</p>
-              <p className="mt-1 text-xs text-text-secondary">{metric === "eligible_businesses" ? `${formatCount(current.profile_visits)} recorded profile visits · selected period` : `${formatCount(current.eligible_businesses)} businesses · current inventory`}</p>
-              <p className="mt-1 text-xs text-text-secondary">{scopeText}</p>
-            </> : <p className="mt-1 text-sm text-text-secondary">Click an area on the map to inspect its business counts and recorded visits.</p>}
+            <p className="mt-1 text-xl font-semibold tabular-nums text-text-primary">{formatCount(current[metric])} {metric === "eligible_businesses" ? "businesses" : "recorded profile visits"}</p>
+            <p className="mt-1 text-xs text-text-secondary">{metric === "eligible_businesses" ? `${formatCount(current.profile_visits)} recorded profile visits · selected period` : `${formatCount(current.eligible_businesses)} businesses · current inventory`}</p>
+            <p className="mt-1 break-words text-xs text-text-secondary">{scopeText}</p>
           </div>
-          {current && <button type="button" onClick={() => { selectCell(""); setHovered(null); }} className="min-h-9 cursor-pointer rounded-lg px-3 py-2 text-sm font-medium text-text-primary hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info">Clear selection</button>}
-        </div>
+          <button type="button" onClick={() => { selectCell(""); setHovered(null); }} className="min-h-9 shrink-0 cursor-pointer rounded-lg px-3 py-2 text-sm font-medium text-text-primary hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info">Clear selection</button>
+        </div> : <p role="status" className="mt-3 text-xs text-text-secondary">Select an area on the map to inspect it.</p>}
       </AnalyticsSection>
       {/* Exact values, excluded locations and attribution remain in the shared drawer. */}
       <AnalyticsDetailDrawer mode={drawer} onClose={() => setDrawer(null)} title="Geographic Distribution" report={data} interval="selected period" series={[]} showComparison={false}
         aboutContent={<pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ grid: data?.definition, scope: data?.scope, attribution: data?.attribution, sources: data?.sources, reconciliation: data?.reconciliation }, null, 2)}</pre>}
         dataContent={<div className="space-y-5">
           <AnalyticsExactTable caption="All geographic cells in selected taxonomy scope" rows={cells} columns={[
-            { key: "inspect", label: "Area", render: (row) => row.eligible_businesses > 0 ? <button type="button" onClick={() => { selectCell(row.id); setHovered(null); setDrawer(null); }} className="cursor-pointer rounded px-2 py-1 text-sm font-medium text-text-primary underline focus-visible:outline-2 focus-visible:outline-info">Inspect area</button> : "No eligible businesses" },
+            { key: "inspect", label: "Area", render: (row) => row.eligible_businesses > 0 ? <button type="button" aria-label={`Inspect grid area ${row.id}`} aria-pressed={row.id === selected} onClick={() => { selectCell(row.id); setHovered(null); setDrawer(null); }} className="min-h-9 cursor-pointer rounded px-2 py-1 text-sm font-medium text-text-primary underline focus-visible:outline-2 focus-visible:outline-info">Inspect area</button> : "No eligible businesses" },
             { key: "id", label: "Grid cell" },
             { key: "eligible_businesses", label: "Current businesses", render: (row) => formatCount(row.eligible_businesses) },
             { key: "profile_visits", label: "Recorded profile visits", render: (row) => formatCount(row.profile_visits) },

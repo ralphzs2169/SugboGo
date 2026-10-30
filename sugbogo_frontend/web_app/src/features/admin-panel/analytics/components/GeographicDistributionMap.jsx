@@ -16,7 +16,7 @@ function themeColor(token) {
 }
 
 /** Draws only backend-supplied GeoJSON; business locations never become explorer locations. */
-function CellLayer({ cells, metric, selected, onSelect, onHover }) {
+function CellLayer({ cells, metric, selected, hovered, onSelect, onHover }) {
   const map = useMap("analytics-geography");
   const maps = useMapsLibrary("maps");
   const layerRef = useRef(null);
@@ -69,16 +69,31 @@ function CellLayer({ cells, metric, selected, onSelect, onHover }) {
         const cell = byId.get(String(feature.getId()));
         const value = cell[metric];
         const empty = cell.eligible_businesses === 0;
+        const isSelected = String(feature.getId()) === selected;
+        const isHovered = String(feature.getId()) === hovered?.id;
+        let strokeWeight = 0.5;
+        let strokeOpacity = 0.35;
+        let zIndex = 1;
+        if (isHovered) {
+          strokeWeight = 1.5;
+          strokeOpacity = 0.8;
+          zIndex = 2;
+        }
+        if (isSelected) {
+          strokeWeight = 3;
+          strokeOpacity = 1;
+          zIndex = 3;
+        }
         return {
           fillColor: value == null || empty ? neutral : primary,
           fillOpacity: geographicOpacity(value, ranges),
           visible: !empty,
-          strokeColor: String(feature.getId()) === selected ? selectionColor : neutral,
-          strokeWeight: String(feature.getId()) === selected ? 3 : 0.5,
-          strokeOpacity: String(feature.getId()) === selected ? 1 : 0.35,
+          strokeColor: isSelected ? selectionColor : neutral,
+          strokeWeight,
+          strokeOpacity,
           clickable: true,
           cursor: "pointer",
-          zIndex: String(feature.getId()) === selected ? 2 : 1,
+          zIndex,
         };
       });
     }
@@ -86,7 +101,7 @@ function CellLayer({ cells, metric, selected, onSelect, onHover }) {
     const observer = new MutationObserver(style);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme", "style"] });
     return () => observer.disconnect();
-  }, [map, maps, cells, metric, selected]);
+  }, [map, maps, cells, metric, selected, hovered?.id]);
   return null;
 }
 
@@ -117,8 +132,8 @@ export default function GeographicDistributionMap(props) {
         mapId={googleMapsConfig.mapId || undefined} colorScheme={dark ? "DARK" : "LIGHT"} streetViewControl={false} fullscreenControl mapTypeControl={false} gestureHandling="cooperative">
         <CellLayer {...props} />
         {/* Hover/click information uses administrator-facing values, never internal cell IDs. */}
-        {props.hovered && props.hoveredCell && <InfoWindow position={props.hovered.position} disableAutoPan onCloseClick={() => props.onHover(null)}>
-          <div className="max-w-56 rounded-lg bg-background p-2 text-sm text-text-primary">
+        {props.hovered && props.hoveredCell && <InfoWindow position={props.hovered.position} maxWidth={240} disableAutoPan onCloseClick={() => props.onHover(null)}>
+          <div className="max-h-48 max-w-56 overflow-y-auto break-words rounded-lg bg-background p-2 text-sm text-text-primary">
             <p className="font-semibold">{props.metric === "eligible_businesses" ? "Current business inventory" : "Selected-period recorded profile visits"}</p>
             <p className="mt-1">{formatCount(props.hoveredCell.eligible_businesses)} businesses</p>
             <p>{formatCount(props.hoveredCell.profile_visits)} recorded profile visits</p>

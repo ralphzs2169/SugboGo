@@ -257,26 +257,89 @@ test("geographic distribution reuses its query across modes and keeps zero, unav
   assert.equal(requests("discovery-heatmap/").length, 1);
   assert.equal(geographic.querySelector('[aria-label="Geographic area"]'), null);
   assert.doesNotMatch(geographic.textContent, /grid:1:/);
+  assert.match(geographic.textContent, /Select an area on the map to inspect it\./);
+  assert.equal(geographic.querySelector("h3"), null);
+  assert.match(geographic.textContent, /Businesses per grid area/);
+  assert.equal(geographic.textContent.match(/Visit recording coverage unverified/g).length, 1);
+  assert.doesNotMatch(geographic.textContent, /Business inventory reflects current records|Current eligible businesses by area/);
   await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 1"));
   assert.match(geographic.textContent, /2 businesses/);
   assert.match(geographic.textContent, /0 recorded profile visits · selected period/);
   await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Clear selection"));
-  assert.match(geographic.textContent, /Click an area on the map/);
+  assert.match(geographic.textContent, /Select an area on the map to inspect it\./);
+  assert.equal(geographic.querySelector("h3"), null);
   await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 2"));
   assert.match(geographic.textContent, /Unavailable recorded profile visits/);
   await choose("Metric", "profile_visits");
   assert.equal(requests("discovery-heatmap/").length, 1);
   assert.match(geographic.textContent, /Visit intensity unavailable/);
+  assert.match(geographic.textContent, /Recorded profile visits per grid area/);
+  assert.match(geographic.textContent, /Selected area/);
+  assert.match(geographic.textContent, /1 businesses · current inventory/);
   await choose("Category", "2");
   assert.equal(requests("discovery-heatmap/").at(-1).params.category, 2);
-  assert.match(geographic.textContent, /Click an area on the map/);
-  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  assert.match(geographic.textContent, /Select an area on the map to inspect it\./);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 1"));
+  await choose("Cluster", "1");
+  assert.match(geographic.textContent, /Select an area on the map to inspect it\./);
+  assert.equal(requests("discovery-heatmap/").at(-1).params.category, undefined);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 1"));
+  await choosePeriod("7");
+  await until(() => section("Geographic Distribution")?.textContent.includes("Select an area on the map to inspect it.") && requests("discovery-heatmap/").at(-1)?.params.period === "7" && client.isFetching() === 0);
+  const updatedGeographic = section("Geographic Distribution");
+  assert.match(updatedGeographic.textContent, /Select an area on the map to inspect it\./);
+  assert.equal(requests("discovery-heatmap/").at(-1).params.period, "7");
+  await click([...updatedGeographic.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   const drawer = document.querySelector("dialog[open]");
   assert.match(drawer.textContent, /Current businesses/);
   assert.match(drawer.textContent, /Zero recorded visits/);
   assert.match(drawer.textContent, /Visits unavailable/);
   assert.match(drawer.textContent, /missing_location/);
   assert.match(drawer.textContent, /not explorer location, foot traffic/);
+  assert.match(drawer.textContent, /1 km² projected area/);
+  assert.match(drawer.textContent, /Recorded activity may be incomplete/);
+  const inspect = drawer.querySelector('[aria-label="Inspect grid area grid:1:1"]');
+  assert.equal(inspect.getAttribute("aria-pressed"), "false");
+  await click(inspect);
+  assert.match(updatedGeographic.textContent, /Selected area/);
+  assert.match(updatedGeographic.textContent, /0 recorded profile visits/);
+});
+
+test("geographic distribution clears selection for changed geometry or a removed populated cell", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  await mount();
+  await until(() => client.isFetching() === 0);
+  const geographic = section("Geographic Distribution");
+  const selectFirstArea = () => click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 1"));
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "discoveryHeatmap");
+  await selectFirstArea();
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({
+      ...report,
+      cells: report.cells.map((cell, index) => index === 0 ? { ...cell, eligible_businesses: 3 } : cell),
+    }));
+  });
+  await until(() => geographic.textContent.includes("3 businesses"));
+  assert.match(geographic.textContent, /Selected area/);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, definition: { version: "changed-grid" } }));
+  });
+  await until(() => geographic.textContent.includes("Select an area on the map to inspect it."));
+  await selectFirstArea();
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, scope: { boundary_wkb_sha256: "changed-boundary" } }));
+  });
+  await until(() => geographic.textContent.includes("Select an area on the map to inspect it."));
+  await selectFirstArea();
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({
+      ...report,
+      cells: report.cells.map((cell, index) => index === 0 ? { ...cell, eligible_businesses: 0 } : cell),
+    }));
+  });
+  await until(() => geographic.textContent.includes("Select an area on the map to inspect it."));
+  assert.equal(geographic.querySelector("h3"), null);
+  assert.equal(requests("discovery-heatmap/").length, 1);
 });
 
 test("workspace ecosystem preserves low-activity ranking, support scope and distinct business identities", async () => {
