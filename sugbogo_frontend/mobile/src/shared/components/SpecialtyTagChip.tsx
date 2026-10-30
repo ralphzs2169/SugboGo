@@ -23,6 +23,7 @@ type SpecialtyTagChipProps = {
   showVouchIndicator?: boolean;
   showSelectionIndicator?: boolean;
   highlightQuery?: string;
+  constrainWidth?: boolean;
 };
 
 /**
@@ -30,7 +31,7 @@ type SpecialtyTagChipProps = {
  *
  * Display mode always uses soft specialty colors. Filter and registration
  * modes use neutral unselected states and soft specialty colors with a
- * colored border when selected.
+ * colored border when selected. Card previews can constrain long labels to their column.
  */
 export default function SpecialtyTagChip({
   tag,
@@ -47,6 +48,7 @@ export default function SpecialtyTagChip({
   showVouchIndicator = false,
   showSelectionIndicator = false,
   highlightQuery,
+  constrainWidth = false,
 }: SpecialtyTagChipProps) {
   const styles = getSpecialtyTagColor(tag.color);
   const specialtyIcon = getSpecialtyTagIcon(tag.icon);
@@ -123,7 +125,7 @@ export default function SpecialtyTagChip({
       })}
       className={`${isExtraSmall ? "mb-1 mr-1" : "mb-2 mr-2"} flex-row items-center justify-center rounded-full ${
         isInteractive ? "cursor-pointer" : ""
-      } ${sizeClassName} ${backgroundClassName}`}
+      } ${sizeClassName} ${backgroundClassName} ${constrainWidth ? "max-w-full" : ""}`}
     >
       {/* Specialty icon */}
       {showIcon && (
@@ -138,7 +140,7 @@ export default function SpecialtyTagChip({
       {/* Specialty name */}
       <AppText
         weight="semibold"
-        className={`${textSizeClassName} ${textColor}`}
+        className={`${textSizeClassName} ${textColor} ${constrainWidth ? "min-w-0 shrink" : ""}`}
         numberOfLines={2}
       >
         <HighlightedText text={tag.name} query={highlightQuery} />

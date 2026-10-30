@@ -21,6 +21,14 @@ export function hasDisplayableBusinessRating(
   );
 }
 
+/** Announce a displayable rating without conflating it with published review totals. */
+export function businessRatingValueAccessibilityLabel(
+  rating: BusinessSentimentRating | null | undefined,
+) {
+  if (!hasDisplayableBusinessRating(rating)) return "";
+  return `Business rating ${rating.value.toFixed(1)} out of 5`;
+}
+
 /** Describe the same server value to screen readers on nested business-card buttons. */
 export function businessRatingAccessibilityLabel(
   rating: BusinessSentimentRating | null | undefined,

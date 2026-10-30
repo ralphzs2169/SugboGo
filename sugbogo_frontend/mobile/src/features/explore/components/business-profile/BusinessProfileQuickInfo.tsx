@@ -9,8 +9,14 @@ import {
 } from "@/shared/constants/reviewVibe";
 import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
 import { shadows } from "@/shared/styles/shadows";
+import type { BusinessSentimentRating as Rating } from "../../types/businessRating.types";
+import { usePresentedBusinessRating } from "../../hooks/businessRatingSync";
+import { hasDisplayableBusinessRating } from "../../utils/businessRating.utils";
+import BusinessSentimentRating from "./BusinessSentimentRating";
 
 type Props = {
+  businessId?: number;
+  rating?: Rating | null;
   reviewCount: number | null;
   overallVibe?: ReviewVibe | null;
   statusLabel: string;
@@ -23,10 +29,12 @@ type Props = {
 /**
  * Displays the business's primary quick-glance information.
  *
- * Presents reviews, operating status, and distance in a compact elevated
+ * Presents a rating or review count, operating status, and distance in a compact elevated
  * three-column surface with inset separators for easy visual scanning.
  */
 export default function BusinessProfileQuickInfo({
+  businessId = 0,
+  rating,
   reviewCount,
   overallVibe,
   statusLabel,
@@ -35,6 +43,8 @@ export default function BusinessProfileQuickInfo({
   isOpenNow,
   unavailable = false,
 }: Props) {
+  const currentRating = usePresentedBusinessRating(businessId, rating);
+  const hasRating = !unavailable && hasDisplayableBusinessRating(currentRating);
   const vibe = !unavailable && overallVibe ? overallVibe : null;
   const statusColor =
     isOpenNow === null
@@ -47,45 +57,64 @@ export default function BusinessProfileQuickInfo({
     <View className="rounded-xl bg-surface" style={shadows.elevated}>
       {/* Quick information surface */}
       <View className="flex-row items-stretch overflow-hidden rounded-xl border border-border-primary bg-surface">
-        {/* Review summary */}
+        {/* Rating or review summary */}
         <View
           accessible={unavailable || undefined}
           accessibilityLabel={unavailable ? "Reviews unavailable" : undefined}
           className="min-h-[76px] flex-1 items-center justify-center px-1 py-2"
         >
-          <MaterialCommunityIcons
-            name="message-text-outline"
-            size={18}
-            color={theme.extends.colors.text.secondary}
-          />
-
-          <View
-            className="mt-0.5 flex-row items-center justify-center gap-1.5"
-            accessible={vibe ? true : undefined}
-            accessibilityLabel={
-              vibe
-                ? `${reviewCount ?? "—"} reviews. Customer feedback: ${OVERALL_REVIEW_VIBE_LABELS[vibe]}`
-                : undefined
-            }
-          >
-            {vibe && (
-              <View
-                accessible={false}
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: REVIEW_VIBE_COLORS[vibe].dot }}
+          {hasRating ? (
+            <>
+              <BusinessSentimentRating
+                businessId={businessId}
+                rating={currentRating}
+                variant="stat"
               />
-            )}
-            <AppText
-              weight="bold"
-              className="text-center text-[13px] text-text-primary"
-            >
-              {unavailable ? "—" : (reviewCount ?? "—")}
-            </AppText>
-          </View>
+              <AppText className="text-[11px] text-text-secondary">
+                rating
+              </AppText>
+            </>
+          ) : (
+            <>
+              <MaterialCommunityIcons
+                name="message-text-outline"
+                size={18}
+                color={theme.extends.colors.text.secondary}
+              />
 
-          <AppText className="text-[11px] text-text-secondary">
-            {unavailable ? "Reviews" : reviewCount === 1 ? "review" : "reviews"}
-          </AppText>
+              <View
+                className="mt-0.5 flex-row items-center justify-center gap-1.5"
+                accessible={vibe ? true : undefined}
+                accessibilityLabel={
+                  vibe
+                    ? `${reviewCount ?? "—"} reviews. Customer feedback: ${OVERALL_REVIEW_VIBE_LABELS[vibe]}`
+                    : undefined
+                }
+              >
+                {vibe && (
+                  <View
+                    accessible={false}
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: REVIEW_VIBE_COLORS[vibe].dot }}
+                  />
+                )}
+                <AppText
+                  weight="bold"
+                  className="text-center text-[13px] text-text-primary"
+                >
+                  {unavailable ? "—" : (reviewCount ?? "—")}
+                </AppText>
+              </View>
+
+              <AppText className="text-[11px] text-text-secondary">
+                {unavailable
+                  ? "Reviews"
+                  : reviewCount === 1
+                    ? "review"
+                    : "reviews"}
+              </AppText>
+            </>
+          )}
         </View>
 
         {/* Review and status divider */}

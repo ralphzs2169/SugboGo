@@ -8,7 +8,6 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import { formatDistance } from "@/shared/utils/distance.utils";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
-import BusinessSentimentRating from "../components/business-profile/BusinessSentimentRating";
 import BusinessProfileQuickInfo from "../components/business-profile/BusinessProfileQuickInfo";
 import BusinessProfileSection from "../components/business-profile/BusinessProfileSection";
 import BusinessReviewsSection from "../components/business-profile/reviews/review-preview-section/BusinessReviewsPreviewSection";
@@ -78,6 +77,8 @@ export function LiveBusinessQuickInfo({
   return (
     <View>
       <BusinessProfileQuickInfo
+        businessId={business.id}
+        rating={business.sentiment_rating}
         reviewCount={totalCount ?? business.review_count}
         overallVibe={business.overall_vibe}
         statusLabel={status.statusLabel}
@@ -86,10 +87,6 @@ export function LiveBusinessQuickInfo({
         distance={
           distance !== null ? formatDistance(distance, distanceAccuracy) : null
         }
-      />
-      <BusinessSentimentRating
-        businessId={business.id}
-        rating={business.sentiment_rating}
       />
     </View>
   );

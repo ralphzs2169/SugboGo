@@ -27,6 +27,7 @@ type Props = {
   error?: boolean;
   onRetry?: () => void;
   children?: ReactNode;
+  hideUnavailable?: boolean;
 };
 
 /**
@@ -42,6 +43,7 @@ export default function RecentReviewInsightsSection({
   error = false,
   onRetry,
   children,
+  hideUnavailable = false,
 }: Props) {
   const recentCount = insights?.eligible_review_count ?? 0;
   const hasRecentReviews = recentCount > 0;
@@ -53,6 +55,7 @@ export default function RecentReviewInsightsSection({
   const showGeneratedContent = Boolean(
     insights?.content_available && (progress?.content_available ?? true),
   );
+  if (hideUnavailable && !showGeneratedContent) return null;
 
   const showOverallVibe = Boolean(
     insights?.has_sufficient_sentiment_data &&
@@ -105,11 +108,13 @@ export default function RecentReviewInsightsSection({
             <AppText className="text-xs leading-5 text-text-secondary">
               {updateMessage}
             </AppText>
-            {tracked && showGeneratedContent && !progress.content_is_current && (
-              <AppText className="text-xs leading-5 text-text-tertiary">
-                Showing the previous summary for now.
-              </AppText>
-            )}
+            {tracked &&
+              showGeneratedContent &&
+              !progress.content_is_current && (
+                <AppText className="text-xs leading-5 text-text-tertiary">
+                  Showing the previous summary for now.
+                </AppText>
+              )}
           </View>
         </View>
       )}

@@ -68,7 +68,12 @@ export default function BusinessProfilePresentation({
         cluster: business.cluster,
         category: business.category,
         display_cover_photo_url: media.cover,
-        ...(live ? { is_pocketed: live.is_pocketed } : {}),
+        ...(live
+          ? {
+              is_pocketed: live.is_pocketed,
+              sentiment_rating: live.sentiment_rating,
+            }
+          : {}),
       }
     : null;
   const ownerPresentation = !!live?.is_own_business && !props.previewAsExplorer;

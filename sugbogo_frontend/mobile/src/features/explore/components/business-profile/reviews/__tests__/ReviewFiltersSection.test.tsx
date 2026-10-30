@@ -147,10 +147,45 @@ describe("ReviewFiltersSection", () => {
       />,
     );
 
-    expect(screen.getByText("Updating insights…")).toBeTruthy();
+    expect(screen.queryByText("Updating insights…")).toBeNull();
+    expect(screen.getByText("Filter & sort")).toBeTruthy();
     expect(
       screen.queryByLabelText("Friendly service, mentioned in 8 reviews"),
     ).toBeNull();
     expect(screen.queryByText("Review Insights")).toBeNull();
   });
+
+  it.each([null, "insufficient_reviews", "outdated", "pending"] as const)(
+    "proceeds directly to filter controls when generated insights are %s",
+    async (state) => {
+      const screen = await render(
+        <ReviewFiltersSection
+          insights={
+            state
+              ? {
+                  ...insights,
+                  state,
+                  content_available: false,
+                  narrative: null,
+                }
+              : null
+          }
+          insightsLoading={false}
+          insightsError={false}
+          onRetryInsights={jest.fn()}
+          filters={DEFAULT_BUSINESS_REVIEW_FILTERS}
+          onChange={jest.fn()}
+          onClear={jest.fn()}
+          onOpenFilter={jest.fn()}
+        />,
+      );
+      expect(screen.getByText("Filter & sort")).toBeTruthy();
+      expect(screen.queryByText("Review Insights")).toBeNull();
+      expect(
+        screen.queryByText(
+          /Not enough recent|eligible recent reviews|insights are not available|Updating insights/,
+        ),
+      ).toBeNull();
+    },
+  );
 });

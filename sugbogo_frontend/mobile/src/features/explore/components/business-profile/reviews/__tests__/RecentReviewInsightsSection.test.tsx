@@ -46,7 +46,7 @@ describe("RecentReviewInsightsSection", () => {
   };
 
   it.each([
-    ["pending", "scheduled", /refreshed shortly/],
+    ["pending", "scheduled", /refresh shortly/],
     ["pending", "processing", /Updating insights with the latest reviews/],
     ["outdated", "retry_wait", /taking longer to update/],
   ] as const)(
@@ -82,7 +82,7 @@ describe("RecentReviewInsightsSection", () => {
   );
 
   it.each([
-    ["scheduled", /refreshed shortly/],
+    ["scheduled", /refresh shortly/],
     ["processing", /Updating insights with the latest reviews/],
     ["retry_wait", /taking longer to update/],
   ] as const)(
@@ -95,7 +95,7 @@ describe("RecentReviewInsightsSection", () => {
         />,
       );
       expect(screen.getByText(message)).toBeTruthy();
-      expect(screen.getByText(/Showing previous insights/)).toBeTruthy();
+      expect(screen.getByText(/Showing the previous summary/)).toBeTruthy();
       expect(screen.getByText(insights.narrative!)).toBeTruthy();
       expect(screen.getByTestId("insight-update-status")).toBeTruthy();
     },
@@ -117,7 +117,7 @@ describe("RecentReviewInsightsSection", () => {
     expect(screen.queryByText("Generated mentions")).toBeNull();
     expect(screen.queryByText("Positive")).toBeNull();
     expect(screen.queryByText("Review Insights")).toBeNull();
-    expect(screen.getByText(/refreshed shortly/)).toBeTruthy();
+    expect(screen.getByText(/refresh shortly/)).toBeTruthy();
     expect(screen.queryByText("No recent insights yet")).toBeNull();
   });
 
@@ -128,7 +128,7 @@ describe("RecentReviewInsightsSection", () => {
         regeneration={{ ...scheduled, content_available: false }}
       />,
     );
-    expect(screen.getByText(/refreshed shortly/)).toBeTruthy();
+    expect(screen.getByText(/refresh shortly/)).toBeTruthy();
     await screen.rerender(
       <RecentReviewInsightsSection
         insights={{
@@ -168,7 +168,7 @@ describe("RecentReviewInsightsSection", () => {
     );
     expect(screen.getByText(insights.narrative!)).toBeTruthy();
     expect(screen.queryByTestId("insight-update-status")).toBeNull();
-    expect(screen.queryByText(/Showing previous insights/)).toBeNull();
+    expect(screen.queryByText(/Showing the previous summary/)).toBeNull();
   });
 
   it("distinguishes an unprocessed summary from zero eligible reviews", async () => {
@@ -236,7 +236,11 @@ describe("RecentReviewInsightsSection", () => {
     expect(screen.queryByText("Vibe Summary")).toBeNull();
   });
 
-  it.each(["no-classifications", "below-threshold", "empty-distribution"] as const)(
+  it.each([
+    "no-classifications",
+    "below-threshold",
+    "empty-distribution",
+  ] as const)(
     "does not fabricate sentiment for %s when narrative is unavailable",
     async (reason) => {
       const screen = await render(

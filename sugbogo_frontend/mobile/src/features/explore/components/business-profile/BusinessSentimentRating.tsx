@@ -1,34 +1,78 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
+import colors from "tailwindcss/colors";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import type { BusinessSentimentRating as Rating } from "../../types/businessRating.types";
 import {
   businessRatingAccessibilityLabel,
+  businessRatingValueAccessibilityLabel,
   hasDisplayableBusinessRating,
 } from "../../utils/businessRating.utils";
 import { usePresentedBusinessRating } from "../../hooks/businessRatingSync";
 
 /**
- * Presents the server's AI sentiment snapshot separately from customer review totals.
- *
- * Reserves the same two-line area for enabled rating states and never fetches data.
+ * Presents guarded business ratings in card, stat, header, or expanded formats without fetching.
  */
 export default function BusinessSentimentRating({
   businessId,
   rating,
   compact = false,
   networkError = false,
+  variant,
 }: {
   businessId: number;
   rating?: Rating | null;
   compact?: boolean;
   networkError?: boolean;
+  variant?: "stat" | "inline";
 }) {
   const current = usePresentedBusinessRating(businessId, rating);
   if (!current) return null;
   const available = !networkError && hasDisplayableBusinessRating(current);
+  const count = available ? current.contributing_review_count! : null;
+  const value = available ? current.value!.toFixed(1) : null;
+  const label = networkError
+    ? "AI-derived sentiment rating. Rating could not refresh."
+    : variant
+      ? businessRatingValueAccessibilityLabel(current)
+      : businessRatingAccessibilityLabel(current);
+
+  if (compact || variant) {
+    if (!available) return null;
+    return (
+      <View
+        accessible
+        accessibilityLabel={label}
+        className={`${compact ? "mt-2 min-w-0" : "shrink-0"} flex-row items-center gap-1`}
+      >
+        {/* Available rating metadata */}
+        <MaterialCommunityIcons
+          name="star"
+          size={variant === "stat" ? 18 : 14}
+          color={colors.amber[500]}
+          accessible={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+        <AppText
+          weight="bold"
+          className={`min-w-0 shrink text-text-primary ${variant === "stat" ? "text-[13px]" : "text-xs"}`}
+          numberOfLines={1}
+        >
+          {value}
+          {compact && (
+            <AppText className="text-xs text-text-secondary">
+              {" "}
+              ({count})
+            </AppText>
+          )}
+        </AppText>
+      </View>
+    );
+  }
+
   const message = networkError
     ? "Rating could not refresh"
     : current.state === "insufficient_data"
@@ -40,32 +84,23 @@ export default function BusinessSentimentRating({
           ? "Rating updating…"
           : "Awaiting recalculation"
         : "Rating unavailable";
-  const count = available ? current.contributing_review_count! : null;
-  const value = available ? current.value!.toFixed(1) : null;
-  const label = networkError
-    ? "AI-derived sentiment rating. Rating could not refresh."
-    : businessRatingAccessibilityLabel(current);
   return (
     <View
       accessible
       accessibilityLabel={label}
-      className={`min-h-12 justify-center gap-1 ${compact ? "mt-2" : "mt-3"}`}
+      className="mt-3 min-h-12 justify-center gap-1"
     >
       {/* Rating value or explicit availability state */}
       <View className="flex-row flex-wrap items-center gap-x-1.5 gap-y-1">
         <MaterialCommunityIcons
           name="star-outline"
-          size={compact ? 14 : 16}
+          size={16}
           color={theme.extends.colors.text.secondary}
           accessible={false}
         />
         <AppText
           weight="semibold"
-          className={
-            compact
-              ? "min-w-0 shrink text-xs text-text-secondary"
-              : "min-w-0 shrink text-sm text-text-primary"
-          }
+          className="min-w-0 shrink text-sm text-text-primary"
         >
           {available ? `${value}/5 · ${count} scored reviews` : message}
         </AppText>

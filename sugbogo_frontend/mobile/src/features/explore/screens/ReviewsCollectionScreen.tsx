@@ -40,6 +40,9 @@ import {
 } from "../hooks/useBusinessReviews";
 import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 import { ReviewDerivedDataSyncProvider } from "../hooks/ReviewDerivedDataSyncProvider";
+import BusinessSentimentRating from "../components/business-profile/BusinessSentimentRating";
+import { usePresentedBusinessRating } from "../hooks/businessRatingSync";
+import { hasDisplayableBusinessRating } from "../utils/businessRating.utils";
 import {
   DEFAULT_BUSINESS_REVIEW_FILTERS,
   type BusinessReview,
@@ -98,6 +101,10 @@ function ReviewsCollectionScreenContent({
     error: insightsError,
     refetch: refetchInsights,
   } = useExploreBusinessProfile(businessId);
+  const rating = business?.sentiment_rating;
+  const presentedRating = usePresentedBusinessRating(businessId, rating);
+  const hasRating =
+    !insightsError && hasDisplayableBusinessRating(presentedRating);
 
   const knownTotalCount = ownership.totalCount ?? ownership.lastKnownTotalCount;
   const totalCount = knownTotalCount ?? 0;
@@ -155,8 +162,17 @@ function ReviewsCollectionScreenContent({
     navigation.setOptions({
       title:
         knownTotalCount == null ? "Reviews" : `Reviews (${knownTotalCount})`,
+      headerRight: hasRating
+        ? () => (
+            <BusinessSentimentRating
+              businessId={businessId}
+              rating={rating}
+              variant="inline"
+            />
+          )
+        : undefined,
     });
-  }, [navigation, knownTotalCount]);
+  }, [navigation, knownTotalCount, businessId, hasRating, rating]);
 
   useEffect(() => {
     if (totalCount > 0) {

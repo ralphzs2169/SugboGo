@@ -3,9 +3,7 @@ import { onlineManager } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Share } from "react-native";
-
-// Native screen initialization can exceed Jest's default timeout on Windows.
-jest.setTimeout(20000);
+import { businessRatingFixture } from "../../__tests__/review.fixtures";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
@@ -29,6 +27,13 @@ import SimilarPlacesSection from "../../components/business-profile/SimilarPlace
 import ReviewComposerSheet from "../../components/business-profile/ReviewComposerSheet";
 import RideProviderSheet from "../../components/business-profile/RideProviderSheet";
 import FullscreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
+
+// Native screen initialization can exceed Jest's default timeout on Windows.
+jest.setTimeout(20000);
+jest.mock("@/shared/components/ParticleBurst", () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 const mockRecordRouteIntent = jest.fn();
 const mockVouch = jest.fn();
@@ -133,7 +138,10 @@ jest.mock("expo-router", () => ({
   },
   useIsFocused: () => true,
   router: { back: jest.fn(), canGoBack: () => true, push: jest.fn() },
-  useNavigation: () => ({ isFocused: () => true }),
+  useNavigation: () => ({
+    isFocused: () => true,
+    addListener: () => () => undefined,
+  }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: jest.requireActual("react-native").View,
@@ -235,6 +243,33 @@ it("uses the detail review count until preview resolves, including a confirmed z
     .mockReturnValue({ totalCount: 0 } as never);
   await view.rerender(profile());
   expect(view.getByText("0")).toBeTruthy();
+});
+
+it("integrates the live rating into stats and sticky identity without a duplicate block or offline rating", async () => {
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("live"),
+    business: { ...business, sentiment_rating: businessRatingFixture() },
+  } as never);
+  const view = await render(profile());
+  expect(view.getByText("rating")).toBeTruthy();
+  expect(view.getByLabelText("Business rating 3.6 out of 5")).toBeTruthy();
+  expect(
+    view.queryByText(/AI sentiment|Experimental|scored reviews|\/5/),
+  ).toBeNull();
+  await fireEvent.scroll(view.getByTestId("business-profile-scroll"), {
+    nativeEvent: { contentOffset: { y: 300 } },
+  });
+  await waitFor(() => {
+    expect(
+      view.getByLabelText(/Sugbo Cafe.*Business rating 3.6 out of 5/),
+    ).toBeTruthy();
+  });
+  jest
+    .mocked(useBusinessDetailSource)
+    .mockReturnValue(source("recent") as never);
+  await view.rerender(profile());
+  expect(view.queryByText("3.6")).toBeNull();
+  expect(view.queryByLabelText(/Business rating/)).toBeNull();
 });
 
 it("shares from both visible headers and hides sticky controls at the top", async () => {

@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react-native";
+import colors from "tailwindcss/colors";
 import { onlineManager, QueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import BusinessSentimentRating from "../components/business-profile/BusinessSentimentRating";
@@ -22,6 +23,14 @@ import { EXPLORE_HOMEPAGE_PERSISTENCE_POLICIES } from "../persistence/exploreHom
 jest.mock("expo-router", () => ({
   useNavigation: () => ({ isFocused: () => true }),
 }));
+jest.mock("@expo/vector-icons", () => {
+  const { View } = jest.requireActual("react-native");
+  return {
+    MaterialCommunityIcons: function MockIcon(props: object) {
+      return <View testID="rating-icon" {...props} />;
+    },
+  };
+});
 
 export const ratingFixture: Rating = {
   value: 4.2,
@@ -53,6 +62,55 @@ describe("experimental business rating", () => {
       ),
     ).toBeTruthy();
   });
+
+  it.each([1, 2.8, 4.5, 5])(
+    "presents compact rating %s with the same filled gold star and descriptive accessibility",
+    async (value) => {
+      const screen = await render(
+        <BusinessSentimentRating
+          businessId={1}
+          rating={{ ...ratingFixture, value }}
+          compact
+        />,
+      );
+      expect(screen.getByText(`${value.toFixed(1)} (7)`)).toBeTruthy();
+      const star = screen.getByTestId("rating-icon", {
+        includeHiddenElements: true,
+      });
+      expect(star.props.name).toBe("star");
+      expect(star.props.color).toBe(colors.amber[500]);
+      expect(star.props.accessible).toBe(false);
+      expect(
+        screen.queryByText(/AI sentiment|Experimental|\/5|scored reviews/),
+      ).toBeNull();
+      expect(
+        screen.getByLabelText(
+          new RegExp(
+            `rating ${value.toFixed(1)} out of 5, based on 7 scored reviews`,
+          ),
+        ),
+      ).toBeTruthy();
+    },
+  );
+
+  it.each([
+    { state: "insufficient_data" as const, contributing_review_count: 4 },
+    { state: "ready" as const, contributing_review_count: 4 },
+    { state: "pending" as const },
+    { state: "unavailable" as const },
+  ])(
+    "reserves no compact row for an unavailable numeric rating (%s)",
+    async (overrides) => {
+      const screen = await render(
+        <BusinessSentimentRating
+          businessId={1}
+          rating={{ ...ratingFixture, ...overrides }}
+          compact
+        />,
+      );
+      expect(screen.toJSON()).toBeNull();
+    },
+  );
 
   it.each(["pending", "unavailable", "insufficient_data"] as const)(
     "suppresses stale numeric data in %s state",
@@ -159,7 +217,7 @@ describe("experimental business rating", () => {
   });
 
   it.each(["default", "featured", "compact"] as const)(
-    "keeps scored and published review counts distinct on %s cards",
+    "shows only the compact contributing count on rated %s cards",
     async (variant) => {
       const business: ExploreBusiness = {
         id: 1,
@@ -190,14 +248,16 @@ describe("experimental business rating", () => {
           onPress={jest.fn()}
         />,
       );
-      expect(screen.getByText("4.2/5 · 7 scored reviews")).toBeTruthy();
+      expect(screen.getByText("4.2 (7)")).toBeTruthy();
       expect(
         screen.getByRole("button", {
           name: /Open Rating Cafe.*AI-derived sentiment rating 4.2 out of 5/,
         }),
       ).toBeTruthy();
-      if (variant !== "compact")
-        expect(screen.getByText("100 reviews")).toBeTruthy();
+      expect(screen.queryByText("100 reviews")).toBeNull();
+      expect(
+        screen.queryByText(/AI sentiment|Experimental|\/5|scored reviews/),
+      ).toBeNull();
     },
   );
 

@@ -4,6 +4,7 @@ import { Animated } from "react-native";
 import BusinessAboutContent from "../BusinessAboutContent";
 import BusinessPhotosSection from "../BusinessPhotosSection";
 import BusinessProfileStickyHeader from "../BusinessProfileStickyHeader";
+import { businessRatingFixture } from "../../../__tests__/review.fixtures";
 
 jest.mock(
   "@/shared/components/AppText",
@@ -101,4 +102,65 @@ it("excludes hidden sticky controls from touch and accessibility, then restores 
   expect(props.onShare).toHaveBeenCalledTimes(1);
   await screen.rerender(<BusinessProfileStickyHeader {...props} />);
   expect(screen.queryByRole("button", { name: "Share Cafe" })).toBeNull();
+});
+
+it("includes only a valid rating in sticky identity while preserving visibility and actions", async () => {
+  const props = {
+    businessId: 21,
+    isPocketed: false,
+    businessName: "A long local business name",
+    coverPhotoUrl: null,
+    clusterIconName: "store" as const,
+    clusterName: "Creative",
+    categoryName: "Arts & Crafts",
+    isOwnBusiness: false,
+    navOpacity: new Animated.Value(1),
+    identityOpacity: new Animated.Value(1),
+    translateY: new Animated.Value(0),
+    onShare: jest.fn(),
+    onGoBack: jest.fn(),
+    navigationVisible: true,
+    identityVisible: true,
+  };
+  const view = await render(
+    <BusinessProfileStickyHeader {...props} rating={businessRatingFixture()} />,
+  );
+  expect(view.getByText("3.6")).toBeTruthy();
+  expect(view.getByText("Arts & Crafts · Creative")).toBeTruthy();
+  expect(
+    view.getByLabelText(
+      /A long local business name.*Business rating 3.6 out of 5/,
+    ),
+  ).toBeTruthy();
+  expect(view.queryByText(/\/5|\(7\)|AI sentiment|Experimental/)).toBeNull();
+  await fireEvent.press(view.getByRole("button", { name: "Go back" }));
+  await fireEvent.press(
+    view.getByRole("button", { name: "Share A long local business name" }),
+  );
+  expect(props.onGoBack).toHaveBeenCalledTimes(1);
+  expect(props.onShare).toHaveBeenCalledTimes(1);
+  await view.rerender(
+    <BusinessProfileStickyHeader
+      {...props}
+      rating={businessRatingFixture()}
+      identityVisible={false}
+    />,
+  );
+  expect(view.queryByText("3.6")).toBeNull();
+  expect(view.queryByLabelText(/Business rating/)).toBeNull();
+  for (const state of [
+    "insufficient_data",
+    "pending",
+    "unavailable",
+  ] as const) {
+    await view.rerender(
+      <BusinessProfileStickyHeader
+        {...props}
+        rating={businessRatingFixture({ state })}
+      />,
+    );
+    expect(view.queryByText("3.6")).toBeNull();
+    expect(view.queryByLabelText(/Business rating/)).toBeNull();
+    expect(view.getByText("Creative · Arts & Crafts")).toBeTruthy();
+  }
 });
