@@ -542,16 +542,60 @@ test("shared explanations preserve Operations, Community and Ecosystem report de
   await click(drawer.querySelector('[aria-label="Close Merchant Onboarding details"]'));
   await tab("Community & Trust");
   const community=section("Community Health");
-  const explanation=[...community.querySelectorAll("summary")].find((node)=>node.textContent === "About this report");
-  await click(explanation);
-  assert.match(explanation.parentElement.textContent,/Last updated/);
-  assert.match(explanation.parentElement.textContent,/still published today/);
+  await click(community.querySelector('[aria-label="About Community Health"]'));
+  drawer=document.querySelector("dialog[open]");
+  assert.match(drawer.textContent,/Last updated/);
+  assert.match(drawer.textContent,/still published today/);
+  await click(drawer.querySelector('[aria-label="Close Community Health details"]'));
   await tab("Business Ecosystem");
   assert.match(section("Discovery Score Health").textContent,/should not be added together/);
   const coverage=section("Business Coverage");
   await click([...coverage.querySelectorAll("summary")].find((node)=>node.textContent === "About this report"));
   assert.match(coverage.textContent,/Complete recording has not been confirmed/);
   assert.ok([...coverage.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
+});
+
+test("community report drawers retain exact buckets, sentiment and the complete specialty breakdown", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=community-trust"];
+  overrides.set("/admin/analytics/specialty-support/", (report) => ({
+    ...report,
+    specialties: Array.from({ length: 7 }, (_, index) => ({
+      specialty_id: index + 1,
+      name: `Specialty ${index + 1}`,
+      valid_vouches: 7 - index,
+      distinct_supporters: 1,
+      supported_businesses: 1,
+    })),
+  }));
+  await mount();
+  const community = section("Community Health");
+  const specialty = section("Specialty Support");
+  for (const report of [community, specialty]) {
+    assert.equal(report.querySelector("table"), null);
+    assert.equal(report.querySelector("details"), null);
+  }
+  const action = [...community.querySelectorAll("button")].find((button) => button.textContent.includes("View data"));
+  action.focus();
+  await click(action);
+  let drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Bucket date/);
+  assert.match(drawer.textContent, /Published reviews/);
+  assert.match(drawer.textContent, /Sentiment details/);
+  assert.match(drawer.textContent, /Excluded from denominator/);
+  assert.match(drawer.textContent, /still published today/);
+  assert.match(drawer.textContent, /Data reliability/);
+  await click(drawer.querySelector('[aria-label="Close Community Health details"]'));
+  assert.equal(document.activeElement, action);
+  await click([...specialty.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  drawer = document.querySelector("dialog[open]");
+  assert.equal(drawer.querySelectorAll("tbody tr").length, 7);
+  assert.match(drawer.textContent, /Specialty 7/);
+  assert.match(drawer.textContent, /Valid endorsements/);
+  assert.match(drawer.textContent, /Distinct supporters/);
+  assert.match(drawer.textContent, /Supported businesses/);
+  assert.match(drawer.textContent, /Selected dates do not filter/);
+  assert.match(drawer.textContent, /must not be added together/);
+  assert.doesNotMatch(drawer.textContent, /Reporting dates unavailable/);
 });
 
 test("acquisition loading is independent and inactive tabs do not fetch it", async () => {

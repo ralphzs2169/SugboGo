@@ -7,6 +7,16 @@ export function readablePeriod(period) {
 }
 
 export const reportExplanations = {
+  "Community Health": [
+    "Reviews written during the selected period that are still published today, alongside their recorded sentiment.",
+    "Activity counts reviews by their creation dates in Philippine daily or weekly buckets. Sentiment shares use classified reviews only; unclassified reviews remain separate and are excluded from the denominator.",
+    "Later removal or sentiment changes can revise earlier counts. This is not a history of publication changes. Reviews do not include star ratings, and no sentiment is inferred for unclassified reviews.",
+  ],
+  "Specialty Support": [
+    "Current valid specialty endorsements, distinct supporters and supported businesses. Selected dates do not filter this snapshot.",
+    "Each valid, non-withdrawn endorsement on an active business-specialty assignment counts separately. Overall supporters and businesses are counted distinctly across all specialties.",
+    "One person or business can appear under several specialties, so row-level distinct counts must not be added together. Only specialties with valid support are listed. Current assignments and evidence can change these counts; this report does not reconstruct historical support.",
+  ],
   "Discovery Sources": [
     "Where recorded business profile visits originated across SugboGo.",
     "Each account can contribute at most one recorded visit per business each day. If the same business is opened from different areas that day, the first recorded source is kept.",

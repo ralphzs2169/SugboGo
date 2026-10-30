@@ -18,6 +18,7 @@ export default function AnalyticsDetailDrawer({
   showComparison = true,
   dateColumn,
   dataContent,
+  periodContent,
 }) {
   const ref = useRef(null);
   const titleId = useId();
@@ -111,7 +112,7 @@ export default function AnalyticsDetailDrawer({
         </header>
         {/* Scrollable report details preserve dashboard position */}
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 text-sm">
-          <div className="text-sm text-text-secondary"><p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{readablePeriod(meta?.period)}</p><p className="mt-1">Philippine time{displayMode === "data" ? ` · ${interval}` : ""}</p></div>
+          {periodContent ?? <div className="text-sm text-text-secondary"><p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{readablePeriod(meta?.period)}</p><p className="mt-1">Philippine time{displayMode === "data" ? ` · ${interval}` : ""}</p></div>}
           {displayMode === "about" ? <>
             <AnalyticsReportExplanation title={title} report={report} />
             <AnalyticsReliability meta={meta} />
