@@ -89,6 +89,7 @@ class BusinessAttentionRowSerializer(serializers.Serializer):
 
     business_id = serializers.IntegerField()
     business_name = serializers.CharField()
+    cover_photo_url = serializers.CharField(allow_null=True, allow_blank=True)
     category_id = serializers.IntegerField()
     category_name = serializers.CharField()
     cluster_id = serializers.IntegerField()

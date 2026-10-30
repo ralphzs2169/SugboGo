@@ -8,6 +8,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.admin_operations.analytics import constants
 from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch, Category, Cluster
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityTrackingUnavailable
 from apps.shared.analytics.date_ranges import MANILA, resolve_period
 from apps.shared.analytics.metadata import build_meta
@@ -106,7 +107,14 @@ class BusinessAttentionService:
         if low_exposure:
             # A passed selectable period cannot change the admin's fixed-window policy.
             period = cls.fixed_low_exposure_period(period.generated_at)
-        businesses = list(cls.eligible_businesses(cluster=cluster, category=category))
+        businesses = list(
+            cls.eligible_businesses(
+                cluster=cluster,
+                category=category,
+            ).annotate(
+                display_cover_photo_url=display_cover_photo_expression(),
+            )
+        )
         ids = [business.BUSN_ID for business in businesses]
         visibility, visibility_meta = cls.read_visibility(period, ids)
         support = cls.specialty_support(ids)
@@ -153,6 +161,7 @@ class BusinessAttentionService:
                     continue
             items.append({
                 "business_id": business.BUSN_ID, "business_name": business.BUSN_NAME,
+                "cover_photo_url": business.display_cover_photo_url,
                 "category_id": business.CTGRY_ID_id, "category_name": business.CTGRY_ID.CTGRY_NAME,
                 "cluster_id": business.CTGRY_ID.CLUS_ID_id, "cluster_name": business.CTGRY_ID.CLUS_ID.CLUS_NAME,
                 **metrics, **evidence,

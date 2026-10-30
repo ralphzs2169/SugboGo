@@ -246,24 +246,51 @@ test("workspace invalid tabs fall back safely and arrow keys activate semantic p
 });
 
 
-test("workspace ecosystem preserves scope and low-attention mode without fetching inactive reports", async () => {
+test("workspace ecosystem preserves low-activity ranking, support scope and distinct business identities", async () => {
   initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/business-attention/", (report, params) => ({
+    ...report,
+    items: [9, 15].map((id, index) => ({
+      ...report.items[0],
+      business_id: id,
+      business_name: "Serenity Cove Resort & Spa",
+      cover_photo_url: index === 0 ? "https://example.com/storefront.jpg" : null,
+      profile_visits: params.ordering === "valid_vouches" ? null : index,
+      valid_vouches: index,
+    })),
+  }));
   await mount();
   assert.equal(requests("low-exposure/").length, 0);
+  assert.equal(requests("business-attention/").at(-1).params.ordering, "profile_visits");
   assert.equal(requests("platform-growth/").length, 0);
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 2);
+  const attention = section("Businesses Needing Attention");
+  assert.match(attention.textContent, /No recorded profile visits/);
+  assert.match(attention.textContent, /Business #9/);
+  assert.match(attention.textContent, /Business #15/);
+  assert.equal(attention.querySelectorAll('a[href^="/admin-panel/businesses/"]').length, 2);
+  assert.equal(attention.querySelector("img").getAttribute("src"), "https://example.com/storefront.jpg");
+  assert.equal(attention.querySelector("img").getAttribute("loading"), "lazy");
+  assert.ok(attention.querySelector('[aria-label="No cover photo available"]'));
   await choose("Coverage category", "2");
-  await choose("Attention mode", "low");
-  await choose("Order by", "-valid_vouches");
-  const lowCount = requests("low-exposure/").length;
+  await choose("Attention mode", "support");
+  await choose("Attention category", "2");
+  assert.equal(requests("business-attention/").at(-1).params.ordering, "valid_vouches");
+  assert.equal(requests("business-attention/").at(-1).params.category, 2);
+  assert.match(section("Businesses Needing Attention").textContent, /No valid specialty endorsements/);
+  assert.match(section("Businesses Needing Attention").textContent, /Unavailable/);
+  assert.doesNotMatch(section("Businesses Needing Attention").textContent, /No recorded profile visits/);
+  const attentionCount = requests("business-attention/").length;
   await tab("Community & Trust");
   assert.ok(section("Reports & disputes"));
   assert.equal(requests("change-requests/").length, 0);
   await tab("Business Ecosystem");
   assert.equal(select("Coverage category").value, "2");
-  assert.equal(select("Attention mode").value, "low");
-  assert.equal(select("Order by").value, "-valid_vouches");
-  assert.equal(requests("low-exposure/").length, lowCount);
+  assert.equal(select("Attention mode").value, "support");
+  assert.equal(select("Attention category").value, "2");
+  assert.equal(select("Order by"), undefined);
+  assert.equal(requests("business-attention/").length, attentionCount);
+  assert.equal(requests("low-exposure/").length, 0);
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 2);
 });
 

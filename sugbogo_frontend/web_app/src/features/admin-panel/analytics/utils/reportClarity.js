@@ -7,6 +7,11 @@ export function readablePeriod(period) {
 }
 
 export const reportExplanations = {
+  "Businesses Needing Attention": [
+    "Eligible active businesses ordered by lower recorded discovery activity or lower current specialty support, within the chosen cluster and category.",
+    "Low discovery activity orders selected-period profile visits from fewest to most. Low specialty support orders current valid endorsements from fewest to most. Saves, distinct savers, valid endorsements and distinct supporters remain separate measures; no combined score is calculated.",
+    "These are follow-up signals, not judgments of quality or popularity. Discovery recording coverage is unverified; unavailable observations are not zero. Businesses with shorter observation histories may have fewer visits. Specialty evidence is current regardless of selected dates. Distinct business IDs remain separate even when names match.",
+  ],
   "Reports & disputes": [
     "Current pending review reports and disputes, plus the time taken to resolve eligible disputes during the selected period.",
     "Queue counts include all currently pending items, regardless of selected dates. Overdue means pending for at least 72 elapsed hours. Median resolution time uses upheld or dismissed disputes resolved during the selected period, measured from creation; withdrawals are excluded.",
