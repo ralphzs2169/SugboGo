@@ -24,7 +24,7 @@ let initialEntries;
 
 before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost", pretendToBeVisual: true });
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, Element: dom.window.Element, HTMLElement: dom.window.HTMLElement, CustomEvent: dom.window.CustomEvent, IS_REACT_ACT_ENVIRONMENT: true });
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, Element: dom.window.Element, HTMLElement: dom.window.HTMLElement, CustomEvent: dom.window.CustomEvent, MutationObserver: dom.window.MutationObserver, IS_REACT_ACT_ENVIRONMENT: true });
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
   ({ createRoot } = await import("react-dom/client"));
@@ -91,7 +91,7 @@ after(async () => {
   await server?.close();
   dom.window.close();
   globalThis.CustomEvent = originalCustomEvent;
-  for (const key of ["window", "document", "Element", "HTMLElement", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
+  for (const key of ["window", "document", "Element", "HTMLElement", "MutationObserver", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
 });
 
 async function until(predicate) {
@@ -245,6 +245,38 @@ test("workspace invalid tabs fall back safely and arrow keys activate semantic p
   assert.equal(container.querySelector("[role='tabpanel']").getAttribute("aria-labelledby"), active.id);
 });
 
+
+test("geographic distribution reuses its query across modes and keeps zero, unavailable and exact values distinct", async () => {
+  await mount();
+  assert.equal(requests("discovery-heatmap/").length, 0);
+  await tab("Business Ecosystem");
+  const geographic = section("Geographic Distribution");
+  assert.ok(geographic);
+  assert.equal(geographic.parentElement.getAttribute("role"), "tabpanel");
+  assert.equal(requests("discovery-heatmap/").length, 1);
+  const selectArea = async (value) => act(async () => {
+    const input = geographic.querySelector('[aria-label="Geographic area"]');
+    input.value = value;
+    input.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+  });
+  await selectArea("grid:1:1");
+  assert.match(geographic.textContent, /2 businesses · 0 recorded profile visits/);
+  await selectArea("grid:1:2");
+  assert.match(geographic.textContent, /1 businesses · Unavailable recorded profile visits/);
+  await choose("Geographic metric", "profile_visits");
+  assert.equal(requests("discovery-heatmap/").length, 1);
+  assert.match(geographic.textContent, /Visit intensity unavailable/);
+  await choose("Geographic category", "2");
+  assert.equal(requests("discovery-heatmap/").at(-1).params.category, 2);
+  assert.match(geographic.textContent, /Select or hover over a cell/);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Current businesses/);
+  assert.match(drawer.textContent, /Zero recorded visits/);
+  assert.match(drawer.textContent, /Visits unavailable/);
+  assert.match(drawer.textContent, /missing_location/);
+  assert.match(drawer.textContent, /not explorer location, foot traffic/);
+});
 
 test("workspace ecosystem preserves low-activity ranking, support scope and distinct business identities", async () => {
   initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];

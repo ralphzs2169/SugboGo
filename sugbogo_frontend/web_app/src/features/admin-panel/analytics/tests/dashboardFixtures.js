@@ -12,6 +12,15 @@ const duration = { median_hours: null, mean_hours: null, sample_count: 0, exclud
 const coverage = { eligible_businesses: 4, visited_businesses: 2, zero_recorded_visit_businesses: 2, coverage_percentage: 50 };
 
 export function fixtureReport(route, params = {}) {
+  if (route === "discovery-heatmap/") return {
+    cells: [
+      { id: "grid:1:1", column: 1, row: 1, geometry: { type: "Polygon", coordinates: [[[123.88, 10.3], [123.89, 10.3], [123.89, 10.31], [123.88, 10.3]]] }, eligible_businesses: 2, profile_visits: 0, state: "zero_recorded_visits" },
+      { id: "grid:1:2", column: 1, row: 2, geometry: { type: "Polygon", coordinates: [[[123.88, 10.31], [123.89, 10.31], [123.89, 10.32], [123.88, 10.31]]] }, eligible_businesses: 1, profile_visits: null, state: "visibility_unavailable" },
+    ],
+    sources: { visibility: { ...meta, availability: "unavailable" } },
+    reconciliation: { excluded_by_reason: { missing_location: { businesses: 1, profile_visits: null } } },
+    meta,
+  };
   if (route === "") return {
     kpis: {
       active_businesses: { label: "Active businesses", value: 0, measurement_type: "current_snapshot", description: "Current active inventory", change },

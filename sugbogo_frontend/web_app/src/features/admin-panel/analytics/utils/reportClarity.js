@@ -7,6 +7,11 @@ export function readablePeriod(period) {
 }
 
 export const reportExplanations = {
+  "Geographic Distribution": [
+    "Current eligible businesses and recorded profile visits grouped by the current business locations in the approved Cebu City grid.",
+    "Business counts are current inventory. Recorded visits use the selected Philippine reporting period and existing daily recording rules. Cluster and category filters apply to both values. Empty cells, zero observations and unavailable visits remain distinct.",
+    "This is not explorer location, foot traffic, physical visits or movement. Current location changes can move earlier recorded activity between cells. Visit recording completeness and freshness are unverified. Missing, invalid or out-of-scope business locations are excluded and listed in View data.",
+  ],
   "Businesses Needing Attention": [
     "Eligible active businesses ordered by lower recorded discovery activity or lower current specialty support, within the chosen cluster and category.",
     "Low discovery activity orders selected-period profile visits from fewest to most. Low specialty support orders current valid endorsements from fewest to most. Saves, distinct savers, valid endorsements and distinct supporters remain separate measures; no combined score is calculated.",

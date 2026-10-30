@@ -14,6 +14,7 @@ import PlatformGrowthSection from "../analytics/sections/PlatformGrowthSection";
 import DiscoveryActivitySection from "../analytics/sections/DiscoveryActivitySection";
 import OnboardingSection from "../analytics/sections/OnboardingSection";
 import CommunityHealthSection from "../analytics/sections/CommunityHealthSection";
+import GeographicDistributionSection from "../analytics/sections/GeographicDistributionSection";
 import { ModerationWorkload, ChangeRequestWorkload } from "../analytics/sections/TrustOperationsSection";
 import CoverageSection from "../analytics/sections/CoverageSection";
 import BusinessAttentionSection from "../analytics/sections/BusinessAttentionSection";
@@ -65,7 +66,7 @@ function Analytics() {
               <ModerationWorkload period={period} />
             </div>
           </>}
-          {active === "business-ecosystem" && <><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><CoverageSection period={period} /><DiscoveryScoreHealthSection /></div><BusinessAttentionSection period={period} /></>}
+          {active === "business-ecosystem" && <><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><CoverageSection period={period} /><DiscoveryScoreHealthSection /></div><GeographicDistributionSection period={period} /><BusinessAttentionSection period={period} /></>}
         </div>
       </div>
     </WorkspaceSelections.Provider>
