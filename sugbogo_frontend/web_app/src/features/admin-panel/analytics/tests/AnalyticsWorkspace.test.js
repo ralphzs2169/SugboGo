@@ -34,6 +34,7 @@ before(async () => {
       name: "dashboard-transport-and-chart-contract", enforce: "pre",
       resolveId(source) { if (source === "recharts") return "\0analytics-recharts"; },
       load(id) {
+        if (id.replaceAll("\\", "/").endsWith("/analytics/components/GeographicDistributionMap.jsx")) return `import React from 'react'; export default function GeographicMap({cells,onSelect}) {return React.createElement('div', {'data-geographic-map':true}, cells.filter(cell=>cell.eligible_businesses>0).map((cell,index)=>React.createElement('button',{key:cell.id,onClick:()=>onSelect(cell.id)},'Select map area '+(index+1))));}`;
         if (id.replaceAll("\\", "/").endsWith("/shared/api/apiClient.js")) return "export default { get: (...args) => globalThis.__dashboardTransport(...args) };";
         if (id === "\0analytics-recharts") return `import React from 'react';
           const SeriesData = React.createContext([]);
@@ -254,21 +255,21 @@ test("geographic distribution reuses its query across modes and keeps zero, unav
   assert.ok(geographic);
   assert.equal(geographic.parentElement.getAttribute("role"), "tabpanel");
   assert.equal(requests("discovery-heatmap/").length, 1);
-  const selectArea = async (value) => act(async () => {
-    const input = geographic.querySelector('[aria-label="Geographic area"]');
-    input.value = value;
-    input.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-  });
-  await selectArea("grid:1:1");
-  assert.match(geographic.textContent, /2 businesses · 0 recorded profile visits/);
-  await selectArea("grid:1:2");
-  assert.match(geographic.textContent, /1 businesses · Unavailable recorded profile visits/);
-  await choose("Geographic metric", "profile_visits");
+  assert.equal(geographic.querySelector('[aria-label="Geographic area"]'), null);
+  assert.doesNotMatch(geographic.textContent, /grid:1:/);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 1"));
+  assert.match(geographic.textContent, /2 businesses/);
+  assert.match(geographic.textContent, /0 recorded profile visits · selected period/);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Clear selection"));
+  assert.match(geographic.textContent, /Click an area on the map/);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 2"));
+  assert.match(geographic.textContent, /Unavailable recorded profile visits/);
+  await choose("Metric", "profile_visits");
   assert.equal(requests("discovery-heatmap/").length, 1);
   assert.match(geographic.textContent, /Visit intensity unavailable/);
-  await choose("Geographic category", "2");
+  await choose("Category", "2");
   assert.equal(requests("discovery-heatmap/").at(-1).params.category, 2);
-  assert.match(geographic.textContent, /Select or hover over a cell/);
+  assert.match(geographic.textContent, /Click an area on the map/);
   await click([...geographic.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   const drawer = document.querySelector("dialog[open]");
   assert.match(drawer.textContent, /Current businesses/);
