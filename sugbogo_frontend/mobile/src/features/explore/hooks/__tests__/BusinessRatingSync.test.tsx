@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from "react";
+import { useIsFocused } from "expo-router";
 import { act, cleanup, renderHook } from "@testing-library/react-native";
 import {
   onlineManager,
@@ -23,7 +24,7 @@ import {
 } from "../../utils/reviewCache.utils";
 import { refreshAuthorReviewDecision } from "../../utils/reviewPublicationSync.utils";
 
-jest.mock("expo-router", () => ({ useIsFocused: () => true }));
+jest.mock("expo-router", () => ({ useIsFocused: jest.fn(() => true) }));
 jest.mock("../../api/exploreBusiness.service", () => ({
   getExploreBusinessDetail: jest.fn(),
 }));
@@ -49,6 +50,7 @@ describe("rating synchronization through the existing detail query", () => {
   beforeEach(() => {
     jest.useFakeTimers({ doNotFake: ["queueMicrotask", "nextTick"] });
     jest.clearAllMocks();
+    jest.mocked(useIsFocused).mockReturnValue(true);
     onlineManager.setOnline(true);
     useAuthStore.setState({
       user: { id: 10 } as never,
@@ -151,6 +153,10 @@ describe("rating synchronization through the existing detail query", () => {
   it.each([
     ["disabled exposure", undefined],
     ["manual-only snapshots", { ...rating, automatic_updates_enabled: false }],
+    [
+      "manual-only unavailable snapshots",
+      { ...rating, state: "unavailable" as const, automatic_updates_enabled: false },
+    ],
   ])("does not poll %s", async (_description, snapshot) => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
@@ -179,6 +185,118 @@ describe("rating synchronization through the existing detail query", () => {
     await hook.unmount();
     client.clear();
   });
+
+  it("observes recovery when the first rating response is unavailable and stops after completion", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    let current: BusinessSentimentRating = {
+      ...rating,
+      state: "unavailable",
+      value: null,
+      contributing_review_count: null,
+    };
+    jest.mocked(getExploreBusinessDetail).mockImplementation(
+      async () =>
+        ({
+          success: true,
+          data: { id: 20, review_insights: null, sentiment_rating: current },
+        }) as never,
+    );
+    function Wrapper({ children }: PropsWithChildren) {
+      return (
+        <QueryClientProvider client={client}>
+          <ReviewDerivedDataSyncProvider
+            businessId={20}
+            observeAuthorReview={false}
+          >
+            {children}
+          </ReviewDerivedDataSyncProvider>
+        </QueryClientProvider>
+      );
+    }
+    const hook = await renderHook(() => undefined, { wrapper: Wrapper });
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1);
+    });
+    expect(getExploreBusinessDetail).toHaveBeenCalledTimes(1);
+    current = { ...rating, computed_at: "2026-10-30T00:00:10Z" };
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(5_100);
+    });
+    expect(getExploreBusinessDetail).toHaveBeenCalledTimes(2);
+    expect(guardBusinessRating(client, 20, current)?.state).toBe("ready");
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(130_000);
+    });
+    expect(getExploreBusinessDetail).toHaveBeenCalledTimes(2);
+    await hook.unmount();
+    client.clear();
+  });
+
+  it.each(["timeout", "navigation", "account-change", "offline", "unmount"])(
+    "stops unresolved rating recovery after %s",
+    async (reason) => {
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      });
+      jest.mocked(getExploreBusinessDetail).mockResolvedValue({
+        success: true,
+        data: {
+          id: 20,
+          review_insights: null,
+          sentiment_rating: {
+            ...rating,
+            state: "unavailable",
+            value: null,
+            contributing_review_count: null,
+          },
+        },
+      } as never);
+      function Wrapper({ children }: PropsWithChildren) {
+        return (
+          <QueryClientProvider client={client}>
+            <ReviewDerivedDataSyncProvider
+              businessId={20}
+              observeAuthorReview={false}
+            >
+              {children}
+            </ReviewDerivedDataSyncProvider>
+          </QueryClientProvider>
+        );
+      }
+      const hook = await renderHook(() => undefined, { wrapper: Wrapper });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(5_100);
+      });
+      expect(getExploreBusinessDetail).toHaveBeenCalledTimes(2);
+      if (reason === "timeout") {
+        for (let index = 0; index < 24; index += 1) {
+          await act(async () => {
+            await jest.advanceTimersByTimeAsync(5_000);
+          });
+        }
+      } else if (reason === "navigation") {
+        jest.mocked(useIsFocused).mockReturnValue(false);
+        await hook.rerender(undefined);
+      } else if (reason === "account-change") {
+        await act(async () => {
+          useAuthStore.setState({ user: { id: 99 } as never });
+        });
+      } else if (reason === "offline") {
+        onlineManager.setOnline(false);
+      } else {
+        await hook.unmount();
+      }
+      const completedCalls = jest.mocked(getExploreBusinessDetail).mock.calls.length;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(20_000);
+      });
+      expect(getExploreBusinessDetail).toHaveBeenCalledTimes(completedCalls);
+      if (reason !== "unmount") await hook.unmount();
+      client.clear();
+    },
+  );
 
   it("cancels pre-publication reads and invalidates detail, cards and private collections", async () => {
     const client = new QueryClient();

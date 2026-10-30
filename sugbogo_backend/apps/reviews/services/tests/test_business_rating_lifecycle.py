@@ -11,6 +11,7 @@ from io import StringIO
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from celery.exceptions import Retry
+from rest_framework.test import APIClient
 
 from apps.business.models import Business
 from apps.reviews.models import BusinessRating, Review
@@ -18,10 +19,19 @@ from apps.reviews.serializers.business_rating_serializers import BusinessRatingS
 from apps.reviews.services.business_rating_service import BusinessRatingService
 from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
 from apps.reviews.services.review_moderation_consistency_service import ReviewModerationConsistencyService
+from apps.reviews.services.review_moderation_retry_service import ReviewModerationRetryService
 from apps.reviews.services.review_sentiment_service import ReviewSentimentService
-from apps.reviews.services.review_service import ReviewService, ReviewEditContentFlagged
+from apps.reviews.services.review_service import (
+    ReviewService,
+    ReviewEditContentFlagged,
+    ReviewEditModerationUnavailable,
+)
 from apps.reviews.services.tests.test_business_review_summary_service import SummaryFixtureMixin
-from apps.reviews.tasks import recalculate_business_rating
+from apps.reviews.tasks import (
+    recalculate_business_rating,
+    process_review_sentiment,
+    retry_failed_review_moderation,
+)
 
 
 @override_settings(BUSINESS_RATING_AUTO_UPDATES_ENABLED=True)
@@ -84,8 +94,24 @@ class BusinessRatingLifecycleTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(self.aggregate().BRAT_REVIEW_COUNT, 6)
 
     def test_accepted_edit_invalidates_but_rejected_edit_preserves_snapshot(self):
-        """Only accepted changed content withdraws its old score."""
+        """Only accepted content withdraws its score; failed and rejected edits retain it."""
         review = self.reviews[0]
+        revision = self.aggregate().BRAT_REQUESTED_REVISION
+        with patch(
+            "apps.reviews.services.review_service.ReviewModerationService.moderate",
+            side_effect=TimeoutError("Moderation unavailable"),
+        ):
+            with self.assertRaises(ReviewEditModerationUnavailable):
+                ReviewService.update_review(
+                    review.USER_ID,
+                    review.pk,
+                    text="Unverified proposal.",
+                )
+        self.assertEqual(self.payload()["state"], "ready")
+        self.assertEqual(self.aggregate().BRAT_REQUESTED_REVISION, revision)
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_TEXT, "Friendly service.")
+        self.assertEqual(review.REVW_SENTIMENT_SCORE, 0.75)
         with patch(
             "apps.reviews.services.review_service.ReviewModerationService.moderate",
             return_value={"outcome": "flagged", "findings": []},
@@ -102,6 +128,112 @@ class BusinessRatingLifecycleTests(SummaryFixtureMixin, TestCase):
         BusinessRatingWorkService.process(self.business.pk)
         self.assertEqual(self.payload()["state"], "insufficient_data")
         self.assertEqual(self.payload()["contributing_review_count"], 4)
+
+    @override_settings(EXPERIMENTAL_BUSINESS_RATINGS_ENABLED=True)
+    def test_moderation_to_sentiment_delivery_to_explorer_rating(self):
+        """Carry controlled positive and negative inputs through real task bodies and API reads."""
+        client = APIClient()
+        client.force_authenticate(self.business.USER_ID)
+
+        def deliver_rating(
+            args,
+            **kwargs,
+        ):
+            """Execute a captured delivery without contacting a live worker."""
+            return recalculate_business_rating.apply(
+                args=args,
+                throw=True,
+            )
+
+        def deliver_sentiment(
+            review_id,
+            business_id,
+        ):
+            """Execute the publication callback's sentiment task in the isolated database."""
+            return process_review_sentiment.apply(
+                args=[review_id, business_id],
+                throw=True,
+            )
+
+        for index, score, label, expected_count, expected_value in [
+            (10, 1, "Positive", 6, 4.6),
+            (11, -1, "Negative", 7, 4.1),
+        ]:
+            with self.subTest(score=score):
+                review = self.create_review(
+                    self.business,
+                    index,
+                    REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+                    REVW_SENTIMENT_SCORE=None,
+                    REVW_SENTIMENT_LABEL=None,
+                    REVW_MODERATION_DATA=ReviewModerationRetryService.initial_metadata(),
+                )
+                with (
+                    patch(
+                        "apps.reviews.services.review_moderation_retry_service."
+                        "ReviewModerationService.moderate",
+                        return_value={
+                            "outcome": "safe",
+                            "findings": [],
+                            "checked_at": timezone.now().isoformat(),
+                            "failure_type": None,
+                        },
+                    ),
+                    patch(
+                        "apps.reviews.services.review_sentiment_service.route_sentiment",
+                        return_value=(score, label, "phase6-controlled-input"),
+                    ) as inference,
+                    patch.object(
+                        process_review_sentiment,
+                        "delay",
+                        side_effect=deliver_sentiment,
+                    ) as sentiment_delivery,
+                    patch.object(
+                        recalculate_business_rating,
+                        "apply_async",
+                        side_effect=deliver_rating,
+                    ) as rating_delivery,
+                    self.captureOnCommitCallbacks(execute=True),
+                ):
+                    moderation = retry_failed_review_moderation.apply(
+                        args=[review.pk],
+                        throw=True,
+                    )
+                    self.assertEqual(moderation.result, "published")
+                    self.assertEqual(self.payload()["state"], "pending")
+                    self.assertIsNone(self.payload()["value"])
+                    inference.assert_not_called()
+                sentiment_delivery.assert_called_once_with(
+                    review.pk,
+                    self.business.pk,
+                )
+                self.assertEqual(rating_delivery.call_count, 2)
+                inference.assert_called_once_with(review.REVW_TEXT)
+                with patch(
+                    "apps.explorer_operations.explore_businesses.serializers."
+                    "explore_business_serializer.ExploreBusinessSerializer.get_is_hidden_gem",
+                    return_value=False,
+                ):
+                    response = client.get(
+                        f"/api/explorer/explore/businesses/{self.business.pk}/",
+                    )
+                self.assertEqual(response.status_code, 200)
+                rating = response.data["data"]["sentiment_rating"]
+                self.assertEqual(rating["state"], "ready")
+                self.assertEqual(rating["value"], expected_value)
+                self.assertEqual(rating["contributing_review_count"], expected_count)
+                self.assertEqual(
+                    rating["scoring_version"],
+                    BusinessRatingService.LEGACY_VERSION,
+                )
+                self.assertEqual(rating["provenance"], "legacy_unverified")
+                self.assertEqual(
+                    recalculate_business_rating.apply(
+                        args=[self.business.pk],
+                        throw=True,
+                    ).result,
+                    "unchanged",
+                )
 
     def test_orm_bulk_deletion_and_rejection_cross_the_threshold(self):
         """Cover deletion signals and the shared administrative rejection service."""

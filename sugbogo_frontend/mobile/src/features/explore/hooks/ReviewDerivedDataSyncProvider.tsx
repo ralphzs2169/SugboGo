@@ -652,7 +652,7 @@ export function ReviewDerivedDataSyncProvider({
     }
     const rating = detailQuery.data?.sentiment_rating;
     if (
-      rating?.state === "pending" &&
+      (rating?.state === "pending" || rating?.state === "unavailable") &&
       rating.automatic_updates_enabled &&
       (!ratingObservation ||
         (ratingObservation.completedAt &&
