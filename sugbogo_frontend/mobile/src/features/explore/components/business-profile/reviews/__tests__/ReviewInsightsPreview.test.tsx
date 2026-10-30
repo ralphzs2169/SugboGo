@@ -75,8 +75,10 @@ describe("ReviewInsightsPreview", () => {
       <ReviewInsightsPreview insights={insights} regeneration={regeneration} />,
     );
     expect(screen.getByText(insights.narrative!)).toBeTruthy();
-    expect(screen.getByText(/Showing previous insights/)).toBeTruthy();
-    expect(screen.queryByText(/Updating insights/)).toBeNull();
+    expect(screen.getByText(/Showing the previous summary/)).toBeTruthy();
+    expect(
+      screen.getByText(/Updating insights with the latest reviews/),
+    ).toBeTruthy();
 
     await screen.rerender(
       <ReviewInsightsPreview

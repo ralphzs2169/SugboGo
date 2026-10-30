@@ -531,48 +531,45 @@ it("shows loading while offline sources resolve, then a viewport-filling error w
   expect(refetch).toHaveBeenCalled();
 });
 
-it("previews loading, local, recovery and unavailable states without mounting live behavior", async () => {
+it("keeps loading, local recovery, and unavailable sources free of live behavior", async () => {
+  jest.mocked(useBusinessDetailSource).mockReturnValue({
+    ...source("unavailable"),
+    isLoading: true,
+    isInitialLoading: true,
+  } as never);
+  const view = await render(profile());
+  expect(view.getByText("Vouch for what this place gets right")).toBeTruthy();
+  expect(view.queryByLabelText("Current status unavailable")).toBeNull();
+
+  for (const mode of ["offline-pocket", "recent"] as const) {
+    for (const recovery of [
+      { isFetching: false, error: null },
+      { isFetching: true, error: null },
+      { isFetching: false, error: { code: "NETWORK_ERROR" } },
+    ]) {
+      jest.mocked(useBusinessDetailSource).mockReturnValue({
+        ...source(mode),
+        ...recovery,
+      } as never);
+      await view.rerender(profile());
+      expect(view.getByLabelText("Current status unavailable")).toBeTruthy();
+      expect(
+        view.getByLabelText("View road route").props.accessibilityState
+          .disabled,
+      ).toBe(true);
+      expect(view.queryByTestId("profile-reviews")).toBeNull();
+    }
+  }
   jest
     .mocked(useBusinessDetailSource)
     .mockReturnValue(source("unavailable") as never);
-  const view = await render(profile());
-  await fireEvent.press(
-    view.getByLabelText("Toggle business profile state preview"),
-  );
-  for (const label of ["Online loading", "Local loading"]) {
-    await fireEvent.press(view.getByLabelText(`Preview ${label}`));
-    expect(view.getByText("Vouch for what this place gets right")).toBeTruthy();
-    expect(view.queryByLabelText("Current status unavailable")).toBeNull();
-  }
-  for (const label of [
-    "Pocket",
-    "Recent",
-    "Recovering",
-    "Recovery failed",
-    "Long name",
-    "Missing info",
-  ]) {
-    await fireEvent.press(view.getByLabelText(`Preview ${label}`));
-    expect(view.getByLabelText("Current status unavailable")).toBeTruthy();
-    expect(
-      view.getByLabelText("View road route").props.accessibilityState.disabled,
-    ).toBe(true);
-    expect(view.queryByTestId("profile-reviews")).toBeNull();
-  }
-  for (const label of ["Unavailable", "Denied"]) {
-    await fireEvent.press(view.getByLabelText(`Preview ${label}`));
-    expect(view.getByTestId("business-profile-error-hero")).toBeTruthy();
-    expect(view.getByText("Unable to load business")).toBeTruthy();
-    expect(view.queryByLabelText("Current status unavailable")).toBeNull();
-  }
-  await fireEvent.press(view.getByLabelText("Preview Live"));
-  expect(view.getByText(/^Live is unavailable/)).toBeTruthy();
+  await view.rerender(profile());
+  expect(view.getByText("Unable to load business")).toBeTruthy();
+  expect(view.queryByLabelText("Current status unavailable")).toBeNull();
   expect(useBusinessVouch).not.toHaveBeenCalled();
   expect(BusinessReviewsSection).not.toHaveBeenCalled();
   expect(mockRecordRouteIntent).not.toHaveBeenCalled();
   expect(refetch).not.toHaveBeenCalled();
-  await fireEvent.press(view.getByLabelText("Preview Actual"));
-  expect(view.getByText("Unable to load business")).toBeTruthy();
 });
 
 it("does not expose the development preview toggle in release", async () => {

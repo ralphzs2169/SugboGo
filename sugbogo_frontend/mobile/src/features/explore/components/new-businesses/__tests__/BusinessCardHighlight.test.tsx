@@ -56,7 +56,7 @@ it("highlights only the existing visible business, category, and specialty text"
   ).toEqual(["Coffee", "Coffee", "COFFEE"]);
   expect(screen.queryByText("Coffee District")).toBeNull();
   expect(
-    screen.getByRole("button", { name: "Open Coffee Corner business profile" }),
+    screen.getByRole("button", { name: /Open Coffee Corner business profile/ }),
   ).toBeTruthy();
 });
 

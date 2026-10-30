@@ -11,15 +11,48 @@ The snapshot contains `value`, `contributing_review_count`, `state`, `experiment
 `automatic_updates_enabled`. States are `ready`, `insufficient_data`, `pending`,
 and `unavailable`. Provenance is `legacy_unverified`, `versioned`, or null.
 
-The live profile quick information and shared BusinessCard variants display the
-same component. A numeric value requires a ready snapshot, a finite server value
-between 1 and 5, at least five contributing scored reviews, and a valid computation
-timestamp. Presentation uses one decimal place and labels the value as AI sentiment
-and Experimental. Published review totals and existing vibe badges remain separate.
+The shared `BusinessSentimentRating` component displays one decimal place. A
+numeric value requires a ready snapshot, a finite server value between 1 and 5,
+at least five contributing scored reviews, and a valid computation timestamp.
+The star is filled `amber[500]` for every score; there is no score-dependent color.
+The backend experimental flag/provenance remain intact without visible AI or
+Experimental rating labels on these product surfaces.
 
-Missing or null fields render no rating section. Pending, insufficient, and
-unavailable snapshots render availability copy without a numeric value. Unknown
-counts are not represented as zero. Offline numeric ratings are suppressed.
+- Discovery cards: `★ 3.6 (7)`, where 7 is the contributing scored-review count.
+  Unrated cards show the published count, including `No reviews yet` at zero.
+  All three specialties remain visible and wrap; cards show no vibe badge or
+  specialty-vouch heart. Specialty interactions on the full profile are unchanged.
+- Profile: the redesigned cover connects to a rounded identity surface. Its hero
+  shows a value-only rating beside the name. Hours/distance are inline below the
+  classification. The floating stats and standalone rating block are gone.
+  Below threshold, the hero omits the rating; total published reviews remain in
+  the Reviews section, with a published-count fallback in inline metadata.
+- Collapsed profile header: intentionally repeats the value in navigation context
+  after the hero scrolls away. Category truncation leaves the rating its own space.
+- Reviews navigation: the combined title is `★ 3.6 | Reviews (4.3k)`. The rating
+  precedes the title with a subtle divider, matching the original header text
+  size. It is not a `headerRight` action. The visible total is compact-formatted;
+  accessibility retains the full published count. Unrated titles omit star/divider.
+- Merchant profile: reuses the same value-only rating beside the business name.
+  Its public rating read shares the Explorer detail key/API, adds no interval
+  polling, and does not write a merchant visit into Recent Explore.
+
+Parent discovery-card buttons announce the business identity, relevant visible
+metadata, and either the visible rating/contributor count or published-review
+metadata. Pending/insufficient/unavailable rating states are not announced when
+no rating is visible. The nested compact rating yields accessibility ownership
+to the parent, avoiding a second rating announcement. Pocket actions remain separate.
+
+Recent review insights are distinct from the all-time business rating. On the
+Reviews collection only, insufficient recent feedback shows **More recent feedback
+needed** and **Review insights are based on recent customer feedback, so older
+reviews may not be included.** This copy exposes neither internal eligibility
+terminology nor the exact threshold. Generated insights still render normally;
+the profile's review preview omits this insufficient-data card.
+
+Missing or null fields render no rating. Pending, insufficient, and unavailable
+ratings omit the numeric value and show no rating placeholder on cards or headers.
+Unknown counts are not represented as zero. Offline numeric ratings are suppressed.
 The existing profile source resolver switches to its saved/recent presentation on
 network failure; that presentation has no rating aggregate.
 
@@ -66,11 +99,50 @@ know about work performed elsewhere until an authoritative refresh.
 
 ## Deployment validation
 
-Before development device verification, deploy the existing backend rating
-migrations (including lifecycle migration 0030), enable experimental exposure, and
-verify worker/Beat execution and reconciliation. This mobile change does not apply
-migrations or modify the backend. Scoring remains experimental and uncalibrated
-across languages; this phase does not validate or replace the sentiment model.
+Use the current [backend deployment checklist](../../../sugbogo_backend/docs/experimental-business-rating-deployment.md):
+apply rating migrations 0029/0030; deploy backend/web code; restart and inspect
+workers and their `celery` queue; restart/verify one Beat scheduler; observe
+recovery/reconciliation delivery; verify selected scoring versions; enable API
+exposure for the intended environment; and verify mobile against that backend.
+Neither worker nor Beat auto-reloads code/configuration. The
+[historical Phase 6B report](../../../sugbogo_backend/docs/experimental-business-rating-phase6b-runtime-verification.md)
+records successful development execution after stale processes were restarted.
+It does not certify that services are running now.
+
+Scoring remains experimental and uncalibrated across languages. Development
+completion is separate from physical-device acceptance and public-production
+readiness. This cleanup does not run migrations, inference, or live fixtures.
+
+## Final development cleanup validation (October 30, 2026)
+
+The final targeted set passed **224 tests across 16 suites**, with no failures or
+skips, using `node node_modules/jest/bin/jest.js --runInBand --runTestsByPath`.
+The result combines the focused run with successful reruns of changed assertions;
+the entire project suite was not run. Coverage includes cards and their sibling
+Pocket/navigation actions, hero and sticky ratings, the combined Reviews title,
+insight available/insufficient states, offline profile transitions, receipt guards,
+and existing bounded synchronization tests.
+
+Affected-file ESLint passed with no errors; two existing `Array<T>` style warnings
+remain in the rating test file. Prettier and `git diff --check` passed. The normal
+`node node_modules/typescript/bin/tsc --noEmit --incremental false --pretty false`
+command still reports existing project diagnostics. A compiler comparison against
+`HEAD`, restoring changed TypeScript files only in memory, found **28 diagnostics
+in each version and no new diagnostics**. No unrelated type fixes were included.
+
+Source and component checks preserve the single primary hero rating, omit ratings
+below threshold, keep the intended sticky/navigation contexts, preserve the total
+published Reviews count, and exercise long names and 320-width card inputs with
+larger font scaling. They cannot verify Android pixel layout or TalkBack focus.
+Actual device acceptance remains required for long hero names, category truncation,
+sticky identity, Reviews-title width, specialty wrapping, and rated/unrated
+transitions. No live worker, database, model, or device verification was rerun by
+this cleanup. Historical runtime evidence remains in the Phase 6/6B reports.
+
+## Historical Phase 5 validation notes
+
+The results and implementation inventory below describe the original mobile
+integration phase, not the final cleanup's test counts or current UI placement.
 
 Focused Jest coverage includes presentation, accessibility, cache projections,
 receipt ordering, account isolation, bounded shared polling, publication
@@ -111,7 +183,8 @@ Created:
 Modified:
 
 - `src/features/explore/types/exploreBusiness.types.ts`: optional snapshot on existing DTO.
-- `src/features/explore/screens/LiveBusinessProfile.tsx`: live quick-information rating.
+- `src/features/explore/screens/LiveBusinessProfile.tsx`: originally supplied live
+  quick-information values; the current rating belongs to `ExploreBusinessHero`.
 - `src/features/explore/components/new-businesses/BusinessCard.tsx`: shared card variants
   and parent accessibility labels.
 - `src/features/explore/screens/RecentExploreScreen.tsx`: omit ratings from local-only cards.

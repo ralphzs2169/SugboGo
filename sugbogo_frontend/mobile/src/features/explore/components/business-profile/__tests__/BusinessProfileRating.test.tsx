@@ -73,7 +73,21 @@ it.each([undefined, "insufficient_data", "pending", "unavailable"] as const)(
       ? businessRatingFixture({ state, contributing_review_count: 4 })
       : undefined;
     const view = await render(
-      <BusinessProfileQuickInfo {...stats} rating={rating} />,
+      <ExploreBusinessHero
+        business={{
+          id: 21,
+          business_name: "Local Cafe",
+          cluster: { id: 1, name: "Food", icon: "store" },
+          category: { id: 1, name: "Cafe" },
+          display_cover_photo_url: null,
+          sentiment_rating: rating,
+        }}
+        isOwnBusiness={false}
+        onShare={jest.fn()}
+        onGoBack={jest.fn()}
+      >
+        <BusinessProfileQuickInfo {...stats} rating={rating} />
+      </ExploreBusinessHero>,
     );
     expect(view.getByText("28 reviews")).toBeTruthy();
     expect(view.queryByText("rating")).toBeNull();
@@ -91,7 +105,7 @@ it("does not expose cached ratings on the offline stats surface", async () => {
   expect(view.getByText("28 reviews")).toBeTruthy();
 });
 
-it.each(["stat", "inline"] as const)(
+it.each(["stat", "inline", "header"] as const)(
   "keeps %s ratings value-only with a fixed gold star",
   async (variant) => {
     for (const value of [1, 5]) {

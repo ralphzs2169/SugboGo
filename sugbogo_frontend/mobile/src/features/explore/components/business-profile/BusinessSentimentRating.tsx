@@ -14,6 +14,7 @@ import { usePresentedBusinessRating } from "../../hooks/businessRatingSync";
 
 /**
  * Presents guarded business ratings in card, stat, header, or expanded formats without fetching.
+ * Card ratings yield their announcement to the enclosing profile button.
  */
 export default function BusinessSentimentRating({
   businessId,
@@ -21,12 +22,14 @@ export default function BusinessSentimentRating({
   compact = false,
   networkError = false,
   variant,
+  accessible = true,
 }: {
   businessId: number;
   rating?: Rating | null;
   compact?: boolean;
   networkError?: boolean;
   variant?: "stat" | "inline" | "header";
+  accessible?: boolean;
 }) {
   const current = usePresentedBusinessRating(businessId, rating);
   if (!current) return null;
@@ -43,8 +46,9 @@ export default function BusinessSentimentRating({
     if (!available) return null;
     return (
       <View
-        accessible
-        accessibilityLabel={label}
+        accessible={accessible}
+        accessibilityLabel={accessible ? label : undefined}
+        importantForAccessibility={accessible ? undefined : "no"}
         className={`${compact ? "mt-2 min-w-0" : "shrink-0"} flex-row items-center gap-1`}
       >
         {/* Available rating metadata */}
@@ -57,6 +61,7 @@ export default function BusinessSentimentRating({
           importantForAccessibility="no"
         />
         <AppText
+          accessible={accessible ? undefined : false}
           weight="bold"
           className={`min-w-0 shrink text-text-primary ${
             variant === "header"
@@ -69,7 +74,10 @@ export default function BusinessSentimentRating({
         >
           {value}
           {compact && (
-            <AppText className="text-xs text-text-secondary">
+            <AppText
+              accessible={accessible ? undefined : false}
+              className="text-xs text-text-secondary"
+            >
               {" "}
               ({count})
             </AppText>

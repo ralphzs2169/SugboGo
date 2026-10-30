@@ -128,11 +128,28 @@ export default function BusinessCard({
 
   const hasRating = hasDisplayableBusinessRating(presentedRating);
 
-  const ratingLabel = businessRatingAccessibilityLabel(presentedRating);
+  const ratingLabel = hasRating
+    ? businessRatingAccessibilityLabel(presentedRating)
+    : "";
 
-  const profileAccessibilityLabel =
-    `Open ${business.business_name} business profile` +
-    (ratingLabel ? `. ${ratingLabel}` : "");
+  const reviewLabel =
+    business.review_count === 0
+      ? "No reviews yet"
+      : `${business.review_count} ${business.review_count === 1 ? "review" : "reviews"}`;
+
+  const profileAccessibilityLabel = [
+    `Open ${business.business_name} business profile`,
+    variant === "compact" && recommendationReason
+      ? `Related to ${recommendationReason.label}`
+      : null,
+    business.category.name,
+    distance !== null ? formatDistance(distance, distanceAccuracy) : null,
+    variant !== "compact" ? availabilityLabel : null,
+    ratingLabel || reviewLabel,
+    ...displayTags.map((tag) => tag.name),
+  ]
+    .filter(Boolean)
+    .join(". ");
 
   const specialtyPreview =
     displayTags.length > 0 ? (
@@ -156,6 +173,7 @@ export default function BusinessCard({
       businessId={business.id}
       rating={business.sentiment_rating}
       compact
+      accessible={false}
     />
   ) : (
     <View className="mt-2 flex-row items-center">
@@ -180,11 +198,7 @@ export default function BusinessCard({
         }`}
         numberOfLines={1}
       >
-        {business.review_count === 0
-          ? "No reviews yet"
-          : `${business.review_count} ${
-              business.review_count === 1 ? "review" : "reviews"
-            }`}
+        {reviewLabel}
       </AppText>
     </View>
   );
@@ -229,13 +243,8 @@ export default function BusinessCard({
         <SafePressable
           onPress={onPress}
           accessibilityRole="button"
-          accessibilityLabel={
-            recommendationReason
-              ? `Open ${business.business_name} business profile. Related to ${recommendationReason.label}.${
-                  ratingLabel ? ` ${ratingLabel}` : ""
-                }`
-              : profileAccessibilityLabel
-          }
+          accessible
+          accessibilityLabel={profileAccessibilityLabel}
           className="min-h-40 w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90"
           android_ripple={{
             color: "rgba(0,0,0,0.05)",
@@ -396,6 +405,7 @@ export default function BusinessCard({
       <SafePressable
         onPress={onPress}
         accessibilityRole="button"
+        accessible
         accessibilityLabel={profileAccessibilityLabel}
         className="w-full cursor-pointer overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90"
         android_ripple={{

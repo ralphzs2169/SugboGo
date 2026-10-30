@@ -76,7 +76,7 @@ describe("RecentReviewInsightsSection", () => {
       expect(screen.getByText(message)).toBeTruthy();
       expect(screen.getByTestId("insight-update-status")).toBeTruthy();
       expect(screen.queryByText("No recent insights yet")).toBeNull();
-      expect(screen.queryByText("Not enough recent reviews yet")).toBeNull();
+      expect(screen.queryByText("More recent feedback needed")).toBeNull();
       expect(screen.queryByText("Vibe Summary")).toBeNull();
     },
   );
@@ -150,7 +150,7 @@ describe("RecentReviewInsightsSection", () => {
       />,
     );
     expect(screen.queryByTestId("insight-update-status")).toBeNull();
-    expect(screen.getByText("Not enough recent reviews yet")).toBeTruthy();
+    expect(screen.getByText("More recent feedback needed")).toBeTruthy();
   });
 
   it("displays completed current content without an updating or retained indicator", async () => {
@@ -230,7 +230,7 @@ describe("RecentReviewInsightsSection", () => {
         }}
       />,
     );
-    expect(screen.getByText("Not enough recent reviews yet")).toBeTruthy();
+    expect(screen.getByText("More recent feedback needed")).toBeTruthy();
     expect(screen.queryByText("Review Insights")).toBeNull();
     expect(screen.getByText("Mostly positive")).toBeTruthy();
     expect(screen.queryByText("Vibe Summary")).toBeNull();
@@ -272,7 +272,7 @@ describe("RecentReviewInsightsSection", () => {
         />,
       );
 
-      expect(screen.getByText("Not enough recent reviews yet")).toBeTruthy();
+      expect(screen.getByText("More recent feedback needed")).toBeTruthy();
       expect(screen.queryByText("Positive")).toBeNull();
       expect(screen.queryByText("Mostly positive")).toBeNull();
       expect(screen.queryByText("Vibe Summary")).toBeNull();

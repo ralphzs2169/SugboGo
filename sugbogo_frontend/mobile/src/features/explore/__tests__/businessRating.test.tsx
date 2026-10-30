@@ -254,6 +254,9 @@ describe("experimental business rating", () => {
           name: /Open Rating Cafe.*AI-derived sentiment rating 4.2 out of 5/,
         }),
       ).toBeTruthy();
+      expect(
+        screen.getAllByLabelText(/AI-derived sentiment rating/),
+      ).toHaveLength(1);
       expect(screen.queryByText("100 reviews")).toBeNull();
       expect(
         screen.queryByText(/AI sentiment|Experimental|\/5|scored reviews/),

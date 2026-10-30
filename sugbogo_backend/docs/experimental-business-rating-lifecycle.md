@@ -1,4 +1,9 @@
-# Experimental business rating lifecycle (Phase 4)
+# Experimental business rating lifecycle
+
+This is the current lifecycle reference. The
+[Phase 3 foundation](experimental-business-rating-foundation.md) is historical.
+Deployment commands and worker/Beat acceptance checks are maintained in the
+[deployment checklist](experimental-business-rating-deployment.md).
 
 ## Activation and compatibility
 
@@ -16,8 +21,9 @@ switch an existing business. Incompatible inputs never contribute together.
 
 Migration 0030 adds aggregate failure attempts, retry deadline, error type and a
 versioned-result validity flag. It contains no inference or historical score rewrite.
-Apply 0029 and 0030 before deploying workers/web code that uses these columns.
-No development database migration is performed by the implementation task.
+Apply 0029 and 0030 before starting backend/web and worker processes that use
+these columns. Deployment must restart workers and Beat after code changes;
+neither process automatically reloads task definitions or schedule configuration.
 
 ## Lifecycle and transaction boundary
 
@@ -93,8 +99,11 @@ queries are all-time; there is no 30-day restriction or sampling.
 
 Periodic reconciliation is bounded and eventual, not a fixed freshness SLA.
 Large installations can take several batches to sweep, and unresolved work must
-be monitored. Workers and Beat must both run. Broker, worker and actual model
-health were not validated by unit/integration tests.
+be monitored. Workers and exactly one Beat scheduler must both run. Unit tests
+alone do not establish runtime service health. The historical
+[Phase 6B runtime report](experimental-business-rating-phase6b-runtime-verification.md)
+records the successful development worker/Beat/Redis checks after stale processes
+were restarted; it is evidence for that session, not a current health check.
 
 ## Independent historical inference recovery
 
@@ -119,10 +128,14 @@ must call record_result() only for the exact current text and use a new
 compatibility identifier for material methodology changes. Persistent asset or
 model failures require correction before another repair attempt.
 
-## Remaining release work
+## Mobile integration and remaining release work
 
-This phase adds no mobile polling/invalidation or UI. Mobile integration must
-observe the rating's own state and computed timestamp. Live worker/Beat/broker
-smoke testing and production capacity/lock-latency validation remain deployment
-checks. Scoring quality and public-rating approval remain separate blockers.
+Mobile now observes the rating's own state and computation timestamp through the
+existing session-scoped receipt guard and bounded shared synchronization. The
+accepted presentation uses compact gold-star cards, the redesigned profile hero,
+and the combined rating/Reviews navigation title. See the
+[current mobile guide](../../sugbogo_frontend/mobile/docs/experimental-business-ratings.md).
+Physical-device acceptance, deployment smoke checks, and production capacity/lock
+latency remain environment-specific checks. Multilingual scoring validation and
+public-rating approval remain separate from development completion.
 

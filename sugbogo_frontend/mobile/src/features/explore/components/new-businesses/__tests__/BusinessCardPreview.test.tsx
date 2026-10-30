@@ -72,8 +72,62 @@ afterEach(() => {
 describe.each(["default", "featured", "compact"] as const)(
   "%s card preview",
   (variant) => {
+    it("announces the visible rating once through the profile button, then falls back to published reviews", async () => {
+      const renderCard = (snapshot: BusinessSentimentRating) => (
+        <BusinessCard
+          business={{ ...business, sentiment_rating: snapshot }}
+          variant={variant}
+          distance={1200}
+          distanceAccuracy={null}
+          recommendationReason={{
+            type: "specialty_tag",
+            id: 1,
+            label: "Coffee",
+          }}
+          onPress={jest.fn()}
+        />
+      );
+      const view = await render(renderCard(rating));
+      const card = view.getByRole("button", { name: /Open Local Coffee/ });
+      expect(card.props.accessibilityLabel).toContain(
+        "2.8 out of 5, based on 5 scored reviews",
+      );
+      expect(card.props.accessibilityLabel).not.toContain("12 reviews");
+      expect(card.props.accessibilityLabel).toContain("Cafe");
+      expect(card.props.accessibilityLabel).toContain("Specialty Coffee");
+      if (variant === "compact") {
+        expect(card.props.accessibilityLabel).toContain("Related to Coffee");
+      }
+      expect(view.getAllByLabelText(/sentiment rating/)).toHaveLength(1);
+
+      await view.rerender(renderCard({ ...rating, state: "pending" }));
+      expect(view.queryByText("2.8 (5)")).toBeNull();
+      expect(view.getByText("12 reviews")).toBeTruthy();
+      expect(view.queryByLabelText(/rating/i)).toBeNull();
+
+      await view.rerender(renderCard(rating));
+      expect(view.getByText("2.8 (5)")).toBeTruthy();
+      expect(view.queryByText("12 reviews")).toBeNull();
+      expect(view.getAllByLabelText(/sentiment rating/)).toHaveLength(1);
+    });
+
+    it("announces the visible zero-review state without a hidden rating", async () => {
+      const view = await render(
+        <BusinessCard
+          business={{ ...business, review_count: 0, sentiment_rating: null }}
+          variant={variant}
+          distance={null}
+          distanceAccuracy={null}
+          onPress={jest.fn()}
+        />,
+      );
+      expect(view.getByText("No reviews yet")).toBeTruthy();
+      expect(view.getByRole("button", { name: /No reviews yet/ })).toBeTruthy();
+      expect(view.queryByLabelText(/rating/i)).toBeNull();
+    });
+
     it.each([0, 1, 2, 3, 4])(
-      "shows at most two of %s specialties without changing their data",
+      "preserves the existing preview for %s supplied specialties without changing their data",
       async (count) => {
         const specialties = business.specialty_tags.slice(0, count);
         const original = JSON.stringify(specialties);
@@ -86,22 +140,15 @@ describe.each(["default", "featured", "compact"] as const)(
             onPress={jest.fn()}
           />,
         );
-        specialties.slice(0, 2).forEach((tag) => {
+        const visibleSpecialties =
+          variant === "compact" ? specialties : specialties.slice(0, 3);
+        visibleSpecialties.forEach((tag) => {
           expect(view.getByText(tag.name)).toBeTruthy();
         });
-        specialties.slice(2).forEach((tag) => {
+        specialties.slice(visibleSpecialties.length).forEach((tag) => {
           expect(view.queryByText(tag.name)).toBeNull();
         });
-        if (count > 2) {
-          expect(view.getByText(`+${count - 2}`)).toBeTruthy();
-          expect(
-            view.getByLabelText(
-              `${count - 2} more ${count === 3 ? "specialty" : "specialties"}`,
-            ),
-          ).toBeTruthy();
-        } else {
-          expect(view.queryByText(/^\+\d+$/)).toBeNull();
-        }
+        expect(view.queryByText(/^\+\d+$/)).toBeNull();
         expect(JSON.stringify(specialties)).toBe(original);
       },
     );
@@ -133,14 +180,17 @@ describe.each(["default", "featured", "compact"] as const)(
             /2.8|AI sentiment|Experimental|Not enough|Rating updating|Rating unavailable/,
           ),
         ).toBeNull();
-        if (variant !== "compact") {
-          expect(view.getByText("12 reviews")).toBeTruthy();
-          expect(view.getByText("Mostly positive")).toBeTruthy();
-        }
+        expect(view.getByText("12 reviews")).toBeTruthy();
+        expect(view.queryByText("Mostly positive")).toBeNull();
+        const card = view.getByRole("button", { name: /Open Local Coffee/ });
+        expect(card.props.accessibilityLabel).toContain("12 reviews");
+        expect(card.props.accessibilityLabel).not.toMatch(
+          /rating|scored|Experimental|pending|insufficient|unavailable/i,
+        );
       },
     );
 
-    it("keeps the name, bounded specialties, rating and navigation available at a narrow width", async () => {
+    it("keeps the name, all specialties, rating and navigation available at a narrow width", async () => {
       jest.spyOn(Native, "useWindowDimensions").mockReturnValue({
         width: 320,
         height: 640,
@@ -161,7 +211,13 @@ describe.each(["default", "featured", "compact"] as const)(
       );
       expect(view.getByText(name).props.numberOfLines).toBe(2);
       expect(view.getByText("2.8 (5)")).toBeTruthy();
-      expect(view.getByText("+2")).toBeTruthy();
+      const visibleSpecialties =
+        variant === "compact"
+          ? business.specialty_tags
+          : business.specialty_tags.slice(0, 3);
+      visibleSpecialties.forEach((tag) => {
+        expect(view.getByText(tag.name)).toBeTruthy();
+      });
       expect(view.queryByText("12 reviews")).toBeNull();
       await fireEvent.press(
         view.getByRole("button", { name: /Open A very long local business/ }),

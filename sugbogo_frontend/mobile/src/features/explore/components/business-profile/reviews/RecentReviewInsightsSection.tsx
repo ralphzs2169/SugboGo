@@ -172,8 +172,8 @@ export default function RecentReviewInsightsSection({
           {insights.state === "insufficient_reviews" && !showSectionHeader && (
             <ReviewInsightsStateCard
               icon="chart-box-outline"
-              title="Not enough recent reviews yet"
-              description={`Recent review insights need at least ${insights.minimum_eligible_review_count} eligible reviews posted in the past 30 days. Older reviews do not count toward this requirement.`}
+              title="More recent feedback needed"
+              description="Review insights are based on recent customer feedback, so older reviews may not be included."
             />
           )}
 

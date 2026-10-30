@@ -189,7 +189,7 @@ describe("ReviewFiltersSection", () => {
     },
   );
 
-  it("explains the past-30-days requirement above the filters when insights are insufficient", async () => {
+  it("explains recent feedback separately from all-time reviews above the filters", async () => {
     const screen = await render(
       <ReviewFiltersSection
         insights={{
@@ -210,9 +210,11 @@ describe("ReviewFiltersSection", () => {
     );
     expect(
       screen.getByText(
-        /at least 5 eligible reviews posted in the past 30 days/,
+        "Review insights are based on recent customer feedback, so older reviews may not be included.",
       ),
     ).toBeTruthy();
+    expect(screen.getByText("More recent feedback needed")).toBeTruthy();
+    expect(screen.queryByText(/eligible|at least|five|30 days/i)).toBeNull();
     expect(screen.getByText("Filter & sort")).toBeTruthy();
   });
 });
