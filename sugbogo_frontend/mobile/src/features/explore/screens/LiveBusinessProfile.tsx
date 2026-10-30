@@ -8,6 +8,7 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import { formatDistance } from "@/shared/utils/distance.utils";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
+import BusinessSentimentRating from "../components/business-profile/BusinessSentimentRating";
 import BusinessProfileQuickInfo from "../components/business-profile/BusinessProfileQuickInfo";
 import BusinessProfileSection from "../components/business-profile/BusinessProfileSection";
 import BusinessReviewsSection from "../components/business-profile/reviews/review-preview-section/BusinessReviewsPreviewSection";
@@ -75,16 +76,22 @@ export function LiveBusinessQuickInfo({
   const hours = useBusinessHours(business.operating_hours);
   const status = getQuickInfoStatus(hours);
   return (
-    <BusinessProfileQuickInfo
-      reviewCount={totalCount ?? business.review_count}
-      overallVibe={business.overall_vibe}
-      statusLabel={status.statusLabel}
-      statusDetail={status.statusDetail}
-      isOpenNow={status.isOpen}
-      distance={
-        distance !== null ? formatDistance(distance, distanceAccuracy) : null
-      }
-    />
+    <View>
+      <BusinessProfileQuickInfo
+        reviewCount={totalCount ?? business.review_count}
+        overallVibe={business.overall_vibe}
+        statusLabel={status.statusLabel}
+        statusDetail={status.statusDetail}
+        isOpenNow={status.isOpen}
+        distance={
+          distance !== null ? formatDistance(distance, distanceAccuracy) : null
+        }
+      />
+      <BusinessSentimentRating
+        businessId={business.id}
+        rating={business.sentiment_rating}
+      />
+    </View>
   );
 }
 

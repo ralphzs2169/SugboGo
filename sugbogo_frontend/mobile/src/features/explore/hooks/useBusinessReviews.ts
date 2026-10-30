@@ -40,6 +40,7 @@ import type { ExploreBusinessDetail } from "../types/exploreBusiness.types";
 import { resolveReviewInsightRegeneration } from "../utils/reviewInsightRegeneration.utils";
 import { useReviewDerivedDataSyncActions } from "./ReviewDerivedDataSyncProvider";
 import {
+  cancelBusinessCardCollections,
   invalidateBusinessCardCollections,
   removeDeletedReviewFromPublicCaches,
   updateReviewInCaches,
@@ -51,6 +52,8 @@ import {
   filteredBusinessReviewsKey,
 } from "./reviewQueryKeys";
 
+import { beginBusinessRatingSync } from "./businessRatingSync";
+
 type ReviewMutationSync = "create" | "update" | "delete";
 
 type ReviewMutationContext = {
@@ -58,6 +61,7 @@ type ReviewMutationContext = {
   operationToken: number;
   operationKey: string;
   authorUserId: number | null;
+  baselineRating: ExploreBusinessDetail["sentiment_rating"];
   baselineGeneratedAt: string | null;
   baselineInsightsUpdatedAt: string | null;
   baselineInsightsState:
@@ -189,6 +193,7 @@ function useReviewMutation<TVariables, TResult>(
         generation,
         operationToken,
         operationKey,
+        baselineRating: detail?.sentiment_rating,
         baselineGeneratedAt: detail?.review_insights?.generated_at ?? null,
         baselineInsightsUpdatedAt: detail?.review_insights?.updated_at ?? null,
         baselineInsightsState: detail?.review_insights?.state ?? null,
@@ -306,6 +311,17 @@ function useReviewMutation<TVariables, TResult>(
 
       if (!isCurrent()) return;
 
+      const changesRating =
+        sync === "delete" ||
+        (sync === "create" &&
+          (result as ReviewCreateResult).status === "published") ||
+        (sync === "update" && (variables as { textChanged: boolean }).textChanged);
+      if (changesRating && context.baselineRating) {
+        await cancelBusinessCardCollections(queryClient);
+        if (!isCurrent()) return;
+        beginBusinessRatingSync(queryClient, businessId, context.baselineRating);
+      }
+
       await Promise.all([
         ...(sync
           ? [
@@ -341,7 +357,7 @@ function useReviewMutation<TVariables, TResult>(
 
       if (!isCurrent()) return;
 
-      if (sync === "create" || sync === "delete") {
+      if (sync === "create" || sync === "delete" || changesRating) {
         await invalidateBusinessCardCollections(queryClient);
       }
 

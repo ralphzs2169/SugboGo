@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { businessRatingSchema } from "./businessRatingSchema";
 
 import type { QueryPersistencePolicy } from "@/shared/query/queryPersistencePolicies";
 import {
@@ -28,6 +29,7 @@ const specialty = z.object({
 // Explicit DTO projections strip unknown fields at every level. Detail, review,
 // moderation and operational payloads cannot hitchhike in a homepage response.
 const business = z.object({
+  sentiment_rating: businessRatingSchema.nullable().optional().catch(undefined),
   is_hidden_gem: z.boolean().optional(),
   id,
   business_name: z.string(),

@@ -5,6 +5,9 @@ import { useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import { businessRatingAccessibilityLabel } from "../../utils/businessRating.utils";
+import { usePresentedBusinessRating } from "../../hooks/businessRatingSync";
+import BusinessSentimentRating from "../business-profile/BusinessSentimentRating";
 import AppText from "@/shared/components/AppText";
 import HiddenGemBadge from "@/shared/components/HiddenGemBadge";
 import HighlightedText from "@/shared/components/HighlightedText";
@@ -114,6 +117,12 @@ export default function BusinessCard({
     standardTagAvailableWidth,
   );
 
+  const presentedRating = usePresentedBusinessRating(
+    business.id,
+    business.sentiment_rating,
+  );
+  const ratingLabel = businessRatingAccessibilityLabel(presentedRating);
+  const profileAccessibilityLabel = `Open ${business.business_name} business profile${ratingLabel ? `. ${ratingLabel}` : ""}`;
   const overallVibeLabel = business.overall_vibe
     ? OVERALL_REVIEW_VIBE_LABELS[business.overall_vibe]
     : null;
@@ -166,8 +175,8 @@ export default function BusinessCard({
           accessibilityLabel={
             recommendationReason
               ? `Open ${business.business_name} business profile. ` +
-                `Related to ${recommendationReason.label}.`
-              : `Open ${business.business_name} business profile`
+                `Related to ${recommendationReason.label}.${ratingLabel ? ` ${ratingLabel}` : ""}`
+              : profileAccessibilityLabel
           }
           className="min-h-40 w-full cursor-pointer flex-row overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90"
           android_ripple={{
@@ -306,6 +315,11 @@ export default function BusinessCard({
                 ))}
               </View>
             )}
+            <BusinessSentimentRating
+              businessId={business.id}
+              rating={business.sentiment_rating}
+              compact
+            />
           </View>
         </SafePressable>
         {pocketAction}
@@ -334,7 +348,7 @@ export default function BusinessCard({
       <SafePressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`Open ${business.business_name} business profile`}
+        accessibilityLabel={profileAccessibilityLabel}
         className="w-full cursor-pointer overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90"
         android_ripple={{
           color: "rgba(0,0,0,0.05)",
@@ -508,6 +522,11 @@ export default function BusinessCard({
               </>
             )}
           </View>
+          <BusinessSentimentRating
+            businessId={business.id}
+            rating={business.sentiment_rating}
+            compact
+          />
         </View>
       </SafePressable>
       {pocketAction}

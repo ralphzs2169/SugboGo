@@ -1,4 +1,5 @@
 import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
+import type { BusinessSentimentRating } from "./businessRating.types";
 import type {
   SpecialtyTagColor,
   SpecialtyTagIcon,
@@ -33,6 +34,7 @@ export type ExploreBusinessLocation = {
 };
 
 export type ExploreBusiness = {
+  sentiment_rating?: BusinessSentimentRating | null;
   is_hidden_gem?: boolean;
   id: number;
   business_name: string;

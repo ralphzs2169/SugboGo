@@ -55,7 +55,7 @@ export default function RecentExploreScreen() {
                 {feed.items.map((business) => (
                   <BusinessCard
                     key={business.id}
-                    business={business}
+                    business={{ ...business, sentiment_rating: undefined }}
                     distance={null}
                     distanceAccuracy={null}
                     recommendationReason={
