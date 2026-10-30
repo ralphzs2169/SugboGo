@@ -236,22 +236,22 @@ it("uses the detail review count until preview resolves, including a confirmed z
     .mocked(useBusinessReviewPreview)
     .mockReturnValue({ totalCount: null } as never);
   const view = await render(profile());
-  expect(view.getByText(String(business.review_count))).toBeTruthy();
+  expect(view.getByText(`${business.review_count} reviews`)).toBeTruthy();
   expect(view.queryByText("0")).toBeNull();
   jest
     .mocked(useBusinessReviewPreview)
     .mockReturnValue({ totalCount: 0 } as never);
   await view.rerender(profile());
-  expect(view.getByText("0")).toBeTruthy();
+  expect(view.getByText("0 reviews")).toBeTruthy();
 });
 
-it("integrates the live rating into stats and sticky identity without a duplicate block or offline rating", async () => {
+it("integrates the live rating into hero and sticky identity without a duplicate block or offline rating", async () => {
   jest.mocked(useBusinessDetailSource).mockReturnValue({
     ...source("live"),
     business: { ...business, sentiment_rating: businessRatingFixture() },
   } as never);
   const view = await render(profile());
-  expect(view.getByText("rating")).toBeTruthy();
+  expect(view.queryByText("rating")).toBeNull();
   expect(view.getByLabelText("Business rating 3.6 out of 5")).toBeTruthy();
   expect(
     view.queryByText(/AI sentiment|Experimental|scored reviews|\/5/),
@@ -629,8 +629,8 @@ it.each(["recent", "offline-pocket"] as const)(
     expect(view.getByLabelText("Hide full business hours")).toBeTruthy();
     expect(view.getByText("Plan Your Visit")).toBeTruthy();
     expect(view.getByLabelText("Current status unavailable")).toBeTruthy();
-    expect(view.getByLabelText("Reviews unavailable")).toBeTruthy();
-    expect(view.getByLabelText("Distance unavailable")).toBeTruthy();
+    expect(view.queryByLabelText("Reviews unavailable")).toBeNull();
+    expect(view.queryByLabelText("Distance unavailable")).toBeNull();
     expect(view.queryByText("12")).toBeNull();
     const route = view.getByLabelText("View road route");
     expect(route.props.accessibilityState.disabled).toBe(true);

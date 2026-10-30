@@ -155,7 +155,7 @@ describe("ReviewFiltersSection", () => {
     expect(screen.queryByText("Review Insights")).toBeNull();
   });
 
-  it.each([null, "insufficient_reviews", "outdated", "pending"] as const)(
+  it.each([null, "outdated", "pending"] as const)(
     "proceeds directly to filter controls when generated insights are %s",
     async (state) => {
       const screen = await render(
@@ -188,4 +188,31 @@ describe("ReviewFiltersSection", () => {
       ).toBeNull();
     },
   );
+
+  it("explains the past-30-days requirement above the filters when insights are insufficient", async () => {
+    const screen = await render(
+      <ReviewFiltersSection
+        insights={{
+          ...insights,
+          state: "insufficient_reviews",
+          content_available: false,
+          narrative: null,
+          minimum_eligible_review_count: 5,
+        }}
+        insightsLoading={false}
+        insightsError={false}
+        onRetryInsights={jest.fn()}
+        filters={DEFAULT_BUSINESS_REVIEW_FILTERS}
+        onChange={jest.fn()}
+        onClear={jest.fn()}
+        onOpenFilter={jest.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        /at least 5 eligible reviews posted in the past 30 days/,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Filter & sort")).toBeTruthy();
+  });
 });

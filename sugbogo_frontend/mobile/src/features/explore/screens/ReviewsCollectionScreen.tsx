@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import loadingAnimation from "@/shared/assets/animations/loading.json";
+import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import EndOfListMessage from "@/shared/components/EndOfListMessage";
 import ErrorState from "@/shared/components/ErrorState";
@@ -159,16 +160,47 @@ function ReviewsCollectionScreenContent({
     reviewQuery.reviews.length >= 5;
 
   useEffect(() => {
+    const reviewTitle =
+      knownTotalCount == null
+        ? "Reviews"
+        : `Reviews (${new Intl.NumberFormat("en", {
+            notation: "compact",
+            maximumFractionDigits: 1,
+          })
+            .format(knownTotalCount)
+            .toLowerCase()})`;
+
     navigation.setOptions({
-      title:
-        knownTotalCount == null ? "Reviews" : `Reviews (${knownTotalCount})`,
-      headerRight: hasRating
+      title: reviewTitle,
+      headerRight: undefined,
+      headerTitle: hasRating
         ? () => (
-            <BusinessSentimentRating
-              businessId={businessId}
-              rating={rating}
-              variant="inline"
-            />
+            <View className="min-w-0 flex-row items-center gap-2">
+              <BusinessSentimentRating
+                businessId={businessId}
+                rating={rating}
+                variant="header"
+              />
+              <View
+                className="h-4 w-px bg-border-primary"
+                accessible={false}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+              <AppText
+                accessibilityRole="header"
+                accessibilityLabel={
+                  knownTotalCount == null
+                    ? "Reviews"
+                    : `Reviews (${knownTotalCount})`
+                }
+                weight="bold"
+                className="min-w-0 shrink text-base text-text-primary"
+                numberOfLines={1}
+              >
+                {reviewTitle}
+              </AppText>
+            </View>
           )
         : undefined,
     });

@@ -26,7 +26,7 @@ export default function BusinessSentimentRating({
   rating?: Rating | null;
   compact?: boolean;
   networkError?: boolean;
-  variant?: "stat" | "inline";
+  variant?: "stat" | "inline" | "header";
 }) {
   const current = usePresentedBusinessRating(businessId, rating);
   if (!current) return null;
@@ -50,7 +50,7 @@ export default function BusinessSentimentRating({
         {/* Available rating metadata */}
         <MaterialCommunityIcons
           name="star"
-          size={variant === "stat" ? 18 : 14}
+          size={variant === "stat" || variant === "header" ? 18 : 14}
           color={colors.amber[500]}
           accessible={false}
           accessibilityElementsHidden
@@ -58,7 +58,13 @@ export default function BusinessSentimentRating({
         />
         <AppText
           weight="bold"
-          className={`min-w-0 shrink text-text-primary ${variant === "stat" ? "text-[13px]" : "text-xs"}`}
+          className={`min-w-0 shrink text-text-primary ${
+            variant === "header"
+              ? "text-base"
+              : variant === "stat"
+                ? "text-[13px]"
+                : "text-xs"
+          }`}
           numberOfLines={1}
         >
           {value}

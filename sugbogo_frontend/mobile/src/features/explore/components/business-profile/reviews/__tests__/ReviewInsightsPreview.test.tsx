@@ -46,6 +46,21 @@ describe("ReviewInsightsPreview", () => {
     expect(screen.toJSON()).toBeNull();
   });
 
+  it("omits the insufficient-insights message from the profile preview", async () => {
+    const screen = await render(
+      <ReviewInsightsPreview
+        insights={{
+          ...insights,
+          state: "insufficient_reviews",
+          content_available: false,
+          narrative: null,
+          minimum_eligible_review_count: 7,
+        }}
+      />,
+    );
+    expect(screen.toJSON()).toBeNull();
+  });
+
   it("keeps an available summary during regeneration but hides invalidated content", async () => {
     const regeneration = {
       status: "processing" as const,

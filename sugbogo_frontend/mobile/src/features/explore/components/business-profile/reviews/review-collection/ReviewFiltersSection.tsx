@@ -72,7 +72,7 @@ export default function ReviewFiltersSection({
     <View className="gap-5 pt-5">
       {/* Recent insights and evidence-backed topic filters */}
       <RecentReviewInsightsSection
-        hideUnavailable
+        hideUnavailable={insights?.state !== "insufficient_reviews"}
         insights={insights}
         regeneration={regeneration}
         isLoading={insightsLoading}

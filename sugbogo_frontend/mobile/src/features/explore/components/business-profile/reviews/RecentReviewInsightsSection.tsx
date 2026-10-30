@@ -173,7 +173,7 @@ export default function RecentReviewInsightsSection({
             <ReviewInsightsStateCard
               icon="chart-box-outline"
               title="Not enough recent reviews yet"
-              description={insights.state_message ?? ""}
+              description={`Recent review insights need at least ${insights.minimum_eligible_review_count} eligible reviews posted in the past 30 days. Older reviews do not count toward this requirement.`}
             />
           )}
 

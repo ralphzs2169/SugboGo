@@ -5,6 +5,7 @@ import colors from "tailwindcss/colors";
 import { businessRatingFixture } from "../../../__tests__/review.fixtures";
 import BusinessProfileQuickInfo from "../BusinessProfileQuickInfo";
 import BusinessSentimentRating from "../BusinessSentimentRating";
+import ExploreBusinessHero from "../ExploreBusinessHero";
 
 jest.mock("@expo/vector-icons", () => {
   const { View } = jest.requireActual("react-native");
@@ -14,6 +15,11 @@ jest.mock("@expo/vector-icons", () => {
     },
   };
 });
+
+jest.mock("../BusinessPocketButton", () => () => null);
+jest.mock("expo-image", () => ({
+  Image: jest.requireActual("react-native").View,
+}));
 
 const stats = {
   businessId: 21,
@@ -27,16 +33,33 @@ const stats = {
 beforeEach(() => onlineManager.setOnline(true));
 afterEach(() => onlineManager.setOnline(true));
 
-it("uses a rating instead of published reviews in the existing three-column stats", async () => {
+it("places the rating beside the identity and keeps metadata free of duplicate review counts", async () => {
   const view = await render(
-    <BusinessProfileQuickInfo {...stats} rating={businessRatingFixture()} />,
+    <ExploreBusinessHero
+      business={{
+        id: 21,
+        business_name: "A long local cafe and artisan bakehouse name",
+        cluster: { id: 1, name: "Food", icon: "store" },
+        category: { id: 1, name: "Cafe" },
+        display_cover_photo_url: null,
+        sentiment_rating: businessRatingFixture(),
+      }}
+      isOwnBusiness={false}
+      onShare={jest.fn()}
+      onGoBack={jest.fn()}
+    >
+      <BusinessProfileQuickInfo {...stats} rating={businessRatingFixture()} />
+    </ExploreBusinessHero>,
   );
   expect(view.getByText("3.6")).toBeTruthy();
-  expect(view.getByText("rating")).toBeTruthy();
+  expect(view.queryByText("rating")).toBeNull();
+  expect(
+    view.getByText("A long local cafe and artisan bakehouse name"),
+  ).toBeTruthy();
   expect(view.getByLabelText("Business rating 3.6 out of 5")).toBeTruthy();
   expect(view.getByText("Open")).toBeTruthy();
-  expect(view.getByText("6 PM")).toBeTruthy();
-  expect(view.getByText("1.2 km")).toBeTruthy();
+  expect(view.getByLabelText("Open. 6 PM")).toBeTruthy();
+  expect(view.getByText("1.2 km away")).toBeTruthy();
   expect(
     view.queryByText(/28|scored reviews|AI sentiment|Experimental|\/5/),
   ).toBeNull();
@@ -52,8 +75,7 @@ it.each([undefined, "insufficient_data", "pending", "unavailable"] as const)(
     const view = await render(
       <BusinessProfileQuickInfo {...stats} rating={rating} />,
     );
-    expect(view.getByText("28")).toBeTruthy();
-    expect(view.getByText("reviews")).toBeTruthy();
+    expect(view.getByText("28 reviews")).toBeTruthy();
     expect(view.queryByText("rating")).toBeNull();
     expect(view.queryByText(/Not enough|Rating unavailable|3.6/)).toBeNull();
     expect(view.queryByLabelText(/Business rating/)).toBeNull();
@@ -66,7 +88,7 @@ it("does not expose cached ratings on the offline stats surface", async () => {
     <BusinessProfileQuickInfo {...stats} rating={businessRatingFixture()} />,
   );
   expect(view.queryByText("3.6")).toBeNull();
-  expect(view.getByText("28")).toBeTruthy();
+  expect(view.getByText("28 reviews")).toBeTruthy();
 });
 
 it.each(["stat", "inline"] as const)(
