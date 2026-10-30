@@ -38,7 +38,7 @@ const processingColumns = [
   { key: "pending", label: "Pending", render: (row) => formatCount(row.backlog?.total) },
   {
     key: "median",
-    label: "Median decision time",
+    label: "Median resolution time",
     render: (row) => (
       <div className="tabular-nums">
         <p className="whitespace-nowrap">{formatDuration(row.turnaround?.median_hours)}</p>
@@ -65,17 +65,17 @@ function ProcessingSpeed({ types }) {
   });
   const maximum = Math.max(0, ...rows.map((row) => row.median ?? 0));
   return (
-    <ol aria-label="Median decision time by request type" className="space-y-3">
+    <ol aria-label="Median resolution time by request type" className="space-y-3">
       {/* Exact text and proportional lengths remain useful with sparse or tiny durations. */}
       {rows.map((row) => (
         <li key={row.type} className="min-w-0">
           <Tooltip asChild place="top" openOnClick
-            content={`${row.label}: ${formatDuration(row.median)} median decision time · ${formatCount(row.turnaround?.sample_count)} valid decisions. Selected decision period.`}
+            content={`${row.label}: ${formatDuration(row.median)} median resolution time · ${formatCount(row.turnaround?.sample_count)} valid decisions. Selected resolution period.`}
             closeEvents={{ blur: true }}
             globalCloseEvents={{ escape: true, clickOutsideAnchor: true, scroll: true, resize: true }}
             className="!z-50 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal !px-3 !py-2 leading-relaxed"
           >
-            <button type="button" aria-label={`${row.label}: ${formatDuration(row.median)} median; ${formatCount(row.turnaround?.sample_count)} valid decisions`}
+            <button type="button" aria-label={`${row.label}: ${formatDuration(row.median)} median resolution time; ${formatCount(row.turnaround?.sample_count)} valid decisions`}
               className="block w-full cursor-pointer rounded py-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
             >
               <span className="mb-2 flex items-baseline justify-between gap-3 text-sm">
@@ -110,16 +110,16 @@ export function ChangeRequestWorkload({ period }) {
         action={<AnalyticsDrilldown to="/admin-panel/businesses/update-requests">View change requests</AnalyticsDrilldown>}
         footer={<AnalyticsReportFooter title="Merchant change requests" meta={data?.meta} hasData={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
       >
-        {/* Compact statistics preserve snapshot and decision-period scopes. */}
+        {/* Compact statistics preserve snapshot and resolution-period scopes. */}
         <OperationsStats items={[
           { label: "Current workload", value: `${formatCount(data?.backlog?.total)} pending` },
           { label: "72h+", value: `${formatCount(data?.backlog?.days_3_plus)} overdue` },
-          { label: "Median decision time", value: formatDuration(data?.turnaround?.median_hours), help: `Selected decision period · ${formatCount(data?.turnaround?.sample_count)} valid approval/rejection decisions. Merchant withdrawals are excluded.` },
+          { label: "Median resolution time", value: formatDuration(data?.turnaround?.median_hours), help: `Selected resolution period · ${formatCount(data?.turnaround?.sample_count)} valid approval/rejection decisions. Merchant withdrawals are excluded.` },
         ]} />
         {/* Processing speeds share a proportional scale; aging stays in View data. */}
         <div className="mt-4 border-t border-stroke pt-4">
           <h3 className="text-sm font-semibold text-text-primary">Processing speed by request type</h3>
-          <p className="mb-3 mt-1 text-xs text-text-secondary">Median decision time · selected period</p>
+          <p className="mb-3 mt-1 text-xs text-text-secondary">Median resolution time · selected period</p>
           <ProcessingSpeed types={types} />
         </div>
         {/* Compact outcomes visually separate administrator decisions from merchant actions. */}
@@ -174,14 +174,14 @@ export function ChangeRequestWorkload({ period }) {
             ]} columns={agingColumns} />
           </div>
           <div>
-            <h3 className="mb-2 font-semibold">Decision-time samples</h3>
-            <AnalyticsExactTable caption="Change-request decision-time samples and exclusions" rows={[
+            <h3 className="mb-2 font-semibold">Resolution-time samples</h3>
+            <AnalyticsExactTable caption="Change-request resolution-time samples and exclusions" rows={[
               { label: "All requests", turnaround: data?.turnaround, missing_resolution_timestamp_count: data?.missing_resolution_timestamp_count },
               ...types,
             ]} columns={[
               { key: "label", label: "Request type" },
-              { key: "median", label: "Median hours (exact)", render: (row) => row.turnaround?.median_hours ?? "Unavailable" },
-              { key: "mean", label: "Mean hours (exact)", render: (row) => row.turnaround?.mean_hours ?? "Unavailable" },
+              { key: "median", label: "Median resolution time (hours, exact)", render: (row) => row.turnaround?.median_hours ?? "Unavailable" },
+              { key: "mean", label: "Mean resolution time (hours, exact)", render: (row) => row.turnaround?.mean_hours ?? "Unavailable" },
               { key: "sample", label: "Valid decisions", render: (row) => formatCount(row.turnaround?.sample_count) },
               { key: "excluded", label: "Excluded durations", render: (row) => formatCount(row.turnaround?.excluded_count) },
               { key: "missing", label: "Missing resolution dates (all time)", render: (row) => formatCount(row.missing_resolution_timestamp_count) },
@@ -189,7 +189,7 @@ export function ChangeRequestWorkload({ period }) {
           </div>
         </div>}
         aboutContent={<div className="space-y-3 text-sm text-text-secondary">
-          <p>{data?.definition}</p>
+          <p>{data?.definition?.replaceAll("administrator decision durations", "administrator resolution durations")}</p>
           <p>{data?.missing_resolution_timestamp_scope}</p>
           <pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ backlog: data?.backlog_meta, turnaround: data?.turnaround, types: data?.types }, null, 2)}</pre>
         </div>}

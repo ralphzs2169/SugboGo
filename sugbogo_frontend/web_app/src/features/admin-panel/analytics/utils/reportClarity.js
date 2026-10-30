@@ -39,7 +39,7 @@ export const reportExplanations = {
   ],
   "Merchant change requests": [
     "Current pending business changes and how each request type was processed during the selected period.",
-    "Pending and overdue counts show the current queue, regardless of selected dates. Approved, rejected and withdrawn counts use resolution dates in the selected period. Decision time measures submission to approval or rejection; merchant withdrawals stay separate.",
-    "The overall median uses individual valid decisions, not an average of request-type medians. Missing or inconsistent dates are excluded from decision times. Requests without resolution dates cannot be assigned to a reporting period. Current request states cannot reconstruct past queue sizes. Detailed aging and excluded samples remain available in View data.",
+    "Pending and overdue counts show the current queue, regardless of selected dates. Approved, rejected and withdrawn counts use resolution dates in the selected period. Resolution time measures submission to approval or rejection; merchant withdrawals stay separate.",
+    "The overall median uses individual valid decisions, not an average of request-type medians. Missing or inconsistent dates are excluded from resolution times. Requests without resolution dates cannot be assigned to a reporting period. Current request states cannot reconstruct past queue sizes. Detailed aging and excluded samples remain available in View data.",
   ],
 };

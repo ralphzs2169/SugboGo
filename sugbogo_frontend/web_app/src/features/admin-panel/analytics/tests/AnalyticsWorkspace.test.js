@@ -203,12 +203,12 @@ test("workspace deep links isolate Operations errors and Retry", async () => {
   assert.equal(requests("onboarding/").length, 1);
   assert.equal(requests("change-requests/").length, 2);
   const changes = section("Merchant change requests");
-  assert.match(changes.textContent, /Median decision time2 min/);
+  assert.match(changes.textContent, /Median resolution time2 min/);
   assert.doesNotMatch(changes.textContent, /0\.03 hours/);
   assert.match(changes.textContent, /Administrator decisions/);
   assert.match(changes.textContent, /Merchant action/);
   const rows = changes.querySelectorAll("tbody tr");
-  const speed = changes.querySelector('[aria-label="Median decision time by request type"]');
+  const speed = changes.querySelector('[aria-label="Median resolution time by request type"]');
   assert.match(speed.querySelector('[aria-label^="Business name:"]').getAttribute("data-tooltip-content"), /1 hr 30 min.*2 valid decisions/);
   assert.deepEqual([...rows[0].querySelectorAll("td")].slice(-3).map((cell) => cell.textContent), ["2", "1", "3"]);
   assert.match(speed.querySelector('[aria-label^="Classification:"]').textContent, /0 min/);
