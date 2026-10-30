@@ -24,7 +24,7 @@ let initialEntries;
 
 before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost", pretendToBeVisual: true });
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, Element: dom.window.Element, HTMLElement: dom.window.HTMLElement, CustomEvent: dom.window.CustomEvent, MutationObserver: dom.window.MutationObserver, IS_REACT_ACT_ENVIRONMENT: true });
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, Node: dom.window.Node, Element: dom.window.Element, HTMLElement: dom.window.HTMLElement, CustomEvent: dom.window.CustomEvent, MutationObserver: dom.window.MutationObserver, IS_REACT_ACT_ENVIRONMENT: true });
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
   ({ createRoot } = await import("react-dom/client"));
@@ -92,7 +92,7 @@ after(async () => {
   await server?.close();
   dom.window.close();
   globalThis.CustomEvent = originalCustomEvent;
-  for (const key of ["window", "document", "Element", "HTMLElement", "MutationObserver", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
+  for (const key of ["window", "document", "Node", "Element", "HTMLElement", "MutationObserver", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
 });
 
 async function until(predicate) {
@@ -671,11 +671,147 @@ test("shared explanations preserve Operations, Community and Ecosystem report de
   assert.match(drawer.textContent,/still published today/);
   await click(drawer.querySelector('[aria-label="Close Community Health details"]'));
   await tab("Business Ecosystem");
-  assert.match(section("Discovery Score Health").textContent,/should not be added together/);
+  await click(section("Discovery Score Health").querySelector('[aria-label="About Discovery Score Health"]'));
+  drawer=document.querySelector("dialog[open]");
+  assert.match(drawer.textContent,/should not be added together/);
+  assert.match(drawer.textContent,/Selected dates do not filter this snapshot/);
+  await click(drawer.querySelector('[aria-label="Close Discovery Score Health details"]'));
   const coverage=section("Business Coverage");
-  await click([...coverage.querySelectorAll("summary")].find((node)=>node.textContent === "About this report"));
-  assert.match(coverage.textContent,/Complete recording has not been confirmed/);
-  assert.ok([...coverage.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
+  await click(coverage.querySelector('[aria-label="About Business Coverage"]'));
+  drawer=document.querySelector("dialog[open]");
+  assert.match(drawer.textContent,/Complete recording has not been confirmed/);
+  assert.match(drawer.textContent,/not geographic coverage/);
+  assert.ok([...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
+});
+
+test("business coverage ranks a bounded comparison and keeps every classification in its drawer", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/coverage/", (report) => ({
+    ...report,
+    categories: [
+      ...[[9, 100], [3, 50], [2, 100], [5, 0], [4, 75], [6, 100]].map(([id, percentage]) => ({
+        id,
+        name: `Category ${id}`,
+        eligible_businesses: 4,
+        visited_businesses: percentage / 25,
+        zero_recorded_visit_businesses: 4 - percentage / 25,
+        coverage_percentage: percentage,
+      })),
+      { id: 8, name: "Empty category", eligible_businesses: 0, visited_businesses: 0, zero_recorded_visit_businesses: 0, coverage_percentage: null },
+    ],
+  }));
+  await mount();
+  const coverage = section("Business Coverage");
+  assert.equal(coverage.querySelector("table"), null);
+  assert.equal(coverage.querySelector("details"), null);
+  assert.doesNotMatch(coverage.textContent, /Highest coverage|View full coverage|Empty category/);
+  assert.deepEqual([...coverage.querySelectorAll("h3")].map((heading) => heading.textContent), ["Coverage by classification"]);
+  assert.match(coverage.textContent, /2 of 4 eligible businesses received recorded profile visits/);
+  assert.match(coverage.textContent, /2 businesses had no recorded profile visits/);
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Category 50%", "Category 350%", "Category 475%", "Category 2100%", "Category 6100%"]);
+  assert.deepEqual([...coverage.querySelectorAll('ol [aria-hidden="true"] > div')].map((bar) => bar.style.width), ["0%", "50%", "75%", "100%", "100%"]);
+  assert.match(coverage.textContent, /Showing 5 of 6 categories/);
+  assert.match(coverage.querySelector('[aria-label="About business coverage"]').getAttribute("data-tooltip-content"), /at least one recorded profile visit during the selected period/);
+  await choose("Coverage breakdown", "clusters");
+  assert.equal(requests("coverage/").length, 1);
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Food50%"]);
+  await choose("Coverage cluster", "1");
+  await choose("Coverage category", "2");
+  assert.deepEqual(requests("coverage/").at(-1).params, { period: "30", cluster: 1, category: 2 });
+  await choosePeriod("7");
+  await until(() => requests("coverage/").at(-1)?.params.period === "7" && client.isFetching() === 0 && coverage.textContent.includes("50%"));
+  assert.equal(requests("discovery-scores/").length, 1);
+  const action = [...coverage.querySelectorAll("button")].find((button) => button.textContent.includes("View data"));
+  await act(async () => action.focus());
+  await click(action);
+  const drawer = document.querySelector("dialog[open]");
+  assert.equal(drawer.querySelectorAll("table").length, 2);
+  assert.equal(drawer.querySelectorAll("tbody tr").length, 8);
+  assert.match(drawer.textContent, /Empty category000Unavailable/);
+  assert.match(drawer.textContent, /Category 9/);
+  assert.match(drawer.textContent, /Covered businesses/);
+  assert.match(drawer.textContent, /not an average of classification percentages/);
+  await click(drawer.querySelector('[aria-label="Close Business Coverage details"]'));
+  assert.equal(document.activeElement, action);
+});
+
+test("business coverage preserves unavailable visits and known empty eligibility", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/coverage/", (report) => ({
+    ...report,
+    overall: { ...report.overall, visited_businesses: null, zero_recorded_visit_businesses: null, coverage_percentage: null },
+    categories: report.categories.map((row) => ({ ...row, visited_businesses: null, zero_recorded_visit_businesses: null, coverage_percentage: null })),
+    clusters: report.clusters.map((row) => ({ ...row, visited_businesses: null, zero_recorded_visit_businesses: null, coverage_percentage: null })),
+    sources: { ...report.sources, visibility: { availability: "unavailable" } },
+  }));
+  await mount();
+  const coverage = section("Business Coverage");
+  assert.match(coverage.textContent, /Unavailable coverage/);
+  assert.match(coverage.textContent, /4 eligible businesses · recorded profile visits unavailable/);
+  assert.match(coverage.textContent, /Current eligible-business counts remain available/);
+  assert.equal(coverage.querySelectorAll("ol li").length, 0);
+  assert.doesNotMatch(coverage.textContent, /0 businesses had no recorded profile visits|0%/);
+  await click([...coverage.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Covered businessesUnavailable/);
+  await click(drawer.querySelector('[aria-label="Close Business Coverage details"]'));
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "coverage");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, overall: { ...report.overall, eligible_businesses: 0 } }));
+  });
+  await until(() => coverage.textContent.includes("No eligible active businesses match the selected scope."));
+});
+
+test("discovery score health distinguishes healthy, unhealthy, empty and unavailable snapshots", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/discovery-scores/", (report) => ({
+    ...report,
+    coverage: { ...report.coverage, active_businesses: 15, fresh: 15, stale: 0, pending: 0, failed: 0, missing: 0, provisional: 0 },
+  }));
+  await mount();
+  const health = section("Discovery Score Health");
+  assert.match(health.textContent, /15 \/ 15 active businesses have fresh scores/);
+  assert.ok(health.querySelector(".text-3xl").classList.contains("text-success"));
+  assert.match(health.textContent, /Fresh15Stale0Pending0Failed0/);
+  assert.match(health.textContent, /Missing 0 · Provisional 0/);
+  assert.equal(health.querySelector("a").getAttribute("href"), "/admin-panel/analytics/discovery-scores");
+  assert.equal(health.querySelector("table"), null);
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "discoveryScores");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({
+      ...report,
+      coverage: { ...report.coverage, fresh: 10, stale: 3, pending: 1, failed: 1, missing: 1, provisional: 1 },
+    }));
+  });
+  await until(() => health.textContent.includes("10 / 15"));
+  const values = [...health.querySelectorAll("dl dd")];
+  assert.equal(values[1].textContent, "3");
+  assert.ok(values[1].classList.contains("text-warning"));
+  assert.ok(values[2].classList.contains("text-warning"));
+  assert.ok(values[3].classList.contains("text-danger"));
+  assert.ok(!health.querySelector(".text-3xl").classList.contains("text-success"));
+  await click([...health.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  assert.equal(drawer.querySelectorAll("tbody tr").length, 6);
+  assert.match(drawer.textContent, /Selected dates do not filter this snapshot/);
+  assert.match(drawer.textContent, /Freshness threshold: 24 hours/);
+  assert.match(drawer.textContent, /should not be added together/);
+  await click(drawer.querySelector('[aria-label="Close Discovery Score Health details"]'));
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, coverage: { ...report.coverage, fresh: null, failed: null } }));
+  });
+  await until(() => health.textContent.includes("Unavailable / 15"));
+  assert.equal(health.querySelectorAll("dl dd")[3].textContent, "Unavailable");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, coverage: { ...report.coverage, active_businesses: 0 } }));
+  });
+  await until(() => health.textContent.includes("No active businesses to assess."));
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, coverage: null }));
+  });
+  await until(() => health.textContent.includes("Discovery Score health counts are unavailable."));
+  assert.equal(health.querySelector("dl"), null);
+  assert.equal(requests("discovery-scores/").length, 1);
 });
 
 test("community report drawers retain exact buckets, sentiment and the complete specialty breakdown", async () => {

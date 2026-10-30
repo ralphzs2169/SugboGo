@@ -87,7 +87,7 @@ export function fixtureReport(route, params = {}) {
     };
   }
   if (route === "specialty-support/") return { summary: { valid_vouches: 6, distinct_supporters: 2, supported_businesses: 3, supported_specialties: 2 }, top_supported_specialties: [{ specialty_id: 1, name: "Coffee", valid_vouches: 4, distinct_supporters: 2, supported_businesses: 2 }, { specialty_id: 2, name: "Desserts", valid_vouches: 2, distinct_supporters: 2, supported_businesses: 1 }], as_of: meta.generated_at, meta };
-  if (route === "discovery-scores/") return { items: [], pagination: {}, coverage: { fresh: 2, stale: 1, pending: 2, failed: 1, missing: 1, provisional: 1, snapshot_at: meta.generated_at, max_score_age_hours: 24 } };
+  if (route === "discovery-scores/") return { items: [], pagination: {}, coverage: { active_businesses: 5, fresh: 2, stale: 1, pending: 2, failed: 1, missing: 1, provisional: 1, snapshot_at: meta.generated_at, max_score_age_hours: 24 } };
   throw new Error(`Unexpected fixture route: ${route}`);
 }
 

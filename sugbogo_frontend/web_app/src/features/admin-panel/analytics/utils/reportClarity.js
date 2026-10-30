@@ -7,6 +7,16 @@ export function readablePeriod(period) {
 }
 
 export const reportExplanations = {
+  "Business Coverage": [
+    "The percentage of eligible active businesses that received at least one recorded profile visit during the selected period. This measures recorded listing engagement, not geographic coverage.",
+    "Covered businesses divided by eligible businesses, multiplied by 100. Eligibility and cluster/category classifications use current records. The overall percentage uses business counts, not an average of classification percentages. Cluster and category breakdowns describe the same population and must not be added together.",
+    "Visit recording coverage is unverified. No recorded profile visits does not establish zero real-world exposure. Unavailable observations remain unknown; classifications with no eligible businesses have an undefined percentage and are omitted from the ranking. All classification counts remain in View data.",
+  ],
+  "Discovery Score Health": [
+    "Current score freshness across all active businesses. Selected reporting dates and Business Coverage filters do not change this snapshot.",
+    "Fresh scores are non-provisional scores calculated within the freshness threshold, with no pending refresh or recorded error. Missing means no score record. A business can appear in more than one status, so these counts should not be added together.",
+    "A recently calculated score does not confirm that all discovery activity was recorded. Pending and failed counts describe the current refresh state, not job-run history. Provisional scores remain separate from fresh scores.",
+  ],
   "Geographic Distribution": [
     "Current eligible businesses and recorded profile visits grouped by the current business locations in the approved Cebu City grid.",
     "Business counts reflect current eligible inventory, grouped into fixed square cells of 1 km² projected area. Recorded visits use the selected Philippine reporting period and existing daily recording rules. Cluster and category filters apply to both values. Empty cells, zero observations and unavailable visits remain distinct.",
