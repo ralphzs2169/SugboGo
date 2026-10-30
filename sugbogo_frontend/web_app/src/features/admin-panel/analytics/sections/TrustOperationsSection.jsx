@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { useAttentionQueueAnalytics, useChangeRequestAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
 import AnalyticsExactTable from "../components/AnalyticsExactTable";
 import AnalyticsDisclosure from "../components/AnalyticsDisclosure";
+import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
+import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsReportContext, { AnalyticsDrilldown, AnalyticsSummary } from "../components/AnalyticsReportContext";
-import { formatCount, formatHours } from "../utils/presentation";
+import { formatCount, formatDuration, formatHours, formatTimestamp } from "../utils/presentation";
 
 const agingColumns = [
   { key: "label", label: "Queue" },
@@ -28,29 +31,95 @@ export function ModerationWorkload({ period }) {
   );
 }
 
-/** Distinguishes current listing-change backlog from administrator decisions and merchant withdrawals. */
+const processingColumns = [
+  { key: "label", label: "Request type" },
+  { key: "pending", label: "Pending", render: (row) => formatCount(row.backlog?.total) },
+  {
+    key: "median",
+    label: "Median decision time",
+    render: (row) => (
+      <div className="tabular-nums">
+        <p className="whitespace-nowrap">{formatDuration(row.turnaround?.median_hours)}</p>
+        <p className="mt-1 text-xs text-text-secondary">{formatCount(row.turnaround?.sample_count)} valid reviews</p>
+      </div>
+    ),
+  },
+  ...["approved", "rejected", "withdrawn"].map((key) => ({
+    key,
+    label: { approved: "Approved", rejected: "Rejected", withdrawn: "Withdrawn" }[key],
+    render: (row) => formatCount(row.period_outcomes?.[key]),
+  })),
+];
+
+/** Compares request-type processing, keeping current queues separate from dated outcomes. */
 export function ChangeRequestWorkload({ period }) {
+  const [mode, setMode] = useState(null);
   const query = useChangeRequestAnalytics(period);
   const state = useAnalyticsSectionState(query, "changes", "merchant change requests");
   const data = query.data;
+  const types = data?.types ?? [];
+  const processingTable = (
+    <AnalyticsExactTable caption="Merchant change request processing by type" rows={types} columns={processingColumns} />
+  );
   return (
-    <AnalyticsSection title="Merchant change requests" description="Current backlog · selected-period decisions." {...state} action={<AnalyticsDrilldown to="/admin-panel/businesses/update-requests">View change requests</AnalyticsDrilldown>}
-      footer={<AnalyticsReportContext meta={data?.meta} asOf={data?.backlog_meta?.as_of}><p>Outcomes use selected resolution dates. Merchant withdrawals are separate outcomes, never administrator turnaround samples.</p></AnalyticsReportContext>}
-    >
-      {/* Current workload, selected-period outcomes and pooled turnaround */}
-      <AnalyticsSummary items={[
-        { label: "Pending change requests", value: formatCount(data?.backlog?.total) },
-        { label: "72h+ change requests", value: formatCount(data?.backlog?.days_3_plus) },
-        { label: "Median decision time", value: formatHours(data?.turnaround?.median_hours), context: `${formatCount(data?.turnaround?.sample_count)} valid samples` },
-      ]} />
-      <AnalyticsDisclosure label="Queue breakdown"><AnalyticsExactTable caption="Listing-change backlog by type" rows={(data?.types ?? []).map((row) => ({ label: row.label, ...row.backlog }))} columns={agingColumns} />
-      <div className="mt-4"><AnalyticsSummary items={[
-        { label: "Approved · selected period", value: formatCount(data?.period_outcomes?.approved) },
-        { label: "Rejected · selected period", value: formatCount(data?.period_outcomes?.rejected) },
-        { label: "Withdrawn · selected period", value: formatCount(data?.period_outcomes?.withdrawn) },
-      ]} /></div>
-      <p className="text-xs text-text-secondary">Turnaround exclusions: {formatCount(data?.turnaround?.excluded_count)}. Missing terminal resolution timestamps across all dates: {formatCount(data?.missing_resolution_timestamp_count)}.</p></AnalyticsDisclosure>
-    </AnalyticsSection>
+    <>
+      <AnalyticsSection title="Merchant change requests" description="Current workload and request-type processing." {...state}
+        action={<AnalyticsDrilldown to="/admin-panel/businesses/update-requests">View change requests</AnalyticsDrilldown>}
+        footer={<AnalyticsReportFooter title="Merchant change requests" meta={data?.meta} hasData={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+      >
+        {/* Compact statistics preserve snapshot and decision-period scopes. */}
+        <AnalyticsSummary items={[
+          { label: "Current workload", value: `${formatCount(data?.backlog?.total)} pending`, context: `${formatCount(data?.backlog?.days_3_plus)} overdue (72h+)` },
+          { label: "Median decision time", value: formatDuration(data?.turnaround?.median_hours), context: "Selected decision period" },
+          { label: "Valid decision sample", value: formatCount(data?.turnaround?.sample_count), context: "Approved / rejected reviews with usable dates" },
+        ]} />
+        {/* Request-type comparison is primary; detailed aging remains in View data. */}
+        <div className="mt-4 border-t border-stroke pt-4">
+          <h3 className="text-sm font-semibold text-text-primary">Processing by request type</h3>
+          <p className="mb-3 mt-1 text-xs leading-relaxed text-text-secondary">Pending shows the current queue. Decisions and withdrawals use the selected resolution period. Withdrawals are merchant actions and are excluded from decision times.</p>
+          {processingTable}
+        </div>
+      </AnalyticsSection>
+      {/* Shared drawer retains exact outcomes, queue aging, exclusions and methodology. */}
+      <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Merchant change requests"
+        report={data} interval="selected period" series={[]} showComparison={false}
+        dataContent={<div className="space-y-5">
+          <div><h3 className="mb-2 font-semibold">Processing by request type</h3>{processingTable}</div>
+          <AnalyticsSummary items={[
+            { label: "Approved", value: formatCount(data?.period_outcomes?.approved) },
+            { label: "Rejected", value: formatCount(data?.period_outcomes?.rejected) },
+            { label: "Withdrawn by merchants", value: formatCount(data?.period_outcomes?.withdrawn) },
+          ]} />
+          <div>
+            <h3 className="mb-2 font-semibold">Current queue aging</h3>
+            <p className="mb-3 text-xs text-text-secondary">As of {formatTimestamp(data?.backlog_meta?.as_of)} PHT. Selected dates do not filter pending requests. Missing or future submission dates have unknown age.</p>
+            <AnalyticsExactTable caption="Current change-request queue aging" rows={[
+              { label: "All requests", ...data?.backlog },
+              ...types.map((row) => ({ label: row.label, ...row.backlog })),
+            ]} columns={agingColumns} />
+          </div>
+          <div>
+            <h3 className="mb-2 font-semibold">Decision-time samples</h3>
+            <AnalyticsExactTable caption="Change-request decision-time samples and exclusions" rows={[
+              { label: "All requests", turnaround: data?.turnaround, missing_resolution_timestamp_count: data?.missing_resolution_timestamp_count },
+              ...types,
+            ]} columns={[
+              { key: "label", label: "Request type" },
+              { key: "median", label: "Median hours (exact)", render: (row) => row.turnaround?.median_hours ?? "Unavailable" },
+              { key: "mean", label: "Mean hours (exact)", render: (row) => row.turnaround?.mean_hours ?? "Unavailable" },
+              { key: "sample", label: "Valid decisions", render: (row) => formatCount(row.turnaround?.sample_count) },
+              { key: "excluded", label: "Excluded durations", render: (row) => formatCount(row.turnaround?.excluded_count) },
+              { key: "missing", label: "Missing resolution dates (all time)", render: (row) => formatCount(row.missing_resolution_timestamp_count) },
+            ]} />
+          </div>
+        </div>}
+        aboutContent={<div className="space-y-3 text-sm text-text-secondary">
+          <p>{data?.definition}</p>
+          <p>{data?.missing_resolution_timestamp_scope}</p>
+          <pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ backlog: data?.backlog_meta, turnaround: data?.turnaround, types: data?.types }, null, 2)}</pre>
+        </div>}
+      />
+    </>
   );
 }
 

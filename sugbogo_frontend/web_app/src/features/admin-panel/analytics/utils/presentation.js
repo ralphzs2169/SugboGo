@@ -8,6 +8,17 @@ export const formatHours = (value) => value == null ? "Unavailable" : `${counts.
 export const formatDate = (value) => value == null ? "Unavailable" : dates.format(new Date(value));
 export const formatTimestamp = (value) => value == null ? "Unknown" : timestamps.format(new Date(value));
 
+/** Formats recorded hour durations without turning unavailable samples into zero. */
+export function formatDuration(hours) {
+  if (hours == null) return "Unavailable";
+  if (hours === 0) return "0 min";
+  const minutes = Math.round(hours * 60);
+  if (minutes < 1) return "<1 min";
+  const wholeHours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return [wholeHours ? `${wholeHours} hr` : "", remainder ? `${remainder} min` : ""].filter(Boolean).join(" ");
+}
+
 export function comparisonText(change) {
   if (change?.value == null) return "Comparison unavailable";
   const direction = { up: "Increase", down: "Decrease", unchanged: "No change" }[change.direction];

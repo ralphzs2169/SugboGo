@@ -33,8 +33,13 @@ export const reportExplanations = {
     "Account counts are distinct within each day or week and must never be summed into a period total. These are not general active-user or retention measures. Missing observations remain gaps, not zeros. Previous-period comparisons are hidden while recording coverage is not fully verified.",
   ],
   "Merchant Onboarding": [
-    "Application submissions, review decisions, processing time and rejection patterns.",
-    "Processing time links each decision to the submission it reviewed. Rejection sections can overlap. Pending applications show the current queue, regardless of the selected dates.",
-    "Processing time uses the selected decision period. Overall SLA compliance uses classified outcomes across all recorded reviews. Recovery counts applications that submitted again strictly after rejection, across all time. Missing or inconsistent dates are excluded from time calculations.",
+    "Applications submitted, review decisions, processing time and rejection patterns.",
+    "Applications submitted include resubmissions; review decisions include approvals and rejections. These are independent weekly workloads: a decision may concern an earlier application, and a new application may be reviewed later. Their difference does not measure backlog change or conversion.",
+    "Pending applications show the current queue. Processing time links each decision to its submission and uses the selected decision period. Overall SLA compliance uses classified outcomes across all recorded reviews. Recovery counts applications that submitted again after rejection, across all time. Rejection sections can overlap. Missing or inconsistent dates are excluded from time calculations.",
+  ],
+  "Merchant change requests": [
+    "Current pending business changes and how each request type was processed during the selected period.",
+    "Pending and overdue counts show the current queue, regardless of selected dates. Approved, rejected and withdrawn counts use resolution dates in the selected period. Decision time measures submission to approval or rejection; merchant withdrawals stay separate.",
+    "The overall median uses individual valid decisions, not an average of request-type medians. Missing or inconsistent dates are excluded from decision times. Requests without resolution dates cannot be assigned to a reporting period. Current request states cannot reconstruct past queue sizes. Detailed aging and excluded samples remain available in View data.",
   ],
 };

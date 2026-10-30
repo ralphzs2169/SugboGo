@@ -9,6 +9,7 @@ import { createServer } from "vite";
 import { fixtureReport, fixtureTaxonomy } from "./dashboardFixtures.js";
 
 const { JSDOM } = createRequire(resolve("../mobile/package.json"))("jsdom");
+const originalCustomEvent = globalThis.CustomEvent;
 let dom;
 let server;
 let Page;
@@ -23,7 +24,7 @@ let initialEntries;
 
 before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost", pretendToBeVisual: true });
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, Element: dom.window.Element, HTMLElement: dom.window.HTMLElement, CustomEvent: dom.window.CustomEvent, IS_REACT_ACT_ENVIRONMENT: true });
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
   ({ createRoot } = await import("react-dom/client"));
@@ -89,7 +90,8 @@ afterEach(async () => {
 after(async () => {
   await server?.close();
   dom.window.close();
-  for (const key of ["window", "document", "HTMLElement", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
+  globalThis.CustomEvent = originalCustomEvent;
+  for (const key of ["window", "document", "Element", "HTMLElement", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
 });
 
 async function until(predicate) {
@@ -177,6 +179,19 @@ test("workspace preserves global dates, URL parameters and browser Back/Forward"
 
 test("workspace deep links isolate Operations errors and Retry", async () => {
   initialEntries = ["/admin-panel/analytics?tab=operations"];
+  overrides.set("/admin/analytics/onboarding/", (report) => ({
+    ...report,
+    review_turnaround: { ...report.review_turnaround, median_hours: 0.05 },
+  }));
+  overrides.set("/admin/analytics/change-requests/", (report) => ({
+    ...report,
+    turnaround: { ...report.turnaround, median_hours: 0.03 },
+    types: [
+      { type: "name", label: "Business name", backlog: report.backlog, turnaround: { median_hours: 1.5, sample_count: 2 }, period_outcomes: { approved: 2, rejected: 1, withdrawn: 3 } },
+      { type: "classification", label: "Classification", backlog: report.backlog, turnaround: { median_hours: 0, sample_count: 1 }, period_outcomes: { approved: 0, rejected: 1, withdrawn: 0 } },
+      { type: "location", label: "Location", backlog: report.backlog, turnaround: { median_hours: null, sample_count: 0 }, period_outcomes: { approved: 0, rejected: 0, withdrawn: 1 } },
+    ],
+  }));
   failures.add("/admin/analytics/change-requests/");
   await mount();
   assert.equal(reads.length, 2);
@@ -187,6 +202,32 @@ test("workspace deep links isolate Operations errors and Retry", async () => {
   await until(() => client.isFetching() === 0);
   assert.equal(requests("onboarding/").length, 1);
   assert.equal(requests("change-requests/").length, 2);
+  const changes = section("Merchant change requests");
+  assert.match(changes.textContent, /Median decision time2 min/);
+  assert.doesNotMatch(changes.textContent, /0\.03 hours/);
+  assert.match(changes.textContent, /merchant actions and are excluded from decision times/);
+  const rows = changes.querySelectorAll("tbody tr");
+  assert.match(rows[0].textContent, /Business name.*1 hr 30 min.*2 valid reviews/);
+  assert.deepEqual([...rows[0].querySelectorAll("td")].slice(-3).map((cell) => cell.textContent), ["2", "1", "3"]);
+  assert.match(rows[1].textContent, /0 min/);
+  assert.match(rows[2].textContent, /Unavailable/);
+  assert.doesNotMatch(changes.textContent, /Unknown age/);
+  await click([...changes.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  let drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Current queue aging/);
+  assert.match(drawer.textContent, /Unknown age/);
+  assert.match(drawer.textContent, /0\.03/);
+  assert.match(drawer.textContent, /Missing resolution dates \(all time\)/);
+  await click(drawer.querySelector('[aria-label="Close Merchant change requests details"]'));
+  const onboarding = section("Merchant Onboarding");
+  assert.match(onboarding.textContent, /8 pending · 2 overdue/);
+  assert.match(onboarding.textContent, /Median review turnaround3 min/);
+  assert.match(onboarding.textContent, /Independent workloads/);
+  await click([...onboarding.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Applications submitted/);
+  assert.match(drawer.textContent, /Review decisions/);
+  assert.doesNotMatch(drawer.textContent, /Completed reviews/);
 });
 
 test("workspace invalid tabs fall back safely and arrow keys activate semantic panels", async () => {
@@ -492,7 +533,7 @@ test("shared explanations preserve Operations, Community and Ecosystem report de
   await mount();
   await tab("Operations");
   const onboarding=section("Merchant Onboarding");
-  await click([...onboarding.querySelectorAll("button")].find((button)=>button.textContent.includes("About this report")));
+  await click(onboarding.querySelector('[aria-label="About Merchant Onboarding"]'));
   let drawer=document.querySelector("dialog[open]");
   assert.match(drawer.textContent,/Overall SLA compliance uses classified outcomes/);
   assert.ok([...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
