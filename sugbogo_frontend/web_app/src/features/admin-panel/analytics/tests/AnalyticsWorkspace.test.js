@@ -1116,6 +1116,80 @@ test("acquisition loading is independent and inactive tabs do not fetch it", asy
   assert.equal(requests("business-acquisition/").length,count);
 });
 
+test("platform growth presents only accounts and businesses while preserving comparisons, exact data and interval cache reuse", async () => {
+  overrides.set("/admin/analytics/platform-growth/", (report) => ({
+    ...report,
+    activity: {
+      ...report.activity,
+      new_consumer_accounts: { value: 7, previous_value: 7, change: { value: 0, direction: "unchanged" } },
+      new_businesses: { value: 1, previous_value: 4, change: { value: -3, direction: "down" } },
+    },
+  }));
+  await mount();
+  const growth = section("Platform Growth");
+  assert.match(growth.textContent, /New accounts and businesses joining SugboGo/);
+  assert.doesNotMatch(growth.textContent, /approvals/i);
+  const summary = growth.querySelector("dl");
+  assert.equal(summary.children.length, 2);
+  assert.ok(summary.classList.contains("min-[480px]:grid-cols-2"));
+  assert.match(summary.children[0].textContent, /New accounts7No changePrevious period: 7/);
+  assert.match(summary.children[1].textContent, /New businesses13 fewerPrevious period: 4/);
+  assert.deepEqual([...growth.querySelectorAll('[data-series-type="bar"]')].map((bar) => bar.dataset.series), ["new_consumer_accounts", "new_businesses"]);
+  assert.deepEqual([...growth.querySelector('[aria-label="Growth chart legend"]').querySelectorAll("li")].map((item) => item.textContent), ["Accounts", "Businesses"]);
+  const rows = JSON.parse(growth.querySelector("[data-chart]").dataset.chart);
+  assert.equal(rows[1].new_consumer_accounts, null);
+  assert.equal(rows[2].new_consumer_accounts, 0);
+  assert.equal(rows[0].newly_approved_businesses, 1);
+  await click([...growth.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  assert.deepEqual([...drawer.querySelectorAll("th")].map((header) => header.textContent), ["Week starting / counted dates", "Accounts", "Businesses"]);
+  assert.match(drawer.textContent, /Unavailable/);
+  assert.doesNotMatch(drawer.textContent, /approvals/i);
+  await click(drawer.querySelector('[aria-label="Close Platform Growth details"]'));
+  await click(growth.querySelector('[aria-label="About Platform Growth"]'));
+  assert.doesNotMatch(document.querySelector("dialog[open]").textContent, /first recorded business approvals|creation or approval date/);
+  await click(document.querySelector('[aria-label="Close Platform Growth details"]'));
+  await choose("Interval", "daily", growth);
+  assert.equal(requests("platform-growth/").at(-1).params.interval, "daily");
+  await choose("Interval", "weekly", growth);
+  assert.equal(requests("platform-growth/").length, 2);
+});
+
+test("platform growth keeps zero buckets when only operational approvals are nonzero", async () => {
+  overrides.set("/admin/analytics/platform-growth/", (report) => ({
+    ...report,
+    activity: { ...report.activity, new_consumer_accounts: { value: 0 }, new_businesses: { value: 0 } },
+    series: report.series.map((row) => ({ ...row, new_consumer_accounts: 0, new_businesses: 0, newly_approved_businesses: 99 })),
+  }));
+  await mount();
+  const growth = section("Platform Growth");
+  assert.match(growth.textContent, /No growth activity in this period/);
+  assert.equal(JSON.parse(growth.querySelector("[data-chart]").dataset.chart).length, 3);
+  assert.equal(growth.querySelectorAll('[data-series-type="bar"]').length, 2);
+  assert.doesNotMatch(growth.textContent, /approvals/i);
+});
+
+test("platform growth tooltip retains counted dates, week progress and unknown values without approval labels", async () => {
+  const { GrowthTooltip } = await server.ssrLoadModule("/src/features/admin-panel/analytics/sections/PlatformGrowthSection.jsx");
+  const { growthCoverageDescription } = await server.ssrLoadModule("/src/features/admin-panel/analytics/utils/growthPresentation.js");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const date = "2026-10-26";
+  const markup = renderToStaticMarkup(React.createElement(GrowthTooltip, {
+    active: true,
+    interval: "weekly",
+    inProgressDate: date,
+    payload: [{ payload: { date, start: "2026-10-25T16:00:00Z", end_exclusive: "2026-10-28T07:50:00Z", new_consumer_accounts: 0, new_businesses: null, newly_approved_businesses: 99 } }],
+  }));
+  assert.match(markup, /Counted/);
+  assert.match(markup, /Week in progress/);
+  assert.match(markup, /Accounts/);
+  assert.match(markup, /Unavailable/);
+  assert.doesNotMatch(markup, /approvals|99/i);
+  assert.equal(growthCoverageDescription({ is_partial: true, partial_reasons: ["recorded_approval_history_only"] }), null);
+  assert.match(growthCoverageDescription({ is_partial: true, partial_reasons: ["recorded_approval_history_only", "current_role_and_retained_rows"] }), /Past counts can change/);
+  assert.match(growthCoverageDescription({ is_partial: true, partial_reasons: [] }), /additional reporting limitations/);
+});
+
 test("growth layout keeps full-width acquisition above paired discovery panels", async () => {
   await mount();
   const growth=section("Platform Growth");

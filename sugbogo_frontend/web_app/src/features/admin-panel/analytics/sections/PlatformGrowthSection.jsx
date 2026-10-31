@@ -26,22 +26,15 @@ const SERIES = [
   {
     key: "new_consumer_accounts",
     label: "Accounts",
-    title: "New Accounts",
+    title: "New accounts",
     color: "var(--color-primary)",
     explanation: "Accounts whose current role is Explorer or Merchant, excluding administrators and staff. Later role changes or account removal can revise past counts.",
   },
   {
     key: "new_businesses",
     label: "Businesses",
-    title: "New Businesses",
+    title: "New businesses",
     color: "var(--color-info)",
-  },
-  {
-    key: "newly_approved_businesses",
-    label: "Business approvals",
-    title: "Business Approvals",
-    color: "var(--color-success)",
-    explanation: "Each business-linked application counts once, at its first recorded approval. Repeat approvals do not count again. This is separate from when the business was created.",
   },
 ];
 
@@ -80,7 +73,7 @@ export function GrowthTooltip({ active, payload, interval, inProgressDate }) {
 /** Presents acquisition totals and their comparisons without separate metric cards. */
 function GrowthStatistics({ activity }) {
   return (
-    <dl className="mb-3 grid min-w-0 grid-cols-1 divide-y divide-stroke min-[480px]:grid-cols-3 min-[480px]:divide-x min-[480px]:divide-y-0">
+    <dl className="mb-3 grid min-w-0 grid-cols-1 divide-y divide-stroke min-[480px]:grid-cols-2 min-[480px]:divide-x min-[480px]:divide-y-0">
       {SERIES.map((series) => {
         const metric = activity?.[series.key];
         const change = metric?.change;
@@ -189,13 +182,13 @@ export default function PlatformGrowthSection({ period }) {
     <>
       <AnalyticsSection
         title="Platform Growth"
-        description="New accounts, businesses, and first approvals."
+        description="New accounts and businesses joining SugboGo."
         compactHeader
         {...state}
         controls={<AnalyticsIntervalControl value={interval} onChange={setInterval} />}
         skeleton={
           <div role="status" aria-label="Loading platform growth">
-            <div aria-hidden="true" className="mb-3 grid grid-cols-3 gap-4 motion-safe:animate-pulse">
+            <div aria-hidden="true" className="mb-3 grid grid-cols-2 gap-4 motion-safe:animate-pulse">
               {SERIES.map((series) => (
                 <div key={series.key} className="space-y-2">
                   <div className="h-3 w-3/4 rounded bg-skeleton" />
@@ -236,7 +229,7 @@ export default function PlatformGrowthSection({ period }) {
         )}
         <figure className="min-w-0">
           <figcaption className="sr-only">
-            New accounts, businesses and first approvals by {isWeekly ? "calendar week" : "day"}.
+            New accounts and businesses by {isWeekly ? "calendar week" : "day"}.
             Zero-activity buckets remain on the axis. View data provides exact counts and counted dates.
           </figcaption>
           <div className="h-56 min-w-0 sm:h-60">
