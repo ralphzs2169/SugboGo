@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
-import { Info, Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Info, Minus } from "lucide-react";
+import { FaCaretDown, FaCaretUp } from "react-icons/fa6";
 import { ReferenceArea } from "recharts";
 
 import { getMetricVariant } from "../../constants/metricVariants";
@@ -73,14 +74,14 @@ export function GrowthTooltip({ active, payload, interval, inProgressDate }) {
 /** Keeps chart summaries at their natural width, wrapping on narrow screens. */
 function GrowthStatistics({ activity }) {
   return (
-    <dl className="mb-2 flex min-w-0 max-w-full flex-wrap items-start gap-x-10 gap-y-3">
+    <dl className="mb-4 grid w-full min-w-0 max-w-2xl grid-cols-1 gap-y-4 sm:grid-cols-2">
       {SERIES.map((series) => {
         const metric = activity?.[series.key];
         const change = metric?.change;
         const hasComparison = change?.value != null;
         const TrendIcon = {
-          up: TrendingUp,
-          down: TrendingDown,
+          up: FaCaretUp,
+          down: FaCaretDown,
           unchanged: Minus,
         }[change?.direction] ?? Minus;
         const variant = {
@@ -95,10 +96,10 @@ function GrowthStatistics({ activity }) {
         return (
           <div
             key={series.key}
-            className="min-w-0 max-w-full flex-none"
+            className="min-w-0 sm:first:pr-8 sm:[&:not(:first-child)]:border-l sm:[&:not(:first-child)]:border-stroke sm:[&:not(:first-child)]:pl-8"
           >
             <dt className="flex min-h-8 flex-wrap items-center gap-x-1 text-xs font-medium leading-5 text-text-secondary">
-              <span className="uppercase tracking-wide">{series.title}</span>
+              <span className="text-sm text-text-primary">{series.title}</span>
               {series.explanation && (
                 <Tooltip
                   content={series.explanation}
@@ -124,17 +125,15 @@ function GrowthStatistics({ activity }) {
                 </Tooltip>
               )}
             </dt>
-            <dd className="text-2xl font-semibold tracking-tight text-text-primary tabular-nums">
-              {formatCount(metric?.value)}
-            </dd>
-            <dd className="mt-1 space-y-0.5 text-xs leading-5">
-              <span className={`flex items-center gap-1.5 font-medium ${getMetricVariant(hasComparison ? variant : "neutral").text}`}>
-                {hasComparison && <TrendIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
+            <dd className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <span className="text-3xl font-semibold tracking-tight text-text-primary tabular-nums">{formatCount(metric?.value)}</span>
+              <span className={`inline-flex items-center gap-1 text-sm font-medium ${getMetricVariant(hasComparison ? variant : "neutral").text}`}>
+                {hasComparison && <TrendIcon aria-hidden="true" className="h-3 w-3 shrink-0" />}
                 <span>{hasComparison ? comparison : "Comparison unavailable"}</span>
               </span>
-              <span className="block text-text-secondary">
-                Previous period: {formatCount(metric?.previous_value)}
-              </span>
+            </dd>
+            <dd className="mt-2 text-sm text-text-secondary">
+              Previous period: {formatCount(metric?.previous_value)}
             </dd>
           </div>
         );

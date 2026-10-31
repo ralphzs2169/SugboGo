@@ -18,7 +18,6 @@ export default function SortMenu({
   disabled = false,
   customContent,
   customValue = "custom",
-  customOnly = false,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
@@ -34,7 +33,7 @@ export default function SortMenu({
       return undefined;
     }
 
-    if (showCustom) panelRef.current?.querySelector("input:not(:disabled), button:not(:disabled), select:not(:disabled), [tabindex='0']")?.focus();
+    if (showCustom) panelRef.current?.querySelector("input")?.focus();
     else optionRefs.current[Math.max(selectedIndex, 0)]?.focus();
 
     function handlePointerDown(event) {
@@ -50,7 +49,6 @@ export default function SortMenu({
   function handleKeyDown(event) {
     if (event.key === "Escape" && isOpen) {
       event.preventDefault();
-      event.stopPropagation();
       setIsOpen(false);
       triggerRef.current?.focus();
       return;
@@ -105,9 +103,9 @@ export default function SortMenu({
         type="button"
         aria-label={`${ariaLabel}: ${triggerLabel ?? selectedOption?.label ?? "Select sort"}`}
         disabled={disabled}
-        aria-haspopup={customOnly || showCustom ? "dialog" : "menu"}
+        aria-haspopup={showCustom ? "dialog" : "menu"}
         aria-expanded={isOpen}
-        onClick={() => { setShowCustom(customOnly); setIsOpen((previous) => !previous); }}
+        onClick={() => { setShowCustom(false); setIsOpen((previous) => !previous); }}
         className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-stroke-strong bg-background px-3 text-xs font-medium text-text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:bg-interaction-hover focus:border-stroke-active focus:outline-none focus:ring-2 focus:ring-stroke-active/10"
       >
         <Icon className="h-3.5 w-3.5 text-text-secondary" aria-hidden="true" />

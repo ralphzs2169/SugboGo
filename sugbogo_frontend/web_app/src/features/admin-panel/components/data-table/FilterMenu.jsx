@@ -25,12 +25,19 @@ import { Filter as FilterIcon, ChevronLeft, Check, Search } from "lucide-react";
  *     searchThreshold={8} // optional, defaults to 8
  *   />
  */
-export default function FilterMenu({ filters = [], searchThreshold = 8 }) {
+export default function FilterMenu({
+  filters = [],
+  searchThreshold = 8,
+  disabled = false,
+  align = "left",
+  ariaLabel = "Filter",
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeDimension, setActiveDimension] = useState(null);
   const [optionSearch, setOptionSearch] = useState("");
 
   const containerRef = useRef(null);
+  const triggerRef = useRef(null);
   const optionSearchInputRef = useRef(null);
 
   const activeFilters = filters.filter((filter) => filter.value);
@@ -92,6 +99,7 @@ export default function FilterMenu({ filters = [], searchThreshold = 8 }) {
     setIsOpen(false);
     setActiveDimension(null);
     setOptionSearch("");
+    triggerRef.current?.focus();
   }
 
   if (filters.length === 0) {
@@ -99,7 +107,14 @@ export default function FilterMenu({ filters = [], searchThreshold = 8 }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2" ref={containerRef}>
+    <div className="flex flex-wrap items-center gap-2" ref={containerRef} onKeyDown={(event) => {
+      if (event.key === "Escape" && isOpen) {
+        event.preventDefault();
+        setIsOpen(false);
+        setActiveDimension(null);
+        triggerRef.current?.focus();
+      }
+    }}>
       {/* Active filter chips */}
       {activeFilters.map((filter) => {
         const selectedOption = filter.options.find(
@@ -127,9 +142,14 @@ export default function FilterMenu({ filters = [], searchThreshold = 8 }) {
       {/* Filter trigger + popover */}
       <div className="relative">
         <button
+          ref={triggerRef}
           type="button"
+          disabled={disabled}
+          aria-label={ariaLabel}
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
           onClick={handleToggleOpen}
-          className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors ${
+          className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info ${
             activeFilters.length > 0
               ? "border-stroke-active text-text-primary"
               : "border-stroke-strong text-text-primary hover:bg-interaction-hover"
@@ -143,13 +163,14 @@ export default function FilterMenu({ filters = [], searchThreshold = 8 }) {
         </button>
 
         {isOpen && (
-          <div className="absolute left-0 top-full z-50 mt-2 w-56 rounded-lg border border-stroke-strong bg-background shadow-lg">
+          <div role="dialog" aria-label={ariaLabel} className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full z-50 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-lg border border-stroke-strong bg-background shadow-lg`}>
             {!currentDimension ? (
               <ul className="py-1">
                 {filters.map((filter) => (
                   <li key={filter.key}>
                     <button
                       type="button"
+                      aria-label={`Choose ${filter.label} filter`}
                       onClick={() => handleSelectDimension(filter.key)}
                       className="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm text-text-primary hover:bg-interaction-hover"
                     >

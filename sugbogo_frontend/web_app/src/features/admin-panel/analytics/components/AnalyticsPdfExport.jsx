@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import toast from "react-hot-toast";
 import SortMenu from "../../components/data-table/SortMenu";
+import Tooltip from "@/shared/components/actions/Tooltip";
 import { MAP_PDF_UNAVAILABLE, printAnalyticsTab } from "../utils/tabPdfExport";
 
 /** Opens the browser PDF workflow for the mounted workspace without fetching or resetting reports. */
@@ -38,11 +39,19 @@ export default function AnalyticsPdfExport({ active, title, period }) {
       window.requestAnimationFrame(() => wrapper.current?.querySelector("button")?.focus({ preventScroll: true }));
     }
   }
+  const menu = <SortMenu ariaLabel="Analytics export" triggerLabel={busy ? "Preparing PDF…" : "Export"} icon={Download} value="" disabled={busy || active === "business-ecosystem"} options={[{ value: "pdf", label: "Export current tab as PDF" }]} onChange={exportPdf} />;
   return (
     <div ref={wrapper}>
-      {/* Map export stays disabled until the provider layers have a reliable print representation. */}
-      <SortMenu ariaLabel="Analytics export" triggerLabel={busy ? "Preparing PDF…" : "Export"} icon={Download} value="" disabled={busy || active === "business-ecosystem"} options={[{ value: "pdf", label: "Export current tab as PDF" }]} onChange={exportPdf} />
-      {active === "business-ecosystem" && <p className="mt-1 max-w-64 text-xs text-text-secondary">{MAP_PDF_UNAVAILABLE}</p>}
+      {/* The wrapper supports hover and keyboard focus while the button stays disabled. */}
+      {active === "business-ecosystem" ? (
+        <Tooltip asChild place="bottom" content={MAP_PDF_UNAVAILABLE}
+          closeEvents={{ mouseleave: true, blur: true }} globalCloseEvents={{ escape: true, clickOutsideAnchor: true, scroll: true, resize: true }}
+          className="!z-50 max-w-[min(22rem,calc(100vw-2rem))] whitespace-normal !px-3 !py-2 leading-relaxed">
+          <div tabIndex={0} role="group" aria-label="Analytics PDF export unavailable" className="inline-flex cursor-not-allowed rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info">
+            {menu}
+          </div>
+        </Tooltip>
+      ) : menu}
     </div>
   );
 }

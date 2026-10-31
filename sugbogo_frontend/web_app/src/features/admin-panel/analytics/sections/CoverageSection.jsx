@@ -1,6 +1,4 @@
 import { useId, useState } from "react";
-import { Filter } from "lucide-react";
-import SortMenu from "../../components/data-table/SortMenu";
 import TableTabs from "../../components/data-table/TableTabs";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useCoverageAnalytics } from "../hooks/useAnalyticsReports";
@@ -24,7 +22,6 @@ export default function CoverageSection({ period }) {
   const [group, setGroup] = useWorkspaceSelection("coverage.group", "categories");
   const [drawer, setDrawer] = useState(null);
   const dimensionId = useId();
-  const activeFilters = [scope.cluster, scope.category].filter(Boolean).length;
   const query = useCoverageAnalytics({ ...period, ...scope });
   const state = useAnalyticsSectionState(query, "coverage", "business coverage");
   const data = query.data;
@@ -40,9 +37,7 @@ export default function CoverageSection({ period }) {
   return (
     <>
       <AnalyticsSection onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Business Coverage" {...state}
-        controls={<SortMenu ariaLabel="Coverage filters" triggerLabel={`Filters${activeFilters ? ` (${activeFilters})` : ""}`} icon={Filter}
-          value="filters" options={[]} customOnly
-          customContent={() => <AnalyticsScopeFilters scope="Coverage" clusterLabel="Cluster" categoryLabel="Category" value={scope} onChange={setScope} />} />}
+        controls={<AnalyticsScopeFilters scope="Coverage" value={scope} onChange={setScope} />}
         isEmpty={overall?.eligible_businesses === 0}
         emptyMessage="No eligible active businesses match the selected scope."
         footer={<AnalyticsReportFooter title="Business Coverage" meta={data?.meta} coverageLabel="Coverage unverified" hasData={Boolean(data)} onData={() => setDrawer("data")} />}

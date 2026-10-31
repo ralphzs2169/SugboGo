@@ -121,19 +121,23 @@ async function choose(label, value, within = container) {
     await act(async () => new Promise((done) => setTimeout(done, 10)));
     return;
   }
-  let trigger = select(label, within);
-  if (!trigger && within === section("Business Coverage")) {
-    await click(within.querySelector('[aria-label^="Coverage filters:"]'));
-    trigger = select(label, within);
-  }
-  await click(trigger);
-  const menu = trigger.parentElement.querySelector('[role="menu"]');
-  const options = [...menu.querySelectorAll('[role="menuitemradio"]')];
   const labels = { support: "Low specialty support", discovery: "Low discovery activity", profile_visits: "Recorded profile visits", eligible_businesses: "Business distribution", daily: "Daily", weekly: "Weekly", "2": "Cafes", "1": "Food" };
-  await click(options.find((option) => option.textContent.trim() === (labels[value] ?? value)));
-  if (within === section("Business Coverage")) {
-    const filters = within.querySelector('[aria-label^="Coverage filters:"]');
-    if (filters.getAttribute("aria-expanded") === "true") await click(filters);
+  const dimension = /category/i.test(label) ? "Category" : /cluster/i.test(label) ? "Cluster" : null;
+  if (dimension) {
+    const target = within === container
+      ? section(label.startsWith("Attention") ? "Businesses Needing Attention" : "Geographic Distribution")
+      : within;
+    await click(target.querySelector('[aria-haspopup="dialog"][aria-label$=" filters"]'));
+    let panel = target.querySelector('[role="dialog"]');
+    await click(panel.querySelector(`[aria-label="Choose ${dimension} filter"]`));
+    panel = target.querySelector('[role="dialog"]');
+    const optionLabel = value === "" ? (dimension === "Category" ? "All categories" : "All clusters") : (labels[value] ?? value);
+    await click([...panel.querySelectorAll("ul button")].find((button) => button.textContent.trim() === optionLabel));
+  } else {
+    const trigger = select(label, within);
+    await click(trigger);
+    const menu = trigger.parentElement.querySelector('[role="menu"]');
+    await click([...menu.querySelectorAll('[role="menuitemradio"]')].find((option) => option.textContent.trim() === (labels[value] ?? value)));
   }
   await until(() => client.isFetching() === 0);
   await act(async () => new Promise((done) => setTimeout(done, 10)));
@@ -557,11 +561,9 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
   assert.ok(section("Reports & disputes"));
   assert.equal(requests("change-requests/").length, 0);
   await tab("Business Ecosystem");
-  await click(section("Business Coverage").querySelector('[aria-label^="Coverage filters:"]'));
-  assert.equal(select("Category", section("Business Coverage")).textContent, "Cafes");
-  await click(section("Business Coverage").querySelector('[aria-label^="Coverage filters:"]'));
+  assert.match(section("Business Coverage").textContent, /Category: Cafes/);
   assert.equal(select("Attention mode").textContent, "Lowest specialty support");
-  assert.equal(select("Attention category").textContent, "Cafes");
+  assert.match(section("Businesses Needing Attention").textContent, /Category: Cafes/);
   assert.equal(select("Order by"), undefined);
   assert.equal(requests("business-attention/").length, attentionCount);
   assert.equal(requests("low-exposure/").length, 0);
@@ -1057,16 +1059,16 @@ test("business coverage compacts full coverage and keeps every classification in
   assert.equal(coverage.textContent.match(/Coverage unverified/g).length, 1);
   assert.ok(coverage.querySelector("ol").compareDocumentPosition([...coverage.querySelectorAll("p")].find((node) => node.textContent.includes("4 businesses had no recorded"))) & window.Node.DOCUMENT_POSITION_FOLLOWING);
 
-  const filters = coverage.querySelector('[aria-label^="Coverage filters:"]');
+  const filters = coverage.querySelector('[aria-label="Coverage filters"]');
   await click(filters);
   assert.equal(filters.getAttribute("aria-haspopup"), "dialog");
-  assert.equal(document.activeElement, select("Cluster", coverage));
-  const categoryFilter = select("Category", coverage);
-  await click(categoryFilter);
-  await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-  assert.equal(categoryFilter.getAttribute("aria-expanded"), "false");
-  assert.equal(filters.getAttribute("aria-expanded"), "true");
-  await act(async () => categoryFilter.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  let panel = coverage.querySelector('[role="dialog"]');
+  assert.deepEqual([...panel.querySelectorAll("button")].map((button) => button.getAttribute("aria-label")), ["Choose Cluster filter", "Choose Category filter"]);
+  await click(panel.querySelector('[aria-label="Choose Category filter"]'));
+  panel = coverage.querySelector('[role="dialog"]');
+  assert.equal(panel.querySelector('[role="menu"]'), null);
+  assert.equal(coverage.querySelectorAll('[role="dialog"]').length, 1);
+  await act(async () => panel.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
   assert.equal(filters.getAttribute("aria-expanded"), "false");
   assert.equal(document.activeElement, filters);
   const dimension = coverage.querySelector('[aria-label="Coverage dimension"]');
@@ -1305,9 +1307,9 @@ test("platform growth presents only accounts and businesses while preserving com
   assert.doesNotMatch(growth.textContent, /approvals/i);
   const summary = growth.querySelector("dl");
   assert.equal(summary.children.length, 2);
-  assert.ok(summary.classList.contains("flex-wrap"));
-  assert.equal(summary.classList.contains("grid"), false);
-  assert.ok([...summary.children].every((metric) => metric.classList.contains("flex-none")));
+  assert.ok(summary.classList.contains("max-w-2xl"));
+  assert.ok(summary.classList.contains("sm:grid-cols-2"));
+  assert.ok(summary.children[1].querySelector('svg[fill="currentColor"]'));
   assert.match(summary.children[0].textContent, /New accounts7No changePrevious period: 7/);
   assert.match(summary.children[1].textContent, /New businesses13 fewerPrevious period: 4/);
   assert.deepEqual([...growth.querySelectorAll('[data-series-type="bar"]')].map((bar) => bar.dataset.series), ["new_consumer_accounts", "new_businesses"]);
@@ -1392,7 +1394,11 @@ test("PDF export menu prints only the mounted tab and blocks the unsupported geo
   }
   await tab("Business Ecosystem");
   assert.equal(container.querySelector('[aria-label="Analytics export: Export"]').disabled, true);
-  assert.match(container.textContent, /geographic map cannot be captured reliably/);
+  assert.doesNotMatch(container.textContent, /geographic map cannot be captured reliably/);
+  const disabledExport = container.querySelector('[aria-label="Analytics PDF export unavailable"]');
+  assert.equal(disabledExport.tabIndex, 0);
+  assert.match(disabledExport.getAttribute("data-tooltip-content"), /geographic map cannot be captured reliably/);
+  assert.ok(disabledExport.getAttribute("data-tooltip-id"));
 });
 
 test("attention CSV downloads the complete population rather than the visible page", async () => {

@@ -65,7 +65,7 @@ function GeographicReport({ period }) {
       <AnalyticsSection onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Geographic Distribution" description="Business locations across Cebu City." {...state}
         controls={<>
           <AnalyticsMetricSelector label="Metric" options={MODES} value={metric} onChange={changeMetric} />
-          <AnalyticsScopeFilters scope="Geographic" clusterLabel="Cluster" categoryLabel="Category" value={scope} onChange={changeScope} />
+          <AnalyticsScopeFilters scope="Geographic" value={scope} onChange={changeScope} />
         </>}
         unavailable={data?.cells === null}
         unavailableMessage="The approved geographic grid is unavailable. This does not mean there are no businesses or visits."
