@@ -165,10 +165,45 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
         self.assertIsNone(sql_order["items"][0]["profile_visits"])
         self.assertEqual(sql_order["items"][0]["distinct_supporters"], 6)
 
-    def test_attention_discovery_requires_verified_recording(self):
+    def test_attention_discovery_allows_readable_unverified_recording(self):
         report = self.report(attention_mode="discovery", ordering="profile_visits")
+        self.assertIsInstance(report["items"], list)
+        self.assertEqual(report["selection_status"], "provisional")
+        self.assertEqual(report["meta"]["availability"], "partial")
+        self.assertFalse(report["meta"]["coverage_verified"])
+
+    def test_discovery_missing_or_failed_observations_remain_unavailable(self):
+        target = self.businesses[0].pk
+        observations = [None, {}, {**self.metrics, target: None}]
+        for signal in ("profile_visits", "saves", "distinct_savers"):
+            observations.append({
+                **self.metrics,
+                target: {**self.metrics[target], signal: None},
+            })
+        for metrics in observations:
+            with self.subTest(metrics=metrics), patch.object(
+                BusinessAttentionService,
+                "read_visibility",
+                return_value=(metrics, {"availability": "available", "coverage_verified": False}),
+            ):
+                report = BusinessAttentionService.get_report(
+                    self.period,
+                    attention_mode="discovery",
+                    ordering="profile_visits",
+                )
+                self.assertIsNone(report["items"])
+                self.assertEqual(report["selection_status"], "unavailable")
+                self.assertEqual(report["meta"]["availability"], "unavailable")
+        with patch.object(
+            VisibilityEventService,
+            "get_business_attention_metrics",
+            side_effect=VisibilityTrackingUnavailable(),
+        ):
+            report = BusinessAttentionService.get_report(
+                self.period,
+                attention_mode="discovery",
+            )
         self.assertIsNone(report["items"])
-        self.assertEqual(report["selection_status"], "unavailable")
 
     def test_attention_support_filters_positive_evidence_before_pagination(self):
         report = self.report(attention_mode="support", ordering="valid_vouches")
@@ -178,7 +213,7 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
         )
         self.assertEqual(report["items"][0]["attention_reason"], "No valid specialty endorsements")
 
-    def test_verified_peer_candidates_exclude_healthy_activity_and_short_history(self):
+    def test_readable_peer_candidates_exclude_healthy_activity_with_either_coverage_status(self):
         for index in range(6):
             business = Business.objects.create(
                 BUSN_NAME=f"Peer {index}",
@@ -213,3 +248,15 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
             candidates[self.businesses[2].pk]["attention_reason"],
             "No recorded profile visits",
         )
+        self.assertTrue(report["meta"]["coverage_verified"])
+        with patch.object(BusinessAttentionService, "read_visibility", return_value=(
+            self.metrics, {"availability": "partial", "coverage_verified": False},
+        )):
+            provisional = BusinessAttentionService.get_report(
+                self.period,
+                attention_mode="discovery",
+                ordering="profile_visits",
+            )
+        self.assertEqual(provisional["items"], report["items"])
+        self.assertEqual(provisional["selection_status"], "provisional")
+        self.assertFalse(provisional["meta"]["coverage_verified"])

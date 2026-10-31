@@ -81,6 +81,9 @@ function AttentionView({ period, mode, onMode }) {
   const query = useBusinessAttention({ ...period, ...params, ordering, attention_mode: mode });
   const state = useAnalyticsSectionState(query, `business-${mode}`, "business attention");
   const data = query.data;
+  const discoveryNotice = data?.sources?.visibility?.coverage_verified === true
+    ? "Based on recorded discovery activity · recording coverage verified"
+    : "Based on recorded discovery activity · recording coverage unverified";
   return (
     <>
       <AnalyticsTableSection title="Businesses Needing Attention"
@@ -90,8 +93,12 @@ function AttentionView({ period, mode, onMode }) {
           <AnalyticsMetricSelector label="Attention mode" value={mode} onChange={onMode} options={MODES} />
           <AnalyticsScopeFilters scope="Attention" value={params} onChange={(scope) => setParams((previous) => ({ ...previous, cluster: scope.cluster, category: scope.category, page: 1 }))} />
         </>}
-        partialNotice={data?.meta?.is_partial ? "Discovery recording coverage is unverified. Missing observations are unavailable, not zero. Specialty support reflects current evidence." : null}
-        unavailableMessage="Verified discovery observations are unavailable for this comparison. Try again later, or select Low specialty support to review current endorsement evidence."
+        partialNotice={data?.meta?.is_partial ? (
+          mode === "discovery"
+            ? discoveryNotice
+            : "Discovery recording coverage is unverified. Missing observations are unavailable, not zero. Specialty support reflects current evidence."
+        ) : null}
+        unavailableMessage="Required discovery observations are unavailable for this comparison. Try again later, or select Low specialty support to review current endorsement evidence."
         footer={<AnalyticsReportFooter title="Businesses Needing Attention" meta={data?.meta} hasData={Array.isArray(data?.items)} hasDetails={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
         tableProps={{
           data: data ? data.items ?? null : undefined,

@@ -24,8 +24,8 @@ export const reportExplanations = {
   ],
   "Businesses Needing Attention": [
     "Eligible active businesses filtered for low discovery activity or no valid specialty endorsements, within the chosen cluster and category.",
-    "Discovery candidates require verified observations and a full selected-period window, visits and saves below same-category peer medians (same-cluster fallback), and distinct savers no higher than the peer median. Groups require the configured minimum number of other businesses. Specialty candidates have no current valid endorsements. Saves, distinct savers, valid endorsements and distinct supporters remain separate measures; no combined score is calculated.",
-    "These are follow-up signals, not judgments of quality or popularity. Discovery recording coverage is unverified; unavailable observations are not zero. Businesses with shorter observation histories may have fewer visits. Specialty evidence is current regardless of selected dates. Distinct business IDs remain separate even when names match.",
+    "Discovery candidates require readable observations and a full selected-period window, visits and saves below same-category peer medians (same-cluster fallback), and distinct savers no higher than the peer median. Groups require the configured minimum number of other businesses. Specialty candidates have no current valid endorsements. Saves, distinct savers, valid endorsements and distinct supporters remain separate measures; no combined score is calculated.",
+    "These are follow-up signals, not judgments of quality or popularity. Readable discovery observations can support provisional comparisons when recording completeness is unverified. Failed reads and missing required observations are unavailable, not zero. Businesses with shorter observation histories may have fewer visits. Specialty evidence is current regardless of selected dates. Distinct business IDs remain separate even when names match.",
   ],
   "Reports & disputes": [
     "Current pending review reports and disputes, plus the time taken to resolve eligible disputes during the selected period.",

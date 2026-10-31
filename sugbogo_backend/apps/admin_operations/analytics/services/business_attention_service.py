@@ -142,13 +142,32 @@ class BusinessAttentionService:
         needs_visibility = low_exposure or field in cls.VISIBILITY_FIELDS
         unavailable = visibility is None and needs_visibility
         if attention_mode == "discovery":
+            # Readability and recording completeness are independent source properties.
             unavailable = (
                 visibility is None
-                or visibility_meta.get("coverage_verified") is not True
+                or visibility_meta.get("availability") == "unavailable"
             )
+            if not unavailable:
+                unavailable = any(
+                    not isinstance(visibility.get(business_id), dict)
+                    or any(
+                        visibility[business_id].get(signal) is None
+                        for signal in ("profile_visits", "saves", "distinct_savers")
+                    )
+                    for business_id in observation_ids
+                )
+                if unavailable:
+                    reasons.append("visibility_observations_missing")
+            if visibility_meta.get("coverage_verified") is True:
+                reasons.remove("visibility_coverage_unverified")
         meta = build_meta(
             period, availability="unavailable" if unavailable else "partial",
             partial_reasons=reasons,
+            coverage_verified=(
+                visibility_meta.get("coverage_verified") is True
+                if attention_mode == "discovery"
+                else False
+            ),
         )
         result = {
             "label": "Low recorded attention with specialty support" if low_exposure else "Business attention",
@@ -206,7 +225,7 @@ class BusinessAttentionService:
                 if metrics["profile_visits"] == 0:
                     attention_reason = "No recorded profile visits"
                 else:
-                    attention_reason = "Below peer medians for profile visits and saves"
+                    attention_reason = "Below peer medians for recorded profile visits and saves"
             if low_exposure:
                 if created >= period.end:
                     continue  # No opportunity to be observed in the completed-day window.

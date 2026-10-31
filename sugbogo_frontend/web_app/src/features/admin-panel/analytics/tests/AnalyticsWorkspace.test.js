@@ -363,6 +363,8 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 2);
   const attention = section("Businesses Needing Attention");
   assert.match(attention.textContent, /No recorded profile visits/);
+  assert.match(attention.textContent, /Based on recorded discovery activity · recording coverage unverified/);
+  assert.doesNotMatch(attention.textContent, /Required discovery observations are unavailable/);
   assert.match(attention.textContent, /Business #9/);
   assert.match(attention.textContent, /Business #15/);
   assert.equal(attention.querySelectorAll('a[href^="/admin-panel/businesses/"]').length, 2);
@@ -391,6 +393,26 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 2);
 });
 
+
+test("business attention renders provisional rows but blocks unavailable observations", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  await mount();
+  const attention = section("Businesses Needing Attention");
+  assert.ok(attention.querySelector("table"));
+  assert.match(attention.textContent, /Based on recorded discovery activity/);
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({
+      ...report,
+      items: null,
+      pagination: null,
+      selection_status: "unavailable",
+      meta: { ...report.meta, availability: "unavailable" },
+    }));
+  });
+  await until(() => attention.textContent.includes("Required discovery observations are unavailable"));
+  assert.equal(attention.querySelector("table"), null);
+});
 
 test("shared table tabs retain their default click and count presentation without analytics semantics", async () => {
   const { default: TableTabs } = await server.ssrLoadModule("/src/features/admin-panel/components/data-table/TableTabs.jsx");
