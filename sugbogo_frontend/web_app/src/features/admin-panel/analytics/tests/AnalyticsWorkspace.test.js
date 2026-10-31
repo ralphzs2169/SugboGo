@@ -1131,7 +1131,9 @@ test("platform growth presents only accounts and businesses while preserving com
   assert.doesNotMatch(growth.textContent, /approvals/i);
   const summary = growth.querySelector("dl");
   assert.equal(summary.children.length, 2);
-  assert.ok(summary.classList.contains("min-[480px]:grid-cols-2"));
+  assert.ok(summary.classList.contains("flex-wrap"));
+  assert.equal(summary.classList.contains("grid"), false);
+  assert.ok([...summary.children].every((metric) => metric.classList.contains("flex-none")));
   assert.match(summary.children[0].textContent, /New accounts7No changePrevious period: 7/);
   assert.match(summary.children[1].textContent, /New businesses13 fewerPrevious period: 4/);
   assert.deepEqual([...growth.querySelectorAll('[data-series-type="bar"]')].map((bar) => bar.dataset.series), ["new_consumer_accounts", "new_businesses"]);
