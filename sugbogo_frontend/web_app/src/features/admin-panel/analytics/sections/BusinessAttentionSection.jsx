@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ImageOff } from "lucide-react";
+import { ImageOff, SearchX } from "lucide-react";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { Link } from "react-router-dom";
 import { useBusinessAttention } from "../hooks/useAnalyticsReports";
@@ -87,7 +87,7 @@ function AttentionView({ period, mode, onMode }) {
   return (
     <>
       <AnalyticsTableSection title="Businesses Needing Attention"
-        description={mode === "support" ? "Businesses with no valid specialty endorsements in current support evidence." : "Businesses with comparatively low recorded discovery activity during the selected period."}
+        description={mode === "support" ? "Businesses with the lowest recorded specialty support in current evidence." : "Businesses with the lowest recorded discovery activity during the selected period."}
         {...state}
         filters={<>
           <AnalyticsMetricSelector label="Attention mode" value={mode} onChange={onMode} options={MODES} />
@@ -98,9 +98,7 @@ function AttentionView({ period, mode, onMode }) {
             ? discoveryNotice
             : "Discovery recording coverage is unverified. Missing observations are unavailable, not zero. Specialty support reflects current evidence."
         ) : null}
-        unavailableMessage={data?.meta?.partial_reasons?.includes("peer_comparison_unavailable")
-          ? "There are not enough comparable business observations to assess this selection. This does not mean no businesses need attention."
-          : "Required discovery observations are unavailable for this comparison. Try again later, or select Low specialty support to review current endorsement evidence."}
+        unavailableMessage="Required discovery observations are unavailable for this ranking. Try again later, or select Low specialty support to review current endorsement evidence."
         footer={<AnalyticsReportFooter title="Businesses Needing Attention" meta={data?.meta} hasData={Array.isArray(data?.items)} hasDetails={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
         tableProps={{
           data: data ? data.items ?? null : undefined,
@@ -111,10 +109,11 @@ function AttentionView({ period, mode, onMode }) {
           totalItems: data?.pagination?.total_items,
           onPaginationChange: (next) => setParams((previous) => ({ ...previous, page: next.pageIndex + 1, page_size: next.pageSize })),
           config: { compact: true, emptyState: {
-            title: "No businesses currently need attention for this selection.",
+            icon: <SearchX aria-hidden="true" className="h-10 w-10 text-text-secondary" />,
+            title: "No businesses to rank for this selection.",
             description: mode === "support"
-              ? "None of the eligible businesses meet the low specialty support criteria."
-              : "None of the eligible businesses meet the low recorded discovery activity criteria.",
+              ? "No eligible businesses are available for the specialty support ranking."
+              : "No eligible businesses are available for the recorded discovery activity ranking.",
           } },
         }}
       />

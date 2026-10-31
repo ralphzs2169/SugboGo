@@ -407,12 +407,12 @@ test("business attention renders provisional rows but blocks unavailable observa
   assert.match(attention.textContent, /Based on recorded discovery activity/);
   const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention");
   assert.equal(container.querySelector("select"), null);
-  assert.match(attention.textContent, /Businesses with comparatively low recorded discovery activity during the selected period/);
+  assert.match(attention.textContent, /Businesses with the lowest recorded discovery activity during the selected period/);
   await act(async () => {
     client.setQueryData(query.queryKey, (report) => ({ ...report, items: [], pagination: { ...report.pagination, total_items: 0 } }));
   });
-  await until(() => attention.textContent.includes("No businesses currently need attention for this selection."));
-  assert.match(attention.textContent, /None of the eligible businesses meet the low recorded discovery activity criteria/);
+  await until(() => attention.textContent.includes("No businesses to rank for this selection."));
+  assert.match(attention.textContent, /No eligible businesses are available for the recorded discovery activity ranking/);
   await act(async () => {
     client.setQueryData(query.queryKey, (report) => ({
       ...report,
@@ -424,17 +424,12 @@ test("business attention renders provisional rows but blocks unavailable observa
   });
   await until(() => attention.textContent.includes("Required discovery observations are unavailable"));
   assert.equal(attention.querySelector("table"), null);
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, meta: { ...report.meta, partial_reasons: ["peer_comparison_unavailable"] } }));
-  });
-  await until(() => attention.textContent.includes("not enough comparable business observations"));
-  assert.doesNotMatch(attention.textContent, /None of the eligible businesses meet/);
   await choose("Attention mode", "support");
   const support = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention" && row.queryKey[3].attention_mode === "support");
   await act(async () => {
     client.setQueryData(support.queryKey, (report) => ({ ...report, items: [], pagination: { ...report.pagination, total_items: 0 } }));
   });
-  await until(() => section("Businesses Needing Attention").textContent.includes("None of the eligible businesses meet the low specialty support criteria."));
+  await until(() => section("Businesses Needing Attention").textContent.includes("No eligible businesses are available for the specialty support ranking."));
 });
 
 test("business attention request failures retain Error and Retry rather than an empty result", async () => {

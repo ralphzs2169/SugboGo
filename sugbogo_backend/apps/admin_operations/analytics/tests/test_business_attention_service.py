@@ -165,12 +165,16 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
         self.assertIsNone(sql_order["items"][0]["profile_visits"])
         self.assertEqual(sql_order["items"][0]["distinct_supporters"], 6)
 
-    def test_insufficient_peers_do_not_look_like_a_valid_empty_comparison(self):
-        report = self.report(attention_mode="discovery", ordering="profile_visits")
-        self.assertIsNone(report["items"])
-        self.assertEqual(report["selection_status"], "unavailable")
-        self.assertIn("peer_comparison_unavailable", report["meta"]["partial_reasons"])
+    def test_readable_unverified_discovery_ranks_even_small_populations(self):
+        report = self.report(attention_mode="discovery")
+        self.assertEqual(
+            [row["business_id"] for row in report["items"]],
+            [self.businesses[index].pk for index in (2, 3, 0, 1)],
+        )
+        self.assertEqual(report["selection_status"], "provisional")
         self.assertFalse(report["meta"]["coverage_verified"])
+        narrow = self.report(category=self.category_b.pk, attention_mode="discovery")
+        self.assertEqual(len(narrow["items"]), 1)
 
     def test_discovery_missing_or_failed_observations_remain_unavailable(self):
         target = self.businesses[0].pk
@@ -205,89 +209,57 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
             )
         self.assertIsNone(report["items"])
 
-    def test_attention_support_filters_positive_evidence_before_pagination(self):
-        report = self.report(attention_mode="support", ordering="valid_vouches")
+    def test_support_ranks_positive_and_zero_evidence(self):
+        report = self.report(attention_mode="support")
         self.assertEqual(
             [row["business_id"] for row in report["items"]],
-            [self.businesses[3].pk],
+            [self.businesses[index].pk for index in (3, 1, 2, 0)],
         )
         self.assertEqual(report["items"][0]["attention_reason"], "No valid specialty endorsements")
 
-    def test_readable_peer_candidates_exclude_healthy_activity_with_either_coverage_status(self):
-        for index in range(6):
-            business = Business.objects.create(
-                BUSN_NAME=f"Peer {index}",
-                BUSN_CONTACT_NUMBER="09170000000",
-                BUSN_STATUS=Business.BusinessStatus.ACTIVE,
-                USER_ID=self.user(f"peer-{index}", User.UserRole.MERCHANT),
-                LOCT_ID=self.businesses[0].LOCT_ID,
-                CTGRY_ID=self.category_a,
-            )
-            Business.objects.filter(pk=business.pk).update(
-                BUSN_CREATED_AT=self.NOW - timedelta(days=60),
-            )
-            self.metrics[business.pk] = {
-                "profile_visits": 10, "saves": 2, "distinct_savers": 2,
-            }
-        strong = self.businesses[0].pk
-        self.metrics[strong] = {
-            "profile_visits": 73, "saves": 11, "distinct_savers": 8,
+    def test_discovery_uses_all_tie_breakers_and_retains_high_activity_and_new_businesses(self):
+        observations = {
+            self.businesses[0].pk: {"profile_visits": 3, "saves": 2, "distinct_savers": 2},
+            self.businesses[1].pk: {"profile_visits": 3, "saves": 2, "distinct_savers": 1},
+            self.businesses[2].pk: {"profile_visits": 3, "saves": 1, "distinct_savers": 1},
+            self.businesses[3].pk: {"profile_visits": 73, "saves": 11, "distinct_savers": 8},
         }
+        Business.objects.filter(pk=self.businesses[3].pk).update(BUSN_CREATED_AT=self.NOW)
         with patch.object(BusinessAttentionService, "read_visibility", return_value=(
-            self.metrics, {"availability": "available", "coverage_verified": True},
+            observations, {"availability": "available", "coverage_verified": False},
         )):
-            report = BusinessAttentionService.get_report(
-                self.period,
-                attention_mode="discovery",
-                ordering="profile_visits",
-            )
-        candidates = {row["business_id"]: row for row in report["items"]}
-        self.assertNotIn(strong, candidates)
-        self.assertIn(self.businesses[2].pk, candidates)
+            report = BusinessAttentionService.get_report(self.period, attention_mode="discovery")
         self.assertEqual(
-            candidates[self.businesses[2].pk]["attention_reason"],
-            "No recorded profile visits",
+            [row["business_id"] for row in report["items"]],
+            [self.businesses[index].pk for index in (2, 1, 0, 3)],
         )
-        self.assertTrue(report["meta"]["coverage_verified"])
+        self.assertFalse(report["items"][-1]["has_full_business_window"])
+        self.assertEqual(report["items"][-1]["attention_reason"], "Ranked by recorded discovery activity")
+        observations[self.businesses[0].pk] = observations[self.businesses[1].pk].copy()
         with patch.object(BusinessAttentionService, "read_visibility", return_value=(
-            self.metrics, {"availability": "partial", "coverage_verified": False},
+            observations, {"availability": "available", "coverage_verified": True},
         )):
-            provisional = BusinessAttentionService.get_report(
-                self.period,
-                attention_mode="discovery",
-                ordering="profile_visits",
-            )
-        self.assertEqual(provisional["items"], report["items"])
-        self.assertEqual(provisional["selection_status"], "provisional")
-        self.assertFalse(provisional["meta"]["coverage_verified"])
+            tied = BusinessAttentionService.get_report(self.period, attention_mode="discovery")
+        self.assertEqual(
+            [row["business_id"] for row in tied["items"]],
+            [self.businesses[index].pk for index in (2, 0, 1, 3)],
+        )
 
-        with patch.object(BusinessAttentionService, "read_visibility", return_value=(
-            self.metrics, {"availability": "partial", "coverage_verified": False},
-        )):
-            narrow = BusinessAttentionService.get_report(
-                self.period,
-                category=self.category_a.pk,
-                attention_mode="discovery",
-            )
-            small = BusinessAttentionService.get_report(
-                self.period,
-                category=self.category_b.pk,
-                attention_mode="discovery",
-            )
-        self.assertIn(self.businesses[2].pk, [row["business_id"] for row in narrow["items"]])
-        self.assertIsNone(small["items"])
-        self.assertIn("peer_comparison_unavailable", small["meta"]["partial_reasons"])
-        equal_observations = {
-            business_id: {"profile_visits": 10, "saves": 2, "distinct_savers": 2}
-            for business_id in self.metrics
+    def test_support_uses_supporter_then_identity_ties_without_discovery(self):
+        support = {
+            self.businesses[0].pk: {"valid_vouches": 2, "distinct_supporters": 2},
+            self.businesses[1].pk: {"valid_vouches": 2, "distinct_supporters": 1},
+            self.businesses[2].pk: {"valid_vouches": 2, "distinct_supporters": 1},
+            self.businesses[3].pk: {"valid_vouches": 0, "distinct_supporters": 0},
         }
-        with patch.object(BusinessAttentionService, "read_visibility", return_value=(
-            equal_observations, {"availability": "partial", "coverage_verified": False},
-        )):
-            empty = BusinessAttentionService.get_report(
-                self.period,
-                category=self.category_a.pk,
-                attention_mode="discovery",
-            )
-        self.assertEqual(empty["items"], [])
-        self.assertEqual(empty["selection_status"], "provisional")
+        with patch.object(BusinessAttentionService, "specialty_support", return_value=support), patch.object(
+            BusinessAttentionService,
+            "read_visibility",
+            return_value=(None, {"availability": "unavailable"}),
+        ):
+            report = BusinessAttentionService.get_report(self.period, attention_mode="support")
+        self.assertEqual(
+            [row["business_id"] for row in report["items"]],
+            [self.businesses[index].pk for index in (3, 1, 2, 0)],
+        )
+        self.assertIsNone(report["items"][0]["profile_visits"])

@@ -1,7 +1,6 @@
 """Current specialty evidence alongside recorded business attention."""
 
 from datetime import timedelta
-from statistics import median
 
 from django.db.models import Count, Exists, OuterRef
 from django.utils import timezone
@@ -16,7 +15,6 @@ from apps.shared.analytics.metadata import build_meta
 
 
 from apps.shared.analytics.policy import current_policy, with_policy_snapshot
-from apps.merchant_operations.merchant_analytics.services.peer_analytics_service import PeerAnalyticsService
 
 
 class BusinessAttentionService:
@@ -109,7 +107,11 @@ class BusinessAttentionService:
         low_exposure=False,
         attention_mode=None,
     ):
-        """Filter requested attention candidates before ordering and API pagination."""
+        """Rank readable mode-specific observations before API pagination."""
+        if attention_mode == "discovery":
+            ordering = "profile_visits"
+        elif attention_mode == "support":
+            ordering = "valid_vouches"
         field = ordering.removeprefix("-")
         if field not in cls.ORDER_FIELDS:
             raise ValidationError({"ordering": "Unsupported attention ordering."})
@@ -126,10 +128,6 @@ class BusinessAttentionService:
         )
         ids = [business.BUSN_ID for business in businesses]
         observation_ids = ids
-        if attention_mode == "discovery":
-            observation_ids = list(cls.eligible_businesses().filter(
-                BUSN_CREATED_AT__lte=period.start,
-            ).values_list("pk", flat=True))
         visibility, visibility_meta = cls.read_visibility(period, observation_ids)
         support = cls.specialty_support(ids)
         domain_meta = build_meta(
@@ -183,10 +181,7 @@ class BusinessAttentionService:
         if unavailable:
             return result
         items = []
-        insufficient_peers = False
         for business in businesses:
-            if attention_mode == "discovery" and business.BUSN_CREATED_AT > period.start:
-                continue
             metrics = visibility[business.BUSN_ID] if visibility is not None else {
                 "profile_visits": None, "saves": None, "distinct_savers": None,
             }
@@ -194,40 +189,17 @@ class BusinessAttentionService:
             created = business.BUSN_CREATED_AT
             attention_reason = None
             if attention_mode == "support":
-                if evidence["valid_vouches"] != 0:
-                    continue
-                attention_reason = "No valid specialty endorsements"
+                if evidence["valid_vouches"] == 0:
+                    attention_reason = "No valid specialty endorsements"
+                else:
+                    attention_reason = "Ranked by valid specialty endorsements"
             elif attention_mode == "discovery":
-                peer_ids, _, _ = PeerAnalyticsService.select_group(business, period)
-                peers = [
-                    visibility[peer_id]
-                    for peer_id in peer_ids
-                    if peer_id in visibility
-                ]
-                if len(peers) < current_policy()["peer_min_businesses"]:
-                    insufficient_peers = True
-                    continue
-                signals = ("profile_visits", "saves", "distinct_savers")
-                if any(
-                    row.get(signal) is None
-                    for row in [metrics, *peers]
-                    for signal in signals
-                ):
-                    continue
-                medians = {
-                    signal: median([row[signal] for row in peers])
-                    for signal in signals
-                }
-                if not (
-                    metrics["profile_visits"] < medians["profile_visits"]
-                    and metrics["saves"] < medians["saves"]
-                    and metrics["distinct_savers"] <= medians["distinct_savers"]
-                ):
-                    continue
                 if metrics["profile_visits"] == 0:
                     attention_reason = "No recorded profile visits"
+                elif metrics["saves"] == 0:
+                    attention_reason = "No recorded saves"
                 else:
-                    attention_reason = "Below peer medians for recorded profile visits and saves"
+                    attention_reason = "Ranked by recorded discovery activity"
             if low_exposure:
                 if created >= period.end:
                     continue  # No opportunity to be observed in the completed-day window.
@@ -250,20 +222,25 @@ class BusinessAttentionService:
                     0, (period.end - max(created, period.start)).total_seconds() / 86400,
                 ), 2),
             })
-        if attention_mode == "discovery" and insufficient_peers and not items:
-            result["selection_status"] = "unavailable"
-            result["meta"] = build_meta(
-                period,
-                availability="unavailable",
-                coverage_verified=visibility_meta.get("coverage_verified") is True,
-                partial_reasons=(*reasons, "peer_comparison_unavailable"),
+        if attention_mode == "discovery":
+            items.sort(key=lambda item: (
+                item["profile_visits"],
+                item["saves"],
+                item["distinct_savers"],
+                item["business_id"],
+            ))
+        elif attention_mode == "support":
+            items.sort(key=lambda item: (
+                item["valid_vouches"],
+                item["distinct_supporters"],
+                item["business_id"],
+            ))
+        else:
+            # Preserve ordering for general reports and the fixed-window pilot.
+            items.sort(key=lambda item: item["business_id"])
+            items.sort(
+                key=lambda item: item[field].casefold() if field == "business_name" else item[field],
+                reverse=ordering.startswith("-"),
             )
-            return result
-        # Stable ID ties survive both ascending and descending requested ordering.
-        items.sort(key=lambda item: item["business_id"])
-        items.sort(
-            key=lambda item: item[field].casefold() if field == "business_name" else item[field],
-            reverse=ordering.startswith("-"),
-        )
         result["items"] = items
         return result
