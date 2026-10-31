@@ -87,7 +87,7 @@ function AttentionView({ period, mode, onMode }) {
   return (
     <>
       <AnalyticsTableSection title="Businesses Needing Attention"
-        description={mode === "support" ? "Fewest valid specialty endorsements first · current support evidence." : "Fewest recorded profile visits first · selected reporting period."}
+        description={mode === "support" ? "Businesses with no valid specialty endorsements in current support evidence." : "Businesses with comparatively low recorded discovery activity during the selected period."}
         {...state}
         filters={<>
           <AnalyticsMetricSelector label="Attention mode" value={mode} onChange={onMode} options={MODES} />
@@ -98,7 +98,9 @@ function AttentionView({ period, mode, onMode }) {
             ? discoveryNotice
             : "Discovery recording coverage is unverified. Missing observations are unavailable, not zero. Specialty support reflects current evidence."
         ) : null}
-        unavailableMessage="Required discovery observations are unavailable for this comparison. Try again later, or select Low specialty support to review current endorsement evidence."
+        unavailableMessage={data?.meta?.partial_reasons?.includes("peer_comparison_unavailable")
+          ? "There are not enough comparable business observations to assess this selection. This does not mean no businesses need attention."
+          : "Required discovery observations are unavailable for this comparison. Try again later, or select Low specialty support to review current endorsement evidence."}
         footer={<AnalyticsReportFooter title="Businesses Needing Attention" meta={data?.meta} hasData={Array.isArray(data?.items)} hasDetails={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
         tableProps={{
           data: data ? data.items ?? null : undefined,
@@ -108,7 +110,12 @@ function AttentionView({ period, mode, onMode }) {
           pageCount: data?.pagination?.total_pages,
           totalItems: data?.pagination?.total_items,
           onPaginationChange: (next) => setParams((previous) => ({ ...previous, page: next.pageIndex + 1, page_size: next.pageSize })),
-          config: { compact: true, emptyState: { title: "No businesses match this selection.", description: "Try another cluster or category." } },
+          config: { compact: true, emptyState: {
+            title: "No businesses currently need attention for this selection.",
+            description: mode === "support"
+              ? "None of the eligible businesses meet the low specialty support criteria."
+              : "None of the eligible businesses meet the low recorded discovery activity criteria.",
+          } },
         }}
       />
       {/* Exact current-page values and methodology use the established detail drawer. */}

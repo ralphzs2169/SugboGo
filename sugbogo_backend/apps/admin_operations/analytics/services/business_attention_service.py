@@ -183,6 +183,7 @@ class BusinessAttentionService:
         if unavailable:
             return result
         items = []
+        insufficient_peers = False
         for business in businesses:
             if attention_mode == "discovery" and business.BUSN_CREATED_AT > period.start:
                 continue
@@ -204,6 +205,7 @@ class BusinessAttentionService:
                     if peer_id in visibility
                 ]
                 if len(peers) < current_policy()["peer_min_businesses"]:
+                    insufficient_peers = True
                     continue
                 signals = ("profile_visits", "saves", "distinct_savers")
                 if any(
@@ -248,6 +250,15 @@ class BusinessAttentionService:
                     0, (period.end - max(created, period.start)).total_seconds() / 86400,
                 ), 2),
             })
+        if attention_mode == "discovery" and insufficient_peers and not items:
+            result["selection_status"] = "unavailable"
+            result["meta"] = build_meta(
+                period,
+                availability="unavailable",
+                coverage_verified=visibility_meta.get("coverage_verified") is True,
+                partial_reasons=(*reasons, "peer_comparison_unavailable"),
+            )
+            return result
         # Stable ID ties survive both ascending and descending requested ordering.
         items.sort(key=lambda item: item["business_id"])
         items.sort(

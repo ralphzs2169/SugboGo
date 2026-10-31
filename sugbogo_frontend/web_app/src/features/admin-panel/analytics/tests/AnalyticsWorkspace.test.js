@@ -108,7 +108,7 @@ async function mount() {
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
 const section = (title) => [...container.querySelectorAll("h2")].find((heading) => heading.textContent === title)?.closest("section");
-const select = (label, within = container) => [...within.querySelectorAll("select")].find((element) => element.labels[0]?.textContent === label);
+const select = (label, within = container) => [...within.querySelectorAll("button[aria-haspopup]")].find((element) => element.getAttribute("aria-label")?.startsWith(`${label === "Interval" ? "Reporting interval" : label}:`));
 const requests = (route) => reads.filter(({ url }) => url === `/admin/analytics/${route}`);
 const click = async (element) => act(async () => { await element.click(); });
 async function choose(label, value, within = container) {
@@ -118,7 +118,12 @@ async function choose(label, value, within = container) {
     await act(async () => new Promise((done) => setTimeout(done, 10)));
     return;
   }
-  await act(async () => { const input = select(label, within); input.value = value; input.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  const trigger = select(label, within);
+  await click(trigger);
+  const menu = trigger.parentElement.querySelector('[role="menu"]');
+  const options = [...menu.querySelectorAll('[role="menuitemradio"]')];
+  const labels = { support: "Low specialty support", discovery: "Low discovery activity", profile_visits: "Recorded profile visits", eligible_businesses: "Business distribution", daily: "Daily", weekly: "Weekly", "2": "Cafes", "1": "Food" };
+  await click(options.find((option) => option.textContent.trim() === (labels[value] ?? value)));
   await until(() => client.isFetching() === 0);
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
@@ -384,9 +389,9 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
   assert.ok(section("Reports & disputes"));
   assert.equal(requests("change-requests/").length, 0);
   await tab("Business Ecosystem");
-  assert.equal(select("Category", section("Business Coverage")).value, "2");
-  assert.equal(select("Attention mode").value, "support");
-  assert.equal(select("Attention category").value, "2");
+  assert.equal(select("Category", section("Business Coverage")).textContent, "Cafes");
+  assert.equal(select("Attention mode").textContent, "Low specialty support");
+  assert.equal(select("Attention category").textContent, "Cafes");
   assert.equal(select("Order by"), undefined);
   assert.equal(requests("business-attention/").length, attentionCount);
   assert.equal(requests("low-exposure/").length, 0);
@@ -401,6 +406,13 @@ test("business attention renders provisional rows but blocks unavailable observa
   assert.ok(attention.querySelector("table"));
   assert.match(attention.textContent, /Based on recorded discovery activity/);
   const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention");
+  assert.equal(container.querySelector("select"), null);
+  assert.match(attention.textContent, /Businesses with comparatively low recorded discovery activity during the selected period/);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, items: [], pagination: { ...report.pagination, total_items: 0 } }));
+  });
+  await until(() => attention.textContent.includes("No businesses currently need attention for this selection."));
+  assert.match(attention.textContent, /None of the eligible businesses meet the low recorded discovery activity criteria/);
   await act(async () => {
     client.setQueryData(query.queryKey, (report) => ({
       ...report,
@@ -412,6 +424,31 @@ test("business attention renders provisional rows but blocks unavailable observa
   });
   await until(() => attention.textContent.includes("Required discovery observations are unavailable"));
   assert.equal(attention.querySelector("table"), null);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, meta: { ...report.meta, partial_reasons: ["peer_comparison_unavailable"] } }));
+  });
+  await until(() => attention.textContent.includes("not enough comparable business observations"));
+  assert.doesNotMatch(attention.textContent, /None of the eligible businesses meet/);
+  await choose("Attention mode", "support");
+  const support = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention" && row.queryKey[3].attention_mode === "support");
+  await act(async () => {
+    client.setQueryData(support.queryKey, (report) => ({ ...report, items: [], pagination: { ...report.pagination, total_items: 0 } }));
+  });
+  await until(() => section("Businesses Needing Attention").textContent.includes("None of the eligible businesses meet the low specialty support criteria."));
+});
+
+test("business attention request failures retain Error and Retry rather than an empty result", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  failures.add("/admin/analytics/business-attention/");
+  await mount();
+  const attention = section("Businesses Needing Attention");
+  assert.match(attention.textContent, /Unable to load/);
+  assert.doesNotMatch(attention.textContent, /No businesses currently need attention/);
+  const retry = [...attention.querySelectorAll("button")].find((button) => button.textContent.includes("Retry"));
+  assert.ok(retry);
+  failures.delete("/admin/analytics/business-attention/");
+  await click(retry);
+  await until(() => Boolean(attention.querySelector("table")));
 });
 
 test("shared table tabs retain their default click and count presentation without analytics semantics", async () => {
@@ -515,8 +552,7 @@ test("discovery accounts reuse trend parameters, bucket values, drawer and cache
   await choose("Discovery metric", "saves");
   await selectAccounts();
   assert.equal(requests("discovery-trend/").length, count + 1);
-  const interval = report.querySelector("select");
-  await act(async () => { interval.value = "daily"; interval.dispatchEvent(new dom.window.Event("change", {bubbles:true})); });
+  await choose("Interval", "daily", report);
   await until(() => client.isFetching() === 0);
   assert.equal(requests("discovery-trend/").at(-1).params.interval, "daily");
   await choosePeriod("7");
@@ -580,11 +616,7 @@ test("transportation donut reconciles methods and drawer destinations with perio
   await tab("Operations");
   await tab("Growth & Discovery");
   assert.equal(requests("transportation-planning/").length,count);
-  const interval = report.querySelector("select");
-  // Resolve the newly mounted section after returning to the tab.
-  const mountedInterval = section("Transportation Planning").querySelector("select");
-  assert.ok(interval);
-  await act(async () => { mountedInterval.value="daily"; mountedInterval.dispatchEvent(new dom.window.Event("change",{bubbles:true})); });
+  await choose("Interval", "daily", section("Transportation Planning"));
   await until(() => client.isFetching() === 0);
   assert.equal(requests("transportation-planning/").at(-1).params.interval,"daily");
   await choosePeriod("7");

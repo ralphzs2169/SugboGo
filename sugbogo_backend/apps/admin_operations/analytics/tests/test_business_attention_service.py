@@ -165,11 +165,11 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
         self.assertIsNone(sql_order["items"][0]["profile_visits"])
         self.assertEqual(sql_order["items"][0]["distinct_supporters"], 6)
 
-    def test_attention_discovery_allows_readable_unverified_recording(self):
+    def test_insufficient_peers_do_not_look_like_a_valid_empty_comparison(self):
         report = self.report(attention_mode="discovery", ordering="profile_visits")
-        self.assertIsInstance(report["items"], list)
-        self.assertEqual(report["selection_status"], "provisional")
-        self.assertEqual(report["meta"]["availability"], "partial")
+        self.assertIsNone(report["items"])
+        self.assertEqual(report["selection_status"], "unavailable")
+        self.assertIn("peer_comparison_unavailable", report["meta"]["partial_reasons"])
         self.assertFalse(report["meta"]["coverage_verified"])
 
     def test_discovery_missing_or_failed_observations_remain_unavailable(self):
@@ -260,3 +260,34 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
         self.assertEqual(provisional["items"], report["items"])
         self.assertEqual(provisional["selection_status"], "provisional")
         self.assertFalse(provisional["meta"]["coverage_verified"])
+
+        with patch.object(BusinessAttentionService, "read_visibility", return_value=(
+            self.metrics, {"availability": "partial", "coverage_verified": False},
+        )):
+            narrow = BusinessAttentionService.get_report(
+                self.period,
+                category=self.category_a.pk,
+                attention_mode="discovery",
+            )
+            small = BusinessAttentionService.get_report(
+                self.period,
+                category=self.category_b.pk,
+                attention_mode="discovery",
+            )
+        self.assertIn(self.businesses[2].pk, [row["business_id"] for row in narrow["items"]])
+        self.assertIsNone(small["items"])
+        self.assertIn("peer_comparison_unavailable", small["meta"]["partial_reasons"])
+        equal_observations = {
+            business_id: {"profile_visits": 10, "saves": 2, "distinct_savers": 2}
+            for business_id in self.metrics
+        }
+        with patch.object(BusinessAttentionService, "read_visibility", return_value=(
+            equal_observations, {"availability": "partial", "coverage_verified": False},
+        )):
+            empty = BusinessAttentionService.get_report(
+                self.period,
+                category=self.category_a.pk,
+                attention_mode="discovery",
+            )
+        self.assertEqual(empty["items"], [])
+        self.assertEqual(empty["selection_status"], "provisional")
