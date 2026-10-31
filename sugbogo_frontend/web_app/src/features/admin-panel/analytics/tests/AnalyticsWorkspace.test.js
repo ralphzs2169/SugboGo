@@ -118,12 +118,20 @@ async function choose(label, value, within = container) {
     await act(async () => new Promise((done) => setTimeout(done, 10)));
     return;
   }
-  const trigger = select(label, within);
+  let trigger = select(label, within);
+  if (!trigger && within === section("Business Coverage")) {
+    await click(within.querySelector('[aria-label^="Coverage filters:"]'));
+    trigger = select(label, within);
+  }
   await click(trigger);
   const menu = trigger.parentElement.querySelector('[role="menu"]');
   const options = [...menu.querySelectorAll('[role="menuitemradio"]')];
   const labels = { support: "Low specialty support", discovery: "Low discovery activity", profile_visits: "Recorded profile visits", eligible_businesses: "Business distribution", daily: "Daily", weekly: "Weekly", "2": "Cafes", "1": "Food" };
   await click(options.find((option) => option.textContent.trim() === (labels[value] ?? value)));
+  if (within === section("Business Coverage")) {
+    const filters = within.querySelector('[aria-label^="Coverage filters:"]');
+    if (filters.getAttribute("aria-expanded") === "true") await click(filters);
+  }
   await until(() => client.isFetching() === 0);
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
@@ -389,7 +397,9 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
   assert.ok(section("Reports & disputes"));
   assert.equal(requests("change-requests/").length, 0);
   await tab("Business Ecosystem");
+  await click(section("Business Coverage").querySelector('[aria-label^="Coverage filters:"]'));
   assert.equal(select("Category", section("Business Coverage")).textContent, "Cafes");
+  await click(section("Business Coverage").querySelector('[aria-label^="Coverage filters:"]'));
   assert.equal(select("Attention mode").textContent, "Low specialty support");
   assert.equal(select("Attention category").textContent, "Cafes");
   assert.equal(select("Order by"), undefined);
@@ -764,9 +774,29 @@ test("business coverage ranks a bounded comparison and keeps every classificatio
   assert.match(coverage.textContent, /4 businesses had no recorded profile visits/);
   assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Category 50%", "Category 350%", "Category 475%", "Category 2100%", "Category 6100%"]);
   assert.deepEqual([...coverage.querySelectorAll('ol [aria-hidden="true"] > div')].map((bar) => bar.style.width), ["0%", "50%", "75%", "100%", "100%"]);
-  assert.match(coverage.textContent, /Showing 5 of 6 categories/);
-  assert.match(coverage.querySelector('[aria-label="About business coverage"]').getAttribute("data-tooltip-content"), /not geographic coverage/);
-  await click([...coverage.querySelectorAll("button")].find((button) => button.textContent === "Compare clusters"));
+  assert.doesNotMatch(coverage.textContent, /Lowest coverage first|Showing 5 of|Compare clusters/);
+  assert.equal(coverage.querySelectorAll('[aria-label="About Business Coverage"]').length, 1);
+  assert.equal(coverage.textContent.match(/Coverage unverified/g).length, 1);
+  assert.ok(coverage.querySelector("ol").compareDocumentPosition([...coverage.querySelectorAll("p")].find((node) => node.textContent.includes("4 businesses had no recorded"))) & window.Node.DOCUMENT_POSITION_FOLLOWING);
+
+  const filters = coverage.querySelector('[aria-label^="Coverage filters:"]');
+  await click(filters);
+  assert.equal(filters.getAttribute("aria-haspopup"), "dialog");
+  assert.equal(document.activeElement, select("Cluster", coverage));
+  const categoryFilter = select("Category", coverage);
+  await click(categoryFilter);
+  await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  assert.equal(categoryFilter.getAttribute("aria-expanded"), "false");
+  assert.equal(filters.getAttribute("aria-expanded"), "true");
+  await act(async () => categoryFilter.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  assert.equal(filters.getAttribute("aria-expanded"), "false");
+  assert.equal(document.activeElement, filters);
+  const dimension = coverage.querySelector('[aria-label="Coverage dimension"]');
+  await click([...dimension.querySelectorAll('[role="tab"]')].find((button) => button.textContent === "Cluster"));
+  assert.match(coverage.textContent, /Coverage by cluster/);
+  await act(async () => dimension.querySelector('[aria-selected="true"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+  assert.match(coverage.textContent, /Coverage by category/);
+  await act(async () => dimension.querySelector('[aria-selected="true"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
   assert.match(coverage.textContent, /Coverage by cluster/);
   assert.equal(requests("coverage/").length, 1);
   assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Food50%"]);
