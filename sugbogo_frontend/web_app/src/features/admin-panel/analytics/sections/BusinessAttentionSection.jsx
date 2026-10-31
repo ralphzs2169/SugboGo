@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { ImageOff, SearchX } from "lucide-react";
+import { AlertCircle, Clock3, Heart, ImageOff, Info, SearchX, Users } from "lucide-react";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { Link } from "react-router-dom";
 import { useBusinessAttention } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsTableSection from "../components/AnalyticsTableSection";
-import AnalyticsMetricSelector from "../components/AnalyticsMetricSelector";
+import SortMenu from "../../components/data-table/SortMenu";
+import TableEmptyState from "../../components/data-table/TableEmptyState";
+import Tooltip from "../../../../shared/components/actions/Tooltip";
 import AnalyticsScopeFilters from "../components/AnalyticsScopeFilters";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
@@ -44,33 +46,115 @@ function attentionReason(business) {
   return business.attention_reason ?? "Attention eligibility unavailable";
 }
 
-function attentionColumns() {
-  return [
-    {
-      accessorKey: "business_name", header: "Business", size: 300, enableSorting: false,
-      cell: ({ row }) => {
-        const business = row.original;
-        return (
-          <div className="flex items-center gap-3">
-            <BusinessCover key={`${business.business_id}:${business.cover_photo_url ?? ""}`} business={business} />
-            <div className="min-w-0">
-              <Link className="cursor-pointer rounded font-semibold text-text-primary hover:underline focus-visible:outline-2 focus-visible:outline-info" to={`/admin-panel/businesses/${business.business_id}`}>{business.business_name}</Link>
-              <p className="mt-1 text-xs text-text-secondary">{business.category_name} · {business.cluster_name}</p>
-              <p className="mt-1 text-xs text-text-secondary">Business #{business.business_id}{business.has_full_business_window === false ? " · Short observation history" : ""}</p>
-            </div>
-          </div>
-        );
-      },
-    },
-    ...METRICS.map(([key, label]) => ({
-      accessorKey: key,
-      header: () => <span className="w-full text-right">{label}</span>,
-      size: 110,
-      enableSorting: false,
-      cell: ({ getValue }) => <span className="block text-right tabular-nums">{formatCount(getValue())}</span>,
-    })),
-    { id: "attention_reason", header: "Why attention is needed", size: 200, enableSorting: false, cell: ({ row }) => <span className="text-xs text-text-secondary">{attentionReason(row.original)}</span> },
-  ];
+/** Decorative bars compare readable counts on this page; they never affect ranking. */
+function ActivityMetric({ value, label, maximum }) {
+  return (
+    <div className="min-w-0">
+      <p className="font-semibold tabular-nums text-text-primary">{formatCount(value)}</p>
+      <p className="mt-0.5 text-xs text-text-secondary">{label}</p>
+      {value != null && (
+        <div aria-hidden="true" className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
+          <div className="h-full rounded-full bg-primary/70" style={{ width: maximum > 0 ? `${(value / maximum) * 100}%` : "0%" }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AttentionReasonBadge({ business }) {
+  const reason = attentionReason(business);
+  const noVisits = reason === "No recorded profile visits";
+  const noSaves = reason === "No recorded saves";
+  const Icon = noVisits ? AlertCircle : noSaves ? Clock3 : null;
+  const tone = noVisits
+    ? "bg-danger/10 text-danger"
+    : noSaves ? "bg-warning/10 text-warning" : "bg-surface-muted text-text-secondary";
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${tone}`}>
+      {Icon && <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />}
+      {reason}
+    </span>
+  );
+}
+
+function MetricGroupHeading({ title, description }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      {title}
+      <Tooltip content={description} asChild place="top">
+        <button type="button" aria-label={`About ${title.toLowerCase()}`} className="cursor-pointer rounded text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-info">
+          <Info aria-hidden="true" className="h-4 w-4" />
+        </button>
+      </Tooltip>
+    </span>
+  );
+}
+
+/** Uses DataTable's content slot so shared pagination and empty states remain intact. */
+function AttentionRankingTable({ businesses, offset, emptyState }) {
+  const maximums = METRICS.slice(0, 3).map(([key]) => Math.max(0, ...businesses.map((business) => business[key] ?? 0)));
+  const headerClass = "px-4 text-left font-semibold text-text-primary";
+  const cellClass = "px-4 py-3 align-middle";
+  return (
+    <div role="region" aria-label="Business attention rankings" tabIndex={0} className="-mx-4 overflow-x-auto border-y border-stroke focus-visible:outline-2 focus-visible:outline-info sm:-mx-5">
+      <table className="w-full min-w-[1160px] table-fixed border-collapse text-left text-sm">
+        <caption className="sr-only">Businesses ranked by recorded activity. Miniature bars compare each discovery metric within this page.</caption>
+        <colgroup><col className="w-[4%]" /></colgroup>
+        <colgroup><col className="w-[29%]" /></colgroup>
+        <colgroup><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[10%]" /></colgroup>
+        <colgroup><col className="w-[10%]" /><col className="w-[10%]" /></colgroup>
+        <colgroup><col className="w-[19%]" /></colgroup>
+        <thead className="border-b border-stroke bg-surface-muted/60">
+          <tr>
+            <th scope="col" rowSpan={2} className={headerClass}>#</th>
+            <th scope="col" rowSpan={2} className={headerClass}>Business</th>
+            <th scope="colgroup" colSpan={3} className={`${headerClass} pb-2 pt-3`}>
+              <MetricGroupHeading title="Discovery activity" description="Recorded profile visits, saves and distinct savers during the selected period. Recording coverage may be unverified." />
+            </th>
+            <th scope="colgroup" colSpan={2} className={`${headerClass} border-l border-stroke pb-2 pt-3`}>
+              <MetricGroupHeading title="Specialty support" description="Current valid specialty vouches and distinct supporters, shown as separate measures." />
+            </th>
+            <th scope="col" rowSpan={2} className={headerClass}>Why attention is needed</th>
+          </tr>
+          <tr className="text-xs text-text-secondary">
+            {METRICS.map(([key, label], index) => <th key={key} scope="col" className={`px-4 pb-3 font-normal ${index === 3 ? "border-l border-stroke" : ""}`}>{label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {businesses.length === 0 && <tr><td colSpan={8}><TableEmptyState {...emptyState} compact /></td></tr>}
+          {businesses.map((business, index) => (
+            <tr key={business.business_id} className="border-b border-stroke last:border-b-0 hover:bg-interaction-hover">
+              <td className={cellClass}><span className="font-semibold tabular-nums">{offset + index + 1}</span></td>
+              <td className={cellClass}>
+                <div className="flex items-center gap-3">
+                  <BusinessCover key={`${business.business_id}:${business.cover_photo_url ?? ""}`} business={business} />
+                  <div className="min-w-0 break-words">
+                    <Link className="cursor-pointer rounded font-semibold text-text-primary hover:underline focus-visible:outline-2 focus-visible:outline-info" to={`/admin-panel/businesses/${business.business_id}`}>{business.business_name}</Link>
+                    <p className="mt-0.5 text-xs text-text-secondary">{business.category_name} · {business.cluster_name}</p>
+                    <p className="mt-0.5 text-xs text-text-secondary">Business #{business.business_id}{business.has_full_business_window === false ? " · Short observation history" : ""}</p>
+                  </div>
+                </div>
+              </td>
+              {METRICS.slice(0, 3).map(([key], metricIndex) => (
+                <td key={key} className={cellClass}>
+                  <ActivityMetric value={business[key]} label={["visits", "saves", "distinct savers"][metricIndex]} maximum={maximums[metricIndex]} />
+                </td>
+              ))}
+              <td className={`${cellClass} border-l border-stroke`}>
+                <div className="flex items-center gap-2"><Heart aria-hidden="true" className="h-4 w-4 shrink-0 fill-primary/20 text-primary" /><span className="font-semibold tabular-nums">{formatCount(business.valid_vouches)}</span></div>
+                <p className="mt-0.5 pl-6 text-xs text-text-secondary">vouches</p>
+              </td>
+              <td className={cellClass}>
+                <div className="flex items-center gap-2"><Users aria-hidden="true" className="h-4 w-4 shrink-0 text-info" /><span className="font-semibold tabular-nums">{formatCount(business.distinct_supporters)}</span></div>
+                <p className="mt-0.5 pl-6 text-xs text-text-secondary">supporters</p>
+              </td>
+              <td className={cellClass}><AttentionReasonBadge business={business} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 /** Keeps ascending ranking, scope and pagination server-owned and independently recoverable. */
@@ -84,13 +168,20 @@ function AttentionView({ period, mode, onMode }) {
   const discoveryNotice = data?.sources?.visibility?.coverage_verified === true
     ? "Based on recorded discovery activity · recording coverage verified"
     : "Based on recorded discovery activity · recording coverage unverified";
+  const emptyState = {
+    icon: <SearchX aria-hidden="true" className="h-10 w-10 text-text-secondary" />,
+    title: "No businesses to rank for this selection.",
+    description: mode === "support"
+      ? "No eligible businesses are available for the specialty support ranking."
+      : "No eligible businesses are available for the recorded discovery activity ranking.",
+  };
   return (
     <>
       <AnalyticsTableSection title="Businesses Needing Attention"
         description={mode === "support" ? "Businesses with the lowest recorded specialty support in current evidence." : "Businesses with the lowest recorded discovery activity during the selected period."}
         {...state}
         filters={<>
-          <AnalyticsMetricSelector label="Attention mode" value={mode} onChange={onMode} options={MODES} />
+          <SortMenu ariaLabel="Attention mode" triggerLabel={mode === "support" ? "Lowest specialty support" : "Lowest activity"} value={mode} onChange={onMode} options={MODES} />
           <AnalyticsScopeFilters scope="Attention" value={params} onChange={(scope) => setParams((previous) => ({ ...previous, cluster: scope.cluster, category: scope.category, page: 1 }))} />
         </>}
         partialNotice={data?.meta?.is_partial ? (
@@ -102,19 +193,16 @@ function AttentionView({ period, mode, onMode }) {
         footer={<AnalyticsReportFooter title="Businesses Needing Attention" meta={data?.meta} hasData={Array.isArray(data?.items)} hasDetails={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
         tableProps={{
           data: data ? data.items ?? null : undefined,
-          columns: attentionColumns(),
+          columns: METRICS.map(([accessorKey, header]) => ({ accessorKey, header, enableSorting: false })),
+          slots: Array.isArray(data?.items) ? {
+            renderContent: () => <AttentionRankingTable businesses={data.items} offset={(params.page - 1) * params.page_size} emptyState={emptyState} />,
+          } : undefined,
           state: { sorting: [] },
           pagination: { pageIndex: params.page - 1, pageSize: params.page_size },
           pageCount: data?.pagination?.total_pages,
           totalItems: data?.pagination?.total_items,
           onPaginationChange: (next) => setParams((previous) => ({ ...previous, page: next.pageIndex + 1, page_size: next.pageSize })),
-          config: { compact: true, emptyState: {
-            icon: <SearchX aria-hidden="true" className="h-10 w-10 text-text-secondary" />,
-            title: "No businesses to rank for this selection.",
-            description: mode === "support"
-              ? "No eligible businesses are available for the specialty support ranking."
-              : "No eligible businesses are available for the recorded discovery activity ranking.",
-          } },
+          config: { compact: true, emptyState },
         }}
       />
       {/* Exact current-page values and methodology use the established detail drawer. */}

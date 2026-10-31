@@ -400,7 +400,7 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
   await click(section("Business Coverage").querySelector('[aria-label^="Coverage filters:"]'));
   assert.equal(select("Category", section("Business Coverage")).textContent, "Cafes");
   await click(section("Business Coverage").querySelector('[aria-label^="Coverage filters:"]'));
-  assert.equal(select("Attention mode").textContent, "Low specialty support");
+  assert.equal(select("Attention mode").textContent, "Lowest specialty support");
   assert.equal(select("Attention category").textContent, "Cafes");
   assert.equal(select("Order by"), undefined);
   assert.equal(requests("business-attention/").length, attentionCount);
@@ -409,12 +409,51 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
 });
 
 
+test("business attention groups exact metrics, distinguishes support icons and continues ranks across pages", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/business-attention/", (report, params) => ({
+    ...report,
+    items: [0, 5, 10].map((visits, index) => ({
+      ...report.items[0],
+      business_id: Number(params.page ?? 1) * 10 + index,
+      profile_visits: visits,
+      saves: Math.max(0, index - 1),
+      distinct_savers: index,
+      attention_reason: ["No recorded profile visits", "No recorded saves", "Ranked by recorded discovery activity"][index],
+    })),
+  }));
+  await mount();
+  const attention = section("Businesses Needing Attention");
+  const table = attention.querySelector("table");
+  assert.equal(select("Attention mode").textContent, "Lowest activity");
+  assert.deepEqual([...table.querySelectorAll('th[scope="colgroup"]')].map((header) => header.colSpan), [3, 2]);
+  assert.deepEqual([...table.querySelectorAll("thead tr:last-child th")].map((header) => header.textContent), ["Profile visits", "Saves", "Distinct savers", "Valid vouches", "Supporters"]);
+  const rows = [...table.querySelectorAll("tbody tr")];
+  assert.deepEqual(rows.map((row) => row.cells[0].textContent), ["1", "2", "3"]);
+  assert.deepEqual(rows.map((row) => row.cells[2].querySelector("p").textContent), ["0", "5", "10"]);
+  assert.deepEqual(rows.map((row) => row.cells[2].querySelector('[aria-hidden="true"] > div').style.width), ["0%", "50%", "100%"]);
+  assert.ok(rows[0].cells[5].querySelector("svg.lucide-heart"));
+  assert.ok(rows[0].cells[6].querySelector("svg.lucide-users"));
+  assert.equal(rows[0].cells[6].querySelector("svg.lucide-heart"), null);
+  assert.ok(rows[0].cells[7].querySelector(".text-danger"));
+  assert.ok(rows[1].cells[7].querySelector(".text-warning"));
+  assert.ok(rows[2].cells[7].querySelector(".text-text-secondary"));
+  assert.equal(attention.querySelector('[aria-label="Business attention rankings"]').tabIndex, 0);
+  await click(attention.querySelector('button[aria-label="Next page"]'));
+  await until(() => requests("business-attention/").at(-1).params.page === 2);
+  await until(() => attention.querySelector("tbody tr td")?.textContent === "11");
+  assert.deepEqual([...attention.querySelectorAll("tbody tr")].map((row) => row.cells[0].textContent), ["11", "12", "13"]);
+});
+
 test("business attention renders provisional rows but blocks unavailable observations", async () => {
   initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
   await mount();
   const attention = section("Businesses Needing Attention");
   assert.ok(attention.querySelector("table"));
   assert.match(attention.textContent, /Based on recorded discovery activity/);
+  const unavailableSaves = attention.querySelector("tbody tr").cells[3];
+  assert.match(unavailableSaves.textContent, /Unavailable/);
+  assert.equal(unavailableSaves.querySelector('[aria-hidden="true"]'), null);
   const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention");
   assert.equal(container.querySelector("select"), null);
   assert.match(attention.textContent, /Businesses with the lowest recorded discovery activity during the selected period/);
