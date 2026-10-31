@@ -66,7 +66,14 @@ function Analytics() {
               <ModerationWorkload period={period} />
             </div>
           </>}
-          {active === "business-ecosystem" && <><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><CoverageSection period={period} /><DiscoveryScoreHealthSection /></div><GeographicDistributionSection period={period} /><BusinessAttentionSection period={period} /></>}
+          {active === "business-ecosystem" && <>
+            <GeographicDistributionSection period={period} />
+            <div className="grid min-w-0 items-start gap-4 xl:grid-cols-2">
+              <CoverageSection period={period} />
+              <DiscoveryScoreHealthSection />
+            </div>
+            <BusinessAttentionSection period={period} />
+          </>}
         </div>
       </div>
     </WorkspaceSelections.Provider>

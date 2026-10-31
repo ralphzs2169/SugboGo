@@ -4,7 +4,6 @@ import { useCoverageAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
 import AnalyticsScopeFilters from "../components/AnalyticsScopeFilters";
-import AnalyticsMetricSelector from "../components/AnalyticsMetricSelector";
 import AnalyticsExactTable from "../components/AnalyticsExactTable";
 import AnalyticsDataNotice from "../components/AnalyticsDataNotice";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
@@ -14,6 +13,8 @@ import AnalyticsReliability from "../components/AnalyticsReliability";
 import { AnalyticsSummary } from "../components/AnalyticsReportContext";
 import { OperationsHelp } from "../components/OperationsStats";
 import { formatCount, formatPercentage } from "../utils/presentation";
+
+const headlinePercentage = new Intl.NumberFormat("en-PH", { maximumFractionDigits: 1 });
 
 /** Shows pooled coverage denominators and current taxonomy breakdowns without losing SQL eligibility during outages. */
 export default function CoverageSection({ period }) {
@@ -31,7 +32,7 @@ export default function CoverageSection({ period }) {
   return (
     <>
       <AnalyticsSection title="Business Coverage" description="Recorded visits across eligible active businesses." {...state}
-        controls={<AnalyticsScopeFilters scope="Coverage" value={scope} onChange={setScope} />}
+        controls={<AnalyticsScopeFilters scope="Coverage" clusterLabel="Cluster" categoryLabel="Category" value={scope} onChange={setScope} />}
         isEmpty={overall?.eligible_businesses === 0}
         emptyMessage="No eligible active businesses match the selected scope."
         footer={<AnalyticsReportFooter title="Business Coverage" meta={data?.meta} coverageLabel="Visit recording coverage unverified" hasData={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
@@ -39,8 +40,8 @@ export default function CoverageSection({ period }) {
         {/* SQL-backed denominators remain visible when visibility is unavailable */}
         <div className="mb-4">
           <div className="flex flex-wrap items-center gap-1">
-            <p className="text-3xl font-semibold tabular-nums tracking-tight text-text-primary">{formatPercentage(overall?.coverage_percentage)} <span className="text-sm font-normal text-text-secondary">coverage</span></p>
-            <OperationsHelp label="About business coverage">Coverage is the percentage of eligible active businesses that received at least one recorded profile visit during the selected period.</OperationsHelp>
+            <p className="text-3xl font-semibold tabular-nums tracking-tight text-text-primary">{overall?.coverage_percentage == null ? formatPercentage(null) : `${headlinePercentage.format(overall.coverage_percentage)}%`} <span className="text-sm font-normal text-text-secondary">coverage</span></p>
+            <OperationsHelp label="About business coverage">Profile-visit coverage: eligible active businesses with at least one recorded profile visit during the selected period, not geographic coverage.</OperationsHelp>
           </div>
           <p className="mt-1 text-sm text-text-secondary">{overall?.visited_businesses == null
             ? `${formatCount(overall?.eligible_businesses)} eligible businesses · recorded profile visits unavailable`
@@ -50,8 +51,8 @@ export default function CoverageSection({ period }) {
         {visibilityUnavailable && <div className="mb-4"><AnalyticsDataNotice kind="unavailable">Visit observations are unavailable. Current eligible-business counts remain available.</AnalyticsDataNotice></div>}
         {/* One bounded ranking compares the same classification level on a common percentage scale. */}
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-          <h3 className="text-sm font-semibold text-text-primary">Coverage by classification</h3>
-          <AnalyticsMetricSelector label="Coverage breakdown" value={group} onChange={setGroup} options={[{ value: "categories", label: "By category" }, { value: "clusters", label: "By cluster" }]} />
+          <h3 className="text-sm font-semibold text-text-primary">Coverage by {group === "categories" ? "category" : "cluster"}</h3>
+          <button type="button" onClick={() => setGroup(group === "categories" ? "clusters" : "categories")} className="min-h-9 cursor-pointer rounded-lg px-2 py-1 text-xs font-medium text-text-primary hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info">Compare {group === "categories" ? "clusters" : "categories"}</button>
         </div>
         <ol aria-label={`Ranked coverage by ${group}`} className="space-y-3">
           {preview.map((row) => <li key={row.id}>

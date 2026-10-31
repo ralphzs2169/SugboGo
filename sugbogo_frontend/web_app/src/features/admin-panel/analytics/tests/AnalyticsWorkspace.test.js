@@ -108,17 +108,17 @@ async function mount() {
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
 const section = (title) => [...container.querySelectorAll("h2")].find((heading) => heading.textContent === title)?.closest("section");
-const select = (label) => [...container.querySelectorAll("select")].find((element) => element.labels[0]?.textContent === label);
+const select = (label, within = container) => [...within.querySelectorAll("select")].find((element) => element.labels[0]?.textContent === label);
 const requests = (route) => reads.filter(({ url }) => url === `/admin/analytics/${route}`);
 const click = async (element) => act(async () => { await element.click(); });
-async function choose(label, value) {
+async function choose(label, value, within = container) {
   if (label === "Discovery metric") {
     await click(container.querySelector(`#discovery-trend-metrics-${value}`));
     await until(() => client.isFetching() === 0);
     await act(async () => new Promise((done) => setTimeout(done, 10)));
     return;
   }
-  await act(async () => { const input = select(label); input.value = value; input.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  await act(async () => { const input = select(label, within); input.value = value; input.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
   await until(() => client.isFetching() === 0);
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
@@ -369,7 +369,7 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
   assert.equal(attention.querySelector("img").getAttribute("src"), "https://example.com/storefront.jpg");
   assert.equal(attention.querySelector("img").getAttribute("loading"), "lazy");
   assert.ok(attention.querySelector('[aria-label="No cover photo available"]'));
-  await choose("Coverage category", "2");
+  await choose("Category", "2", section("Business Coverage"));
   await choose("Attention mode", "support");
   await choose("Attention category", "2");
   assert.equal(requests("business-attention/").at(-1).params.ordering, "valid_vouches");
@@ -382,7 +382,7 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
   assert.ok(section("Reports & disputes"));
   assert.equal(requests("change-requests/").length, 0);
   await tab("Business Ecosystem");
-  assert.equal(select("Coverage category").value, "2");
+  assert.equal(select("Category", section("Business Coverage")).value, "2");
   assert.equal(select("Attention mode").value, "support");
   assert.equal(select("Attention category").value, "2");
   assert.equal(select("Order by"), undefined);
@@ -689,6 +689,7 @@ test("business coverage ranks a bounded comparison and keeps every classificatio
   initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
   overrides.set("/admin/analytics/coverage/", (report) => ({
     ...report,
+    overall: { eligible_businesses: 15, visited_businesses: 11, zero_recorded_visit_businesses: 4, coverage_percentage: 73.33 },
     categories: [
       ...[[9, 100], [3, 50], [2, 100], [5, 0], [4, 75], [6, 100]].map(([id, percentage]) => ({
         id,
@@ -706,18 +707,22 @@ test("business coverage ranks a bounded comparison and keeps every classificatio
   assert.equal(coverage.querySelector("table"), null);
   assert.equal(coverage.querySelector("details"), null);
   assert.doesNotMatch(coverage.textContent, /Highest coverage|View full coverage|Empty category/);
-  assert.deepEqual([...coverage.querySelectorAll("h3")].map((heading) => heading.textContent), ["Coverage by classification"]);
-  assert.match(coverage.textContent, /2 of 4 eligible businesses received recorded profile visits/);
-  assert.match(coverage.textContent, /2 businesses had no recorded profile visits/);
+  assert.deepEqual([...coverage.querySelectorAll("h3")].map((heading) => heading.textContent), ["Coverage by category"]);
+  assert.match(coverage.textContent, /73.3% coverage/);
+  assert.doesNotMatch(coverage.textContent, /73.33%/);
+  assert.match(coverage.textContent, /11 of 15 eligible businesses received recorded profile visits/);
+  assert.deepEqual([...container.querySelectorAll("h2")].map((heading) => heading.textContent), ["Geographic Distribution", "Business Coverage", "Discovery Score Health", "Businesses Needing Attention"]);
+  assert.match(coverage.textContent, /4 businesses had no recorded profile visits/);
   assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Category 50%", "Category 350%", "Category 475%", "Category 2100%", "Category 6100%"]);
   assert.deepEqual([...coverage.querySelectorAll('ol [aria-hidden="true"] > div')].map((bar) => bar.style.width), ["0%", "50%", "75%", "100%", "100%"]);
   assert.match(coverage.textContent, /Showing 5 of 6 categories/);
-  assert.match(coverage.querySelector('[aria-label="About business coverage"]').getAttribute("data-tooltip-content"), /at least one recorded profile visit during the selected period/);
-  await choose("Coverage breakdown", "clusters");
+  assert.match(coverage.querySelector('[aria-label="About business coverage"]').getAttribute("data-tooltip-content"), /not geographic coverage/);
+  await click([...coverage.querySelectorAll("button")].find((button) => button.textContent === "Compare clusters"));
+  assert.match(coverage.textContent, /Coverage by cluster/);
   assert.equal(requests("coverage/").length, 1);
   assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Food50%"]);
-  await choose("Coverage cluster", "1");
-  await choose("Coverage category", "2");
+  await choose("Cluster", "1", section("Business Coverage"));
+  await choose("Category", "2", section("Business Coverage"));
   assert.deepEqual(requests("coverage/").at(-1).params, { period: "30", cluster: 1, category: 2 });
   await choosePeriod("7");
   await until(() => requests("coverage/").at(-1)?.params.period === "7" && client.isFetching() === 0 && coverage.textContent.includes("50%"));
