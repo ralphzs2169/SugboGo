@@ -15,7 +15,7 @@ export default function AnalyticsReportContext({ meta, asOf, children, fullTimes
       <span>Updated {(asOf ?? meta?.generated_at) ? (fullTimestamp ? `${formatTimestamp(asOf ?? meta.generated_at)} PHT` : clock.format(new Date(asOf ?? meta.generated_at))) : "Unknown"}</span>
       <AnalyticsDisclosure label="About this report">
       {asOf && <p>Current snapshot as of {formatTimestamp(asOf)} Philippine time. Selected dates do not filter this snapshot.</p>}
-      {meta?.period && <p>{readablePeriod(meta.period)} � Philippine time.</p>}
+      {meta?.period && <p>{readablePeriod(meta.period)} · Philippine time.</p>}
       <AnalyticsReliability meta={meta} />
       {children}
       {meta && <AnalyticsDisclosure label="Technical details"><pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(meta, null, 2)}</pre></AnalyticsDisclosure>}
@@ -26,7 +26,7 @@ export default function AnalyticsReportContext({ meta, asOf, children, fullTimes
 
 /** Navigates to an existing Admin destination without unsupported filter parameters. */
 export function AnalyticsDrilldown({ to, children }) {
-  return <Link to={to} className="inline-flex min-h-10 cursor-pointer items-center rounded-lg px-2 py-1 text-sm font-medium text-text-primary underline decoration-stroke-strong underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-info">{/* Existing operational destination */}{children} →</Link>;
+  return <Link data-analytics-action="navigation" to={to} className="inline-flex min-h-10 cursor-pointer items-center rounded-lg px-2 py-1 text-sm font-medium text-text-primary underline decoration-stroke-strong underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-info">{/* Existing operational destination */}{children} →</Link>;
 }
 
 /** Shows selected-period totals and backend comparisons without a second bordered card. */

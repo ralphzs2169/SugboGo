@@ -1249,6 +1249,44 @@ test("exact data offers a CSV download while About remains explanation only", as
   }
 });
 
+test("PDF export menu prints only the mounted tab and blocks the unsupported geographic map", async () => {
+  await mount();
+  const controls = container.querySelector('[aria-label="Analytics workspace controls"]');
+  const trigger = container.querySelector('[aria-label="Analytics export: Export"]');
+  assert.ok(trigger);
+  assert.equal(controls.contains(trigger), false);
+  await click(trigger);
+  assert.match(container.querySelector('[role="menu"][aria-label="Analytics export"]').textContent, /Export current tab as PDF/);
+  await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  assert.equal(document.activeElement, trigger);
+  const originalAppend = document.body.append.bind(document.body);
+  let printed = 0;
+  const before = reads.length;
+  document.body.append = (node) => {
+    originalAppend(node);
+    if (node.tagName === "IFRAME") {
+      node.contentWindow.focus = () => {};
+      node.contentWindow.print = () => {
+        printed += 1;
+        assert.match(node.contentDocument.body.textContent, /SugboGo Admin Analytics/);
+        assert.doesNotMatch(node.contentDocument.body.textContent, /Merchant Onboarding/);
+        node.contentWindow.dispatchEvent(new dom.window.Event("afterprint"));
+      };
+    }
+  };
+  try {
+    await click(trigger);
+    await click([...container.querySelectorAll('[role="menuitemradio"]')].find((button) => button.textContent.includes("Export current tab as PDF")));
+    await until(() => printed === 1 && !container.querySelector('iframe'));
+    assert.equal(reads.length, before);
+  } finally {
+    document.body.append = originalAppend;
+  }
+  await tab("Business Ecosystem");
+  assert.equal(container.querySelector('[aria-label="Analytics export: Export"]').disabled, true);
+  assert.match(container.textContent, /geographic map cannot be captured reliably/);
+});
+
 test("attention CSV downloads the complete population rather than the visible page", async () => {
   initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
   overrides.set("/admin/analytics/business-attention/", (report, params) => {

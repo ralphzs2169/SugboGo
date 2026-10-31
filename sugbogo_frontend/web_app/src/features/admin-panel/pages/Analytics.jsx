@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import AnalyticsPeriodControl from "../analytics/components/AnalyticsPeriodControl";
 import { serializeReportingPeriod } from "../analytics/utils/reportingPeriod";
 import PageHeader from "../components/PageHeader";
+import AnalyticsPdfExport from "../analytics/components/AnalyticsPdfExport";
 import StickyContextBar from "@/shared/components/StickyContextBar";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import BusinessAcquisitionSection from "../analytics/sections/BusinessAcquisitionSection";
@@ -75,7 +76,10 @@ function Analytics() {
               { label: "Analytics" },
             ]}
           />
-          <div ref={setNormalHost} className="min-h-9 min-w-40 pb-1" />
+          <div className="flex flex-wrap items-start gap-2">
+            <AnalyticsPdfExport active={active} title={TABS.find((tab) => tab.id === active).label} period={period} />
+            <div ref={setNormalHost} className="min-h-9 min-w-40 pb-1" />
+          </div>
         </div>
         {/* Match detail-page sticky context; only the tabs scroll horizontally. */}
         <StickyContextBar responsive backgroundOnStickOnly onStuckChange={handleStuckChange} ariaLabel="Analytics workspace controls">
