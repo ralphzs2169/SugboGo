@@ -41,7 +41,7 @@ export default function BusinessAcquisitionSection({ period }) {
   return (
     <>
       {/* Ranked distribution and one overall total preserve the report's original scope. */}
-      <AnalyticsSection
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data}
         title="Business Acquisition"
         description="New businesses by current cluster and category."
         {...state}
@@ -59,8 +59,8 @@ export default function BusinessAcquisitionSection({ period }) {
             meta={data?.meta}
             hasData={Boolean(data)}
             hasDetails={Boolean(data)}
-            onAbout={() => setMode("about")}
-            onData={() => setMode("data")}
+
+           onData={() => setMode("data")}
           />
         }
       >
@@ -88,19 +88,7 @@ export default function BusinessAcquisitionSection({ period }) {
         interval="Selected period"
         series={[]}
         showComparison={false}
-        aboutContent={
-          <div className="space-y-3">
-            <p>
-              Merchant approval creates the business in the same transaction. New businesses use
-              their creation time; first approvals use the recorded decision time. These timestamps
-              can fall on different reporting boundaries. First-approval reporting remains in
-              Platform Growth and Merchant Onboarding.
-            </p>
-            {Object.entries(data?.definitions ?? {}).map(([key, value]) => (
-              <p key={key}>{value}</p>
-            ))}
-          </div>
-        }
+
         dataContent={hierarchyAvailable ? (
           <div className="space-y-3">
             <BusinessAcquisitionTable

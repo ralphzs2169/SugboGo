@@ -165,9 +165,9 @@ function AttentionView({ period, mode, onMode }) {
   const query = useBusinessAttention({ ...period, ...params, ordering, attention_mode: mode });
   const state = useAnalyticsSectionState(query, `business-${mode}`, "business attention");
   const data = query.data;
-  const discoveryNotice = data?.sources?.visibility?.coverage_verified === true
-    ? "Based on recorded discovery activity · recording coverage verified"
-    : "Based on recorded discovery activity · recording coverage unverified";
+  const discoveryCoverageLabel = data?.sources?.visibility?.coverage_verified === true
+    ? "Recorded activity"
+    : "Coverage unverified";
   const emptyState = {
     icon: <SearchX aria-hidden="true" className="h-10 w-10 text-text-secondary" />,
     title: "No businesses to rank for this selection.",
@@ -177,20 +177,15 @@ function AttentionView({ period, mode, onMode }) {
   };
   return (
     <>
-      <AnalyticsTableSection title="Businesses Needing Attention"
+      <AnalyticsTableSection onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Businesses Needing Attention"
         description={mode === "support" ? "Businesses with the lowest recorded specialty support in current evidence." : "Businesses with the lowest recorded discovery activity during the selected period."}
         {...state}
         filters={<>
           <SortMenu ariaLabel="Attention mode" triggerLabel={mode === "support" ? "Lowest specialty support" : "Lowest activity"} value={mode} onChange={onMode} options={MODES} />
           <AnalyticsScopeFilters scope="Attention" value={params} onChange={(scope) => setParams((previous) => ({ ...previous, cluster: scope.cluster, category: scope.category, page: 1 }))} />
         </>}
-        partialNotice={data?.meta?.is_partial ? (
-          mode === "discovery"
-            ? discoveryNotice
-            : "Discovery recording coverage is unverified. Missing observations are unavailable, not zero. Specialty support reflects current evidence."
-        ) : null}
         unavailableMessage="Required discovery observations are unavailable for this ranking. Try again later, or select Low specialty support to review current endorsement evidence."
-        footer={<AnalyticsReportFooter title="Businesses Needing Attention" meta={data?.meta} hasData={Array.isArray(data?.items)} hasDetails={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
+        footer={<AnalyticsReportFooter title="Businesses Needing Attention" meta={data?.meta} coverageLabel={mode === "discovery" ? discoveryCoverageLabel : "Current support snapshot"} hasData={Array.isArray(data?.items)} hasDetails={Boolean(data)} onData={() => setDrawer("data")} />}
         tableProps={{
           data: data ? data.items ?? null : undefined,
           columns: METRICS.map(([accessorKey, header]) => ({ accessorKey, header, enableSorting: false })),
@@ -208,7 +203,7 @@ function AttentionView({ period, mode, onMode }) {
       {/* Exact current-page values and methodology use the established detail drawer. */}
       <AnalyticsDetailDrawer mode={drawer} onClose={() => setDrawer(null)} title="Businesses Needing Attention"
         report={data} interval="selected period" series={[]} showComparison={false}
-        aboutContent={<pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ ordering: data?.ordering ?? ordering, sources: data?.sources }, null, 2)}</pre>}
+
         dataContent={<div className="space-y-5">
           <p className="text-sm text-text-secondary">{mode === "support" ? "Low specialty support" : "Low discovery activity"} · page {params.page}. Use table pagination to inspect other businesses.</p>
           <AnalyticsExactTable caption="Business attention exact current-page values" rows={data?.items ?? []} columns={[

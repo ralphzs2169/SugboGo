@@ -180,7 +180,7 @@ export default function PlatformGrowthSection({ period }) {
 
   return (
     <>
-      <AnalyticsSection
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data}
         title="Platform Growth"
         description="New accounts and businesses joining SugboGo."
         compactHeader
@@ -207,8 +207,8 @@ export default function PlatformGrowthSection({ period }) {
             coverageDescription={growthCoverageDescription(data?.meta)}
             hasData={Boolean(data)}
             hasDetails={Boolean(data)}
-            onAbout={() => setMode("about")}
-            onData={() => setMode("data")}
+
+           onData={() => setMode("data")}
           />
         }
       >

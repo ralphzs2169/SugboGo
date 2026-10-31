@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { LoaderCircle } from "lucide-react";
+import { Info, LoaderCircle } from "lucide-react";
 import Button from "@/shared/components/Button";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import AnalyticsDataNotice from "./AnalyticsDataNotice";
@@ -16,6 +16,8 @@ export default function AnalyticsSection({
   action,
   children,
   footer,
+  onAbout,
+  aboutDisabled = false,
   isLoading = false,
   isFetching = false,
   hasData = false,
@@ -66,7 +68,12 @@ export default function AnalyticsSection({
       {/* Report heading and independent controls */}
       <header className={`${compactHeader ? "mb-2" : "mb-3"} flex flex-wrap items-start justify-between gap-3`}>
         <div className="min-w-0 flex-1 basis-36">
-          <h2 id={headingId} className="text-base font-semibold text-text-primary">{title}</h2>
+          <div className="flex items-center gap-1">
+            <h2 id={headingId} className="text-base font-semibold text-text-primary">{title}</h2>
+            {onAbout && <button type="button" aria-label={`About ${title}`} aria-haspopup="dialog" disabled={aboutDisabled} onClick={onAbout} className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50">
+              <Info aria-hidden="true" className="h-4 w-4" />
+            </button>}
+          </div>
           {description && <p id={descriptionId} className="mt-1 text-xs leading-relaxed text-text-secondary">{description}</p>}
         </div>
         <div className="flex max-w-full flex-wrap items-end gap-2">

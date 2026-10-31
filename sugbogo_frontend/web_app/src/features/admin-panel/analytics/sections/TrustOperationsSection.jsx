@@ -33,9 +33,9 @@ export function ModerationWorkload({ period }) {
   const report = { ...data, meta: data?.turnaround_meta ?? data?.meta };
   return (
     <>
-      <AnalyticsSection title="Reports & disputes" description="Current backlog · selected-period resolution time." {...state}
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Reports & disputes" description="Current backlog · selected-period resolution time." {...state}
         action={<AnalyticsDrilldown to="/admin-panel/moderation-integrity">View moderation</AnalyticsDrilldown>}
-        footer={<AnalyticsReportFooter title="Reports & disputes" meta={data?.meta ?? data?.turnaround_meta} hasData={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+        footer={<AnalyticsReportFooter title="Reports & disputes" meta={data?.meta ?? data?.turnaround_meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
         {/* Compact context separates current pending counts from dated resolutions. */}
         <OperationsStats items={[
@@ -93,7 +93,7 @@ export function ModerationWorkload({ period }) {
           <AnalyticsReportExplanation title="Reports & disputes" report={report} />
           <AnalyticsReliability meta={data?.turnaround_meta} />
         </div>}
-        aboutContent={<pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ queue: data?.queue_meta, queue_reporting: data?.meta, turnaround, turnaround_reporting: data?.turnaround_meta }, null, 2)}</pre>}
+
       />
     </>
   );
@@ -172,9 +172,9 @@ export function ChangeRequestWorkload({ period }) {
   );
   return (
     <>
-      <AnalyticsSection title="Merchant change requests" description="Current workload · selected-period processing." {...state}
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant change requests" description="Current workload · selected-period processing." {...state}
         action={<AnalyticsDrilldown to="/admin-panel/businesses/update-requests">View change requests</AnalyticsDrilldown>}
-        footer={<AnalyticsReportFooter title="Merchant change requests" meta={data?.meta} hasData={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+        footer={<AnalyticsReportFooter title="Merchant change requests" meta={data?.meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
         {/* Compact statistics preserve snapshot and resolution-period scopes. */}
         <OperationsStats items={[
@@ -223,11 +223,7 @@ export function ChangeRequestWorkload({ period }) {
             ]} />
           </div>
         </div>}
-        aboutContent={<div className="space-y-3 text-sm text-text-secondary">
-          <p>{data?.definition?.replaceAll("administrator decision durations", "administrator resolution durations")}</p>
-          <p>{data?.missing_resolution_timestamp_scope}</p>
-          <pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ backlog: data?.backlog_meta, turnaround: data?.turnaround, types: data?.types }, null, 2)}</pre>
-        </div>}
+
       />
     </>
   );

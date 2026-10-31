@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BadgeCheck, CalendarDays, Info, Store, Users, X } from "lucide-react";
-import AnalyticsDisclosure from "./AnalyticsDisclosure";
+import { CalendarDays, X } from "lucide-react";
 import AnalyticsReliability from "./AnalyticsReliability";
 import AnalyticsReportExplanation from "./AnalyticsReportExplanation";
 import { readablePeriod } from "../utils/reportClarity";
@@ -13,7 +12,6 @@ import { formatCount } from "../utils/presentation";
 export default function AnalyticsDetailDrawer({
   mode, onClose, report, interval, series,
   title = "Platform Growth",
-  aboutContent,
   dataDescription,
   showComparison = true,
   dateColumn,
@@ -112,34 +110,12 @@ export default function AnalyticsDetailDrawer({
         </header>
         {/* Scrollable report details preserve dashboard position */}
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 text-sm">
-          {periodContent ?? <div className="text-sm text-text-secondary"><p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{readablePeriod(meta?.period)}</p><p className="mt-1">Philippine time{displayMode === "data" ? ` · ${interval}` : ""}</p></div>}
+          {periodContent ?? <div className="text-sm text-text-secondary"><p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{readablePeriod(meta?.period)}</p><p className="mt-1">Philippine time{displayMode === "data" ? ` Â· ${interval}` : ""}</p></div>}
           {displayMode === "about" ? <>
             <AnalyticsReportExplanation title={title} report={report} />
-            <AnalyticsReliability meta={meta} />
+            <AnalyticsReliability meta={meta} title={title} snapshotAt={report?.coverage?.snapshot_at} />
             {showComparison && <p className="text-xs text-text-secondary">Compared with {growthPeriodLabel(meta?.period?.previous_start, meta?.period?.previous_end_exclusive)} Philippine time.</p>}
-            <AnalyticsDisclosure label="Technical details">
-              <pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(meta, null, 2)}</pre>
-            {aboutContent ?? <div className="space-y-4 border-t border-stroke pt-5">
-              <h3 className="text-xs font-semibold uppercase text-text-secondary">How these metrics work</h3>
-              {series.map((item) => (
-                <div key={item.key} className="flex items-start gap-3">
-                  <span className="rounded-lg bg-primary/10 p-2 text-primary">
-                    {item.key === "new_consumer_accounts" ? <Users aria-hidden="true" className="h-4 w-4" /> : item.key === "new_businesses" ? <Store aria-hidden="true" className="h-4 w-4" /> : <BadgeCheck aria-hidden="true" className="h-4 w-4" />}
-                  </span>
-                  <div className="min-w-0">
-                  <h4 className="font-medium">{item.label}</h4>
-                  <p className="mt-1 text-text-secondary">
-                    {report?.definitions?.[item.key === "new_consumer_accounts" ? "consumer_accounts" : item.key] ?? "Definition unavailable"}
-                  </p>
-                  <p className="mt-1 text-xs text-text-secondary">
-                    Previous period: {formatCount(report?.activity?.[item.key]?.previous_value)}
-                  </p>
-                  </div>
-                </div>
-              ))}
-              <p className="flex items-start gap-2 text-xs leading-relaxed text-text-secondary"><Info aria-hidden="true" className="h-4 w-4 shrink-0" />{report?.definitions?.comparisons}</p>
-            </div>}
-            </AnalyticsDisclosure>
+
           </> : (
             <>
             {dataDescription && <p className="font-medium">{dataDescription}</p>}

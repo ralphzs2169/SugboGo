@@ -21,8 +21,8 @@ export default function SpecialtySupportSection() {
   const allRows = data?.specialties ?? rows;
   return (
     <>
-      <AnalyticsSection title="Specialty Support" description="Current specialty evidence and leading endorsements." {...state}
-        footer={<AnalyticsReportFooter title="Specialty Support" meta={data?.meta} hasData={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Specialty Support" description="Current specialty evidence and leading endorsements." {...state}
+        footer={<AnalyticsReportFooter title="Specialty Support" meta={data?.meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
         {/* Backend global totals stay independent of tag-level supporter counts */}
         <AnalyticsSummary compact items={[["valid_vouches", "Valid endorsements"], ["distinct_supporters", "Distinct supporters"], ["supported_businesses", "Supported businesses"], ["supported_specialties", "Supported specialties"]].map(([key, label]) => ({ label, value: formatCount(data?.summary?.[key]) }))} />
@@ -32,7 +32,7 @@ export default function SpecialtySupportSection() {
       <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Specialty Support"
         report={data} interval="current snapshot" series={[]} showComparison={false}
         periodContent={<div className="text-sm text-text-secondary"><p>Current snapshot · {formatTimestamp(data?.as_of)} PHT</p><p className="mt-1">Selected dates do not filter this report.</p></div>}
-        aboutContent={<p>{data?.definition}</p>}
+
         dataContent={<div className="space-y-5">
           <AnalyticsExactTable caption="Complete specialty support breakdown" rows={allRows} columns={[
             { key: "name", label: "Specialty" },

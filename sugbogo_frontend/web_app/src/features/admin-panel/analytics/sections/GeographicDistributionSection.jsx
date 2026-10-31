@@ -62,14 +62,14 @@ function GeographicReport({ period }) {
   }
   return (
     <>
-      <AnalyticsSection title="Geographic Distribution" description="Business locations across Cebu City." {...state}
+      <AnalyticsSection onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Geographic Distribution" description="Business locations across Cebu City." {...state}
         controls={<>
           <AnalyticsMetricSelector label="Metric" options={MODES} value={metric} onChange={changeMetric} />
           <AnalyticsScopeFilters scope="Geographic" clusterLabel="Cluster" categoryLabel="Category" value={scope} onChange={changeScope} />
         </>}
         unavailable={data?.cells === null}
         unavailableMessage="The approved geographic grid is unavailable. This does not mean there are no businesses or visits."
-        footer={<AnalyticsReportFooter title="Geographic Distribution" meta={data?.meta} coverageLabel="Visit recording coverage unverified" hasData={Array.isArray(data?.cells)} hasDetails={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
+        footer={<AnalyticsReportFooter title="Geographic Distribution" meta={data?.meta} coverageLabel="Visit recording coverage unverified" hasData={Array.isArray(data?.cells)} hasDetails={Boolean(data)} onData={() => setDrawer("data")} />}
       >
         {/* Backend geometries determine the extent, cell boundaries and intensity population. */}
         {visibilityUnavailable && <p role="status" className="mb-3 text-sm text-text-secondary">Recorded visits are unavailable; current business counts remain available.</p>}
@@ -96,7 +96,7 @@ function GeographicReport({ period }) {
       </AnalyticsSection>
       {/* Exact values, excluded locations and attribution remain in the shared drawer. */}
       <AnalyticsDetailDrawer mode={drawer} onClose={() => setDrawer(null)} title="Geographic Distribution" report={data} interval="selected period" series={[]} showComparison={false}
-        aboutContent={<pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ grid: data?.definition, scope: data?.scope, attribution: data?.attribution, sources: data?.sources, reconciliation: data?.reconciliation }, null, 2)}</pre>}
+
         dataContent={<div className="space-y-5">
           <AnalyticsExactTable caption="All geographic cells in selected taxonomy scope" rows={cells} columns={[
             { key: "inspect", label: "Area", render: (row) => row.eligible_businesses > 0 ? <button type="button" aria-label={`Inspect grid area ${row.id}`} aria-pressed={row.id === selected} onClick={() => { selectCell(row.id); setHovered(null); setDrawer(null); }} className="min-h-9 cursor-pointer rounded px-2 py-1 text-sm font-medium text-text-primary underline focus-visible:outline-2 focus-visible:outline-info">Inspect area</button> : "No eligible businesses" },

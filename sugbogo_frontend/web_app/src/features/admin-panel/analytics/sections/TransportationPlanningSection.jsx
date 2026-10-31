@@ -50,12 +50,12 @@ export default function TransportationPlanningSection({ period }) {
   return (
     <>
       {/* Compact distribution keeps secondary trends and rankings out of the main workspace. */}
-      <AnalyticsSection title="Transportation Planning" description="Recorded road-route and Jeepney guidance planning requests." {...state}
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Transportation Planning" description="Recorded road-route and Jeepney guidance planning requests." {...state}
         unavailable={unavailable}
         unavailableMessage={<span>{data?.meta?.partial_reasons?.includes("tracking_not_started_in_period") ? "This period is before transportation tracking began." : "Transportation planning observations are unavailable, not zero."} <button type="button" onClick={() => query.refetch()} className={actionStyle}>Retry source</button></span>}
         isEmpty={data?.total_requests === 0}
         emptyMessage="No transportation-planning requests were recorded during the observed portion of this period."
-        footer={<AnalyticsReportFooter title="Transportation Planning" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+        footer={<AnalyticsReportFooter title="Transportation Planning" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
         <div className="grid min-w-0 items-center gap-4 sm:grid-cols-2">
@@ -79,7 +79,7 @@ export default function TransportationPlanningSection({ period }) {
       </AnalyticsSection>
       {/* Shared modal retains methodology, bounded destination ranking, and exact time buckets. */}
       <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Transportation Planning" report={data} interval={interval} series={[]} showComparison={false}
-        aboutContent={<div className="space-y-3 border-t border-stroke pt-4 text-sm text-text-secondary"><p>Data source: MongoDB route_planning_events.</p><p>Tracking started: {formatTimestamp(data?.tracking_started_at)} PHT.</p>{Object.entries(data?.definitions ?? {}).map(([key, value]) => <p key={key}>{value}</p>)}<p>Limitations: {data?.meta?.partial_reasons?.join(", ")}</p></div>}
+
         dataContent={unavailable ? <p>Exact observations are unavailable. See report details for the tracking boundary and source limitations.</p> : <div className="space-y-5">
           <p>{formatCount(data?.total_requests)} recorded requests · {formatCount(data?.distinct_requesting_accounts)} distinct requesting accounts</p>
           <AnalyticsExactTable caption="Planning methods" rows={methods} columns={METHOD_COLUMNS} />

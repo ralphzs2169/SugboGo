@@ -52,9 +52,9 @@ export default function OnboardingSection({ period }) {
   );
   return (
     <>
-      <AnalyticsSection title="Merchant Onboarding" description="Application volume, processing efficiency, and rejection patterns." {...state}
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant Onboarding" description="Application volume, processing efficiency, and rejection patterns." {...state}
         action={<AnalyticsDrilldown to="/admin-panel/businesses/applications">View applications</AnalyticsDrilldown>}
-        footer={<AnalyticsReportFooter title="Merchant Onboarding" meta={meta} hasData={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+        footer={<AnalyticsReportFooter title="Merchant Onboarding" meta={meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
         {/* Paired analytical panels retain every rejection section and weekly bucket */}
         <div className="grid min-w-0 gap-5 lg:grid-cols-2">
@@ -88,23 +88,28 @@ export default function OnboardingSection({ period }) {
         </div>
       </AnalyticsSection>
       {/* The existing drawer owns exact data, full breakdown and report methodology */}
-      <AnalyticsDetailDrawer mode={mode === "breakdown" ? "about" : mode} onClose={() => setMode(null)} title={mode === "breakdown" ? "Onboarding rejection breakdown" : "Merchant Onboarding"}
+      <AnalyticsDetailDrawer mode={mode === "breakdown" ? "data" : mode} onClose={() => setMode(null)} title={mode === "breakdown" ? "Onboarding rejection breakdown" : "Merchant Onboarding"}
         report={{ ...data, meta, series: data?.weekly_activity }} interval="weekly" series={LINES} showComparison={false}
         dataDescription="Independent weekly event counts, not a submission-to-decision funnel or a measure of backlog change. Applications submitted include resubmissions; review decisions include approvals and rejections."
         dateColumn={{ key: "date", label: "Effective dates", render: growthBucketLabel }}
-        aboutContent={<div className="space-y-4 border-t border-stroke pt-4 text-sm text-text-secondary">
-          {mode === "breakdown" && breakdown}
-        <p>Pending, on-time, approaching and overdue counts are current snapshots. Aging counts weekdays excluding submission day, without holidays.</p>
-        <AnalyticsSummary items={[
-          { label: "On time", value: formatCount(aging?.on_time) }, { label: "Approaching SLA", value: formatCount(aging?.approaching) },
-          { label: "Unknown age", value: formatCount(aging?.unknown_age) }, { label: "Approaching / overdue business days", value: `${formatCount(data?.aging_meta?.approaching_business_days)} / ${formatCount(data?.aging_meta?.overdue_business_days)}` },
-          { label: "Mean review turnaround", value: formatDuration(duration?.mean_hours) }, { label: "Valid samples", value: formatCount(duration?.sample_count) },
-          { label: "Excluded records", value: formatCount(duration?.excluded_count) },
-        ]} />
-        <p>Only corresponding submission/review cycles qualify. Missing timestamps: {formatCount(duration?.missing_timestamp_count)}; invalid chronology: {formatCount(duration?.invalid_chronology_count)}; unrelated records: {formatCount(duration?.unrelated_record_count)}. Unassignable missing decision times across all dates: {formatCount(duration?.missing_decision_timestamp_count)}.</p>
-        <p>Overall SLA compliance uses classified outcomes across all recorded reviews; unknowns are excluded. It is not filtered by global dates. Recovery is the share of applications with recorded rejection that submitted again strictly after a rejection, counted once per application as of now; global dates do not filter it.</p>
-        <p>Applications submitted include resubmissions. Review decisions include approvals and rejections, including older reviews without a linked submission. Each series follows its own event date, with clipped partial Manila weeks. A decision may concern an earlier application; a new application may be reviewed later. Their difference does not measure backlog change.</p>
-        <p>Rejected decisions: {formatCount(rejected?.rejected_decisions)}; distinct applications: {formatCount(rejected?.distinct_applications)}; decisions without section feedback: {formatCount(rejected?.decisions_without_section_feedback)}. Sections overlap; shares need not total 100%.</p>
+        dataContent={<div className="space-y-4 border-t border-stroke pt-4 text-sm text-text-secondary">
+          {/* Exact weekly counts and operational breakdowns stay in View data. */}
+          <AnalyticsExactTable caption="Merchant Onboarding exact reporting buckets" rows={data?.weekly_activity} columns={[
+            { key: "date", label: "Effective dates", render: growthBucketLabel },
+            ...LINES.map((line) => ({ key: line.key, label: line.label, render: (row) => formatCount(row[line.key]) })),
+          ]} />
+          {breakdown}
+          <p>Pending, on-time, approaching and overdue counts are current snapshots. Aging counts weekdays excluding submission day, without holidays.</p>
+          <AnalyticsSummary items={[
+            { label: "On time", value: formatCount(aging?.on_time) }, { label: "Approaching SLA", value: formatCount(aging?.approaching) },
+            { label: "Unknown age", value: formatCount(aging?.unknown_age) }, { label: "Approaching / overdue business days", value: `${formatCount(data?.aging_meta?.approaching_business_days)} / ${formatCount(data?.aging_meta?.overdue_business_days)}` },
+            { label: "Mean review turnaround", value: formatDuration(duration?.mean_hours) }, { label: "Valid samples", value: formatCount(duration?.sample_count) },
+            { label: "Excluded records", value: formatCount(duration?.excluded_count) },
+          ]} />
+          <p>Only corresponding submission/review cycles qualify. Missing timestamps: {formatCount(duration?.missing_timestamp_count)}; invalid chronology: {formatCount(duration?.invalid_chronology_count)}; unrelated records: {formatCount(duration?.unrelated_record_count)}. Unassignable missing decision times across all dates: {formatCount(duration?.missing_decision_timestamp_count)}.</p>
+          <p>Overall SLA compliance uses classified outcomes across all recorded reviews; unknowns are excluded. It is not filtered by global dates. Recovery is the share of applications with recorded rejection that submitted again strictly after a rejection, counted once per application as of now; global dates do not filter it.</p>
+          <p>Applications submitted include resubmissions. Review decisions include approvals and rejections, including older reviews without a linked submission. Each series follows its own event date, with clipped partial Manila weeks. A decision may concern an earlier application; a new application may be reviewed later. Their difference does not measure backlog change.</p>
+          <p>Rejected decisions: {formatCount(rejected?.rejected_decisions)}; distinct applications: {formatCount(rejected?.distinct_applications)}; decisions without section feedback: {formatCount(rejected?.decisions_without_section_feedback)}. Sections overlap; shares need not total 100%.</p>
 
         </div>}
       />

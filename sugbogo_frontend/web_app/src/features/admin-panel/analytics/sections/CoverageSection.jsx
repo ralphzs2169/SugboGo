@@ -39,13 +39,13 @@ export default function CoverageSection({ period }) {
   const overall = data?.overall;
   return (
     <>
-      <AnalyticsSection title="Business Coverage" {...state}
+      <AnalyticsSection onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Business Coverage" {...state}
         controls={<SortMenu ariaLabel="Coverage filters" triggerLabel={`Filters${activeFilters ? ` (${activeFilters})` : ""}`} icon={Filter}
           value="filters" options={[]} customOnly
           customContent={() => <AnalyticsScopeFilters scope="Coverage" clusterLabel="Cluster" categoryLabel="Category" value={scope} onChange={setScope} />} />}
         isEmpty={overall?.eligible_businesses === 0}
         emptyMessage="No eligible active businesses match the selected scope."
-        footer={<AnalyticsReportFooter title="Business Coverage" meta={data?.meta} coverageLabel="Coverage unverified" hasData={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
+        footer={<AnalyticsReportFooter title="Business Coverage" meta={data?.meta} coverageLabel="Coverage unverified" hasData={Boolean(data)} onData={() => setDrawer("data")} />}
       >
         {/* SQL-backed denominators remain visible when visibility is unavailable */}
         <div className="mb-4">
@@ -90,7 +90,7 @@ export default function CoverageSection({ period }) {
         </div>
       </AnalyticsSection>
       <AnalyticsDetailDrawer mode={drawer} onClose={() => setDrawer(null)} title="Business Coverage" report={data} interval="selected period" series={[]} showComparison={false}
-        aboutContent={<pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ overall, sources: data?.sources }, null, 2)}</pre>}
+
         dataContent={<div className="space-y-5">
           <AnalyticsSummary items={[["eligible_businesses", "Eligible businesses"], ["visited_businesses", "Covered businesses"], ["zero_recorded_visit_businesses", "Businesses with no recorded visits"]].map(([key, label]) => ({ label, value: formatCount(overall?.[key]) }))} />
           {["clusters", "categories"].map((classification) => <div key={classification}>

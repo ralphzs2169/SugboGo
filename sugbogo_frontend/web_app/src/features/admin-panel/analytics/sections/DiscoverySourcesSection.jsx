@@ -36,10 +36,10 @@ export default function DiscoverySourcesSection({ period }) {
   return (
     <>
       {/* Full-width comparison complements the existing two-column discovery reports. */}
-      <AnalyticsSection title="Discovery Sources" description="Where recorded business profile visits originate." {...state}
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Discovery Sources" description="Where recorded business profile visits originate." {...state}
         unavailable={unavailable} unavailableMessage={<span>Discovery sources are unavailable. This does not mean zero visits. <button type="button" onClick={() => query.refetch()} className={actionStyle}>Retry source</button></span>}
         isEmpty={data?.total_profile_visits === 0} emptyMessage="No profile visits were recorded during this period. View data includes all seven sources."
-        footer={<AnalyticsReportFooter title="Discovery Sources" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+        footer={<AnalyticsReportFooter title="Discovery Sources" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
         <div className="mx-auto h-80 w-full xl:h-112 min-w-0 max-w-4xl" role="img" aria-label="Recorded visits ranked by source, with Unknown shown last. Exact counts and shares are available in View data.">
@@ -58,7 +58,7 @@ export default function DiscoverySourcesSection({ period }) {
       {/* Existing drawer exposes exact observations and methodology without another modal system. */}
       <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Discovery Sources" report={data} interval="Selected period" series={[]} showComparison={false}
         dataContent={<>{unavailable ? <p>Exact observations are unavailable.</p> : exact}<p>Total qualifying recorded profile visits: {formatCount(data?.total_profile_visits)}</p></>}
-        aboutContent={<div className="space-y-3 border-t border-stroke pt-4 text-sm text-text-secondary">{Object.entries(data?.definitions ?? {}).map(([key, value]) => <p key={key}>{value}</p>)}<p>Limitations: {data?.meta?.partial_reasons?.join(", ")}</p></div>}
+
       />
     </>
   );

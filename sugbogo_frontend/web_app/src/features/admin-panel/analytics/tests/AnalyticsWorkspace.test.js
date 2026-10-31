@@ -10,6 +10,7 @@ import { fixtureReport, fixtureTaxonomy } from "./dashboardFixtures.js";
 
 const { JSDOM } = createRequire(resolve("../mobile/package.json"))("jsdom");
 const originalCustomEvent = globalThis.CustomEvent;
+const originalGetComputedStyle = globalThis.getComputedStyle;
 let dom;
 let server;
 let Page;
@@ -24,6 +25,7 @@ let initialEntries;
 
 before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost", pretendToBeVisual: true });
+  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, Node: dom.window.Node, Element: dom.window.Element, HTMLElement: dom.window.HTMLElement, CustomEvent: dom.window.CustomEvent, MutationObserver: dom.window.MutationObserver, IS_REACT_ACT_ENVIRONMENT: true });
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
@@ -92,6 +94,7 @@ after(async () => {
   await server?.close();
   dom.window.close();
   globalThis.CustomEvent = originalCustomEvent;
+  globalThis.getComputedStyle = originalGetComputedStyle;
   for (const key of ["window", "document", "Node", "Element", "HTMLElement", "MutationObserver", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
 });
 
@@ -427,7 +430,7 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 2);
   const attention = section("Businesses Needing Attention");
   assert.match(attention.textContent, /No recorded profile visits/);
-  assert.match(attention.textContent, /Based on recorded discovery activity · recording coverage unverified/);
+  assert.match(attention.textContent, /Coverage unverified/);
   assert.doesNotMatch(attention.textContent, /Required discovery observations are unavailable/);
   assert.match(attention.textContent, /Business #9/);
   assert.match(attention.textContent, /Business #15/);
@@ -501,7 +504,7 @@ test("business attention renders provisional rows but blocks unavailable observa
   await mount();
   const attention = section("Businesses Needing Attention");
   assert.ok(attention.querySelector("table"));
-  assert.match(attention.textContent, /Based on recorded discovery activity/);
+  assert.match(attention.textContent, /Coverage unverified/);
   const unavailableSaves = attention.querySelector("tbody tr").cells[3];
   assert.match(unavailableSaves.textContent, /Unavailable/);
   assert.equal(unavailableSaves.querySelector('[aria-hidden="true"]'), null);
@@ -721,9 +724,9 @@ test("transportation donut reconciles methods and drawer destinations with perio
   await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
   await click(report.querySelector('[aria-label="About Transportation Planning"]'));
   assert.match(document.querySelector("dialog[open]").textContent, /recording completeness and freshness are unverified/);
-  assert.match(document.querySelector("dialog[open]").textContent, /may not capture every planning attempt/);
-  assert.match(document.querySelector("dialog[open]").textContent, /UTC day/);
-  assert.match(document.querySelector("dialog[open]").textContent, /Tracking started/);
+  assert.match(document.querySelector("dialog[open]").textContent, /some planning attempts may not have been captured/);
+  assert.match(document.querySelector("dialog[open]").textContent, /At most one request/);
+  assert.match(document.querySelector("dialog[open]").textContent, /Recording began/);
   await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
   const count = requests("transportation-planning/").length;
   await tab("Operations");
@@ -810,31 +813,51 @@ test("business acquisition switches grouping without a request and preserves per
   await until(()=>section("Business Acquisition").textContent.includes("No business creations"));
 });
 
-test("report drawers lead with readable methodology and hide raw flags in technical details", async () => {
-  overrides.set("/admin/analytics/discovery-sources/",(report)=>({...report,meta:{...report.meta,data_through:null,partial_reasons:["best_effort_delivery","current_day_incomplete","coverage_unverified","freshness_unverified"]}}));
+test("report titles open readable About drawers while footer reliability stays in a tooltip across Analytics", async () => {
+  overrides.set("/admin/analytics/discovery-sources/", (report) => ({ ...report, meta: { ...report.meta, data_through: null, partial_reasons: ["best_effort_delivery", "current_day_incomplete", "coverage_unverified", "freshness_unverified"] } }));
   await mount();
-  for (const title of ["Discovery Sources","Transportation Planning","Business Acquisition","Discovery Activity","Platform Growth"]) {
-    const trigger=section(title).querySelector(`[aria-label="About ${title}"]`);
-    await click(trigger);
-    const drawer=document.querySelector("dialog[open]");
-    const primary=drawer.cloneNode(true);
-    primary.querySelectorAll("details").forEach((node)=>node.remove());
-    assert.match(primary.textContent,/What this report shows/);
-    assert.match(primary.textContent,/How the numbers are calculated/);
-    assert.match(primary.textContent,/Data reliability/);
-    assert.match(primary.textContent,/Philippine time/);
-    assert.doesNotMatch(primary.textContent,/best_effort_delivery|coverage_unverified|PROFILE_VISIT|MongoDB|positive numeric|half-open|Asia\/Manila/);
-    const technical=[...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details");
-    assert.equal(technical.parentElement.open,false);
-    await click(technical);
-    assert.equal(technical.parentElement.open,true);
-    if(title === "Discovery Sources") {
-      assert.match(primary.textContent,/latest fully captured date has not been confirmed/);
-      assert.match(primary.textContent,/first recorded source/);
-      assert.match(primary.textContent,/still in progress/);
-      assert.match(technical.parentElement.textContent,/best_effort_delivery/);
+  const groups = [
+    [null, ["Platform Growth", "Discovery Activity", "Discovery Sources", "Transportation Planning", "Business Acquisition"]],
+    ["Operations", ["Merchant Onboarding", "Merchant change requests"]],
+    ["Community & Trust", ["Community Health", "Specialty Support", "Reports & disputes"]],
+    ["Business Ecosystem", ["Geographic Distribution", "Business Coverage", "Discovery Score Health", "Businesses Needing Attention"]],
+  ];
+  for (const [topic, titles] of groups) {
+    if (topic) await tab(topic);
+    for (const title of titles) {
+      const report = section(title);
+      const trigger = report.querySelector('button[aria-label="About ' + title + '"]');
+      const footer = report.querySelector("footer");
+      assert.ok(report.querySelector("header").contains(trigger));
+      assert.equal(trigger.parentElement.querySelector("h2").textContent, title);
+      assert.equal(trigger.getAttribute("aria-haspopup"), "dialog");
+      assert.equal(footer.querySelector('[aria-label="About ' + title + '"]'), null);
+      const reliability = footer.querySelector('button[aria-label="' + title + ' data reliability"]');
+      assert.ok(reliability.getAttribute("data-tooltip-content"));
+      const count = reads.length;
+      await click(reliability);
+      assert.equal(document.querySelector("dialog[open]"), null);
+      await act(async () => trigger.focus());
+      await click(trigger);
+      const drawer = document.querySelector("dialog[open]");
+      assert.match(drawer.textContent, /What this report shows/);
+      assert.match(drawer.textContent, /How the numbers are calculated/);
+      assert.match(drawer.textContent, /Important limitations/);
+      assert.match(drawer.textContent, /Data reliability/);
+      assert.match(drawer.textContent, /Philippine time/);
+      assert.equal(drawer.querySelector("h2 svg"), null);
+      assert.ok([...drawer.querySelectorAll("h3")].every((heading) => heading.querySelector('svg[aria-hidden="true"]')));
+      assert.equal(drawer.querySelector("pre"), null);
+      assert.doesNotMatch(drawer.textContent, /Technical details|best_effort_delivery|coverage_verified|partial_reasons|generated_at|end_exclusive|PROFILE_VISIT|MongoDB|half-open|Asia\/Manila/);
+      if (title === "Discovery Sources") {
+        assert.match(drawer.textContent, /latest fully captured date has not been confirmed/);
+        assert.match(drawer.textContent, /first recorded source/);
+        assert.match(drawer.textContent, /still in progress/);
+      }
+      await click(drawer.querySelector('button[aria-label="Close ' + title + ' details"]'));
+      assert.equal(document.activeElement, trigger);
+      assert.equal(reads.length, count);
     }
-    await click(drawer.querySelector(`[aria-label="Close ${title} details"]`));
   }
 });
 
@@ -845,8 +868,15 @@ test("shared explanations preserve Operations, Community and Ecosystem report de
   await click(onboarding.querySelector('[aria-label="About Merchant Onboarding"]'));
   let drawer=document.querySelector("dialog[open]");
   assert.match(drawer.textContent,/Overall SLA compliance uses classified outcomes/);
-  assert.ok([...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
+  assert.equal(drawer.querySelector("pre"), null);
   await click(drawer.querySelector('[aria-label="Close Merchant Onboarding details"]'));
+  await click([...onboarding.querySelectorAll("button")].find((button) => button.textContent.includes("View breakdown")));
+  drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.querySelector("h2").textContent, /Onboarding rejection breakdown — Exact Data/);
+  assert.match(drawer.textContent, /Share of decisions/);
+  assert.match(drawer.textContent, /Valid samples/);
+  assert.match(drawer.textContent, /Applications submitted/);
+  await click(drawer.querySelector('[aria-label="Close Onboarding rejection breakdown details"]'));
   await tab("Community & Trust");
   const community=section("Community Health");
   await click(community.querySelector('[aria-label="About Community Health"]'));
@@ -863,9 +893,9 @@ test("shared explanations preserve Operations, Community and Ecosystem report de
   const coverage=section("Business Coverage");
   await click(coverage.querySelector('[aria-label="About Business Coverage"]'));
   drawer=document.querySelector("dialog[open]");
-  assert.match(drawer.textContent,/Complete recording has not been confirmed/);
+  assert.match(drawer.textContent,/Profile-visit recording coverage is unverified/);
   assert.match(drawer.textContent,/not geographic coverage/);
-  assert.ok([...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
+  assert.equal(drawer.querySelector("pre"), null);
 });
 
 test("business coverage compacts full coverage and keeps every classification in its drawer", async () => {

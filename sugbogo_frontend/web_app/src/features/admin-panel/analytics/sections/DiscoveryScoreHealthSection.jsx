@@ -28,13 +28,13 @@ export default function DiscoveryScoreHealthSection() {
     && ["stale", "pending", "failed", "missing", "provisional"].every((key) => coverage[key] === 0);
   return (
     <>
-      <AnalyticsSection title="Discovery Score Health" description="Current score freshness across active businesses." {...state}
+      <AnalyticsSection onAbout={() => setDrawer("about")} aboutDisabled={!coverage} title="Discovery Score Health" description="Current score freshness across active businesses." {...state}
         action={<AnalyticsDrilldown to="/admin-panel/analytics/discovery-scores">View Discovery Scores</AnalyticsDrilldown>}
         isEmpty={coverage?.active_businesses === 0}
         emptyMessage="No active businesses to assess."
         unavailable={query.data !== undefined && !coverage}
         unavailableMessage="Discovery Score health counts are unavailable."
-        footer={<AnalyticsReportFooter title="Discovery Score Health" meta={{ generated_at: coverage?.snapshot_at }} hasData={Boolean(coverage)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
+        footer={<AnalyticsReportFooter title="Discovery Score Health" meta={{ generated_at: coverage?.snapshot_at }} hasData={Boolean(coverage)} onData={() => setDrawer("data")} />}
       >
         {/* Coverage uses global counters, never the single returned score row */}
         <div className="mb-4 flex items-start gap-1">
@@ -51,7 +51,7 @@ export default function DiscoveryScoreHealthSection() {
       </AnalyticsSection>
       <AnalyticsDetailDrawer mode={drawer} onClose={() => setDrawer(null)} title="Discovery Score Health" report={query.data} interval="current snapshot" series={[]} showComparison={false}
         periodContent={<div className="space-y-2 text-sm text-text-secondary"><p>Current snapshot as of {formatTimestamp(coverage?.snapshot_at)} Philippine time. Selected dates do not filter this snapshot.</p><p>Freshness threshold: {formatCount(coverage?.max_score_age_hours)} hours.</p></div>}
-        aboutContent={<pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(coverage, null, 2)}</pre>}
+
         dataContent={<div className="space-y-5">
           <AnalyticsSummary items={[{ label: "Active businesses", value: formatCount(coverage?.active_businesses) }]} />
           <AnalyticsExactTable caption="Current Discovery Score health counts" rows={[...STATUSES, { key: "missing", label: "Missing" }, { key: "provisional", label: "Provisional" }]} columns={[

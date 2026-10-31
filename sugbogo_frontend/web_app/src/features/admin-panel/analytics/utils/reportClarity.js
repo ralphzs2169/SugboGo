@@ -10,7 +10,7 @@ export const reportExplanations = {
   "Business Coverage": [
     "The percentage of eligible active businesses that received at least one recorded profile visit during the selected period. This measures recorded listing engagement, not geographic coverage.",
     "Covered businesses divided by eligible businesses, multiplied by 100. Eligibility and cluster/category classifications use current records. The overall percentage uses business counts, not an average of classification percentages. Cluster and category breakdowns describe the same population and must not be added together.",
-    "Visit recording coverage is unverified. No recorded profile visits does not establish zero real-world exposure. Unavailable observations remain unknown; classifications with no eligible businesses have an undefined percentage and are omitted from the ranking. All classification counts remain in View data.",
+    "No recorded profile visits does not establish zero real-world exposure. Unavailable observations remain unknown; classifications with no eligible businesses have an undefined percentage and are omitted from the ranking. All classification counts remain in View data.",
   ],
   "Discovery Score Health": [
     "Current score freshness across all active businesses. Selected reporting dates and Business Coverage filters do not change this snapshot.",
@@ -20,7 +20,7 @@ export const reportExplanations = {
   "Geographic Distribution": [
     "Current eligible businesses and recorded profile visits grouped by the current business locations in the approved Cebu City grid.",
     "Business counts reflect current eligible inventory, grouped into fixed square cells of 1 km² projected area. Recorded visits use the selected Philippine reporting period and existing daily recording rules. Cluster and category filters apply to both values. Empty cells, zero observations and unavailable visits remain distinct.",
-    "This is not explorer location, foot traffic, physical visits or movement. Current location changes can move earlier recorded activity between cells. Recorded activity may be incomplete; visit recording completeness and freshness are unverified. Missing, invalid or out-of-scope business locations are excluded and listed in View data.",
+    "This is not explorer location, foot traffic, physical visits or movement. Current location changes can move earlier recorded activity between cells. Missing, invalid or out-of-scope business locations are excluded and listed in View data.",
   ],
   "Businesses Needing Attention": [
     "Currently eligible active businesses ranked by recorded discovery activity or current specialty support, within the selected cluster and category. This is a ranking, not a threshold-based list of underperforming businesses.",
@@ -50,7 +50,7 @@ export const reportExplanations = {
   "Transportation Planning": [
     "How often explorers request road-route or Jeepney travel guidance for businesses.",
     "At most one request is recorded per account, business and transportation method each day. Account totals count each identifiable account once across the whole period.",
-    "Transportation-planning event recording completeness and freshness are unverified. These are recorded requests, not completed journeys or physical visits, and may not capture every planning attempt. Activity before recording began cannot be measured. Other methods are counted separately. Requests that cannot be linked to an account stay in request totals but are excluded from distinct account counts. For these daily limits, a new counting day begins at 8 AM Philippine time.",
+    "These are recorded requests, not completed journeys or physical visits. Activity before recording began cannot be measured. Other methods are counted separately. Requests that cannot be linked to an account stay in request totals but are excluded from distinct account counts. For these daily limits, a new counting day begins at 8 AM Philippine time.",
   ],
   "Business Acquisition": [
     "New businesses during the selected period, grouped by their current cluster and category.",

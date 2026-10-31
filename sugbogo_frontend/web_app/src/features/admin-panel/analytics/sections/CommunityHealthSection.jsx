@@ -27,7 +27,7 @@ export default function CommunityHealthSection({ period }) {
   const rows = SENTIMENTS.map((item) => ({ ...item, ...cohort?.sentiment?.[item.name] }));
   return (
     <>
-      <AnalyticsChartCard title="Community Health" description="Published review activity and sentiment." {...state}
+      <AnalyticsChartCard onAbout={() => setMode("about")} aboutDisabled={!data} title="Community Health" description="Published review activity and sentiment." {...state}
         controls={<AnalyticsIntervalControl value={interval} onChange={setInterval} />}
         summaryContent={<AnalyticsSummary items={[{ label: "Published reviews in period", value: formatCount(cohort?.published_review_count), context: comparisonText(data?.published_review_count_change) }]} />}
         accessibleData={<div className="mt-3">
@@ -35,7 +35,7 @@ export default function CommunityHealthSection({ period }) {
           <div aria-hidden="true" className="mb-3 flex h-2 overflow-hidden rounded-full bg-surface-muted">{rows.map((row) => row.percentage == null ? null : <div key={row.name} style={{ width: `${row.percentage}%`, backgroundColor: row.color }} />)}</div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4">{rows.map((row) => <div key={row.name}><dt className="text-text-secondary">{row.label}</dt><dd className="mt-1 font-semibold text-text-primary">{formatPercentage(row.percentage)} <span className="font-normal text-text-secondary">· {formatCount(row.count)}</span></dd></div>)}<div><dt className="text-text-secondary">Unclassified reviews</dt><dd className="mt-1 font-semibold text-text-primary">{formatCount(cohort?.unclassified_review_count)}</dd></div></dl>
         </div>}
-        footer={<AnalyticsReportFooter title="Community Health" meta={data?.meta} hasData={Boolean(data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+        footer={<AnalyticsReportFooter title="Community Health" meta={data?.meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
         {/* Retained-publication trend preserves missing observations */}
         <AnalyticsTimeSeries rows={data?.series} lines={LINES} />
@@ -43,7 +43,7 @@ export default function CommunityHealthSection({ period }) {
       {/* Shared drawer holds exact buckets, sentiment counts and methodology. */}
       <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Community Health"
         report={data} interval={interval} series={LINES} showComparison={false}
-        aboutContent={<p>{data?.definition}</p>}
+
         dataContent={<div className="space-y-5">
           <div>
             <h3 className="mb-3 font-semibold">Exact review activity · {interval}</h3>
