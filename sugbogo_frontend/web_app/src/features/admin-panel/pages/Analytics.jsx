@@ -2,7 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import { Settings2, ShieldCheck, Store, TrendingUp } from "lucide-react";
 import TableTabs from "../components/data-table/TableTabs";
 import { WorkspaceSelections } from "../analytics/hooks/useWorkspaceSelection";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import AnalyticsPeriodControl from "../analytics/components/AnalyticsPeriodControl";
 import { serializeReportingPeriod } from "../analytics/utils/reportingPeriod";
@@ -38,21 +38,27 @@ function Analytics() {
   const [stuck, setStuck] = useState(false);
   const [normalHost, setNormalHost] = useState(null);
   const [stickyHost, setStickyHost] = useState(null);
-  const restorePeriodFocus = useRef(false);
+  const [periodContainer] = useState(() => document.createElement("div"));
+  const restorePeriodFocus = useRef(null);
   const handleStuckChange = useCallback((next) => {
-    restorePeriodFocus.current = Boolean(normalHost?.contains(document.activeElement) || stickyHost?.contains(document.activeElement));
+    restorePeriodFocus.current = periodContainer.contains(document.activeElement)
+      ? document.activeElement
+      : null;
     setStuck(next);
-  }, [normalHost, stickyHost]);
+  }, [periodContainer]);
   const periodHost = stuck ? stickyHost : normalHost;
-  useEffect(() => {
-    if (restorePeriodFocus.current) {
-      periodHost?.querySelector("button")?.focus({ preventScroll: true });
-      restorePeriodFocus.current = false;
+  useLayoutEffect(() => {
+    if (!periodHost) return;
+    // Move one mounted control so an open menu, custom draft and focused input survive scrolling.
+    periodHost.append(periodContainer);
+    if (restorePeriodFocus.current?.isConnected) {
+      restorePeriodFocus.current.focus({ preventScroll: true });
     }
+    restorePeriodFocus.current = null;
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       periodHost?.animate?.([{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 160, easing: "ease-out" });
     }
-  }, [periodHost]);
+  }, [periodHost, periodContainer]);
   const [selections] = useState(() => new Map());
   const [search, setSearch] = useSearchParams();
   const requested = search.get("tab");
@@ -88,7 +94,7 @@ function Analytics() {
           </div>
           <div ref={setStickyHost} className="ml-auto min-h-9 min-w-40 shrink-0" />
         </StickyContextBar>
-        {periodHost && createPortal(<AnalyticsPeriodControl compact value={period} onChange={setPeriod} />, periodHost)}
+        {createPortal(<AnalyticsPeriodControl compact value={period} onChange={setPeriod} />, periodContainer)}
         {/* Conditional mounting keeps inactive reports and taxonomy requests dormant */}
         <div role="tabpanel" id={`analytics-topics-panel-${active}`} aria-labelledby={`analytics-topics-${active}`} tabIndex={0} className="min-w-0 space-y-4 rounded focus-visible:outline-2 focus-visible:outline-info">
           {active === "growth-discovery" && <><PlatformGrowthSection period={period} /><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><DiscoveryActivitySection period={period} /><DiscoverySourcesSection period={period} /></div><div className="grid min-w-0 items-start gap-4 xl:grid-cols-2"><BusinessAcquisitionSection period={period} /><TransportationPlanningSection period={period} /></div></>}

@@ -1,3 +1,5 @@
+import { geographicAreaRows, geographicExclusionLabel } from "./geographicPresentation.js";
+
 const valueAt = (row, path) => path.split(".").reduce((value, key) => value?.[key], row);
 
 /** Quotes CSV cells and neutralizes spreadsheet formulas without rounding numeric values. */
@@ -29,8 +31,8 @@ export function reportRecords(title, report, series = []) {
   } else if (title === "Discovery Score Health") {
     add("Current score health", [report.coverage], ["active_businesses", "fresh", "stale", "pending", "failed", "missing", "provisional"].map((key) => [key, key.replaceAll("_", " ") ]));
   } else if (title === "Geographic Distribution") {
-    add("Geographic areas", report.cells, [["eligible_businesses", "Current businesses"], ["profile_visits", "Recorded profile visits"]], "id");
-    add("Excluded locations", Object.entries(report.reconciliation?.excluded_by_reason ?? {}).map(([reason, values]) => ({ reason: reason.replaceAll("_", " "), ...values })), [["businesses", "Businesses"], ["profile_visits", "Recorded visits"]], "reason");
+    add("Geographic areas", geographicAreaRows(report.cells ?? []), [["eligible_businesses", "Current businesses"], ["profile_visits", "Recorded profile visits"]], "area_label");
+    add("Excluded locations", Object.entries(report.reconciliation?.excluded_by_reason ?? {}).map(([reason, values]) => ({ reason: geographicExclusionLabel(reason), ...values })), [["businesses", "Businesses"], ["profile_visits", "Recorded visits"]], "reason");
   } else if (title === "Transportation Planning") {
     add("Planning method composition", report.methods, [["count", "Recorded requests"], ["share_percent", "Share (%)"]]);
     add("Planning time buckets", report.series, [["road_route", "Road routes"], ["jeepney", "Jeepney guidance"], ["other", "Other methods"]], "date");
@@ -44,7 +46,7 @@ export function reportRecords(title, report, series = []) {
   } else if (title === "Reports & disputes") {
     const columns = [["total", "Pending"], ["under_1_day", "Under 24 hours"], ["days_1_to_2", "24 to under 72 hours"], ["days_3_plus", "72 hours or more"], ["unknown_age", "Unknown age"]];
     add("Current queues", [{ label: "Review reports", ...report.open_reports }, { label: "Disputes", ...report.open_disputes }], columns);
-    add("Dispute resolution", [report.completed_dispute_turnaround], [["median_hours", "Median resolution hours"], ["sample_count", "Valid decisions"], ["excluded_invalid_duration_count", "Excluded durations"], ["missing_resolution_timestamp_count", "Missing resolution dates"]]);
+    add("Dispute resolution", [report.completed_dispute_turnaround], [["median_hours", "Median resolution hours"], ["sample_count", "Valid decisions"], ["excluded_invalid_duration_count", "Excluded durations"], ["missing_resolution_timestamp_count", "Missing resolution dates (all time)"]]);
   } else if (title === "Merchant Onboarding" || title === "Onboarding rejection breakdown") {
     add("Weekly workload", report.series, series.map((item) => [item.key, item.label]), "date");
     add("Rejected sections", report.rejection_insights?.sections, [["rejection_decisions", "Rejected decisions"], ["distinct_applications", "Distinct applications"], ["decision_share_percentage", "Share of decisions (%)"]]);
@@ -98,7 +100,7 @@ export function reportCsv(title, report, records, context = {}) {
   const coverage = report.meta?.coverage_verified === true ? "Verified" : report.meta?.coverage_verified === false ? "Unverified" : "Not confirmed";
   const prefix = [title, period?.start_date ?? "Current snapshot", period?.end_date ?? "Current snapshot", "Philippine time", report.meta?.generated_at ?? report.coverage?.snapshot_at ?? report.as_of ?? "Not available", coverage, ...Object.values(context)];
   function scope(row) {
-    if (row[2].includes("(all time)")) return "All recorded requests; selected dates do not filter these counts";
+    if (row[2].includes("(all time)")) return "All retained records; selected dates do not filter these counts";
     if (row[2].startsWith("Pending")) return "Current pending requests; selected dates do not filter these counts";
     if (title === "Business Acquisition") return "Selected period; cluster counts are category subtotals and must not be added to them";
     if (row[0].startsWith("Current") || ["Discovery Score Health", "Specialty Support"].includes(title)) return "Current snapshot; selected dates do not filter these counts";

@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { geographicOpacity, geographicRanges } from "./geographicPresentation.js";
+import { geographicAreaRows, geographicExclusionLabel, geographicOpacity, geographicRanges } from "./geographicPresentation.js";
+
+test("geographic exact values use readable area and exclusion labels without changing observations", () => {
+  const cells = [{ id: "internal-grid:1:2", profile_visits: 0 }, { id: "internal-grid:2:3", profile_visits: null }];
+  const rows = geographicAreaRows(cells);
+  assert.deepEqual(rows.map((row) => row.area_label), ["Area 1", "Area 2"]);
+  assert.equal(rows[0].id, cells[0].id);
+  assert.equal(rows[0].profile_visits, 0);
+  assert.equal(rows[1].profile_visits, null);
+  assert.equal(cells[0].area_label, undefined);
+  assert.equal(geographicExclusionLabel("missing_location"), "Missing location");
+  assert.equal(geographicExclusionLabel("unsupported_srid"), "Unsupported location format");
+});
 
 test("geographic legends use distinct count ranges for each metric", () => {
   const cells = [{ eligible_businesses: 8, profile_visits: 125 }];

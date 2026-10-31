@@ -63,6 +63,7 @@ export function fixtureReport(route, params = {}) {
   };
   if (route === "business-acquisition/") return {
     categories:[{id:2,name:"Cafes",created:1,approved:0}], clusters:[{id:1,name:"Food",created:1,approved:0}],
+    hierarchy: [{ id: 1, name: "Food", created: 1, categories: [{ id: 2, name: "Cafes", created: 1 }] }],
     totals:{created:1,approved:0},definitions:{classification:"Current category; no historical transitions."},meta,
   };
   if (route === "transportation-planning/") return {

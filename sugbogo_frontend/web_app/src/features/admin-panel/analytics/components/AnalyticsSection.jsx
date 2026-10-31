@@ -51,7 +51,12 @@ export default function AnalyticsSection({
       />
     );
   } else if (unavailable) {
-    content = <div className="py-6"><AnalyticsDataNotice kind="unavailable">{unavailableMessage}</AnalyticsDataNotice></div>;
+    content = (
+      <div className="space-y-3 py-6">
+        <AnalyticsDataNotice kind="unavailable">{unavailableMessage}</AnalyticsDataNotice>
+        {onRetry && <Button variant="secondary" loading={isFetching} onClick={onRetry}>Retry</Button>}
+      </div>
+    );
   } else if (isEmpty) {
     content = <p className="py-10 text-center text-sm text-text-secondary">{emptyMessage}</p>;
   } else {

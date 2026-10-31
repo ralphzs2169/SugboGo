@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useDiscoveryHeatmap } from "../hooks/useAnalyticsReports";
 import useAnalyticsTaxonomy from "../hooks/useAnalyticsTaxonomy";
-import { geographicRanges } from "../utils/geographicPresentation";
+import { geographicAreaRows, geographicExclusionLabel, geographicRanges } from "../utils/geographicPresentation";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
@@ -98,15 +98,14 @@ function GeographicReport({ period }) {
       <AnalyticsDetailDrawer exportContext={{ Cluster: scope.cluster || "All", Category: scope.category || "All", Metric: metric === "eligible_businesses" ? "Current businesses" : "Recorded profile visits" }} mode={drawer} onClose={() => setDrawer(null)} title="Geographic Distribution" report={data} interval="selected period" series={[]} showComparison={false}
 
         dataContent={<div className="space-y-5">
-          <AnalyticsExactTable caption="All geographic cells in selected taxonomy scope" rows={cells} columns={[
-            { key: "inspect", label: "Area", render: (row) => row.eligible_businesses > 0 ? <button type="button" aria-label={`Inspect grid area ${row.id}`} aria-pressed={row.id === selected} onClick={() => { selectCell(row.id); setHovered(null); setDrawer(null); }} className="min-h-9 cursor-pointer rounded px-2 py-1 text-sm font-medium text-text-primary underline focus-visible:outline-2 focus-visible:outline-info">Inspect area</button> : "No eligible businesses" },
-            { key: "id", label: "Grid cell" },
+          <AnalyticsExactTable caption="All geographic cells in selected taxonomy scope" rows={geographicAreaRows(cells)} columns={[
+            { key: "inspect", label: "Area", render: (row) => row.eligible_businesses > 0 ? <button type="button" aria-label={`Inspect ${row.area_label.toLowerCase()}`} aria-pressed={row.id === selected} onClick={() => { selectCell(row.id); setHovered(null); setDrawer(null); }} className="min-h-9 cursor-pointer rounded px-2 py-1 text-sm font-medium text-text-primary underline focus-visible:outline-2 focus-visible:outline-info">Inspect {row.area_label.toLowerCase()}</button> : row.area_label },
             { key: "eligible_businesses", label: "Current businesses", render: (row) => formatCount(row.eligible_businesses) },
             { key: "profile_visits", label: "Recorded profile visits", render: (row) => formatCount(row.profile_visits) },
             { key: "state", label: "Observation status", render: (row) => STATES[row.state] ?? "Unknown" },
           ]} />
           <AnalyticsExactTable caption="Locations excluded from the geographic grid" rows={exclusions} columns={[
-            { key: "reason", label: "Exclusion" },
+            { key: "reason", label: "Exclusion", render: (row) => geographicExclusionLabel(row.reason) },
             { key: "businesses", label: "Businesses", render: (row) => formatCount(row.businesses) },
             { key: "profile_visits", label: "Recorded visits", render: (row) => formatCount(row.profile_visits) },
           ]} />

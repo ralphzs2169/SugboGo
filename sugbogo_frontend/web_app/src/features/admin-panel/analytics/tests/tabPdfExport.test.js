@@ -7,6 +7,20 @@ import { MAP_PDF_UNAVAILABLE, populatePrintDocument, printAnalyticsTab } from ".
 const { JSDOM } = createRequire(resolve("../mobile/package.json"))("jsdom");
 const options = { tab: "growth-discovery", title: "Growth & Discovery", period: { start_date: "2026-10-03", end_date: "2026-11-01" }, now: new Date("2026-11-01T04:00:00Z") };
 
+test("all supported tabs print their period, preparation time and persistent report state", () => {
+  const dom = new JSDOM('<main><section><h2>Report</h2><p role="alert">Refresh failed. Previously loaded data is shown.</p><button>Retry</button></section></main>');
+  for (const [tab, title] of [["growth-discovery", "Growth & Discovery"], ["operations", "Operations"], ["community-trust", "Community & Trust"]]) {
+    const target = dom.window.document.implementation.createHTMLDocument();
+    populatePrintDocument(target, dom.window.document.querySelector("main"), { ...options, tab, title });
+    assert.equal(target.querySelector("h1").textContent, title);
+    assert.match(target.body.textContent, /Oct.*Nov.*2026/);
+    assert.match(target.body.textContent, /Generated.*2026.*PHT/);
+    assert.match(target.body.textContent, /Previously loaded data is shown/);
+    assert.equal(target.querySelector("button"), null);
+  }
+  dom.window.close();
+});
+
 test("print surface retains SVG definitions, current state and offscreen sections without controls", () => {
   const dom = new JSDOM('<main><section><header><h2>Platform Growth</h2></header><button aria-haspopup="menu">Weekly</button><svg class="recharts-surface" width="800" height="240"><defs><pattern id="progress"><path d="M0 0 L8 8"/></pattern></defs><rect fill="url(#progress)" width="100" height="100"/></svg><img src="https://example.com/decorative.jpg"><div role="tooltip">Hover only</div><table><tbody><tr><td>Current page only</td></tr></tbody></table></section><section style="margin-top:2000px">Below viewport</section></main>');
   const target = dom.window.document.implementation.createHTMLDocument();
@@ -60,6 +74,8 @@ test("print workflow cleans up its frame and restores focus on success and failu
   globalThis.document = dom.window.document;
   const append = dom.window.document.body.append.bind(dom.window.document.body);
   const button = dom.window.document.querySelector("button");
+  dom.window.document.documentElement.className = "dark";
+  dom.window.document.documentElement.dataset.theme = "dark";
   let fail = false;
   let printed = 0;
   dom.window.document.body.append = (frame) => {
@@ -78,10 +94,14 @@ test("print workflow cleans up its frame and restores focus on success and failu
     assert.equal(dom.window.document.querySelector("iframe"), null);
     assert.equal(dom.window.document.activeElement, button);
     assert.equal(dom.window.document.title, "");
+    assert.equal(dom.window.document.documentElement.className, "dark");
+    assert.equal(dom.window.document.documentElement.dataset.theme, "dark");
     fail = true;
     await assert.rejects(printAnalyticsTab(dom.window.document.querySelector("main"), options), /Print failed/);
     assert.equal(dom.window.document.querySelector("iframe"), null);
     assert.equal(dom.window.document.title, "");
+    assert.equal(dom.window.document.activeElement, button);
+    assert.equal(dom.window.document.documentElement.className, "dark");
   } finally {
     globalThis.document = originalDocument;
     dom.window.close();

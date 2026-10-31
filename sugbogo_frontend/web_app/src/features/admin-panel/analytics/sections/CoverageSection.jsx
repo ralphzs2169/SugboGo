@@ -31,10 +31,10 @@ export default function CoverageSection({ period }) {
   const visibilityUnavailable = data?.sources?.visibility?.availability === "unavailable";
   const known = (data?.[group] ?? []).filter((row) => !visibilityUnavailable && row.coverage_percentage != null && row.eligible_businesses > 0);
   const ascending = [...known].sort((left, right) => left.coverage_percentage - right.coverage_percentage || left.id - right.id);
-  const fullyCovered = ascending.filter((row) => row.coverage_percentage === 100);
+  const fullyCovered = ascending.filter((row) => row.visited_businesses === row.eligible_businesses);
   const summarizeFullCoverage = fullyCovered.length >= 3;
   const preview = summarizeFullCoverage
-    ? ascending.filter((row) => row.coverage_percentage !== 100)
+    ? ascending.filter((row) => row.visited_businesses !== row.eligible_businesses)
     : ascending;
   const overall = data?.overall;
   return (

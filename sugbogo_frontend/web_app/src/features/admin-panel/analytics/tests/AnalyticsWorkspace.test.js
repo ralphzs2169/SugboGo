@@ -213,6 +213,92 @@ test("workspace sticky controls preserve global dates, URL parameters and browse
   await until(() => Boolean(section("Reports & disputes")));
 });
 
+test("an open custom range preserves its draft and focused input through both sticky transitions", async () => {
+  await mount();
+  const originalReads = reads.length;
+  const controls = container.querySelector('[aria-label="Analytics workspace controls"]');
+  controls.style.top = "64px";
+  await click(container.querySelector('[aria-label^="Reporting period:"]'));
+  await click([...container.querySelectorAll('[role="menuitemradio"]')].find((button) => button.textContent === "Custom range"));
+  const inputs = [...container.querySelectorAll('input[type="date"]')];
+  await act(async () => {
+    for (const [index, value] of ["2026-10-01", "2026-10-07"].entries()) {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(inputs[index], value);
+      inputs[index].dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    }
+    inputs[1].focus();
+  });
+  for (const top of [64, 120]) {
+    controls.getBoundingClientRect = () => ({ top });
+    await act(async () => {
+      window.dispatchEvent(new dom.window.Event("scroll"));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    assert.equal(container.querySelectorAll('input[type="date"]').length, 2);
+    assert.equal(container.querySelectorAll('input[type="date"]')[1], inputs[1]);
+    assert.equal(inputs[0].value, "2026-10-01");
+    assert.equal(inputs[1].value, "2026-10-07");
+    assert.equal(document.activeElement, inputs[1]);
+    assert.equal(reads.length, originalReads);
+  }
+  await click([...container.querySelectorAll("button")].find((button) => button.textContent === "Apply range"));
+  await until(() => client.isFetching() === 0);
+  assert.deepEqual(requests("platform-growth/").at(-1).params, {
+    period: "custom", start_date: "2026-10-01", end_date: "2026-10-07", interval: "weekly",
+  });
+  assert.equal(container.querySelectorAll('[aria-label^="Reporting period:"]').length, 1);
+});
+
+test("a source outage can be retried without refreshing sibling reports or the page", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/discovery-heatmap/", (report) => ({
+    ...report, cells: null, meta: { ...report.meta, availability: "unavailable" },
+  }));
+  await mount();
+  const geographic = section("Geographic Distribution");
+  assert.match(geographic.textContent, /approved geographic grid is unavailable/);
+  const retries = [...geographic.querySelectorAll("button")].filter((button) => button.textContent === "Retry");
+  assert.equal(retries.length, 1);
+  const originalReads = reads.length;
+  overrides.delete("/admin/analytics/discovery-heatmap/");
+  await click(retries[0]);
+  await until(() => Boolean(geographic.querySelector("[data-geographic-map]")));
+  assert.equal(reads.length, originalReads + 1);
+  assert.equal(requests("discovery-heatmap/").length, 2);
+});
+
+test("failed summary refresh identifies retained values and Retry leaves the successful trend alone", async () => {
+  await mount();
+  failures.add("/admin/analytics/discovery-summary/");
+  const trends = requests("discovery-trend/").length;
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ["admin", "analytics", "discoverySummary"] });
+  });
+  const activity = section("Discovery Activity");
+  await until(() => activity.textContent.includes("Previously loaded summary values are shown."));
+  assert.equal(requests("discovery-trend/").length, trends);
+  assert.ok(activity.querySelector("[data-chart]"));
+  failures.clear();
+  await click([...activity.querySelectorAll("button")].find((button) => button.textContent === "Retry summary"));
+  await until(() => !activity.textContent.includes("Previously loaded summary values"));
+  assert.equal(requests("discovery-trend/").length, trends);
+});
+
+test("all scoped reports share complete paginated taxonomy options", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/taxonomy/clusters/", (report, params) => params.page === 1
+    ? { ...report, pagination: { has_next: true } }
+    : { items: [{ id: 5, name: "Later-page cluster" }], pagination: { has_next: false } });
+  await mount();
+  const clusters = client.getQueryData(["admin", "analytics", "taxonomy", "clusters"]);
+  assert.deepEqual(clusters.map((cluster) => cluster.name), ["Food", "Arts", "Later-page cluster"]);
+  assert.ok(section("Geographic Distribution"));
+  assert.ok(section("Business Coverage"));
+  assert.ok(section("Businesses Needing Attention"));
+  const optionReads = reads.filter(({ url }) => url === "/admin/taxonomy/clusters/");
+  assert.deepEqual(optionReads.map(({ params }) => params.page), [1, 2]);
+});
+
 test("workspace deep links isolate Operations errors and Retry", async () => {
   initialEntries = ["/admin-panel/analytics?tab=operations"];
   overrides.set("/admin/analytics/onboarding/", (report) => ({
@@ -380,11 +466,12 @@ test("geographic distribution reuses its query across modes and keeps zero, unav
   assert.match(drawer.textContent, /Current businesses/);
   assert.match(drawer.textContent, /Zero recorded visits/);
   assert.match(drawer.textContent, /Visits unavailable/);
-  assert.match(drawer.textContent, /missing_location/);
+  assert.match(drawer.textContent, /Missing location/);
+  assert.doesNotMatch(drawer.textContent, /grid:1:|missing_location/);
   assert.match(drawer.textContent, /not explorer location, foot traffic/);
   assert.match(drawer.textContent, /1 km² projected area/);
-  assert.match(drawer.textContent, /Recorded activity may be incomplete/);
-  const inspect = drawer.querySelector('[aria-label="Inspect grid area grid:1:1"]');
+  assert.match(drawer.textContent, /Coverage is not fully verified/);
+  const inspect = drawer.querySelector('[aria-label="Inspect area 1"]');
   assert.equal(inspect.getAttribute("aria-pressed"), "false");
   await click(inspect);
   assert.match(updatedGeographic.textContent, /Selected area/);
@@ -677,7 +764,7 @@ test("discovery accounts reuse trend parameters, bucket values, drawer and cache
   await click(report.querySelector('[aria-label="About Discovery Activity"]'));
   await until(() => document.querySelector("dialog[open]"));
   assert.match(document.querySelector("dialog[open]").textContent, /must never be summed/);
-  assert.match(document.querySelector("dialog[open]").textContent, /not general app activity/);
+  assert.match(document.querySelector("dialog[open]").textContent, /not general active-user or retention measures/);
   await click(document.querySelector('[aria-label="Close Discovery Activity details"]'));
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   assert.match(document.querySelector("dialog[open]").textContent, /Participating Accounts/);
@@ -825,28 +912,29 @@ test("transportation keeps cached donut on refresh failure and discloses pretrac
   assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
 });
 
-test("business acquisition switches grouping without a request and preserves period/retry", async () => {
+test("business acquisition expands its hierarchy without a request and preserves period/retry", async () => {
   await mount();
   assert.match(section("Business Acquisition").textContent,/Cafes/);
   const count=requests("business-acquisition/").length;
-  await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent === "By Cluster"));
-  await until(()=>section("Business Acquisition").textContent.includes("Food"));
+  const cluster = section("Business Acquisition").querySelector('button[aria-expanded]');
+  assert.equal(cluster.getAttribute("aria-expanded"), "false");
+  await click(cluster);
+  assert.equal(cluster.getAttribute("aria-expanded"), "true");
+  assert.match(section("Business Acquisition").textContent, /Breakdown within Food/);
   assert.equal(requests("business-acquisition/").length,count);
-  const selected=section("Business Acquisition").querySelector('[aria-selected="true"]');
-  await act(async()=>selected.dispatchEvent(new dom.window.KeyboardEvent("keydown",{key:"ArrowLeft",bubbles:true})));
-  assert.match(section("Business Acquisition").textContent,/Cafes/);
   await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent.includes("View data")));
-  assert.match(document.querySelector("dialog[open]").textContent,/Acquisition by category/);
-  assert.match(document.querySelector("dialog[open]").textContent,/Created: 1/);
+  assert.match(document.querySelector("dialog[open]").textContent,/Food/);
+  assert.match(document.querySelector("dialog[open]").textContent,/Cafes/);
+  assert.match(document.querySelector("dialog[open]").textContent,/New businesses/);
   await click(document.querySelector('[aria-label="Close Business Acquisition details"]'));
   failures.add("/admin/analytics/business-acquisition/");
   await choosePeriod("7");
   await until(()=>section("Business Acquisition").textContent.includes("Unable to load report"));
   assert.equal(requests("business-acquisition/").at(-1).params.period,"7");
   failures.clear();
-  overrides.set("/admin/analytics/business-acquisition/",(report)=>({...report,categories:[],clusters:[],totals:{created:0,approved:0}}));
+  overrides.set("/admin/analytics/business-acquisition/",(report)=>({...report,hierarchy:[],categories:[],clusters:[],totals:{created:0,approved:0}}));
   await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent === "Retry"));
-  await until(()=>section("Business Acquisition").textContent.includes("No business creations"));
+  await until(()=>section("Business Acquisition").textContent.includes("No new businesses were recorded"));
 });
 
 test("report titles open readable About drawers while footer reliability stays in a tooltip across Analytics", async () => {
@@ -1008,6 +1096,26 @@ test("business coverage compacts full coverage and keeps every classification in
   assert.match(drawer.textContent, /not an average of classification percentages/);
   await click(drawer.querySelector('[aria-label="Close Business Coverage details"]'));
   assert.equal(document.activeElement, action);
+});
+
+test("rounded 100 percent coverage does not hide classifications with an unvisited business", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/coverage/", (report) => ({
+    ...report,
+    categories: [
+      { id: 1, name: "Still incomplete", eligible_businesses: 100000, visited_businesses: 99999, zero_recorded_visit_businesses: 1, coverage_percentage: 100 },
+      ...[2, 3, 4].map((id) => ({ id, name: `Complete ${id}`, eligible_businesses: 1, visited_businesses: 1, zero_recorded_visit_businesses: 0, coverage_percentage: 100 })),
+    ],
+  }));
+  await mount();
+  const coverage = section("Business Coverage");
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), [
+    "Still incomplete100%", "3 other categories100%",
+  ]);
+  await click([...coverage.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  const row = [...drawer.querySelectorAll("tbody tr")].find((element) => element.textContent.includes("Still incomplete"));
+  assert.deepEqual([...row.querySelectorAll("td")].map((cell) => cell.textContent), ["Still incomplete", "100,000", "99,999", "1", "100%"]);
 });
 
 test("business coverage retains every incomplete classification and summarizes each dimension independently", async () => {

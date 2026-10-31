@@ -43,7 +43,7 @@ function DiscoverySummary({ query }) {
   return (
     <div className="mb-4" aria-busy={query.isFetching}>
       {/* An isolated failure never removes the trend or metric controls */}
-      {query.error && <DataErrorState compact title="Unable to load discovery summary" message={state.errorMessage} onRetry={state.onRetry} retrying={query.isFetching} retryLabel="Retry summary" />}
+      {query.error && <DataErrorState compact title="Unable to load discovery summary" message={`${state.errorMessage}${query.data ? " Previously loaded summary values are shown." : ""}`} onRetry={state.onRetry} retrying={query.isFetching} retryLabel="Retry summary" />}
       {query.data?.meta?.availability === "unavailable" && <p className="mb-2 text-xs text-text-secondary">Discovery summary is currently unavailable.</p>}
       {/* Summary counts remain independent of the selected chart metric. */}
       <dl className="grid min-w-0 grid-cols-3 gap-3" aria-label="Recorded discovery summaries">

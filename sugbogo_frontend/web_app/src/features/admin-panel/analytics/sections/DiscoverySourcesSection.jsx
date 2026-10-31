@@ -27,7 +27,6 @@ export default function DiscoverySourcesSection({ period }) {
   const data = query.data;
   const rows = sourceRows(data?.sources);
   const unavailable = data?.meta?.availability === "unavailable";
-  const actionStyle = "inline-flex cursor-pointer items-center gap-1.5 rounded py-2 text-xs font-medium text-text-primary focus-visible:outline-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50";
   const exact = <AnalyticsExactTable caption="Recorded visits by source" rows={rows} columns={[
     { key: "label", label: "Source" },
     { key: "count", label: "Recorded visits", render: (row) => formatCount(row.count) },
@@ -37,7 +36,7 @@ export default function DiscoverySourcesSection({ period }) {
     <>
       {/* Full-width comparison complements the existing two-column discovery reports. */}
       <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Discovery Sources" description="Where recorded business profile visits originate." {...state}
-        unavailable={unavailable} unavailableMessage={<span>Discovery sources are unavailable. This does not mean zero visits. <button type="button" onClick={() => query.refetch()} className={actionStyle}>Retry source</button></span>}
+        unavailable={unavailable} unavailableMessage="Discovery sources are unavailable. This does not mean zero visits."
         isEmpty={data?.total_profile_visits === 0} emptyMessage="No profile visits were recorded during this period. View data includes all seven sources."
         footer={<AnalyticsReportFooter title="Discovery Sources" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
       >

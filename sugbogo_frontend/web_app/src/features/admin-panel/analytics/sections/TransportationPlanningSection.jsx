@@ -44,7 +44,6 @@ export default function TransportationPlanningSection({ period }) {
   const state = useAnalyticsSectionState(query, "transportation", "transportation planning");
   const data = query.data;
   const unavailable = data?.meta?.availability === "unavailable";
-  const actionStyle = "inline-flex cursor-pointer items-center gap-1.5 rounded py-2 text-xs font-medium text-text-primary focus-visible:outline-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50";
   const methods = data?.methods ?? [];
   const legendMethods = methods.filter((row) => row.method !== "OTHER" || row.count !== 0);
   return (
@@ -52,7 +51,7 @@ export default function TransportationPlanningSection({ period }) {
       {/* Compact distribution keeps secondary trends and rankings out of the main workspace. */}
       <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Transportation Planning" description="Recorded road-route and Jeepney guidance planning requests." {...state}
         unavailable={unavailable}
-        unavailableMessage={<span>{data?.meta?.partial_reasons?.includes("tracking_not_started_in_period") ? "This period is before transportation tracking began." : "Transportation planning observations are unavailable, not zero."} <button type="button" onClick={() => query.refetch()} className={actionStyle}>Retry source</button></span>}
+        unavailableMessage={data?.meta?.partial_reasons?.includes("tracking_not_started_in_period") ? "This period is before transportation tracking began." : "Transportation planning observations are unavailable, not zero."}
         isEmpty={data?.total_requests === 0}
         emptyMessage="No transportation-planning requests were recorded during the observed portion of this period."
         footer={<AnalyticsReportFooter title="Transportation Planning" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}

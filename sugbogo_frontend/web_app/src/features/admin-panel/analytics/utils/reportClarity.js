@@ -55,7 +55,7 @@ export const reportExplanations = {
   "Business Acquisition": [
     "New businesses during the selected period, grouped by their current cluster and category.",
     "Each business is counted once using its creation date. Category counts break down each cluster subtotal; do not add parent and child rows together.",
-    "Current classifications can differ from when a business joined. Removed records can revise earlier counts. Missing classifications remain Unclassified. First approvals are reported separately in Merchant Onboarding.",
+    "Current classifications can differ from when a business joined. Removed records can revise earlier counts. Missing classifications remain Unclassified. Review decisions are reported in Merchant Onboarding.",
   ],
   "Platform Growth": [
     "New accounts and businesses joining SugboGo during the selected period.",
