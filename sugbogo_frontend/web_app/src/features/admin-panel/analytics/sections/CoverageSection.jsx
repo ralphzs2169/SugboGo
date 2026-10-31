@@ -1,53 +1,105 @@
+import { useId, useState } from "react";
+import TableTabs from "../../components/data-table/TableTabs";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useCoverageAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
 import AnalyticsScopeFilters from "../components/AnalyticsScopeFilters";
-import AnalyticsMetricSelector from "../components/AnalyticsMetricSelector";
 import AnalyticsExactTable from "../components/AnalyticsExactTable";
 import AnalyticsDataNotice from "../components/AnalyticsDataNotice";
-import AnalyticsDisclosure from "../components/AnalyticsDisclosure";
-import AnalyticsReportContext, { AnalyticsSummary } from "../components/AnalyticsReportContext";
+import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
+import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
+import AnalyticsReportExplanation from "../components/AnalyticsReportExplanation";
+import AnalyticsReliability from "../components/AnalyticsReliability";
+import { AnalyticsSummary } from "../components/AnalyticsReportContext";
 import { formatCount, formatPercentage } from "../utils/presentation";
+
+const headlinePercentage = new Intl.NumberFormat("en-PH", { maximumFractionDigits: 1 });
 
 /** Shows pooled coverage denominators and current taxonomy breakdowns without losing SQL eligibility during outages. */
 export default function CoverageSection({ period }) {
   const [scope, setScope] = useWorkspaceSelection("coverage.scope", {});
   const [group, setGroup] = useWorkspaceSelection("coverage.group", "categories");
+  const [drawer, setDrawer] = useState(null);
+  const dimensionId = useId();
   const query = useCoverageAnalytics({ ...period, ...scope });
   const state = useAnalyticsSectionState(query, "coverage", "business coverage");
   const data = query.data;
-  const known = (data?.[group] ?? []).filter((row) => row.coverage_percentage != null && row.eligible_businesses > 0);
+  const visibilityUnavailable = data?.sources?.visibility?.availability === "unavailable";
+  const known = (data?.[group] ?? []).filter((row) => !visibilityUnavailable && row.coverage_percentage != null && row.eligible_businesses > 0);
   const ascending = [...known].sort((left, right) => left.coverage_percentage - right.coverage_percentage || left.id - right.id);
-  const highlights = known.length > 3
-    ? [{ label: "Highest coverage", rows: [...ascending].reverse().slice(0, 2) }, { label: "Lowest coverage", rows: ascending.slice(0, 3) }]
-    : [{ label: "Coverage highlights", rows: ascending }];
+  const fullyCovered = ascending.filter((row) => row.visited_businesses === row.eligible_businesses);
+  const summarizeFullCoverage = fullyCovered.length >= 3;
+  const preview = summarizeFullCoverage
+    ? ascending.filter((row) => row.visited_businesses !== row.eligible_businesses)
+    : ascending;
+  const overall = data?.overall;
   return (
-    <AnalyticsSection title="Business Coverage" description="Recorded visits across eligible active businesses." {...state}
-      controls={<AnalyticsScopeFilters scope="Coverage" value={scope} onChange={setScope} />}
-      partialNotice={data?.meta?.is_partial ? "Recorded coverage is unverified. A zero recorded-visit count does not establish zero real-world exposure." : null}
-      footer={<AnalyticsReportContext meta={data?.meta} />}
-    >
-      {/* SQL-backed denominators remain visible when visibility is unavailable */}
-      <div className="mb-4">
-        <p className="text-3xl font-bold tracking-tight text-text-primary">{formatPercentage(data?.overall?.coverage_percentage)} <span className="text-xs font-normal text-text-secondary">coverage</span></p>
-        <p className="mt-1 text-sm text-text-secondary">{formatCount(data?.overall?.visited_businesses)} of {formatCount(data?.overall?.eligible_businesses)} eligible businesses received recorded visits</p>
-        <p className="mt-1 text-xs text-text-secondary">{formatCount(data?.overall?.zero_recorded_visit_businesses)} with no recorded visits</p>
-      </div>
-      {data?.sources?.visibility?.availability === "unavailable" && <div className="mb-4"><AnalyticsDataNotice kind="unavailable">Visit observations are unavailable. Current eligible-business counts remain available.</AnalyticsDataNotice></div>}
-      {/* Highlights lead; the complete denominator-preserving table is disclosed on demand */}
-      <div className="mb-3 grid gap-4 sm:grid-cols-2">
-        {highlights.map((highlight) => <div key={highlight.label}><h3 className="mb-2 text-xs font-medium text-text-secondary">{highlight.label}</h3><dl className="space-y-2 text-xs">{highlight.rows.map((row) => <div key={row.id} className="flex justify-between gap-3"><dt className="min-w-0 truncate text-text-primary" title={row.name}>{row.name}</dt><dd className="shrink-0 font-semibold text-text-primary">{formatPercentage(row.coverage_percentage)}</dd></div>)}</dl>{!highlight.rows.length && <p className="text-xs text-text-secondary">No classified coverage for this scope.</p>}</div>)}
-      </div>
-      <AnalyticsDisclosure label="View full coverage">
-        <AnalyticsSummary items={[["eligible_businesses", "Eligible businesses", formatCount], ["visited_businesses", "Businesses with recorded visits", formatCount], ["zero_recorded_visit_businesses", "Zero recorded visits", formatCount]].map(([key, label, format]) => ({ label, value: format(data?.overall?.[key]) }))} />
-        <AnalyticsMetricSelector label="Coverage breakdown" value={group} onChange={setGroup} options={[{ value: "categories", label: "By category" }, { value: "clusters", label: "By cluster" }]} />
-        <AnalyticsExactTable caption={`Business coverage by ${group}`} rows={data?.[group]} columns={[
-          { key: "name", label: group === "categories" ? "Category" : "Cluster" },
-          ...[["eligible_businesses", "Eligible"], ["visited_businesses", "Recorded visited businesses"], ["zero_recorded_visit_businesses", "Zero recorded visits"]].map(([key, label]) => ({ key, label, render: (row) => formatCount(row[key]) })),
-          { key: "coverage_percentage", label: "Coverage", render: (row) => formatPercentage(row.coverage_percentage) },
-        ]} emptyMessage="No businesses match the selected scope." />
-      </AnalyticsDisclosure>
-    </AnalyticsSection>
+    <>
+      <AnalyticsSection onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Business Coverage" {...state}
+        controls={<AnalyticsScopeFilters scope="Coverage" value={scope} onChange={setScope} />}
+        isEmpty={overall?.eligible_businesses === 0}
+        emptyMessage="No eligible active businesses match the selected scope."
+        footer={<AnalyticsReportFooter title="Business Coverage" meta={data?.meta} coverageLabel="Coverage unverified" hasData={Boolean(data)} onData={() => setDrawer("data")} />}
+      >
+        {/* SQL-backed denominators remain visible when visibility is unavailable */}
+        <div className="mb-4">
+          <div className="flex flex-wrap items-center gap-1">
+            <p className="text-3xl font-semibold tabular-nums tracking-tight text-text-primary">{overall?.coverage_percentage == null ? formatPercentage(null) : `${headlinePercentage.format(overall.coverage_percentage)}%`} <span className="sr-only">coverage</span></p>
+          </div>
+          <p className="mt-1 text-sm text-text-secondary">{overall?.visited_businesses == null
+            ? `${formatCount(overall?.eligible_businesses)} eligible businesses · recorded profile visits unavailable`
+            : `${formatCount(overall.visited_businesses)} of ${formatCount(overall.eligible_businesses)} eligible businesses received recorded profile visits`}</p>
+        </div>
+        {visibilityUnavailable && <div className="mb-4"><AnalyticsDataNotice kind="unavailable">Visit observations are unavailable. Current eligible-business counts remain available.</AnalyticsDataNotice></div>}
+        {/* One bounded ranking compares the same classification level on a common percentage scale. */}
+        <div className="mb-3 max-w-full overflow-x-auto pb-1">
+          <TableTabs size="sm" ariaLabel="Coverage dimension" tabListId={dimensionId}
+            tabs={[{ id: "categories", label: "Category" }, { id: "clusters", label: "Cluster" }]}
+            activeTab={group} onTabChange={setGroup} />
+        </div>
+        <div role="tabpanel" id={`${dimensionId}-panel-${group}`} aria-labelledby={`${dimensionId}-${group}`} tabIndex={0} className="min-w-0 rounded focus-visible:outline-2 focus-visible:outline-info">
+          <h3 className="mb-3 text-sm font-semibold text-text-primary">Coverage by {group === "categories" ? "category" : "cluster"}</h3>
+          <ol aria-label={`Ranked coverage by ${group}`} className="space-y-3">
+            {preview.map((row) => <li key={row.id}>
+              <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 break-words text-text-primary">{row.name}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-text-primary">{formatPercentage(row.coverage_percentage)}</span>
+              </div>
+              <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-surface-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${row.coverage_percentage}%` }} />
+              </div>
+            </li>)}
+            {summarizeFullCoverage && <li>
+              <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 break-words text-text-primary">{formatCount(fullyCovered.length)} {preview.length > 0 ? "other " : ""}{group}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-text-primary">{formatPercentage(100)}</span>
+              </div>
+              <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-surface-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: "100%" }} />
+              </div>
+            </li>}
+          </ol>
+          {ascending.length === 0 && <p className="text-xs text-text-secondary">{visibilityUnavailable ? "Classification coverage is unavailable." : "No classified coverage is available for this scope."}</p>}
+          {overall?.zero_recorded_visit_businesses != null && <p className="mt-3 text-xs text-text-secondary">{formatCount(overall.zero_recorded_visit_businesses)} {overall.zero_recorded_visit_businesses === 1 ? "business had" : "businesses had"} no recorded profile visits</p>}
+        </div>
+      </AnalyticsSection>
+      <AnalyticsDetailDrawer exportContext={{ Cluster: scope.cluster || "All", Category: scope.category || "All", Dimension: group === "categories" ? "Category" : "Cluster" }} mode={drawer} onClose={() => setDrawer(null)} title="Business Coverage" report={data} interval="selected period" series={[]} showComparison={false}
+
+        dataContent={<div className="space-y-5">
+          <AnalyticsSummary items={[["eligible_businesses", "Eligible businesses"], ["visited_businesses", "Covered businesses"], ["zero_recorded_visit_businesses", "Businesses with no recorded visits"]].map(([key, label]) => ({ label, value: formatCount(overall?.[key]) }))} />
+          {["clusters", "categories"].map((classification) => <div key={classification}>
+            <h3 className="mb-2 font-semibold text-text-primary">{classification === "clusters" ? "All clusters" : "All categories"} in selected scope</h3>
+            <AnalyticsExactTable caption={`Business coverage by ${classification}`} rows={data?.[classification]} columns={[
+              { key: "name", label: classification === "categories" ? "Category" : "Cluster" },
+              ...[["eligible_businesses", "Eligible businesses"], ["visited_businesses", "Covered businesses"], ["zero_recorded_visit_businesses", "No recorded visits"]].map(([key, label]) => ({ key, label, render: (row) => formatCount(row[key]) })),
+              { key: "coverage_percentage", label: "Coverage", render: (row) => formatPercentage(row.coverage_percentage) },
+            ]} emptyMessage="No classifications match the selected scope." />
+          </div>)}
+          <AnalyticsReportExplanation title="Business Coverage" report={data} />
+          <AnalyticsReliability meta={data?.meta} />
+        </div>}
+      />
+    </>
   );
 }

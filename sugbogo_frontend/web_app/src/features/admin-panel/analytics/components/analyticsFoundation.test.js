@@ -209,21 +209,23 @@ test("reversed dates remain invalid and unapplied",async()=>{
   assert.equal(button("Apply range").disabled,true);
 });
 
-test("interval and metric controls use labelled native selects and emit only selected values", async () => {
+test("interval and metric controls share popovers and emit selected values", async () => {
+  const click = async (element) => act(async () => element.click());
   let interval;
   await render("AnalyticsIntervalControl", { onChange: (next) => { interval = next; } });
-  const select = container.querySelector("select");
-  assert.equal(select.labels[0].textContent, "Interval");
-  assert.equal(select.value, "daily");
-  assert.deepEqual([...select.options].map((option) => option.value), ["daily", "weekly"]);
-  await act(async () => { select.value = "weekly"; select.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  assert.equal(container.querySelector("select"), null);
+  await click(container.querySelector('[aria-label="Reporting interval: Daily"]'));
+  await click([...container.querySelectorAll('[role="menuitemradio"]')].find((option) => option.textContent === "Weekly"));
   assert.equal(interval, "weekly");
   let metric;
   await render("AnalyticsMetricSelector", { label: "Discovery metric", value: "saves", onChange: (next) => { metric = next; }, options: [{ value: "saves", label: "Saves" }, { value: "profile_visits", label: "Profile visits" }] });
-  const metricSelect = container.querySelector("select");
-  await act(async () => { metricSelect.value = "profile_visits"; metricSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  const trigger = container.querySelector('[aria-label="Discovery metric: Saves"]');
+  await click(trigger);
+  assert.equal(container.querySelector('[aria-checked="true"]').textContent, "Saves");
+  await click([...container.querySelectorAll('[role="menuitemradio"]')].find((option) => option.textContent === "Profile visits"));
   assert.equal(metric, "profile_visits");
-  assert.ok(metricSelect.className.includes("cursor-pointer"));
+  assert.equal(document.activeElement, trigger);
+  assert.equal(trigger.getAttribute("aria-expanded"), "false");
 });
 
 test("metric grid supplies responsive columns and reuses labelled Admin skeletons", () => {

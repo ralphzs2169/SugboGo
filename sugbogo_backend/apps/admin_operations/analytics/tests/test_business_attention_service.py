@@ -81,6 +81,68 @@ class AttentionFixtures:
 
 
 class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
+    def test_metric_maxima_use_the_filtered_readable_population(self):
+        report = self.report(attention_mode="discovery")
+        self.assertEqual(
+            report["metric_maxima"],
+            {"profile_visits": 5, "saves": 4, "distinct_savers": 3},
+        )
+        filtered = self.report(
+            attention_mode="discovery",
+            category=self.category_a.pk,
+        )
+        self.assertEqual(
+            filtered["metric_maxima"],
+            {"profile_visits": 5, "saves": 3, "distinct_savers": 2},
+        )
+        zero = self.report(
+            attention_mode="discovery",
+            category=self.category_a.pk,
+        )
+        self.assertEqual(zero["items"][0]["profile_visits"], 0)
+        empty = self.report(category=self.empty_category.pk)
+        self.assertTrue(
+            all(value is None for value in empty["metric_maxima"].values()),
+        )
+
+    def test_unavailable_discovery_does_not_create_zero_maxima_in_either_mode(self):
+        with patch.object(
+            VisibilityEventService,
+            "get_business_attention_metrics",
+            side_effect=VisibilityTrackingUnavailable(),
+        ):
+            discovery = BusinessAttentionService.get_report(
+                self.period,
+                attention_mode="discovery",
+            )
+            support = BusinessAttentionService.get_report(
+                self.period,
+                attention_mode="support",
+            )
+        self.assertIsNone(discovery["items"])
+        self.assertEqual(len(support["items"]), 4)
+        for report in (discovery, support):
+            self.assertEqual(
+                report["metric_maxima"],
+                {"profile_visits": None, "saves": None, "distinct_savers": None},
+            )
+
+    def test_recorded_zero_observations_have_zero_maxima(self):
+        observations = {
+            business_id: {
+                "profile_visits": 0,
+                "saves": 0,
+                "distinct_savers": 0,
+            }
+            for business_id in self.metrics
+        }
+        with patch.object(self, "metrics", observations):
+            report = self.report(attention_mode="discovery")
+        self.assertEqual(
+            report["metric_maxima"],
+            {"profile_visits": 0, "saves": 0, "distinct_savers": 0},
+        )
+
     def report(self, **options):
         with patch.object(VisibilityEventService, "get_business_attention_metrics", side_effect=self.mongo_metrics):
             return BusinessAttentionService.get_report(self.period, **options)
@@ -164,3 +226,102 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
         self.assertEqual(len(sql_order["items"]), 4)
         self.assertIsNone(sql_order["items"][0]["profile_visits"])
         self.assertEqual(sql_order["items"][0]["distinct_supporters"], 6)
+
+    def test_readable_unverified_discovery_ranks_even_small_populations(self):
+        report = self.report(attention_mode="discovery")
+        self.assertEqual(
+            [row["business_id"] for row in report["items"]],
+            [self.businesses[index].pk for index in (2, 3, 0, 1)],
+        )
+        self.assertEqual(report["selection_status"], "provisional")
+        self.assertFalse(report["meta"]["coverage_verified"])
+        narrow = self.report(category=self.category_b.pk, attention_mode="discovery")
+        self.assertEqual(len(narrow["items"]), 1)
+
+    def test_discovery_missing_or_failed_observations_remain_unavailable(self):
+        target = self.businesses[0].pk
+        observations = [None, {}, {**self.metrics, target: None}]
+        for signal in ("profile_visits", "saves", "distinct_savers"):
+            observations.append({
+                **self.metrics,
+                target: {**self.metrics[target], signal: None},
+            })
+        for metrics in observations:
+            with self.subTest(metrics=metrics), patch.object(
+                BusinessAttentionService,
+                "read_visibility",
+                return_value=(metrics, {"availability": "available", "coverage_verified": False}),
+            ):
+                report = BusinessAttentionService.get_report(
+                    self.period,
+                    attention_mode="discovery",
+                    ordering="profile_visits",
+                )
+                self.assertIsNone(report["items"])
+                self.assertEqual(report["selection_status"], "unavailable")
+                self.assertEqual(report["meta"]["availability"], "unavailable")
+        with patch.object(
+            VisibilityEventService,
+            "get_business_attention_metrics",
+            side_effect=VisibilityTrackingUnavailable(),
+        ):
+            report = BusinessAttentionService.get_report(
+                self.period,
+                attention_mode="discovery",
+            )
+        self.assertIsNone(report["items"])
+
+    def test_support_ranks_positive_and_zero_evidence(self):
+        report = self.report(attention_mode="support")
+        self.assertEqual(
+            [row["business_id"] for row in report["items"]],
+            [self.businesses[index].pk for index in (3, 1, 2, 0)],
+        )
+        self.assertEqual(report["items"][0]["attention_reason"], "No valid specialty endorsements")
+
+    def test_discovery_uses_all_tie_breakers_and_retains_high_activity_and_new_businesses(self):
+        observations = {
+            self.businesses[0].pk: {"profile_visits": 3, "saves": 2, "distinct_savers": 2},
+            self.businesses[1].pk: {"profile_visits": 3, "saves": 2, "distinct_savers": 1},
+            self.businesses[2].pk: {"profile_visits": 3, "saves": 1, "distinct_savers": 1},
+            self.businesses[3].pk: {"profile_visits": 73, "saves": 11, "distinct_savers": 8},
+        }
+        Business.objects.filter(pk=self.businesses[3].pk).update(BUSN_CREATED_AT=self.NOW)
+        with patch.object(BusinessAttentionService, "read_visibility", return_value=(
+            observations, {"availability": "available", "coverage_verified": False},
+        )):
+            report = BusinessAttentionService.get_report(self.period, attention_mode="discovery")
+        self.assertEqual(
+            [row["business_id"] for row in report["items"]],
+            [self.businesses[index].pk for index in (2, 1, 0, 3)],
+        )
+        self.assertFalse(report["items"][-1]["has_full_business_window"])
+        self.assertEqual(report["items"][-1]["attention_reason"], "Ranked by recorded discovery activity")
+        observations[self.businesses[0].pk] = observations[self.businesses[1].pk].copy()
+        with patch.object(BusinessAttentionService, "read_visibility", return_value=(
+            observations, {"availability": "available", "coverage_verified": True},
+        )):
+            tied = BusinessAttentionService.get_report(self.period, attention_mode="discovery")
+        self.assertEqual(
+            [row["business_id"] for row in tied["items"]],
+            [self.businesses[index].pk for index in (2, 0, 1, 3)],
+        )
+
+    def test_support_uses_supporter_then_identity_ties_without_discovery(self):
+        support = {
+            self.businesses[0].pk: {"valid_vouches": 2, "distinct_supporters": 2},
+            self.businesses[1].pk: {"valid_vouches": 2, "distinct_supporters": 1},
+            self.businesses[2].pk: {"valid_vouches": 2, "distinct_supporters": 1},
+            self.businesses[3].pk: {"valid_vouches": 0, "distinct_supporters": 0},
+        }
+        with patch.object(BusinessAttentionService, "specialty_support", return_value=support), patch.object(
+            BusinessAttentionService,
+            "read_visibility",
+            return_value=(None, {"availability": "unavailable"}),
+        ):
+            report = BusinessAttentionService.get_report(self.period, attention_mode="support")
+        self.assertEqual(
+            [row["business_id"] for row in report["items"]],
+            [self.businesses[index].pk for index in (3, 1, 2, 0)],
+        )
+        self.assertIsNone(report["items"][0]["profile_visits"])

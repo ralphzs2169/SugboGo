@@ -8,6 +8,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.admin_operations.analytics import constants
 from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch, Category, Cluster
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityTrackingUnavailable
 from apps.shared.analytics.date_ranges import MANILA, resolve_period
 from apps.shared.analytics.metadata import build_meta
@@ -97,18 +98,37 @@ class BusinessAttentionService:
     @classmethod
     @with_policy_snapshot
     def get_report(
-        cls, period, *, cluster=None, category=None, ordering="-profile_visits", low_exposure=False,
+        cls,
+        period,
+        *,
+        cluster=None,
+        category=None,
+        ordering="-profile_visits",
+        low_exposure=False,
+        attention_mode=None,
     ):
-        """Assemble current SQL support and period visibility, then sort the whole population."""
+        """Rank readable mode-specific observations before API pagination."""
+        if attention_mode == "discovery":
+            ordering = "profile_visits"
+        elif attention_mode == "support":
+            ordering = "valid_vouches"
         field = ordering.removeprefix("-")
         if field not in cls.ORDER_FIELDS:
             raise ValidationError({"ordering": "Unsupported attention ordering."})
         if low_exposure:
             # A passed selectable period cannot change the admin's fixed-window policy.
             period = cls.fixed_low_exposure_period(period.generated_at)
-        businesses = list(cls.eligible_businesses(cluster=cluster, category=category))
+        businesses = list(
+            cls.eligible_businesses(
+                cluster=cluster,
+                category=category,
+            ).annotate(
+                display_cover_photo_url=display_cover_photo_expression(),
+            )
+        )
         ids = [business.BUSN_ID for business in businesses]
-        visibility, visibility_meta = cls.read_visibility(period, ids)
+        observation_ids = ids
+        visibility, visibility_meta = cls.read_visibility(period, observation_ids)
         support = cls.specialty_support(ids)
         domain_meta = build_meta(
             period, coverage_verified=True, data_through=period.end,
@@ -119,9 +139,33 @@ class BusinessAttentionService:
             reasons.append("visibility_unavailable")
         needs_visibility = low_exposure or field in cls.VISIBILITY_FIELDS
         unavailable = visibility is None and needs_visibility
+        if attention_mode == "discovery":
+            # Readability and recording completeness are independent source properties.
+            unavailable = (
+                visibility is None
+                or visibility_meta.get("availability") == "unavailable"
+            )
+            if not unavailable:
+                unavailable = any(
+                    not isinstance(visibility.get(business_id), dict)
+                    or any(
+                        visibility[business_id].get(signal) is None
+                        for signal in ("profile_visits", "saves", "distinct_savers")
+                    )
+                    for business_id in observation_ids
+                )
+                if unavailable:
+                    reasons.append("visibility_observations_missing")
+            if visibility_meta.get("coverage_verified") is True:
+                reasons.remove("visibility_coverage_unverified")
         meta = build_meta(
             period, availability="unavailable" if unavailable else "partial",
             partial_reasons=reasons,
+            coverage_verified=(
+                visibility_meta.get("coverage_verified") is True
+                if attention_mode == "discovery"
+                else False
+            ),
         )
         result = {
             "label": "Low recorded attention with specialty support" if low_exposure else "Business attention",
@@ -131,8 +175,12 @@ class BusinessAttentionService:
             ),
             "items": None, "ordering": ordering,
             "meta": meta, "sources": {"domain": domain_meta, "visibility": visibility_meta},
-            "selection_status": "unavailable" if unavailable else "provisional" if low_exposure else "not_applicable",
+            "selection_status": "unavailable" if unavailable else "provisional" if low_exposure or attention_mode else "not_applicable",
             "thresholds": cls.thresholds() if low_exposure else None,
+            "metric_maxima": {
+                metric: None
+                for metric in ("profile_visits", "saves", "distinct_savers")
+            },
         }
         if unavailable:
             return result
@@ -143,6 +191,19 @@ class BusinessAttentionService:
             }
             evidence = support.get(business.BUSN_ID, {"valid_vouches": 0, "distinct_supporters": 0})
             created = business.BUSN_CREATED_AT
+            attention_reason = None
+            if attention_mode == "support":
+                if evidence["valid_vouches"] == 0:
+                    attention_reason = "No valid specialty endorsements"
+                else:
+                    attention_reason = "Ranked by valid specialty endorsements"
+            elif attention_mode == "discovery":
+                if metrics["profile_visits"] == 0:
+                    attention_reason = "No recorded profile visits"
+                elif metrics["saves"] == 0:
+                    attention_reason = "No recorded saves"
+                else:
+                    attention_reason = "Ranked by recorded discovery activity"
             if low_exposure:
                 if created >= period.end:
                     continue  # No opportunity to be observed in the completed-day window.
@@ -152,7 +213,9 @@ class BusinessAttentionService:
                 ):
                     continue
             items.append({
+                "attention_reason": attention_reason,
                 "business_id": business.BUSN_ID, "business_name": business.BUSN_NAME,
+                "cover_photo_url": business.display_cover_photo_url,
                 "category_id": business.CTGRY_ID_id, "category_name": business.CTGRY_ID.CTGRY_NAME,
                 "cluster_id": business.CTGRY_ID.CLUS_ID_id, "cluster_name": business.CTGRY_ID.CLUS_ID.CLUS_NAME,
                 **metrics, **evidence,
@@ -163,11 +226,36 @@ class BusinessAttentionService:
                     0, (period.end - max(created, period.start)).total_seconds() / 86400,
                 ), 2),
             })
-        # Stable ID ties survive both ascending and descending requested ordering.
-        items.sort(key=lambda item: item["business_id"])
-        items.sort(
-            key=lambda item: item[field].casefold() if field == "business_name" else item[field],
-            reverse=ordering.startswith("-"),
-        )
+        if attention_mode == "discovery":
+            items.sort(key=lambda item: (
+                item["profile_visits"],
+                item["saves"],
+                item["distinct_savers"],
+                item["business_id"],
+            ))
+        elif attention_mode == "support":
+            items.sort(key=lambda item: (
+                item["valid_vouches"],
+                item["distinct_supporters"],
+                item["business_id"],
+            ))
+        else:
+            # Preserve ordering for general reports and the fixed-window pilot.
+            items.sort(key=lambda item: item["business_id"])
+            items.sort(
+                key=lambda item: item[field].casefold() if field == "business_name" else item[field],
+                reverse=ordering.startswith("-"),
+            )
         result["items"] = items
+        # The API paginates these rows later; every page must share this scale.
+        for metric in result["metric_maxima"]:
+            observations = [
+                item[metric]
+                for item in items
+                if item[metric] is not None
+            ]
+            result["metric_maxima"][metric] = max(
+                observations,
+                default=None,
+            )
         return result

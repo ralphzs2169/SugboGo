@@ -87,6 +87,9 @@ export function normalizeAnalyticsParams(report, params = {}) {
     const orderings = definition.orderFields.flatMap((field) => [field, `-${field}`]);
     result.ordering = choice(params.ordering ?? definition.ordering, orderings, "ordering");
   }
+  if (report === "businessAttention" && params.attention_mode) {
+    result.attention_mode = choice(params.attention_mode, ["discovery", "support"], "attention mode");
+  }
   if (report === "discoveryHeatmap" && params.cell) {
     result.cell = params.cell;
   }

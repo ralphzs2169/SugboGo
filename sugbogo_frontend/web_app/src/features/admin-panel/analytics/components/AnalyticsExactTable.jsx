@@ -1,7 +1,7 @@
 /** Presents small aggregate reports and chart alternatives as labelled exact-value tables. */
 export default function AnalyticsExactTable({ caption, rows = [], columns, emptyMessage = "No records for this selection." }) {
   return (
-    <div className="max-w-full overflow-x-auto rounded-lg border border-stroke">
+    <div role="region" aria-label={caption} tabIndex={0} className="max-w-full overflow-x-auto rounded-lg border border-stroke focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info">
       {/* Exact values remain available without chart interaction */}
       <table className="w-full text-left text-sm">
         <caption className="sr-only">{caption}</caption>

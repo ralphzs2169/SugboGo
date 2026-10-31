@@ -1,24 +1,57 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BadgeCheck, CalendarDays, Info, Store, Users, X } from "lucide-react";
-import AnalyticsDisclosure from "./AnalyticsDisclosure";
+import { CalendarDays, X } from "lucide-react";
 import AnalyticsReliability from "./AnalyticsReliability";
 import AnalyticsReportExplanation from "./AnalyticsReportExplanation";
 import { readablePeriod } from "../utils/reportClarity";
 import AnalyticsExactTable from "./AnalyticsExactTable";
 import { growthPeriodLabel } from "../utils/growthPresentation";
 import { formatCount } from "../utils/presentation";
+import { downloadReport, reportRecords } from "../utils/reportExport";
 
 /** Presents report methodology and exact values in one right-side modal with native focus containment. */
 export default function AnalyticsDetailDrawer({
   mode, onClose, report, interval, series,
   title = "Platform Growth",
-  aboutContent,
   dataDescription,
   showComparison = true,
   dateColumn,
   dataContent,
+  periodContent,
+  exportContext = {},
+  loadExport,
 }) {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [exportSelection, setExportSelection] = useState({ report, mode });
+  if (exportSelection.report !== report || exportSelection.mode !== mode) {
+    setExportSelection({ report, mode });
+    setExporting(false);
+    setExportError("");
+  }
+  const exportController = useRef(null);
+  const records = mode === "data" ? reportRecords(title, report, series) : [];
+  useEffect(() => {
+    return () => {
+      exportController.current?.abort();
+      exportController.current = null;
+    };
+  }, [report, mode]);
+  async function exportCsv() {
+    if (exporting) return;
+    const controller = new AbortController();
+    exportController.current = controller;
+    setExporting(true);
+    setExportError("");
+    try {
+      const complete = loadExport ? await loadExport(controller.signal) : report;
+      if (!controller.signal.aborted) downloadReport(title, complete, reportRecords(title, complete, series), { Interval: interval, ...(series.length ? { Measures: series.map((item) => item.label).join(", ") } : {}), ...exportContext });
+    } catch (error) {
+      if (!controller.signal.aborted) setExportError(error.message || "Export failed. Please try again.");
+    } finally {
+      if (exportController.current === controller) setExporting(false);
+    }
+  }
   const ref = useRef(null);
   const titleId = useId();
   const panelRef = useRef(null);
@@ -100,6 +133,7 @@ export default function AnalyticsDetailDrawer({
           <h2 id={titleId} className="flex items-center gap-2 text-lg font-semibold">
             {displayMode === "about" ? `About ${title}` : `${title} — Exact Data`}
           </h2>
+          {displayMode === "data" && records.some((row) => row[3] != null) && <button type="button" onClick={exportCsv} disabled={exporting} aria-label={`Export ${title} CSV`} className="ml-auto shrink-0 cursor-pointer rounded-md border border-stroke px-3 py-2 text-xs font-medium hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-info disabled:cursor-wait disabled:opacity-50">{exporting ? "Exporting…" : "Export CSV"}</button>}
           <button
             type="button"
             aria-label={`Close ${title} details`}
@@ -111,34 +145,15 @@ export default function AnalyticsDetailDrawer({
         </header>
         {/* Scrollable report details preserve dashboard position */}
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 text-sm">
-          <div className="text-sm text-text-secondary"><p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{readablePeriod(meta?.period)}</p><p className="mt-1">Philippine time{displayMode === "data" ? ` � ${interval}` : ""}</p></div>
+          {displayMode === "data" && records.length > 0 && <p className="text-xs text-text-secondary">CSV datasets: {[...new Set(records.map((row) => row[0]))].join(", ")}. Null observations export as Unavailable.</p>}
+          {displayMode === "data" && title === "Transportation Planning" && records.length > 0 && <p className="text-xs text-text-secondary">CSV includes complete method composition and time buckets. The bounded destination ranking is not included.</p>}
+          {displayMode === "data" && exportError && <p role="alert" className="text-sm text-danger">{exportError}</p>}
+          {periodContent ?? <div className="text-sm text-text-secondary"><p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{readablePeriod(meta?.period)}</p><p className="mt-1">Philippine time{displayMode === "data" ? ` · ${interval}` : ""}</p></div>}
           {displayMode === "about" ? <>
             <AnalyticsReportExplanation title={title} report={report} />
-            <AnalyticsReliability meta={meta} />
+            <AnalyticsReliability meta={meta} title={title} snapshotAt={report?.coverage?.snapshot_at} />
             {showComparison && <p className="text-xs text-text-secondary">Compared with {growthPeriodLabel(meta?.period?.previous_start, meta?.period?.previous_end_exclusive)} Philippine time.</p>}
-            <AnalyticsDisclosure label="Technical details">
-              <pre className="overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(meta, null, 2)}</pre>
-            {aboutContent ?? <div className="space-y-4 border-t border-stroke pt-5">
-              <h3 className="text-xs font-semibold uppercase text-text-secondary">How these metrics work</h3>
-              {series.map((item) => (
-                <div key={item.key} className="flex items-start gap-3">
-                  <span className="rounded-lg bg-primary/10 p-2 text-primary">
-                    {item.key === "new_consumer_accounts" ? <Users aria-hidden="true" className="h-4 w-4" /> : item.key === "new_businesses" ? <Store aria-hidden="true" className="h-4 w-4" /> : <BadgeCheck aria-hidden="true" className="h-4 w-4" />}
-                  </span>
-                  <div className="min-w-0">
-                  <h4 className="font-medium">{item.label}</h4>
-                  <p className="mt-1 text-text-secondary">
-                    {report?.definitions?.[item.key === "new_consumer_accounts" ? "consumer_accounts" : item.key] ?? "Definition unavailable"}
-                  </p>
-                  <p className="mt-1 text-xs text-text-secondary">
-                    Previous period: {formatCount(report?.activity?.[item.key]?.previous_value)}
-                  </p>
-                  </div>
-                </div>
-              ))}
-              <p className="flex items-start gap-2 text-xs leading-relaxed text-text-secondary"><Info aria-hidden="true" className="h-4 w-4 shrink-0" />{report?.definitions?.comparisons}</p>
-            </div>}
-            </AnalyticsDisclosure>
+
           </> : (
             <>
             {dataDescription && <p className="font-medium">{dataDescription}</p>}

@@ -12,6 +12,15 @@ const duration = { median_hours: null, mean_hours: null, sample_count: 0, exclud
 const coverage = { eligible_businesses: 4, visited_businesses: 2, zero_recorded_visit_businesses: 2, coverage_percentage: 50 };
 
 export function fixtureReport(route, params = {}) {
+  if (route === "discovery-heatmap/") return {
+    cells: [
+      { id: "grid:1:1", column: 1, row: 1, geometry: { type: "Polygon", coordinates: [[[123.88, 10.3], [123.89, 10.3], [123.89, 10.31], [123.88, 10.3]]] }, eligible_businesses: 2, profile_visits: 0, state: "zero_recorded_visits" },
+      { id: "grid:1:2", column: 1, row: 2, geometry: { type: "Polygon", coordinates: [[[123.88, 10.31], [123.89, 10.31], [123.89, 10.32], [123.88, 10.31]]] }, eligible_businesses: 1, profile_visits: null, state: "visibility_unavailable" },
+    ],
+    sources: { visibility: { ...meta, availability: "unavailable" } },
+    reconciliation: { excluded_by_reason: { missing_location: { businesses: 1, profile_visits: null } } },
+    meta,
+  };
   if (route === "") return {
     kpis: {
       active_businesses: { label: "Active businesses", value: 0, measurement_type: "current_snapshot", description: "Current active inventory", change },
@@ -54,6 +63,7 @@ export function fixtureReport(route, params = {}) {
   };
   if (route === "business-acquisition/") return {
     categories:[{id:2,name:"Cafes",created:1,approved:0}], clusters:[{id:1,name:"Food",created:1,approved:0}],
+    hierarchy: [{ id: 1, name: "Food", created: 1, categories: [{ id: 2, name: "Cafes", created: 1 }] }],
     totals:{created:1,approved:0},definitions:{classification:"Current category; no historical transitions."},meta,
   };
   if (route === "transportation-planning/") return {
@@ -78,7 +88,7 @@ export function fixtureReport(route, params = {}) {
     };
   }
   if (route === "specialty-support/") return { summary: { valid_vouches: 6, distinct_supporters: 2, supported_businesses: 3, supported_specialties: 2 }, top_supported_specialties: [{ specialty_id: 1, name: "Coffee", valid_vouches: 4, distinct_supporters: 2, supported_businesses: 2 }, { specialty_id: 2, name: "Desserts", valid_vouches: 2, distinct_supporters: 2, supported_businesses: 1 }], as_of: meta.generated_at, meta };
-  if (route === "discovery-scores/") return { items: [], pagination: {}, coverage: { fresh: 2, stale: 1, pending: 2, failed: 1, missing: 1, provisional: 1, snapshot_at: meta.generated_at, max_score_age_hours: 24 } };
+  if (route === "discovery-scores/") return { items: [], pagination: {}, coverage: { active_businesses: 5, fresh: 2, stale: 1, pending: 2, failed: 1, missing: 1, provisional: 1, snapshot_at: meta.generated_at, max_score_age_hours: 24 } };
   throw new Error(`Unexpected fixture route: ${route}`);
 }
 

@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { LocationObject } from "expo-location";
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
+import colors from "tailwindcss/colors";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -17,8 +18,13 @@ import {
   formatDistance,
 } from "@/shared/utils/distance.utils";
 
+import { usePresentedBusinessRating } from "../../hooks/businessRatingSync";
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
+import {
+  businessRatingAccessibilityLabel,
+  hasDisplayableBusinessRating,
+} from "../../utils/businessRating.utils";
 import ExploreSectionHeader from "../ExploreSectionHeader";
 
 type Props = {
@@ -42,8 +48,10 @@ export default function HiddenGemSpotlight({
   onPress,
 }: Props) {
   const { retainBusinesses } = impressions;
+
   useEffect(() => {
     retainBusinesses([business.id]);
+
     return () => retainBusinesses([]);
   }, [business.id, retainBusinesses]);
 
@@ -55,11 +63,34 @@ export default function HiddenGemSpotlight({
         business.location.longitude,
       )
     : null;
+
   const accuracy = userLocation?.coords.accuracy ?? null;
+
+  const presentedRating = usePresentedBusinessRating(
+    business.id,
+    business.sentiment_rating,
+  );
+
+  const hasRating = hasDisplayableBusinessRating(presentedRating);
+
+  const ratingValue = hasRating ? presentedRating.value!.toFixed(1) : null;
+
+  const ratingCount = hasRating
+    ? presentedRating.contributing_review_count!
+    : null;
+
+  const accessibilityLabel = [
+    `Explore ${business.business_name}`,
+    business.category.name,
+    hasRating ? businessRatingAccessibilityLabel(presentedRating) : null,
+    distance !== null ? formatDistance(distance, accuracy) : null,
+  ]
+    .filter(Boolean)
+    .join(". ");
 
   return (
     <View
-      className="bg-surface pt-6 pb-2"
+      className="bg-surface pb-2 pt-6"
       onLayout={impressions.onSectionLayout}
       testID="hidden-gem-spotlight"
     >
@@ -79,10 +110,9 @@ export default function HiddenGemSpotlight({
           <SafePressable
             onPress={() => onPress(business.id, distance, accuracy)}
             accessibilityRole="button"
-            accessibilityLabel={`Explore ${business.business_name}, ${business.category.name}`}
+            accessibilityLabel={accessibilityLabel}
             className="w-full cursor-pointer overflow-hidden rounded-card bg-surface-muted active:opacity-90"
           >
-            {/* Content sets a minimum height and can grow with larger system text. */}
             <Image
               source={{ uri: business.display_cover_photo_url! }}
               style={StyleSheet.absoluteFill}
@@ -90,20 +120,60 @@ export default function HiddenGemSpotlight({
               onError={onCoverError}
               accessible={false}
             />
+
             <LinearGradient
               colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.58)", "rgba(0,0,0,0.94)"]}
               locations={[0, 0.35, 1]}
               style={[StyleSheet.absoluteFill, { top: "35%" }]}
               pointerEvents="none"
             />
+
             <View className="min-h-72 justify-end px-4 pb-4 pt-24">
-              <AppText
-                weight="bold"
-                className="text-xl leading-7 text-white"
-                numberOfLines={2}
-              >
-                {business.business_name}
-              </AppText>
+              {/* Business identity and rating */}
+              <View className="min-w-0 flex-row items-center gap-2">
+                <AppText
+                  weight="bold"
+                  className="min-w-0 flex-1 text-xl leading-7 text-white"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {business.business_name}
+                </AppText>
+
+                {hasRating && (
+                  <View
+                    accessible={false}
+                    importantForAccessibility="no"
+                    className="shrink-0 flex-row items-center gap-1"
+                  >
+                    <MaterialCommunityIcons
+                      name="star"
+                      size={17}
+                      color={colors.amber[500]}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no"
+                    />
+
+                    <AppText
+                      accessible={false}
+                      weight="bold"
+                      className="text-sm text-white"
+                      numberOfLines={1}
+                    >
+                      {ratingValue}
+                    </AppText>
+
+                    <AppText
+                      accessible={false}
+                      className="text-xs text-white/80"
+                      numberOfLines={1}
+                    >
+                      ({ratingCount})
+                    </AppText>
+                  </View>
+                )}
+              </View>
+
               {business.specialty_tags.length > 0 && (
                 <View className="mt-3 flex-row flex-wrap">
                   {business.specialty_tags.map((tag) => (
@@ -117,10 +187,12 @@ export default function HiddenGemSpotlight({
                   ))}
                 </View>
               )}
+
               <View className="mt-2 flex-row flex-wrap items-center justify-between gap-2">
                 <AppText weight="semibold" className="text-sm text-white">
                   Explore this place
                 </AppText>
+
                 <View className="flex-row items-center gap-3">
                   {distance !== null && (
                     <View className="flex-row items-center gap-1">
@@ -131,11 +203,13 @@ export default function HiddenGemSpotlight({
                         accessibilityElementsHidden
                         importantForAccessibility="no"
                       />
+
                       <AppText className="text-xs text-white">
                         {formatDistance(distance, accuracy)}
                       </AppText>
                     </View>
                   )}
+
                   <View className="h-8 w-8 items-center justify-center rounded-full bg-brand">
                     <MaterialCommunityIcons
                       name="arrow-right"
@@ -148,6 +222,7 @@ export default function HiddenGemSpotlight({
                 </View>
               </View>
             </View>
+
             {/* Leave room for the gem badge at the opposite photo corner. */}
             <View className="absolute right-3 top-3 max-w-[70%] flex-row items-center gap-1.5 rounded-full bg-black/65 px-2.5 py-2">
               <MaterialCommunityIcons
@@ -157,6 +232,7 @@ export default function HiddenGemSpotlight({
                 accessibilityElementsHidden
                 importantForAccessibility="no"
               />
+
               <AppText
                 weight="semibold"
                 className="shrink text-[11px] text-white"
@@ -166,6 +242,7 @@ export default function HiddenGemSpotlight({
               </AppText>
             </View>
           </SafePressable>
+
           <HiddenGemBadge />
         </View>
       </View>

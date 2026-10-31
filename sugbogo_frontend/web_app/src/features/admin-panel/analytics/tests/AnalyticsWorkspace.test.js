@@ -9,6 +9,8 @@ import { createServer } from "vite";
 import { fixtureReport, fixtureTaxonomy } from "./dashboardFixtures.js";
 
 const { JSDOM } = createRequire(resolve("../mobile/package.json"))("jsdom");
+const originalCustomEvent = globalThis.CustomEvent;
+const originalGetComputedStyle = globalThis.getComputedStyle;
 let dom;
 let server;
 let Page;
@@ -23,7 +25,8 @@ let initialEntries;
 
 before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost", pretendToBeVisual: true });
-  Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
+  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, Node: dom.window.Node, Element: dom.window.Element, HTMLElement: dom.window.HTMLElement, CustomEvent: dom.window.CustomEvent, MutationObserver: dom.window.MutationObserver, IS_REACT_ACT_ENVIRONMENT: true });
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
   ({ createRoot } = await import("react-dom/client"));
@@ -33,6 +36,7 @@ before(async () => {
       name: "dashboard-transport-and-chart-contract", enforce: "pre",
       resolveId(source) { if (source === "recharts") return "\0analytics-recharts"; },
       load(id) {
+        if (id.replaceAll("\\", "/").endsWith("/analytics/components/GeographicDistributionMap.jsx")) return `import React from 'react'; export default function GeographicMap({cells,onSelect}) {return React.createElement('div', {'data-geographic-map':true}, cells.filter(cell=>cell.eligible_businesses>0).map((cell,index)=>React.createElement('button',{key:cell.id,onClick:()=>onSelect(cell.id)},'Select map area '+(index+1))));}`;
         if (id.replaceAll("\\", "/").endsWith("/shared/api/apiClient.js")) return "export default { get: (...args) => globalThis.__dashboardTransport(...args) };";
         if (id === "\0analytics-recharts") return `import React from 'react';
           const SeriesData = React.createContext([]);
@@ -89,7 +93,9 @@ afterEach(async () => {
 after(async () => {
   await server?.close();
   dom.window.close();
-  for (const key of ["window", "document", "HTMLElement", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
+  globalThis.CustomEvent = originalCustomEvent;
+  globalThis.getComputedStyle = originalGetComputedStyle;
+  for (const key of ["window", "document", "Node", "Element", "HTMLElement", "MutationObserver", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
 });
 
 async function until(predicate) {
@@ -105,17 +111,34 @@ async function mount() {
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
 const section = (title) => [...container.querySelectorAll("h2")].find((heading) => heading.textContent === title)?.closest("section");
-const select = (label) => [...container.querySelectorAll("select")].find((element) => element.labels[0]?.textContent === label);
+const select = (label, within = container) => [...within.querySelectorAll("button[aria-haspopup]")].find((element) => element.getAttribute("aria-label")?.startsWith(`${label === "Interval" ? "Reporting interval" : label}:`));
 const requests = (route) => reads.filter(({ url }) => url === `/admin/analytics/${route}`);
 const click = async (element) => act(async () => { await element.click(); });
-async function choose(label, value) {
+async function choose(label, value, within = container) {
   if (label === "Discovery metric") {
     await click(container.querySelector(`#discovery-trend-metrics-${value}`));
     await until(() => client.isFetching() === 0);
     await act(async () => new Promise((done) => setTimeout(done, 10)));
     return;
   }
-  await act(async () => { const input = select(label); input.value = value; input.dispatchEvent(new dom.window.Event("change", { bubbles: true })); });
+  const labels = { support: "Low specialty support", discovery: "Low discovery activity", profile_visits: "Recorded profile visits", eligible_businesses: "Business distribution", daily: "Daily", weekly: "Weekly", "2": "Cafes", "1": "Food" };
+  const dimension = /category/i.test(label) ? "Category" : /cluster/i.test(label) ? "Cluster" : null;
+  if (dimension) {
+    const target = within === container
+      ? section(label.startsWith("Attention") ? "Businesses Needing Attention" : "Geographic Distribution")
+      : within;
+    await click(target.querySelector('[aria-haspopup="dialog"][aria-label$=" filters"]'));
+    let panel = target.querySelector('[role="dialog"]');
+    await click(panel.querySelector(`[aria-label="Choose ${dimension} filter"]`));
+    panel = target.querySelector('[role="dialog"]');
+    const optionLabel = value === "" ? (dimension === "Category" ? "All categories" : "All clusters") : (labels[value] ?? value);
+    await click([...panel.querySelectorAll("ul button")].find((button) => button.textContent.trim() === optionLabel));
+  } else {
+    const trigger = select(label, within);
+    await click(trigger);
+    const menu = trigger.parentElement.querySelector('[role="menu"]');
+    await click([...menu.querySelectorAll('[role="menuitemradio"]')].find((option) => option.textContent.trim() === (labels[value] ?? value)));
+  }
   await until(() => client.isFetching() === 0);
   await act(async () => new Promise((done) => setTimeout(done, 10)));
 }
@@ -158,8 +181,26 @@ test("workspace mounts only Growth reports and reuses cached queries with retain
   assert.equal(requests("discovery-summary/").length, 1);
 });
 
-test("workspace preserves global dates, URL parameters and browser Back/Forward", async () => {
+test("workspace sticky controls preserve global dates, URL parameters and browser Back/Forward", async () => {
   await mount();
+  const controls = container.querySelector('[role="region"][aria-label="Analytics workspace controls"]');
+  assert.ok(controls);
+  assert.equal(controls.querySelectorAll('[role="tablist"]').length, 1);
+  assert.equal(controls.querySelectorAll('[aria-label^="Reporting period:"]').length, 0);
+  assert.equal(container.querySelectorAll('[aria-label^="Reporting period:"]').length, 1);
+  const originalRect = controls.getBoundingClientRect;
+  controls.style.top = "64px";
+  await act(async () => container.querySelector('[aria-label^="Reporting period:"]').focus());
+  controls.getBoundingClientRect = () => ({ top: 64 });
+  await act(async () => { window.dispatchEvent(new dom.window.Event("scroll")); await new Promise((resolve) => setTimeout(resolve, 30)); });
+  assert.equal(controls.querySelectorAll('[aria-label^="Reporting period:"]').length, 1);
+  assert.equal(document.activeElement, controls.querySelector('[aria-label^="Reporting period:"]'));
+  assert.equal(container.querySelectorAll('[aria-label^="Reporting period:"]').length, 1);
+  controls.getBoundingClientRect = () => ({ top: 120 });
+  await act(async () => { window.dispatchEvent(new dom.window.Event("scroll")); await new Promise((resolve) => setTimeout(resolve, 30)); });
+  assert.equal(controls.querySelectorAll('[aria-label^="Reporting period:"]').length, 0);
+  assert.equal(document.activeElement, container.querySelector('[aria-label^="Reporting period:"]'));
+  controls.getBoundingClientRect = originalRect;
   await choosePeriod("90");
   await until(() => client.isFetching() === 0);
   await tab("Operations");
@@ -171,12 +212,112 @@ test("workspace preserves global dates, URL parameters and browser Back/Forward"
   await click(container.querySelector("[data-back]"));
   await until(() => Boolean(section("Merchant Onboarding")));
   assert.match(container.querySelector('[aria-label^="Reporting period:"]').textContent,/Last 90 days/);
+  assert.equal(container.querySelector('[aria-label="Analytics workspace controls"]'), controls);
   await click(container.querySelector("[data-forward]"));
   await until(() => Boolean(section("Reports & disputes")));
 });
 
+test("an open custom range preserves its draft and focused input through both sticky transitions", async () => {
+  await mount();
+  const originalReads = reads.length;
+  const controls = container.querySelector('[aria-label="Analytics workspace controls"]');
+  controls.style.top = "64px";
+  await click(container.querySelector('[aria-label^="Reporting period:"]'));
+  await click([...container.querySelectorAll('[role="menuitemradio"]')].find((button) => button.textContent === "Custom range"));
+  const inputs = [...container.querySelectorAll('input[type="date"]')];
+  await act(async () => {
+    for (const [index, value] of ["2026-10-01", "2026-10-07"].entries()) {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(inputs[index], value);
+      inputs[index].dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    }
+    inputs[1].focus();
+  });
+  for (const top of [64, 120]) {
+    controls.getBoundingClientRect = () => ({ top });
+    await act(async () => {
+      window.dispatchEvent(new dom.window.Event("scroll"));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    assert.equal(container.querySelectorAll('input[type="date"]').length, 2);
+    assert.equal(container.querySelectorAll('input[type="date"]')[1], inputs[1]);
+    assert.equal(inputs[0].value, "2026-10-01");
+    assert.equal(inputs[1].value, "2026-10-07");
+    assert.equal(document.activeElement, inputs[1]);
+    assert.equal(reads.length, originalReads);
+  }
+  await click([...container.querySelectorAll("button")].find((button) => button.textContent === "Apply range"));
+  await until(() => client.isFetching() === 0);
+  assert.deepEqual(requests("platform-growth/").at(-1).params, {
+    period: "custom", start_date: "2026-10-01", end_date: "2026-10-07", interval: "weekly",
+  });
+  assert.equal(container.querySelectorAll('[aria-label^="Reporting period:"]').length, 1);
+});
+
+test("a source outage can be retried without refreshing sibling reports or the page", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/discovery-heatmap/", (report) => ({
+    ...report, cells: null, meta: { ...report.meta, availability: "unavailable" },
+  }));
+  await mount();
+  const geographic = section("Geographic Distribution");
+  assert.match(geographic.textContent, /approved geographic grid is unavailable/);
+  const retries = [...geographic.querySelectorAll("button")].filter((button) => button.textContent === "Retry");
+  assert.equal(retries.length, 1);
+  const originalReads = reads.length;
+  overrides.delete("/admin/analytics/discovery-heatmap/");
+  await click(retries[0]);
+  await until(() => Boolean(geographic.querySelector("[data-geographic-map]")));
+  assert.equal(reads.length, originalReads + 1);
+  assert.equal(requests("discovery-heatmap/").length, 2);
+});
+
+test("failed summary refresh identifies retained values and Retry leaves the successful trend alone", async () => {
+  await mount();
+  failures.add("/admin/analytics/discovery-summary/");
+  const trends = requests("discovery-trend/").length;
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ["admin", "analytics", "discoverySummary"] });
+  });
+  const activity = section("Discovery Activity");
+  await until(() => activity.textContent.includes("Previously loaded summary values are shown."));
+  assert.equal(requests("discovery-trend/").length, trends);
+  assert.ok(activity.querySelector("[data-chart]"));
+  failures.clear();
+  await click([...activity.querySelectorAll("button")].find((button) => button.textContent === "Retry summary"));
+  await until(() => !activity.textContent.includes("Previously loaded summary values"));
+  assert.equal(requests("discovery-trend/").length, trends);
+});
+
+test("all scoped reports share complete paginated taxonomy options", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/taxonomy/clusters/", (report, params) => params.page === 1
+    ? { ...report, pagination: { has_next: true } }
+    : { items: [{ id: 5, name: "Later-page cluster" }], pagination: { has_next: false } });
+  await mount();
+  const clusters = client.getQueryData(["admin", "analytics", "taxonomy", "clusters"]);
+  assert.deepEqual(clusters.map((cluster) => cluster.name), ["Food", "Arts", "Later-page cluster"]);
+  assert.ok(section("Geographic Distribution"));
+  assert.ok(section("Business Coverage"));
+  assert.ok(section("Businesses Needing Attention"));
+  const optionReads = reads.filter(({ url }) => url === "/admin/taxonomy/clusters/");
+  assert.deepEqual(optionReads.map(({ params }) => params.page), [1, 2]);
+});
+
 test("workspace deep links isolate Operations errors and Retry", async () => {
   initialEntries = ["/admin-panel/analytics?tab=operations"];
+  overrides.set("/admin/analytics/onboarding/", (report) => ({
+    ...report,
+    review_turnaround: { ...report.review_turnaround, median_hours: 0.05 },
+  }));
+  overrides.set("/admin/analytics/change-requests/", (report) => ({
+    ...report,
+    turnaround: { ...report.turnaround, median_hours: 0.03 },
+    types: [
+      { type: "name", label: "Business name", backlog: report.backlog, turnaround: { median_hours: 1.5, sample_count: 2 }, period_outcomes: { approved: 2, rejected: 1, withdrawn: 3 } },
+      { type: "classification", label: "Classification", backlog: report.backlog, turnaround: { median_hours: 0, sample_count: 1 }, period_outcomes: { approved: 0, rejected: 1, withdrawn: 0 } },
+      { type: "location", label: "Location", backlog: report.backlog, turnaround: { median_hours: null, sample_count: 0 }, period_outcomes: { approved: 0, rejected: 0, withdrawn: 1 } },
+    ],
+  }));
   failures.add("/admin/analytics/change-requests/");
   await mount();
   assert.equal(reads.length, 2);
@@ -187,6 +328,85 @@ test("workspace deep links isolate Operations errors and Retry", async () => {
   await until(() => client.isFetching() === 0);
   assert.equal(requests("onboarding/").length, 1);
   assert.equal(requests("change-requests/").length, 2);
+  const changes = section("Merchant change requests");
+  assert.match(changes.textContent, /Median resolution time2 min/);
+  assert.doesNotMatch(changes.textContent, /0\.03 hours/);
+  assert.match(changes.textContent, /Administrator decisions/);
+  assert.match(changes.textContent, /Merchant action/);
+  const rows = changes.querySelectorAll("tbody tr");
+  const speed = changes.querySelector('[aria-label="Median resolution time by request type"]');
+  assert.match(speed.querySelector('[aria-label^="Business name:"]').getAttribute("data-tooltip-content"), /1 hr 30 min.*2 valid decisions/);
+  assert.deepEqual([...rows[0].querySelectorAll("td")].map((cell) => cell.querySelector("p, span").textContent), ["2", "1", "3"]);
+  assert.match(rows[0].cells[1].textContent, /67% of decisions/);
+  assert.match(rows[0].cells[2].textContent, /33% of decisions/);
+  assert.match(rows[1].cells[1].textContent, /0% of decisions/);
+  assert.match(rows[1].cells[2].textContent, /100% of decisions/);
+  assert.doesNotMatch(rows[2].textContent, /% of decisions/);
+  assert.match(speed.querySelector('[aria-label^="Classification:"]').textContent, /0 min/);
+  assert.match(speed.querySelector('[aria-label^="Location:"]').textContent, /Unavailable/);
+  assert.doesNotMatch(changes.textContent, /Unknown age/);
+  await click([...changes.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  let drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Current queue aging/);
+  assert.match(drawer.textContent, /Unknown age/);
+  assert.match(drawer.textContent, /0\.03/);
+  assert.match(drawer.textContent, /Missing resolution dates \(all time\)/);
+  await click(drawer.querySelector('[aria-label="Close Merchant change requests details"]'));
+  const onboarding = section("Merchant Onboarding");
+  assert.match(onboarding.textContent, /8 pending · 2 overdue/);
+  assert.match(onboarding.textContent, /Median turnaround3 min/);
+  assert.match(onboarding.querySelector('[aria-label="About application workload"]').getAttribute("data-tooltip-content"), /independent event counts/);
+  await click([...onboarding.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Applications submitted/);
+  assert.match(drawer.textContent, /Review decisions/);
+  assert.doesNotMatch(drawer.textContent, /Completed reviews/);
+});
+
+test("change request outcomes exclude withdrawals from decision shares and preserve zero, missing and empty observations", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=operations"];
+  overrides.set("/admin/analytics/change-requests/", (report) => ({
+    ...report,
+    types: [
+      { type: "name", label: "Business name", period_outcomes: { approved: 1, rejected: 0, withdrawn: 3 } },
+      { type: "classification", label: "Classification", period_outcomes: { approved: 0, rejected: 0, withdrawn: 5 } },
+      { type: "location", label: "Location", period_outcomes: { approved: 2, rejected: null, withdrawn: null } },
+    ],
+  }));
+  await mount();
+  const changes = section("Merchant change requests");
+  const region = changes.querySelector('[role="region"]');
+  assert.equal(region.tabIndex, 0);
+  const table = region.querySelector("table");
+  assert.deepEqual([...table.querySelectorAll('th[scope="colgroup"]')].map((header) => header.textContent), ["Administrator decisions", "Merchant action"]);
+  assert.deepEqual([...table.querySelectorAll("thead tr:last-child th")].map((header) => header.textContent), ["Approved", "Rejected", "Withdrawn"]);
+  let rows = table.querySelectorAll("tbody tr");
+  assert.match(rows[0].cells[1].textContent, /1.*100% of decisions/);
+  assert.equal(rows[0].cells[1].querySelector('[aria-hidden="true"] > div').style.width, "100%");
+  assert.equal(rows[0].cells[2].querySelector('[aria-hidden="true"] > div').style.width, "0%");
+  assert.ok(rows[0].cells[3].querySelector("svg.lucide-clock-3"));
+  assert.doesNotMatch(rows[0].cells[3].textContent, /%/);
+  assert.doesNotMatch(rows[1].textContent, /%|NaN|Infinity/);
+  assert.equal(rows[1].cells[1].querySelector("p").textContent, "0");
+  assert.match(rows[2].cells[2].textContent, /Unavailable/);
+  assert.match(rows[2].cells[3].textContent, /Unavailable/);
+  assert.equal(rows[2].cells[1].querySelector('[aria-hidden="true"]'), null);
+  assert.doesNotMatch(rows[2].textContent, /%/);
+  assert.match(changes.querySelector('[aria-label="About administrator decisions"]').getAttribute("data-tooltip-content"), /approved \+ rejected/);
+  assert.match(changes.textContent, /Withdrawn reflects merchant action, not administrator review/);
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "changeRequests");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, types: report.types.map((row) => ({ ...row, period_outcomes: { ...row.period_outcomes, withdrawn: 999 } })) }));
+  });
+  await until(() => table.querySelector("tbody tr").cells[3].textContent.includes("999"));
+  rows = table.querySelectorAll("tbody tr");
+  assert.match(rows[0].cells[1].textContent, /100% of decisions/);
+  assert.match(rows[0].cells[3].textContent, /999/);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, types: [] }));
+  });
+  await until(() => table.textContent.includes("No request-type observations available"));
+  assert.match(table.textContent, /No request-type observations available/);
 });
 
 test("workspace invalid tabs fall back safely and arrow keys activate semantic panels", async () => {
@@ -203,27 +423,256 @@ test("workspace invalid tabs fall back safely and arrow keys activate semantic p
 });
 
 
-test("workspace ecosystem preserves scope and low-attention mode without fetching inactive reports", async () => {
+test("geographic distribution reuses its query across modes and keeps zero, unavailable and exact values distinct", async () => {
+  await mount();
+  assert.equal(requests("discovery-heatmap/").length, 0);
+  await tab("Business Ecosystem");
+  const geographic = section("Geographic Distribution");
+  assert.ok(geographic);
+  assert.equal(geographic.parentElement.getAttribute("role"), "tabpanel");
+  assert.equal(requests("discovery-heatmap/").length, 1);
+  assert.equal(geographic.querySelector('[aria-label="Geographic area"]'), null);
+  assert.doesNotMatch(geographic.textContent, /grid:1:/);
+  assert.match(geographic.textContent, /Select an area on the map to inspect it\./);
+  assert.equal(geographic.querySelector("h3"), null);
+  assert.match(geographic.textContent, /Businesses per grid area/);
+  assert.equal(geographic.textContent.match(/Visit recording coverage unverified/g).length, 1);
+  assert.doesNotMatch(geographic.textContent, /Business inventory reflects current records|Current eligible businesses by area/);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 1"));
+  assert.match(geographic.textContent, /2 businesses/);
+  assert.match(geographic.textContent, /0 recorded profile visits · selected period/);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Clear selection"));
+  assert.match(geographic.textContent, /Select an area on the map to inspect it\./);
+  assert.equal(geographic.querySelector("h3"), null);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 2"));
+  assert.match(geographic.textContent, /Unavailable recorded profile visits/);
+  await choose("Metric", "profile_visits");
+  assert.equal(requests("discovery-heatmap/").length, 1);
+  assert.match(geographic.textContent, /Visit intensity unavailable/);
+  assert.match(geographic.textContent, /Recorded profile visits per grid area/);
+  assert.match(geographic.textContent, /Selected area/);
+  assert.match(geographic.textContent, /1 businesses · current inventory/);
+  await choose("Category", "2");
+  assert.equal(requests("discovery-heatmap/").at(-1).params.category, 2);
+  assert.match(geographic.textContent, /Select an area on the map to inspect it\./);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 1"));
+  await choose("Cluster", "1");
+  assert.match(geographic.textContent, /Select an area on the map to inspect it\./);
+  assert.equal(requests("discovery-heatmap/").at(-1).params.category, undefined);
+  await click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 1"));
+  await choosePeriod("7");
+  await until(() => section("Geographic Distribution")?.textContent.includes("Select an area on the map to inspect it.") && requests("discovery-heatmap/").at(-1)?.params.period === "7" && client.isFetching() === 0);
+  const updatedGeographic = section("Geographic Distribution");
+  assert.match(updatedGeographic.textContent, /Select an area on the map to inspect it\./);
+  assert.equal(requests("discovery-heatmap/").at(-1).params.period, "7");
+  await click([...updatedGeographic.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Current businesses/);
+  assert.match(drawer.textContent, /Zero recorded visits/);
+  assert.match(drawer.textContent, /Visits unavailable/);
+  assert.match(drawer.textContent, /Missing location/);
+  assert.doesNotMatch(drawer.textContent, /grid:1:|missing_location/);
+  assert.match(drawer.textContent, /not explorer location, foot traffic/);
+  assert.match(drawer.textContent, /1 km² projected area/);
+  assert.match(drawer.textContent, /Coverage is not fully verified/);
+  const inspect = drawer.querySelector('[aria-label="Inspect area 1"]');
+  assert.equal(inspect.getAttribute("aria-pressed"), "false");
+  await click(inspect);
+  assert.match(updatedGeographic.textContent, /Selected area/);
+  assert.match(updatedGeographic.textContent, /0 recorded profile visits/);
+});
+
+test("geographic distribution clears selection for changed geometry or a removed populated cell", async () => {
   initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
   await mount();
+  await until(() => client.isFetching() === 0);
+  const geographic = section("Geographic Distribution");
+  const selectFirstArea = () => click([...geographic.querySelectorAll("button")].find((button) => button.textContent === "Select map area 1"));
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "discoveryHeatmap");
+  await selectFirstArea();
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({
+      ...report,
+      cells: report.cells.map((cell, index) => index === 0 ? { ...cell, eligible_businesses: 3 } : cell),
+    }));
+  });
+  await until(() => geographic.textContent.includes("3 businesses"));
+  assert.match(geographic.textContent, /Selected area/);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, definition: { version: "changed-grid" } }));
+  });
+  await until(() => geographic.textContent.includes("Select an area on the map to inspect it."));
+  await selectFirstArea();
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, scope: { boundary_wkb_sha256: "changed-boundary" } }));
+  });
+  await until(() => geographic.textContent.includes("Select an area on the map to inspect it."));
+  await selectFirstArea();
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({
+      ...report,
+      cells: report.cells.map((cell, index) => index === 0 ? { ...cell, eligible_businesses: 0 } : cell),
+    }));
+  });
+  await until(() => geographic.textContent.includes("Select an area on the map to inspect it."));
+  assert.equal(geographic.querySelector("h3"), null);
+  assert.equal(requests("discovery-heatmap/").length, 1);
+});
+
+test("workspace ecosystem preserves low-activity ranking, support scope and distinct business identities", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/business-attention/", (report, params) => ({
+    ...report,
+    items: [9, 15].map((id, index) => ({
+      ...report.items[0],
+      business_id: id,
+      business_name: "Serenity Cove Resort & Spa",
+      cover_photo_url: index === 0 ? "https://example.com/storefront.jpg" : null,
+      profile_visits: params.ordering === "valid_vouches" ? null : index,
+      valid_vouches: index,
+      attention_reason: params.attention_mode === "support" ? "No valid specialty endorsements" : "No recorded profile visits",
+    })),
+  }));
+  await mount();
   assert.equal(requests("low-exposure/").length, 0);
+  assert.equal(requests("business-attention/").at(-1).params.ordering, "profile_visits");
   assert.equal(requests("platform-growth/").length, 0);
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 2);
-  await choose("Coverage category", "2");
-  await choose("Attention mode", "low");
-  await choose("Order by", "-valid_vouches");
-  const lowCount = requests("low-exposure/").length;
+  const attention = section("Businesses Needing Attention");
+  assert.match(attention.textContent, /No recorded profile visits/);
+  assert.match(attention.textContent, /Coverage unverified/);
+  assert.doesNotMatch(attention.textContent, /Required discovery observations are unavailable/);
+  assert.match(attention.textContent, /Business #9/);
+  assert.match(attention.textContent, /Business #15/);
+  assert.equal(attention.querySelectorAll('a[href^="/admin-panel/businesses/"]').length, 2);
+  assert.equal(attention.querySelector("img").getAttribute("src"), "https://example.com/storefront.jpg");
+  assert.equal(attention.querySelector("img").getAttribute("loading"), "lazy");
+  assert.ok(attention.querySelector('[aria-label="No cover photo available"]'));
+  await choose("Category", "2", section("Business Coverage"));
+  await choose("Attention mode", "support");
+  await choose("Attention category", "2");
+  assert.equal(requests("business-attention/").at(-1).params.ordering, "valid_vouches");
+  assert.equal(requests("business-attention/").at(-1).params.category, 2);
+  assert.match(section("Businesses Needing Attention").textContent, /No valid specialty endorsements/);
+  assert.match(section("Businesses Needing Attention").textContent, /Unavailable/);
+  assert.doesNotMatch(section("Businesses Needing Attention").textContent, /No recorded profile visits/);
+  const attentionCount = requests("business-attention/").length;
   await tab("Community & Trust");
   assert.ok(section("Reports & disputes"));
   assert.equal(requests("change-requests/").length, 0);
   await tab("Business Ecosystem");
-  assert.equal(select("Coverage category").value, "2");
-  assert.equal(select("Attention mode").value, "low");
-  assert.equal(select("Order by").value, "-valid_vouches");
-  assert.equal(requests("low-exposure/").length, lowCount);
+  assert.match(section("Business Coverage").textContent, /Category: Cafes/);
+  assert.equal(select("Attention mode").textContent, "Lowest specialty support");
+  assert.match(section("Businesses Needing Attention").textContent, /Category: Cafes/);
+  assert.equal(select("Order by"), undefined);
+  assert.equal(requests("business-attention/").length, attentionCount);
+  assert.equal(requests("low-exposure/").length, 0);
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 2);
 });
 
+
+test("business attention uses population scales across pages while preserving grouped metrics and ranks", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/business-attention/", (report, params) => ({
+    ...report,
+    metric_maxima: params.category
+      ? { profile_visits: 23, saves: 5, distinct_savers: 5 }
+      : { profile_visits: 69, saves: 11, distinct_savers: 11 },
+    items: (Number(params.page ?? 1) === 1 ? [0, 1, 1] : [1, 23, params.category ? 23 : 69]).map((visits, index) => ({
+      ...report.items[0],
+      business_id: Number(params.page ?? 1) * 10 + index,
+      profile_visits: visits,
+      saves: Math.max(0, index - 1),
+      distinct_savers: index,
+      attention_reason: ["No recorded profile visits", "No recorded saves", "Ranked by recorded discovery activity"][index],
+    })),
+  }));
+  await mount();
+  const attention = section("Businesses Needing Attention");
+  const table = attention.querySelector("table");
+  assert.equal(select("Attention mode").textContent, "Lowest activity");
+  assert.deepEqual([...table.querySelectorAll('th[scope="colgroup"]')].map((header) => header.colSpan), [3, 2]);
+  assert.deepEqual([...table.querySelectorAll("thead tr:last-child th")].map((header) => header.textContent), ["Profile visits", "Saves", "Distinct savers", "Valid vouches", "Supporters"]);
+  const rows = [...table.querySelectorAll("tbody tr")];
+  assert.deepEqual(rows.map((row) => row.cells[0].textContent), ["1", "2", "3"]);
+  assert.deepEqual(rows.map((row) => row.cells[2].querySelector("p").textContent), ["0", "1", "1"]);
+  const width = (row, column) => row.cells[column].querySelector('[aria-hidden="true"] > div').style.width;
+  assert.equal(width(rows[0], 2), "0%");
+  const oneVisitWidth = width(rows[1], 2);
+  assert.ok(Math.abs(Number.parseFloat(oneVisitWidth) - 1.449275) < 0.00001);
+  assert.notEqual(width(rows[2], 2), "100%");
+  assert.ok(Math.abs(Number.parseFloat(width(rows[2], 3)) - 9.090909) < 0.00001);
+  assert.ok(Math.abs(Number.parseFloat(width(rows[2], 4)) - 18.181818) < 0.00001);
+  assert.ok(rows[0].cells[5].querySelector("svg.lucide-heart"));
+  assert.ok(rows[0].cells[6].querySelector("svg.lucide-users"));
+  assert.equal(rows[0].cells[6].querySelector("svg.lucide-heart"), null);
+  assert.ok(rows[0].cells[7].querySelector(".text-danger"));
+  assert.ok(rows[1].cells[7].querySelector(".text-warning"));
+  assert.ok(rows[2].cells[7].querySelector(".text-text-secondary"));
+  assert.equal(attention.querySelector('[aria-label="Business attention rankings"]').tabIndex, 0);
+  await click(attention.querySelector('button[aria-label="Next page"]'));
+  await until(() => requests("business-attention/").at(-1).params.page === 2);
+  await until(() => attention.querySelector("tbody tr td")?.textContent === "11");
+  assert.deepEqual([...attention.querySelectorAll("tbody tr")].map((row) => row.cells[0].textContent), ["11", "12", "13"]);
+  const nextRows = [...attention.querySelectorAll("tbody tr")];
+  assert.equal(width(nextRows[0], 2), oneVisitWidth);
+  assert.equal(width(nextRows[2], 2), "100%");
+  await choose("Attention category", "2");
+  assert.equal(requests("business-attention/").at(-1).params.page, 1);
+  const filteredRows = [...attention.querySelectorAll("tbody tr")];
+  assert.equal(filteredRows[0].cells[0].textContent, "1");
+  assert.ok(Math.abs(Number.parseFloat(width(filteredRows[1], 2)) - 4.347826) < 0.00001);
+});
+
+test("business attention renders provisional rows but blocks unavailable observations", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  await mount();
+  const attention = section("Businesses Needing Attention");
+  assert.ok(attention.querySelector("table"));
+  assert.match(attention.textContent, /Coverage unverified/);
+  const unavailableSaves = attention.querySelector("tbody tr").cells[3];
+  assert.match(unavailableSaves.textContent, /Unavailable/);
+  assert.equal(unavailableSaves.querySelector('[aria-hidden="true"]'), null);
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention");
+  assert.equal(container.querySelector("select"), null);
+  assert.match(attention.textContent, /Businesses with the lowest recorded discovery activity during the selected period/);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, items: [], pagination: { ...report.pagination, total_items: 0 } }));
+  });
+  await until(() => attention.textContent.includes("No businesses to rank for this selection."));
+  assert.match(attention.textContent, /No eligible businesses are available for the recorded discovery activity ranking/);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({
+      ...report,
+      items: null,
+      pagination: null,
+      selection_status: "unavailable",
+      meta: { ...report.meta, availability: "unavailable" },
+    }));
+  });
+  await until(() => attention.textContent.includes("Required discovery observations are unavailable"));
+  assert.equal(attention.querySelector("table"), null);
+  await choose("Attention mode", "support");
+  const support = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention" && row.queryKey[3].attention_mode === "support");
+  await act(async () => {
+    client.setQueryData(support.queryKey, (report) => ({ ...report, items: [], pagination: { ...report.pagination, total_items: 0 } }));
+  });
+  await until(() => section("Businesses Needing Attention").textContent.includes("No eligible businesses are available for the specialty support ranking."));
+});
+
+test("business attention request failures retain Error and Retry rather than an empty result", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  failures.add("/admin/analytics/business-attention/");
+  await mount();
+  const attention = section("Businesses Needing Attention");
+  assert.match(attention.textContent, /Unable to load/);
+  assert.doesNotMatch(attention.textContent, /No businesses currently need attention/);
+  const retry = [...attention.querySelectorAll("button")].find((button) => button.textContent.includes("Retry"));
+  assert.ok(retry);
+  failures.delete("/admin/analytics/business-attention/");
+  await click(retry);
+  await until(() => Boolean(attention.querySelector("table")));
+});
 
 test("shared table tabs retain their default click and count presentation without analytics semantics", async () => {
   const { default: TableTabs } = await server.ssrLoadModule("/src/features/admin-panel/components/data-table/TableTabs.jsx");
@@ -317,7 +766,7 @@ test("discovery accounts reuse trend parameters, bucket values, drawer and cache
   await click(report.querySelector('[aria-label="About Discovery Activity"]'));
   await until(() => document.querySelector("dialog[open]"));
   assert.match(document.querySelector("dialog[open]").textContent, /must never be summed/);
-  assert.match(document.querySelector("dialog[open]").textContent, /not general app activity/);
+  assert.match(document.querySelector("dialog[open]").textContent, /not general active-user or retention measures/);
   await click(document.querySelector('[aria-label="Close Discovery Activity details"]'));
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   assert.match(document.querySelector("dialog[open]").textContent, /Participating Accounts/);
@@ -326,8 +775,7 @@ test("discovery accounts reuse trend parameters, bucket values, drawer and cache
   await choose("Discovery metric", "saves");
   await selectAccounts();
   assert.equal(requests("discovery-trend/").length, count + 1);
-  const interval = report.querySelector("select");
-  await act(async () => { interval.value = "daily"; interval.dispatchEvent(new dom.window.Event("change", {bubbles:true})); });
+  await choose("Interval", "daily", report);
   await until(() => client.isFetching() === 0);
   assert.equal(requests("discovery-trend/").at(-1).params.interval, "daily");
   await choosePeriod("7");
@@ -371,36 +819,66 @@ test("account trend retry is independent and retains cached observations on refr
 });
 
 test("transportation donut reconciles methods and drawer destinations with period cache reuse", async () => {
+  overrides.set("/admin/analytics/transportation-planning/", (report) => ({
+    ...report,
+    total_requests: 11,
+    methods: [
+      { method: "ROAD_ROUTE", label: "Road routes", count: 4, share_percent: 36.36 },
+      { method: "JEEPNEY", label: "Jeepney guidance", count: 7, share_percent: 63.64 },
+      { method: "OTHER", label: "Other recorded methods", count: 0, share_percent: 0 },
+    ],
+    destinations: [{ ...report.destinations[0], count: 11, road_route: 4, jeepney: 7 }],
+  }));
   await mount();
   const report = section("Transportation Planning");
   const methods = JSON.parse(report.querySelector("[data-pie]").getAttribute("data-pie"));
-  assert.equal(methods.reduce((sum,row) => sum + row.count,0), 5);
-  assert.match(report.textContent, /60%/);
+  assert.equal(methods.reduce((sum,row) => sum + row.count,0), 11);
+  assert.match(report.textContent, /36\.4%/);
+  assert.match(report.textContent, /63\.6%/);
+  assert.doesNotMatch(report.textContent, /36\.36%|Other recorded methods/);
+  assert.equal(report.querySelector('[aria-label^="Reporting interval:"]'), null);
+  assert.equal(methods.find((row) => row.method === "OTHER").count, 0);
   assert.match(report.textContent, /Distinct requesting accounts: 2/);
   assert.match(report.textContent, /not completed journeys/);
   assert.ok(report.querySelector(".sm\\:grid-cols-2"));
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   assert.match(document.querySelector("dialog[open]").textContent, /Recorded planning activity/);
+  assert.match(document.querySelector("dialog[open]").textContent, /36\.36%/);
+  assert.match(document.querySelector("dialog[open]").textContent, /Other recorded methods/);
   assert.equal(document.querySelector('dialog[open] a').getAttribute("href"), "/admin-panel/businesses/10");
   await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
   await click(report.querySelector('[aria-label="About Transportation Planning"]'));
-  assert.match(document.querySelector("dialog[open]").textContent, /UTC day/);
-  assert.match(document.querySelector("dialog[open]").textContent, /Tracking started/);
+  assert.match(document.querySelector("dialog[open]").textContent, /recording completeness and freshness are unverified/);
+  assert.match(document.querySelector("dialog[open]").textContent, /some planning attempts may not have been captured/);
+  assert.match(document.querySelector("dialog[open]").textContent, /At most one request/);
+  assert.match(document.querySelector("dialog[open]").textContent, /Recording began/);
   await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
   const count = requests("transportation-planning/").length;
   await tab("Operations");
   await tab("Growth & Discovery");
   assert.equal(requests("transportation-planning/").length,count);
-  const interval = report.querySelector("select");
-  // Resolve the newly mounted section after returning to the tab.
-  const mountedInterval = section("Transportation Planning").querySelector("select");
-  assert.ok(interval);
-  await act(async () => { mountedInterval.value="daily"; mountedInterval.dispatchEvent(new dom.window.Event("change",{bubbles:true})); });
+  await click([...section("Transportation Planning").querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  await choose("Interval", "daily", document.querySelector("dialog[open]"));
   await until(() => client.isFetching() === 0);
   assert.equal(requests("transportation-planning/").at(-1).params.interval,"daily");
+  await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
   await choosePeriod("7");
   await until(() => client.isFetching() === 0);
   assert.equal(requests("transportation-planning/").at(-1).params.period,"7");
+});
+
+test("transportation shows nonzero Other methods normally in the period composition", async () => {
+  overrides.set("/admin/analytics/transportation-planning/", (report) => ({
+    ...report,
+    total_requests: 7,
+    methods: report.methods.map((row) => row.method === "OTHER"
+      ? { ...row, count: 2, share_percent: 28.57 }
+      : { ...row, share_percent: row.count / 7 * 100 }),
+  }));
+  await mount();
+  const legend = section("Transportation Planning").querySelector("dl");
+  assert.match(legend.textContent, /Other recorded methods2 · 28\.6%/);
+  assert.equal(legend.querySelectorAll("dt").length, 3);
 });
 
 test("transportation separates zero, unavailable and request failure with independent retry", async () => {
@@ -436,55 +914,76 @@ test("transportation keeps cached donut on refresh failure and discloses pretrac
   assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
 });
 
-test("business acquisition switches grouping without a request and preserves period/retry", async () => {
+test("business acquisition expands its hierarchy without a request and preserves period/retry", async () => {
   await mount();
   assert.match(section("Business Acquisition").textContent,/Cafes/);
   const count=requests("business-acquisition/").length;
-  await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent === "By Cluster"));
-  await until(()=>section("Business Acquisition").textContent.includes("Food"));
+  const cluster = section("Business Acquisition").querySelector('button[aria-expanded]');
+  assert.equal(cluster.getAttribute("aria-expanded"), "false");
+  await click(cluster);
+  assert.equal(cluster.getAttribute("aria-expanded"), "true");
+  assert.match(section("Business Acquisition").textContent, /Breakdown within Food/);
   assert.equal(requests("business-acquisition/").length,count);
-  const selected=section("Business Acquisition").querySelector('[aria-selected="true"]');
-  await act(async()=>selected.dispatchEvent(new dom.window.KeyboardEvent("keydown",{key:"ArrowLeft",bubbles:true})));
-  assert.match(section("Business Acquisition").textContent,/Cafes/);
   await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent.includes("View data")));
-  assert.match(document.querySelector("dialog[open]").textContent,/Acquisition by category/);
-  assert.match(document.querySelector("dialog[open]").textContent,/Created: 1/);
+  assert.match(document.querySelector("dialog[open]").textContent,/Food/);
+  assert.match(document.querySelector("dialog[open]").textContent,/Cafes/);
+  assert.match(document.querySelector("dialog[open]").textContent,/New businesses/);
   await click(document.querySelector('[aria-label="Close Business Acquisition details"]'));
   failures.add("/admin/analytics/business-acquisition/");
   await choosePeriod("7");
   await until(()=>section("Business Acquisition").textContent.includes("Unable to load report"));
   assert.equal(requests("business-acquisition/").at(-1).params.period,"7");
   failures.clear();
-  overrides.set("/admin/analytics/business-acquisition/",(report)=>({...report,categories:[],clusters:[],totals:{created:0,approved:0}}));
+  overrides.set("/admin/analytics/business-acquisition/",(report)=>({...report,hierarchy:[],categories:[],clusters:[],totals:{created:0,approved:0}}));
   await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent === "Retry"));
-  await until(()=>section("Business Acquisition").textContent.includes("No business creations"));
+  await until(()=>section("Business Acquisition").textContent.includes("No new businesses were recorded"));
 });
 
-test("report drawers lead with readable methodology and hide raw flags in technical details", async () => {
-  overrides.set("/admin/analytics/discovery-sources/",(report)=>({...report,meta:{...report.meta,data_through:null,partial_reasons:["best_effort_delivery","current_day_incomplete","coverage_unverified","freshness_unverified"]}}));
+test("report titles open readable About drawers while footer reliability stays in a tooltip across Analytics", async () => {
+  overrides.set("/admin/analytics/discovery-sources/", (report) => ({ ...report, meta: { ...report.meta, data_through: null, partial_reasons: ["best_effort_delivery", "current_day_incomplete", "coverage_unverified", "freshness_unverified"] } }));
   await mount();
-  for (const title of ["Discovery Sources","Transportation Planning","Business Acquisition","Discovery Activity","Platform Growth"]) {
-    const trigger=section(title).querySelector(`[aria-label="About ${title}"]`);
-    await click(trigger);
-    const drawer=document.querySelector("dialog[open]");
-    const primary=drawer.cloneNode(true);
-    primary.querySelectorAll("details").forEach((node)=>node.remove());
-    assert.match(primary.textContent,/What this report shows/);
-    assert.match(primary.textContent,/How the numbers are calculated/);
-    assert.match(primary.textContent,/Data reliability/);
-    assert.match(primary.textContent,/Philippine time/);
-    assert.doesNotMatch(primary.textContent,/best_effort_delivery|coverage_unverified|PROFILE_VISIT|MongoDB|positive numeric|half-open|Asia\/Manila/);
-    const technical=[...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details");
-    assert.equal(technical.parentElement.open,false);
-    await click(technical);
-    assert.equal(technical.parentElement.open,true);
-    if(title === "Discovery Sources") {
-      assert.match(primary.textContent,/latest fully captured date has not been confirmed/);
-      assert.match(primary.textContent,/first recorded source/);
-      assert.match(primary.textContent,/still in progress/);
-      assert.match(technical.parentElement.textContent,/best_effort_delivery/);
+  const groups = [
+    [null, ["Platform Growth", "Discovery Activity", "Discovery Sources", "Transportation Planning", "Business Acquisition"]],
+    ["Operations", ["Merchant Onboarding", "Merchant change requests"]],
+    ["Community & Trust", ["Community Health", "Specialty Support", "Reports & disputes"]],
+    ["Business Ecosystem", ["Geographic Distribution", "Business Coverage", "Discovery Score Health", "Businesses Needing Attention"]],
+  ];
+  for (const [topic, titles] of groups) {
+    if (topic) await tab(topic);
+    for (const title of titles) {
+      const report = section(title);
+      const trigger = report.querySelector('button[aria-label="About ' + title + '"]');
+      const footer = report.querySelector("footer");
+      assert.ok(report.querySelector("header").contains(trigger));
+      assert.equal(trigger.parentElement.querySelector("h2").textContent, title);
+      assert.equal(trigger.getAttribute("aria-haspopup"), "dialog");
+      assert.equal(footer.querySelector('[aria-label="About ' + title + '"]'), null);
+      const reliability = footer.querySelector('button[aria-label="' + title + ' data reliability"]');
+      assert.ok(reliability.getAttribute("data-tooltip-content"));
+      const count = reads.length;
+      await click(reliability);
+      assert.equal(document.querySelector("dialog[open]"), null);
+      await act(async () => trigger.focus());
+      await click(trigger);
+      const drawer = document.querySelector("dialog[open]");
+      assert.match(drawer.textContent, /What this report shows/);
+      assert.match(drawer.textContent, /How the numbers are calculated/);
+      assert.match(drawer.textContent, /Important limitations/);
+      assert.match(drawer.textContent, /Data reliability/);
+      assert.match(drawer.textContent, /Philippine time/);
+      assert.equal(drawer.querySelector("h2 svg"), null);
+      assert.ok([...drawer.querySelectorAll("h3")].every((heading) => heading.querySelector('svg[aria-hidden="true"]')));
+      assert.equal(drawer.querySelector("pre"), null);
+      assert.doesNotMatch(drawer.textContent, /Technical details|best_effort_delivery|coverage_verified|partial_reasons|generated_at|end_exclusive|PROFILE_VISIT|MongoDB|half-open|Asia\/Manila/);
+      if (title === "Discovery Sources") {
+        assert.match(drawer.textContent, /latest fully captured date has not been confirmed/);
+        assert.match(drawer.textContent, /first recorded source/);
+        assert.match(drawer.textContent, /still in progress/);
+      }
+      await click(drawer.querySelector('button[aria-label="Close ' + title + ' details"]'));
+      assert.equal(document.activeElement, trigger);
+      assert.equal(reads.length, count);
     }
-    await click(drawer.querySelector(`[aria-label="Close ${title} details"]`));
   }
 });
 
@@ -492,23 +991,289 @@ test("shared explanations preserve Operations, Community and Ecosystem report de
   await mount();
   await tab("Operations");
   const onboarding=section("Merchant Onboarding");
-  await click([...onboarding.querySelectorAll("button")].find((button)=>button.textContent.includes("About this report")));
+  await click(onboarding.querySelector('[aria-label="About Merchant Onboarding"]'));
   let drawer=document.querySelector("dialog[open]");
   assert.match(drawer.textContent,/Overall SLA compliance uses classified outcomes/);
-  assert.ok([...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
+  assert.equal(drawer.querySelector("pre"), null);
   await click(drawer.querySelector('[aria-label="Close Merchant Onboarding details"]'));
+  await click([...onboarding.querySelectorAll("button")].find((button) => button.textContent.includes("View breakdown")));
+  drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.querySelector("h2").textContent, /Onboarding rejection breakdown — Exact Data/);
+  assert.match(drawer.textContent, /Share of decisions/);
+  assert.match(drawer.textContent, /Valid samples/);
+  assert.match(drawer.textContent, /Applications submitted/);
+  await click(drawer.querySelector('[aria-label="Close Onboarding rejection breakdown details"]'));
   await tab("Community & Trust");
   const community=section("Community Health");
-  const explanation=[...community.querySelectorAll("summary")].find((node)=>node.textContent === "About this report");
-  await click(explanation);
-  assert.match(explanation.parentElement.textContent,/Last updated/);
-  assert.match(explanation.parentElement.textContent,/still published today/);
+  await click(community.querySelector('[aria-label="About Community Health"]'));
+  drawer=document.querySelector("dialog[open]");
+  assert.match(drawer.textContent,/Last updated/);
+  assert.match(drawer.textContent,/still published today/);
+  await click(drawer.querySelector('[aria-label="Close Community Health details"]'));
   await tab("Business Ecosystem");
-  assert.match(section("Discovery Score Health").textContent,/should not be added together/);
+  await click(section("Discovery Score Health").querySelector('[aria-label="About Discovery Score Health"]'));
+  drawer=document.querySelector("dialog[open]");
+  assert.match(drawer.textContent,/should not be added together/);
+  assert.match(drawer.textContent,/Selected dates do not filter this snapshot/);
+  await click(drawer.querySelector('[aria-label="Close Discovery Score Health details"]'));
   const coverage=section("Business Coverage");
-  await click([...coverage.querySelectorAll("summary")].find((node)=>node.textContent === "About this report"));
-  assert.match(coverage.textContent,/Complete recording has not been confirmed/);
-  assert.ok([...coverage.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
+  await click(coverage.querySelector('[aria-label="About Business Coverage"]'));
+  drawer=document.querySelector("dialog[open]");
+  assert.match(drawer.textContent,/Profile-visit recording coverage is unverified/);
+  assert.match(drawer.textContent,/not geographic coverage/);
+  assert.equal(drawer.querySelector("pre"), null);
+});
+
+test("business coverage compacts full coverage and keeps every classification in its drawer", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/coverage/", (report) => ({
+    ...report,
+    overall: { eligible_businesses: 15, visited_businesses: 11, zero_recorded_visit_businesses: 4, coverage_percentage: 73.33 },
+    categories: [
+      ...[[9, 100], [3, 50], [2, 100], [5, 0], [4, 75], [6, 100]].map(([id, percentage]) => ({
+        id,
+        name: `Category ${id}`,
+        eligible_businesses: 4,
+        visited_businesses: percentage / 25,
+        zero_recorded_visit_businesses: 4 - percentage / 25,
+        coverage_percentage: percentage,
+      })),
+      { id: 8, name: "Empty category", eligible_businesses: 0, visited_businesses: 0, zero_recorded_visit_businesses: 0, coverage_percentage: null },
+    ],
+  }));
+  await mount();
+  const coverage = section("Business Coverage");
+  assert.equal(coverage.querySelector("table"), null);
+  assert.equal(coverage.querySelector("details"), null);
+  assert.doesNotMatch(coverage.textContent, /Highest coverage|View full coverage|Empty category/);
+  assert.deepEqual([...coverage.querySelectorAll("h3")].map((heading) => heading.textContent), ["Coverage by category"]);
+  assert.match(coverage.textContent, /73.3% coverage/);
+  assert.doesNotMatch(coverage.textContent, /73.33%/);
+  assert.match(coverage.textContent, /11 of 15 eligible businesses received recorded profile visits/);
+  assert.deepEqual([...container.querySelectorAll("h2")].map((heading) => heading.textContent), ["Geographic Distribution", "Business Coverage", "Discovery Score Health", "Businesses Needing Attention"]);
+  assert.match(coverage.textContent, /4 businesses had no recorded profile visits/);
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Category 50%", "Category 350%", "Category 475%", "3 other categories100%"]);
+  assert.deepEqual([...coverage.querySelectorAll('ol [aria-hidden="true"] > div')].map((bar) => bar.style.width), ["0%", "50%", "75%", "100%"]);
+  assert.doesNotMatch(coverage.textContent, /Lowest coverage first|Showing 5 of|Compare clusters/);
+  assert.equal(coverage.querySelectorAll('[aria-label="About Business Coverage"]').length, 1);
+  assert.equal(coverage.textContent.match(/Coverage unverified/g).length, 1);
+  assert.ok(coverage.querySelector("ol").compareDocumentPosition([...coverage.querySelectorAll("p")].find((node) => node.textContent.includes("4 businesses had no recorded"))) & window.Node.DOCUMENT_POSITION_FOLLOWING);
+
+  const filters = coverage.querySelector('[aria-label="Coverage filters"]');
+  await click(filters);
+  assert.equal(filters.getAttribute("aria-haspopup"), "dialog");
+  let panel = coverage.querySelector('[role="dialog"]');
+  assert.deepEqual([...panel.querySelectorAll("button")].map((button) => button.getAttribute("aria-label")), ["Choose Cluster filter", "Choose Category filter"]);
+  await click(panel.querySelector('[aria-label="Choose Category filter"]'));
+  panel = coverage.querySelector('[role="dialog"]');
+  assert.equal(panel.querySelector('[role="menu"]'), null);
+  assert.equal(coverage.querySelectorAll('[role="dialog"]').length, 1);
+  await act(async () => panel.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  assert.equal(filters.getAttribute("aria-expanded"), "false");
+  assert.equal(document.activeElement, filters);
+  const dimension = coverage.querySelector('[aria-label="Coverage dimension"]');
+  await click([...dimension.querySelectorAll('[role="tab"]')].find((button) => button.textContent === "Cluster"));
+  assert.match(coverage.textContent, /Coverage by cluster/);
+  await act(async () => dimension.querySelector('[aria-selected="true"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+  assert.match(coverage.textContent, /Coverage by category/);
+  await act(async () => dimension.querySelector('[aria-selected="true"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+  assert.match(coverage.textContent, /Coverage by cluster/);
+  assert.equal(requests("coverage/").length, 1);
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Food50%"]);
+  await choose("Cluster", "1", section("Business Coverage"));
+  await choose("Category", "2", section("Business Coverage"));
+  assert.deepEqual(requests("coverage/").at(-1).params, { period: "30", cluster: 1, category: 2 });
+  await choosePeriod("7");
+  await until(() => requests("coverage/").at(-1)?.params.period === "7" && client.isFetching() === 0 && coverage.textContent.includes("50%"));
+  assert.equal(requests("discovery-scores/").length, 1);
+  const action = [...coverage.querySelectorAll("button")].find((button) => button.textContent.includes("View data"));
+  await act(async () => action.focus());
+  await click(action);
+  const drawer = document.querySelector("dialog[open]");
+  assert.equal(drawer.querySelectorAll("table").length, 2);
+  assert.equal(drawer.querySelectorAll("tbody tr").length, 8);
+  assert.match(drawer.textContent, /Empty category000Unavailable/);
+  assert.match(drawer.textContent, /Category 9/);
+  assert.match(drawer.textContent, /Covered businesses/);
+  assert.match(drawer.textContent, /not an average of classification percentages/);
+  await click(drawer.querySelector('[aria-label="Close Business Coverage details"]'));
+  assert.equal(document.activeElement, action);
+});
+
+test("rounded 100 percent coverage does not hide classifications with an unvisited business", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/coverage/", (report) => ({
+    ...report,
+    categories: [
+      { id: 1, name: "Still incomplete", eligible_businesses: 100000, visited_businesses: 99999, zero_recorded_visit_businesses: 1, coverage_percentage: 100 },
+      ...[2, 3, 4].map((id) => ({ id, name: `Complete ${id}`, eligible_businesses: 1, visited_businesses: 1, zero_recorded_visit_businesses: 0, coverage_percentage: 100 })),
+    ],
+  }));
+  await mount();
+  const coverage = section("Business Coverage");
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), [
+    "Still incomplete100%", "3 other categories100%",
+  ]);
+  await click([...coverage.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  const row = [...drawer.querySelectorAll("tbody tr")].find((element) => element.textContent.includes("Still incomplete"));
+  assert.deepEqual([...row.querySelectorAll("td")].map((cell) => cell.textContent), ["Still incomplete", "100,000", "99,999", "1", "100%"]);
+});
+
+test("business coverage retains every incomplete classification and summarizes each dimension independently", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/coverage/", (report) => ({
+    ...report,
+    categories: [0, 25, 50, 75, 99, 99.99, 100, 100].map((percentage, index) => ({
+      id: index + 1, name: `Category ${index + 1}`, eligible_businesses: 10000,
+      visited_businesses: percentage * 100, zero_recorded_visit_businesses: 10000 - percentage * 100,
+      coverage_percentage: percentage,
+    })),
+    clusters: [3, 1, 2].map((id) => ({ id, name: `Cluster ${id}`, eligible_businesses: 1, visited_businesses: 1, zero_recorded_visit_businesses: 0, coverage_percentage: 100 })),
+  }));
+  await mount();
+  const coverage = section("Business Coverage");
+  assert.equal(coverage.querySelectorAll("ol li").length, 8);
+  assert.match(coverage.querySelector("ol").textContent, /Category 699.99%/);
+  assert.doesNotMatch(coverage.querySelector("ol").textContent, /other categories/);
+  const dimension = coverage.querySelector('[aria-label="Coverage dimension"]');
+  await click([...dimension.querySelectorAll('[role="tab"]')].find((button) => button.textContent === "Cluster"));
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["3 clusters100%"]);
+  assert.doesNotMatch(coverage.textContent, /No classified coverage is available/);
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "coverage");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, clusters: report.clusters.slice(0, 2) }));
+  });
+  await until(() => coverage.querySelectorAll("ol li").length === 2);
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Cluster 1100%", "Cluster 3100%"]);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, categories: report.clusters.map((row) => ({ ...row, id: row.id + 10, name: `Category ${row.id}` })).concat([{ id: 99, name: "Category 99", eligible_businesses: 1, visited_businesses: 1, zero_recorded_visit_businesses: 0, coverage_percentage: 100 }]) }));
+  });
+  await click([...dimension.querySelectorAll('[role="tab"]')].find((button) => button.textContent === "Category"));
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["3 categories100%"]);
+  assert.equal(requests("coverage/").length, 1);
+});
+
+test("business coverage preserves unavailable visits and known empty eligibility", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/coverage/", (report) => ({
+    ...report,
+    overall: { ...report.overall, visited_businesses: null, zero_recorded_visit_businesses: null, coverage_percentage: null },
+    categories: report.categories.map((row) => ({ ...row, visited_businesses: null, zero_recorded_visit_businesses: null, coverage_percentage: null })),
+    clusters: report.clusters.map((row) => ({ ...row, visited_businesses: null, zero_recorded_visit_businesses: null, coverage_percentage: null })),
+    sources: { ...report.sources, visibility: { availability: "unavailable" } },
+  }));
+  await mount();
+  const coverage = section("Business Coverage");
+  assert.match(coverage.textContent, /Unavailable coverage/);
+  assert.match(coverage.textContent, /4 eligible businesses · recorded profile visits unavailable/);
+  assert.match(coverage.textContent, /Current eligible-business counts remain available/);
+  assert.equal(coverage.querySelectorAll("ol li").length, 0);
+  assert.doesNotMatch(coverage.textContent, /0 businesses had no recorded profile visits|0%/);
+  await click([...coverage.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Covered businessesUnavailable/);
+  await click(drawer.querySelector('[aria-label="Close Business Coverage details"]'));
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "coverage");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, overall: { ...report.overall, eligible_businesses: 0 } }));
+  });
+  await until(() => coverage.textContent.includes("No eligible active businesses match the selected scope."));
+});
+
+test("discovery score health distinguishes healthy, unhealthy, empty and unavailable snapshots", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/discovery-scores/", (report) => ({
+    ...report,
+    coverage: { ...report.coverage, active_businesses: 15, fresh: 15, stale: 0, pending: 0, failed: 0, missing: 0, provisional: 0 },
+  }));
+  await mount();
+  const health = section("Discovery Score Health");
+  assert.match(health.textContent, /15 \/ 15 active businesses have fresh scores/);
+  assert.ok(health.querySelector(".text-3xl").classList.contains("text-success"));
+  assert.match(health.textContent, /Fresh15Stale0Pending0Failed0/);
+  assert.match(health.textContent, /Missing 0 · Provisional 0/);
+  assert.equal(health.querySelector("a").getAttribute("href"), "/admin-panel/analytics/discovery-scores");
+  assert.equal(health.querySelector("table"), null);
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "discoveryScores");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({
+      ...report,
+      coverage: { ...report.coverage, fresh: 10, stale: 3, pending: 1, failed: 1, missing: 1, provisional: 1 },
+    }));
+  });
+  await until(() => health.textContent.includes("10 / 15"));
+  const values = [...health.querySelectorAll("dl dd")];
+  assert.equal(values[1].textContent, "3");
+  assert.ok(values[1].classList.contains("text-warning"));
+  assert.ok(values[2].classList.contains("text-warning"));
+  assert.ok(values[3].classList.contains("text-danger"));
+  assert.ok(!health.querySelector(".text-3xl").classList.contains("text-success"));
+  await click([...health.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  assert.equal(drawer.querySelectorAll("tbody tr").length, 6);
+  assert.match(drawer.textContent, /Selected dates do not filter this snapshot/);
+  assert.match(drawer.textContent, /Freshness threshold: 24 hours/);
+  assert.match(drawer.textContent, /should not be added together/);
+  await click(drawer.querySelector('[aria-label="Close Discovery Score Health details"]'));
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, coverage: { ...report.coverage, fresh: null, failed: null } }));
+  });
+  await until(() => health.textContent.includes("Unavailable / 15"));
+  assert.equal(health.querySelectorAll("dl dd")[3].textContent, "Unavailable");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, coverage: { ...report.coverage, active_businesses: 0 } }));
+  });
+  await until(() => health.textContent.includes("No active businesses to assess."));
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, coverage: null }));
+  });
+  await until(() => health.textContent.includes("Discovery Score health counts are unavailable."));
+  assert.equal(health.querySelector("dl"), null);
+  assert.equal(requests("discovery-scores/").length, 1);
+});
+
+test("community report drawers retain exact buckets, sentiment and the complete specialty breakdown", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=community-trust"];
+  overrides.set("/admin/analytics/specialty-support/", (report) => ({
+    ...report,
+    specialties: Array.from({ length: 7 }, (_, index) => ({
+      specialty_id: index + 1,
+      name: `Specialty ${index + 1}`,
+      valid_vouches: 7 - index,
+      distinct_supporters: 1,
+      supported_businesses: 1,
+    })),
+  }));
+  await mount();
+  const community = section("Community Health");
+  const specialty = section("Specialty Support");
+  for (const report of [community, specialty]) {
+    assert.equal(report.querySelector("table"), null);
+    assert.equal(report.querySelector("details"), null);
+  }
+  const action = [...community.querySelectorAll("button")].find((button) => button.textContent.includes("View data"));
+  action.focus();
+  await click(action);
+  let drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /Bucket date/);
+  assert.match(drawer.textContent, /Published reviews/);
+  assert.match(drawer.textContent, /Sentiment details/);
+  assert.match(drawer.textContent, /Excluded from denominator/);
+  assert.match(drawer.textContent, /still published today/);
+  assert.match(drawer.textContent, /Data reliability/);
+  await click(drawer.querySelector('[aria-label="Close Community Health details"]'));
+  assert.equal(document.activeElement, action);
+  await click([...specialty.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  drawer = document.querySelector("dialog[open]");
+  assert.equal(drawer.querySelectorAll("tbody tr").length, 7);
+  assert.match(drawer.textContent, /Specialty 7/);
+  assert.match(drawer.textContent, /Valid endorsements/);
+  assert.match(drawer.textContent, /Distinct supporters/);
+  assert.match(drawer.textContent, /Supported businesses/);
+  assert.match(drawer.textContent, /Selected dates do not filter/);
+  assert.match(drawer.textContent, /must not be added together/);
+  assert.doesNotMatch(drawer.textContent, /Reporting dates unavailable/);
 });
 
 test("acquisition loading is independent and inactive tabs do not fetch it", async () => {
@@ -525,6 +1290,180 @@ test("acquisition loading is independent and inactive tabs do not fetch it", asy
   await choosePeriod("90");
   await until(()=>client.isFetching() === 0);
   assert.equal(requests("business-acquisition/").length,count);
+});
+
+test("platform growth presents only accounts and businesses while preserving comparisons, exact data and interval cache reuse", async () => {
+  overrides.set("/admin/analytics/platform-growth/", (report) => ({
+    ...report,
+    activity: {
+      ...report.activity,
+      new_consumer_accounts: { value: 7, previous_value: 7, change: { value: 0, direction: "unchanged" } },
+      new_businesses: { value: 1, previous_value: 4, change: { value: -3, direction: "down" } },
+    },
+  }));
+  await mount();
+  const growth = section("Platform Growth");
+  assert.match(growth.textContent, /New accounts and businesses joining SugboGo/);
+  assert.doesNotMatch(growth.textContent, /approvals/i);
+  const summary = growth.querySelector("dl");
+  assert.equal(summary.children.length, 2);
+  assert.ok(summary.classList.contains("max-w-2xl"));
+  assert.ok(summary.classList.contains("sm:grid-cols-2"));
+  assert.ok(summary.children[1].querySelector('svg[fill="currentColor"]'));
+  assert.match(summary.children[0].textContent, /New accounts7No changePrevious period: 7/);
+  assert.match(summary.children[1].textContent, /New businesses13 fewerPrevious period: 4/);
+  assert.deepEqual([...growth.querySelectorAll('[data-series-type="bar"]')].map((bar) => bar.dataset.series), ["new_consumer_accounts", "new_businesses"]);
+  assert.deepEqual([...growth.querySelector('[aria-label="Growth chart legend"]').querySelectorAll("li")].map((item) => item.textContent), ["Accounts", "Businesses"]);
+  const rows = JSON.parse(growth.querySelector("[data-chart]").dataset.chart);
+  assert.equal(rows[1].new_consumer_accounts, null);
+  assert.equal(rows[2].new_consumer_accounts, 0);
+  assert.equal(rows[0].newly_approved_businesses, 1);
+  await click([...growth.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const drawer = document.querySelector("dialog[open]");
+  assert.deepEqual([...drawer.querySelectorAll("th")].map((header) => header.textContent), ["Week starting / counted dates", "Accounts", "Businesses"]);
+  assert.match(drawer.textContent, /Unavailable/);
+  assert.doesNotMatch(drawer.textContent, /approvals/i);
+  await click(drawer.querySelector('[aria-label="Close Platform Growth details"]'));
+  await click(growth.querySelector('[aria-label="About Platform Growth"]'));
+  assert.doesNotMatch(document.querySelector("dialog[open]").textContent, /first recorded business approvals|creation or approval date/);
+  await click(document.querySelector('[aria-label="Close Platform Growth details"]'));
+  await choose("Interval", "daily", growth);
+  assert.equal(requests("platform-growth/").at(-1).params.interval, "daily");
+  await choose("Interval", "weekly", growth);
+  assert.equal(requests("platform-growth/").length, 2);
+});
+
+test("exact data offers a CSV download while About remains explanation only", async () => {
+  await mount();
+  const growth = section("Platform Growth");
+  await click(growth.querySelector('[aria-label="About Platform Growth"]'));
+  assert.equal(document.querySelector('dialog[open] [aria-label="Export Platform Growth CSV"]'), null);
+  await click(document.querySelector('[aria-label="Close Platform Growth details"]'));
+  await click([...growth.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const originalCreate = URL.createObjectURL;
+  const originalClick = dom.window.HTMLAnchorElement.prototype.click;
+  let blob;
+  let filename;
+  try {
+    URL.createObjectURL = (value) => { blob = value; return "blob:analytics-export"; };
+    dom.window.HTMLAnchorElement.prototype.click = function () { filename = this.download; };
+    await click(document.querySelector('dialog[open] [aria-label="Export Platform Growth CSV"]'));
+    assert.match(filename, /^platform-growth_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.csv$/);
+    const csv = await blob.text();
+    assert.match(csv, /Accounts/);
+    assert.match(csv, /Unavailable/);
+    assert.doesNotMatch(csv, /newly_approved_businesses|generated_at|partial_reasons/);
+  } finally {
+    URL.createObjectURL = originalCreate;
+    dom.window.HTMLAnchorElement.prototype.click = originalClick;
+  }
+});
+
+test("PDF export menu prints only the mounted tab and blocks the unsupported geographic map", async () => {
+  await mount();
+  const controls = container.querySelector('[aria-label="Analytics workspace controls"]');
+  const trigger = container.querySelector('[aria-label="Analytics export: Export"]');
+  assert.ok(trigger);
+  assert.equal(controls.contains(trigger), false);
+  await click(trigger);
+  assert.match(container.querySelector('[role="menu"][aria-label="Analytics export"]').textContent, /Export current tab as PDF/);
+  await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  assert.equal(document.activeElement, trigger);
+  const originalAppend = document.body.append.bind(document.body);
+  let printed = 0;
+  const before = reads.length;
+  document.body.append = (node) => {
+    originalAppend(node);
+    if (node.tagName === "IFRAME") {
+      node.contentWindow.focus = () => {};
+      node.contentWindow.print = () => {
+        printed += 1;
+        assert.match(node.contentDocument.body.textContent, /SugboGo Admin Analytics/);
+        assert.doesNotMatch(node.contentDocument.body.textContent, /Merchant Onboarding/);
+        node.contentWindow.dispatchEvent(new dom.window.Event("afterprint"));
+      };
+    }
+  };
+  try {
+    await click(trigger);
+    await click([...container.querySelectorAll('[role="menuitemradio"]')].find((button) => button.textContent.includes("Export current tab as PDF")));
+    await until(() => printed === 1 && !container.querySelector('iframe'));
+    assert.equal(reads.length, before);
+  } finally {
+    document.body.append = originalAppend;
+  }
+  await tab("Business Ecosystem");
+  assert.equal(container.querySelector('[aria-label="Analytics export: Export"]').disabled, true);
+  assert.doesNotMatch(container.textContent, /geographic map cannot be captured reliably/);
+  const disabledExport = container.querySelector('[aria-label="Analytics PDF export unavailable"]');
+  assert.equal(disabledExport.tabIndex, 0);
+  assert.match(disabledExport.getAttribute("data-tooltip-content"), /geographic map cannot be captured reliably/);
+  assert.ok(disabledExport.getAttribute("data-tooltip-id"));
+});
+
+test("attention CSV downloads the complete population rather than the visible page", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/business-attention/", (report, params) => {
+    const page = Number(params.page ?? 1);
+    const size = Number(params.page_size ?? 10);
+    const items = Array.from({ length: 20 }, (_, index) => ({ ...report.items[0], business_id: index + 1, business_name: `Export business ${index + 1}`, profile_visits: index, saves: 0, distinct_savers: 0 }));
+    return { ...report, items: items.slice((page - 1) * size, page * size), pagination: { page, page_size: size, total_items: 20, total_pages: Math.ceil(20 / size), has_next: page * size < 20 } };
+  });
+  await mount();
+  const report = section("Businesses Needing Attention");
+  assert.doesNotMatch(report.querySelector("tbody").textContent, /Export business 20/);
+  await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const originalCreate = URL.createObjectURL;
+  const originalClick = dom.window.HTMLAnchorElement.prototype.click;
+  let blob;
+  try {
+    URL.createObjectURL = (value) => { blob = value; return "blob:attention-export"; };
+    dom.window.HTMLAnchorElement.prototype.click = function () {};
+    await click(document.querySelector('dialog[open] [aria-label="Export Businesses Needing Attention CSV"]'));
+    await until(() => Boolean(blob));
+    assert.match(await blob.text(), /Export business 20/);
+    assert.equal(requests("business-attention/").at(-1).params.page_size, 100);
+    assert.equal(requests("business-attention/").at(-1).params.attention_mode, "discovery");
+    assert.equal(report.querySelectorAll("tbody tr").length, 10);
+  } finally {
+    URL.createObjectURL = originalCreate;
+    dom.window.HTMLAnchorElement.prototype.click = originalClick;
+  }
+});
+
+test("platform growth keeps zero buckets when only operational approvals are nonzero", async () => {
+  overrides.set("/admin/analytics/platform-growth/", (report) => ({
+    ...report,
+    activity: { ...report.activity, new_consumer_accounts: { value: 0 }, new_businesses: { value: 0 } },
+    series: report.series.map((row) => ({ ...row, new_consumer_accounts: 0, new_businesses: 0, newly_approved_businesses: 99 })),
+  }));
+  await mount();
+  const growth = section("Platform Growth");
+  assert.match(growth.textContent, /No growth activity in this period/);
+  assert.equal(JSON.parse(growth.querySelector("[data-chart]").dataset.chart).length, 3);
+  assert.equal(growth.querySelectorAll('[data-series-type="bar"]').length, 2);
+  assert.doesNotMatch(growth.textContent, /approvals/i);
+});
+
+test("platform growth tooltip retains counted dates, week progress and unknown values without approval labels", async () => {
+  const { GrowthTooltip } = await server.ssrLoadModule("/src/features/admin-panel/analytics/sections/PlatformGrowthSection.jsx");
+  const { growthCoverageDescription } = await server.ssrLoadModule("/src/features/admin-panel/analytics/utils/growthPresentation.js");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const date = "2026-10-26";
+  const markup = renderToStaticMarkup(React.createElement(GrowthTooltip, {
+    active: true,
+    interval: "weekly",
+    inProgressDate: date,
+    payload: [{ payload: { date, start: "2026-10-25T16:00:00Z", end_exclusive: "2026-10-28T07:50:00Z", new_consumer_accounts: 0, new_businesses: null, newly_approved_businesses: 99 } }],
+  }));
+  assert.match(markup, /Counted/);
+  assert.match(markup, /Week in progress/);
+  assert.match(markup, /Accounts/);
+  assert.match(markup, /Unavailable/);
+  assert.doesNotMatch(markup, /approvals|99/i);
+  assert.equal(growthCoverageDescription({ is_partial: true, partial_reasons: ["recorded_approval_history_only"] }), null);
+  assert.match(growthCoverageDescription({ is_partial: true, partial_reasons: ["recorded_approval_history_only", "current_role_and_retained_rows"] }), /Past counts can change/);
+  assert.match(growthCoverageDescription({ is_partial: true, partial_reasons: [] }), /additional reporting limitations/);
 });
 
 test("growth layout keeps full-width acquisition above paired discovery panels", async () => {

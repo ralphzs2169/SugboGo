@@ -128,6 +128,7 @@ class BusinessAttentionView(APIView):
         report = BusinessAttentionService.get_report(
             values["report_period"], cluster=values.get("cluster"), category=values.get("category"),
             ordering=values["ordering"], low_exposure=self.low_exposure,
+            attention_mode=values.get("attention_mode") if not self.low_exposure else None,
         )
         metadata = BusinessAttentionMetadataSerializer(report).data
         if report["items"] is None:

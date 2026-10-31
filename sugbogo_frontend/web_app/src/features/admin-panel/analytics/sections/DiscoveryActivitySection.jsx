@@ -13,7 +13,7 @@ import AnalyticsChartCard from "../components/AnalyticsChartCard";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import AnalyticsIntervalControl from "../components/AnalyticsIntervalControl";
 import AnalyticsTimeSeries from "../components/AnalyticsTimeSeries";
-import { comparisonText, formatCount, formatTimestamp } from "../utils/presentation";
+import { formatCount, formatTimestamp } from "../utils/presentation";
 import { growthBucketLabel, growthPeriodLabel } from "../utils/growthPresentation";
 
 const OPTIONS = [
@@ -43,7 +43,7 @@ function DiscoverySummary({ query }) {
   return (
     <div className="mb-4" aria-busy={query.isFetching}>
       {/* An isolated failure never removes the trend or metric controls */}
-      {query.error && <DataErrorState compact title="Unable to load discovery summary" message={state.errorMessage} onRetry={state.onRetry} retrying={query.isFetching} retryLabel="Retry summary" />}
+      {query.error && <DataErrorState compact title="Unable to load discovery summary" message={`${state.errorMessage}${query.data ? " Previously loaded summary values are shown." : ""}`} onRetry={state.onRetry} retrying={query.isFetching} retryLabel="Retry summary" />}
       {query.data?.meta?.availability === "unavailable" && <p className="mb-2 text-xs text-text-secondary">Discovery summary is currently unavailable.</p>}
       {/* Summary counts remain independent of the selected chart metric. */}
       <dl className="grid min-w-0 grid-cols-3 gap-3" aria-label="Recorded discovery summaries">
@@ -76,7 +76,6 @@ export default function DiscoveryActivitySection({ period }) {
   const through = data?.meta?.data_through ? Date.parse(data.meta.data_through) : null;
   const earlyCutoff = through !== null && through >= periodStart && through < periodEnd;
   const partialWeek = interval === "weekly" && timeline?.at(-1)?.in_progress ? timeline.at(-1) : null;
-  const definitions = summaryQuery.data?.definitions ?? data?.definitions;
   const unavailable = Boolean(data && data.value === null && data.series === null);
   const empty = data?.value === 0 && Array.isArray(data?.series) && data.series.every((row) => row.value === 0);
   const hasComparison = data?.change?.value != null;
@@ -84,7 +83,7 @@ export default function DiscoveryActivitySection({ period }) {
   return (
     <>
       {/* Selected metric, compact headline and independent report states */}
-      <AnalyticsSection
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!(data || summaryQuery.data)}
         title="Discovery Activity"
         description="Recorded discovery activity and distinct accounts."
         hasData={Boolean(data || summaryQuery.data)}
@@ -94,7 +93,7 @@ export default function DiscoveryActivitySection({ period }) {
             <AnalyticsIntervalControl value={interval} onChange={setInterval} />
           </>
         }
-        footer={<AnalyticsReportFooter title="Discovery Activity" meta={meta} hasData={Boolean(data)} hasDetails={Boolean(data || summaryQuery.data)} onAbout={() => setMode("about")} onData={() => setMode("data")} />}
+        footer={<AnalyticsReportFooter title="Discovery Activity" meta={meta} hasData={Boolean(data)} hasDetails={Boolean(data || summaryQuery.data)} onData={() => setMode("data")} />}
       >
         <AnalyticsPeriodLabel period={reporting}>{hasComparison && <> / compared with {growthPeriodLabel(reporting?.previous_start, reporting?.previous_end_exclusive, true)}</>}</AnalyticsPeriodLabel>
         <DiscoverySummary query={summaryQuery} />
@@ -175,25 +174,7 @@ export default function DiscoveryActivitySection({ period }) {
             : day.format(new Date(row.start ?? `${row.date}T00:00:00+08:00`)),
         }}
         showComparison={hasComparison}
-        aboutContent={
-          <div className="space-y-3 border-t border-stroke pt-5 text-sm text-text-secondary">
-            <h3 className="font-semibold text-text-primary">How these metrics work</h3>
-            {OPTIONS.map((option) => <div key={option.value}><h4 className="font-medium text-text-primary">{option.label}</h4><p>{option.value === "distinct_engaged_explorers" ? "Distinct accounts with recorded impressions, profile visits or saves, including Explorer and Merchant actors. Historical account roles are not reconstructed. This is not general app activity, DAU, MAU or retention." : definitions?.[option.value] ?? "Definition unavailable"}</p></div>)}
-            <p>Account counts are distinct within each day or week. The same account may appear in several buckets, so bucket counts must never be summed into a period total. No additional account total is calculated here.</p>
-            <p>{definitions?.deduplication ?? data?.description}</p>
-            <p>{definitions?.missing_observations ?? "Unobserved buckets are unavailable, not measured zeroes. No source watermark is inferred from the last event."}</p>
-            <p>Tracking freshness: {meta?.data_through ? formatTimestamp(meta.data_through) : "Unknown; the last event does not establish coverage."}</p>
-            <h3 className="font-semibold text-text-primary">Comparison availability</h3>
-            <p>{definitions?.comparisons ?? "Previous-period comparisons are hidden while discovery tracking coverage is not fully verified."}</p>
-            {hasComparison && <p>Previous period: {formatCount(data?.previous_value)} · {comparisonText(data.change)}</p>}
-            {summaryQuery.data?.meta && <p>Summary generated: {formatTimestamp(summaryQuery.data.meta.generated_at)} (PHT). Summary source: {summaryQuery.data.meta.availability}.</p>}
-            {data?.meta?.partial_reasons?.length > 0 && (
-              <ul className="list-disc space-y-1 pl-4">
-                {data.meta.partial_reasons.map((reason) => <li key={reason}>{reason.replaceAll("_", " ")}</li>)}
-              </ul>
-            )}
-          </div>
-        }
+
       />
     </>
   );

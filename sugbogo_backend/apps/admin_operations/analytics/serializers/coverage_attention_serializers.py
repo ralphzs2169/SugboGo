@@ -23,6 +23,10 @@ class CoverageQuerySerializer(AnalyticsPeriodQuerySerializer):
 class BusinessAttentionQuerySerializer(CoverageQuerySerializer):
     """Validate whole-population ordering and standard positive pagination controls."""
 
+    attention_mode = serializers.ChoiceField(
+        choices=("discovery", "support"),
+        required=False,
+    )
     ordering = serializers.ChoiceField(choices=ORDERINGS, default="-profile_visits")
     page = serializers.IntegerField(min_value=1, default=1)
     page_size = serializers.IntegerField(min_value=1, max_value=100, default=10)
@@ -87,8 +91,10 @@ class CoverageReportSerializer(serializers.Serializer):
 class BusinessAttentionRowSerializer(serializers.Serializer):
     """Expose aggregate attention and support without explorer identities or scores."""
 
+    attention_reason = serializers.CharField(allow_null=True, required=False)
     business_id = serializers.IntegerField()
     business_name = serializers.CharField()
+    cover_photo_url = serializers.CharField(allow_null=True, allow_blank=True)
     category_id = serializers.IntegerField()
     category_name = serializers.CharField()
     cluster_id = serializers.IntegerField()
@@ -115,6 +121,14 @@ class LowExposureThresholdSerializer(serializers.Serializer):
     is_pilot_policy = serializers.BooleanField()
 
 
+class BusinessAttentionMetricMaximaSerializer(serializers.Serializer):
+    """Expose independent scales over readable observations before pagination."""
+
+    profile_visits = serializers.IntegerField(allow_null=True)
+    saves = serializers.IntegerField(allow_null=True)
+    distinct_savers = serializers.IntegerField(allow_null=True)
+
+
 class BusinessAttentionMetadataSerializer(serializers.Serializer):
     """Expose attention metadata alongside standard pagination fields."""
 
@@ -125,3 +139,4 @@ class BusinessAttentionMetadataSerializer(serializers.Serializer):
     sources = CoverageAttentionSourcesSerializer()
     selection_status = serializers.ChoiceField(choices=("not_applicable", "provisional", "unavailable"))
     thresholds = LowExposureThresholdSerializer(allow_null=True)
+    metric_maxima = BusinessAttentionMetricMaximaSerializer()

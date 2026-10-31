@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
-import { Info, Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Info, Minus } from "lucide-react";
+import { FaCaretDown, FaCaretUp } from "react-icons/fa6";
 import { ReferenceArea } from "recharts";
 
 import { getMetricVariant } from "../../constants/metricVariants";
@@ -26,22 +27,15 @@ const SERIES = [
   {
     key: "new_consumer_accounts",
     label: "Accounts",
-    title: "New Accounts",
+    title: "New accounts",
     color: "var(--color-primary)",
     explanation: "Accounts whose current role is Explorer or Merchant, excluding administrators and staff. Later role changes or account removal can revise past counts.",
   },
   {
     key: "new_businesses",
     label: "Businesses",
-    title: "New Businesses",
+    title: "New businesses",
     color: "var(--color-info)",
-  },
-  {
-    key: "newly_approved_businesses",
-    label: "Business approvals",
-    title: "Business Approvals",
-    color: "var(--color-success)",
-    explanation: "Each business-linked application counts once, at its first recorded approval. Repeat approvals do not count again. This is separate from when the business was created.",
   },
 ];
 
@@ -77,17 +71,17 @@ export function GrowthTooltip({ active, payload, interval, inProgressDate }) {
   );
 }
 
-/** Presents acquisition totals and their comparisons without separate metric cards. */
+/** Keeps chart summaries at their natural width, wrapping on narrow screens. */
 function GrowthStatistics({ activity }) {
   return (
-    <dl className="mb-3 grid min-w-0 grid-cols-1 divide-y divide-stroke min-[480px]:grid-cols-3 min-[480px]:divide-x min-[480px]:divide-y-0">
+    <dl className="mb-4 grid w-full min-w-0 max-w-2xl grid-cols-1 gap-y-4 sm:grid-cols-2">
       {SERIES.map((series) => {
         const metric = activity?.[series.key];
         const change = metric?.change;
         const hasComparison = change?.value != null;
         const TrendIcon = {
-          up: TrendingUp,
-          down: TrendingDown,
+          up: FaCaretUp,
+          down: FaCaretDown,
           unchanged: Minus,
         }[change?.direction] ?? Minus;
         const variant = {
@@ -102,10 +96,10 @@ function GrowthStatistics({ activity }) {
         return (
           <div
             key={series.key}
-            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0 min-[480px]:block min-[480px]:px-3 min-[480px]:py-0 min-[480px]:first:pl-0 min-[480px]:last:pr-0 sm:px-5"
+            className="min-w-0 sm:first:pr-8 sm:[&:not(:first-child)]:border-l sm:[&:not(:first-child)]:border-stroke sm:[&:not(:first-child)]:pl-8"
           >
             <dt className="flex min-h-8 flex-wrap items-center gap-x-1 text-xs font-medium leading-5 text-text-secondary">
-              <span>{series.title}</span>
+              <span className="text-sm text-text-primary">{series.title}</span>
               {series.explanation && (
                 <Tooltip
                   content={series.explanation}
@@ -131,17 +125,15 @@ function GrowthStatistics({ activity }) {
                 </Tooltip>
               )}
             </dt>
-            <dd className="text-2xl font-semibold tracking-tight text-text-primary tabular-nums min-[480px]:mt-1">
-              {formatCount(metric?.value)}
-            </dd>
-            <dd className="col-span-2 space-y-0.5 text-xs leading-5 min-[480px]:mt-1">
-              <span className={`flex items-center gap-1.5 font-medium ${getMetricVariant(hasComparison ? variant : "neutral").text}`}>
-                {hasComparison && <TrendIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
+            <dd className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <span className="text-3xl font-semibold tracking-tight text-text-primary tabular-nums">{formatCount(metric?.value)}</span>
+              <span className={`inline-flex items-center gap-1 text-sm font-medium ${getMetricVariant(hasComparison ? variant : "neutral").text}`}>
+                {hasComparison && <TrendIcon aria-hidden="true" className="h-3 w-3 shrink-0" />}
                 <span>{hasComparison ? comparison : "Comparison unavailable"}</span>
               </span>
-              <span className="block text-text-secondary">
-                Previous period: {formatCount(metric?.previous_value)}
-              </span>
+            </dd>
+            <dd className="mt-2 text-sm text-text-secondary">
+              Previous period: {formatCount(metric?.previous_value)}
             </dd>
           </div>
         );
@@ -187,17 +179,17 @@ export default function PlatformGrowthSection({ period }) {
 
   return (
     <>
-      <AnalyticsSection
+      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data}
         title="Platform Growth"
-        description="New accounts, businesses, and first approvals."
+        description="New accounts and businesses joining SugboGo."
         compactHeader
         {...state}
         controls={<AnalyticsIntervalControl value={interval} onChange={setInterval} />}
         skeleton={
           <div role="status" aria-label="Loading platform growth">
-            <div aria-hidden="true" className="mb-3 grid grid-cols-3 gap-4 motion-safe:animate-pulse">
+            <div aria-hidden="true" className="mb-2 flex max-w-full flex-wrap gap-x-10 gap-y-3 motion-safe:animate-pulse">
               {SERIES.map((series) => (
-                <div key={series.key} className="space-y-2">
+                <div key={series.key} className="w-36 max-w-full space-y-2">
                   <div className="h-3 w-3/4 rounded bg-skeleton" />
                   <div className="h-7 w-1/2 rounded bg-skeleton" />
                   <div className="h-3 w-3/4 rounded bg-skeleton" />
@@ -214,17 +206,19 @@ export default function PlatformGrowthSection({ period }) {
             coverageDescription={growthCoverageDescription(data?.meta)}
             hasData={Boolean(data)}
             hasDetails={Boolean(data)}
-            onAbout={() => setMode("about")}
-            onData={() => setMode("data")}
+
+           onData={() => setMode("data")}
           />
         }
       >
-        <AnalyticsPeriodLabel period={reporting}>
-          {" / compared with "}
-          {growthPeriodLabel(reporting?.previous_start, reporting?.previous_end_exclusive, true)}
-        </AnalyticsPeriodLabel>
+        <div className="[&>p]:mb-2">
+          <AnalyticsPeriodLabel period={reporting}>
+            {" · compared with "}
+            {growthPeriodLabel(reporting?.previous_start, reporting?.previous_end_exclusive, true)}
+          </AnalyticsPeriodLabel>
+        </div>
         <GrowthStatistics activity={data?.activity} />
-        <p className="mb-1 text-xs leading-5 text-text-secondary">
+        <p className="text-xs leading-5 text-text-secondary">
           {isWeekly
             ? "Weekly activity · labels show Monday week starts; counts cover only the selected dates (PHT)."
             : "Daily activity · selected period only (PHT)."}
@@ -236,7 +230,7 @@ export default function PlatformGrowthSection({ period }) {
         )}
         <figure className="min-w-0">
           <figcaption className="sr-only">
-            New accounts, businesses and first approvals by {isWeekly ? "calendar week" : "day"}.
+            New accounts and businesses by {isWeekly ? "calendar week" : "day"}.
             Zero-activity buckets remain on the axis. View data provides exact counts and counted dates.
           </figcaption>
           <div className="h-56 min-w-0 sm:h-60">

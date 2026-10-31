@@ -45,7 +45,6 @@ export function growthCoverageDescription(meta) {
 
   const descriptions = {
     current_role_and_retained_rows: "Past counts can change when account roles change or records are removed.",
-    recorded_approval_history_only: "Approvals use recorded history only; missing earlier approvals cannot be reconstructed.",
     current_day_incomplete: "Today's reporting period is still in progress.",
     data_lag: "Confirmed data does not yet cover the end of the selected period.",
     coverage_unverified: "Complete reporting coverage has not been confirmed.",
@@ -53,7 +52,10 @@ export function growthCoverageDescription(meta) {
     source_partial: "The source supplied limited data.",
     source_unavailable: "The data source is unavailable; this does not mean there was no activity.",
   };
-  const reasons = meta.partial_reasons ?? [];
+  // Approval-history limitations belong to Operations, outside this growth visualization.
+  const sourceReasons = meta.partial_reasons ?? [];
+  const reasons = sourceReasons.filter((reason) => reason !== "recorded_approval_history_only");
+  if (sourceReasons.length > 0 && reasons.length === 0) return null;
   const notes = reasons.map((reason) => descriptions[reason]).filter(Boolean);
 
   if (!notes.length || reasons.some((reason) => !descriptions[reason])) {
