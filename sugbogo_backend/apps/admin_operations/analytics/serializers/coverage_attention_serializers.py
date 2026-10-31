@@ -121,6 +121,14 @@ class LowExposureThresholdSerializer(serializers.Serializer):
     is_pilot_policy = serializers.BooleanField()
 
 
+class BusinessAttentionMetricMaximaSerializer(serializers.Serializer):
+    """Expose independent scales over readable observations before pagination."""
+
+    profile_visits = serializers.IntegerField(allow_null=True)
+    saves = serializers.IntegerField(allow_null=True)
+    distinct_savers = serializers.IntegerField(allow_null=True)
+
+
 class BusinessAttentionMetadataSerializer(serializers.Serializer):
     """Expose attention metadata alongside standard pagination fields."""
 
@@ -131,3 +139,4 @@ class BusinessAttentionMetadataSerializer(serializers.Serializer):
     sources = CoverageAttentionSourcesSerializer()
     selection_status = serializers.ChoiceField(choices=("not_applicable", "provisional", "unavailable"))
     thresholds = LowExposureThresholdSerializer(allow_null=True)
+    metric_maxima = BusinessAttentionMetricMaximaSerializer()

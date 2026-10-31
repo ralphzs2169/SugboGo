@@ -177,6 +177,10 @@ class BusinessAttentionService:
             "meta": meta, "sources": {"domain": domain_meta, "visibility": visibility_meta},
             "selection_status": "unavailable" if unavailable else "provisional" if low_exposure or attention_mode else "not_applicable",
             "thresholds": cls.thresholds() if low_exposure else None,
+            "metric_maxima": {
+                metric: None
+                for metric in ("profile_visits", "saves", "distinct_savers")
+            },
         }
         if unavailable:
             return result
@@ -243,4 +247,15 @@ class BusinessAttentionService:
                 reverse=ordering.startswith("-"),
             )
         result["items"] = items
+        # The API paginates these rows later; every page must share this scale.
+        for metric in result["metric_maxima"]:
+            observations = [
+                item[metric]
+                for item in items
+                if item[metric] is not None
+            ]
+            result["metric_maxima"][metric] = max(
+                observations,
+                default=None,
+            )
         return result

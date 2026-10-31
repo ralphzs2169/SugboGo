@@ -463,11 +463,14 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
 });
 
 
-test("business attention groups exact metrics, distinguishes support icons and continues ranks across pages", async () => {
+test("business attention uses population scales across pages while preserving grouped metrics and ranks", async () => {
   initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
   overrides.set("/admin/analytics/business-attention/", (report, params) => ({
     ...report,
-    items: [0, 5, 10].map((visits, index) => ({
+    metric_maxima: params.category
+      ? { profile_visits: 23, saves: 5, distinct_savers: 5 }
+      : { profile_visits: 69, saves: 11, distinct_savers: 11 },
+    items: (Number(params.page ?? 1) === 1 ? [0, 1, 1] : [1, 23, params.category ? 23 : 69]).map((visits, index) => ({
       ...report.items[0],
       business_id: Number(params.page ?? 1) * 10 + index,
       profile_visits: visits,
@@ -484,8 +487,14 @@ test("business attention groups exact metrics, distinguishes support icons and c
   assert.deepEqual([...table.querySelectorAll("thead tr:last-child th")].map((header) => header.textContent), ["Profile visits", "Saves", "Distinct savers", "Valid vouches", "Supporters"]);
   const rows = [...table.querySelectorAll("tbody tr")];
   assert.deepEqual(rows.map((row) => row.cells[0].textContent), ["1", "2", "3"]);
-  assert.deepEqual(rows.map((row) => row.cells[2].querySelector("p").textContent), ["0", "5", "10"]);
-  assert.deepEqual(rows.map((row) => row.cells[2].querySelector('[aria-hidden="true"] > div').style.width), ["0%", "50%", "100%"]);
+  assert.deepEqual(rows.map((row) => row.cells[2].querySelector("p").textContent), ["0", "1", "1"]);
+  const width = (row, column) => row.cells[column].querySelector('[aria-hidden="true"] > div').style.width;
+  assert.equal(width(rows[0], 2), "0%");
+  const oneVisitWidth = width(rows[1], 2);
+  assert.ok(Math.abs(Number.parseFloat(oneVisitWidth) - 1.449275) < 0.00001);
+  assert.notEqual(width(rows[2], 2), "100%");
+  assert.ok(Math.abs(Number.parseFloat(width(rows[2], 3)) - 9.090909) < 0.00001);
+  assert.ok(Math.abs(Number.parseFloat(width(rows[2], 4)) - 18.181818) < 0.00001);
   assert.ok(rows[0].cells[5].querySelector("svg.lucide-heart"));
   assert.ok(rows[0].cells[6].querySelector("svg.lucide-users"));
   assert.equal(rows[0].cells[6].querySelector("svg.lucide-heart"), null);
@@ -497,6 +506,14 @@ test("business attention groups exact metrics, distinguishes support icons and c
   await until(() => requests("business-attention/").at(-1).params.page === 2);
   await until(() => attention.querySelector("tbody tr td")?.textContent === "11");
   assert.deepEqual([...attention.querySelectorAll("tbody tr")].map((row) => row.cells[0].textContent), ["11", "12", "13"]);
+  const nextRows = [...attention.querySelectorAll("tbody tr")];
+  assert.equal(width(nextRows[0], 2), oneVisitWidth);
+  assert.equal(width(nextRows[2], 2), "100%");
+  await choose("Attention category", "2");
+  assert.equal(requests("business-attention/").at(-1).params.page, 1);
+  const filteredRows = [...attention.querySelectorAll("tbody tr")];
+  assert.equal(filteredRows[0].cells[0].textContent, "1");
+  assert.ok(Math.abs(Number.parseFloat(width(filteredRows[1], 2)) - 4.347826) < 0.00001);
 });
 
 test("business attention renders provisional rows but blocks unavailable observations", async () => {

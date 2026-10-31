@@ -62,6 +62,32 @@ class CoverageAttentionViewTests(AttentionFixtures, APIResponseAssertionsMixin, 
         self.assertTrue(pagination["has_next"])
         self.assertEqual(self.client.get(self.urls[1], {"page": 999}).status_code, 404)
 
+    def test_attention_scales_are_serialized_before_pagination_and_follow_filters(self):
+        pages = [
+            self.client.get(
+                self.urls[1],
+                {"attention_mode": "discovery", "page_size": 2, "page": page},
+            ).data["data"]
+            for page in (1, 2)
+        ]
+        for page in pages:
+            self.assertEqual(
+                page["metric_maxima"],
+                {"profile_visits": 5, "saves": 4, "distinct_savers": 3},
+            )
+        self.assertEqual(
+            max(row["profile_visits"] for row in pages[0]["items"]),
+            1,
+        )
+        filtered = self.client.get(
+            self.urls[1],
+            {"attention_mode": "discovery", "category": self.category_a.pk},
+        ).data["data"]
+        self.assertEqual(
+            filtered["metric_maxima"],
+            {"profile_visits": 5, "saves": 3, "distinct_savers": 2},
+        )
+
     def test_filtered_attention_retains_zero_visits_and_aggregate_only_columns(self):
         response = self.client.get(self.urls[1], {"category": self.category_a.pk, "ordering": "profile_visits"})
         rows = response.data["data"]["items"]

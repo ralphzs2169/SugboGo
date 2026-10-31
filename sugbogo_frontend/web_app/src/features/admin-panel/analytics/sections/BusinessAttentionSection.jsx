@@ -46,13 +46,13 @@ function attentionReason(business) {
   return business.attention_reason ?? "Attention eligibility unavailable";
 }
 
-/** Decorative bars compare readable counts on this page; they never affect ranking. */
+/** Decorative bars share the server's filtered-population scale across every page. */
 function ActivityMetric({ value, label, maximum }) {
   return (
     <div className="min-w-0">
       <p className="font-semibold tabular-nums text-text-primary">{formatCount(value)}</p>
       <p className="mt-0.5 text-xs text-text-secondary">{label}</p>
-      {value != null && (
+      {value != null && maximum != null && (
         <div aria-hidden="true" className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
           <div className="h-full rounded-full bg-primary/70" style={{ width: maximum > 0 ? `${(value / maximum) * 100}%` : "0%" }} />
         </div>
@@ -91,14 +91,13 @@ function MetricGroupHeading({ title, description }) {
 }
 
 /** Uses DataTable's content slot so shared pagination and empty states remain intact. */
-function AttentionRankingTable({ businesses, offset, emptyState }) {
-  const maximums = METRICS.slice(0, 3).map(([key]) => Math.max(0, ...businesses.map((business) => business[key] ?? 0)));
+function AttentionRankingTable({ businesses, offset, emptyState, metricMaxima }) {
   const headerClass = "px-4 text-left font-semibold text-text-primary";
   const cellClass = "px-4 py-3 align-middle";
   return (
     <div role="region" aria-label="Business attention rankings" tabIndex={0} className="-mx-4 overflow-x-auto border-y border-stroke focus-visible:outline-2 focus-visible:outline-info sm:-mx-5">
       <table className="w-full min-w-[1160px] table-fixed border-collapse text-left text-sm">
-        <caption className="sr-only">Businesses ranked by recorded activity. Miniature bars compare each discovery metric within this page.</caption>
+        <caption className="sr-only">Businesses ranked by recorded activity. Miniature bars compare each discovery metric across the full filtered population.</caption>
         <colgroup><col className="w-[4%]" /></colgroup>
         <colgroup><col className="w-[29%]" /></colgroup>
         <colgroup><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[10%]" /></colgroup>
@@ -137,7 +136,7 @@ function AttentionRankingTable({ businesses, offset, emptyState }) {
               </td>
               {METRICS.slice(0, 3).map(([key], metricIndex) => (
                 <td key={key} className={cellClass}>
-                  <ActivityMetric value={business[key]} label={["visits", "saves", "distinct savers"][metricIndex]} maximum={maximums[metricIndex]} />
+                  <ActivityMetric value={business[key]} label={["visits", "saves", "distinct savers"][metricIndex]} maximum={metricMaxima?.[key]} />
                 </td>
               ))}
               <td className={`${cellClass} border-l border-stroke`}>
@@ -190,7 +189,7 @@ function AttentionView({ period, mode, onMode }) {
           data: data ? data.items ?? null : undefined,
           columns: METRICS.map(([accessorKey, header]) => ({ accessorKey, header, enableSorting: false })),
           slots: Array.isArray(data?.items) ? {
-            renderContent: () => <AttentionRankingTable businesses={data.items} offset={(params.page - 1) * params.page_size} emptyState={emptyState} />,
+            renderContent: () => <AttentionRankingTable businesses={data.items} offset={(params.page - 1) * params.page_size} emptyState={emptyState} metricMaxima={data.metric_maxima} />,
           } : undefined,
           state: { sorting: [] },
           pagination: { pageIndex: params.page - 1, pageSize: params.page_size },

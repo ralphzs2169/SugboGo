@@ -81,6 +81,68 @@ class AttentionFixtures:
 
 
 class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
+    def test_metric_maxima_use_the_filtered_readable_population(self):
+        report = self.report(attention_mode="discovery")
+        self.assertEqual(
+            report["metric_maxima"],
+            {"profile_visits": 5, "saves": 4, "distinct_savers": 3},
+        )
+        filtered = self.report(
+            attention_mode="discovery",
+            category=self.category_a.pk,
+        )
+        self.assertEqual(
+            filtered["metric_maxima"],
+            {"profile_visits": 5, "saves": 3, "distinct_savers": 2},
+        )
+        zero = self.report(
+            attention_mode="discovery",
+            category=self.category_a.pk,
+        )
+        self.assertEqual(zero["items"][0]["profile_visits"], 0)
+        empty = self.report(category=self.empty_category.pk)
+        self.assertTrue(
+            all(value is None for value in empty["metric_maxima"].values()),
+        )
+
+    def test_unavailable_discovery_does_not_create_zero_maxima_in_either_mode(self):
+        with patch.object(
+            VisibilityEventService,
+            "get_business_attention_metrics",
+            side_effect=VisibilityTrackingUnavailable(),
+        ):
+            discovery = BusinessAttentionService.get_report(
+                self.period,
+                attention_mode="discovery",
+            )
+            support = BusinessAttentionService.get_report(
+                self.period,
+                attention_mode="support",
+            )
+        self.assertIsNone(discovery["items"])
+        self.assertEqual(len(support["items"]), 4)
+        for report in (discovery, support):
+            self.assertEqual(
+                report["metric_maxima"],
+                {"profile_visits": None, "saves": None, "distinct_savers": None},
+            )
+
+    def test_recorded_zero_observations_have_zero_maxima(self):
+        observations = {
+            business_id: {
+                "profile_visits": 0,
+                "saves": 0,
+                "distinct_savers": 0,
+            }
+            for business_id in self.metrics
+        }
+        with patch.object(self, "metrics", observations):
+            report = self.report(attention_mode="discovery")
+        self.assertEqual(
+            report["metric_maxima"],
+            {"profile_visits": 0, "saves": 0, "distinct_savers": 0},
+        )
+
     def report(self, **options):
         with patch.object(VisibilityEventService, "get_business_attention_metrics", side_effect=self.mongo_metrics):
             return BusinessAttentionService.get_report(self.period, **options)
