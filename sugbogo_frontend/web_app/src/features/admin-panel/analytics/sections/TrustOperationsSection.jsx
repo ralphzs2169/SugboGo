@@ -4,6 +4,7 @@ import { useAttentionQueueAnalytics, useChangeRequestAnalytics } from "../hooks/
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
 import AnalyticsExactTable from "../components/AnalyticsExactTable";
+import ChangeRequestOutcomes from "../components/ChangeRequestOutcomes";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import OperationsStats, { OperationsHelp } from "../components/OperationsStats";
@@ -187,38 +188,7 @@ export function ChangeRequestWorkload({ period }) {
           <p className="mb-3 mt-1 text-xs text-text-secondary">Median resolution time · selected period</p>
           <ProcessingSpeed types={types} />
         </div>
-        {/* Compact outcomes visually separate administrator decisions from merchant actions. */}
-        <div className="mt-5 border-t border-stroke pt-4">
-          <h3 className="mb-3 text-sm font-semibold text-text-primary">Outcomes by request type</h3>
-          <div className="max-w-full overflow-x-auto rounded-lg border border-stroke">
-            <table className="w-full text-left text-sm">
-              <caption className="sr-only">Selected-period outcomes by request type. Approvals and rejections are administrator decisions; withdrawals are merchant actions.</caption>
-              <thead className="bg-surface-muted text-text-primary">
-                <tr className="text-xs text-text-secondary">
-                  <th scope="col" rowSpan={2} className="px-3 py-2 font-medium">Request type</th>
-                  <th scope="colgroup" colSpan={2} className="px-3 pt-2 text-center font-medium">Administrator decisions</th>
-                  <th scope="colgroup" className="border-l border-stroke px-3 pt-2 text-center font-medium">Merchant action</th>
-                </tr>
-                <tr>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Approved</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Rejected</th>
-                  <th scope="col" className="border-l border-stroke px-3 py-2 text-right font-medium">Withdrawn</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stroke text-text-primary">
-                {types.map((row) => (
-                  <tr key={row.type}>
-                    <th scope="row" className="px-3 py-2 font-normal">{row.label}</th>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.period_outcomes?.approved)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatCount(row.period_outcomes?.rejected)}</td>
-                    <td className="border-l border-stroke px-3 py-2 text-right tabular-nums">{formatCount(row.period_outcomes?.withdrawn)}</td>
-                  </tr>
-                ))}
-                {!types.length && <tr><td colSpan={4} className="px-3 py-4 text-center text-text-secondary">No request-type observations available.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ChangeRequestOutcomes types={types} />
       </AnalyticsSection>
       {/* Shared drawer retains exact outcomes, queue aging, exclusions and methodology. */}
       <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Merchant change requests"

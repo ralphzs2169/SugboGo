@@ -224,7 +224,12 @@ test("workspace deep links isolate Operations errors and Retry", async () => {
   const rows = changes.querySelectorAll("tbody tr");
   const speed = changes.querySelector('[aria-label="Median resolution time by request type"]');
   assert.match(speed.querySelector('[aria-label^="Business name:"]').getAttribute("data-tooltip-content"), /1 hr 30 min.*2 valid decisions/);
-  assert.deepEqual([...rows[0].querySelectorAll("td")].slice(-3).map((cell) => cell.textContent), ["2", "1", "3"]);
+  assert.deepEqual([...rows[0].querySelectorAll("td")].map((cell) => cell.querySelector("p, span").textContent), ["2", "1", "3"]);
+  assert.match(rows[0].cells[1].textContent, /67% of decisions/);
+  assert.match(rows[0].cells[2].textContent, /33% of decisions/);
+  assert.match(rows[1].cells[1].textContent, /0% of decisions/);
+  assert.match(rows[1].cells[2].textContent, /100% of decisions/);
+  assert.doesNotMatch(rows[2].textContent, /% of decisions/);
   assert.match(speed.querySelector('[aria-label^="Classification:"]').textContent, /0 min/);
   assert.match(speed.querySelector('[aria-label^="Location:"]').textContent, /Unavailable/);
   assert.doesNotMatch(changes.textContent, /Unknown age/);
@@ -244,6 +249,52 @@ test("workspace deep links isolate Operations errors and Retry", async () => {
   assert.match(drawer.textContent, /Applications submitted/);
   assert.match(drawer.textContent, /Review decisions/);
   assert.doesNotMatch(drawer.textContent, /Completed reviews/);
+});
+
+test("change request outcomes exclude withdrawals from decision shares and preserve zero, missing and empty observations", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=operations"];
+  overrides.set("/admin/analytics/change-requests/", (report) => ({
+    ...report,
+    types: [
+      { type: "name", label: "Business name", period_outcomes: { approved: 1, rejected: 0, withdrawn: 3 } },
+      { type: "classification", label: "Classification", period_outcomes: { approved: 0, rejected: 0, withdrawn: 5 } },
+      { type: "location", label: "Location", period_outcomes: { approved: 2, rejected: null, withdrawn: null } },
+    ],
+  }));
+  await mount();
+  const changes = section("Merchant change requests");
+  const region = changes.querySelector('[role="region"]');
+  assert.equal(region.tabIndex, 0);
+  const table = region.querySelector("table");
+  assert.deepEqual([...table.querySelectorAll('th[scope="colgroup"]')].map((header) => header.textContent), ["Administrator decisions", "Merchant action"]);
+  assert.deepEqual([...table.querySelectorAll("thead tr:last-child th")].map((header) => header.textContent), ["Approved", "Rejected", "Withdrawn"]);
+  let rows = table.querySelectorAll("tbody tr");
+  assert.match(rows[0].cells[1].textContent, /1.*100% of decisions/);
+  assert.equal(rows[0].cells[1].querySelector('[aria-hidden="true"] > div').style.width, "100%");
+  assert.equal(rows[0].cells[2].querySelector('[aria-hidden="true"] > div').style.width, "0%");
+  assert.ok(rows[0].cells[3].querySelector("svg.lucide-clock-3"));
+  assert.doesNotMatch(rows[0].cells[3].textContent, /%/);
+  assert.doesNotMatch(rows[1].textContent, /%|NaN|Infinity/);
+  assert.equal(rows[1].cells[1].querySelector("p").textContent, "0");
+  assert.match(rows[2].cells[2].textContent, /Unavailable/);
+  assert.match(rows[2].cells[3].textContent, /Unavailable/);
+  assert.equal(rows[2].cells[1].querySelector('[aria-hidden="true"]'), null);
+  assert.doesNotMatch(rows[2].textContent, /%/);
+  assert.match(changes.querySelector('[aria-label="About administrator decisions"]').getAttribute("data-tooltip-content"), /approved \+ rejected/);
+  assert.match(changes.textContent, /Withdrawn reflects merchant action, not administrator review/);
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "changeRequests");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, types: report.types.map((row) => ({ ...row, period_outcomes: { ...row.period_outcomes, withdrawn: 999 } })) }));
+  });
+  await until(() => table.querySelector("tbody tr").cells[3].textContent.includes("999"));
+  rows = table.querySelectorAll("tbody tr");
+  assert.match(rows[0].cells[1].textContent, /100% of decisions/);
+  assert.match(rows[0].cells[3].textContent, /999/);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, types: [] }));
+  });
+  await until(() => table.textContent.includes("No request-type observations available"));
+  assert.match(table.textContent, /No request-type observations available/);
 });
 
 test("workspace invalid tabs fall back safely and arrow keys activate semantic panels", async () => {
