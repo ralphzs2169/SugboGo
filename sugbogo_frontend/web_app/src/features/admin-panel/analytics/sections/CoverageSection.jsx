@@ -31,7 +31,11 @@ export default function CoverageSection({ period }) {
   const visibilityUnavailable = data?.sources?.visibility?.availability === "unavailable";
   const known = (data?.[group] ?? []).filter((row) => !visibilityUnavailable && row.coverage_percentage != null && row.eligible_businesses > 0);
   const ascending = [...known].sort((left, right) => left.coverage_percentage - right.coverage_percentage || left.id - right.id);
-  const preview = ascending.slice(0, 5);
+  const fullyCovered = ascending.filter((row) => row.coverage_percentage === 100);
+  const summarizeFullCoverage = fullyCovered.length >= 3;
+  const preview = summarizeFullCoverage
+    ? ascending.filter((row) => row.coverage_percentage !== 100)
+    : ascending;
   const overall = data?.overall;
   return (
     <>
@@ -71,8 +75,17 @@ export default function CoverageSection({ period }) {
                 <div className="h-full rounded-full bg-primary" style={{ width: `${row.coverage_percentage}%` }} />
               </div>
             </li>)}
+            {summarizeFullCoverage && <li>
+              <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 break-words text-text-primary">{formatCount(fullyCovered.length)} {preview.length > 0 ? "other " : ""}{group}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-text-primary">{formatPercentage(100)}</span>
+              </div>
+              <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-surface-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: "100%" }} />
+              </div>
+            </li>}
           </ol>
-          {preview.length === 0 && <p className="text-xs text-text-secondary">{visibilityUnavailable ? "Classification coverage is unavailable." : "No classified coverage is available for this scope."}</p>}
+          {ascending.length === 0 && <p className="text-xs text-text-secondary">{visibilityUnavailable ? "Classification coverage is unavailable." : "No classified coverage is available for this scope."}</p>}
           {overall?.zero_recorded_visit_businesses != null && <p className="mt-3 text-xs text-text-secondary">{formatCount(overall.zero_recorded_visit_businesses)} {overall.zero_recorded_visit_businesses === 1 ? "business had" : "businesses had"} no recorded profile visits</p>}
         </div>
       </AnalyticsSection>

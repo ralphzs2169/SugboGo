@@ -744,7 +744,7 @@ test("shared explanations preserve Operations, Community and Ecosystem report de
   assert.ok([...drawer.querySelectorAll("summary")].find((node)=>node.textContent === "Technical details"));
 });
 
-test("business coverage ranks a bounded comparison and keeps every classification in its drawer", async () => {
+test("business coverage compacts full coverage and keeps every classification in its drawer", async () => {
   initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
   overrides.set("/admin/analytics/coverage/", (report) => ({
     ...report,
@@ -772,8 +772,8 @@ test("business coverage ranks a bounded comparison and keeps every classificatio
   assert.match(coverage.textContent, /11 of 15 eligible businesses received recorded profile visits/);
   assert.deepEqual([...container.querySelectorAll("h2")].map((heading) => heading.textContent), ["Geographic Distribution", "Business Coverage", "Discovery Score Health", "Businesses Needing Attention"]);
   assert.match(coverage.textContent, /4 businesses had no recorded profile visits/);
-  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Category 50%", "Category 350%", "Category 475%", "Category 2100%", "Category 6100%"]);
-  assert.deepEqual([...coverage.querySelectorAll('ol [aria-hidden="true"] > div')].map((bar) => bar.style.width), ["0%", "50%", "75%", "100%", "100%"]);
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Category 50%", "Category 350%", "Category 475%", "3 other categories100%"]);
+  assert.deepEqual([...coverage.querySelectorAll('ol [aria-hidden="true"] > div')].map((bar) => bar.style.width), ["0%", "50%", "75%", "100%"]);
   assert.doesNotMatch(coverage.textContent, /Lowest coverage first|Showing 5 of|Compare clusters/);
   assert.equal(coverage.querySelectorAll('[aria-label="About Business Coverage"]').length, 1);
   assert.equal(coverage.textContent.match(/Coverage unverified/g).length, 1);
@@ -818,6 +818,40 @@ test("business coverage ranks a bounded comparison and keeps every classificatio
   assert.match(drawer.textContent, /not an average of classification percentages/);
   await click(drawer.querySelector('[aria-label="Close Business Coverage details"]'));
   assert.equal(document.activeElement, action);
+});
+
+test("business coverage retains every incomplete classification and summarizes each dimension independently", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/coverage/", (report) => ({
+    ...report,
+    categories: [0, 25, 50, 75, 99, 99.99, 100, 100].map((percentage, index) => ({
+      id: index + 1, name: `Category ${index + 1}`, eligible_businesses: 10000,
+      visited_businesses: percentage * 100, zero_recorded_visit_businesses: 10000 - percentage * 100,
+      coverage_percentage: percentage,
+    })),
+    clusters: [3, 1, 2].map((id) => ({ id, name: `Cluster ${id}`, eligible_businesses: 1, visited_businesses: 1, zero_recorded_visit_businesses: 0, coverage_percentage: 100 })),
+  }));
+  await mount();
+  const coverage = section("Business Coverage");
+  assert.equal(coverage.querySelectorAll("ol li").length, 8);
+  assert.match(coverage.querySelector("ol").textContent, /Category 699.99%/);
+  assert.doesNotMatch(coverage.querySelector("ol").textContent, /other categories/);
+  const dimension = coverage.querySelector('[aria-label="Coverage dimension"]');
+  await click([...dimension.querySelectorAll('[role="tab"]')].find((button) => button.textContent === "Cluster"));
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["3 clusters100%"]);
+  assert.doesNotMatch(coverage.textContent, /No classified coverage is available/);
+  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "coverage");
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, clusters: report.clusters.slice(0, 2) }));
+  });
+  await until(() => coverage.querySelectorAll("ol li").length === 2);
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Cluster 1100%", "Cluster 3100%"]);
+  await act(async () => {
+    client.setQueryData(query.queryKey, (report) => ({ ...report, categories: report.clusters.map((row) => ({ ...row, id: row.id + 10, name: `Category ${row.id}` })).concat([{ id: 99, name: "Category 99", eligible_businesses: 1, visited_businesses: 1, zero_recorded_visit_businesses: 0, coverage_percentage: 100 }]) }));
+  });
+  await click([...dimension.querySelectorAll('[role="tab"]')].find((button) => button.textContent === "Category"));
+  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["3 categories100%"]);
+  assert.equal(requests("coverage/").length, 1);
 });
 
 test("business coverage preserves unavailable visits and known empty eligibility", async () => {
