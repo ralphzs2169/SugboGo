@@ -1,4 +1,4 @@
-import { AnalyticsCategoryTooltip } from "../components/AnalyticsTooltip";
+import AnalyticsTooltip from "../components/AnalyticsTooltip";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
 import { useState } from "react";
@@ -15,6 +15,8 @@ import { formatCount, formatPercentage, formatTimestamp } from "../utils/present
 import { growthBucketLabel } from "../utils/growthPresentation";
 
 const COLORS = { ROAD_ROUTE: "var(--color-info)", JEEPNEY: "var(--color-primary)", OTHER: "var(--color-neutral)" };
+const shares = new Intl.NumberFormat("en-PH", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const formatShare = (value) => value == null ? "Unavailable" : `${shares.format(value)}%`;
 const METHOD_COLUMNS = [
   { key: "label", label: "Method" },
   { key: "count", label: "Recorded requests", render: (row) => formatCount(row.count) },
@@ -23,6 +25,16 @@ const METHOD_COLUMNS = [
 const COUNT_COLUMNS = [
   ["road_route", "Road routes"], ["jeepney", "Jeepney guidance"], ["other", "Other"],
 ].map(([key, label]) => ({ key, label, render: (row) => formatCount(row[key]) }));
+
+/** Uses display-only rounding while leaving exact method shares available in View data. */
+function PlanningMethodTooltip({ active, payload }) {
+  const row = payload?.[0]?.payload;
+  if (!active || !row) return null;
+  return <AnalyticsTooltip title={row.label} rows={[
+    { label: "Recorded requests", value: formatCount(row.count), color: COLORS[row.method] },
+    { label: "Share of recorded total", value: formatShare(row.share_percent) },
+  ]} />;
+}
 
 /** Shows recorded planning intent with exact observations and destinations in the shared drawer. */
 export default function TransportationPlanningSection({ period }) {
@@ -34,11 +46,11 @@ export default function TransportationPlanningSection({ period }) {
   const unavailable = data?.meta?.availability === "unavailable";
   const actionStyle = "inline-flex cursor-pointer items-center gap-1.5 rounded py-2 text-xs font-medium text-text-primary focus-visible:outline-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50";
   const methods = data?.methods ?? [];
+  const legendMethods = methods.filter((row) => row.method !== "OTHER" || row.count !== 0);
   return (
     <>
       {/* Compact distribution keeps secondary trends and rankings out of the main workspace. */}
       <AnalyticsSection title="Transportation Planning" description="Recorded road-route and Jeepney guidance planning requests." {...state}
-        controls={<AnalyticsIntervalControl value={interval} onChange={setInterval} />}
         unavailable={unavailable}
         unavailableMessage={<span>{data?.meta?.partial_reasons?.includes("tracking_not_started_in_period") ? "This period is before transportation tracking began." : "Transportation planning observations are unavailable, not zero."} <button type="button" onClick={() => query.refetch()} className={actionStyle}>Retry source</button></span>}
         isEmpty={data?.total_requests === 0}
@@ -53,13 +65,13 @@ export default function TransportationPlanningSection({ period }) {
                 <Pie data={methods} dataKey="count" nameKey="label" innerRadius="65%" outerRadius="85%" isAnimationActive={false} stroke="var(--color-background)">
                   {methods.map((row) => <Cell key={row.method} fill={COLORS[row.method]} />)}
                 </Pie>
-                <Tooltip content={<AnalyticsCategoryTooltip unit="requests" colors={COLORS} />} />
+                <Tooltip content={<PlanningMethodTooltip />} />
               </PieChart>
             </ResponsiveContainer>
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><span className="text-2xl font-semibold text-text-primary">{formatCount(data?.total_requests)}</span><span className="text-xs text-text-secondary">recorded requests</span></div>
           </div>
           <div className="min-w-0">
-            <dl className="space-y-3 text-sm">{methods.map((row) => <div key={row.method} className="flex flex-wrap items-center justify-between gap-2"><dt className="flex items-center gap-2 text-text-secondary"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[row.method] }} />{row.label}</dt><dd className="font-medium tabular-nums text-text-primary">{formatCount(row.count)} · {formatPercentage(row.share_percent)}</dd></div>)}</dl>
+            <dl className="space-y-3 text-sm">{legendMethods.map((row) => <div key={row.method} className="flex flex-wrap items-center justify-between gap-2"><dt className="flex items-center gap-2 text-text-secondary"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[row.method] }} />{row.label}</dt><dd className="tabular-nums"><span className="font-semibold text-text-primary">{formatCount(row.count)}</span><span className="text-text-secondary"> · {formatShare(row.share_percent)}</span></dd></div>)}</dl>
             <p className="mt-5 text-sm text-text-secondary">Distinct requesting accounts: <span className="font-medium text-text-primary">{formatCount(data?.distinct_requesting_accounts)}</span></p>
             <p className="mt-2 text-xs text-text-secondary">Planning intent, not completed journeys or physical visits.</p>
           </div>
@@ -71,6 +83,8 @@ export default function TransportationPlanningSection({ period }) {
         dataContent={unavailable ? <p>Exact observations are unavailable. See report details for the tracking boundary and source limitations.</p> : <div className="space-y-5">
           <p>{formatCount(data?.total_requests)} recorded requests · {formatCount(data?.distinct_requesting_accounts)} distinct requesting accounts</p>
           <AnalyticsExactTable caption="Planning methods" rows={methods} columns={METHOD_COLUMNS} />
+          {/* Interval changes affect exact time buckets, not the period-wide composition. */}
+          <AnalyticsIntervalControl value={interval} onChange={setInterval} />
           <AnalyticsExactTable caption={`Recorded planning activity · ${interval}`} rows={data?.series} columns={[
             { key: "date", label: "Effective dates", render: growthBucketLabel },
             { key: "observation_start", label: "Observation begins · PHT", render: (row) => formatTimestamp(row.observation_start) },

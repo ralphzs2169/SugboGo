@@ -691,19 +691,37 @@ test("account trend retry is independent and retains cached observations on refr
 });
 
 test("transportation donut reconciles methods and drawer destinations with period cache reuse", async () => {
+  overrides.set("/admin/analytics/transportation-planning/", (report) => ({
+    ...report,
+    total_requests: 11,
+    methods: [
+      { method: "ROAD_ROUTE", label: "Road routes", count: 4, share_percent: 36.36 },
+      { method: "JEEPNEY", label: "Jeepney guidance", count: 7, share_percent: 63.64 },
+      { method: "OTHER", label: "Other recorded methods", count: 0, share_percent: 0 },
+    ],
+    destinations: [{ ...report.destinations[0], count: 11, road_route: 4, jeepney: 7 }],
+  }));
   await mount();
   const report = section("Transportation Planning");
   const methods = JSON.parse(report.querySelector("[data-pie]").getAttribute("data-pie"));
-  assert.equal(methods.reduce((sum,row) => sum + row.count,0), 5);
-  assert.match(report.textContent, /60%/);
+  assert.equal(methods.reduce((sum,row) => sum + row.count,0), 11);
+  assert.match(report.textContent, /36\.4%/);
+  assert.match(report.textContent, /63\.6%/);
+  assert.doesNotMatch(report.textContent, /36\.36%|Other recorded methods/);
+  assert.equal(report.querySelector('[aria-label^="Reporting interval:"]'), null);
+  assert.equal(methods.find((row) => row.method === "OTHER").count, 0);
   assert.match(report.textContent, /Distinct requesting accounts: 2/);
   assert.match(report.textContent, /not completed journeys/);
   assert.ok(report.querySelector(".sm\\:grid-cols-2"));
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   assert.match(document.querySelector("dialog[open]").textContent, /Recorded planning activity/);
+  assert.match(document.querySelector("dialog[open]").textContent, /36\.36%/);
+  assert.match(document.querySelector("dialog[open]").textContent, /Other recorded methods/);
   assert.equal(document.querySelector('dialog[open] a').getAttribute("href"), "/admin-panel/businesses/10");
   await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
   await click(report.querySelector('[aria-label="About Transportation Planning"]'));
+  assert.match(document.querySelector("dialog[open]").textContent, /recording completeness and freshness are unverified/);
+  assert.match(document.querySelector("dialog[open]").textContent, /may not capture every planning attempt/);
   assert.match(document.querySelector("dialog[open]").textContent, /UTC day/);
   assert.match(document.querySelector("dialog[open]").textContent, /Tracking started/);
   await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
@@ -711,12 +729,28 @@ test("transportation donut reconciles methods and drawer destinations with perio
   await tab("Operations");
   await tab("Growth & Discovery");
   assert.equal(requests("transportation-planning/").length,count);
-  await choose("Interval", "daily", section("Transportation Planning"));
+  await click([...section("Transportation Planning").querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  await choose("Interval", "daily", document.querySelector("dialog[open]"));
   await until(() => client.isFetching() === 0);
   assert.equal(requests("transportation-planning/").at(-1).params.interval,"daily");
+  await click(document.querySelector('[aria-label="Close Transportation Planning details"]'));
   await choosePeriod("7");
   await until(() => client.isFetching() === 0);
   assert.equal(requests("transportation-planning/").at(-1).params.period,"7");
+});
+
+test("transportation shows nonzero Other methods normally in the period composition", async () => {
+  overrides.set("/admin/analytics/transportation-planning/", (report) => ({
+    ...report,
+    total_requests: 7,
+    methods: report.methods.map((row) => row.method === "OTHER"
+      ? { ...row, count: 2, share_percent: 28.57 }
+      : { ...row, share_percent: row.count / 7 * 100 }),
+  }));
+  await mount();
+  const legend = section("Transportation Planning").querySelector("dl");
+  assert.match(legend.textContent, /Other recorded methods2 · 28\.6%/);
+  assert.equal(legend.querySelectorAll("dt").length, 3);
 });
 
 test("transportation separates zero, unavailable and request failure with independent retry", async () => {

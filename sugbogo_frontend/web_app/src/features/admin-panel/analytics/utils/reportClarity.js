@@ -50,7 +50,7 @@ export const reportExplanations = {
   "Transportation Planning": [
     "How often explorers request road-route or Jeepney travel guidance for businesses.",
     "At most one request is recorded per account, business and transportation method each day. Account totals count each identifiable account once across the whole period.",
-    "Planning a route does not mean the journey happened. Activity before recording began cannot be measured. Other methods are counted separately. Requests that cannot be linked to an account stay in request totals but are excluded from distinct account counts. For these daily limits, a new counting day begins at 8 AM Philippine time.",
+    "Transportation-planning event recording completeness and freshness are unverified. These are recorded requests, not completed journeys or physical visits, and may not capture every planning attempt. Activity before recording began cannot be measured. Other methods are counted separately. Requests that cannot be linked to an account stay in request totals but are excluded from distinct account counts. For these daily limits, a new counting day begins at 8 AM Philippine time.",
   ],
   "Business Acquisition": [
     "New businesses during the selected period, grouped by their current cluster and category.",
