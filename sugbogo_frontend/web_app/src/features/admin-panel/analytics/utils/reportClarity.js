@@ -23,8 +23,8 @@ export const reportExplanations = {
     "This is not explorer location, foot traffic, physical visits or movement. Current location changes can move earlier recorded activity between cells. Recorded activity may be incomplete; visit recording completeness and freshness are unverified. Missing, invalid or out-of-scope business locations are excluded and listed in View data.",
   ],
   "Businesses Needing Attention": [
-    "Eligible active businesses ordered by lower recorded discovery activity or lower current specialty support, within the chosen cluster and category.",
-    "Low discovery activity orders selected-period profile visits from fewest to most. Low specialty support orders current valid endorsements from fewest to most. Saves, distinct savers, valid endorsements and distinct supporters remain separate measures; no combined score is calculated.",
+    "Eligible active businesses filtered for low discovery activity or no valid specialty endorsements, within the chosen cluster and category.",
+    "Discovery candidates require verified observations and a full selected-period window, visits and saves below same-category peer medians (same-cluster fallback), and distinct savers no higher than the peer median. Groups require the configured minimum number of other businesses. Specialty candidates have no current valid endorsements. Saves, distinct savers, valid endorsements and distinct supporters remain separate measures; no combined score is calculated.",
     "These are follow-up signals, not judgments of quality or popularity. Discovery recording coverage is unverified; unavailable observations are not zero. Businesses with shorter observation histories may have fewer visits. Specialty evidence is current regardless of selected dates. Distinct business IDs remain separate even when names match.",
   ],
   "Reports & disputes": [

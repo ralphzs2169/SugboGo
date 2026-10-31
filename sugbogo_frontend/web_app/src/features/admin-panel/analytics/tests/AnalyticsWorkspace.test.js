@@ -353,6 +353,7 @@ test("workspace ecosystem preserves low-activity ranking, support scope and dist
       cover_photo_url: index === 0 ? "https://example.com/storefront.jpg" : null,
       profile_visits: params.ordering === "valid_vouches" ? null : index,
       valid_vouches: index,
+      attention_reason: params.attention_mode === "support" ? "No valid specialty endorsements" : "No recorded profile visits",
     })),
   }));
   await mount();

@@ -1,6 +1,7 @@
 """Current specialty evidence alongside recorded business attention."""
 
 from datetime import timedelta
+from statistics import median
 
 from django.db.models import Count, Exists, OuterRef
 from django.utils import timezone
@@ -15,6 +16,7 @@ from apps.shared.analytics.metadata import build_meta
 
 
 from apps.shared.analytics.policy import current_policy, with_policy_snapshot
+from apps.merchant_operations.merchant_analytics.services.peer_analytics_service import PeerAnalyticsService
 
 
 class BusinessAttentionService:
@@ -98,9 +100,16 @@ class BusinessAttentionService:
     @classmethod
     @with_policy_snapshot
     def get_report(
-        cls, period, *, cluster=None, category=None, ordering="-profile_visits", low_exposure=False,
+        cls,
+        period,
+        *,
+        cluster=None,
+        category=None,
+        ordering="-profile_visits",
+        low_exposure=False,
+        attention_mode=None,
     ):
-        """Assemble current SQL support and period visibility, then sort the whole population."""
+        """Filter requested attention candidates before ordering and API pagination."""
         field = ordering.removeprefix("-")
         if field not in cls.ORDER_FIELDS:
             raise ValidationError({"ordering": "Unsupported attention ordering."})
@@ -116,7 +125,12 @@ class BusinessAttentionService:
             )
         )
         ids = [business.BUSN_ID for business in businesses]
-        visibility, visibility_meta = cls.read_visibility(period, ids)
+        observation_ids = ids
+        if attention_mode == "discovery":
+            observation_ids = list(cls.eligible_businesses().filter(
+                BUSN_CREATED_AT__lte=period.start,
+            ).values_list("pk", flat=True))
+        visibility, visibility_meta = cls.read_visibility(period, observation_ids)
         support = cls.specialty_support(ids)
         domain_meta = build_meta(
             period, coverage_verified=True, data_through=period.end,
@@ -127,6 +141,11 @@ class BusinessAttentionService:
             reasons.append("visibility_unavailable")
         needs_visibility = low_exposure or field in cls.VISIBILITY_FIELDS
         unavailable = visibility is None and needs_visibility
+        if attention_mode == "discovery":
+            unavailable = (
+                visibility is None
+                or visibility_meta.get("coverage_verified") is not True
+            )
         meta = build_meta(
             period, availability="unavailable" if unavailable else "partial",
             partial_reasons=reasons,
@@ -139,18 +158,55 @@ class BusinessAttentionService:
             ),
             "items": None, "ordering": ordering,
             "meta": meta, "sources": {"domain": domain_meta, "visibility": visibility_meta},
-            "selection_status": "unavailable" if unavailable else "provisional" if low_exposure else "not_applicable",
+            "selection_status": "unavailable" if unavailable else "provisional" if low_exposure or attention_mode else "not_applicable",
             "thresholds": cls.thresholds() if low_exposure else None,
         }
         if unavailable:
             return result
         items = []
         for business in businesses:
+            if attention_mode == "discovery" and business.BUSN_CREATED_AT > period.start:
+                continue
             metrics = visibility[business.BUSN_ID] if visibility is not None else {
                 "profile_visits": None, "saves": None, "distinct_savers": None,
             }
             evidence = support.get(business.BUSN_ID, {"valid_vouches": 0, "distinct_supporters": 0})
             created = business.BUSN_CREATED_AT
+            attention_reason = None
+            if attention_mode == "support":
+                if evidence["valid_vouches"] != 0:
+                    continue
+                attention_reason = "No valid specialty endorsements"
+            elif attention_mode == "discovery":
+                peer_ids, _, _ = PeerAnalyticsService.select_group(business, period)
+                peers = [
+                    visibility[peer_id]
+                    for peer_id in peer_ids
+                    if peer_id in visibility
+                ]
+                if len(peers) < current_policy()["peer_min_businesses"]:
+                    continue
+                signals = ("profile_visits", "saves", "distinct_savers")
+                if any(
+                    row.get(signal) is None
+                    for row in [metrics, *peers]
+                    for signal in signals
+                ):
+                    continue
+                medians = {
+                    signal: median([row[signal] for row in peers])
+                    for signal in signals
+                }
+                if not (
+                    metrics["profile_visits"] < medians["profile_visits"]
+                    and metrics["saves"] < medians["saves"]
+                    and metrics["distinct_savers"] <= medians["distinct_savers"]
+                ):
+                    continue
+                if metrics["profile_visits"] == 0:
+                    attention_reason = "No recorded profile visits"
+                else:
+                    attention_reason = "Below peer medians for profile visits and saves"
             if low_exposure:
                 if created >= period.end:
                     continue  # No opportunity to be observed in the completed-day window.
@@ -160,6 +216,7 @@ class BusinessAttentionService:
                 ):
                     continue
             items.append({
+                "attention_reason": attention_reason,
                 "business_id": business.BUSN_ID, "business_name": business.BUSN_NAME,
                 "cover_photo_url": business.display_cover_photo_url,
                 "category_id": business.CTGRY_ID_id, "category_name": business.CTGRY_ID.CTGRY_NAME,

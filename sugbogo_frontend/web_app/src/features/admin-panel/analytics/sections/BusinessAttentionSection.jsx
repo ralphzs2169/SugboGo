@@ -39,19 +39,12 @@ function BusinessCover({ business }) {
   );
 }
 
-/** Describes observed signals without thresholds, quality judgments or invented scores. */
-function attentionReason(business, mode) {
-  if (mode === "support") {
-    if (business.valid_vouches == null) return "Support observations unavailable";
-    return business.valid_vouches === 0 ? "No valid specialty endorsements" : "Lower specialty support";
-  }
-  if (business.profile_visits == null) return "Discovery observations unavailable";
-  if (business.profile_visits === 0) return "No recorded profile visits";
-  if (business.saves === 0) return "No recorded saves";
-  return "Lower recorded profile visits";
+/** Displays the server-owned reason for an actual attention candidate. */
+function attentionReason(business) {
+  return business.attention_reason ?? "Attention eligibility unavailable";
 }
 
-function attentionColumns(mode) {
+function attentionColumns() {
   return [
     {
       accessorKey: "business_name", header: "Business", size: 300, enableSorting: false,
@@ -76,7 +69,7 @@ function attentionColumns(mode) {
       enableSorting: false,
       cell: ({ getValue }) => <span className="block text-right tabular-nums">{formatCount(getValue())}</span>,
     })),
-    { id: "attention_reason", header: "Why attention is needed", size: 200, enableSorting: false, cell: ({ row }) => <span className="text-xs text-text-secondary">{attentionReason(row.original, mode)}</span> },
+    { id: "attention_reason", header: "Why attention is needed", size: 200, enableSorting: false, cell: ({ row }) => <span className="text-xs text-text-secondary">{attentionReason(row.original)}</span> },
   ];
 }
 
@@ -85,7 +78,7 @@ function AttentionView({ period, mode, onMode }) {
   const [params, setParams] = useWorkspaceSelection(`attention.${mode}.${JSON.stringify(period)}`, { page: 1, page_size: 10 });
   const [drawer, setDrawer] = useState(null);
   const ordering = mode === "support" ? "valid_vouches" : "profile_visits";
-  const query = useBusinessAttention({ ...period, ...params, ordering });
+  const query = useBusinessAttention({ ...period, ...params, ordering, attention_mode: mode });
   const state = useAnalyticsSectionState(query, `business-${mode}`, "business attention");
   const data = query.data;
   return (
@@ -98,11 +91,11 @@ function AttentionView({ period, mode, onMode }) {
           <AnalyticsScopeFilters scope="Attention" value={params} onChange={(scope) => setParams((previous) => ({ ...previous, cluster: scope.cluster, category: scope.category, page: 1 }))} />
         </>}
         partialNotice={data?.meta?.is_partial ? "Discovery recording coverage is unverified. Missing observations are unavailable, not zero. Specialty support reflects current evidence." : null}
-        unavailableMessage="Discovery observations are unavailable for this ranking. Try again later, or select Low specialty support to review current endorsement evidence."
+        unavailableMessage="Verified discovery observations are unavailable for this comparison. Try again later, or select Low specialty support to review current endorsement evidence."
         footer={<AnalyticsReportFooter title="Businesses Needing Attention" meta={data?.meta} hasData={Array.isArray(data?.items)} hasDetails={Boolean(data)} onAbout={() => setDrawer("about")} onData={() => setDrawer("data")} />}
         tableProps={{
           data: data ? data.items ?? null : undefined,
-          columns: attentionColumns(mode),
+          columns: attentionColumns(),
           state: { sorting: [] },
           pagination: { pageIndex: params.page - 1, pageSize: params.page_size },
           pageCount: data?.pagination?.total_pages,
@@ -123,7 +116,7 @@ function AttentionView({ period, mode, onMode }) {
             { key: "category_name", label: "Category" },
             { key: "cluster_name", label: "Cluster" },
             ...METRICS.map(([key, label]) => ({ key, label, render: (row) => formatCount(row[key]) })),
-            { key: "reason", label: "Why attention is needed", render: (row) => attentionReason(row, mode) },
+            { key: "reason", label: "Why attention is needed", render: (row) => attentionReason(row) },
           ]} />
           <AnalyticsReportExplanation title="Businesses Needing Attention" report={data} />
           <AnalyticsReliability meta={data?.meta} />

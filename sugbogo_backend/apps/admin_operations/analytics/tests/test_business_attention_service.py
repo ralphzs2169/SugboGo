@@ -164,3 +164,52 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
         self.assertEqual(len(sql_order["items"]), 4)
         self.assertIsNone(sql_order["items"][0]["profile_visits"])
         self.assertEqual(sql_order["items"][0]["distinct_supporters"], 6)
+
+    def test_attention_discovery_requires_verified_recording(self):
+        report = self.report(attention_mode="discovery", ordering="profile_visits")
+        self.assertIsNone(report["items"])
+        self.assertEqual(report["selection_status"], "unavailable")
+
+    def test_attention_support_filters_positive_evidence_before_pagination(self):
+        report = self.report(attention_mode="support", ordering="valid_vouches")
+        self.assertEqual(
+            [row["business_id"] for row in report["items"]],
+            [self.businesses[3].pk],
+        )
+        self.assertEqual(report["items"][0]["attention_reason"], "No valid specialty endorsements")
+
+    def test_verified_peer_candidates_exclude_healthy_activity_and_short_history(self):
+        for index in range(6):
+            business = Business.objects.create(
+                BUSN_NAME=f"Peer {index}",
+                BUSN_CONTACT_NUMBER="09170000000",
+                BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+                USER_ID=self.user(f"peer-{index}", User.UserRole.MERCHANT),
+                LOCT_ID=self.businesses[0].LOCT_ID,
+                CTGRY_ID=self.category_a,
+            )
+            Business.objects.filter(pk=business.pk).update(
+                BUSN_CREATED_AT=self.NOW - timedelta(days=60),
+            )
+            self.metrics[business.pk] = {
+                "profile_visits": 10, "saves": 2, "distinct_savers": 2,
+            }
+        strong = self.businesses[0].pk
+        self.metrics[strong] = {
+            "profile_visits": 73, "saves": 11, "distinct_savers": 8,
+        }
+        with patch.object(BusinessAttentionService, "read_visibility", return_value=(
+            self.metrics, {"availability": "available", "coverage_verified": True},
+        )):
+            report = BusinessAttentionService.get_report(
+                self.period,
+                attention_mode="discovery",
+                ordering="profile_visits",
+            )
+        candidates = {row["business_id"]: row for row in report["items"]}
+        self.assertNotIn(strong, candidates)
+        self.assertIn(self.businesses[2].pk, candidates)
+        self.assertEqual(
+            candidates[self.businesses[2].pk]["attention_reason"],
+            "No recorded profile visits",
+        )

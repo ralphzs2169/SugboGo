@@ -23,6 +23,10 @@ class CoverageQuerySerializer(AnalyticsPeriodQuerySerializer):
 class BusinessAttentionQuerySerializer(CoverageQuerySerializer):
     """Validate whole-population ordering and standard positive pagination controls."""
 
+    attention_mode = serializers.ChoiceField(
+        choices=("discovery", "support"),
+        required=False,
+    )
     ordering = serializers.ChoiceField(choices=ORDERINGS, default="-profile_visits")
     page = serializers.IntegerField(min_value=1, default=1)
     page_size = serializers.IntegerField(min_value=1, max_value=100, default=10)
@@ -87,6 +91,7 @@ class CoverageReportSerializer(serializers.Serializer):
 class BusinessAttentionRowSerializer(serializers.Serializer):
     """Expose aggregate attention and support without explorer identities or scores."""
 
+    attention_reason = serializers.CharField(allow_null=True, required=False)
     business_id = serializers.IntegerField()
     business_name = serializers.CharField()
     cover_photo_url = serializers.CharField(allow_null=True, allow_blank=True)
