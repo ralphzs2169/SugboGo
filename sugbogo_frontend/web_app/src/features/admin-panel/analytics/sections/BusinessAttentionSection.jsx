@@ -1,3 +1,5 @@
+import { collectAttentionPages } from "../utils/reportExport";
+import { fetchBusinessAttention } from "../../services/analyticsService";
 import { useState } from "react";
 import { AlertCircle, Clock3, Heart, ImageOff, Info, SearchX, Users } from "lucide-react";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
@@ -200,7 +202,7 @@ function AttentionView({ period, mode, onMode }) {
         }}
       />
       {/* Exact current-page values and methodology use the established detail drawer. */}
-      <AnalyticsDetailDrawer mode={drawer} onClose={() => setDrawer(null)} title="Businesses Needing Attention"
+      <AnalyticsDetailDrawer loadExport={(signal) => collectAttentionPages(fetchBusinessAttention, { ...period, ...params, ordering, attention_mode: mode }, signal)} exportContext={{ Cluster: params.cluster || "All", Category: params.category || "All", Ranking: mode === "support" ? "Low specialty support" : "Low discovery activity" }} mode={drawer} onClose={() => setDrawer(null)} title="Businesses Needing Attention"
         report={data} interval="selected period" series={[]} showComparison={false}
 
         dataContent={<div className="space-y-5">

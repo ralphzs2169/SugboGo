@@ -177,8 +177,26 @@ test("workspace mounts only Growth reports and reuses cached queries with retain
   assert.equal(requests("discovery-summary/").length, 1);
 });
 
-test("workspace preserves global dates, URL parameters and browser Back/Forward", async () => {
+test("workspace sticky controls preserve global dates, URL parameters and browser Back/Forward", async () => {
   await mount();
+  const controls = container.querySelector('[role="region"][aria-label="Analytics workspace controls"]');
+  assert.ok(controls);
+  assert.equal(controls.querySelectorAll('[role="tablist"]').length, 1);
+  assert.equal(controls.querySelectorAll('[aria-label^="Reporting period:"]').length, 0);
+  assert.equal(container.querySelectorAll('[aria-label^="Reporting period:"]').length, 1);
+  const originalRect = controls.getBoundingClientRect;
+  controls.style.top = "64px";
+  await act(async () => container.querySelector('[aria-label^="Reporting period:"]').focus());
+  controls.getBoundingClientRect = () => ({ top: 64 });
+  await act(async () => { window.dispatchEvent(new dom.window.Event("scroll")); await new Promise((resolve) => setTimeout(resolve, 30)); });
+  assert.equal(controls.querySelectorAll('[aria-label^="Reporting period:"]').length, 1);
+  assert.equal(document.activeElement, controls.querySelector('[aria-label^="Reporting period:"]'));
+  assert.equal(container.querySelectorAll('[aria-label^="Reporting period:"]').length, 1);
+  controls.getBoundingClientRect = () => ({ top: 120 });
+  await act(async () => { window.dispatchEvent(new dom.window.Event("scroll")); await new Promise((resolve) => setTimeout(resolve, 30)); });
+  assert.equal(controls.querySelectorAll('[aria-label^="Reporting period:"]').length, 0);
+  assert.equal(document.activeElement, container.querySelector('[aria-label^="Reporting period:"]'));
+  controls.getBoundingClientRect = originalRect;
   await choosePeriod("90");
   await until(() => client.isFetching() === 0);
   await tab("Operations");
@@ -190,6 +208,7 @@ test("workspace preserves global dates, URL parameters and browser Back/Forward"
   await click(container.querySelector("[data-back]"));
   await until(() => Boolean(section("Merchant Onboarding")));
   assert.match(container.querySelector('[aria-label^="Reporting period:"]').textContent,/Last 90 days/);
+  assert.equal(container.querySelector('[aria-label="Analytics workspace controls"]'), controls);
   await click(container.querySelector("[data-forward]"));
   await until(() => Boolean(section("Reports & disputes")));
 });
@@ -1202,6 +1221,62 @@ test("platform growth presents only accounts and businesses while preserving com
   assert.equal(requests("platform-growth/").at(-1).params.interval, "daily");
   await choose("Interval", "weekly", growth);
   assert.equal(requests("platform-growth/").length, 2);
+});
+
+test("exact data offers a CSV download while About remains explanation only", async () => {
+  await mount();
+  const growth = section("Platform Growth");
+  await click(growth.querySelector('[aria-label="About Platform Growth"]'));
+  assert.equal(document.querySelector('dialog[open] [aria-label="Export Platform Growth CSV"]'), null);
+  await click(document.querySelector('[aria-label="Close Platform Growth details"]'));
+  await click([...growth.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const originalCreate = URL.createObjectURL;
+  const originalClick = dom.window.HTMLAnchorElement.prototype.click;
+  let blob;
+  let filename;
+  try {
+    URL.createObjectURL = (value) => { blob = value; return "blob:analytics-export"; };
+    dom.window.HTMLAnchorElement.prototype.click = function () { filename = this.download; };
+    await click(document.querySelector('dialog[open] [aria-label="Export Platform Growth CSV"]'));
+    assert.match(filename, /^platform-growth_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.csv$/);
+    const csv = await blob.text();
+    assert.match(csv, /Accounts/);
+    assert.match(csv, /Unavailable/);
+    assert.doesNotMatch(csv, /newly_approved_businesses|generated_at|partial_reasons/);
+  } finally {
+    URL.createObjectURL = originalCreate;
+    dom.window.HTMLAnchorElement.prototype.click = originalClick;
+  }
+});
+
+test("attention CSV downloads the complete population rather than the visible page", async () => {
+  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
+  overrides.set("/admin/analytics/business-attention/", (report, params) => {
+    const page = Number(params.page ?? 1);
+    const size = Number(params.page_size ?? 10);
+    const items = Array.from({ length: 20 }, (_, index) => ({ ...report.items[0], business_id: index + 1, business_name: `Export business ${index + 1}`, profile_visits: index, saves: 0, distinct_savers: 0 }));
+    return { ...report, items: items.slice((page - 1) * size, page * size), pagination: { page, page_size: size, total_items: 20, total_pages: Math.ceil(20 / size), has_next: page * size < 20 } };
+  });
+  await mount();
+  const report = section("Businesses Needing Attention");
+  assert.doesNotMatch(report.querySelector("tbody").textContent, /Export business 20/);
+  await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
+  const originalCreate = URL.createObjectURL;
+  const originalClick = dom.window.HTMLAnchorElement.prototype.click;
+  let blob;
+  try {
+    URL.createObjectURL = (value) => { blob = value; return "blob:attention-export"; };
+    dom.window.HTMLAnchorElement.prototype.click = function () {};
+    await click(document.querySelector('dialog[open] [aria-label="Export Businesses Needing Attention CSV"]'));
+    await until(() => Boolean(blob));
+    assert.match(await blob.text(), /Export business 20/);
+    assert.equal(requests("business-attention/").at(-1).params.page_size, 100);
+    assert.equal(requests("business-attention/").at(-1).params.attention_mode, "discovery");
+    assert.equal(report.querySelectorAll("tbody tr").length, 10);
+  } finally {
+    URL.createObjectURL = originalCreate;
+    dom.window.HTMLAnchorElement.prototype.click = originalClick;
+  }
 });
 
 test("platform growth keeps zero buckets when only operational approvals are nonzero", async () => {

@@ -95,7 +95,7 @@ function GeographicReport({ period }) {
         </div> : <p role="status" className="mt-3 text-xs text-text-secondary">Select an area on the map to inspect it.</p>}
       </AnalyticsSection>
       {/* Exact values, excluded locations and attribution remain in the shared drawer. */}
-      <AnalyticsDetailDrawer mode={drawer} onClose={() => setDrawer(null)} title="Geographic Distribution" report={data} interval="selected period" series={[]} showComparison={false}
+      <AnalyticsDetailDrawer exportContext={{ Cluster: scope.cluster || "All", Category: scope.category || "All", Metric: metric === "eligible_businesses" ? "Current businesses" : "Recorded profile visits" }} mode={drawer} onClose={() => setDrawer(null)} title="Geographic Distribution" report={data} interval="selected period" series={[]} showComparison={false}
 
         dataContent={<div className="space-y-5">
           <AnalyticsExactTable caption="All geographic cells in selected taxonomy scope" rows={cells} columns={[

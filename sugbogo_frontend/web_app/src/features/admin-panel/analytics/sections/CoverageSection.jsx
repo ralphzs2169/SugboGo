@@ -89,7 +89,7 @@ export default function CoverageSection({ period }) {
           {overall?.zero_recorded_visit_businesses != null && <p className="mt-3 text-xs text-text-secondary">{formatCount(overall.zero_recorded_visit_businesses)} {overall.zero_recorded_visit_businesses === 1 ? "business had" : "businesses had"} no recorded profile visits</p>}
         </div>
       </AnalyticsSection>
-      <AnalyticsDetailDrawer mode={drawer} onClose={() => setDrawer(null)} title="Business Coverage" report={data} interval="selected period" series={[]} showComparison={false}
+      <AnalyticsDetailDrawer exportContext={{ Cluster: scope.cluster || "All", Category: scope.category || "All", Dimension: group === "categories" ? "Category" : "Cluster" }} mode={drawer} onClose={() => setDrawer(null)} title="Business Coverage" report={data} interval="selected period" series={[]} showComparison={false}
 
         dataContent={<div className="space-y-5">
           <AnalyticsSummary items={[["eligible_businesses", "Eligible businesses"], ["visited_businesses", "Covered businesses"], ["zero_recorded_visit_businesses", "Businesses with no recorded visits"]].map(([key, label]) => ({ label, value: formatCount(overall?.[key]) }))} />
