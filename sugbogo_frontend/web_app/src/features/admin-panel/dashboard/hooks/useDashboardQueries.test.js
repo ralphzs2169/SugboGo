@@ -931,21 +931,25 @@ test("real query values populate attention, activity, inventory, decisions and b
       'button[aria-label="About Platform Activity Trend"]',
     ),
   );
-  const bars = JSON.parse(
-    container.querySelector('[data-chart-kind="bar"]').dataset.chart,
+  const agingSection = container.querySelector(
+    'section[aria-label="Application Review Aging"]',
   );
   assert.deepEqual(
-    bars.map(({ key, count }) => ({ key, count })),
+    [...agingSection.querySelectorAll("[data-aging-category]")].map((row) => ({
+      key: row.dataset.agingCategory,
+      count: Number(row.querySelector("dd").textContent),
+    })),
     [
       { key: "on_time", count: 6 },
       { key: "approaching", count: 4 },
       { key: "overdue", count: 5 },
+      { key: "unknown_age", count: 2 },
     ],
   );
   assert.match(
     container.querySelector('section[aria-label="Application Review Aging"]')
       .textContent,
-    /2 submissions have unavailable aging data/,
+    /Unknown ageAging unavailable2/,
   );
   const roles = JSON.parse(
     container.querySelector(
@@ -1522,11 +1526,213 @@ test("worklist renders request types and separate review workflows in returned o
   assert.doesNotMatch(rows[3].textContent, /manual/i);
 });
 
+test("worklist polish preserves five backend-ordered rows, metadata and internal navigation", async () => {
+  const labels = Array.from(
+    { length: 6 },
+    (_, index) =>
+      `Work item ${index + 1} with a long business name that remains fully available`,
+  );
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url.endsWith("/priority-worklist/")) {
+      const types = [
+        "merchant_application",
+        "merchant_application",
+        "reported_review",
+        "merchant_application",
+        "location_change",
+        "business_name_change",
+      ];
+      data.items = types.map((type, index) => ({
+        id: `${type}:${index + 1}`,
+        type,
+        entity: { id: index === 4 ? null : index + 1, label: labels[index] },
+        status: type === "merchant_application" ? "submitted" : "pending",
+        priority:
+          index === 0 ? "overdue" : index === 1 ? "approaching" : "pending",
+        timestamp: index === 4 ? "invalid" : "2026-10-20T02:00:00Z",
+        application_aging:
+          type === "merchant_application"
+            ? {
+                status:
+                  index === 0
+                    ? "overdue"
+                    : index === 1
+                      ? "approaching"
+                      : "on_time",
+                business_days: index === 0 ? 8 : index === 1 ? 3 : 1,
+              }
+            : null,
+        pending_report_count: type === "reported_review" ? 3 : null,
+      }));
+    }
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="Priority Worklist"]',
+  );
+  const rows = [...section.querySelectorAll("li")];
+  assert.equal(rows.length, 5);
+  assert.deepEqual(
+    rows.map((row) => row.querySelector("p").textContent),
+    labels.slice(0, 5),
+  );
+  assert.equal(section.textContent.includes(labels[5]), false);
+  assert.equal(section.textContent.match(/Manila/g).length, 1);
+  assert.equal(section.querySelector(".lucide-arrow-up-right"), null);
+  assert.equal(section.querySelectorAll(".lucide-chevron-right").length, 4);
+  assert.match(rows[2].textContent, /3 pending reports/);
+  assert.match(rows[4].textContent, /Queue time unavailable/);
+  assert.equal(rows[4].querySelector("a"), null);
+  assert.match(rows[4].textContent, /Destination unavailable/);
+  assert.equal(
+    rows[0].querySelector("time").getAttribute("datetime"),
+    "2026-10-20T02:00:00Z",
+  );
+  assert.match(rows[0].querySelector("time").textContent, /2026/);
+  const overdue = [...rows[0].querySelectorAll("span")].find(
+    (span) => span.textContent === "Overdue",
+  );
+  assert.match(overdue.className, /font-semibold text-danger/);
+  assert.doesNotMatch(overdue.className, /bg-/);
+  for (const row of rows.slice(0, 4)) {
+    const link = row.querySelector("a");
+    assert.match(link.className, /cursor-pointer/);
+    assert.match(link.className, /focus-visible/);
+    assert.equal(link.querySelector("a, button"), null);
+    link.focus();
+    assert.equal(document.activeElement, link);
+    assert.doesNotMatch(
+      row.querySelector("p").className,
+      /truncate|line-clamp/,
+    );
+  }
+});
+
+for (const [name, aging] of [
+  ["mixed", { on_time: 6, approaching: 4, overdue: 5, unknown_age: 2 }],
+  ["on time only", { on_time: 1, approaching: 0, overdue: 0, unknown_age: 0 }],
+  [
+    "approaching only",
+    { on_time: 0, approaching: 1, overdue: 0, unknown_age: 0 },
+  ],
+  ["overdue only", { on_time: 0, approaching: 0, overdue: 1, unknown_age: 0 }],
+  ["unknown only", { on_time: 0, approaching: 0, overdue: 0, unknown_age: 1 }],
+  ["empty", { on_time: 0, approaching: 0, overdue: 0, unknown_age: 0 }],
+]) {
+  test(`aging distribution preserves exact ${name} counts and proportions`, async () => {
+    const total = Object.values(aging).reduce((sum, count) => sum + count, 0);
+    transport = async (url) => {
+      const data = dashboardFixture(url);
+      if (data.applications)
+        data.applications = { pending_review: total, aging };
+      return { data: { data } };
+    };
+    await render(React.createElement(Page));
+    await until(() => loadedSectionCount() === 4);
+    const section = container.querySelector(
+      'section[aria-label="Application Review Aging"]',
+    );
+    assert.equal(section.querySelector(".text-2xl").textContent, String(total));
+    for (const [key, count] of Object.entries(aging)) {
+      const row = section.querySelector(`[data-aging-category="${key}"]`);
+      if (key === "unknown_age" && count === 0) assert.equal(row, null);
+      else assert.equal(row.querySelector("dd").textContent, String(count));
+    }
+    assert.match(section.textContent, /0–2 weekdays/);
+    assert.match(section.textContent, /3–4 weekdays/);
+    assert.match(section.textContent, /5\+ weekdays/);
+    assert.match(section.textContent, /Submission day and weekends excluded/);
+    assert.equal(section.querySelector('[data-chart-kind="bar"]'), null);
+    const segments = [...section.querySelectorAll("[data-aging-segment]")];
+    assert.equal(
+      segments.length,
+      Object.values(aging).filter((count) => count > 0).length,
+    );
+    if (total === 0) {
+      assert.equal(section.querySelector('[role="img"]'), null);
+      assert.match(section.textContent, /No applications awaiting review/);
+    } else {
+      for (const segment of segments) {
+        assert.equal(
+          parseFloat(segment.style.width),
+          (aging[segment.dataset.agingSegment] / total) * 100,
+        );
+        assert.equal(segment.style.minWidth, "");
+      }
+      assert.ok(
+        Math.abs(
+          segments.reduce(
+            (sum, segment) => sum + parseFloat(segment.style.width),
+            0,
+          ) - 100,
+        ) < 0.00001,
+      );
+      assert.match(
+        section.querySelector('[role="img"]').getAttribute("aria-label"),
+        new RegExp(`of ${total} applications`),
+      );
+      if (name !== "mixed") assert.equal(segments[0].style.width, "100%");
+      if (name === "overdue only")
+        assert.match(section.textContent, /1 of 1 application overdue/);
+    }
+    assert.doesNotMatch(section.textContent, /NaN|Infinity/);
+  });
+}
+
+for (const condition of [
+  "missing age",
+  "missing total",
+  "missing unknown",
+  "negative",
+  "mismatched total",
+]) {
+  test(`aging distribution isolates ${condition} data and Retry refetches only summary`, async () => {
+    let invalid = true;
+    transport = async (url) => {
+      const data = dashboardFixture(url);
+      if (data.applications && invalid) {
+        if (condition === "missing age") data.applications.aging = undefined;
+        if (condition === "missing total")
+          data.applications.pending_review = undefined;
+        if (condition === "missing unknown")
+          delete data.applications.aging.unknown_age;
+        if (condition === "negative") data.applications.aging.on_time = -1;
+        if (condition === "mismatched total")
+          data.applications.pending_review = 18;
+      }
+      return { data: { data } };
+    };
+    await render(React.createElement(Page));
+    await until(() => loadedSectionCount() === 4);
+    const section = container.querySelector(
+      'section[aria-label="Application Review Aging"]',
+    );
+    assert.ok(section.querySelector('[role="alert"]'));
+    assert.equal(section.querySelector('[role="img"]'), null);
+    assert.equal(section.querySelector(".text-2xl"), null);
+    assert.ok(
+      container.querySelector('section[aria-label="Priority Worklist"] ul'),
+    );
+    invalid = false;
+    const previousReads = reads.length;
+    await act(async () =>
+      section.querySelector('[role="alert"] button').click(),
+    );
+    await until(() => section.querySelector('[role="img"]'));
+    assert.equal(reads.length, previousReads + 1);
+    assert.equal(reads.at(-1).url, "/admin/dashboard/");
+  });
+}
+
 test("empty queues and zero inventories remain valid without fabricated chart segments", async () => {
   transport = async (url) => {
     const data = dashboardFixture(url);
     if (data.items) data.items = [];
     if (data.applications) {
+      data.applications.pending_review = 0;
       data.applications.aging = {
         on_time: 0,
         approaching: 0,
@@ -1579,7 +1785,7 @@ test("empty queues and zero inventories remain valid without fabricated chart se
       .textContent,
     "0",
   );
-  assert.match(container.textContent, /No submissions with known aging./);
+  assert.match(container.textContent, /No applications awaiting review./);
   assert.doesNotMatch(
     container.textContent,
     /submissions have unavailable aging data/,

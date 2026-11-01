@@ -123,7 +123,7 @@ export default function Dashboard() {
           <DashboardQuerySection
             query={priorityWorklist}
             label="Priority Worklist"
-            description="Pending work, with overdue applications first."
+            description="Pending work, with overdue applications first. Times shown in Manila."
           >
             {(data) => <PriorityWorklist items={data.items} />}
           </DashboardQuerySection>
@@ -131,10 +131,15 @@ export default function Dashboard() {
         <DashboardQuerySection
           query={summary}
           label="Application Review Aging"
-          description="Current submitted applications · elapsed weekdays"
+          description="Submitted applications · Elapsed weekdays"
         >
           {(data) => (
-            <ApplicationReviewAging aging={data.applications?.aging} />
+            <ApplicationReviewAging
+              aging={data.applications?.aging}
+              pendingReview={data.applications?.pending_review}
+              onRetry={() => summary.refetch()}
+              retrying={summary.isFetching}
+            />
           )}
         </DashboardQuerySection>
       </div>
