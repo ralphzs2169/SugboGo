@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from .platform_overview_views import DashboardPlatformOverviewView
 from .recent_decision_views import DashboardRecentDecisionsView
 
 urlpatterns = [
@@ -9,5 +10,10 @@ urlpatterns = [
         "recent-decisions/",
         DashboardRecentDecisionsView.as_view(),
         name="admin-dashboard-recent-decisions",
+    ),
+    path(
+        "platform-overview/",
+        DashboardPlatformOverviewView.as_view(),
+        name="admin-dashboard-platform-overview",
     ),
 ]
