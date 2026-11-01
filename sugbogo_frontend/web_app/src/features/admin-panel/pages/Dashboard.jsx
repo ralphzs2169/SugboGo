@@ -1,43 +1,40 @@
-import { useEffect, useState } from "react";
-import { getDashboardData } from "../services/dashboardService";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import MetricRow from "@/features/admin-panel/dashboard/components/MetricRow";
 import DiscoveryActivity from "@/features/admin-panel/dashboard/components/DiscoveryActivity";
 import LowerDashboardSection from "@/features/admin-panel/dashboard/components/LowerDashboardSection";
+import DashboardQuerySection from "../dashboard/components/DashboardQuerySection";
+import {
+  useDashboardPlatformOverview,
+  useDashboardRecentDecisions,
+  useDashboardSummary,
+} from "../dashboard/hooks/useDashboardQueries";
 import PageHeader from "../components/PageHeader";
 
+/** Load three independent Dashboard resources while preserving the temporary widget presentation. */
 export default function Dashboard() {
   useDocumentTitle("Dashboard | SugboGo Admin");
 
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const summary = useDashboardSummary();
+  const recentDecisions = useDashboardRecentDecisions();
+  const platformOverview = useDashboardPlatformOverview();
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const response = await getDashboardData();
-        setDashboardData(response.data);
-      } catch (fetchError) {
-        setError(fetchError.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
-
-  if (loading) {
-    return <p className="text-gray-600">Loading...</p>;
-  }
-
-  if (error) {
-    return <p className="text-red-600">Error: {error}</p>;
-  }
+  useApiErrorNotification(summary.error, {
+    toastId: "admin-dashboard-summary-load-error",
+    fallbackMessage: "Unable to load the Dashboard operational summary. Please try again.",
+  });
+  useApiErrorNotification(recentDecisions.error, {
+    toastId: "admin-dashboard-decisions-load-error",
+    fallbackMessage: "Unable to load recent administrative decisions. Please try again.",
+  });
+  useApiErrorNotification(platformOverview.error, {
+    toastId: "admin-dashboard-platform-overview-load-error",
+    fallbackMessage: "Unable to load the Dashboard platform overview. Please try again.",
+  });
 
   return (
     <>
+      {/* Page identity remains visible regardless of individual request state */}
       <PageHeader
         breadcrumbs={[
           {
@@ -50,10 +47,16 @@ export default function Dashboard() {
         title="Dashboard"
       />
       <div className="flex flex-col gap-6">
-        <MetricRow />
-        <DiscoveryActivity />
-
-        <LowerDashboardSection />
+        {/* Independent resource boundaries; final widget replacement follows separately */}
+        <DashboardQuerySection query={summary} label="Operational summary">
+          {(data) => <MetricRow summary={data} />}
+        </DashboardQuerySection>
+        <DashboardQuerySection query={platformOverview} label="Platform overview">
+          {(data) => <DiscoveryActivity overview={data} />}
+        </DashboardQuerySection>
+        <DashboardQuerySection query={recentDecisions} label="Recent administrative decisions">
+          {(data) => <LowerDashboardSection recentDecisions={data} />}
+        </DashboardQuerySection>
       </div>
     </>
   );

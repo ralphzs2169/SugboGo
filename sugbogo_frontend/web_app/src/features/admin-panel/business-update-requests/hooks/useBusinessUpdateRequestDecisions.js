@@ -5,6 +5,7 @@ import {
   rejectBusinessUpdateRequest,
 } from "../services/businessUpdateRequestService";
 import { adminBusinessUpdateRequestKeys } from "./businessUpdateRequestQueryKeys";
+import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
 
 /** Applies Admin decisions and refreshes only the affected request resources. */
 export default function useBusinessUpdateRequestDecisions() {
@@ -12,6 +13,7 @@ export default function useBusinessUpdateRequestDecisions() {
 
   async function refreshRequests(requestId) {
     await Promise.all([
+      invalidateDashboardDecision(queryClient),
       queryClient.invalidateQueries({
         queryKey: adminBusinessUpdateRequestKeys.lists,
       }),

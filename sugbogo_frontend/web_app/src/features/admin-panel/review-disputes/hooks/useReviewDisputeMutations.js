@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
 
 import {
   dismissReviewDispute,
@@ -10,6 +11,7 @@ export default function useReviewDisputeMutations() {
 
   async function invalidateReviewDisputeQueries(disputeId) {
     await Promise.all([
+      invalidateDashboardDecision(queryClient),
       queryClient.invalidateQueries({
         queryKey: ["admin", "review-dispute", String(disputeId)],
       }),

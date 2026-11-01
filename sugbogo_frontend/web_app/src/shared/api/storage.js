@@ -3,6 +3,8 @@
  * These functions provide a simple interface for getting, setting, and clearing access and refresh tokens.
  */
 
+import queryClient from "@/lib/queryClient";
+
 let sessionGeneration = 0;
 
 /** Identifies the current tab's login without changing during token rotation. */
@@ -19,13 +21,18 @@ export function getRefreshToken() {
 }
 
 export function setTokens({ access, refresh }, { preserveSession = false } = {}) {
-  if (!preserveSession) sessionGeneration += 1;
+  if (!preserveSession) {
+    sessionGeneration += 1;
+    // Cancel in-flight reads and discard all prior account data before a new login.
+    queryClient.clear();
+  }
   localStorage.setItem("access_token", access);
   localStorage.setItem("refresh_token", refresh);
 }
 
 export function clearTokens() {
   sessionGeneration += 1;
+  queryClient.clear();
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
 }

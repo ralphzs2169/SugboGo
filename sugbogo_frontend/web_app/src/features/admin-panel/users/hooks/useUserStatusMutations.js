@@ -5,12 +5,17 @@ import {
   suspendUser,
 } from "../services/userManagementService";
 import { userQueryKeys } from "./userQueryKeys";
+import { dashboardQueryKeys } from "../../dashboard/queries/dashboardQueryKeys";
 
 export default function useUserStatusMutations() {
   const queryClient = useQueryClient();
 
   async function invalidateUserQueries(userId) {
     await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: dashboardQueryKeys.recentDecisions,
+        exact: true,
+      }),
       queryClient.invalidateQueries({
         queryKey: userQueryKeys.lists(),
       }),
