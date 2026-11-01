@@ -34,6 +34,15 @@ class DashboardChangeRequestsSerializer(serializers.Serializer):
     by_type = PendingChangeRequestTypesSerializer(read_only=True)
 
 
+class BusinessStatusSerializer(serializers.Serializer):
+    """Expose disjoint business-record statuses from the same inventory aggregation."""
+
+    active = serializers.IntegerField(read_only=True)
+    suspended = serializers.IntegerField(read_only=True)
+    unknown_status = serializers.IntegerField(read_only=True)
+    total = serializers.IntegerField(read_only=True)
+
+
 class DashboardSummarySerializer(serializers.Serializer):
     """Serialize assembled current counts without implying an atomic database snapshot."""
 
@@ -44,3 +53,4 @@ class DashboardSummarySerializer(serializers.Serializer):
     reported_review_cases = serializers.IntegerField(read_only=True)
     pending_disputes = serializers.IntegerField(read_only=True)
     active_businesses = serializers.IntegerField(read_only=True)
+    business_status = BusinessStatusSerializer(read_only=True)

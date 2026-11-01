@@ -13,12 +13,6 @@ import {
   dashboardQueues,
 } from "../utils/dashboardPresentation";
 
-const CHIP_TONES = {
-  danger: "bg-danger/15 text-text-primary",
-  warning: "bg-warning/15 text-text-primary",
-  neutral: "bg-neutral/10 text-text-secondary",
-};
-
 const ICON_TONES = {
   applications: "bg-primary/15 text-primary",
   changes: "bg-info/15 text-info",
@@ -33,40 +27,15 @@ const CHANGE_TYPES = [
   ["location", "Location"],
 ];
 
-/** Link to a queue breakdown, with neutral zero values and readable semantic status indicators. */
-function QueueChip({
-  to,
-  count,
-  tone = "neutral",
-  dot = false,
-  label,
-  children,
-}) {
-  const activeTone = count > 0 ? tone : "neutral";
-
-  return (
-    <Link
-      to={to}
-      aria-label={label}
-      className={`${dashboardLinkClass} relative z-10 inline-flex min-h-8 items-center gap-1.5 rounded-full px-2 py-1 text-xs tabular-nums [@media(pointer:coarse)]:min-h-11 ${CHIP_TONES[activeTone]}`}
-    >
-      {dot && (
-        <span
-          aria-hidden="true"
-          className={`h-1.5 w-1.5 rounded-full ${activeTone === "danger" ? "bg-danger" : activeTone === "warning" ? "bg-warning" : "bg-neutral"}`}
-        />
-      )}
-      <span className="font-medium">{formatCount(count)}</span>
-      {children}
-    </Link>
-  );
-}
-
-/** Present open review workflows with accessible queue links and distinct application aging states. */
+/** Present compact queue inventories with verified navigation and data-driven overdue emphasis. */
 export default function NeedsAttention({ summary }) {
   const aging = summary.applications?.aging;
   const changes = summary.change_requests?.by_type;
   const hasOverdue = aging?.overdue > 0;
+  const changeBreakdownAvailable = CHANGE_TYPES.every(
+    ([type]) => Number.isInteger(changes?.[type]) && changes[type] >= 0,
+  );
+  const nonzeroChanges = CHANGE_TYPES.filter(([type]) => changes?.[type] > 0);
 
   const cards = [
     {
@@ -80,26 +49,40 @@ export default function NeedsAttention({ summary }) {
       ariaDetail: hasOverdue ? `, ${formatCount(aging.overdue)} overdue` : "",
       footer: (
         <>
-          <QueueChip
-            to={`${dashboardQueues.applications}&queue_status=overdue`}
-            count={aging?.overdue}
-            tone="danger"
-            dot
-            label={`${formatCount(aging?.overdue)} overdue applications`}
-          >
-            overdue
-          </QueueChip>
-          <QueueChip
-            to={`${dashboardQueues.applications}&queue_status=approaching`}
-            count={aging?.approaching}
-            tone="warning"
-            dot
-            label={`${formatCount(aging?.approaching)} applications approaching deadline`}
-          >
-            approaching
-          </QueueChip>
+          {hasOverdue ? (
+            <Link
+              to={`${dashboardQueues.applications}&queue_status=overdue`}
+              aria-label={`${formatCount(aging.overdue)} overdue applications`}
+              className={`${dashboardLinkClass} relative z-10 inline-flex items-center gap-1 rounded bg-danger/15 px-1.5 py-0.5 text-xs text-text-primary`}
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full bg-danger"
+              />
+              {formatCount(aging.overdue)} overdue
+            </Link>
+          ) : aging?.approaching > 0 ? (
+            <Link
+              to={`${dashboardQueues.applications}&queue_status=approaching`}
+              aria-label={`${formatCount(aging.approaching)} applications approaching deadline`}
+              className={`${dashboardLinkClass} relative z-10 text-xs`}
+            >
+              {formatCount(aging.approaching)} approaching
+            </Link>
+          ) : aging?.unknown_age > 0 ? null : (
+            <span>
+              {aging?.overdue === 0
+                ? summary.applications?.pending_review === 0
+                  ? "No pending applications"
+                  : "No overdue applications"
+                : "Aging unavailable"}
+            </span>
+          )}
           {aging?.unknown_age > 0 && (
-            <span>{formatCount(aging.unknown_age)} age unavailable</span>
+            <span>
+              {hasOverdue || aging.approaching > 0 ? " · " : ""}
+              {formatCount(aging.unknown_age)} age unavailable
+            </span>
           )}
         </>
       ),
@@ -111,21 +94,27 @@ export default function NeedsAttention({ summary }) {
       value: summary.change_requests?.pending_total,
       to: dashboardQueues.changes,
       icon: FilePenLine,
-      footer: CHANGE_TYPES.map(([type, name]) => (
-        <QueueChip
-          key={type}
-          to={`/admin-panel/businesses/update-requests?type=${type}&status=pending`}
-          count={changes?.[type]}
-          label={`${name} change requests: ${formatCount(changes?.[type])}`}
-        >
-          {name}
-        </QueueChip>
-      )),
+      footer: !changeBreakdownAvailable
+        ? "Breakdown unavailable"
+        : nonzeroChanges.length === 0
+          ? "No pending changes"
+          : nonzeroChanges.map(([type, name], index) => (
+              <span key={type}>
+                {index > 0 && <span aria-hidden="true"> · </span>}
+                <Link
+                  to={`/admin-panel/businesses/update-requests?type=${type}&status=pending`}
+                  aria-label={`${name} change requests: ${formatCount(changes[type])}`}
+                  className={`${dashboardLinkClass} relative z-10 whitespace-nowrap text-xs`}
+                >
+                  {formatCount(changes[type])} {name.toLowerCase()}
+                </Link>
+              </span>
+            )),
     },
     {
       key: "moderation",
       label: "Review moderation",
-      description: "Being evaluated",
+      description: "Under review",
       value: summary.reviews_under_review,
       to: dashboardQueues.underReview,
       icon: ShieldCheck,
@@ -134,16 +123,16 @@ export default function NeedsAttention({ summary }) {
     {
       key: "reports",
       label: "Reported reviews",
-      description: "Distinct reviews",
+      description: "Pending cases",
       value: summary.reported_review_cases,
       to: dashboardQueues.reports,
       icon: Flag,
-      footer: <span>With pending reports</span>,
+      footer: <span>Distinct reviews with pending reports</span>,
     },
     {
       key: "disputes",
       label: "Disputes",
-      description: "Pending merchant disputes",
+      description: "Pending disputes",
       value: summary.pending_disputes,
       to: dashboardQueues.disputes,
       icon: Gavel,
@@ -168,7 +157,7 @@ export default function NeedsAttention({ summary }) {
         }) => (
           <article
             key={key}
-            className={`group relative flex min-w-0 cursor-pointer flex-col rounded-xl border bg-background p-3 transition-colors hover:border-stroke-strong hover:bg-surface-hover active:bg-surface-muted ${urgent ? "border-danger/40" : "border-stroke"}`}
+            className={`group relative flex min-w-0 cursor-pointer flex-col rounded-xl border bg-background p-3 transition-colors hover:bg-surface-hover active:bg-surface-muted ${urgent ? "border-danger/40 hover:border-danger/60" : "border-stroke hover:border-stroke-strong"}`}
           >
             <div className="flex items-center gap-2.5">
               <span
@@ -191,13 +180,13 @@ export default function NeedsAttention({ summary }) {
               />
             </div>
 
-            <p className="mt-3 text-2xl font-semibold tabular-nums tracking-tight text-text-primary">
+            <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-text-primary">
               {formatCount(value)}
             </p>
             <p className="mt-0.5 text-xs text-text-secondary">{description}</p>
 
             {/* Queue details stay separate links rather than nested card actions */}
-            <div className="mt-3 flex min-h-7 flex-wrap items-center gap-1.5 border-t border-stroke pt-3 text-xs text-text-secondary">
+            <div className="mt-2 break-words text-xs leading-relaxed text-text-secondary">
               {footer}
             </div>
           </article>

@@ -24,6 +24,7 @@ export default function AnalyticsTimeSeries({
   barGap = 4,
   barCategoryGap = "28%",
   margin = { top: 8, right: 8, bottom: 0, left: 0 },
+  yDomain,
 }) {
   const gradientId = useId().replaceAll(":", "");
   const data = rows.map((row) => ({ ...row, time: Date.parse(row.start ?? `${row.date}T00:00:00+08:00`) }));
@@ -50,7 +51,7 @@ export default function AnalyticsTimeSeries({
         )}
         <CartesianGrid vertical={false} stroke="var(--color-stroke)" strokeDasharray="3 4" />
         <XAxis dataKey={isBar && !barTimeAxis ? "date" : "time"} {...(isBar && !barTimeAxis ? { type: "category" } : { type: "number", scale: "time", domain: timeDomain ?? ["dataMin", "dataMax"], ticks: timeTicks, padding: isBar && barTimeAxis ? { left: maxBarSize / 2 + 8, right: maxBarSize / 2 + 8 } : undefined })} tickFormatter={formatDate} minTickGap={35} tick={{ fill: "var(--color-text-secondary)", fontSize: 12 }} />
-        <YAxis allowDecimals={false} width={34} tick={{ fill: "var(--color-text-secondary)", fontSize: 11 }} />
+        <YAxis domain={yDomain} allowDecimals={false} width={34} tick={{ fill: "var(--color-text-secondary)", fontSize: 11 }} />
         <Tooltip content={tooltipContent} {...(isBar || areaFade ? { filterNull: false } : {})} labelFormatter={formatDate} formatter={(value, name) => [formatCount(value), name]} contentStyle={{ background: "var(--color-background)", border: "1px solid var(--color-stroke)", color: "var(--color-text-primary)", borderRadius: 8 }} />
         {showLegend && <Legend content={legendContent} wrapperStyle={{ fontSize: 12 }} formatter={(value) => <span className="text-text-primary">{value}</span>} />}
         {areaFade && !isBar && lines.map((line) => (

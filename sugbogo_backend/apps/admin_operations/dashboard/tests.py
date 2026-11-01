@@ -310,6 +310,36 @@ class DashboardSummaryServiceTests(DashboardFixtures, TestCase):
         result = DashboardSummaryService.get_summary()
 
         self.assertEqual(result["active_businesses"], 5)
+        self.assertEqual(
+            result["business_status"],
+            {"active": 5, "suspended": 1, "unknown_status": 0, "total": 6},
+        )
+
+    def test_business_status_handles_single_status_and_unrecognized_records(self):
+        suspended = self.create_business(
+            status=Business.BusinessStatus.SUSPENDED,
+            owner_status=User.UserStatus.DISABLED,
+        )
+        result = DashboardSummaryService.get_summary()
+        self.assertEqual(result["active_businesses"], 0)
+        self.assertEqual(
+            result["business_status"],
+            {"active": 0, "suspended": 1, "unknown_status": 0, "total": 1},
+        )
+        Business.objects.filter(pk=suspended.pk).update(BUSN_STATUS="legacy")
+        self.assertEqual(
+            DashboardSummaryService.get_summary()["business_status"],
+            {"active": 0, "suspended": 0, "unknown_status": 1, "total": 1},
+        )
+
+    def test_business_status_query_failure_is_not_replaced_with_zero(self):
+        with patch.object(
+            Business.objects,
+            "aggregate",
+            side_effect=DatabaseError("Business inventory unavailable"),
+        ):
+            with self.assertRaises(DatabaseError):
+                DashboardSummaryService.get_summary()
 
     def test_application_aging_boundaries_match_existing_queue_statuses(self):
         # Friday reference: weekend submissions have five elapsed weekdays.
@@ -503,6 +533,12 @@ class DashboardSummaryViewTests(
                         "reported_review_cases": 0,
                         "pending_disputes": 0,
                         "active_businesses": 0,
+                        "business_status": {
+                            "active": 0,
+                            "suspended": 0,
+                            "unknown_status": 0,
+                            "total": 0,
+                        },
                     },
                 )
 
@@ -527,6 +563,10 @@ class DashboardSummaryViewTests(
         self.assertEqual(data["reviews_under_review"], 1)
         self.assertEqual(data["reported_review_cases"], 1)
         self.assertEqual(data["active_businesses"], 1)
+        self.assertEqual(
+            data["business_status"],
+            {"active": 1, "suspended": 0, "unknown_status": 0, "total": 1},
+        )
 
     def test_unauthorized_roles_and_inactive_admins_are_rejected(self):
         cases = (

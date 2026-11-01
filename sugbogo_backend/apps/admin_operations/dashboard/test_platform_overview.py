@@ -353,6 +353,48 @@ class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
             ),
         )
 
+    def test_active_accounts_include_only_active_explorers_and_merchants(self):
+        for role in User.UserRole.values:
+            for status in User.UserStatus.values:
+                self.create_user(
+                    role=role,
+                    status=status,
+                )
+        self.create_user(role="legacy_role")
+        self.create_user(status="inactive")
+
+        with self.assertNumQueries(4):
+            result = PlatformOverviewService.get_overview()
+
+        self.assertEqual(result["active_accounts"], 2)
+        self.assertEqual(result["user_distribution"]["total"], 18)
+        self.assertEqual(result["user_distribution"]["explorer"], 5)
+        self.assertEqual(result["user_distribution"]["merchant"], 4)
+        self.assertEqual(result["user_distribution"]["unknown_role"], 1)
+        self.assertNotIn("active_accounts", result["user_distribution"])
+
+    def test_active_accounts_use_current_status_without_an_activity_window(self):
+        explorer = self.create_user()
+        merchant = self.create_user(role=User.UserRole.MERCHANT)
+        User.objects.filter(
+            pk__in=(explorer.pk, merchant.pk),
+        ).update(
+            USER_CREATED_AT=self.NOW - timedelta(days=365),
+            last_login=None,
+        )
+
+        result = PlatformOverviewService.get_overview()
+
+        self.assertEqual(result["active_accounts"], 2)
+        self.assertEqual(result["activity"]["applications_submitted"], 0)
+        User.objects.filter(pk=merchant.pk).update(
+            USER_STATUS=User.UserStatus.SUSPENDED,
+        )
+        self.assertEqual(
+            PlatformOverviewService.get_overview()["active_accounts"],
+            1,
+        )
+
     def test_merchant_does_not_also_count_as_explorer(self):
         self.create_user(role=User.UserRole.MERCHANT)
 
@@ -403,6 +445,7 @@ class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
         self.assertEqual(result["activity"]["reviews_published"], 0)
         self.assertEqual(result["activity"]["vouches_created"], 0)
         self.assertEqual(result["user_distribution"]["total"], 0)
+        self.assertEqual(result["active_accounts"], 0)
         self.assertEqual(len(result["activity"]["daily"]), 7)
         for bucket in result["activity"]["daily"]:
             for metric in ("applications_submitted", "reviews_published", "vouches_created"):
@@ -454,6 +497,11 @@ class PlatformOverviewViewTests(
                     message="Dashboard platform overview retrieved successfully.",
                 )
                 data = response.data["data"]
+                self.assertEqual(data["active_accounts"], 0)
+                self.assertEqual(
+                    set(data),
+                    {"as_of", "active_accounts", "activity", "user_distribution"},
+                )
                 self.assertEqual(parse_datetime(data["as_of"]), self.NOW)
                 window = data["activity"]["window"]
                 self.assertEqual(window["start"], "2026-10-30T16:00:00Z")
@@ -505,6 +553,29 @@ class PlatformOverviewViewTests(
                 for role in (*User.UserRole.values, "total", "unknown_role"):
                     self.assertEqual(data["user_distribution"][role], 0)
                 self.assertIn("all account statuses", data["user_distribution"]["scope"])
+
+    def test_active_accounts_are_serialized_for_admin_and_super_admin(self):
+        self.create_user()
+        self.create_user(role=User.UserRole.MERCHANT)
+        self.create_user(status=User.UserStatus.DISABLED)
+        for role in (User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN):
+            with self.subTest(role=role):
+                self.client.force_authenticate(
+                    user=User(
+                        USER_ID=999,
+                        USER_ROLE=role,
+                        USER_STATUS=User.UserStatus.ACTIVE,
+                    ),
+                )
+                response = self.client.get(reverse("admin-dashboard-platform-overview"))
+
+                self.assertSuccessResponse(
+                    response,
+                    message="Dashboard platform overview retrieved successfully.",
+                )
+                self.assertEqual(response.data["data"]["active_accounts"], 2)
+                self.assertEqual(response.data["data"]["user_distribution"]["total"], 3)
+                self.assertEqual(len(response.data["data"]["activity"]["daily"]), 7)
 
     def test_overview_does_not_call_other_dashboard_sections(self):
         self.client.force_authenticate(

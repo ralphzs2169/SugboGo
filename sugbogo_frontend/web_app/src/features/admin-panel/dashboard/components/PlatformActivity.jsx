@@ -17,13 +17,21 @@ import {
   activitySeries,
   platformActivityDays,
 } from "../utils/platformActivity";
+import useChartEntrance from "../hooks/useChartEntrance";
 
 /** Explain the exact server date and visible series counts without inferring comparisons. */
-function ActivityTooltip({ active, payload, label }) {
+export function ActivityTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
+  const date = payload[0]?.payload?.date ?? label;
+  const fullDate = new Intl.DateTimeFormat("en-PH", {
+    dateStyle: "full",
+    timeZone: "Asia/Manila",
+  }).format(
+    new Date(typeof date === "number" ? date : `${date}T00:00:00+08:00`),
+  );
   return (
     <AnalyticsTooltip
-      title={(payload[0]?.payload?.date ?? label) + " · Manila"}
+      title={`${fullDate} · Manila`}
       rows={payload.map((entry) => ({
         label: entry.name,
         value: formatCount(entry.value),
@@ -42,11 +50,16 @@ export default function PlatformActivity({ query }) {
   const [mode, setMode] = useState(null);
   const [visible, setVisible] = useState(activitySeries.map(({ key }) => key));
   const rows = platformActivityDays(activity);
+  const animation = useChartEntrance(rows);
+  const maximum = rows
+    ? Math.max(1, ...rows.flatMap((row) => visible.map((key) => row[key])))
+    : 1;
   const window = activity?.window;
   const empty = rows?.every((row) =>
     activitySeries.every(({ key }) => row[key] === 0),
   );
   function isolate(key) {
+    animation.stop();
     setVisible((current) =>
       current.length === 1 && current[0] === key
         ? activitySeries.map((series) => series.key)
@@ -75,6 +88,7 @@ export default function PlatformActivity({ query }) {
         footer={
           <AnalyticsReportFooter
             title="Platform Activity Trend"
+            timestampLabel="Data as of"
             meta={meta}
             hasData={Boolean(rows)}
             hasDetails={Boolean(activity)}
@@ -86,9 +100,7 @@ export default function PlatformActivity({ query }) {
       >
         <AnalyticsPeriodLabel
           period={{ start_date: rows?.[0]?.date, end_date: rows?.at(-1)?.date }}
-        >
-          {window?.includes_partial_day ? " · Today is partial" : ""}
-        </AnalyticsPeriodLabel>
+        />
         {!window && (
           <p className="mb-3 text-xs text-text-secondary">
             Activity window unavailable.
@@ -123,6 +135,18 @@ export default function PlatformActivity({ query }) {
               {series.label}
             </button>
           ))}
+          {visible.length !== activitySeries.length && (
+            <button
+              type="button"
+              onClick={() => {
+                animation.stop();
+                setVisible(activitySeries.map(({ key }) => key));
+              }}
+              className="min-h-9 cursor-pointer rounded px-2 text-xs font-medium text-text-primary hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
+            >
+              Show all series
+            </button>
+          )}
         </div>
         <p className="sr-only">
           Select a series to isolate it; select it again to show all. All series
@@ -151,6 +175,8 @@ export default function PlatformActivity({ query }) {
                 lines={[]}
                 showLegend={false}
                 tooltipContent={<ActivityTooltip />}
+                yDomain={[0, maximum]}
+                margin={{ top: 10, right: 16, bottom: 0, left: 8 }}
               >
                 {activitySeries
                   .filter(({ key }) => visible.includes(key))
@@ -165,7 +191,11 @@ export default function PlatformActivity({ query }) {
                       strokeDasharray={series.dash}
                       strokeWidth={2}
                       dot={{ r: 3 }}
-                      isAnimationActive={false}
+                      activeDot={{ r: 5 }}
+                      isAnimationActive={animation.isAnimationActive}
+                      animationDuration={animation.animationDuration}
+                      animationEasing={animation.animationEasing}
+                      onAnimationEnd={animation.onAnimationEnd}
                     />
                   ))}
               </AnalyticsTimeSeries>

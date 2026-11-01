@@ -30,6 +30,8 @@ let transport;
 let auth;
 let presentation;
 let analyticsKeys;
+let ActivityTooltip;
+let reducedMotion;
 const originalToastError = toast.error;
 const originalEvent = globalThis.Event;
 const originalCustomEvent = globalThis.CustomEvent;
@@ -88,11 +90,22 @@ before(async () => {
     CustomEvent: dom.window.CustomEvent,
     document: dom.window.document,
     HTMLElement: dom.window.HTMLElement,
+    SVGElement: dom.window.SVGElement,
+    ResizeObserver: class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
     Element: dom.window.Element,
     Node: dom.window.Node,
     MutationObserver: dom.window.MutationObserver,
     getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
     IS_REACT_ACT_ENVIRONMENT: true,
+  });
+  dom.window.matchMedia = () => ({
+    matches: reducedMotion,
+    addEventListener() {},
+    removeEventListener() {},
   });
   dom.window.HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");
@@ -119,15 +132,23 @@ before(async () => {
             export const ResponsiveContainer = ({children}) => React.createElement('div', null, children);
             export const BarChart = ({data, children}) => React.createElement('div', {'data-chart-kind':'bar','data-chart':JSON.stringify(data)}, children);
             export const LineChart = ({data,children}) => React.createElement('div', {'data-chart-kind':'line','data-chart':JSON.stringify(data)},children);
-            export const Line = ({dataKey,strokeDasharray}) => React.createElement('span',{'data-line':dataKey,'data-dash':strokeDasharray});
+            export const Line = (props) => {
+              globalThis.__dashboardAnimations.push({kind:'line',...props});
+              return React.createElement('span',{'data-line':props.dataKey,'data-dash':props.strokeDasharray,'data-animating':props.isAnimationActive});
+            };
             export const CartesianGrid = () => null;
-            export const Tooltip = () => null;
+            export const Tooltip = (props) => { globalThis.__dashboardTooltips.push(props); return null; };
             export const PieChart = ({children}) => React.createElement('div', null, children);
-            export const Pie = ({data, children}) => React.createElement('div', {'data-chart-kind':'pie','data-chart':JSON.stringify(data)}, children);
+            export const Pie = (props) => {
+              globalThis.__dashboardAnimations.push({kind:'pie',...props});
+              return React.createElement('div', {'data-chart-kind':'pie','data-chart':JSON.stringify(props.data),'data-animating':props.isAnimationActive},
+                React.createElement('svg',null,props.data.map((row,index)=>row[props.dataKey] > 0 && props.shape ? React.cloneElement(props.shape({index}),{key:row.key ?? row.name}) : null)), props.children);
+            };
+            export const Sector = ({cx,cy,innerRadius,outerRadius,startAngle,endAngle, ...props}) => React.createElement('path',props);
             export const Bar = ({children}) => React.createElement('div', null, children);
             export const XAxis = () => null;
-            export const YAxis = () => null;
-            export const Cell = () => null;`;
+            export const YAxis = ({domain}) => React.createElement('span',{'data-y-domain':JSON.stringify(domain)});
+            export const Cell = ({fill}) => React.createElement('span',{'data-cell-fill':fill});`;
           }
           const path = id.replaceAll("\\", "/");
           if (path.endsWith("/shared/api/apiClient.js")) {
@@ -172,6 +193,9 @@ before(async () => {
   ({ default: Page } = await server.ssrLoadModule(
     `${base}pages/Dashboard.jsx`,
   ));
+  ({ ActivityTooltip } = await server.ssrLoadModule(
+    `${base}dashboard/components/PlatformActivity.jsx`,
+  ));
   ({ useAuthStore: auth } = await server.ssrLoadModule(
     "/src/features/auth/storage/auth.store.js",
   ));
@@ -202,6 +226,9 @@ beforeEach(() => {
   posts = [];
   notifications = [];
   results = new Map();
+  reducedMotion = false;
+  globalThis.__dashboardAnimations = [];
+  globalThis.__dashboardTooltips = [];
   transport = async (url) => ({
     data: { data: { source: url, value: 0, ...dashboardFixture(url) } },
   });
@@ -236,6 +263,8 @@ after(async () => {
     "window",
     "document",
     "HTMLElement",
+    "SVGElement",
+    "ResizeObserver",
     "Element",
     "Node",
     "MutationObserver",
@@ -243,6 +272,8 @@ after(async () => {
     "IS_REACT_ACT_ENVIRONMENT",
     "__dashboardRead",
     "__dashboardPost",
+    "__dashboardAnimations",
+    "__dashboardTooltips",
   ]) {
     delete globalThis[key];
   }
@@ -366,6 +397,13 @@ for (const [resource, , failingUrl, label] of resources) {
     );
     assert.equal(container.querySelector("h1").textContent, "Dashboard");
     assert.equal(loadedContent(resource), false);
+    if (resource === "platformOverview") {
+      const accounts = container.querySelector(
+        'section[aria-label="Active Accounts"]',
+      );
+      assert.ok(accounts.querySelector('[role="alert"]'));
+      assert.equal(accounts.querySelector(".text-3xl"), null);
+    }
     const notificationIds = notifications.map(([, options]) => options.id);
     const expectedId =
       resource === "summary"
@@ -404,7 +442,7 @@ test("top sections retain formatted KPI values and explicit measurement scopes",
   transport = async (url) => {
     const data = dashboardFixture(url);
     if (url === "/admin/dashboard/platform-overview/") {
-      data.activity.applications_submitted = 12345;
+      data.active_accounts = 12345;
       data.activity.reviews_published = 0;
     }
     return { data: { data } };
@@ -415,7 +453,7 @@ test("top sections retain formatted KPI values and explicit measurement scopes",
     'section[aria-label="Platform Overview"]',
   );
   for (const [label, count, scope] of [
-    ["Applications Submitted", "12,345", "Last 7 days"],
+    ["Active Accounts", "12,345", "Current count"],
     ["Active Businesses", "137", "Current count"],
     ["Reviews Published", "0", "Last 7 days"],
     ["Vouches Created", "47", "Last 7 days"],
@@ -434,6 +472,39 @@ test("top sections retain formatted KPI values and explicit measurement scopes",
     overview.querySelector(".grid").className,
     /sm:grid-cols-2 xl:grid-cols-4/,
   );
+  assert.deepEqual(
+    [...overview.querySelectorAll("h3")].map((heading) => heading.textContent),
+    [
+      "Active Accounts",
+      "Active Businesses",
+      "Reviews Published",
+      "Vouches Created",
+    ],
+  );
+  assert.equal(
+    overview.querySelector('section[aria-label="Applications Submitted"]'),
+    null,
+  );
+  const help = overview.querySelector(
+    'button[aria-label="About Active Accounts"]',
+  );
+  assert.match(
+    help.getAttribute("data-tooltip-content"),
+    /active status.*Explorer or Merchant/,
+  );
+  assert.match(
+    help.getAttribute("data-tooltip-content"),
+    /not a measure of recent engagement/,
+  );
+  help.focus();
+  assert.equal(document.activeElement, help);
+  const chart = container.querySelector('[data-chart-kind="line"]');
+  const rows = JSON.parse(chart.dataset.chart);
+  assert.equal(
+    rows.reduce((total, row) => total + row.applications_submitted, 0),
+    41,
+  );
+  assert.ok(chart.querySelector('[data-line="applications_submitted"]'));
 });
 
 test("top sections queue semantics, links and focus targets stay accurate", async () => {
@@ -478,14 +549,6 @@ test("top sections queue semantics, links and focus targets stay accurate", asyn
     overdue.getAttribute("href"),
     `${destinations[0]}&queue_status=overdue`,
   );
-  const approaching = cards[0].querySelector(
-    'a[aria-label="4 applications approaching deadline"]',
-  );
-  assert.match(approaching.className, /bg-warning\/15/);
-  assert.equal(
-    approaching.getAttribute("href"),
-    `${destinations[0]}&queue_status=approaching`,
-  );
   for (const type of ["business_name", "classification", "location"]) {
     assert.ok(
       cards[1].querySelector(
@@ -494,7 +557,12 @@ test("top sections queue semantics, links and focus targets stay accurate", asyn
     );
   }
   assert.match(cards[2].textContent, /Includes automated processing/);
-  assert.match(cards[3].textContent, /Distinct reviewsWith pending reports/);
+  assert.match(cards[2].textContent, /Under review/);
+  assert.match(
+    cards[3].textContent,
+    /Pending casesDistinct reviews with pending reports/,
+  );
+  assert.match(cards[4].textContent, /Pending disputesAwaiting resolution/);
   assert.doesNotMatch(cards[3].textContent, /Counted by distinct case/);
   assert.equal(cards[4].querySelector('[class*="bg-success"]'), null);
   assert.match(
@@ -502,7 +570,8 @@ test("top sections queue semantics, links and focus targets stay accurate", asyn
     /sm:grid-cols-2 xl:grid-cols-5/,
   );
   for (const card of cards) {
-    assert.ok(card.querySelector('[class*="flex-wrap"]'));
+    assert.equal(card.querySelector('[class*="border-t"]'), null);
+    assert.equal(card.querySelector('[class*="min-h-"]'), null);
   }
 });
 
@@ -529,11 +598,224 @@ test("top sections zero aging stays neutral while unknown aging remains separate
     "0 overdue applications",
     "0 applications approaching deadline",
   ]) {
-    const chip = application.querySelector(`a[aria-label="${label}"]`);
-    assert.match(chip.className, /bg-neutral\/10/);
-    assert.doesNotMatch(chip.className, /bg-danger|bg-warning|opacity-60/);
+    assert.equal(application.querySelector(`a[aria-label="${label}"]`), null);
   }
   assert.match(application.textContent, /2 age unavailable/);
+});
+
+for (const [name, breakdown, expected] of [
+  [
+    "nonzero",
+    { business_name: 1, classification: 2, location: 0 },
+    /1 name · 2 classification/,
+  ],
+  [
+    "empty",
+    { business_name: 0, classification: 0, location: 0 },
+    /No pending changes/,
+  ],
+  ["unavailable", undefined, /Breakdown unavailable/],
+]) {
+  test(`compact queues preserve ${name} change details without chips or zero categories`, async () => {
+    transport = async (url) => {
+      const data = dashboardFixture(url);
+      if (url === "/admin/dashboard/") data.change_requests.by_type = breakdown;
+      return { data: { data } };
+    };
+    await render(React.createElement(Page));
+    await until(() => loadedSectionCount() === 4);
+    const changes = container.querySelectorAll(
+      'section[aria-label="Administrative Queues"] article',
+    )[1];
+    assert.match(changes.textContent, expected);
+    assert.doesNotMatch(
+      changes.textContent,
+      /0 location|0 name|0 classification/,
+    );
+    assert.equal(
+      changes.querySelector('[class*="rounded-full"], [class*="border-t"]'),
+      null,
+    );
+    assert.equal(
+      changes.querySelectorAll("a").length,
+      name === "nonzero" ? 3 : 1,
+    );
+    assert.equal(
+      changes.querySelector("h3 a").getAttribute("href"),
+      "/admin-panel/businesses/update-requests?type=all&status=pending",
+    );
+  });
+}
+
+test("compact queues show approaching counts neutrally only when no application is overdue", async () => {
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (data.applications)
+      data.applications.aging = {
+        on_time: 13,
+        approaching: 4,
+        overdue: 0,
+        unknown_age: 0,
+      };
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const card = container.querySelector(
+    'section[aria-label="Administrative Queues"] article',
+  );
+  assert.doesNotMatch(card.className, /border-danger/);
+  const link = card.querySelector(
+    'a[aria-label="4 applications approaching deadline"]',
+  );
+  assert.equal(
+    link.getAttribute("href"),
+    "/admin-panel/businesses/applications?status=submitted&queue_status=approaching",
+  );
+  assert.doesNotMatch(link.className, /bg-danger|bg-warning/);
+});
+
+for (const [name, activeCount, explorer, merchant, expected] of [
+  ["mixed", 122, 85, 38, "99.2%"],
+  ["all active", 123, 85, 38, "100.0%"],
+  ["all nonactive", 0, 85, 38, "0.0%"],
+  ["no eligible accounts", 0, 0, 0, null],
+  ["missing numerator", undefined, 85, 38, null],
+  ["missing denominator", 122, undefined, 38, null],
+  ["inconsistent counts", 124, 85, 38, null],
+]) {
+  test(`account status donut handles ${name} using only the Explorer and Merchant population`, async () => {
+    transport = async (url) => {
+      const data = dashboardFixture(url);
+      if (url === "/admin/dashboard/platform-overview/") {
+        data.active_accounts = activeCount;
+        Object.assign(data.user_distribution, {
+          explorer,
+          merchant,
+          admin: 100,
+          super_admin: 100,
+          unknown_role: 20,
+        });
+        data.user_distribution.total = (explorer ?? 0) + merchant + 220;
+      }
+      return { data: { data } };
+    };
+    await render(React.createElement(Page));
+    await until(() => loadedSectionCount() === 4);
+    const card = container.querySelector(
+      'section[aria-label="Active Accounts"]',
+    );
+    const figure = card.querySelector(
+      'figure[aria-label="Explorer and Merchant account statuses"]',
+    );
+    assert.equal(
+      card.querySelector(".text-3xl").textContent,
+      activeCount == null ? "Unavailable" : String(activeCount),
+    );
+    assert.equal(
+      figure.className,
+      container.querySelector('figure[aria-label="Current business statuses"]')
+        .className,
+    );
+    assert.equal(
+      reads.filter((read) => read.url === "/admin/dashboard/platform-overview/")
+        .length,
+      1,
+    );
+    if (expected) {
+      assert.ok(figure.textContent.includes(expected));
+      const rows = JSON.parse(
+        figure.querySelector('[data-chart-kind="pie"]').dataset.chart,
+      );
+      assert.deepEqual(rows, [
+        { name: "Active", value: activeCount },
+        { name: "Other statuses", value: explorer + merchant - activeCount },
+      ]);
+      assert.match(
+        figure.textContent,
+        /pending, suspended, disabled, and unrecognized non-active statuses/,
+      );
+      const sector = figure.querySelector('path[role="button"]');
+      assert.equal(sector.getAttribute("stroke"), "none");
+      await act(async () => sector.focus());
+      assert.equal(document.activeElement, sector);
+      const tooltip = globalThis.__dashboardTooltips.findLast(
+        (item) => item.active === true,
+      );
+      const selected = rows[tooltip.defaultIndex];
+      assert.deepEqual(tooltip.formatter(selected.value, selected.name), [
+        `${selected.value} accounts · ${((selected.value / (explorer + merchant)) * 100).toFixed(1)}%`,
+        selected.name,
+      ]);
+      assert.equal(tooltip.contentStyle.fontSize, "11px");
+      assert.equal(tooltip.contentStyle.borderRadius, "8px");
+      assert.equal(
+        figure.querySelector('[class*="h-20"]').classList.contains("w-20"),
+        true,
+      );
+    } else {
+      assert.equal(figure.querySelector('[data-chart-kind="pie"]'), null);
+      assert.match(
+        figure.textContent,
+        name === "no eligible accounts"
+          ? /No Explorer or Merchant accounts/
+          : /Status unavailable/,
+      );
+    }
+  });
+}
+
+test("account status donut keeps native interactions and does not replay after data refresh", async () => {
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const first = globalThis.__dashboardAnimations.find(
+    (item) => item.kind === "pie" && item.data[1]?.name === "Other statuses",
+  );
+  assert.equal(first.isAnimationActive, true);
+  assert.equal(first.animationDuration, 400);
+  await act(async () => first.onAnimationEnd());
+  globalThis.__dashboardAnimations = [];
+  await act(async () =>
+    client.setQueryData(keys.platformOverview, (data) => ({
+      ...data,
+      active_accounts: 84,
+    })),
+  );
+  await until(() =>
+    globalThis.__dashboardAnimations.some(
+      (item) =>
+        item.kind === "pie" &&
+        item.data[1]?.name === "Other statuses" &&
+        item.data[0].value === 84,
+    ),
+  );
+  const accountCharts = globalThis.__dashboardAnimations.filter(
+    (item) => item.kind === "pie" && item.data[1]?.name === "Other statuses",
+  );
+  assert.ok(accountCharts.length > 0);
+  assert.ok(accountCharts.every((item) => item.isAnimationActive === false));
+  const sector = container.querySelector(
+    'figure[aria-label="Explorer and Merchant account statuses"] path',
+  );
+  await act(async () =>
+    sector.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })),
+  );
+  assert.equal(
+    globalThis.__dashboardTooltips.findLast((item) => item.active === true)
+      .defaultIndex,
+    0,
+  );
+});
+
+test("account status donut respects reduced motion", async () => {
+  reducedMotion = true;
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const accountCharts = globalThis.__dashboardAnimations.filter(
+    (item) => item.kind === "pie" && item.data[1]?.name === "Other statuses",
+  );
+  assert.ok(accountCharts.length > 0);
+  assert.ok(accountCharts.every((item) => item.isAnimationActive === false));
 });
 
 test("top sections freshness identifies independent source updates, not decision times", async () => {
@@ -609,11 +891,10 @@ test("real query values populate attention, activity, inventory, decisions and b
       ),
     );
   }
-  assert.match(attention.textContent, /4\s*approaching/);
   assert.match(attention.textContent, /5\s*overdue/);
-  assert.match(attention.textContent, /3\s*Name/);
-  assert.match(attention.textContent, /7\s*Classification/);
-  assert.match(attention.textContent, /9\s*Location/);
+  assert.match(attention.textContent, /3\s*name/);
+  assert.match(attention.textContent, /7\s*classification/);
+  assert.match(attention.textContent, /9\s*location/);
   assert.equal(
     container
       .querySelector('a[aria-label^="Applications:"]')
@@ -632,7 +913,7 @@ test("real query values populate attention, activity, inventory, decisions and b
     'section[aria-label="Platform Overview"]',
   );
   for (const [label, value] of [
-    ["Applications Submitted", "41"],
+    ["Active Accounts", "83"],
     ["Active Businesses", "137"],
     ["Reviews Published", "43"],
     ["Vouches Created", "47"],
@@ -644,7 +925,7 @@ test("real query values populate attention, activity, inventory, decisions and b
   }
   assert.match(overview.textContent, /Current count/);
   assert.match(overview.textContent, /Last 7 days/);
-  assert.match(activity.textContent, /PHT · Today is partial/);
+  assert.match(activity.textContent, /Data as of .* PHT · Today is partial/);
   assert.ok(
     activity.querySelector(
       'button[aria-label="About Platform Activity Trend"]',
@@ -667,7 +948,9 @@ test("real query values populate attention, activity, inventory, decisions and b
     /2 submissions have unavailable aging data/,
   );
   const roles = JSON.parse(
-    container.querySelector('[data-chart-kind="pie"]').dataset.chart,
+    container.querySelector(
+      'section[aria-label="User Distribution"] [data-chart-kind="pie"]',
+    ).dataset.chart,
   );
   assert.deepEqual(
     roles.map(({ count }) => count),
@@ -745,6 +1028,244 @@ test("seven-day trend preserves server rows and lets the keyboard legend isolate
       )
       .textContent.includes("View applications"),
     false,
+  );
+});
+
+test("chart enhancements rescale isolated series from zero and show partial status once", async () => {
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (data.activity) {
+      data.activity.daily[6].applications_submitted = 12345;
+      data.activity.applications_submitted = data.activity.daily.reduce(
+        (sum, row) => sum + row.applications_submitted,
+        0,
+      );
+    }
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="Platform Activity Trend"]',
+  );
+  const domain = () =>
+    JSON.parse(section.querySelector("[data-y-domain]").dataset.yDomain);
+  assert.deepEqual(domain(), [0, 12345]);
+  assert.equal(section.textContent.match(/Today is partial/g).length, 1);
+  assert.match(section.textContent, /Data as of/);
+  const reviews = [...section.querySelectorAll("button")].find(
+    (button) => button.textContent === "Reviews published",
+  );
+  await act(async () => reviews.click());
+  assert.deepEqual(domain(), [0, 22]);
+  assert.equal(section.querySelectorAll("[data-line]").length, 1);
+  const restore = [...section.querySelectorAll("button")].find(
+    (button) => button.textContent === "Show all series",
+  );
+  await act(async () => restore.click());
+  assert.deepEqual(domain(), [0, 12345]);
+  assert.equal(section.querySelectorAll("[data-line]").length, 3);
+});
+
+test("chart enhancements activity tooltip exposes the full Manila date and exact series count", async () => {
+  await render(
+    React.createElement(ActivityTooltip, {
+      active: true,
+      payload: [
+        {
+          payload: { date: "2026-11-01" },
+          name: "Vouches created",
+          value: 12345,
+          color: "orange",
+        },
+      ],
+    }),
+  );
+  const tooltip = container.querySelector('[role="tooltip"]');
+  assert.match(tooltip.textContent, /Sunday/);
+  assert.match(tooltip.textContent, /2026.*Manila/);
+  assert.match(tooltip.textContent, /Vouches created12,345/);
+});
+
+test("chart enhancements role legends use the shared native tooltip without custom sector outlines", async () => {
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="User Distribution"]',
+  );
+  const button = section.querySelector('button[aria-label^="Explorers:"]');
+  assert.match(
+    button.getAttribute("aria-label"),
+    /53 accounts, 44.9% of registered accounts/,
+  );
+  assert.ok(
+    section.querySelector(
+      'button[aria-label^="Unknown role: 3 accounts, 2.5%"]',
+    ),
+  );
+  await act(async () => button.focus());
+  assert.equal(document.activeElement, button);
+  const sector = section.querySelector('path[aria-label^="Explorers:"]');
+  assert.equal(sector.getAttribute("stroke"), "none");
+  assert.equal(sector.getAttribute("opacity"), null);
+  const tooltip = globalThis.__dashboardTooltips.findLast(
+    (item) => item.active === true,
+  );
+  assert.equal(tooltip.defaultIndex, 0);
+  assert.equal(tooltip.contentStyle.fontSize, "11px");
+  assert.equal(tooltip.contentStyle.borderRadius, "8px");
+  assert.deepEqual(tooltip.formatter(53, "Explorers"), [
+    "53 accounts · 44.9% of registered accounts",
+    "Explorers",
+  ]);
+  await act(async () => {
+    button.blur();
+    sector.focus();
+  });
+  assert.equal(document.activeElement, sector);
+  assert.equal(sector.getAttribute("tabindex"), "0");
+  assert.equal(sector.getAttribute("data-tooltip-id"), null);
+  assert.match(sector.getAttribute("class"), /focus-visible/);
+});
+
+for (const [name, status] of [
+  ["mixed", { active: 15, suspended: 5, unknown_status: 0, total: 20 }],
+  ["all active", { active: 20, suspended: 0, unknown_status: 0, total: 20 }],
+  ["all suspended", { active: 0, suspended: 20, unknown_status: 0, total: 20 }],
+  ["other status", { active: 15, suspended: 0, unknown_status: 5, total: 20 }],
+  ["empty", { active: 0, suspended: 0, unknown_status: 0, total: 0 }],
+  ["missing", undefined],
+]) {
+  test(`chart enhancements business donut handles ${name} inventory without changing the primary KPI`, async () => {
+    transport = async (url) => {
+      const data = dashboardFixture(url);
+      if (url === "/admin/dashboard/") {
+        data.business_status = status;
+        data.active_businesses = status?.active ?? 137;
+      }
+      return { data: { data } };
+    };
+    await render(React.createElement(Page));
+    await until(() => loadedSectionCount() === 4);
+    const card = container.querySelector(
+      'section[aria-label="Active Businesses"]',
+    );
+    assert.equal(
+      card.querySelector(".text-3xl").textContent,
+      String(status?.active ?? 137),
+    );
+    const donut = card.querySelector(
+      'figure[aria-label="Current business statuses"]',
+    );
+    assert.match(donut.className, /w-20 shrink-0/);
+    if (!status || status.total === 0) {
+      assert.equal(donut.querySelector("[data-chart-kind]"), null);
+      assert.match(
+        donut.textContent,
+        status ? /No businesses/ : /Status unavailable/,
+      );
+    } else {
+      for (const [key, label] of [
+        ["active", "Active"],
+        ["suspended", "Suspended"],
+        ["unknown_status", "Other status"],
+      ]) {
+        if (status[key] === 0) continue;
+        const pie = JSON.parse(
+          donut.querySelector('[data-chart-kind="pie"]').dataset.chart,
+        );
+        assert.equal(pie.find((row) => row.name === label).value, status[key]);
+        assert.match(
+          donut.textContent,
+          new RegExp(`${label}: ${status[key]} businesses`),
+        );
+      }
+      assert.ok(
+        donut.textContent.includes(
+          `${((status.active / status.total) * 100).toFixed(1)}%`,
+        ),
+      );
+      const pie = globalThis.__dashboardAnimations.findLast(
+        (item) =>
+          item.kind === "pie" &&
+          item.dataKey === "value" &&
+          item.data[0].name === "Active" &&
+          item.data[1].name === "Suspended",
+      );
+      assert.equal(pie.innerRadius, 27);
+      assert.equal(pie.outerRadius, 36);
+      assert.equal(pie.stroke, "none");
+      assert.deepEqual(
+        [...donut.querySelectorAll("[data-cell-fill]")]
+          .slice(0, 2)
+          .map((cell) => cell.dataset.cellFill),
+        ["var(--color-success)", "var(--color-danger)"],
+      );
+    }
+  });
+}
+
+test("chart enhancements animate first data only and stop on interaction and refetch", async () => {
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  assert.ok(
+    globalThis.__dashboardAnimations.some(
+      (item) => item.kind === "line" && item.isAnimationActive,
+    ),
+  );
+  assert.equal(
+    globalThis.__dashboardAnimations.filter(
+      (item) => item.kind === "pie" && item.isAnimationActive,
+    ).length >= 2,
+    true,
+  );
+  for (const item of globalThis.__dashboardAnimations) {
+    assert.equal(item.animationDuration, 400);
+  }
+  const animations = [...globalThis.__dashboardAnimations];
+  await act(async () => animations.forEach((item) => item.onAnimationEnd()));
+  globalThis.__dashboardAnimations = [];
+  await act(async () => {
+    const button = container.querySelector(
+      'section[aria-label="User Distribution"] button',
+    );
+    button.focus();
+    client.setQueryData(keys.summary, (data) => ({
+      ...data,
+      business_status: { ...data.business_status, active: 138, total: 151 },
+    }));
+    client.setQueryData(keys.platformOverview, (data) => ({
+      ...data,
+      activity: {
+        ...data.activity,
+        daily: data.activity.daily.map((row) => ({ ...row })),
+      },
+      user_distribution: { ...data.user_distribution },
+    }));
+  });
+  assert.ok(globalThis.__dashboardAnimations.length > 0);
+  assert.ok(
+    globalThis.__dashboardAnimations.every(
+      (item) => item.isAnimationActive === false,
+    ),
+  );
+});
+
+test("chart enhancements respect reduced motion for lines and both donuts", async () => {
+  reducedMotion = true;
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  assert.ok(
+    globalThis.__dashboardAnimations.some((item) => item.kind === "line"),
+  );
+  assert.ok(
+    globalThis.__dashboardAnimations.filter((item) => item.kind === "pie")
+      .length >= 2,
+  );
+  assert.ok(
+    globalThis.__dashboardAnimations.every(
+      (item) => item.isAnimationActive === false,
+    ),
   );
 });
 
@@ -832,9 +1353,9 @@ test("malformed daily data has targeted Retry while valid KPI counts remain visi
       trend()?.querySelector('[role="alert"]') && loadedSectionCount() === 4,
   );
   assert.match(
-    container.querySelector('section[aria-label="Applications Submitted"]')
+    container.querySelector('section[aria-label="Active Accounts"]')
       .textContent,
-    /41/,
+    /83/,
   );
   assert.equal(trend().querySelector('[data-chart-kind="line"]'), null);
   const readsBefore = reads.length;
@@ -1013,8 +1534,15 @@ test("empty queues and zero inventories remain valid without fabricated chart se
         unknown_age: 0,
       };
       data.active_businesses = 0;
+      data.business_status = {
+        active: 0,
+        suspended: 0,
+        unknown_status: 0,
+        total: 0,
+      };
     }
     if (data.user_distribution) {
+      data.active_accounts = 0;
       for (const key of [
         "total",
         "explorer",
@@ -1046,6 +1574,11 @@ test("empty queues and zero inventories remain valid without fabricated chart se
     /No pending work. Your queues are clear./,
   );
   assert.match(container.textContent, /No registered accounts./);
+  assert.equal(
+    container.querySelector('section[aria-label="Active Accounts"] .text-3xl')
+      .textContent,
+    "0",
+  );
   assert.match(container.textContent, /No submissions with known aging./);
   assert.doesNotMatch(
     container.textContent,
@@ -1089,7 +1622,7 @@ test("missing metric fields display unavailable instead of zero", async () => {
   );
   assert.match(activity.textContent, /Daily activity is unavailable/);
   assert.match(
-    container.querySelector('section[aria-label="Applications Submitted"]')
+    container.querySelector('section[aria-label="Active Accounts"]')
       .textContent,
     /Unavailable/,
   );

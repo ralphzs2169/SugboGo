@@ -15,6 +15,12 @@ export function dashboardFixture(url) {
       reported_review_cases: 29,
       pending_disputes: 31,
       active_businesses: 137,
+      business_status: {
+        active: 137,
+        suspended: 13,
+        unknown_status: 0,
+        total: 150,
+      },
     };
   }
   if (url === "/admin/dashboard/priority-worklist/") {
@@ -69,6 +75,7 @@ export function dashboardFixture(url) {
   if (url === "/admin/dashboard/platform-overview/") {
     return {
       as_of: "2026-11-01T04:00:00Z",
+      active_accounts: 83,
       activity: {
         window: {
           start: "2026-10-25T16:00:00Z",

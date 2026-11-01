@@ -1,6 +1,6 @@
 """Lightweight persisted operational counts for the Admin Dashboard."""
 
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.business.models import Business
@@ -100,9 +100,20 @@ class DashboardSummaryService:
         pending_disputes = MerchantReviewDispute.objects.filter(
             MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
         ).count()
-        active_businesses = Business.objects.filter(
-            BUSN_STATUS=Business.BusinessStatus.ACTIVE,
-        ).count()
+        businesses = Business.objects.aggregate(
+            total=Count("BUSN_ID"),
+            active=Count(
+                "BUSN_ID",
+                filter=Q(BUSN_STATUS=Business.BusinessStatus.ACTIVE),
+            ),
+            suspended=Count(
+                "BUSN_ID",
+                filter=Q(BUSN_STATUS=Business.BusinessStatus.SUSPENDED),
+            ),
+        )
+        businesses["unknown_status"] = (
+            businesses["total"] - businesses["active"] - businesses["suspended"]
+        )
 
         return {
             "as_of": as_of,
@@ -117,5 +128,6 @@ class DashboardSummaryService:
             "reviews_under_review": reviews_under_review,
             "reported_review_cases": reported_review_cases,
             "pending_disputes": pending_disputes,
-            "active_businesses": active_businesses,
+            "active_businesses": businesses["active"],
+            "business_status": businesses,
         }

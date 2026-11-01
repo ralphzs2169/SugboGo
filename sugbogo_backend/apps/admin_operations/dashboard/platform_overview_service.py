@@ -89,6 +89,16 @@ class PlatformOverviewService:
             totals[metric] = sum(counts.values())
         distribution = User.objects.aggregate(
             total=Count("USER_ID"),
+            active_accounts=Count(
+                "USER_ID",
+                filter=Q(
+                    USER_STATUS=User.UserStatus.ACTIVE,
+                    USER_ROLE__in=(
+                        User.UserRole.EXPLORER,
+                        User.UserRole.MERCHANT,
+                    ),
+                ),
+            ),
             explorer=Count(
                 "USER_ID",
                 filter=Q(USER_ROLE=User.UserRole.EXPLORER),
@@ -106,6 +116,7 @@ class PlatformOverviewService:
                 filter=Q(USER_ROLE=User.UserRole.SUPER_ADMIN),
             ),
         )
+        active_accounts = distribution.pop("active_accounts")
         known_accounts = sum(
             distribution[role]
             for role in User.UserRole.values
@@ -118,6 +129,7 @@ class PlatformOverviewService:
 
         return {
             "as_of": period.generated_at,
+            "active_accounts": active_accounts,
             "activity": {
                 "window": {
                     "start": period.start,

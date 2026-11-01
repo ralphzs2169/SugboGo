@@ -56,5 +56,6 @@ class PlatformOverviewSerializer(serializers.Serializer):
     """Serialize independently assembled activity and current account composition."""
 
     as_of = serializers.DateTimeField(read_only=True)
+    active_accounts = serializers.IntegerField(read_only=True)
     activity = PlatformActivitySerializer(read_only=True)
     user_distribution = UserDistributionSerializer(read_only=True)

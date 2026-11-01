@@ -1,14 +1,19 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 /**
- * Renders a compact KPI donut showing the proportion of the primary
- * metric against its comparison segment, with the primary percentage
- * displayed in the center.
+ * Shares Admin donut styling and native Recharts hover details, with a primary
+ * percentage center by default and optional sizing and center content.
  */
 export default function MetricDonut({
   data = [],
   primaryName,
   primaryLabel = "Active",
+  className = "relative h-20 w-20 shrink-0",
+  innerRadius = 27,
+  outerRadius = 36,
+  centerContent,
+  pieProps = {},
+  tooltipProps = {},
 }) {
   const points = data.filter(
     (item) => item.value !== null && item.value !== undefined,
@@ -35,22 +40,25 @@ export default function MetricDonut({
   ];
 
   return (
-    <div className="relative h-20 w-20 shrink-0">
+    <div className={className}>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
             data={points}
             dataKey="value"
             nameKey="name"
-            innerRadius={27}
-            outerRadius={36}
+            innerRadius={innerRadius}
+            outerRadius={outerRadius}
             paddingAngle={2}
             stroke="none"
+            {...pieProps}
           >
             {points.map((entry, index) => (
               <Cell
                 key={entry.name}
-                fill={segmentColors[index % segmentColors.length]}
+                fill={
+                  entry.color ?? segmentColors[index % segmentColors.length]
+                }
               />
             ))}
           </Pie>
@@ -64,19 +72,24 @@ export default function MetricDonut({
               padding: "6px 8px",
             }}
             formatter={(value, name) => [value, name]}
+            {...tooltipProps}
           />
         </PieChart>
       </ResponsiveContainer>
 
       {/* Donut center */}
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-sm font-bold leading-none text-text-primary">
-          {percentage.toFixed(1)}%
-        </span>
+        {centerContent ?? (
+          <>
+            <span className="text-sm font-bold leading-none text-text-primary">
+              {percentage.toFixed(1)}%
+            </span>
 
-        <span className="mt-1 text-[8px] font-semibold uppercase tracking-wide text-text-secondary">
-          {primaryLabel}
-        </span>
+            <span className="mt-1 text-[8px] font-semibold uppercase tracking-wide text-text-secondary">
+              {primaryLabel}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

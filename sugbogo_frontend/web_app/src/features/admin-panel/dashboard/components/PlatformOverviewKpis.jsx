@@ -1,22 +1,22 @@
-import {
-  ClipboardList,
-  MessageSquareText,
-  Store,
-  ThumbsUp,
-} from "lucide-react";
+import { Info, MessageSquareText, Store, ThumbsUp, Users } from "lucide-react";
+import Tooltip from "@/shared/components/actions/Tooltip";
 import MetricCard from "../../components/MetricCard";
 import { formatCount } from "../../analytics/utils/presentation";
 import DashboardQuerySection from "./DashboardQuerySection";
+import BusinessStatusDonut from "./BusinessStatusDonut";
+import AccountStatusDonut from "./AccountStatusDonut";
 
 /** Present verified activity and inventory using standard shared Admin metric cards and independent source recovery. */
 export default function PlatformOverviewKpis({ overview, summary }) {
   const metrics = [
     {
-      label: "Applications Submitted",
-      key: "applications_submitted",
+      label: "Active Accounts",
+      key: "active_accounts",
       query: overview,
-      icon: ClipboardList,
-      scope: "Last 7 days",
+      icon: Users,
+      scope: "Current count",
+      value: (data) => data.active_accounts,
+      help: "Accounts with active status assigned the Explorer or Merchant role. This is not a measure of recent engagement.",
     },
     {
       label: "Active Businesses",
@@ -24,6 +24,7 @@ export default function PlatformOverviewKpis({ overview, summary }) {
       query: summary,
       icon: Store,
       scope: "Current count",
+      value: (data) => data.active_businesses,
     },
     {
       label: "Reviews Published",
@@ -31,6 +32,7 @@ export default function PlatformOverviewKpis({ overview, summary }) {
       query: overview,
       icon: MessageSquareText,
       scope: "Last 7 days",
+      value: (data) => data.activity?.reviews_published,
     },
     {
       label: "Vouches Created",
@@ -38,6 +40,7 @@ export default function PlatformOverviewKpis({ overview, summary }) {
       query: overview,
       icon: ThumbsUp,
       scope: "Last 7 days",
+      value: (data) => data.activity?.vouches_created,
     },
   ];
   return (
@@ -60,12 +63,44 @@ export default function PlatformOverviewKpis({ overview, summary }) {
                 wrapTitle
                 title={metric.label}
                 icon={metric.icon}
-                value={formatCount(
-                  metric.key === "active_businesses"
-                    ? data.active_businesses
-                    : data.activity?.[metric.key],
-                )}
+                value={formatCount(metric.value(data))}
                 measurementLabel={metric.scope}
+                visualization={
+                  metric.key === "active_businesses" ? (
+                    <BusinessStatusDonut status={data.business_status} />
+                  ) : metric.key === "active_accounts" ? (
+                    <AccountStatusDonut
+                      activeCount={data.active_accounts}
+                      distribution={data.user_distribution}
+                    />
+                  ) : undefined
+                }
+                headerAction={
+                  metric.help && (
+                    <Tooltip
+                      content={metric.help}
+                      asChild
+                      place="top"
+                      openOnClick
+                      closeEvents={{ blur: true }}
+                      globalCloseEvents={{
+                        escape: true,
+                        clickOutsideAnchor: true,
+                        scroll: true,
+                        resize: true,
+                      }}
+                      className="!z-50 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal !px-3 !py-2 leading-relaxed"
+                    >
+                      <button
+                        type="button"
+                        aria-label={`About ${metric.label}`}
+                        className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
+                      >
+                        <Info aria-hidden="true" className="h-3.5 w-3.5" />
+                      </button>
+                    </Tooltip>
+                  )
+                }
               />
             )}
           </DashboardQuerySection>
