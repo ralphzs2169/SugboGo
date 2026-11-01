@@ -231,12 +231,6 @@ export default function ProfileScreen() {
             />
 
             <ProfileMenuItem
-              title="Language"
-              icon="translate"
-              onPress={() => {}}
-            />
-
-            <ProfileMenuItem
               title="Offline Storage"
               icon="database-outline"
               onPress={() => navigate(() => router.push("/offline-storage"))}
