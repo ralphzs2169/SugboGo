@@ -1,12 +1,16 @@
 import { dashboardQueryKeys } from "./dashboardQueryKeys.js";
 
-/** Refresh operational queues and decisions, plus activity when a review is first published. */
-export function invalidateDashboardDecision(queryClient, { publication = false } = {}) {
+/** Refresh pending work and decisions, plus overview when publication or assigned roles change. */
+export function invalidateDashboardDecision(
+  queryClient,
+  { publication = false, roleComposition = false } = {},
+) {
   const keys = [
     dashboardQueryKeys.summary,
     dashboardQueryKeys.recentDecisions,
+    dashboardQueryKeys.priorityWorklist,
   ];
-  if (publication) {
+  if (publication || roleComposition) {
     keys.push(dashboardQueryKeys.platformOverview);
   }
 

@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
+import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
 import { rejectBusinessApplication } from "../services/businessApplicationService";
 
 /**
@@ -9,6 +11,7 @@ import { rejectBusinessApplication } from "../services/businessApplicationServic
  * rejection action for the application review workflow.
  */
 export default function useRejectBusinessApplication() {
+  const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -18,6 +21,8 @@ export default function useRejectBusinessApplication() {
 
     try {
       const response = await rejectBusinessApplication(applicationId, payload);
+
+      await invalidateDashboardDecision(queryClient);
 
       return response;
     } catch (error) {

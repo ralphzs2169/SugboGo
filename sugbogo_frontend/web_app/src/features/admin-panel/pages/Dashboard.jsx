@@ -6,18 +6,20 @@ import LowerDashboardSection from "@/features/admin-panel/dashboard/components/L
 import DashboardQuerySection from "../dashboard/components/DashboardQuerySection";
 import {
   useDashboardPlatformOverview,
+  useDashboardPriorityWorklist,
   useDashboardRecentDecisions,
   useDashboardSummary,
 } from "../dashboard/hooks/useDashboardQueries";
 import PageHeader from "../components/PageHeader";
 
-/** Load three independent Dashboard resources while preserving the temporary widget presentation. */
+/** Load independent Dashboard resources while preserving the temporary widget presentation. */
 export default function Dashboard() {
   useDocumentTitle("Dashboard | SugboGo Admin");
 
   const summary = useDashboardSummary();
   const recentDecisions = useDashboardRecentDecisions();
   const platformOverview = useDashboardPlatformOverview();
+  const priorityWorklist = useDashboardPriorityWorklist();
 
   useApiErrorNotification(summary.error, {
     toastId: "admin-dashboard-summary-load-error",
@@ -30,6 +32,10 @@ export default function Dashboard() {
   useApiErrorNotification(platformOverview.error, {
     toastId: "admin-dashboard-platform-overview-load-error",
     fallbackMessage: "Unable to load the Dashboard platform overview. Please try again.",
+  });
+  useApiErrorNotification(priorityWorklist.error, {
+    toastId: "admin-dashboard-priority-worklist-load-error",
+    fallbackMessage: "Unable to load the Dashboard priority worklist. Please try again.",
   });
 
   return (
@@ -56,6 +62,14 @@ export default function Dashboard() {
         </DashboardQuerySection>
         <DashboardQuerySection query={recentDecisions} label="Recent administrative decisions">
           {(data) => <LowerDashboardSection recentDecisions={data} />}
+        </DashboardQuerySection>
+        {/* Temporary worklist load confirmation; item presentation follows separately */}
+        <DashboardQuerySection query={priorityWorklist} label="Priority worklist">
+          {() => (
+            <p className="text-sm text-text-secondary">
+              Priority worklist data is ready.
+            </p>
+          )}
         </DashboardQuerySection>
       </div>
     </>

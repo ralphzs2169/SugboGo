@@ -1,5 +1,6 @@
 import {
   fetchDashboardPlatformOverview,
+  fetchDashboardPriorityWorklist,
   fetchDashboardRecentDecisions,
   fetchDashboardSummary,
 } from "../../services/dashboardService";
@@ -31,5 +32,10 @@ export const dashboardQueryOptions = {
     dashboardQueryKeys.platformOverview,
     fetchDashboardPlatformOverview,
     60_000,
+  ),
+  priorityWorklist: () => resourceOptions(
+    dashboardQueryKeys.priorityWorklist,
+    fetchDashboardPriorityWorklist,
+    30_000,
   ),
 };

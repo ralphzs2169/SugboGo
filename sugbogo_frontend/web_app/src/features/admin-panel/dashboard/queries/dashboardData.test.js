@@ -70,9 +70,10 @@ const resources = [
   ["summary", "fetchDashboardSummary", "/admin/dashboard/", 30_000],
   ["recentDecisions", "fetchDashboardRecentDecisions", "/admin/dashboard/recent-decisions/", 30_000],
   ["platformOverview", "fetchDashboardPlatformOverview", "/admin/dashboard/platform-overview/", 60_000],
+  ["priorityWorklist", "fetchDashboardPriorityWorklist", "/admin/dashboard/priority-worklist/", 30_000],
 ];
 
-test("three services unwrap only the success envelope and forward AbortSignal into Axios", async () => {
+test("four services unwrap only the success envelope and forward AbortSignal into Axios", async () => {
   for (const [, method, url] of resources) {
     const controller = new AbortController();
     const result = await service[method]({ signal: controller.signal });
@@ -96,6 +97,31 @@ test("contract values retain unknown ages, distinct cases, server windows and un
       reviews_published: 0,
     },
     user_distribution: { explorer: 1, merchant: 1, admin: 1, super_admin: 1, unknown_role: 2, total: 6 },
+    as_of: "2026-11-01T04:00:00Z",
+    items: [
+      {
+        id: "merchant_application:12",
+        type: "merchant_application",
+        title: "Application awaiting review",
+        status: "submitted",
+        timestamp: null,
+        timestamp_source: null,
+        priority: "pending",
+        entity: { id: 12, label: "Application #12" },
+        application_aging: { status: "unknown_age", business_days: null },
+        pending_report_count: null,
+      },
+      {
+        id: "reported_review:12",
+        type: "reported_review",
+        timestamp: "2026-10-30T04:00:00Z",
+        timestamp_source: "first_pending_report_created_at",
+        priority: "pending",
+        entity: { id: 12, label: "Business unavailable" },
+        application_aging: null,
+        pending_report_count: 3,
+      },
+    ],
   };
   for (const [, method] of resources) {
     assert.equal(await service[method](), payload);
@@ -106,7 +132,8 @@ test("canonical Dashboard keys are stable, distinct and separate from Analytics 
   assert.deepEqual(keys.summary, ["admin", "dashboard", "summary"]);
   assert.deepEqual(keys.recentDecisions, ["admin", "dashboard", "recent-decisions"]);
   assert.deepEqual(keys.platformOverview, ["admin", "dashboard", "platform-overview"]);
-  assert.equal(new Set(resources.map(([resource]) => JSON.stringify(keys[resource]))).size, 3);
+  assert.deepEqual(keys.priorityWorklist, ["admin", "dashboard", "priority-worklist"]);
+  assert.equal(new Set(resources.map(([resource]) => JSON.stringify(keys[resource]))).size, 4);
   for (const [resource] of resources) {
     assert.deepEqual(options[resource]().queryKey, keys[resource]);
     assert.deepEqual(options[resource]().queryKey, options[resource]().queryKey);
@@ -136,7 +163,7 @@ test("services preserve failures rather than manufacturing empty data", async ()
   }
 });
 
-test("decision invalidation targets summary and decisions, adding overview only for publication", async () => {
+test("decisions invalidate pending work, adding overview for publication or role composition", async () => {
   const invalidations = [];
   const client = {
     invalidateQueries: async (filters) => invalidations.push(filters),
@@ -145,14 +172,20 @@ test("decision invalidation targets summary and decisions, adding overview only 
   assert.deepEqual(invalidations, [
     { queryKey: keys.summary, exact: true },
     { queryKey: keys.recentDecisions, exact: true },
+    { queryKey: keys.priorityWorklist, exact: true },
   ]);
   invalidations.length = 0;
   await invalidateDecision(client, { publication: true });
   assert.deepEqual(invalidations, [
     { queryKey: keys.summary, exact: true },
     { queryKey: keys.recentDecisions, exact: true },
+    { queryKey: keys.priorityWorklist, exact: true },
     { queryKey: keys.platformOverview, exact: true },
   ]);
+  const publicationInvalidations = [...invalidations];
+  invalidations.length = 0;
+  await invalidateDecision(client, { roleComposition: true });
+  assert.deepEqual(invalidations, publicationInvalidations);
 });
 
 test("a new login and token clearing discard cached Dashboard data", () => {
@@ -181,30 +214,32 @@ test("same-session token rotation preserves cached Dashboard data", () => {
   assert.equal(queryClient.getQueryData(keys.summary), payload);
 });
 
-test("session clearing aborts Axios requests and late responses cannot repopulate the cache", async () => {
-  let finish;
-  let started;
-  let signal;
-  const requestStarted = new Promise((resolve) => { started = resolve; });
-  apiClient.defaults.adapter = (config) => new Promise((resolve) => {
-    signal = config.signal;
-    finish = () => resolve({
-      data: { data: { account: "obsolete" } },
-      status: 200,
-      statusText: "OK",
-      headers: {},
-      config,
+for (const resource of ["summary", "priorityWorklist"]) {
+  test(`${resource} session clearing aborts Axios and prevents late cache writes`, async () => {
+    let finish;
+    let started;
+    let signal;
+    const requestStarted = new Promise((resolve) => { started = resolve; });
+    apiClient.defaults.adapter = (config) => new Promise((resolve) => {
+      signal = config.signal;
+      finish = () => resolve({
+        data: { data: { account: "obsolete" } },
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      });
+      started();
     });
-    started();
+    const pending = queryClient.fetchQuery(options[resource]());
+    const rejected = assert.rejects(pending);
+    await requestStarted;
+    storage.clearTokens();
+    assert.equal(signal.aborted, true);
+    finish();
+    await rejected;
+    await Promise.resolve();
+    assert.equal(queryClient.getQueryData(keys[resource]), undefined);
+    assert.equal(queryClient.getQueryCache().find({ queryKey: keys[resource] }), undefined);
   });
-  const pending = queryClient.fetchQuery(options.summary());
-  const rejected = assert.rejects(pending);
-  await requestStarted;
-  storage.clearTokens();
-  assert.equal(signal.aborted, true);
-  finish();
-  await rejected;
-  await Promise.resolve();
-  assert.equal(queryClient.getQueryData(keys.summary), undefined);
-  assert.equal(queryClient.getQueryCache().find({ queryKey: keys.summary }), undefined);
-});
+}

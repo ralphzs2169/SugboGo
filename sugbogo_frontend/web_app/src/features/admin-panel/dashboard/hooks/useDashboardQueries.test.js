@@ -32,8 +32,11 @@ const resources = [
   ["summary", "useDashboardSummary", "/admin/dashboard/", "Operational summary"],
   ["recentDecisions", "useDashboardRecentDecisions", "/admin/dashboard/recent-decisions/", "Recent administrative decisions"],
   ["platformOverview", "useDashboardPlatformOverview", "/admin/dashboard/platform-overview/", "Platform overview"],
+  ["priorityWorklist", "useDashboardPriorityWorklist", "/admin/dashboard/priority-worklist/", "Priority worklist"],
 ];
 const mutationPaths = {
+  applicationApproval: "business-applications/hooks/useApproveBusinessApplication.js",
+  applicationRejection: "business-applications/hooks/useRejectBusinessApplication.js",
   businessName: "business-update-requests/hooks/useBusinessUpdateRequestDecisions.js",
   classification: "business-update-requests/hooks/useClassificationUpdateRequestDecisions.js",
   location: "business-update-requests/hooks/useLocationUpdateRequestDecisions.js",
@@ -191,10 +194,23 @@ async function until(predicate) {
   assert.fail("Dashboard query did not reach the expected state.");
 }
 
-test("all three hooks expose independent native query state and cancellation signals", async () => {
+function loadedContent(resource) {
+  const [, , , label] = resources.find(([name]) => name === resource);
+  const section = container.querySelector(`section[aria-label="${label}"]`);
+  if (resource === "priorityWorklist") {
+    return section?.textContent.includes("Priority worklist data is ready.");
+  }
+  return Boolean(section?.querySelector("output"));
+}
+
+function loadedSectionCount() {
+  return resources.filter(([resource]) => loadedContent(resource)).length;
+}
+
+test("all four hooks expose independent native query state and cancellation signals", async () => {
   await render(resources.map(([, name]) => React.createElement(Probe, { key: name, name })));
   await until(() => resources.every(([, name]) => results.get(name)?.isSuccess));
-  assert.equal(reads.length, 3);
+  assert.equal(reads.length, 4);
   for (const [, name, url] of resources) {
     const query = results.get(name);
     assert.equal(query.data.source, url);
@@ -212,7 +228,7 @@ test("disabled queries do not fetch and unmount aborts active requests", async (
   assert.equal(reads.length, 0);
   transport = () => new Promise(() => {});
   await render(resources.map(([, name]) => React.createElement(Probe, { key: name, name })));
-  await until(() => reads.length === 3);
+  await until(() => reads.length === 4);
   const signals = reads.map((request) => request.signal);
   await render(null);
   assert.equal(signals.every((signal) => signal.aborted), true);
@@ -228,53 +244,61 @@ for (const [resource, , failingUrl, label] of resources) {
     await render(React.createElement(Page));
     const section = () => container.querySelector(`section[aria-label="${label}"]`);
     await until(() => section()?.querySelector('[role="alert"]')
-      && container.querySelectorAll("output").length === 2);
+      && loadedSectionCount() === 3);
     assert.equal(container.querySelector("h1").textContent, "Dashboard");
-    assert.equal(container.querySelector(`[data-resource="${resource}"]`), null);
+    assert.equal(loadedContent(resource), false);
     const notificationIds = notifications.map(([, options]) => options.id);
     const expectedId = resource === "summary"
       ? "admin-dashboard-summary-load-error"
       : resource === "recentDecisions"
         ? "admin-dashboard-decisions-load-error"
-        : "admin-dashboard-platform-overview-load-error";
+        : resource === "priorityWorklist"
+          ? "admin-dashboard-priority-worklist-load-error"
+          : "admin-dashboard-platform-overview-load-error";
     assert.ok(notificationIds.includes(expectedId));
     failing = false;
     const previousReads = reads.length;
     await act(async () => section().querySelector("button").click());
-    await until(() => container.querySelectorAll("output").length === 3);
+    await until(() => loadedSectionCount() === 4);
     assert.equal(reads.length, previousReads + 1);
     assert.equal(reads.at(-1).url, failingUrl);
   });
 }
 
-test("page header stays visible during three independent initial loads", async () => {
+test("page header stays visible during four independent initial loads", async () => {
   transport = () => new Promise(() => {});
   await render(React.createElement(Page));
   assert.equal(container.querySelector("h1").textContent, "Dashboard");
-  assert.equal(container.querySelectorAll('[role="status"]').length, 3);
-  assert.equal(container.querySelectorAll("output").length, 0);
+  assert.equal(container.querySelectorAll('[role="status"]').length, 4);
+  assert.equal(loadedSectionCount(), 0);
 });
 
-test("background refresh and refresh failure preserve loaded section content", async () => {
-  await render(React.createElement(Page));
-  await until(() => container.querySelectorAll("output").length === 3);
-  const loaded = container.querySelector('[data-resource="summary"]').textContent;
-  let reject;
-  transport = () => new Promise((resolveRequest, rejectRequest) => { reject = rejectRequest; });
-  let refresh;
-  await act(async () => {
-    refresh = client.refetchQueries({ queryKey: keys.summary, exact: true });
+for (const [resource, label] of [
+  ["summary", "Operational summary"],
+  ["priorityWorklist", "Priority worklist"],
+]) {
+  test(`${resource} background refresh and failure preserve loaded section content`, async () => {
+    await render(React.createElement(Page));
+    await until(() => loadedSectionCount() === 4);
+    let reject;
+    transport = () => new Promise((resolveRequest, rejectRequest) => { reject = rejectRequest; });
+    let refresh;
+    await act(async () => {
+      refresh = client.refetchQueries({ queryKey: keys[resource], exact: true });
+    });
+    await until(() => container.textContent.includes(`Refreshing ${label.toLowerCase()}`));
+    assert.equal(loadedContent(resource), true);
+    await act(async () => { reject(new Error("Refresh failed")); await refresh; });
+    await until(() => container.textContent.includes("Previously loaded data remains visible"));
+    assert.equal(loadedSectionCount(), 4);
+    assert.equal(loadedContent(resource), true);
   });
-  await until(() => container.textContent.includes("Refreshing operational summary"));
-  assert.equal(container.querySelector('[data-resource="summary"]').textContent, loaded);
-  await act(async () => { reject(new Error("Refresh failed")); await refresh; });
-  await until(() => container.textContent.includes("Previously loaded data remains visible"));
-  assert.equal(container.querySelectorAll("output").length, 3);
-  assert.equal(container.querySelector('[data-resource="summary"]').textContent, loaded);
-});
+}
 
-const queueKeys = ["summary", "recentDecisions"];
+const queueKeys = ["summary", "recentDecisions", "priorityWorklist"];
 const mutationCases = [
+  ["applicationApproval", "approveApplication", [12, 8], [...queueKeys, "platformOverview"]],
+  ["applicationRejection", "rejectApplication", [12, { reason: "Reason" }], queueKeys],
   ["businessName", "approve", 12, queueKeys],
   ["businessName", "reject", { requestId: 12, rejectionReason: "Reason" }, queueKeys],
   ["classification", "approve", 12, queueKeys],
@@ -296,16 +320,50 @@ for (const [name, action, args, invalidated] of mutationCases) {
     const analyticsKey = ["admin", "analytics", "sentinel"];
     client.setQueryData(analyticsKey, { value: 1 });
     await render(React.createElement(MutationProbe, { name }));
-    await act(async () => { await mutationResult[action](args); });
+    const actionArgs = Array.isArray(args) ? args : [args];
+    await act(async () => { await mutationResult[action](...actionArgs); });
     for (const [resource] of resources) {
       assert.equal(client.getQueryState(keys[resource]).isInvalidated, invalidated.includes(resource));
     }
     assert.equal(client.getQueryState(analyticsKey).isInvalidated, false);
     assert.equal(posts.length, 1);
+    if (name === "applicationApproval") {
+      assert.deepEqual(posts[0], [
+        "/admin/businesses/applications/12/approve/",
+        { expected_submission_id: 8 },
+      ]);
+    }
+    if (name === "applicationRejection") {
+      assert.deepEqual(posts[0], [
+        "/admin/businesses/applications/12/reject/",
+        args[1],
+      ]);
+    }
   });
 }
 
-test("reported-review decision invalidates summary and decisions without changing overview", async () => {
+for (const name of ["applicationApproval", "applicationRejection"]) {
+  test(`${name} failure preserves submission errors without invalidating Dashboard data`, async (t) => {
+    t.mock.method(console, "error", () => {});
+    const failure = new Error("Application decision failed");
+    globalThis.__dashboardPost = async () => { throw failure; };
+    for (const [resource] of resources) {
+      client.setQueryData(keys[resource], { value: 1 });
+    }
+    await render(React.createElement(MutationProbe, { name }));
+    const action = name === "applicationApproval" ? "approveApplication" : "rejectApplication";
+    await act(async () => {
+      await assert.rejects(mutationResult[action](12, 8), (error) => error === failure);
+    });
+    assert.equal(mutationResult.error, failure);
+    assert.equal(mutationResult.isSubmitting, false);
+    for (const [resource] of resources) {
+      assert.equal(client.getQueryState(keys[resource]).isInvalidated, false);
+    }
+  });
+}
+
+test("reported-review decision invalidates pending work and decisions without changing overview", async () => {
   for (const [resource] of resources) client.setQueryData(keys[resource], { value: 1 });
   transport = async () => ({ data: { data: { items: [], pagination: { total_pages: 0 } } } });
   await render(React.createElement(ReportedWorkspace), "/admin-panel/moderation-integrity?tab=reported");
@@ -317,5 +375,6 @@ test("reported-review decision invalidates summary and decisions without changin
   });
   await until(() => posts.length === 1 && client.getQueryState(keys.summary).isInvalidated);
   assert.equal(client.getQueryState(keys.recentDecisions).isInvalidated, true);
+  assert.equal(client.getQueryState(keys.priorityWorklist).isInvalidated, true);
   assert.equal(client.getQueryState(keys.platformOverview).isInvalidated, false);
 });

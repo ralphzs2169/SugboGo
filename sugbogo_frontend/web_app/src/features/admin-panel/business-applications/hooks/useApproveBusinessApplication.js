@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
+import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
 import { approveBusinessApplication } from "../services/businessApplicationService";
 
 /**
@@ -9,6 +11,7 @@ import { approveBusinessApplication } from "../services/businessApplicationServi
  * approval action for the application review workflow.
  */
 export default function useApproveBusinessApplication() {
+  const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -21,6 +24,8 @@ export default function useApproveBusinessApplication() {
         applicationId,
         expectedSubmissionId,
       );
+
+      await invalidateDashboardDecision(queryClient, { roleComposition: true });
 
       return response;
     } catch (error) {

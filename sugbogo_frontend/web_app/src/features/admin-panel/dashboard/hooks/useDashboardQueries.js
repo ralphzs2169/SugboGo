@@ -15,3 +15,8 @@ export function useDashboardRecentDecisions({ enabled = true } = {}) {
 export function useDashboardPlatformOverview({ enabled = true } = {}) {
   return useQuery({ ...dashboardQueryOptions.platformOverview(), enabled });
 }
+
+/** Keep pending work independently loadable, cancellable, and retryable. */
+export function useDashboardPriorityWorklist({ enabled = true } = {}) {
+  return useQuery({ ...dashboardQueryOptions.priorityWorklist(), enabled });
+}

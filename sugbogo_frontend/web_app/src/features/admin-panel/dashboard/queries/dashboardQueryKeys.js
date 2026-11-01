@@ -5,4 +5,5 @@ export const dashboardQueryKeys = {
   summary: [...all, "summary"],
   recentDecisions: [...all, "recent-decisions"],
   platformOverview: [...all, "platform-overview"],
+  priorityWorklist: [...all, "priority-worklist"],
 };

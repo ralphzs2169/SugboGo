@@ -21,3 +21,11 @@ export async function fetchDashboardPlatformOverview({ signal } = {}) {
   });
   return response.data.data;
 }
+
+/** Preserve worklist identities, queue timestamps, priorities, and optional metadata unchanged. */
+export async function fetchDashboardPriorityWorklist({ signal } = {}) {
+  const response = await apiClient.get("/admin/dashboard/priority-worklist/", {
+    signal,
+  });
+  return response.data.data;
+}
