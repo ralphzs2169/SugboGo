@@ -1,9 +1,19 @@
+import { ArrowRight, ChartNoAxesCombined } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useAuthStore } from "@/features/auth/storage/auth.store";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
-import MetricRow from "@/features/admin-panel/dashboard/components/MetricRow";
-import DiscoveryActivity from "@/features/admin-panel/dashboard/components/DiscoveryActivity";
-import LowerDashboardSection from "@/features/admin-panel/dashboard/components/LowerDashboardSection";
+import navigation from "../config/sidebarNavigation";
+import { formatTimestamp } from "../analytics/utils/presentation";
+import NeedsAttention from "../dashboard/components/NeedsAttention";
+import PriorityWorklist from "../dashboard/components/PriorityWorklist";
+import ApplicationReviewAging from "../dashboard/components/ApplicationReviewAging";
+import PlatformActivity from "../dashboard/components/PlatformActivity";
+import UserDistribution from "../dashboard/components/UserDistribution";
+import BusinessHealth from "../dashboard/components/BusinessHealth";
+import RecentDecisions from "../dashboard/components/RecentDecisions";
 import DashboardQuerySection from "../dashboard/components/DashboardQuerySection";
+import { dashboardLinkClass, dashboardQueues, latestDashboardTimestamp } from "../dashboard/utils/dashboardPresentation";
 import {
   useDashboardPlatformOverview,
   useDashboardPriorityWorklist,
@@ -12,7 +22,7 @@ import {
 } from "../dashboard/hooks/useDashboardQueries";
 import PageHeader from "../components/PageHeader";
 
-/** Load independent Dashboard resources while preserving the temporary widget presentation. */
+/** Present real operational queues and concise context with independent query recovery and existing Admin styling. */
 export default function Dashboard() {
   useDocumentTitle("Dashboard | SugboGo Admin");
 
@@ -20,6 +30,15 @@ export default function Dashboard() {
   const recentDecisions = useDashboardRecentDecisions();
   const platformOverview = useDashboardPlatformOverview();
   const priorityWorklist = useDashboardPriorityWorklist();
+  const role = useAuthStore((state) => state.user?.role);
+  const links = navigation.flatMap((section) => section.items);
+  const canViewAnalytics = links.find((item) => item.to === "/admin-panel/analytics")?.roles.includes(role);
+  const canViewScores = links.find((item) => item.to === "/admin-panel/analytics/discovery-scores")?.roles.includes(role);
+  const updatedAt = latestDashboardTimestamp(
+    summary.data?.as_of,
+    platformOverview.data?.as_of,
+    priorityWorklist.data?.as_of,
+  );
 
   useApiErrorNotification(summary.error, {
     toastId: "admin-dashboard-summary-load-error",
@@ -39,39 +58,70 @@ export default function Dashboard() {
   });
 
   return (
-    <>
+    <div className="min-w-0 space-y-4">
       {/* Page identity remains visible regardless of individual request state */}
-      <PageHeader
-        breadcrumbs={[
-          {
-            label: "SugboGo Admin",
-          },
-          {
-            label: "Dashboard",
-          },
-        ]}
-        title="Dashboard"
-      />
-      <div className="flex flex-col gap-6">
-        {/* Independent resource boundaries; final widget replacement follows separately */}
-        <DashboardQuerySection query={summary} label="Operational summary">
-          {(data) => <MetricRow summary={data} />}
-        </DashboardQuerySection>
-        <DashboardQuerySection query={platformOverview} label="Platform overview">
-          {(data) => <DiscoveryActivity overview={data} />}
-        </DashboardQuerySection>
-        <DashboardQuerySection query={recentDecisions} label="Recent administrative decisions">
-          {(data) => <LowerDashboardSection recentDecisions={data} />}
-        </DashboardQuerySection>
-        {/* Temporary worklist load confirmation; item presentation follows separately */}
-        <DashboardQuerySection query={priorityWorklist} label="Priority worklist">
-          {() => (
-            <p className="text-sm text-text-secondary">
-              Priority worklist data is ready.
-            </p>
-          )}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <PageHeader
+            breadcrumbs={[{ label: "SugboGo Admin" }, { label: "Dashboard" }]}
+            title="Dashboard"
+          />
+          <p className="text-sm text-text-secondary">Platform operations overview</p>
+        </div>
+        {updatedAt && <p className="text-xs text-text-secondary">Updated <time dateTime={updatedAt}>{formatTimestamp(updatedAt)}</time> · Manila</p>}
+      </div>
+
+      {/* Current actionable inventories */}
+      <DashboardQuerySection query={summary} label="Needs Your Attention" description="Current pending work across administrative queues." framed={false}>
+        {(data) => <NeedsAttention summary={data} />}
+      </DashboardQuerySection>
+
+      {/* Bounded pending records and the existing weekday review target */}
+      <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-3">
+        <div className="min-w-0 lg:col-span-2 [&>section]:h-full">
+          <DashboardQuerySection
+            query={priorityWorklist}
+            label="Priority Worklist"
+            description="Pending work, with overdue applications first."
+            action={<Link className={`${dashboardLinkClass} inline-flex min-h-9 items-center gap-1 text-xs`} to={dashboardQueues.applications}>View applications <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" /></Link>}
+          >
+            {(data) => <PriorityWorklist items={data.items} />}
+          </DashboardQuerySection>
+        </div>
+        <DashboardQuerySection query={summary} label="Application Review Aging" description="Current submitted applications · elapsed weekdays">
+          {(data) => <ApplicationReviewAging aging={data.applications?.aging} />}
         </DashboardQuerySection>
       </div>
-    </>
+
+      {/* Period activity stays separate from current account and business inventories */}
+      <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-3">
+        <DashboardQuerySection query={platformOverview} label="Platform Activity" description="Last 7 days">
+          {(data) => <PlatformActivity activity={data.activity} />}
+        </DashboardQuerySection>
+        <DashboardQuerySection query={platformOverview} label="User Distribution" description="Registered accounts by role">
+          {(data) => <UserDistribution distribution={data.user_distribution} />}
+        </DashboardQuerySection>
+        <BusinessHealth summary={summary} canViewScores={canViewScores} />
+      </div>
+
+      {/* Safe persisted decisions rather than a fabricated platform activity stream */}
+      <DashboardQuerySection query={recentDecisions} label="Recent Administrative Decisions" description="Latest five supported recorded decisions · current entity labels">
+        {(data) => <RecentDecisions items={data.items} />}
+      </DashboardQuerySection>
+
+      {/* The existing navigation policy controls the Analytics entry point */}
+      {canViewAnalytics && (
+        <Link to="/admin-panel/analytics" className={`${dashboardLinkClass} flex items-center justify-between gap-4 rounded-xl border border-stroke bg-background p-4 hover:bg-surface-hover sm:p-5`}>
+          <div className="flex min-w-0 items-center gap-3">
+            <ChartNoAxesCombined aria-hidden="true" className="h-5 w-5 shrink-0 text-text-secondary" />
+            <div>
+              <span className="block text-base font-semibold">Explore detailed Analytics</span>
+              <span className="mt-1 block text-xs font-normal text-text-secondary">Performance, discovery, onboarding trends, and reports.</span>
+            </div>
+          </div>
+          <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" />
+        </Link>
+      )}
+    </div>
   );
 }

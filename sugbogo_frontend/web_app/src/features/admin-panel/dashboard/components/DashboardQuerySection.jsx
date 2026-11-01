@@ -1,16 +1,36 @@
 import DataErrorState from "@/shared/components/errors/DataErrorState";
+import DashboardSkeleton from "./DashboardSkeleton";
 
 /** Isolate one Dashboard request while retaining its loaded content during refresh and retry. */
-export default function DashboardQuerySection({ query, label, children }) {
+export default function DashboardQuerySection({
+  query,
+  label,
+  description,
+  children,
+  action,
+  framed = true,
+  headingAs = "h2",
+}) {
   const hasData = query.data !== undefined;
+  const Heading = headingAs;
 
   return (
-    <section aria-label={label} aria-busy={query.isFetching} className="min-w-0">
+    <section
+      aria-label={label}
+      aria-busy={query.isFetching}
+      className={framed ? "min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-5" : "min-w-0"}
+    >
+      {/* Match Analytics headings and keep independent refresh feedback unobtrusive */}
+      <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <Heading className={`${headingAs === "h3" ? "text-sm" : "text-base"} font-semibold text-text-primary`}>{label}</Heading>
+          {description && <p className="mt-1 text-xs leading-relaxed text-text-secondary">{description}</p>}
+        </div>
+        {action}
+      </header>
       {/* Independent initial load and persistent recovery */}
       {query.isLoading && !hasData && (
-        <p role="status" className="py-4 text-sm text-text-secondary">
-          Loading {label.toLowerCase()}…
-        </p>
+        <DashboardSkeleton label={label} />
       )}
       {query.error && (
         <DataErrorState
@@ -25,7 +45,7 @@ export default function DashboardQuerySection({ query, label, children }) {
         />
       )}
 
-      {/* Existing presentation receives successful data without refresh-time blanking */}
+      {/* Successful content remains visible during refresh and recoverable errors */}
       {hasData && children(query.data)}
       {hasData && query.isFetching && (
         <p role="status" className="mt-2 text-xs text-text-secondary">
