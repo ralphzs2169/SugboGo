@@ -29,9 +29,18 @@ class PlatformActivityDaySerializer(serializers.Serializer):
     vouches_created = serializers.IntegerField(read_only=True)
 
 
+class PlatformActivityPreviousSerializer(serializers.Serializer):
+    """Expose equivalent elapsed activity one calendar week earlier."""
+
+    window = PlatformActivityWindowSerializer(read_only=True)
+    reviews_published = serializers.IntegerField(read_only=True)
+    vouches_created = serializers.IntegerField(read_only=True)
+
+
 class PlatformActivitySerializer(serializers.Serializer):
     """Serialize retained submission, first-publication, and vouch-creation events."""
 
+    previous = PlatformActivityPreviousSerializer(read_only=True)
     window = PlatformActivityWindowSerializer(read_only=True)
     applications_submitted = serializers.IntegerField(read_only=True)
     reviews_published = serializers.IntegerField(read_only=True)

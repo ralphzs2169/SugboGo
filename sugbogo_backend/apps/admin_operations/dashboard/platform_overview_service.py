@@ -35,15 +35,20 @@ class PlatformOverviewService:
         model,
         timestamp_field,
         period,
+        previous_window=None,
     ):
         """Group retained events by Manila date within the single captured reporting window."""
+        bounds = Q(**{
+            f"{timestamp_field}__gte": period.start,
+            f"{timestamp_field}__lt": period.end,
+        })
+        if previous_window is not None:
+            bounds |= Q(**{
+                f"{timestamp_field}__gte": previous_window["start"],
+                f"{timestamp_field}__lt": previous_window["end_exclusive"],
+            })
         rows = (
-            model.objects.filter(
-                **{
-                    f"{timestamp_field}__gte": period.start,
-                    f"{timestamp_field}__lt": period.end,
-                },
-            )
+            model.objects.filter(bounds)
             .order_by()
             .annotate(
                 date=TruncDate(
@@ -76,17 +81,38 @@ class PlatformOverviewService:
             {"date": period.start_date + timedelta(days=offset)}
             for offset in range(7)
         ]
+        previous = {
+            "window": {
+                "start": period.start - timedelta(days=7),
+                "end_exclusive": period.end - timedelta(days=7),
+                "timezone": MANILA.key,
+                "includes_partial_day": period.includes_partial_day,
+            },
+        }
         totals = {}
         for metric, model, timestamp_field in sources:
+            previous_window = None
+            if metric in ("reviews_published", "vouches_created"):
+                previous_window = previous["window"]
             counts = PlatformOverviewService._daily_counts(
                 model,
                 timestamp_field,
                 period,
+                previous_window=previous_window,
             )
             for bucket in daily:
                 bucket[metric] = counts.get(bucket["date"], 0)
             # Derive each total from the same grouped read, avoiding count-to-series races.
-            totals[metric] = sum(counts.values())
+            totals[metric] = sum(
+                bucket[metric]
+                for bucket in daily
+            )
+            if previous_window is not None:
+                previous[metric] = sum(
+                    count
+                    for date, count in counts.items()
+                    if date < period.start_date
+                )
         distribution = User.objects.aggregate(
             total=Count("USER_ID"),
             active_accounts=Count(
@@ -138,6 +164,7 @@ class PlatformOverviewService:
                     "includes_partial_day": period.includes_partial_day,
                 },
                 **totals,
+                "previous": previous,
                 "daily": daily,
                 "definitions": PlatformOverviewService.ACTIVITY_DEFINITIONS,
             },

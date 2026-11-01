@@ -89,7 +89,7 @@ export default function NeedsAttention({ summary }) {
     },
     {
       key: "changes",
-      label: "Changes",
+      label: "Change Requests",
       description: "Pending requests",
       value: summary.change_requests?.pending_total,
       to: dashboardQueues.changes,

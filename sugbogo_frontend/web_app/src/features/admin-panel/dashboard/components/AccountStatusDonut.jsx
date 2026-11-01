@@ -18,7 +18,10 @@ export default function AccountStatusDonut({ activeCount, distribution }) {
     () => ({ activeCount, distribution }),
     [activeCount, distribution],
   );
-  const animation = useChartEntrance(available && total > 0 ? source : null);
+  const animation = useChartEntrance(available && total > 0 ? source : null, {
+    animationDuration: 1500,
+    animationEasing: "ease",
+  });
   const data = [
     { name: "Active", value: activeCount },
     { name: "Other statuses", value: total - activeCount },

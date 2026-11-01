@@ -476,11 +476,11 @@ test("top sections retain formatted KPI values and explicit measurement scopes",
     assert.equal(card.querySelector("h3").textContent, label);
     assert.ok(card.querySelector(".bg-metric-header.border-b"));
     assert.ok(
-      [...card.querySelectorAll("div")].some(
+      [...card.querySelectorAll("div, span")].some(
         (node) => node.textContent === count,
       ),
     );
-    assert.equal(card.querySelector("p").textContent, scope);
+    assert.ok(card.querySelector("p").textContent.includes(scope));
   }
   assert.match(
     overview.querySelector(".grid").className,
@@ -849,7 +849,7 @@ test("top sections freshness identifies independent source updates, not decision
     'time[datetime="2026-11-01T05:00:00Z"]',
   ).parentElement;
   assert.match(freshness.textContent, /Latest source update/);
-  assert.match(freshness.textContent, /Manila/);
+  assert.match(freshness.textContent, /PHT/);
   assert.match(freshness.textContent, /Sections refresh independently./);
   assert.equal(
     presentation.latestDashboardTimestamp(undefined, "invalid", null),
@@ -1101,7 +1101,7 @@ test("chart enhancements activity tooltip exposes the full Manila date and exact
   );
   const tooltip = container.querySelector('[role="tooltip"]');
   assert.match(tooltip.textContent, /Sunday/);
-  assert.match(tooltip.textContent, /2026.*Manila/);
+  assert.match(tooltip.textContent, /2026.*PHT/);
   assert.match(tooltip.textContent, /Vouches created12,345/);
 });
 
@@ -1628,7 +1628,7 @@ test("worklist final scope and empty state do not imply the entire backlog is em
   );
   assert.match(
     section.textContent,
-    /Up to 5 priority items · Overdue applications first · Manila time/,
+    /Up to 5 priority items · Overdue applications first · PHT/,
   );
   assert.doesNotMatch(
     section.textContent,
@@ -1840,7 +1840,7 @@ test("worklist polish preserves five backend-ordered rows, metadata and internal
     labels.slice(0, 5),
   );
   assert.equal(section.textContent.includes(labels[5]), false);
-  assert.equal(section.textContent.match(/Manila/g).length, 1);
+  assert.equal(section.textContent.match(/PHT/g).length, 1);
   assert.equal(section.querySelector(".lucide-arrow-up-right"), null);
   assert.equal(section.querySelectorAll(".lucide-chevron-right").length, 4);
   assert.match(rows[2].textContent, /3 pending reports/);
@@ -2185,9 +2185,9 @@ test("recent decisions polish preserves five recorded actors, timestamps and saf
   );
   assert.match(
     section.textContent,
-    /Latest 5 administrative decisions · Manila time/,
+    /Latest 5 administrative decisions · PHT/,
   );
-  assert.equal(section.textContent.match(/Manila/g).length, 1);
+  assert.equal(section.textContent.match(/PHT/g).length, 1);
   const rows = [...section.querySelectorAll("li")];
   assert.equal(rows.length, 5);
   assert.deepEqual(
@@ -2770,3 +2770,25 @@ test("dashboard contextual help remains available during an independent activity
     ["/admin/dashboard/platform-overview/"],
   );
 });
+
+for (const [current, previous, label] of [[8, 3, "5 more"], [3, 8, "5 fewer"], [0, 0, "No change"], [5, 0, "5 more"], [5, undefined, "Comparison unavailable"]]) {
+  test(`activity KPI comparisons show ${label}`, async () => {
+    transport = async (url) => {
+      const data = dashboardFixture(url);
+      if (url.endsWith("platform-overview/")) {
+        data.activity.reviews_published = current;
+        data.activity.vouches_created = current;
+        data.activity.previous = { reviews_published: previous, vouches_created: previous };
+      }
+      return { data: { data } };
+    };
+    await render(React.createElement(Page));
+    await until(() => loadedSectionCount() === 4);
+    for (const title of ["Reviews Published", "Vouches Created"]) {
+      const card = container.querySelector(`section[aria-label="${title}"]`);
+      assert.ok(card.textContent.includes(label));
+      assert.ok(card.textContent.includes(`Previous period: ${previous === undefined ? "Unavailable" : previous}`));
+      assert.equal(card.textContent.includes("%"), false);
+    }
+  });
+}

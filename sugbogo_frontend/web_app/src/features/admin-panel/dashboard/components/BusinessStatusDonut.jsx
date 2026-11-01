@@ -12,6 +12,7 @@ export default function BusinessStatusDonut({ status }) {
     keys.reduce((sum, key) => sum + status[key], 0) === status.total;
   const animation = useChartEntrance(
     available && status.total > 0 ? status : null,
+    { animationDuration: 1500, animationEasing: "ease" },
   );
   const data = [
     { name: "Active", value: status?.active },

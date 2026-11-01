@@ -21,7 +21,10 @@ export default function DashboardDonut({
     total >= 0 &&
     rows.every((row) => Number.isInteger(row.count) && row.count >= 0) &&
     rows.reduce((sum, row) => sum + row.count, 0) === total;
-  const animation = useChartEntrance(available && total > 0 ? source : null);
+  const animation = useChartEntrance(available && total > 0 ? source : null, {
+    animationDuration: 1500,
+    animationEasing: "ease",
+  });
   const visibleRows = rows.filter((row) => !row.optional || row.count > 0);
   const percent = (value) =>
     `${(total > 0 ? (value / total) * 100 : 0).toFixed(1)}%`;

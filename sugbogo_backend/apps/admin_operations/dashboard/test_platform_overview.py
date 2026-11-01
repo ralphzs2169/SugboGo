@@ -86,6 +86,61 @@ class PlatformOverviewFixtures(DashboardFixtures):
 class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
     """Protect event semantics, half-open Manila periods, and disjoint account roles."""
 
+    def test_previous_activity_uses_shifted_equal_elapsed_windows(self):
+        """Count first publication and original creation only inside matching week bounds."""
+        business = self.create_business()
+        tag = SpecialtyTag.objects.create(TAG_NAME="Comparison")
+        now = datetime.fromisoformat("2026-11-02T02:00:00+08:00")
+        for stamp in (
+            "2026-10-20T00:00:00+08:00",
+            "2026-10-26T01:59:59+08:00",
+            "2026-10-26T02:00:00+08:00",
+            "2026-10-27T00:00:00+08:00",
+        ):
+            timestamp = datetime.fromisoformat(stamp)
+            self.publication(business, timestamp, status=Review.ReviewStatus.REJECTED)
+            self.vouch(business, tag, timestamp, VOUCH_WITHDRAWN_AT=now)
+        with patch("django.utils.timezone.now", return_value=now):
+            with self.assertNumQueries(4):
+                result = PlatformOverviewService.get_overview()
+        activity = result["activity"]
+        previous = activity["previous"]
+        self.assertEqual(previous["reviews_published"], 2)
+        self.assertEqual(previous["vouches_created"], 2)
+        self.assertEqual(activity["reviews_published"], 1)
+        self.assertEqual(activity["vouches_created"], 1)
+        self.assertEqual(
+            previous["window"]["end_exclusive"],
+            now - timedelta(days=7),
+        )
+        self.assertEqual(
+            previous["window"]["start"],
+            activity["window"]["start"] - timedelta(days=7),
+        )
+        for metric in ("reviews_published", "vouches_created"):
+            self.assertEqual(
+                activity[metric],
+                sum(row[metric] for row in activity["daily"]),
+            )
+
+    def test_previous_zero_and_midnight_keep_equivalent_nonoverlapping_windows(self):
+        """Preserve zero comparisons and the captured clock at midnight and early morning."""
+        for hour in (0, 2, 7, 23):
+            now = datetime.fromisoformat(f"2026-11-02T{hour:02}:00:00+08:00")
+            with patch("django.utils.timezone.now", return_value=now):
+                result = PlatformOverviewService.get_overview()
+            activity = result["activity"]
+            current = activity["window"]
+            previous = activity["previous"]["window"]
+            self.assertEqual(result["as_of"], now)
+            self.assertEqual(activity["previous"]["reviews_published"], 0)
+            self.assertEqual(activity["previous"]["vouches_created"], 0)
+            self.assertEqual(
+                current["end_exclusive"] - current["start"],
+                previous["end_exclusive"] - previous["start"],
+            )
+            self.assertLessEqual(previous["end_exclusive"], current["start"])
+
     def test_daily_buckets_group_by_manila_date_and_reconcile_at_window_boundaries(self):
         business = self.create_business()
         tag = SpecialtyTag.objects.create(TAG_NAME="Daily activity specialty")
@@ -520,6 +575,7 @@ class PlatformOverviewViewTests(
                     set(data["activity"]),
                     {
                         "window",
+                        "previous",
                         "applications_submitted",
                         "reviews_published",
                         "vouches_created",

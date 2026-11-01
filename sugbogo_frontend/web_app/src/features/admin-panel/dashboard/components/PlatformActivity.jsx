@@ -30,7 +30,7 @@ export function ActivityTooltip({ active, payload, label }) {
   );
   return (
     <AnalyticsTooltip
-      title={`${fullDate} · Manila`}
+      title={`${fullDate} PHT`}
       rows={payload.map((entry) => ({
         label: entry.name,
         value: formatCount(entry.value),
@@ -76,7 +76,7 @@ export default function PlatformActivity({ query, onAbout, onData }) {
       <AnalyticsSection
         title="Platform Activity Trend"
         titleIcon={ChartNoAxesCombined}
-        description="Last 7 Manila calendar dates · recorded events"
+        description="Last 7 calendar dates · PHT · recorded events"
         onAbout={onAbout}
         {...sectionQueryState(query)}
         errorMessage="Unable to load platform activity. Please try again."
@@ -88,7 +88,7 @@ export default function PlatformActivity({ query, onAbout, onData }) {
             hasData={Boolean(rows)}
             hasDetails={Boolean(activity)}
             coverageLabel="Today is partial"
-            coverageDescription="Recorded events in the server-selected Asia/Manila window, start-inclusive and end-exclusive. The current day may be partial; no previous-period comparison is available."
+            coverageDescription="Recorded events in the server-selected PHT window, start-inclusive and end-exclusive. The current day may be partial; the chart does not show a previous-period series."
             onData={onData}
           />
         }

@@ -31,7 +31,7 @@ export const dashboardInformation = {
     {
       icon: CalendarDays,
       heading: "Seven-day events",
-      text: "Reviews Published counts recorded first publications. Vouches Created counts retained vouch records by original creation time. These use the selected Manila reporting window; current inventory counts do not.",
+      text: "Reviews Published counts recorded first publications. Vouches Created counts retained vouch records by original creation time. These count recorded events, not distinct users, over seven calendar dates in PHT including the current partial day. Each KPI compares an equivalent elapsed window shifted seven days earlier. Changes describe volume, not positive or negative business outcomes; current inventory counts do not use these windows.",
     },
   ],
   "Administrative Queues": [
@@ -55,7 +55,7 @@ export const dashboardInformation = {
     {
       icon: CalendarDays,
       heading: "Reporting window",
-      text: "Seven Manila calendar dates, including the current partial day. Events are counted from local midnight six dates before today through the captured Data as of timestamp, start-inclusive and end-exclusive.",
+      text: "Seven calendar dates in PHT, including the current partial day. Events are counted from local midnight six dates before today through the captured Data as of timestamp, start-inclusive and end-exclusive.",
     },
     {
       icon: ClipboardList,
@@ -75,7 +75,7 @@ export const dashboardInformation = {
     {
       icon: Activity,
       heading: "Read and compare recorded events",
-      text: "Counts reflect retained, recorded events, not distinct users. Legend totals are the API's seven-day totals. Select a series to isolate it on the shared count axis; select it again or choose Show all series to restore the chart. No previous-period comparison is provided.",
+      text: "Counts reflect retained, recorded events, not distinct users. Legend totals are the API's seven-day totals. Select a series to isolate it on the shared count axis; select it again or choose Show all series to restore the chart. The chart does not show a previous-period series.",
     },
   ],
   "User Distribution": [
@@ -104,7 +104,7 @@ export const dashboardInformation = {
     {
       icon: Clock,
       heading: "Separate workflows and timestamps",
-      text: "A review may appear separately in moderation and reported-review workflows. Report counts are pending reports for that case. Row timestamps retain each workflow's recorded meaning and are displayed in Manila time.",
+      text: "A review may appear separately in moderation and reported-review workflows. Report counts are pending reports for that case. Row timestamps retain each workflow's recorded meaning and are displayed in PHT.",
     },
   ],
   "Application Review Aging": [
@@ -128,7 +128,7 @@ export const dashboardInformation = {
     {
       icon: Users,
       heading: "Recorded administrators and current labels",
-      text: "Administrator attribution follows the recorded reviewer or actor. Entity labels may reflect current records rather than historical snapshots. Unavailable actors or deleted entities use safe fallback labels; timestamps are shown in Manila time.",
+      text: "Administrator attribution follows the recorded reviewer or actor. Entity labels may reflect current records rather than historical snapshots. Unavailable actors or deleted entities use safe fallback labels; timestamps are shown in PHT.",
     },
   ],
   "Discovery Score Health": [

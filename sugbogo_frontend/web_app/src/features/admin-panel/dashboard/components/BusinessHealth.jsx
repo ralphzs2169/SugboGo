@@ -44,7 +44,7 @@ export default function BusinessHealth({ canViewScores, informationAction }) {
       className="min-w-0 self-start rounded-xl border border-stroke bg-background p-4 sm:p-5"
     >
       {/* Definitions use the existing Analytics information control rather than permanent technical paragraphs. */}
-      <header className="mb-3 flex items-center justify-between gap-2">
+      <header className="mb-3 flex items-center gap-1">
         <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
           <Activity aria-hidden="true" className="h-4 w-4 shrink-0" />
           Discovery Score Health
@@ -142,7 +142,7 @@ export default function BusinessHealth({ canViewScores, informationAction }) {
               Data as of{" "}
               {hasSnapshot ? (
                 <time dateTime={snapshot}>
-                  {formatTimestamp(snapshot)} · Manila
+                  {formatTimestamp(snapshot)} PHT
                 </time>
               ) : (
                 "Unavailable"

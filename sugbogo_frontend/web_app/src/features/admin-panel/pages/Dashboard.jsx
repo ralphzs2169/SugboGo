@@ -117,18 +117,15 @@ export default function Dashboard() {
   return (
     <div className="dashboard-contrast min-w-0 space-y-4">
       {/* Page identity remains visible regardless of individual request state */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="[&>div]:mb-0">
           <PageHeader title="Dashboard" />
-          <p className="text-sm text-text-secondary">
-            Platform operations overview
-          </p>
         </div>
         {updatedAt && (
           <p className="text-xs leading-relaxed text-text-secondary sm:text-right">
             Latest source update{" "}
-            <time dateTime={updatedAt}>{formatTimestamp(updatedAt)}</time> ·
-            Manila
+            <time dateTime={updatedAt}>{formatTimestamp(updatedAt)}</time>{" "}
+            PHT
             <span className="block">Sections refresh independently.</span>
           </p>
         )}
@@ -183,7 +180,7 @@ export default function Dashboard() {
             label="Priority Worklist"
             informationAction={informationTrigger("Priority Worklist")}
             icon={ListChecks}
-            description="Up to 5 priority items · Overdue applications first · Manila time"
+            description="Up to 5 priority items · Overdue applications first · PHT"
           >
             {(data) => <PriorityWorklist items={data.items} />}
           </DashboardQuerySection>
@@ -216,7 +213,7 @@ export default function Dashboard() {
               "Recent Administrative Decisions",
             )}
             icon={History}
-            description="Latest 5 administrative decisions · Manila time"
+            description="Latest 5 administrative decisions · PHT"
           >
             {(data) => <RecentDecisions items={data.items} />}
           </DashboardQuerySection>
@@ -264,7 +261,7 @@ export default function Dashboard() {
           details?.title === "Platform Activity Trend" ? (
             <div className="space-y-1 text-xs text-text-secondary">
               <AnalyticsPeriodLabel period={period} />
-              <p>Asia/Manila · Start inclusive · End exclusive</p>
+              <p>PHT · Start inclusive · End exclusive</p>
               <p>
                 Through {formatTimestamp(activity?.window?.end_exclusive)} PHT
                 {activity?.window?.includes_partial_day
@@ -302,7 +299,7 @@ export default function Dashboard() {
         dataContent={
           rows ? (
             <AnalyticsExactTable
-              caption="Exact platform activity counts by Manila date"
+              caption="Exact platform activity counts by PHT date"
               rows={rows}
               columns={[
                 { key: "date", label: "Date" },

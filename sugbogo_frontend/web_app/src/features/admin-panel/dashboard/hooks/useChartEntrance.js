@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useMediaQuery from "@/shared/hooks/useMediaQuery";
 
 /** Animate the first valid dataset only, stopping for interaction, replacement data, or reduced motion. */
-export default function useChartEntrance(data) {
+export default function useChartEntrance(
+  data,
+  { animationDuration = 400, animationEasing = "ease-out" } = {},
+) {
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const firstData = useRef(null);
   const [finished, setFinished] = useState(false);
@@ -17,14 +20,14 @@ export default function useChartEntrance(data) {
   useEffect(() => {
     if (!data || finished) return;
     // The timeout also covers all-zero charts where Recharts has no path to animate.
-    const timer = setTimeout(stop, 450);
+    const timer = setTimeout(stop, animationDuration + 100);
     return () => clearTimeout(timer);
-  }, [data, finished, stop]);
+  }, [data, finished, stop, animationDuration]);
 
   return {
     isAnimationActive: Boolean(data) && !reducedMotion && !finished,
-    animationDuration: 400,
-    animationEasing: "ease-out",
+    animationDuration,
+    animationEasing,
     onAnimationEnd: stop,
     stop,
   };
