@@ -8,9 +8,11 @@ export default function DashboardQuerySection({
   description,
   children,
   action,
+  informationAction,
   framed = true,
   headingAs = "h2",
   headerVisible = true,
+  icon: Icon,
 }) {
   const hasData = query.data !== undefined;
   const Heading = headingAs;
@@ -29,11 +31,17 @@ export default function DashboardQuerySection({
       {headerVisible && (
         <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <Heading
-              className={`${headingAs === "h3" ? "text-sm" : "text-base"} font-semibold text-text-primary`}
-            >
-              {label}
-            </Heading>
+            <div className="flex items-center gap-1">
+              <Heading
+                className={`${headingAs === "h3" ? "text-sm" : "text-base"} ${Icon ? "flex items-center gap-2" : ""} font-semibold text-text-primary`}
+              >
+                {Icon && (
+                  <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                )}
+                {label}
+              </Heading>
+              {informationAction}
+            </div>
             {description && (
               <p className="mt-1 text-xs leading-relaxed text-text-secondary">
                 {description}

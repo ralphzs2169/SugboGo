@@ -74,7 +74,8 @@ export function decisionDestination(event) {
   if (type === "review") {
     const reported = event.action.startsWith("reported_review_")
       || event.action.startsWith("review_report_");
-    return workItemDestination(reported ? "reported_review" : "under_review", id);
+    // The Reported workspace requires pending reports and cannot display history.
+    return reported ? null : workItemDestination("under_review", id);
   }
   return workItemDestination(workflowTypes[type], id);
 }

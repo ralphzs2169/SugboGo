@@ -39,3 +39,20 @@ export function platformActivityDays(activity) {
   });
   return valid ? rows : null;
 }
+
+/** Give the visible counts a zero-based integer domain with modest, rounded headroom. */
+export function platformActivityMaximum(rows, visible) {
+  const maximum = Math.max(
+    0,
+    ...(rows ?? []).flatMap((row) => visible.map((key) => row[key])),
+  );
+  if (maximum === 0) return 1;
+  const target = maximum * 1.1;
+  const roughStep = target / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const step = Math.max(
+    1,
+    [1, 2, 5, 10].find((value) => value * magnitude >= roughStep) * magnitude,
+  );
+  return Math.ceil(target / step) * step;
+}

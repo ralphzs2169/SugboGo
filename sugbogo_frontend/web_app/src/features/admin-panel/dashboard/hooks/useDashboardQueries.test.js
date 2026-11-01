@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import React, { act } from "react";
 import toast from "react-hot-toast";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createServer } from "vite";
 import { dashboardFixture } from "../tests/dashboardFixtures.js";
@@ -31,6 +31,7 @@ let auth;
 let presentation;
 let analyticsKeys;
 let ActivityTooltip;
+let SidebarMenu;
 let reducedMotion;
 const originalToastError = toast.error;
 const originalEvent = globalThis.Event;
@@ -147,7 +148,7 @@ before(async () => {
             export const Sector = ({cx,cy,innerRadius,outerRadius,startAngle,endAngle, ...props}) => React.createElement('path',props);
             export const Bar = ({children}) => React.createElement('div', null, children);
             export const XAxis = () => null;
-            export const YAxis = ({domain}) => React.createElement('span',{'data-y-domain':JSON.stringify(domain)});
+            export const YAxis = ({domain,allowDecimals}) => React.createElement('span',{'data-y-domain':JSON.stringify(domain),'data-allow-decimals':allowDecimals});
             export const Cell = ({fill}) => React.createElement('span',{'data-cell-fill':fill});`;
           }
           const path = id.replaceAll("\\", "/");
@@ -195,6 +196,9 @@ before(async () => {
   ));
   ({ ActivityTooltip } = await server.ssrLoadModule(
     `${base}dashboard/components/PlatformActivity.jsx`,
+  ));
+  ({ default: SidebarMenu } = await server.ssrLoadModule(
+    `${base}components/sidebar/SidebarMenu.jsx`,
   ));
   ({ useAuthStore: auth } = await server.ssrLoadModule(
     "/src/features/auth/storage/auth.store.js",
@@ -293,6 +297,16 @@ function MutationProbe({ name }) {
     mutationResult = result;
   }, [result]);
   return null;
+}
+
+/** Observe native Router link destinations without mounting unrelated workflow pages. */
+function WorklistRouteProbe() {
+  const location = useLocation();
+  return React.createElement(
+    "output",
+    { "aria-label": "Observed worklist destination" },
+    location.pathname + location.search,
+  );
 }
 
 async function render(children, route = "/admin-panel/dashboard") {
@@ -902,7 +916,7 @@ test("real query values populate attention, activity, inventory, decisions and b
     "/admin-panel/businesses/applications?status=submitted",
   );
   assert.match(
-    container.querySelector('section[aria-label="Active businesses"]')
+    container.querySelector('section[aria-label="Discovery Score Health"]')
       .textContent,
     /137/,
   );
@@ -1054,20 +1068,20 @@ test("chart enhancements rescale isolated series from zero and show partial stat
   );
   const domain = () =>
     JSON.parse(section.querySelector("[data-y-domain]").dataset.yDomain);
-  assert.deepEqual(domain(), [0, 12345]);
+  assert.deepEqual(domain(), [0, 15000]);
   assert.equal(section.textContent.match(/Today is partial/g).length, 1);
   assert.match(section.textContent, /Data as of/);
-  const reviews = [...section.querySelectorAll("button")].find(
-    (button) => button.textContent === "Reviews published",
+  const reviews = [...section.querySelectorAll("button")].find((button) =>
+    button.textContent.startsWith("Reviews published"),
   );
   await act(async () => reviews.click());
-  assert.deepEqual(domain(), [0, 22]);
+  assert.deepEqual(domain(), [0, 30]);
   assert.equal(section.querySelectorAll("[data-line]").length, 1);
   const restore = [...section.querySelectorAll("button")].find(
     (button) => button.textContent === "Show all series",
   );
   await act(async () => restore.click());
-  assert.deepEqual(domain(), [0, 12345]);
+  assert.deepEqual(domain(), [0, 15000]);
   assert.equal(section.querySelectorAll("[data-line]").length, 3);
 });
 
@@ -1247,7 +1261,7 @@ test("chart enhancements animate first data only and stop on interaction and ref
       user_distribution: { ...data.user_distribution },
     }));
   });
-  assert.ok(globalThis.__dashboardAnimations.length > 0);
+  await until(() => globalThis.__dashboardAnimations.length > 0);
   assert.ok(
     globalThis.__dashboardAnimations.every(
       (item) => item.isAnimationActive === false,
@@ -1323,7 +1337,7 @@ test("Dashboard follows the agreed eight-section hierarchy and removes the mixed
       "Priority Worklist",
       "Application Review Aging",
       "Recent Administrative Decisions",
-      "Discovery Health",
+      "Discovery Score Health",
     ],
   );
   const worklist = container.querySelector(
@@ -1335,9 +1349,9 @@ test("Dashboard follows the agreed eight-section hierarchy and removes the mixed
   );
   assert.equal(worklist.querySelectorAll("li > a").length, 2);
   assert.match(
-    container.querySelector('section[aria-label="Discovery Health"]')
+    container.querySelector('section[aria-label="Discovery Score Health"]')
       .textContent,
-    /does not confirm a currently failing process/,
+    /Counts may overlap. Failed indicates recorded error markers./,
   );
 });
 
@@ -1429,7 +1443,7 @@ test("all work-item types and decision entity types map to actual workflow route
       entity: { type: "review", id: 12 },
       action: "reported_review_kept",
     }),
-    routes.reported_review,
+    null,
   );
   assert.equal(
     presentation.decisionDestination({
@@ -1438,6 +1452,73 @@ test("all work-item types and decision entity types map to actual workflow route
     }),
     null,
   );
+});
+
+test("resolved report decisions stay readable without pending-only links while pending work remains navigable", async () => {
+  const actions = ["reported_review_kept", "reported_review_rejected", "review_report_approved", "review_report_rejected"];
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url.endsWith("/recent-decisions/")) {
+      data.items = actions.map((action, index) => ({
+        id: `report:${index}`,
+        action,
+        action_label: action,
+        entity: { type: "review", id: 12, label: "Retained review" },
+        administrator_name: "Recorded administrator",
+        timestamp: "2026-11-01T04:00:00Z",
+      }));
+    }
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const decisions = container.querySelector('section[aria-label="Recent Administrative Decisions"]');
+  assert.equal(decisions.querySelectorAll("li").length, 4);
+  assert.equal(decisions.querySelectorAll("a").length, 0);
+  assert.match(decisions.textContent, /Retained review/);
+  assert.equal(
+    presentation.workItemDestination("reported_review", 12),
+    "/admin-panel/moderation-integrity?tab=reported&reported_id=12",
+  );
+});
+
+test("sidebar and Dashboard share one authoritative summary request and refresh the badge after a decision", async () => {
+  await render(React.createElement(React.Fragment, null,
+    React.createElement(SidebarMenu, { isCollapsed: false, showLabels: true }),
+    React.createElement(Page),
+  ));
+  await until(() => loadedSectionCount() === 4);
+  assert.equal(reads.filter(({ url }) => url === "/admin/dashboard/").length, 1);
+  assert.equal(reads.filter(({ url }) => url.includes("statistics")).length, 0);
+  const sidebarApplication = () => container.querySelector('nav a[href="/admin-panel/businesses/applications"]');
+  assert.match(sidebarApplication().textContent, /17/);
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url === "/admin/dashboard/") data.applications.pending_review = 11;
+    return { data: { data } };
+  };
+  await render(React.createElement(React.Fragment, null,
+    React.createElement(SidebarMenu, { isCollapsed: false, showLabels: true }),
+    React.createElement(MutationProbe, { name: "applicationRejection" }),
+  ));
+  await act(async () => mutationResult.rejectApplication(12, { reason: "Reason" }));
+  await until(() => sidebarApplication().textContent.includes("11"));
+  assert.equal(reads.filter(({ url }) => url === "/admin/dashboard/").length, 2);
+});
+
+test("failed user status mutations do not invalidate Dashboard counts", async () => {
+  for (const resource of ["platformOverview", "recentDecisions"]) {
+    client.setQueryData(keys[resource], { value: 1 });
+  }
+  globalThis.__dashboardPost = async () => { throw new Error("Rejected mutation"); };
+  await render(React.createElement(MutationProbe, { name: "users" }));
+  for (const action of ["suspend", "reactivate"]) {
+    await act(async () => {
+      await assert.rejects(mutationResult[action]({ userId: 12 }));
+    });
+    assert.equal(client.getQueryState(keys.platformOverview).isInvalidated, false);
+    assert.equal(client.getQueryState(keys.recentDecisions).isInvalidated, false);
+  }
 });
 
 test("unknown ages stay nonurgent and missing decision targets remain safe plain text", async () => {
@@ -1471,7 +1552,13 @@ test("unknown ages stay nonurgent and missing decision targets remain safe plain
   );
   assert.match(worklist.textContent, /Aging unavailable/);
   assert.match(worklist.textContent, /Queue time unavailable/);
-  assert.doesNotMatch(worklist.textContent, /Overdue/);
+  assert.doesNotMatch(worklist.querySelector("ul").textContent, /Overdue/);
+  assert.equal(
+    worklist.querySelector(
+      'ul [class*="text-danger"], ul [class*="bg-danger"]',
+    ),
+    null,
+  );
   const decisions = container.querySelector(
     'section[aria-label="Recent Administrative Decisions"]',
   );
@@ -1524,6 +1611,179 @@ test("worklist renders request types and separate review workflows in returned o
   }
   assert.match(rows[3].textContent, /Under review/);
   assert.doesNotMatch(rows[3].textContent, /manual/i);
+});
+
+test("worklist final scope and empty state do not imply the entire backlog is empty", async () => {
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url.endsWith("/priority-worklist/")) data.items = [];
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() =>
+    container.textContent.includes("No current priority items."),
+  );
+  const section = container.querySelector(
+    'section[aria-label="Priority Worklist"]',
+  );
+  assert.match(
+    section.textContent,
+    /Up to 5 priority items · Overdue applications first · Manila time/,
+  );
+  assert.doesNotMatch(
+    section.textContent,
+    /queues are clear|View all|View All/,
+  );
+  assert.equal(section.querySelector("ul"), null);
+  assert.match(
+    container.querySelector('section[aria-label="Administrative Queues"]')
+      .textContent,
+    /17/,
+  );
+});
+
+test("worklist final content preserves unusual names and consistent accessible fallbacks", async () => {
+  const names = [
+    "Café Niño & Sons <Market> / 東京 🥭",
+    "Unbroken".repeat(45),
+    undefined,
+    "",
+    " \n ",
+  ];
+  const titles = [
+    "Unneeded title",
+    "Unneeded title",
+    "An unusually long workflow description ".repeat(8),
+    undefined,
+    "Saved request title",
+  ];
+  const expected = [
+    names[0],
+    names[1],
+    titles[2],
+    "Entity unavailable",
+    titles[4],
+  ];
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url.endsWith("/priority-worklist/"))
+      data.items = names.map((label, index) => ({
+        id: `business_name_change:${index + 1}`,
+        type: "business_name_change",
+        entity: { id: index + 1, label },
+        title: titles[index],
+        status: "pending",
+        priority: "pending",
+        timestamp: index === 0 ? "2026-10-20T10:00:00+08:00" : null,
+        application_aging: null,
+        pending_report_count: null,
+      }));
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="Priority Worklist"]',
+  );
+  const rows = [...section.querySelectorAll("li")];
+  assert.deepEqual(
+    rows.map((row) => row.querySelector("p").textContent),
+    expected,
+  );
+  for (const [index, row] of rows.entries()) {
+    const link = row.querySelector("a");
+    assert.equal(
+      link.getAttribute("aria-label"),
+      `Review name change: ${expected[index]}`,
+    );
+    assert.ok(
+      row.querySelector('[class*="min-w-0"][class*="overflow-wrap:anywhere"]'),
+    );
+    assert.doesNotMatch(
+      row.querySelector("p").className,
+      /truncate|line-clamp/,
+    );
+    assert.equal(row.querySelector('[class*="text-danger"]'), null);
+    assert.doesNotMatch(row.textContent, /undefined|null|pending reports/);
+  }
+  assert.equal(rows[0].querySelector("market"), null);
+  assert.equal(
+    rows[0].querySelector("time").getAttribute("datetime"),
+    "2026-10-20T10:00:00+08:00",
+  );
+  assert.match(rows[1].textContent, /Queue time unavailable/);
+});
+
+test("worklist final whole-row links navigate using all seven existing workflow identifiers", async () => {
+  await render(
+    React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(Page),
+      React.createElement(WorklistRouteProbe),
+    ),
+  );
+  await until(() => loadedSectionCount() === 4);
+  const destinations = {
+    merchant_application: "/admin-panel/business/application/12",
+    business_name_change: "/admin-panel/businesses/update-requests/12",
+    classification_change:
+      "/admin-panel/businesses/update-requests/classification/12",
+    location_change: "/admin-panel/businesses/update-requests/location/12",
+    under_review:
+      "/admin-panel/moderation-integrity?tab=under-review&under_review_id=12",
+    reported_review:
+      "/admin-panel/moderation-integrity?tab=reported&reported_id=12",
+    review_dispute: "/admin-panel/review-disputes/12",
+  };
+  for (const [type, destination] of Object.entries(destinations)) {
+    const name = `Destination for ${type}`;
+    await act(async () =>
+      client.setQueryData(keys.priorityWorklist, {
+        items: [
+          {
+            id: `${type}:12`,
+            type,
+            entity: { id: 12, label: name },
+            status: type === "under_review" ? "under_review" : "pending",
+            application_aging:
+              type === "merchant_application" ? { status: "overdue" } : null,
+            pending_report_count: type === "reported_review" ? 1 : null,
+            timestamp: null,
+          },
+        ],
+      }),
+    );
+    const section = container.querySelector(
+      'section[aria-label="Priority Worklist"]',
+    );
+    await until(() => section.querySelector("li p")?.textContent === name);
+    const link = section.querySelector("li > a");
+    assert.equal(link.getAttribute("href"), destination);
+    assert.equal(link.querySelector("a, button"), null);
+    assert.equal(link.getAttribute("target"), null);
+    assert.ok(link.querySelector(".lucide-chevron-right"));
+    assert.match(link.className, /cursor-pointer/);
+    assert.match(link.className, /focus-visible/);
+    link.focus();
+    assert.equal(document.activeElement, link);
+    const enter = new dom.window.KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    await act(async () => link.dispatchEvent(enter));
+    assert.equal(enter.defaultPrevented, false);
+    await act(async () => link.click());
+    assert.equal(
+      container.querySelector(
+        'output[aria-label="Observed worklist destination"]',
+      ).textContent,
+      destination,
+    );
+    if (type === "reported_review")
+      assert.match(link.textContent, /1 pending report/);
+  }
 });
 
 test("worklist polish preserves five backend-ordered rows, metadata and internal navigation", async () => {
@@ -1775,10 +2035,7 @@ test("empty queues and zero inventories remain valid without fabricated chart se
   await until(() =>
     container.textContent.includes("No recorded administrative decisions yet."),
   );
-  assert.match(
-    container.textContent,
-    /No pending work. Your queues are clear./,
-  );
+  assert.match(container.textContent, /No current priority items./);
   assert.match(container.textContent, /No registered accounts./);
   assert.equal(
     container.querySelector('section[aria-label="Active Accounts"] .text-3xl')
@@ -1799,7 +2056,7 @@ test("empty queues and zero inventories remain valid without fabricated chart se
     /No recorded platform activity in this window/,
   );
   assert.match(
-    container.querySelector('section[aria-label="Active businesses"]')
+    container.querySelector('section[aria-label="Active Businesses"]')
       .textContent,
     /0/,
   );
@@ -1837,7 +2094,12 @@ test("missing metric fields display unavailable instead of zero", async () => {
 
 test("Analytics CTA follows existing navigation roles and score coverage reuses its canonical cache", async () => {
   const scoreKey = analyticsKeys.discoveryScores({ page_size: 1 });
-  client.setQueryData(scoreKey, { coverage: { failed: 7 } });
+  client.setQueryData(scoreKey, {
+    coverage: {
+      ...dashboardFixture("/admin/analytics/discovery-scores/").coverage,
+      failed: 7,
+    },
+  });
   await render(React.createElement(Page));
   await until(() => loadedSectionCount() === 4);
   assert.equal(
@@ -1845,9 +2107,8 @@ test("Analytics CTA follows existing navigation roles and score coverage reuses 
     false,
   );
   assert.match(
-    container.querySelector(
-      'section[aria-label="Recorded score error markers"]',
-    ).textContent,
+    container.querySelector('section[aria-label="Discovery Score coverage"]')
+      .textContent,
     /7/,
   );
   assert.equal(
@@ -1861,7 +2122,7 @@ test("Analytics CTA follows existing navigation roles and score coverage reuses 
   );
 });
 
-test("Discovery health failure leaves active business inventory visible and retries only its source", async () => {
+test("Discovery health failure leaves other Dashboard data visible and retries only its source", async () => {
   let failing = true;
   transport = async (url) => {
     if (failing && url === "/admin/analytics/discovery-scores/")
@@ -1870,15 +2131,13 @@ test("Discovery health failure leaves active business inventory visible and retr
   };
   await render(React.createElement(Page));
   const section = () =>
-    container.querySelector(
-      'section[aria-label="Recorded score error markers"]',
-    );
+    container.querySelector('section[aria-label="Discovery Score coverage"]');
   await until(
     () =>
       section()?.querySelector('[role="alert"]') && loadedSectionCount() === 4,
   );
   assert.match(
-    container.querySelector('section[aria-label="Active businesses"]')
+    container.querySelector('section[aria-label="Active Businesses"]')
       .textContent,
     /137/,
   );
@@ -1891,11 +2150,338 @@ test("Discovery health failure leaves active business inventory visible and retr
   const previousReads = reads.length;
   failing = false;
   await act(async () => section().querySelector("button").click());
-  await until(() =>
-    section().textContent.includes("recorded score error marker"),
-  );
+  await until(() => section().textContent.includes("Counts may overlap"));
   assert.equal(reads.length, previousReads + 1);
   assert.equal(reads.at(-1).url, "/admin/analytics/discovery-scores/");
+});
+
+test("recent decisions polish preserves five recorded actors, timestamps and safe internal links", async () => {
+  const events = Array.from({ length: 5 }, (_, index) => ({
+    id: `admin_activity:${index + 1}`,
+    action: "user_reactivated",
+    action_label: `User account reactivated ${index}`,
+    entity: {
+      type: "user",
+      id: index === 4 ? null : index + 1,
+      label:
+        index === 0
+          ? "Café Niño & Sons <Market> 東京 🥭 ".repeat(5)
+          : index === 4
+            ? "User unavailable"
+            : `Account ${index}`,
+    },
+    administrator_name: index === 4 ? null : `Recorded reviewer ${index}`,
+    timestamp: `2026-11-01T0${5 - index}:00:00Z`,
+  }));
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url.endsWith("/recent-decisions/")) data.items = events;
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="Recent Administrative Decisions"]',
+  );
+  assert.match(
+    section.textContent,
+    /Latest 5 administrative decisions · Manila time/,
+  );
+  assert.equal(section.textContent.match(/Manila/g).length, 1);
+  const rows = [...section.querySelectorAll("li")];
+  assert.equal(rows.length, 5);
+  assert.deepEqual(
+    rows.map((row) => row.querySelector("time").getAttribute("datetime")),
+    events.map((event) => event.timestamp),
+  );
+  for (const [index, row] of rows.entries()) {
+    assert.match(row.textContent, new RegExp(events[index].action_label));
+    if (index === 4) {
+      assert.match(row.textContent, /Administrator unavailable/);
+      assert.equal(row.querySelector("a"), null);
+    } else {
+      assert.match(
+        row.textContent,
+        new RegExp(events[index].administrator_name),
+      );
+      const link = row.querySelector("a");
+      assert.equal(
+        link.getAttribute("href"),
+        `/admin-panel/users/${index + 1}`,
+      );
+      assert.ok(link.querySelector(".lucide-chevron-right"));
+      assert.equal(link.querySelector(".lucide-arrow-up-right"), null);
+      assert.match(link.className, /cursor-pointer/);
+      assert.match(link.className, /focus-visible/);
+      link.focus();
+      assert.equal(document.activeElement, link);
+    }
+  }
+  assert.equal(
+    rows[0].querySelector("a span").textContent,
+    events[0].entity.label,
+  );
+  assert.equal(rows[0].querySelector("market"), null);
+});
+
+test("recent decisions polish tolerates missing labels and invalid timestamps without substituting actor roles", async () => {
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url.endsWith("/recent-decisions/"))
+      Object.assign(data.items[0], {
+        administrator_name: undefined,
+        entity: null,
+        timestamp: "invalid",
+        administrator_role: "Super Admin",
+      });
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="Recent Administrative Decisions"]',
+  );
+  assert.match(section.textContent, /Entity unavailable/);
+  assert.match(section.textContent, /Administrator unavailable/);
+  assert.match(section.textContent, /Decision time unavailable/);
+  assert.doesNotMatch(section.textContent, /Super Admin|Invalid Date/);
+  assert.equal(section.querySelector("time, a"), null);
+});
+
+test("compact score health uses authoritative fresh coverage and overlapping counters without totals or batch claims", async () => {
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url === "/admin/analytics/discovery-scores/")
+      Object.assign(data.coverage, {
+        active_businesses: 15,
+        fresh: 5,
+        pending: 7,
+        failed: 3,
+        stale: 4,
+      });
+    if (url === "/admin/dashboard/") data.active_businesses = 99;
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="Discovery Score Health"]',
+  );
+  assert.match(section.textContent, /5 \/ 15fresh scores/);
+  assert.match(section.textContent, /Stale4Pending7Failed3/);
+  assert.match(section.textContent, /Missing 2 · Provisional 3/);
+  assert.match(
+    section.textContent,
+    /Counts may overlap. Failed indicates recorded error markers./,
+  );
+  assert.doesNotMatch(
+    section.textContent,
+    /99|Healthy|All systems operational/,
+  );
+  const help = section.querySelector(
+    'button[aria-label="About Discovery Score Health"]',
+  );
+  await act(async () => help.click());
+  const dialog = document.querySelector("dialog[open]");
+  assert.match(dialog.textContent, /26-hour freshness threshold/);
+  assert.match(dialog.textContent, /may be historical/);
+  await act(async () =>
+    dialog
+      .querySelector(
+        'button[aria-label="Close Discovery Score Health details"]',
+      )
+      .click(),
+  );
+  assert.match(help.className, /cursor-pointer/);
+  assert.match(help.className, /focus-visible/);
+  help.focus();
+  assert.equal(document.activeElement, help);
+  assert.equal(
+    section.querySelector('time[datetime="2026-11-01T03:00:00Z"]'),
+    null,
+  );
+  assert.ok(section.querySelector('time[datetime="2026-11-01T04:00:00Z"]'));
+  assert.ok(
+    section.querySelector(
+      'a[href="/admin-panel/analytics/discovery-scores?status=active"]',
+    ),
+  );
+  assert.equal(
+    section.querySelector('a[href="/admin-panel/businesses?status=active"]'),
+    null,
+  );
+  assert.equal(section.querySelectorAll("a").length, 1);
+  assert.match(section.className, /self-start/);
+  assert.match(section.textContent, /Data as of/);
+  assert.doesNotMatch(
+    section.textContent,
+    /Latest saved score reference|Active-business scope|View active inventory/,
+  );
+  assert.equal(section.querySelector(".text-2xl"), null);
+  assert.equal(
+    reads.filter((read) => read.url === "/admin/analytics/discovery-scores/")
+      .length,
+    1,
+  );
+});
+
+for (const condition of ["zero", "missing"]) {
+  test(`score health distinguishes ${condition} telemetry from an overall healthy status`, async () => {
+    transport = async (url) => {
+      const data = dashboardFixture(url);
+      if (url === "/admin/analytics/discovery-scores/")
+        data.coverage =
+          condition === "zero"
+            ? {
+                failed: 0,
+                stale: 0,
+                fresh: 0,
+                pending: 0,
+                missing: 0,
+                provisional: 0,
+                active_businesses: 15,
+                max_score_age_hours: 26,
+                last_successful_computation: null,
+              }
+            : {};
+      return { data: { data } };
+    };
+    await render(React.createElement(Page));
+    await until(() => loadedSectionCount() === 4);
+    const section = container.querySelector(
+      'section[aria-label="Discovery Score Health"]',
+    );
+    assert.doesNotMatch(section.textContent, /Healthy|All systems operational/);
+    if (condition === "zero") {
+      assert.match(section.textContent, /0 \/ 15fresh scores/);
+      assert.match(section.textContent, /Stale0Pending0Failed0/);
+      assert.doesNotMatch(section.textContent, /Missing 0|Provisional 0/);
+    } else {
+      assert.match(
+        section.textContent,
+        /Unavailable \/ Unavailablefresh scores/,
+      );
+      assert.match(
+        section.textContent,
+        /StaleUnavailablePendingUnavailableFailedUnavailable/,
+      );
+    }
+    assert.match(section.textContent, /Data as of Unavailable/);
+  });
+}
+
+test("score health background failures retain recorded metrics and Retry uses only the canonical source", async () => {
+  await render(React.createElement(Page));
+  const section = () =>
+    container.querySelector('section[aria-label="Discovery Score coverage"]');
+  await until(() => section()?.textContent.includes("Failed11"));
+  let reject;
+  transport = () =>
+    new Promise((resolveRequest, rejectRequest) => {
+      reject = rejectRequest;
+    });
+  let refresh;
+  await act(async () => {
+    refresh = client.refetchQueries({
+      queryKey: analyticsKeys.discoveryScores({ page_size: 1 }),
+      exact: true,
+    });
+  });
+  await until(() =>
+    section().textContent.includes("Refreshing discovery score coverage"),
+  );
+  assert.match(section().textContent, /Failed11/);
+  await act(async () => {
+    reject(new Error("Score health refresh unavailable"));
+    await refresh;
+  });
+  await until(() => section().querySelector('[role="alert"]'));
+  assert.match(section().textContent, /Previously loaded data remains visible/);
+  assert.match(section().textContent, /Failed11/);
+  assert.ok(
+    container.querySelector(
+      'section[aria-label="Recent Administrative Decisions"] ul',
+    ),
+  );
+  transport = async (url) => ({ data: { data: dashboardFixture(url) } });
+  const previousReads = reads.length;
+  await act(async () =>
+    section().querySelector('[role="alert"] button').click(),
+  );
+  await until(() => !section().querySelector('[role="alert"]'));
+  assert.equal(reads.length, previousReads + 1);
+  assert.equal(reads.at(-1).url, "/admin/analytics/discovery-scores/");
+});
+
+test("compact score health shows an empty active inventory without a healthy label", async () => {
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (data.coverage)
+      Object.assign(data.coverage, {
+        active_businesses: 0,
+        fresh: 0,
+        stale: 0,
+        pending: 0,
+        failed: 0,
+        missing: 0,
+        provisional: 0,
+      });
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="Discovery Score Health"]',
+  );
+  assert.match(section.textContent, /No active businesses to assess/);
+  assert.doesNotMatch(section.textContent, /Healthy|0 \/ 0|NaN|Infinity/);
+  assert.equal(section.querySelectorAll("a").length, 1);
+});
+
+test("compact score health missing coverage exposes Retry without substituting zero", async () => {
+  let missing = true;
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url === "/admin/analytics/discovery-scores/" && missing)
+      delete data.coverage;
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  const section = () =>
+    container.querySelector('section[aria-label="Discovery Score coverage"]');
+  await until(() => section()?.querySelector('[role="alert"]'));
+  assert.equal(section().querySelector("dl"), null);
+  assert.match(section().textContent, /Score health unavailable/);
+  assert.ok(
+    container.querySelector(
+      'section[aria-label="Recent Administrative Decisions"] ul',
+    ),
+  );
+  missing = false;
+  const previousReads = reads.length;
+  await act(async () => section().querySelector("button").click());
+  await until(() => section().textContent.includes("100 / 137"));
+  assert.equal(reads.length, previousReads + 1);
+  assert.equal(reads.at(-1).url, "/admin/analytics/discovery-scores/");
+});
+
+test("score health preserves authorized navigation and disables the canonical query without access", async () => {
+  auth.getState().setUser({ role: "explorer" });
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="Discovery Score Health"]',
+  );
+  assert.equal(section.querySelector('a[href*="discovery-scores"]'), null);
+  assert.match(
+    section.textContent,
+    /Score monitoring is unavailable for this role/,
+  );
+  assert.equal(
+    reads.filter((read) => read.url === "/admin/analytics/discovery-scores/")
+      .length,
+    0,
+  );
 });
 
 const queueKeys = ["summary", "recentDecisions", "priorityWorklist"];
@@ -1942,8 +2528,8 @@ const mutationCases = [
   ],
   ["disputes", "uphold", { disputeId: 12, data: {} }, queueKeys],
   ["disputes", "dismiss", { disputeId: 12, data: {} }, queueKeys],
-  ["users", "suspend", { userId: 12, reason: "Reason" }, ["recentDecisions"]],
-  ["users", "reactivate", { userId: 12 }, ["recentDecisions"]],
+  ["users", "suspend", { userId: 12, reason: "Reason" }, ["recentDecisions", "platformOverview"]],
+  ["users", "reactivate", { userId: 12 }, ["recentDecisions", "platformOverview"]],
   [
     "createAdmin",
     "createAdmin",
@@ -2044,5 +2630,143 @@ test("reported-review decision invalidates pending work and decisions without ch
   assert.equal(
     client.getQueryState(keys.platformOverview).isInvalidated,
     false,
+  );
+});
+
+test("sparse activity retains zero series, uses API legend totals, and preserves hover values", async () => {
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (data.activity) {
+      data.activity.daily = data.activity.daily.map((row) => ({
+        ...row,
+        applications_submitted: 0,
+        reviews_published: 0,
+        vouches_created: 0,
+      }));
+      // Totals intentionally differ to prove the legend reads the authoritative fields.
+      Object.assign(data.activity, {
+        applications_submitted: 41,
+        reviews_published: 0,
+        vouches_created: 0,
+      });
+    }
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const section = container.querySelector(
+    'section[aria-label="Platform Activity Trend"]',
+  );
+  const axis = section.querySelector("[data-y-domain]");
+  assert.deepEqual(JSON.parse(axis.dataset.yDomain), [0, 1]);
+  assert.equal(axis.dataset.allowDecimals, "false");
+  assert.equal(section.querySelectorAll("[data-line]").length, 3);
+  assert.match(section.textContent, /Applications submitted— 41/);
+  assert.match(section.textContent, /Reviews published— 0/);
+  assert.match(section.textContent, /No recorded platform activity/);
+  const lines = globalThis.__dashboardAnimations
+    .filter((item) => item.kind === "line")
+    .slice(-3);
+  assert.ok(
+    lines.every((line) => line.dot === false && line.activeDot.r === 5),
+  );
+  assert.ok(
+    JSON.parse(
+      section.querySelector('[data-chart-kind="line"]').dataset.chart,
+    ).every((row) => row.reviews_published === 0),
+  );
+});
+
+test("dashboard contextual help reuses one Analytics drawer for every section with icon-led accurate explanations", async () => {
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const cases = [
+    ["Platform Overview", /does not measure recent engagement/],
+    [
+      "Administrative Queues",
+      /distinct reviews with at least one pending report/,
+    ],
+    ["Platform Activity Trend", /not distinct users/],
+    ["User Distribution", /all registered account statuses/],
+    ["Priority Worklist", /limited selection, not the complete backlog/],
+    ["Application Review Aging", /excludes the submission day and weekends/],
+    [
+      "Recent Administrative Decisions",
+      /current records rather than historical snapshots/,
+    ],
+    ["Discovery Score Health", /may overlap and must not be summed/],
+  ];
+  const initialReads = reads.length;
+  assert.equal(document.querySelectorAll("dialog").length, 1);
+  for (const [title, explanation] of cases) {
+    const triggers = container.querySelectorAll(
+      `button[aria-label="About ${title}"]`,
+    );
+    assert.equal(triggers.length, 1);
+    const trigger = triggers[0];
+    assert.match(trigger.className, /cursor-pointer.*focus-visible/);
+    assert.equal(trigger.getAttribute("aria-haspopup"), "dialog");
+    trigger.focus();
+    await act(async () => trigger.click());
+    const dialog = document.querySelector("dialog[open]");
+    assert.ok(dialog);
+    assert.match(dialog.textContent, new RegExp(`About ${title}`));
+    assert.match(dialog.textContent, explanation);
+    assert.ok(
+      [...dialog.querySelectorAll("h3")].every((heading) =>
+        heading.querySelector('svg[aria-hidden="true"]'),
+      ),
+    );
+    assert.equal(document.querySelectorAll("dialog[open]").length, 1);
+    // Native Escape is represented by dialog's cancel event in this DOM harness.
+    await act(async () =>
+      dialog.dispatchEvent(new Event("cancel", { cancelable: true })),
+    );
+    assert.equal(document.querySelector("dialog[open]"), null);
+    assert.equal(document.activeElement, trigger);
+  }
+  assert.equal(reads.length, initialReads);
+});
+
+test("dashboard contextual help remains available during an independent activity request failure", async () => {
+  transport = async (url) => {
+    if (url.endsWith("/platform-overview/")) throw new Error("Unavailable");
+    return { data: { data: dashboardFixture(url) } };
+  };
+  await render(React.createElement(Page));
+  await until(() =>
+    container.textContent.includes("Unable to load platform activity"),
+  );
+  const trigger = container.querySelector(
+    'button[aria-label="About Platform Activity Trend"]',
+  );
+  assert.equal(trigger.disabled, false);
+  await act(async () => trigger.click());
+  const dialog = document.querySelector("dialog[open]");
+  assert.match(dialog.textContent, /Definition unavailable/);
+  assert.match(dialog.textContent, /current partial day/);
+  assert.ok(
+    container.querySelector('section[aria-label="Priority Worklist"] li'),
+  );
+  await act(async () =>
+    dialog
+      .querySelector(
+        'button[aria-label="Close Platform Activity Trend details"]',
+      )
+      .click(),
+  );
+  const beforeRetry = reads.length;
+  transport = async (url) => ({ data: { data: dashboardFixture(url) } });
+  const section = container.querySelector(
+    'section[aria-label="Platform Activity Trend"]',
+  );
+  const retry = [...section.querySelectorAll("button")].find(
+    (button) => button.textContent === "Retry",
+  );
+  await act(async () => retry.click());
+  await until(() => Boolean(section.querySelector('[data-chart-kind="line"]')));
+  assert.deepEqual(
+    reads.slice(beforeRetry).map(({ url }) => url),
+    ["/admin/dashboard/platform-overview/"],
   );
 });

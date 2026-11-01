@@ -12,8 +12,8 @@ export async function login(credentials) {
   return response.data;
 }
 
-export async function getCurrentUser() {
-  const response = await apiClient.get("/users/me/");
+export async function getCurrentUser({ signal } = {}) {
+  const response = await apiClient.get("/users/me/", { signal });
 
   return response.data.data;
 }

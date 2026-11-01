@@ -1,27 +1,33 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import { getCurrentUser } from "../api/auth.service";
-import { getAccessToken, clearTokens } from "@/shared/api/storage";
+import {
+  getAccessToken,
+  getSessionGeneration,
+  clearTokens,
+  subscribeToSessionChanges,
+} from "@/shared/api/storage";
 import { useAuthStore } from "../storage/auth.store";
 
 /**
- * Custom hook to restore the user session on component mount.
- * It checks for an existing access token and fetches the current user if available.
- * If the session restoration fails, it clears the tokens and user state.
+ * Restore the current owner on mount and external session changes, rejecting obsolete reads.
  */
 export function useRestoreSession() {
-  const hasRestored = useRef(false);
-
   const setUser = useAuthStore((state) => state.setUser);
   const clearUser = useAuthStore((state) => state.clearUser);
   const setLoading = useAuthStore((state) => state.setLoading);
 
   useEffect(() => {
-    if (hasRestored.current) return;
-
-    hasRestored.current = true;
+    let controller;
 
     async function restoreSession() {
+      controller?.abort();
+      const currentController = new AbortController();
+      controller = currentController;
+      const generation = getSessionGeneration();
+      const isCurrent = () => (
+        !currentController.signal.aborted && generation === getSessionGeneration()
+      );
       try {
         const token = getAccessToken();
 
@@ -30,19 +36,26 @@ export function useRestoreSession() {
           return;
         }
 
-        const user = await getCurrentUser();
+        setLoading(true);
+        const user = await getCurrentUser({ signal: currentController.signal });
 
-        setUser(user);
-      } catch (error) {
-        console.log("Session restore failed:", error);
-
-        clearTokens();
-        clearUser();
+        if (isCurrent()) setUser(user);
+      } catch {
+        if (isCurrent()) {
+          clearTokens();
+          clearUser();
+          setLoading(false);
+        }
       } finally {
-        setLoading(false);
+        if (isCurrent()) setLoading(false);
       }
     }
 
+    const unsubscribe = subscribeToSessionChanges(restoreSession);
     restoreSession();
+    return () => {
+      unsubscribe();
+      controller?.abort();
+    };
   }, [clearUser, setLoading, setUser]);
 }

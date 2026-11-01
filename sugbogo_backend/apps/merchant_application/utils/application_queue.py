@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from django.db.models import Q
 from django.utils import timezone
@@ -10,7 +11,13 @@ from apps.merchant_application.constants import (
 from apps.merchant_application.models import MerchantApplication
 
 
-def count_business_days(start, end):
+MANILA = ZoneInfo("Asia/Manila")
+
+
+def count_business_days(
+    start,
+    end,
+):
     """
     Count weekdays elapsed between two dates.
 
@@ -22,9 +29,13 @@ def count_business_days(start, end):
         return None
 
     if isinstance(start, datetime):
+        if timezone.is_aware(start):
+            start = start.astimezone(MANILA)
         start = start.date()
 
     if isinstance(end, datetime):
+        if timezone.is_aware(end):
+            end = end.astimezone(MANILA)
         end = end.date()
 
     if end <= start:
@@ -50,7 +61,10 @@ def get_business_day_cutoff(
     if reference_time is None:
         reference_time = timezone.now()
 
-    current_date = timezone.localdate(reference_time)
+    current_date = timezone.localdate(
+        reference_time,
+        timezone=MANILA,
+    )
     remaining_days = days
 
     while remaining_days > 0:
@@ -76,6 +90,18 @@ def get_application_queue_aging_filters(reference_time=None):
         APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
         reference_time=reference_time,
     )
+    # Half-open Manila midnight bounds match local date extraction while
+    # leaving the timestamp column available for ordinary database indexes.
+    approaching_end = datetime.combine(
+        approaching_cutoff + timedelta(days=1),
+        time.min,
+        tzinfo=MANILA,
+    )
+    overdue_end = datetime.combine(
+        overdue_cutoff + timedelta(days=1),
+        time.min,
+        tzinfo=MANILA,
+    )
     pending = Q(
         MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
         MAPP_SUBMITTED_AT__lte=reference_time,
@@ -84,14 +110,14 @@ def get_application_queue_aging_filters(reference_time=None):
 
     return {
         "on_time": pending & Q(
-            MAPP_SUBMITTED_AT__date__gt=approaching_cutoff,
+            MAPP_SUBMITTED_AT__gte=approaching_end,
         ),
         "approaching": pending & Q(
-            MAPP_SUBMITTED_AT__date__gt=overdue_cutoff,
-            MAPP_SUBMITTED_AT__date__lte=approaching_cutoff,
+            MAPP_SUBMITTED_AT__gte=overdue_end,
+            MAPP_SUBMITTED_AT__lt=approaching_end,
         ),
         "overdue": pending & Q(
-            MAPP_SUBMITTED_AT__date__lte=overdue_cutoff,
+            MAPP_SUBMITTED_AT__lt=overdue_end,
         ),
     }
 

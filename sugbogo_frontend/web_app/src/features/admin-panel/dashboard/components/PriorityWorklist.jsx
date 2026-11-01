@@ -30,7 +30,7 @@ const icons = {
   review_dispute: Gavel,
 };
 
-/** Keep server priority order in compact, accessible workflow rows with one section-level timezone. */
+/** Keep up to five server-ordered workflows compact, with consistent visible and accessible entity labels. */
 export default function PriorityWorklist({ items }) {
   if (!items)
     return (
@@ -41,7 +41,7 @@ export default function PriorityWorklist({ items }) {
   if (items.length === 0)
     return (
       <p className="py-6 text-sm text-text-secondary">
-        No pending work. Your queues are clear.
+        No current priority items.
       </p>
     );
   return (
@@ -49,6 +49,10 @@ export default function PriorityWorklist({ items }) {
       {/* Whole-row links use only known workflow types and valid identifiers */}
       {items.slice(0, 5).map((item) => {
         const label = workItemLabels[item.type] ?? "Pending work";
+        const entityLabel =
+          [item.entity?.label, item.title].find(
+            (value) => typeof value === "string" && value.trim().length > 0,
+          ) ?? "Entity unavailable";
         const destination = workItemDestination(item.type, item.entity?.id);
         const Icon = icons[item.type] ?? ClipboardList;
         const status = workItemStatus(item);
@@ -71,7 +75,7 @@ export default function PriorityWorklist({ items }) {
             />
             <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
               <p className="text-sm font-medium leading-5 text-text-primary">
-                {item.entity?.label || item.title || "Entity unavailable"}
+                {entityLabel}
               </p>
               <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs font-normal leading-5 text-text-secondary">
                 <span>{label}</span>
@@ -117,10 +121,7 @@ export default function PriorityWorklist({ items }) {
               <Link
                 to={destination}
                 aria-label={
-                  "Review " +
-                  label.toLowerCase() +
-                  ": " +
-                  (item.entity?.label ?? item.title)
+                  "Review " + label.toLowerCase() + ": " + entityLabel
                 }
                 className={
                   dashboardLinkClass +

@@ -355,7 +355,6 @@ class PriorityWorklistService:
                 )
             )
         }
-        zone = timezone.get_current_timezone()
         for item in items:
             business_id = item.pop("_business_id")
             if item["type"] == "merchant_application":
@@ -366,8 +365,8 @@ class PriorityWorklistService:
                 )
                 if item["application_aging"]["status"] != "unknown_age":
                     item["application_aging"]["business_days"] = count_business_days(
-                        item["timestamp"].astimezone(zone),
-                        as_of.astimezone(zone),
+                        item["timestamp"],
+                        as_of,
                     )
             else:
                 item["entity"]["label"] = (

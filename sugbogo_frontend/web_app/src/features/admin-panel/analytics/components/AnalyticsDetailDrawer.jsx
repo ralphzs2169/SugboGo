@@ -21,6 +21,7 @@ export default function AnalyticsDetailDrawer({
   periodContent,
   exportContext = {},
   loadExport,
+  className = "",
 }) {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
@@ -124,7 +125,7 @@ export default function AnalyticsDetailDrawer({
         event.preventDefault();
         onClose();
       }}
-      className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none overflow-hidden border-0 bg-transparent p-0 text-text-primary backdrop:bg-transparent"
+      className={`${className} fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none overflow-hidden border-0 bg-transparent p-0 text-text-primary backdrop:bg-transparent`}
     >
       {/* Fading backdrop and sliding decision-style panel */}
       <div ref={backdropRef} onClick={onClose} aria-hidden="true" className="absolute inset-0 cursor-pointer bg-black/40" />

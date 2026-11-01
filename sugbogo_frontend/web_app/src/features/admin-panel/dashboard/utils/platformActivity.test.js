@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { platformActivityDays } from "./platformActivity.js";
+import {
+  platformActivityDays,
+  platformActivityMaximum,
+} from "./platformActivity.js";
 import { dashboardFixture } from "../tests/dashboardFixtures.js";
 
 test("daily presentation preserves seven real chronological server buckets and zero observations", () => {
@@ -42,4 +45,22 @@ test("missing, malformed or nonconsecutive observations stay unavailable instead
   ]) {
     assert.equal(platformActivityDays({ ...activity, daily }), null);
   }
+});
+
+test("sparse activity axis uses integer headroom for zero, one, and larger visible counts", () => {
+  for (const [maximum, expected] of [
+    [0, 1],
+    [1, 2],
+    [2, 3],
+    [22, 30],
+    [12345, 15000],
+  ]) {
+    assert.equal(
+      platformActivityMaximum([{ value: maximum }], ["value"]),
+      expected,
+    );
+  }
+  const rows = [{ small: 1, spike: 12345 }];
+  assert.equal(platformActivityMaximum(rows, ["small", "spike"]), 15000);
+  assert.equal(platformActivityMaximum(rows, ["small"]), 2);
 });

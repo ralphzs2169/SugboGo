@@ -38,6 +38,70 @@ from apps.business.services.visibility_gap_service import (
 class DiscoveryScoreMonitoringViewTests(APITestCase):
     """Verify score list identity, permissions, and batch delegation."""
 
+    def test_invalid_score_filters_return_controlled_validation_errors(self):
+        """Reject malformed IDs and unsupported choices before querying scores."""
+        self.client.force_authenticate(user=self.admin)
+        for field in ("cluster", "category", "specialty_tag"):
+            for value in ("abc", "1.5", "0", "-1", "2147483648"):
+                with self.subTest(field=field, value=value):
+                    response = self.client.get(
+                        reverse("discovery-score-list"),
+                        {field: value},
+                    )
+                    self.assertEqual(response.status_code, 400)
+                    self.assertFalse(response.data["success"])
+                    self.assertEqual(
+                        response.data["code"],
+                        "VALIDATION_ERROR",
+                    )
+                    self.assertIn(field, response.data["errors"])
+        for field in ("status", "score_state"):
+            with self.subTest(field=field):
+                response = self.client.get(
+                    reverse("discovery-score-list"),
+                    {field: "unsupported"},
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(field, response.data["errors"])
+
+    def test_valid_score_filters_preserve_admin_and_super_admin_results(self):
+        """Retain actual taxonomy/state filtering and unchanged response envelopes."""
+        tag = self.business.specialty_tag_links.get(
+            BST_IS_ACTIVE=True,
+        ).TAG_ID_id
+        filters = {
+            "cluster": self.business.CTGRY_ID.CLUS_ID_id,
+            "category": self.business.CTGRY_ID_id,
+            "specialty_tag": tag,
+            "status": "active",
+            "score_state": "FRESH",
+        }
+        for role in (User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN):
+            with self.subTest(role=role):
+                self.admin.USER_ROLE = role
+                self.client.force_authenticate(user=self.admin)
+                response = self.client.get(
+                    reverse("discovery-score-list"),
+                    filters,
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.data["success"])
+                self.assertEqual(
+                    response.data["data"]["pagination"]["total_items"],
+                    1,
+                )
+                self.assertEqual(
+                    response.data["data"]["items"][0]["business"]["id"],
+                    self.business.pk,
+                )
+        filters["cluster"] = 2147483647
+        response = self.client.get(
+            reverse("discovery-score-list"),
+            filters,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["items"], [])
+
     @classmethod
     def setUpTestData(cls):
         """Create a scored business with one inactive specialty."""

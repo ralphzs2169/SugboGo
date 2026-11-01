@@ -1,7 +1,7 @@
 import axios from "axios";
 
 import { refreshSession, staleSessionError } from "./refresh";
-import { getAccessToken, getSessionGeneration, clearTokens, setSessionExpired } from "./storage";
+import { getAccessToken, getSessionGeneration, getSessionSignal, clearTokens, setSessionExpired } from "./storage";
 import { attachSyntheticResponse } from "./apiErrors";
 import { API_ERROR_CODE } from "./errorCodes";
 
@@ -23,9 +23,13 @@ const apiClient = axios.create({
 // Add a request interceptor to include the access token in the Authorization header
 apiClient.interceptors.request.use(
   (config) => {
-    const token = getAccessToken();
     config._sessionGeneration = getSessionGeneration();
+    const token = getAccessToken();
     config._sessionAccessToken = token;
+    const sessionSignal = getSessionSignal();
+    config.signal = config.signal
+      ? AbortSignal.any([config.signal, sessionSignal])
+      : sessionSignal;
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -47,9 +51,21 @@ apiClient.interceptors.request.use(
 // access token using the refresh token. If successful, it retries the original
 // request with the new access token. If the refresh fails, it clears the tokens and user state.
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.config._sessionGeneration !== getSessionGeneration()) {
+      return Promise.reject(staleSessionError());
+    }
+    return response;
+  },
 
   async (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error);
+    if (
+      error.config &&
+      error.config._sessionGeneration !== getSessionGeneration()
+    ) {
+      return Promise.reject(staleSessionError());
+    }
     // Transport-level failures never reach the backend, so they have no
     // `error.response`. Shape them like a backend error response so
     // existing callers' `error.response?.data?.message` handling works

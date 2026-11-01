@@ -13,6 +13,10 @@ export default function useUserStatusMutations() {
   async function invalidateUserQueries(userId) {
     await Promise.all([
       queryClient.invalidateQueries({
+        queryKey: dashboardQueryKeys.platformOverview,
+        exact: true,
+      }),
+      queryClient.invalidateQueries({
         queryKey: dashboardQueryKeys.recentDecisions,
         exact: true,
       }),

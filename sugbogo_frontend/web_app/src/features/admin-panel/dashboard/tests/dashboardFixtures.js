@@ -114,7 +114,14 @@ export function dashboardFixture(url) {
   if (url === "/admin/analytics/discovery-scores/") {
     return {
       coverage: {
+        fresh: 100,
+        pending: 9,
+        missing: 2,
+        provisional: 3,
         failed: 11,
+        stale: 7,
+        max_score_age_hours: 26,
+        last_successful_computation: "2026-11-01T03:00:00Z",
         active_businesses: 137,
         snapshot_at: "2026-11-01T04:00:00Z",
       },

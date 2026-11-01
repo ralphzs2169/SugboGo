@@ -1,11 +1,11 @@
 import { FiGrid } from "react-icons/fi";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { useAuthStore } from "@/features/auth/storage/auth.store";
 
 import navigation from "../../config/sidebarNavigation";
-import useBusinessApplicationStatistics from "../../business-applications/hooks/useBusinessApplicationStatistics";
+import { useDashboardSummary } from "../../dashboard/hooks/useDashboardQueries";
 import SidebarLink from "./SidebarLink";
 import SidebarDropdown from "./SidebarDropdown";
 import SidebarSectionHeading from "./SidebarSectionHeading";
@@ -25,18 +25,21 @@ export default function SidebarMenu({ onClose, isCollapsed, showLabels }) {
   const location = useLocation();
 
   const [openFlyout, setOpenFlyout] = useState(null);
+  const [previousCollapsed, setPreviousCollapsed] = useState(isCollapsed);
 
   const [expandedGroups, setExpandedGroups] = useState(new Set());
 
-  const { statistics: applicationStatistics } =
-    useBusinessApplicationStatistics();
+  const applicationSummary = useDashboardSummary({
+    enabled: ["admin", "super_admin"].includes(user?.role),
+  });
 
   // Close any flyout when switching into collapsed mode.
-  useEffect(() => {
+  if (previousCollapsed !== isCollapsed) {
+    setPreviousCollapsed(isCollapsed);
     if (isCollapsed) {
       setOpenFlyout(null);
     }
-  }, [isCollapsed]);
+  }
 
   // Filter the navigation configuration to only include
   // sections and items accessible to the current user's role.
@@ -45,10 +48,10 @@ export default function SidebarMenu({ onClose, isCollapsed, showLabels }) {
       navigation
         .map((section) => ({
           ...section,
-          items: section.items.filter((item) => item.roles.includes(user.role)),
+          items: section.items.filter((item) => item.roles.includes(user?.role)),
         }))
         .filter((section) => section.items.length > 0),
-    [user.role],
+    [user?.role],
   );
 
   function toggleFlyout(label) {
@@ -121,7 +124,7 @@ export default function SidebarMenu({ onClose, isCollapsed, showLabels }) {
                 {...item}
                 badge={
                   item.to === "/admin-panel/businesses/applications"
-                    ? applicationStatistics.pending_review
+                    ? applicationSummary.data?.applications?.pending_review
                     : undefined
                 }
                 onClick={onClose}

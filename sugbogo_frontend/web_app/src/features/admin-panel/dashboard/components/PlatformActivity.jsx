@@ -1,21 +1,20 @@
 import { useState } from "react";
+import { ChartNoAxesCombined } from "lucide-react";
 import { Line } from "recharts";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import AnalyticsTimeSeries from "../../analytics/components/AnalyticsTimeSeries";
 import AnalyticsTooltip from "../../analytics/components/AnalyticsTooltip";
 import AnalyticsPeriodLabel from "../../analytics/components/AnalyticsPeriodLabel";
 import AnalyticsReportFooter from "../../analytics/components/AnalyticsReportFooter";
-import AnalyticsExactTable from "../../analytics/components/AnalyticsExactTable";
 import AnalyticsSection from "../../analytics/components/AnalyticsSection";
-import AnalyticsDetailDrawer from "../../analytics/components/AnalyticsDetailDrawer";
 import {
   formatCount,
-  formatTimestamp,
   sectionQueryState,
 } from "../../analytics/utils/presentation";
 import {
   activitySeries,
   platformActivityDays,
+  platformActivityMaximum,
 } from "../utils/platformActivity";
 import useChartEntrance from "../hooks/useChartEntrance";
 
@@ -42,18 +41,15 @@ export function ActivityTooltip({ active, payload, label }) {
 }
 
 /** Plot seven real Manila-date buckets with isolatable series, a shared count axis, and exact-value text. */
-export default function PlatformActivity({ query }) {
+export default function PlatformActivity({ query, onAbout, onData }) {
   const activity = query.data?.activity;
   const asOf = query.data?.as_of;
   const onRetry = () => query.refetch();
   const isFetching = query.isFetching;
-  const [mode, setMode] = useState(null);
   const [visible, setVisible] = useState(activitySeries.map(({ key }) => key));
   const rows = platformActivityDays(activity);
   const animation = useChartEntrance(rows);
-  const maximum = rows
-    ? Math.max(1, ...rows.flatMap((row) => visible.map((key) => row[key])))
-    : 1;
+  const maximum = platformActivityMaximum(rows, visible);
   const window = activity?.window;
   const empty = rows?.every((row) =>
     activitySeries.every(({ key }) => row[key] === 0),
@@ -72,7 +68,6 @@ export default function PlatformActivity({ query }) {
     period,
     is_partial: window?.includes_partial_day,
   };
-  const report = { series: rows, definitions: activity?.definitions, meta };
   return (
     <section
       aria-label="Platform Activity Trend"
@@ -80,9 +75,9 @@ export default function PlatformActivity({ query }) {
     >
       <AnalyticsSection
         title="Platform Activity Trend"
+        titleIcon={ChartNoAxesCombined}
         description="Last 7 Manila calendar dates · recorded events"
-        onAbout={() => setMode("about")}
-        aboutDisabled={!activity}
+        onAbout={onAbout}
         {...sectionQueryState(query)}
         errorMessage="Unable to load platform activity. Please try again."
         footer={
@@ -94,7 +89,7 @@ export default function PlatformActivity({ query }) {
             hasDetails={Boolean(activity)}
             coverageLabel="Today is partial"
             coverageDescription="Recorded events in the server-selected Asia/Manila window, start-inclusive and end-exclusive. The current day may be partial; no previous-period comparison is available."
-            onData={() => setMode("data")}
+            onData={onData}
           />
         }
       >
@@ -133,6 +128,9 @@ export default function PlatformActivity({ query }) {
                 />
               </svg>
               {series.label}
+              <span className="tabular-nums">
+                — {formatCount(activity?.[series.key])}
+              </span>
             </button>
           ))}
           {visible.length !== activitySeries.length && (
@@ -169,7 +167,7 @@ export default function PlatformActivity({ query }) {
                 No recorded platform activity in this window.
               </p>
             )}
-            <div aria-hidden="true" className="h-56 min-w-0 sm:h-60">
+            <div aria-hidden="true" className="h-52 min-w-0 sm:h-56">
               <AnalyticsTimeSeries
                 rows={rows}
                 lines={[]}
@@ -190,7 +188,7 @@ export default function PlatformActivity({ query }) {
                       stroke={series.color}
                       strokeDasharray={series.dash}
                       strokeWidth={2}
-                      dot={{ r: 3 }}
+                      dot={visible.length === 1 ? { r: 2 } : false}
                       activeDot={{ r: 5 }}
                       isAnimationActive={animation.isAnimationActive}
                       animationDuration={animation.animationDuration}
@@ -203,62 +201,6 @@ export default function PlatformActivity({ query }) {
           </>
         )}
       </AnalyticsSection>
-      {/* Reuse the Analytics drawers for exact data and methodology without inventing report metrics */}
-      <AnalyticsDetailDrawer
-        mode={mode}
-        onClose={() => setMode(null)}
-        title="Platform Activity Trend"
-        report={report}
-        interval="daily"
-        series={activitySeries}
-        showComparison={false}
-        periodContent={
-          <div className="space-y-1 text-xs text-text-secondary">
-            <AnalyticsPeriodLabel period={period} />
-            <p>Asia/Manila · Start inclusive · End exclusive</p>
-            <p>
-              Through {formatTimestamp(window?.end_exclusive)} PHT
-              {window?.includes_partial_day ? " · Today is partial" : ""}
-            </p>
-          </div>
-        }
-        aboutContent={
-          <div className="space-y-4">
-            <p className="text-sm text-text-secondary">
-              Counts reflect retained, recorded events. No previous-period
-              comparison is provided.
-            </p>
-            {activitySeries.map(({ key, label }) => (
-              <div key={key}>
-                <h3 className="text-sm font-semibold text-text-primary">
-                  {label}
-                </h3>
-                <p className="mt-1 text-sm text-text-secondary">
-                  {activity?.definitions?.[key] ?? "Definition unavailable."}
-                </p>
-              </div>
-            ))}
-          </div>
-        }
-        dataContent={
-          rows ? (
-            <AnalyticsExactTable
-              caption="Exact platform activity counts by Manila date"
-              rows={rows}
-              columns={[
-                { key: "date", label: "Date" },
-                ...activitySeries.map(({ key, label }) => ({
-                  key,
-                  label,
-                  render: (row) => formatCount(row[key]),
-                })),
-              ]}
-            />
-          ) : (
-            <p>Daily activity is unavailable.</p>
-          )
-        }
-      />
     </section>
   );
 }

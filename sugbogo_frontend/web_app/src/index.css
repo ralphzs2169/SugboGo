@@ -108,6 +108,43 @@ html.dark {
   --color-sidebar-active: #2A2A2A;
 }
 
+/* Keep Dashboard supporting text readable using scoped theme overrides. */
+.dashboard-contrast {
+  --color-text-secondary: #626d7a;
+}
+
+.dashboard-contrast .text-danger {
+  color: #b91c1c;
+}
+
+.dashboard-contrast .text-warning {
+  color: #8a5800;
+}
+
+.dashboard-contrast a:hover {
+  color: #9a4707;
+}
+
+.dashboard-contrast button.bg-primary {
+  color: #0f172a;
+}
+
+html.dark .dashboard-contrast {
+  --color-text-secondary: #a6a4a3;
+}
+
+html.dark .dashboard-contrast .text-danger {
+  color: #f87171;
+}
+
+html.dark .dashboard-contrast .text-warning {
+  color: #fbbf24;
+}
+
+html.dark .dashboard-contrast a:hover {
+  color: var(--color-primary);
+}
+
 /* Suppress transitions for one frame during a theme toggle, so
    color-dependent transitions (hover states, etc.) don't fire when
    CSS variables change value under html.dark. */

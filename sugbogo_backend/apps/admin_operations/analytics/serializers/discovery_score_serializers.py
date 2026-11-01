@@ -8,6 +8,41 @@ from apps.admin_operations.analytics.services.discovery_score_monitoring_service
 )
 
 
+class DiscoveryScoreQuerySerializer(serializers.Serializer):
+    """Validate score filters before they reach numeric ORM lookups."""
+
+    search = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        trim_whitespace=False,
+    )
+    cluster = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=2147483647,
+    )
+    category = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=2147483647,
+    )
+    specialty_tag = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=2147483647,
+    )
+    status = serializers.ChoiceField(
+        choices=Business.BusinessStatus.choices,
+        required=False,
+        allow_blank=True,
+    )
+    score_state = serializers.ChoiceField(
+        choices=("FAILED", "PROVISIONAL", "PENDING", "STALE", "FRESH"),
+        required=False,
+        allow_blank=True,
+    )
+
+
 class VisibilityObservationSerializer(serializers.Serializer):
     """Expose business age as a potential observation proxy only."""
 

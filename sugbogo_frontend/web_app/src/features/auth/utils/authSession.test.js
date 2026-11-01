@@ -21,7 +21,11 @@ before(async () => {
     setItem: (key, value) => entries.set(key, value),
     removeItem: (key) => entries.delete(key),
   };
-  server = await createServer({ appType: "custom", server: { middlewareMode: true } });
+  server = await createServer({
+    appType: "custom",
+    optimizeDeps: { noDiscovery: true, include: [] },
+    server: { middlewareMode: true, hmr: false },
+  });
   ({ default: authClient } = await server.ssrLoadModule("/src/shared/api/authClient.js"));
   authSession = await server.ssrLoadModule("/src/features/auth/utils/authSession.js");
   ({ useAuthStore: authStore } = await server.ssrLoadModule("/src/features/auth/storage/auth.store.js"));
@@ -161,7 +165,7 @@ test("a failed old request cannot refresh or clear a newer login", async () => {
   storage.setTokens({ access: "access-b", refresh: "refresh-b" });
   authStore.getState().setUser({ id: 8 });
   fail();
-  await assert.rejects(pending, { name: "STALE_AUTH_SESSION" });
+  await assert.rejects(pending, { name: "CanceledError" });
   assert.equal(storage.getRefreshToken(), "refresh-b");
   assert.equal(authStore.getState().user.id, 8);
   apiClient.defaults.adapter = originalAdapter;

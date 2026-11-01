@@ -1,4 +1,11 @@
-import { Info, MessageSquareText, Store, ThumbsUp, Users } from "lucide-react";
+import {
+  Info,
+  LayoutDashboard,
+  MessageSquareText,
+  Store,
+  ThumbsUp,
+  Users,
+} from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
 import MetricCard from "../../components/MetricCard";
 import { formatCount } from "../../analytics/utils/presentation";
@@ -7,7 +14,11 @@ import BusinessStatusDonut from "./BusinessStatusDonut";
 import AccountStatusDonut from "./AccountStatusDonut";
 
 /** Present verified activity and inventory using standard shared Admin metric cards and independent source recovery. */
-export default function PlatformOverviewKpis({ overview, summary }) {
+export default function PlatformOverviewKpis({
+  overview,
+  summary,
+  informationAction,
+}) {
   const metrics = [
     {
       label: "Active Accounts",
@@ -46,9 +57,13 @@ export default function PlatformOverviewKpis({ overview, summary }) {
   return (
     <section aria-label="Platform Overview" className="min-w-0">
       {/* Shared Admin metrics keep current inventory distinct from period activity */}
-      <h2 className="mb-3 text-base font-semibold text-text-primary">
-        Platform Overview
-      </h2>
+      <div className="mb-3 flex items-center gap-1">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+          <LayoutDashboard aria-hidden="true" className="h-4 w-4 shrink-0" />
+          Platform Overview
+        </h2>
+        {informationAction}
+      </div>
       <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
           <DashboardQuerySection

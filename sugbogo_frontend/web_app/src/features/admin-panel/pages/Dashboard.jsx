@@ -1,4 +1,14 @@
-import { ArrowRight, ChartNoAxesCombined } from "lucide-react";
+import { useState } from "react";
+import {
+  ArrowRight,
+  ChartNoAxesCombined,
+  ClipboardList,
+  History,
+  Info,
+  ListChecks,
+  Timer,
+  Users,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
@@ -25,11 +35,24 @@ import {
   useDashboardSummary,
 } from "../dashboard/hooks/useDashboardQueries";
 import PageHeader from "../components/PageHeader";
+import AnalyticsDetailDrawer from "../analytics/components/AnalyticsDetailDrawer";
+import AnalyticsExactTable from "../analytics/components/AnalyticsExactTable";
+import AnalyticsPeriodLabel from "../analytics/components/AnalyticsPeriodLabel";
+import { formatCount } from "../analytics/utils/presentation";
+import {
+  activitySeries,
+  platformActivityDays,
+} from "../dashboard/utils/platformActivity";
+import { dashboardInformation } from "../dashboard/utils/dashboardInformation";
 
 /** Present real operational queues and concise context with independent query recovery and existing Admin styling. */
 export default function Dashboard() {
   useDocumentTitle("Dashboard | SugboGo Admin");
 
+  const [details, setDetails] = useState({
+    title: "Platform Activity Trend",
+    mode: null,
+  });
   const summary = useDashboardSummary();
   const recentDecisions = useDashboardRecentDecisions();
   const platformOverview = useDashboardPlatformOverview();
@@ -47,6 +70,28 @@ export default function Dashboard() {
     platformOverview.data?.as_of,
     priorityWorklist.data?.as_of,
   );
+
+  const activity = platformOverview.data?.activity;
+  const rows = platformActivityDays(activity);
+  const period = { start_date: rows?.[0]?.date, end_date: rows?.at(-1)?.date };
+  const report = {
+    series: rows,
+    definitions: activity?.definitions,
+    meta: { generated_at: platformOverview.data?.as_of, period },
+  };
+  function informationTrigger(title) {
+    return (
+      <button
+        type="button"
+        aria-label={`About ${title}`}
+        aria-haspopup="dialog"
+        onClick={() => setDetails({ title, mode: "about" })}
+        className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
+      >
+        <Info aria-hidden="true" className="h-4 w-4" />
+      </button>
+    );
+  }
 
   useApiErrorNotification(summary.error, {
     toastId: "admin-dashboard-summary-load-error",
@@ -70,14 +115,11 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="dashboard-contrast min-w-0 space-y-4">
       {/* Page identity remains visible regardless of individual request state */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <PageHeader
-            breadcrumbs={[{ label: "SugboGo Admin" }, { label: "Dashboard" }]}
-            title="Dashboard"
-          />
+          <PageHeader title="Dashboard" />
           <p className="text-sm text-text-secondary">
             Platform operations overview
           </p>
@@ -93,10 +135,16 @@ export default function Dashboard() {
       </div>
 
       {/* Period KPIs and current inventory remain separate from pending queues */}
-      <PlatformOverviewKpis overview={platformOverview} summary={summary} />
+      <PlatformOverviewKpis
+        overview={platformOverview}
+        summary={summary}
+        informationAction={informationTrigger("Platform Overview")}
+      />
       <DashboardQuerySection
         query={summary}
         label="Administrative Queues"
+        informationAction={informationTrigger("Administrative Queues")}
+        icon={ClipboardList}
         description="Open review workflows and pending cases. Categories may overlap."
         framed={false}
       >
@@ -106,11 +154,21 @@ export default function Dashboard() {
       {/* Seven-day activity beside current account composition */}
       <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2 [&>section]:h-full">
-          <PlatformActivity query={platformOverview} />
+          <PlatformActivity
+            query={platformOverview}
+            onAbout={() =>
+              setDetails({ title: "Platform Activity Trend", mode: "about" })
+            }
+            onData={() =>
+              setDetails({ title: "Platform Activity Trend", mode: "data" })
+            }
+          />
         </div>
         <DashboardQuerySection
           query={platformOverview}
           label="User Distribution"
+          informationAction={informationTrigger("User Distribution")}
+          icon={Users}
           description="Registered accounts by role"
         >
           {(data) => <UserDistribution distribution={data.user_distribution} />}
@@ -123,7 +181,9 @@ export default function Dashboard() {
           <DashboardQuerySection
             query={priorityWorklist}
             label="Priority Worklist"
-            description="Pending work, with overdue applications first. Times shown in Manila."
+            informationAction={informationTrigger("Priority Worklist")}
+            icon={ListChecks}
+            description="Up to 5 priority items · Overdue applications first · Manila time"
           >
             {(data) => <PriorityWorklist items={data.items} />}
           </DashboardQuerySection>
@@ -131,6 +191,8 @@ export default function Dashboard() {
         <DashboardQuerySection
           query={summary}
           label="Application Review Aging"
+          informationAction={informationTrigger("Application Review Aging")}
+          icon={Timer}
           description="Submitted applications · Elapsed weekdays"
         >
           {(data) => (
@@ -150,12 +212,19 @@ export default function Dashboard() {
           <DashboardQuerySection
             query={recentDecisions}
             label="Recent Administrative Decisions"
-            description="Latest five supported recorded decisions · current entity labels"
+            informationAction={informationTrigger(
+              "Recent Administrative Decisions",
+            )}
+            icon={History}
+            description="Latest 5 administrative decisions · Manila time"
           >
             {(data) => <RecentDecisions items={data.items} />}
           </DashboardQuerySection>
         </div>
-        <BusinessHealth summary={summary} canViewScores={canViewScores} />
+        <BusinessHealth
+          canViewScores={canViewScores}
+          informationAction={informationTrigger("Discovery Score Health")}
+        />
       </div>
 
       {/* The existing navigation policy controls the Analytics entry point */}
@@ -181,6 +250,74 @@ export default function Dashboard() {
           <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" />
         </Link>
       )}
+      {/* The existing Analytics drawer serves every Dashboard explanation and the activity's exact data. */}
+      <AnalyticsDetailDrawer
+        className="dashboard-contrast"
+        mode={details?.mode}
+        title={details?.title ?? "Platform Activity Trend"}
+        onClose={() => setDetails((current) => ({ ...current, mode: null }))}
+        report={report}
+        interval="daily"
+        series={activitySeries}
+        showComparison={false}
+        periodContent={
+          details?.title === "Platform Activity Trend" ? (
+            <div className="space-y-1 text-xs text-text-secondary">
+              <AnalyticsPeriodLabel period={period} />
+              <p>Asia/Manila · Start inclusive · End exclusive</p>
+              <p>
+                Through {formatTimestamp(activity?.window?.end_exclusive)} PHT
+                {activity?.window?.includes_partial_day
+                  ? " · Today is partial"
+                  : ""}
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-text-secondary">
+              Dashboard section information
+            </p>
+          )
+        }
+        aboutContent={
+          <div className="space-y-4 text-sm text-text-secondary">
+            {/* Match Analytics' icon-led explanations without adding another help surface. */}
+            {dashboardInformation[details?.title]?.map(
+              ({ icon: Icon, heading, text, definition }) => (
+                <div key={heading}>
+                  <h3 className="mb-1 flex items-center gap-2 font-semibold text-text-primary">
+                    <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                    {heading}
+                  </h3>
+                  <p>
+                    {definition
+                      ? (activity?.definitions?.[definition] ??
+                        "Definition unavailable.")
+                      : text}
+                  </p>
+                </div>
+              ),
+            )}
+          </div>
+        }
+        dataContent={
+          rows ? (
+            <AnalyticsExactTable
+              caption="Exact platform activity counts by Manila date"
+              rows={rows}
+              columns={[
+                { key: "date", label: "Date" },
+                ...activitySeries.map(({ key, label }) => ({
+                  key,
+                  label,
+                  render: (row) => formatCount(row[key]),
+                })),
+              ]}
+            />
+          ) : (
+            <p>Daily activity is unavailable.</p>
+          )
+        }
+      />
     </div>
   );
 }

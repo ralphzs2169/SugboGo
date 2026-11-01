@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.admin_operations.analytics.serializers.discovery_score_serializers import (
     AdminDiscoveryScoreSerializer,
+    DiscoveryScoreQuerySerializer,
     VisibilityGapDiagnosticSerializer,
 )
 from apps.admin_operations.analytics.services.discovery_score_monitoring_service import (
@@ -161,14 +162,17 @@ class DiscoveryScoreListView(APIView):
     def get(self, request):
         """Return a filtered and paginated score list."""
 
+        query = DiscoveryScoreQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        filters = query.validated_data
         queryset = DiscoveryScoreMonitoringService.list_scores(
-            search=request.query_params.get("search"),
-            status=request.query_params.get("status"),
-            cluster=request.query_params.get("cluster"),
-            category=request.query_params.get("category"),
-            specialty_tag=request.query_params.get("specialty_tag"),
+            search=filters.get("search"),
+            status=filters.get("status"),
+            cluster=filters.get("cluster"),
+            category=filters.get("category"),
+            specialty_tag=filters.get("specialty_tag"),
             ordering=request.query_params.get("ordering"),
-            score_state=request.query_params.get("score_state"),
+            score_state=filters.get("score_state"),
         )
         paginator = StandardPagination()
         page = paginator.paginate_queryset(queryset, request)

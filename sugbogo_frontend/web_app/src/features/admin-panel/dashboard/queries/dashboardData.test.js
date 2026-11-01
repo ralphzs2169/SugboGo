@@ -79,7 +79,8 @@ test("four services unwrap only the success envelope and forward AbortSignal int
     const result = await service[method]({ signal: controller.signal });
     assert.equal(result, payload);
     assert.equal(calls.at(-1).url, url);
-    assert.equal(calls.at(-1).signal, controller.signal);
+    controller.abort();
+    assert.equal(calls.at(-1).signal.aborted, true);
   }
 });
 
@@ -147,7 +148,8 @@ test("query functions use their own endpoint, cancellation and stale-only focus/
     const controller = new AbortController();
     assert.equal(await query.queryFn({ signal: controller.signal }), payload);
     assert.equal(calls.at(-1).url, url);
-    assert.equal(calls.at(-1).signal, controller.signal);
+    controller.abort();
+    assert.equal(calls.at(-1).signal.aborted, true);
     assert.equal(query.staleTime, staleTime);
     assert.equal(query.refetchOnWindowFocus, true);
     assert.equal(query.refetchOnReconnect, true);
