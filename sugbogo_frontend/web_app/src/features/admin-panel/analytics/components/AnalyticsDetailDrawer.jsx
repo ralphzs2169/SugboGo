@@ -17,9 +17,11 @@ export default function AnalyticsDetailDrawer({
   showComparison = true,
   dateColumn,
   dataContent,
+  aboutContent,
   periodContent,
   exportContext = {},
   loadExport,
+  className = "",
 }) {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
@@ -123,7 +125,7 @@ export default function AnalyticsDetailDrawer({
         event.preventDefault();
         onClose();
       }}
-      className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none overflow-hidden border-0 bg-transparent p-0 text-text-primary backdrop:bg-transparent"
+      className={`${className} fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none overflow-hidden border-0 bg-transparent p-0 text-text-primary backdrop:bg-transparent`}
     >
       {/* Fading backdrop and sliding decision-style panel */}
       <div ref={backdropRef} onClick={onClose} aria-hidden="true" className="absolute inset-0 cursor-pointer bg-black/40" />
@@ -149,7 +151,7 @@ export default function AnalyticsDetailDrawer({
           {displayMode === "data" && title === "Transportation Planning" && records.length > 0 && <p className="text-xs text-text-secondary">CSV includes complete method composition and time buckets. The bounded destination ranking is not included.</p>}
           {displayMode === "data" && exportError && <p role="alert" className="text-sm text-danger">{exportError}</p>}
           {periodContent ?? <div className="text-sm text-text-secondary"><p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{readablePeriod(meta?.period)}</p><p className="mt-1">Philippine time{displayMode === "data" ? ` · ${interval}` : ""}</p></div>}
-          {displayMode === "about" ? <>
+          {displayMode === "about" ? aboutContent ?? <>
             <AnalyticsReportExplanation title={title} report={report} />
             <AnalyticsReliability meta={meta} title={title} snapshotAt={report?.coverage?.snapshot_at} />
             {showComparison && <p className="text-xs text-text-secondary">Compared with {growthPeriodLabel(meta?.period?.previous_start, meta?.period?.previous_end_exclusive)} Philippine time.</p>}

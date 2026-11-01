@@ -229,6 +229,9 @@ class VisibilityEventServiceTests(TestCase):
         )
 
     def setUp(self):
+        clock = patch("django.utils.timezone.now", return_value=self.EVENT_TIME)
+        clock.start()
+        self.addCleanup(clock.stop)
         self.collection = FakeVisibilityCollection()
         self.database = FakeVisibilityDatabase(
             self.collection,
@@ -961,10 +964,13 @@ class VisibilityEventServiceTests(TestCase):
         )
 
     def test_mongo_failure_does_not_roll_back_pocket(self):
-        with patch.object(
-            VisibilityEventService,
-            "record_save",
-            side_effect=VisibilityTrackingUnavailable(),
+        with (
+            patch("apps.business.tasks.retry_save_visibility_event.apply_async") as enqueue,
+            patch.object(
+                VisibilityEventService,
+                "record_save",
+                side_effect=VisibilityTrackingUnavailable(),
+            ),
         ):
             with self.captureOnCommitCallbacks(
                 execute=True,
@@ -974,6 +980,14 @@ class VisibilityEventServiceTests(TestCase):
                     business_id=self.first_business.BUSN_ID,
                 )
 
+        enqueue.assert_called_once_with(
+            kwargs={
+                "explorer_id": self.explorer.pk,
+                "business_id": self.first_business.pk,
+                "occurred_at": self.EVENT_TIME.isoformat(),
+            },
+            countdown=60,
+        )
         self.assertTrue(
             BusinessPocket.objects.filter(
                 PCKT_ID=pocket.PCKT_ID,
@@ -984,6 +998,84 @@ class VisibilityEventServiceTests(TestCase):
             self.first_business.BUSN_POCKET_COUNT,
             1,
         )
+
+    def test_save_recovery_preserves_original_day_and_deduplicates_redelivery(self):
+        from apps.business.tasks import retry_save_visibility_event
+
+        original = self.EVENT_TIME - timedelta(days=1)
+        for _ in range(2):
+            result = retry_save_visibility_event.run(
+                explorer_id=self.explorer.pk,
+                business_id=self.first_business.pk,
+                occurred_at=original.isoformat(),
+            )
+        self.assertEqual(len(self.collection.documents), 1)
+        document = next(iter(self.collection.documents.values()))
+        self.assertEqual(document["occurred_at"], original)
+        self.assertEqual(document["explorer_id"], self.explorer.pk)
+        self.assertEqual(document["event_type"], "SAVE")
+        self.assertEqual(result["duplicate_count"], 1)
+
+    def test_save_recovery_retries_failure_instead_of_reporting_success(self):
+        from apps.business.tasks import retry_save_visibility_event
+
+        with (
+            patch.object(
+                VisibilityEventService,
+                "record_save",
+                side_effect=VisibilityTrackingUnavailable(),
+            ),
+            patch.object(
+                retry_save_visibility_event,
+                "retry",
+                side_effect=RuntimeError("Retry queued"),
+            ) as retry,
+        ):
+            with self.assertRaisesMessage(RuntimeError, "Retry queued"):
+                retry_save_visibility_event.run(
+                    self.explorer.pk,
+                    self.first_business.pk,
+                    self.EVENT_TIME.isoformat(),
+                )
+        retry.assert_called_once()
+        self.assertEqual(retry.call_args.kwargs["countdown"], 60)
+
+    def test_save_recovery_broker_failure_does_not_undo_committed_save(self):
+        with (
+            patch.object(
+                VisibilityEventService,
+                "record_save",
+                side_effect=VisibilityTrackingUnavailable(),
+            ),
+            patch(
+                "apps.business.tasks.retry_save_visibility_event.apply_async",
+                side_effect=RuntimeError("Broker unavailable"),
+            ),
+            self.assertLogs("apps.business.services.pocket_service", level="ERROR"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            pocket = PocketService.create_pocket(
+                user=self.explorer,
+                business_id=self.first_business.pk,
+            )
+        self.assertTrue(BusinessPocket.objects.filter(pk=pocket.pk).exists())
+
+    def test_save_recovery_skips_missing_actor_and_keeps_owner_exclusion(self):
+        from apps.business.tasks import retry_save_visibility_event
+
+        missing = retry_save_visibility_event.run(
+            9999999,
+            self.first_business.pk,
+            self.EVENT_TIME.isoformat(),
+        )
+        self.assertEqual(missing["status"], "SKIPPED_MISSING_ACCOUNT")
+        owner = retry_save_visibility_event.run(
+            self.first_business.USER_ID_id,
+            self.first_business.pk,
+            self.EVENT_TIME.isoformat(),
+        )
+        self.assertEqual(owner["recorded_count"], 0)
+        self.assertEqual(len(self.collection.documents), 0)
 
     def test_visibility_tracking_does_not_change_scores_or_reputation(self):
         specialty = SpecialtyTag.objects.create(

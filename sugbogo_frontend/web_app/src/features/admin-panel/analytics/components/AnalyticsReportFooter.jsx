@@ -12,12 +12,13 @@ export default function AnalyticsReportFooter({
   hasDetails = hasData,
   coverageDescription,
   coverageLabel = "Partial coverage",
+  timestampLabel = "Updated",
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-stroke pt-3 text-xs text-text-secondary">
       {/* Updated time is report generation, never a capture watermark. */}
       <div className="flex min-w-0 items-center gap-1">
-        <span>Updated {formatTimestamp(meta?.generated_at)} PHT{meta?.is_partial ? ` · ${coverageLabel}` : ""}</span>
+        <span>{timestampLabel} {formatTimestamp(meta?.generated_at)} PHT{meta?.is_partial ? ` · ${coverageLabel}` : ""}</span>
         <Tooltip asChild place="top" openOnClick content={coverageDescription || reliabilitySummary(meta, title)}
           closeEvents={{ blur: true }} globalCloseEvents={{ escape: true, clickOutsideAnchor: true, scroll: true, resize: true }}
           className="!z-50 max-w-[min(22rem,calc(100vw-2rem))] whitespace-normal !px-3 !py-2 leading-relaxed">

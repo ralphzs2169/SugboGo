@@ -1,4 +1,4 @@
-import { setTokens, clearTokens, getRefreshToken } from "@/shared/api/storage";
+import { setTokens, clearTokens, getRefreshToken, getSessionGeneration } from "@/shared/api/storage";
 import { getCurrentUser, revokeRefreshToken } from "@/features/auth/api/auth.service";
 import { useAuthStore } from "../storage/auth.store";
 
@@ -13,16 +13,23 @@ export async function establishSession(authData) {
     access: authData.access,
     refresh: authData.refresh,
   });
+  const generation = getSessionGeneration();
 
   try {
     const user = await getCurrentUser();
+    if (generation !== getSessionGeneration()) return;
     useAuthStore.getState().setUser(user);
   } catch (error) {
+    if (generation !== getSessionGeneration()) return;
     if (error instanceof Error && error.name === "AUTH_ERROR") {
       // Already handled globally (toast + redirect already fired).
       return;
     }
     throw error;
+  } finally {
+    if (generation === getSessionGeneration()) {
+      useAuthStore.getState().setLoading(false);
+    }
   }
 }
 

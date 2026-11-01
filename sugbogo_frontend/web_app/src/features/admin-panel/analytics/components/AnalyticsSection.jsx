@@ -32,6 +32,7 @@ export default function AnalyticsSection({
   skeleton = <AnalyticsReportSkeleton />,
   framed = true,
   compactHeader = false,
+  titleIcon: TitleIcon,
 }) {
   const headingId = useId();
   const descriptionId = useId();
@@ -74,7 +75,7 @@ export default function AnalyticsSection({
       <header className={`${compactHeader ? "mb-2" : "mb-3"} flex flex-wrap items-start justify-between gap-3`}>
         <div className="min-w-0 flex-1 basis-36">
           <div className="flex items-center gap-1">
-            <h2 id={headingId} className="text-base font-semibold text-text-primary">{title}</h2>
+            <h2 id={headingId} className="text-base font-semibold text-text-primary">{TitleIcon ? <span className="flex items-center gap-2"><TitleIcon aria-hidden="true" className="h-4 w-4 shrink-0" />{title}</span> : title}</h2>
             {onAbout && <button type="button" aria-label={`About ${title}`} aria-haspopup="dialog" disabled={aboutDisabled} onClick={onAbout} className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50">
               <Info aria-hidden="true" className="h-4 w-4" />
             </button>}

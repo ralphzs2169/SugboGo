@@ -12,6 +12,7 @@ import {
   fetchReportedReviews,
 } from "../services/reportedReviewService";
 import { refreshReportedReview } from "../utils/refreshReportedReview";
+import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
 import DecisionDialog from "./DecisionDialog";
 import QueueFilters from "./QueueFilters";
 import QueueItem from "./QueueItem";
@@ -56,6 +57,7 @@ export default function ReportedReviewWorkspace() {
     ),
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "moderation-counts"] });
+      await invalidateDashboardDecision(queryClient);
       setDecisionTarget(null);
       setNotes("");
       selectReview(null);

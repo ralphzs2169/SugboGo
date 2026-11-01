@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
 
 import {
   approveUnderReviewReview,
@@ -8,7 +9,7 @@ import {
 export default function useUnderReviewDecisions() {
   const queryClient = useQueryClient();
 
-  async function refreshReviews(reviewId) {
+  async function refreshReviews(reviewId, { publication = false } = {}) {
     queryClient.removeQueries({
       queryKey: ["admin", "under-review", "detail", reviewId],
     });
@@ -18,11 +19,12 @@ export default function useUnderReviewDecisions() {
     await queryClient.invalidateQueries({
       queryKey: ["admin", "moderation-counts"],
     });
+    await invalidateDashboardDecision(queryClient, { publication });
   }
 
   const approveMutation = useMutation({
     mutationFn: approveUnderReviewReview,
-    onSuccess: (_, reviewId) => refreshReviews(reviewId),
+    onSuccess: (_, reviewId) => refreshReviews(reviewId, { publication: true }),
   });
   const rejectMutation = useMutation({
     mutationFn: ({ reviewId, moderationNotes }) =>

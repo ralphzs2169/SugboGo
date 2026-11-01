@@ -12,8 +12,6 @@ from apps.business.models import (
     Location,
 )
 from apps.merchant_application.constants import (
-    APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
-    APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
     REVIEWABLE_APPLICATION_STATUSES,
 )
 from apps.merchant_application.models import (
@@ -26,7 +24,7 @@ from apps.merchant_application.models import (
     MerchantApplicationSubmission,
 )
 from apps.merchant_application.utils.application_queue import (
-    get_business_day_cutoff,
+    get_application_queue_aging_filters,
     is_review_sla_compliant,
 )
 from apps.merchant_application.services.application_service import (
@@ -167,33 +165,9 @@ class ApplicationService:
                 "Invalid queue status.",
             )
 
-        queryset = queryset.filter(
-            MAPP_SUBMITTED_AT__isnull=False,
-            MAPP_REVIEWED_AT__isnull=True,
-        )
+        aging_filters = get_application_queue_aging_filters()
 
-        approaching_cutoff = get_business_day_cutoff(
-            APPLICATION_REVIEW_SLA_APPROACHING_BUSINESS_DAYS,
-        )
-
-        overdue_cutoff = get_business_day_cutoff(
-            APPLICATION_REVIEW_SLA_BUSINESS_DAYS,
-        )
-
-        if queue_status == "overdue":
-            return queryset.filter(
-                MAPP_SUBMITTED_AT__date__lte=overdue_cutoff,
-            )
-
-        if queue_status == "approaching":
-            return queryset.filter(
-                MAPP_SUBMITTED_AT__date__gt=overdue_cutoff,
-                MAPP_SUBMITTED_AT__date__lte=approaching_cutoff,
-            )
-
-        return queryset.filter(
-            MAPP_SUBMITTED_AT__date__gt=approaching_cutoff,
-        )
+        return queryset.filter(aging_filters[queue_status])
 
     @staticmethod
     def get_document_for_review(application_id, document_id):

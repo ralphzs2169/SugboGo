@@ -6,6 +6,7 @@ import {
 } from "../services/classificationUpdateRequestService";
 import { adminClassificationUpdateRequestKeys } from "./classificationUpdateRequestQueryKeys";
 import { adminBusinessUpdateRequestKeys } from "./businessUpdateRequestQueryKeys";
+import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
 
 /** Records classification decisions and refreshes its independent queue and detail caches. */
 export default function useClassificationUpdateRequestDecisions() {
@@ -13,6 +14,7 @@ export default function useClassificationUpdateRequestDecisions() {
 
   async function refreshRequests(requestId) {
     await Promise.all([
+      invalidateDashboardDecision(queryClient),
       queryClient.invalidateQueries({
         queryKey: adminClassificationUpdateRequestKeys.lists,
       }),

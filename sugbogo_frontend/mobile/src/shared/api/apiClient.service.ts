@@ -52,7 +52,8 @@ type AuthenticatedRequestConfig = InternalAxiosRequestConfig & {
 apiClient.interceptors.request.use(
   async (config) => {
     const authenticatedConfig = config as AuthenticatedRequestConfig;
-    const generation = getAuthSessionGeneration();
+    const generation =
+      authenticatedConfig._authSessionGeneration ?? getAuthSessionGeneration();
 
     authenticatedConfig._authSessionGeneration = generation;
 

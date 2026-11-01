@@ -6,6 +6,7 @@ import {
 } from "../services/locationUpdateRequestService";
 import { adminLocationUpdateRequestKeys } from "./locationUpdateRequestQueryKeys";
 import { adminBusinessUpdateRequestKeys } from "./businessUpdateRequestQueryKeys";
+import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
 
 /** Records a location decision and refreshes only its queue and detail resources. */
 export default function useLocationUpdateRequestDecisions() {
@@ -13,6 +14,7 @@ export default function useLocationUpdateRequestDecisions() {
 
   async function refreshRequests(requestId) {
     await Promise.all([
+      invalidateDashboardDecision(queryClient),
       queryClient.invalidateQueries({
         queryKey: adminLocationUpdateRequestKeys.lists,
       }),

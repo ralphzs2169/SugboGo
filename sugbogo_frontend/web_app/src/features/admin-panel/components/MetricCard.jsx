@@ -49,10 +49,12 @@ function MetricCard({
     <div className={`relative flex flex-col rounded-xl border border-stroke bg-background ${compact ? compactSpacing : "min-h-[165px] overflow-hidden transition-shadow hover:shadow-md"}`}>
       {/* Metric header */}
       <div className={compact ? "flex items-start justify-between gap-2" : "flex items-center justify-between border-b border-stroke bg-metric-header px-4 py-3"}>
-        <h3 className={`min-w-0 text-xs font-medium text-text-primary ${wrapTitle ? "break-words" : "truncate"}`}>
-          {title}
-        </h3>
-        {headerAction}
+        <div className="flex min-w-0 items-center gap-1">
+          <h3 className={`min-w-0 text-xs font-medium text-text-primary ${wrapTitle ? "break-words" : "truncate"}`}>
+            {title}
+          </h3>
+          {headerAction}
+        </div>
 
         {Icon && (
           <div className="text-text-primary">

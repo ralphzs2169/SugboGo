@@ -4,6 +4,7 @@ from datetime import datetime
 from celery import shared_task
 from django.db import OperationalError
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import NotFound
 
 from apps.business.services.discovery_score_service import (
@@ -11,6 +12,7 @@ from apps.business.services.discovery_score_service import (
 )
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 from apps.business.services.visibility_event_service import (
+    VisibilityEventService,
     VisibilityTrackingUnavailable,
 )
 
@@ -19,6 +21,49 @@ logger = logging.getLogger(__name__)
 TRANSIENT_RETRY_LIMIT = 3
 TRANSIENT_RETRY_BASE_SECONDS = 60
 TRANSIENT_RETRY_MAX_SECONDS = 300
+
+
+@shared_task(
+    bind=True,
+    name="apps.business.tasks.retry_save_visibility_event",
+    max_retries=TRANSIENT_RETRY_LIMIT,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def retry_save_visibility_event(
+    task,
+    explorer_id,
+    business_id,
+    occurred_at,
+):
+    """Recover only a committed SAVE using immutable account identity and server event time."""
+    from apps.users.models import User
+
+    timestamp = parse_datetime(occurred_at)
+    if timestamp is None or timezone.is_naive(timestamp):
+        raise ValueError("Invalid server save timestamp.")
+    try:
+        if not User.objects.filter(pk=explorer_id).exists():
+            return {"status": "SKIPPED_MISSING_ACCOUNT"}
+        result = VisibilityEventService.record_save(
+            explorer_id=explorer_id,
+            business_id=business_id,
+            occurred_at=timestamp,
+        )
+    except NotFound:
+        return {"status": "SKIPPED_INACTIVE_OR_MISSING"}
+    except (VisibilityTrackingUnavailable, OperationalError) as exc:
+        raise task.retry(
+            exc=exc,
+            countdown=min(
+                TRANSIENT_RETRY_BASE_SECONDS * (2 ** task.request.retries),
+                TRANSIENT_RETRY_MAX_SECONDS,
+            ),
+        )
+    return {
+        "recorded_count": result.recorded_count,
+        "duplicate_count": result.duplicate_count,
+    }
 
 
 @shared_task(

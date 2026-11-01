@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Layers, RotateCw, Tag, Tags, Gem } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -17,15 +18,17 @@ import getDiscoveryScoreColumns from "../discovery-scores/columns/discoveryScore
 import useDiscoveryScores from "../discovery-scores/hooks/useDiscoveryScores";
 import { recomputeDiscoveryScores } from "../discovery-scores/services/discoveryScoreService";
 import VisibilityDiagnosticsModal from "../discovery-scores/components/VisibilityDiagnosticsModal";
+import { analyticsQueryKeys } from "../analytics/queries/analyticsQueryKeys";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
   { value: "suspended", label: "Suspended" },
 ];
 
-/** Monitors persisted Discovery Scores and confirms Admin batch recomputation. */
+/** Monitor persisted scores and refresh shared health after confirmed Admin recomputation. */
 export default function DiscoveryScoresPage() {
   useDocumentTitle("Discovery Scores | SugboGo Admin");
+  const queryClient = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isRecomputing, setIsRecomputing] = useState(false);
   const [diagnosticBusiness, setDiagnosticBusiness] = useState(null);
@@ -73,7 +76,13 @@ export default function DiscoveryScoresPage() {
     try {
       const summary = await recomputeDiscoveryScores();
       setConfirmOpen(false);
-      await refetch();
+      await Promise.all([
+        refetch(),
+        queryClient.invalidateQueries({
+          queryKey: analyticsQueryKeys.discoveryScores({ page_size: 1 }),
+          exact: true,
+        }),
+      ]);
       toast.success(
         `${summary.updated} businesses updated. ${summary.failed} failed.`,
       );

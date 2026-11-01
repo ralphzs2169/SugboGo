@@ -478,8 +478,17 @@ class VisibilityEventService:
         cls,
         explorer_id: int,
         business_id: int,
+        *,
+        occurred_at=None,
     ) -> VisibilityEventWriteResult:
-        """Records a visibility save event for a single business."""
+        """Record a save, retaining its original server time during internal recovery."""
+        if occurred_at is None:
+            occurred_at = cls._get_current_time()
+        if (
+            not isinstance(occurred_at, datetime)
+            or timezone.is_naive(occurred_at)
+        ):
+            raise ValidationError("Use an aware server save timestamp.")
         business = cls._validate_active_business(
             business_id=business_id,
         )
@@ -492,7 +501,7 @@ class VisibilityEventService:
                 if business.USER_ID_id != explorer_id
                 else []
             ),
-            occurred_at=cls._get_current_time(),
+            occurred_at=occurred_at,
         )
 
     @classmethod

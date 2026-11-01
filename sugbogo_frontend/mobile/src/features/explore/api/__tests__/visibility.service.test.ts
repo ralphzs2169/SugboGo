@@ -54,6 +54,17 @@ describe("visibility transport", () => {
     await recordBusinessProfileVisit(34);
     expect(apiClient.post).toHaveBeenCalledWith(
       "/explorer/explore/businesses/34/profile-visit/",
+      undefined,
+      { _authSessionGeneration: expect.any(Number) },
+    );
+  });
+
+  it("binds attributed profile visits locally without adding identity to the event body", async () => {
+    await recordBusinessProfileVisit(34, "MAP");
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/explorer/explore/businesses/34/profile-visit/",
+      { discovery_source: "MAP" },
+      { _authSessionGeneration: expect.any(Number) },
     );
   });
 

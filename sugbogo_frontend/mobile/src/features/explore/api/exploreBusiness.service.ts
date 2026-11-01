@@ -1,3 +1,5 @@
+import type { AxiosRequestConfig } from "axios";
+import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import apiClient from "@/shared/api/apiClient.service";
 import { request } from "@/shared/api/request.service";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
@@ -229,6 +231,9 @@ export async function recordBusinessProfileVisit(
     duplicate: boolean;
   }>
 > {
+  const config: AxiosRequestConfig & { _authSessionGeneration: number } = {
+    _authSessionGeneration: getAuthSessionGeneration(),
+  };
   if (discoverySource !== undefined) {
     return request(
       apiClient.post(
@@ -236,10 +241,15 @@ export async function recordBusinessProfileVisit(
         {
           discovery_source: discoverySource,
         },
+        config,
       ),
     );
   }
   return request(
-    apiClient.post(`/explorer/explore/businesses/${businessId}/profile-visit/`),
+    apiClient.post(
+      `/explorer/explore/businesses/${businessId}/profile-visit/`,
+      undefined,
+      config,
+    ),
   );
 }
