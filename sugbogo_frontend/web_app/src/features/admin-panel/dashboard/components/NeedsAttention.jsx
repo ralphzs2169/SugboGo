@@ -14,8 +14,8 @@ import {
 } from "../utils/dashboardPresentation";
 
 const CHIP_TONES = {
-  danger: "bg-danger/15 text-danger",
-  warning: "bg-warning/15 text-warning",
+  danger: "bg-danger/15 text-text-primary",
+  warning: "bg-warning/15 text-text-primary",
   neutral: "bg-neutral/10 text-text-secondary",
 };
 
@@ -24,7 +24,7 @@ const ICON_TONES = {
   changes: "bg-info/15 text-info",
   moderation: "bg-neutral/15 text-neutral",
   reports: "bg-danger/15 text-danger",
-  disputes: "bg-success/15 text-success",
+  disputes: "bg-neutral/15 text-text-secondary",
 };
 
 const CHANGE_TYPES = [
@@ -33,7 +33,7 @@ const CHANGE_TYPES = [
   ["location", "Location"],
 ];
 
-/** Pill link used for queue breakdowns; zero counts are dimmed so non-zero values stand out. */
+/** Link to a queue breakdown, with neutral zero values and readable semantic status indicators. */
 function QueueChip({
   to,
   count,
@@ -42,14 +42,13 @@ function QueueChip({
   label,
   children,
 }) {
-  const isZero = !count;
-  const activeTone = isZero ? "neutral" : tone;
+  const activeTone = count > 0 ? tone : "neutral";
 
   return (
     <Link
       to={to}
       aria-label={label}
-      className={`${dashboardLinkClass} relative z-10 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs tabular-nums ${CHIP_TONES[activeTone]} ${isZero ? "opacity-60" : ""}`}
+      className={`${dashboardLinkClass} relative z-10 inline-flex min-h-8 items-center gap-1.5 rounded-full px-2 py-1 text-xs tabular-nums [@media(pointer:coarse)]:min-h-11 ${CHIP_TONES[activeTone]}`}
     >
       {dot && (
         <span
@@ -63,7 +62,7 @@ function QueueChip({
   );
 }
 
-/** Surface current actionable queues with explicit application ages and request-type breakdowns. */
+/** Present open review workflows with accessible queue links and distinct application aging states. */
 export default function NeedsAttention({ summary }) {
   const aging = summary.applications?.aging;
   const changes = summary.change_requests?.by_type;
@@ -130,16 +129,16 @@ export default function NeedsAttention({ summary }) {
       value: summary.reviews_under_review,
       to: dashboardQueues.underReview,
       icon: ShieldCheck,
-      footer: <span>Includes moderation processing</span>,
+      footer: <span>Includes automated processing</span>,
     },
     {
       key: "reports",
       label: "Reported reviews",
-      description: "Cases with pending reports",
+      description: "Distinct reviews",
       value: summary.reported_review_cases,
       to: dashboardQueues.reports,
       icon: Flag,
-      footer: <span>Counted by distinct case</span>,
+      footer: <span>With pending reports</span>,
     },
     {
       key: "disputes",
@@ -169,10 +168,12 @@ export default function NeedsAttention({ summary }) {
         }) => (
           <article
             key={key}
-            className={`group relative flex min-w-0 flex-col rounded-xl border bg-background p-4 transition-colors hover:border-stroke-strong hover:bg-surface-hover ${urgent ? "border-danger/40" : "border-stroke"}`}
+            className={`group relative flex min-w-0 cursor-pointer flex-col rounded-xl border bg-background p-3 transition-colors hover:border-stroke-strong hover:bg-surface-hover active:bg-surface-muted ${urgent ? "border-danger/40" : "border-stroke"}`}
           >
             <div className="flex items-center gap-2.5">
-              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ICON_TONES[key]}`}>
+              <span
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ICON_TONES[key]}`}
+              >
                 <Icon aria-hidden="true" className="h-4 w-4" />
               </span>
               <h3 className="min-w-0 flex-1 break-words text-sm font-medium text-text-primary">
@@ -190,13 +191,13 @@ export default function NeedsAttention({ summary }) {
               />
             </div>
 
-            <p className="mt-4 text-3xl font-semibold tabular-nums tracking-tight text-text-primary">
+            <p className="mt-3 text-2xl font-semibold tabular-nums tracking-tight text-text-primary">
               {formatCount(value)}
             </p>
-            <p className="mt-0.5 text-sm text-text-secondary">{description}</p>
+            <p className="mt-0.5 text-xs text-text-secondary">{description}</p>
 
             {/* Queue details stay separate links rather than nested card actions */}
-            <div className="mt-4 flex min-h-7 flex-wrap items-center gap-1.5 border-t border-stroke pt-3 text-xs text-text-secondary">
+            <div className="mt-3 flex min-h-7 flex-wrap items-center gap-1.5 border-t border-stroke pt-3 text-xs text-text-secondary">
               {footer}
             </div>
           </article>

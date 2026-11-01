@@ -17,6 +17,7 @@ export default function AnalyticsDetailDrawer({
   showComparison = true,
   dateColumn,
   dataContent,
+  aboutContent,
   periodContent,
   exportContext = {},
   loadExport,
@@ -149,7 +150,7 @@ export default function AnalyticsDetailDrawer({
           {displayMode === "data" && title === "Transportation Planning" && records.length > 0 && <p className="text-xs text-text-secondary">CSV includes complete method composition and time buckets. The bounded destination ranking is not included.</p>}
           {displayMode === "data" && exportError && <p role="alert" className="text-sm text-danger">{exportError}</p>}
           {periodContent ?? <div className="text-sm text-text-secondary"><p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0" />{readablePeriod(meta?.period)}</p><p className="mt-1">Philippine time{displayMode === "data" ? ` · ${interval}` : ""}</p></div>}
-          {displayMode === "about" ? <>
+          {displayMode === "about" ? aboutContent ?? <>
             <AnalyticsReportExplanation title={title} report={report} />
             <AnalyticsReliability meta={meta} title={title} snapshotAt={report?.coverage?.snapshot_at} />
             {showComparison && <p className="text-xs text-text-secondary">Compared with {growthPeriodLabel(meta?.period?.previous_start, meta?.period?.previous_end_exclusive)} Philippine time.</p>}

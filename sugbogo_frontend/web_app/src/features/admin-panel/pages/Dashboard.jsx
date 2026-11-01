@@ -4,10 +4,11 @@ import { useAuthStore } from "@/features/auth/storage/auth.store";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import navigation from "../config/sidebarNavigation";
-import { formatCount, formatTimestamp } from "../analytics/utils/presentation";
+import { formatTimestamp } from "../analytics/utils/presentation";
 import NeedsAttention from "../dashboard/components/NeedsAttention";
 import PriorityWorklist from "../dashboard/components/PriorityWorklist";
 import ApplicationReviewAging from "../dashboard/components/ApplicationReviewAging";
+import PlatformOverviewKpis from "../dashboard/components/PlatformOverviewKpis";
 import PlatformActivity from "../dashboard/components/PlatformActivity";
 import UserDistribution from "../dashboard/components/UserDistribution";
 import BusinessHealth from "../dashboard/components/BusinessHealth";
@@ -15,7 +16,6 @@ import RecentDecisions from "../dashboard/components/RecentDecisions";
 import DashboardQuerySection from "../dashboard/components/DashboardQuerySection";
 import {
   dashboardLinkClass,
-  dashboardQueues,
   latestDashboardTimestamp,
 } from "../dashboard/utils/dashboardPresentation";
 import {
@@ -47,7 +47,6 @@ export default function Dashboard() {
     platformOverview.data?.as_of,
     priorityWorklist.data?.as_of,
   );
-  const overdueApplications = summary.data?.applications?.aging?.overdue ?? 0;
 
   useApiErrorNotification(summary.error, {
     toastId: "admin-dashboard-summary-load-error",
@@ -84,50 +83,47 @@ export default function Dashboard() {
           </p>
         </div>
         {updatedAt && (
-          <p className="text-xs text-text-secondary">
-            Updated{" "}
+          <p className="text-xs leading-relaxed text-text-secondary sm:text-right">
+            Latest source update{" "}
             <time dateTime={updatedAt}>{formatTimestamp(updatedAt)}</time> ·
             Manila
+            <span className="block">Sections refresh independently.</span>
           </p>
         )}
       </div>
 
-      {/* Current actionable inventories */}
+      {/* Period KPIs and current inventory remain separate from pending queues */}
+      <PlatformOverviewKpis overview={platformOverview} summary={summary} />
       <DashboardQuerySection
         query={summary}
-        label="Needs attention"
-        description="Items waiting on you across admin queues."
+        label="Administrative Queues"
+        description="Open review workflows and pending cases. Categories may overlap."
         framed={false}
-        action={
-          overdueApplications > 0 ? (
-            <Link
-              to={`${dashboardQueues.applications}&queue_status=overdue`}
-              className={`${dashboardLinkClass} inline-flex items-center rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger`}
-            >
-              {formatCount(overdueApplications)} overdue
-            </Link>
-          ) : null
-        }
       >
         {(data) => <NeedsAttention summary={data} />}
       </DashboardQuerySection>
 
-      {/* Bounded pending records and the existing weekday review target */}
+      {/* Seven-day activity beside current account composition */}
+      <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-3">
+        <div className="min-w-0 lg:col-span-2 [&>section]:h-full">
+          <PlatformActivity query={platformOverview} />
+        </div>
+        <DashboardQuerySection
+          query={platformOverview}
+          label="User Distribution"
+          description="Registered accounts by role"
+        >
+          {(data) => <UserDistribution distribution={data.user_distribution} />}
+        </DashboardQuerySection>
+      </div>
+
+      {/* Mixed pending work keeps its backend ordering and dedicated workflow links */}
       <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-3">
         <div className="min-w-0 lg:col-span-2 [&>section]:h-full">
           <DashboardQuerySection
             query={priorityWorklist}
             label="Priority Worklist"
             description="Pending work, with overdue applications first."
-            action={
-              <Link
-                className={`${dashboardLinkClass} inline-flex min-h-9 items-center gap-1 text-xs`}
-                to={dashboardQueues.applications}
-              >
-                View applications{" "}
-                <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
-              </Link>
-            }
           >
             {(data) => <PriorityWorklist items={data.items} />}
           </DashboardQuerySection>
@@ -143,33 +139,19 @@ export default function Dashboard() {
         </DashboardQuerySection>
       </div>
 
-      {/* Period activity stays separate from current account and business inventories */}
+      {/* Persisted decisions and score markers describe separate operational concerns */}
       <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-3">
-        <DashboardQuerySection
-          query={platformOverview}
-          label="Platform Activity"
-          description="Last 7 days"
-        >
-          {(data) => <PlatformActivity activity={data.activity} />}
-        </DashboardQuerySection>
-        <DashboardQuerySection
-          query={platformOverview}
-          label="User Distribution"
-          description="Registered accounts by role"
-        >
-          {(data) => <UserDistribution distribution={data.user_distribution} />}
-        </DashboardQuerySection>
+        <div className="min-w-0 lg:col-span-2 [&>section]:h-full">
+          <DashboardQuerySection
+            query={recentDecisions}
+            label="Recent Administrative Decisions"
+            description="Latest five supported recorded decisions · current entity labels"
+          >
+            {(data) => <RecentDecisions items={data.items} />}
+          </DashboardQuerySection>
+        </div>
         <BusinessHealth summary={summary} canViewScores={canViewScores} />
       </div>
-
-      {/* Safe persisted decisions rather than a fabricated platform activity stream */}
-      <DashboardQuerySection
-        query={recentDecisions}
-        label="Recent Administrative Decisions"
-        description="Latest five supported recorded decisions · current entity labels"
-      >
-        {(data) => <RecentDecisions items={data.items} />}
-      </DashboardQuerySection>
 
       {/* The existing navigation policy controls the Analytics entry point */}
       {canViewAnalytics && (

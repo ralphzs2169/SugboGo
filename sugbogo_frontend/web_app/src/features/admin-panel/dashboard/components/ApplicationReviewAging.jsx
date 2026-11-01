@@ -5,7 +5,7 @@ import { formatCount } from "../../analytics/utils/presentation";
 export default function ApplicationReviewAging({ aging }) {
   const rows = [
     { key: "on_time", label: "On time", days: "0–2 weekdays", color: "var(--color-neutral)" },
-    { key: "approaching", label: "Approaching", days: "3–4 weekdays", color: "var(--color-warning)" },
+    { key: "approaching", label: "Approaching deadline", days: "3–4 weekdays", color: "var(--color-warning)" },
     { key: "overdue", label: "Overdue", days: "5+ weekdays", color: "var(--color-danger)" },
   ].map((row) => ({ ...row, count: aging?.[row.key] }));
   const available = rows.every((row) => row.count != null);

@@ -10,6 +10,7 @@ export default function DashboardQuerySection({
   action,
   framed = true,
   headingAs = "h2",
+  headerVisible = true,
 }) {
   const hasData = query.data !== undefined;
   const Heading = headingAs;
@@ -18,27 +19,41 @@ export default function DashboardQuerySection({
     <section
       aria-label={label}
       aria-busy={query.isFetching}
-      className={framed ? "min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-5" : "min-w-0"}
+      className={
+        framed
+          ? "min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-5"
+          : "min-w-0"
+      }
     >
       {/* Match Analytics headings and keep independent refresh feedback unobtrusive */}
-      <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <Heading className={`${headingAs === "h3" ? "text-sm" : "text-base"} font-semibold text-text-primary`}>{label}</Heading>
-          {description && <p className="mt-1 text-xs leading-relaxed text-text-secondary">{description}</p>}
-        </div>
-        {action}
-      </header>
-      {/* Independent initial load and persistent recovery */}
-      {query.isLoading && !hasData && (
-        <DashboardSkeleton label={label} />
+      {headerVisible && (
+        <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <Heading
+              className={`${headingAs === "h3" ? "text-sm" : "text-base"} font-semibold text-text-primary`}
+            >
+              {label}
+            </Heading>
+            {description && (
+              <p className="mt-1 text-xs leading-relaxed text-text-secondary">
+                {description}
+              </p>
+            )}
+          </div>
+          {action}
+        </header>
       )}
+      {/* Independent initial load and persistent recovery */}
+      {query.isLoading && !hasData && <DashboardSkeleton label={label} />}
       {query.error && (
         <DataErrorState
           compact
           title={`Unable to load ${label.toLowerCase()}`}
-          message={hasData
-            ? "The refresh failed. Previously loaded data remains visible."
-            : "Please try again."}
+          message={
+            hasData
+              ? "The refresh failed. Previously loaded data remains visible."
+              : "Please try again."
+          }
           onRetry={() => query.refetch()}
           retrying={query.isFetching}
           retryLabel="Retry"

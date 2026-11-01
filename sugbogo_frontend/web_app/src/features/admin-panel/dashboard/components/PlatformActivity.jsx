@@ -1,52 +1,234 @@
-import { ClipboardList, MessageSquareText, ThumbsUp } from "lucide-react";
-import { formatCount, formatTimestamp } from "../../analytics/utils/presentation";
-import { dashboardLinkClass } from "../utils/dashboardPresentation";
+import { useState } from "react";
+import { Line } from "recharts";
+import DataErrorState from "@/shared/components/errors/DataErrorState";
+import AnalyticsTimeSeries from "../../analytics/components/AnalyticsTimeSeries";
+import AnalyticsTooltip from "../../analytics/components/AnalyticsTooltip";
+import AnalyticsPeriodLabel from "../../analytics/components/AnalyticsPeriodLabel";
+import AnalyticsReportFooter from "../../analytics/components/AnalyticsReportFooter";
+import AnalyticsExactTable from "../../analytics/components/AnalyticsExactTable";
+import AnalyticsSection from "../../analytics/components/AnalyticsSection";
+import AnalyticsDetailDrawer from "../../analytics/components/AnalyticsDetailDrawer";
+import {
+  formatCount,
+  formatTimestamp,
+  sectionQueryState,
+} from "../../analytics/utils/presentation";
+import {
+  activitySeries,
+  platformActivityDays,
+} from "../utils/platformActivity";
 
-/** Show recorded activity in the server-defined calendar window without deriving trend comparisons. */
-export default function PlatformActivity({ activity }) {
-  const metrics = [
-    { key: "applications_submitted", label: "Applications submitted", icon: ClipboardList },
-    { key: "reviews_published", label: "Reviews published", icon: MessageSquareText },
-    { key: "vouches_created", label: "Vouches created", icon: ThumbsUp },
-  ];
-  const window = activity?.window;
-
+/** Explain the exact server date and visible series counts without inferring comparisons. */
+function ActivityTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
   return (
-    <div>
-      {/* Event counts are separate from the current-state inventory cards */}
-      <dl className="divide-y divide-stroke">
-        {metrics.map(({ key, label, icon: Icon }) => (
-          <div key={key} className="flex items-center justify-between gap-3 py-4 first:pt-1">
-            <dt className="flex min-w-0 items-center gap-2 text-sm text-text-secondary">
-              <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
-              {label}
-            </dt>
-            <dd className="text-lg font-semibold tabular-nums text-text-primary">{formatCount(activity?.[key])}</dd>
-          </div>
-        ))}
-      </dl>
-      {/* Explicit effective bounds keep a partial day from looking like a complete reporting period */}
-      <div className="mt-3 space-y-1 text-xs leading-relaxed text-text-secondary">
-        {window ? (
+    <AnalyticsTooltip
+      title={(payload[0]?.payload?.date ?? label) + " · Manila"}
+      rows={payload.map((entry) => ({
+        label: entry.name,
+        value: formatCount(entry.value),
+        color: entry.color,
+      }))}
+    />
+  );
+}
+
+/** Plot seven real Manila-date buckets with isolatable series, a shared count axis, and exact-value text. */
+export default function PlatformActivity({ query }) {
+  const activity = query.data?.activity;
+  const asOf = query.data?.as_of;
+  const onRetry = () => query.refetch();
+  const isFetching = query.isFetching;
+  const [mode, setMode] = useState(null);
+  const [visible, setVisible] = useState(activitySeries.map(({ key }) => key));
+  const rows = platformActivityDays(activity);
+  const window = activity?.window;
+  const empty = rows?.every((row) =>
+    activitySeries.every(({ key }) => row[key] === 0),
+  );
+  function isolate(key) {
+    setVisible((current) =>
+      current.length === 1 && current[0] === key
+        ? activitySeries.map((series) => series.key)
+        : [key],
+    );
+  }
+  const period = { start_date: rows?.[0]?.date, end_date: rows?.at(-1)?.date };
+  const meta = {
+    generated_at: asOf,
+    period,
+    is_partial: window?.includes_partial_day,
+  };
+  const report = { series: rows, definitions: activity?.definitions, meta };
+  return (
+    <section
+      aria-label="Platform Activity Trend"
+      className="min-w-0 [&>section]:h-full"
+    >
+      <AnalyticsSection
+        title="Platform Activity Trend"
+        description="Last 7 Manila calendar dates · recorded events"
+        onAbout={() => setMode("about")}
+        aboutDisabled={!activity}
+        {...sectionQueryState(query)}
+        errorMessage="Unable to load platform activity. Please try again."
+        footer={
+          <AnalyticsReportFooter
+            title="Platform Activity Trend"
+            meta={meta}
+            hasData={Boolean(rows)}
+            hasDetails={Boolean(activity)}
+            coverageLabel="Today is partial"
+            coverageDescription="Recorded events in the server-selected Asia/Manila window, start-inclusive and end-exclusive. The current day may be partial; no previous-period comparison is available."
+            onData={() => setMode("data")}
+          />
+        }
+      >
+        <AnalyticsPeriodLabel
+          period={{ start_date: rows?.[0]?.date, end_date: rows?.at(-1)?.date }}
+        >
+          {window?.includes_partial_day ? " · Today is partial" : ""}
+        </AnalyticsPeriodLabel>
+        {!window && (
+          <p className="mb-3 text-xs text-text-secondary">
+            Activity window unavailable.
+          </p>
+        )}
+        {/* Keyboard legend isolates large series without introducing independent scales */}
+        <div
+          role="group"
+          aria-label="Activity series visibility"
+          className="mb-3 flex flex-wrap gap-2"
+        >
+          {activitySeries.map((series) => (
+            <button
+              key={series.key}
+              type="button"
+              disabled={!rows}
+              aria-pressed={visible.includes(series.key)}
+              onClick={() => isolate(series.key)}
+              className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info aria-pressed:font-semibold aria-pressed:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg aria-hidden="true" width="20" height="4">
+                <line
+                  x1="0"
+                  y1="2"
+                  x2="20"
+                  y2="2"
+                  stroke={series.color}
+                  strokeWidth="2"
+                  strokeDasharray={series.dash}
+                />
+              </svg>
+              {series.label}
+            </button>
+          ))}
+        </div>
+        <p className="sr-only">
+          Select a series to isolate it; select it again to show all. All series
+          use the same count axis.
+        </p>
+        {/* The plot never pads missing observations or changes the server's window */}
+        {!rows ? (
+          <DataErrorState
+            compact
+            title="Daily activity is unavailable"
+            message="Seven consecutive dated counts are required. Please try again."
+            onRetry={onRetry}
+            retrying={isFetching}
+            retryLabel="Retry"
+          />
+        ) : (
           <>
-            <p>{formatTimestamp(window.start)} – {formatTimestamp(window.end_exclusive)}</p>
-            <p>{window.timezone} · End exclusive{window.includes_partial_day ? " · Today is partial" : ""}</p>
+            {empty && (
+              <p className="mb-3 text-sm text-text-secondary">
+                No recorded platform activity in this window.
+              </p>
+            )}
+            <div aria-hidden="true" className="h-56 min-w-0 sm:h-60">
+              <AnalyticsTimeSeries
+                rows={rows}
+                lines={[]}
+                showLegend={false}
+                tooltipContent={<ActivityTooltip />}
+              >
+                {activitySeries
+                  .filter(({ key }) => visible.includes(key))
+                  .map((series) => (
+                    <Line
+                      key={series.key}
+                      dataKey={series.key}
+                      name={series.label}
+                      type="linear"
+                      connectNulls={false}
+                      stroke={series.color}
+                      strokeDasharray={series.dash}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      isAnimationActive={false}
+                    />
+                  ))}
+              </AnalyticsTimeSeries>
+            </div>
           </>
-        ) : <p>Activity window unavailable.</p>}
-      </div>
-      {activity?.definitions && (
-        <details className="mt-3 text-xs text-text-secondary">
-          <summary className={`${dashboardLinkClass} text-xs`}>Activity definitions</summary>
-          <dl className="mt-3 space-y-3 leading-relaxed">
-            {metrics.map(({ key, label }) => (
+        )}
+      </AnalyticsSection>
+      {/* Reuse the Analytics drawers for exact data and methodology without inventing report metrics */}
+      <AnalyticsDetailDrawer
+        mode={mode}
+        onClose={() => setMode(null)}
+        title="Platform Activity Trend"
+        report={report}
+        interval="daily"
+        series={activitySeries}
+        showComparison={false}
+        periodContent={
+          <div className="space-y-1 text-xs text-text-secondary">
+            <AnalyticsPeriodLabel period={period} />
+            <p>Asia/Manila · Start inclusive · End exclusive</p>
+            <p>
+              Through {formatTimestamp(window?.end_exclusive)} PHT
+              {window?.includes_partial_day ? " · Today is partial" : ""}
+            </p>
+          </div>
+        }
+        aboutContent={
+          <div className="space-y-4">
+            <p className="text-sm text-text-secondary">
+              Counts reflect retained, recorded events. No previous-period
+              comparison is provided.
+            </p>
+            {activitySeries.map(({ key, label }) => (
               <div key={key}>
-                <dt className="font-medium text-text-primary">{label}</dt>
-                <dd className="mt-1">{activity.definitions[key]}</dd>
+                <h3 className="text-sm font-semibold text-text-primary">
+                  {label}
+                </h3>
+                <p className="mt-1 text-sm text-text-secondary">
+                  {activity?.definitions?.[key] ?? "Definition unavailable."}
+                </p>
               </div>
             ))}
-          </dl>
-        </details>
-      )}
-    </div>
+          </div>
+        }
+        dataContent={
+          rows ? (
+            <AnalyticsExactTable
+              caption="Exact platform activity counts by Manila date"
+              rows={rows}
+              columns={[
+                { key: "date", label: "Date" },
+                ...activitySeries.map(({ key, label }) => ({
+                  key,
+                  label,
+                  render: (row) => formatCount(row[key]),
+                })),
+              ]}
+            />
+          ) : (
+            <p>Daily activity is unavailable.</p>
+          )
+        }
+      />
+    </section>
   );
 }
