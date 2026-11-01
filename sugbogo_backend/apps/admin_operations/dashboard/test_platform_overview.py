@@ -1,6 +1,6 @@
 """Focused persisted-event, reporting-window, and account-composition tests."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -86,6 +86,61 @@ class PlatformOverviewFixtures(DashboardFixtures):
 class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
     """Protect event semantics, half-open Manila periods, and disjoint account roles."""
 
+    def test_daily_buckets_group_by_manila_date_and_reconcile_at_window_boundaries(self):
+        business = self.create_business()
+        tag = SpecialtyTag.objects.create(TAG_NAME="Daily activity specialty")
+        application = self.create_application(
+            status=MerchantApplication.ApplicationStatus.APPROVED,
+        )
+        start = datetime(2026, 10, 30, 16, tzinfo=UTC)
+        timestamps = (
+            start - timedelta(microseconds=1),
+            start,
+            datetime(2026, 10, 31, 15, 59, tzinfo=UTC),
+            datetime(2026, 10, 31, 16, tzinfo=UTC),
+            self.NOW - timedelta(microseconds=1),
+            self.NOW,
+            self.NOW + timedelta(microseconds=1),
+        )
+        for timestamp in timestamps:
+            self.submission(timestamp, application=application)
+            self.publication(
+                business,
+                timestamp,
+                status=Review.ReviewStatus.REJECTED,
+            )
+            self.vouch(
+                business,
+                tag,
+                timestamp,
+                VOUCH_WITHDRAWN_AT=self.NOW,
+            )
+
+        with timezone.override("America/New_York"):
+            with self.assertNumQueries(4):
+                activity = PlatformOverviewService.get_overview()["activity"]
+
+        daily = activity["daily"]
+        self.assertEqual(
+            [bucket["date"] for bucket in daily],
+            [
+                date(2026, 10, 31) + timedelta(days=offset)
+                for offset in range(7)
+            ],
+        )
+        for metric in ("applications_submitted", "reviews_published", "vouches_created"):
+            self.assertEqual(
+                [bucket[metric] for bucket in daily],
+                [2, 1, 0, 0, 0, 0, 1],
+            )
+            self.assertEqual(
+                sum(bucket[metric] for bucket in daily),
+                activity[metric],
+            )
+            self.assertEqual(activity[metric], 4)
+        self.assertEqual(activity["window"]["end_exclusive"], self.NOW)
+        self.assertTrue(activity["window"]["includes_partial_day"])
+
     def test_window_reuses_seven_manila_calendar_dates_capped_at_as_of(self):
         result = PlatformOverviewService.get_overview()
         window = result["activity"]["window"]
@@ -117,13 +172,17 @@ class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
     def test_exact_manila_midnight_starts_new_calendar_selection(self):
         now = datetime(2026, 11, 6, 16, tzinfo=UTC)
         with patch("django.utils.timezone.now", return_value=now):
-            window = PlatformOverviewService.get_overview()["activity"]["window"]
+            activity = PlatformOverviewService.get_overview()["activity"]
+            window = activity["window"]
 
         self.assertEqual(
             window["start"],
             datetime(2026, 10, 31, 16, tzinfo=UTC),
         )
         self.assertEqual(window["end_exclusive"], now)
+        self.assertEqual(len(activity["daily"]), 7)
+        self.assertEqual(activity["daily"][-1]["date"], date(2026, 11, 7))
+        self.assertEqual(activity["daily"][-1]["applications_submitted"], 0)
 
     def test_all_event_sources_obey_inclusive_start_and_exclusive_end(self):
         business = self.create_business()
@@ -144,6 +203,11 @@ class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
         activity = PlatformOverviewService.get_overview()["activity"]
 
         self.assertEqual(activity["applications_submitted"], 2)
+
+        self.assertEqual(
+            sum(bucket["applications_submitted"] for bucket in activity["daily"]),
+            2,
+        )
         self.assertEqual(activity["reviews_published"], 2)
         self.assertEqual(activity["vouches_created"], 2)
 
@@ -163,6 +227,8 @@ class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
         activity = PlatformOverviewService.get_overview()["activity"]
 
         self.assertEqual(activity["applications_submitted"], 2)
+        self.assertEqual(activity["daily"][3]["applications_submitted"], 1)
+        self.assertEqual(activity["daily"][5]["applications_submitted"], 1)
 
     def test_application_creation_or_latest_timestamp_without_submission_history_does_not_count(self):
         self.create_application(
@@ -190,8 +256,11 @@ class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
             REVW_CREATED_AT=self.NOW - timedelta(hours=2),
         )
 
+        activity = PlatformOverviewService.get_overview()["activity"]
+        self.assertEqual(activity["reviews_published"], 1)
+        self.assertEqual(activity["daily"][-1]["reviews_published"], 1)
         self.assertEqual(
-            PlatformOverviewService.get_overview()["activity"]["reviews_published"],
+            sum(bucket["reviews_published"] for bucket in activity["daily"]),
             1,
         )
 
@@ -257,8 +326,11 @@ class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
             VOUCH_UPDATED_AT=self.NOW - timedelta(hours=1),
         )
 
+        activity = PlatformOverviewService.get_overview()["activity"]
+        self.assertEqual(activity["vouches_created"], 1)
+        self.assertEqual(activity["daily"][5]["vouches_created"], 1)
         self.assertEqual(
-            PlatformOverviewService.get_overview()["activity"]["vouches_created"],
+            sum(bucket["vouches_created"] for bucket in activity["daily"]),
             1,
         )
 
@@ -331,6 +403,10 @@ class PlatformOverviewServiceTests(PlatformOverviewFixtures, TestCase):
         self.assertEqual(result["activity"]["reviews_published"], 0)
         self.assertEqual(result["activity"]["vouches_created"], 0)
         self.assertEqual(result["user_distribution"]["total"], 0)
+        self.assertEqual(len(result["activity"]["daily"]), 7)
+        for bucket in result["activity"]["daily"]:
+            for metric in ("applications_submitted", "reviews_published", "vouches_created"):
+                self.assertEqual(bucket[metric], 0)
 
     def test_failed_queries_are_not_converted_to_zero(self):
         for model, method in (
@@ -384,6 +460,25 @@ class PlatformOverviewViewTests(
                 self.assertEqual(window["end_exclusive"], "2026-11-06T12:00:00Z")
                 self.assertEqual(window["timezone"], "Asia/Manila")
                 self.assertTrue(window["includes_partial_day"])
+                daily = data["activity"]["daily"]
+                self.assertEqual(
+                    [bucket["date"] for bucket in daily],
+                    [
+                        (date(2026, 10, 31) + timedelta(days=offset)).isoformat()
+                        for offset in range(7)
+                    ],
+                )
+                self.assertEqual(
+                    set(data["activity"]),
+                    {
+                        "window",
+                        "applications_submitted",
+                        "reviews_published",
+                        "vouches_created",
+                        "definitions",
+                        "daily",
+                    },
+                )
                 for metric in (
                     "applications_submitted",
                     "reviews_published",
@@ -391,6 +486,10 @@ class PlatformOverviewViewTests(
                 ):
                     self.assertEqual(data["activity"][metric], 0)
                     self.assertTrue(data["activity"]["definitions"][metric])
+                    self.assertEqual(
+                        sum(bucket[metric] for bucket in daily),
+                        data["activity"][metric],
+                    )
                 self.assertEqual(
                     set(data["user_distribution"]),
                     {

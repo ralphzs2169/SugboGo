@@ -20,6 +20,15 @@ class PlatformActivityDefinitionsSerializer(serializers.Serializer):
     vouches_created = serializers.CharField(read_only=True)
 
 
+class PlatformActivityDaySerializer(serializers.Serializer):
+    """Expose zero-filled event counts for one Manila calendar date."""
+
+    date = serializers.DateField(read_only=True, format="%Y-%m-%d")
+    applications_submitted = serializers.IntegerField(read_only=True)
+    reviews_published = serializers.IntegerField(read_only=True)
+    vouches_created = serializers.IntegerField(read_only=True)
+
+
 class PlatformActivitySerializer(serializers.Serializer):
     """Serialize retained submission, first-publication, and vouch-creation events."""
 
@@ -28,6 +37,7 @@ class PlatformActivitySerializer(serializers.Serializer):
     reviews_published = serializers.IntegerField(read_only=True)
     vouches_created = serializers.IntegerField(read_only=True)
     definitions = PlatformActivityDefinitionsSerializer(read_only=True)
+    daily = PlatformActivityDaySerializer(many=True, read_only=True)
 
 
 class UserDistributionSerializer(serializers.Serializer):

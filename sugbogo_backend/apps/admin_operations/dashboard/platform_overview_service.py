@@ -1,6 +1,9 @@
 """Persisted recent platform events and current account composition for the Dashboard."""
 
+from datetime import timedelta
+
 from django.db.models import Count, Q
+from django.db.models.functions import TruncDate
 
 from apps.business.models import BusinessVouch
 from apps.merchant_application.models import MerchantApplicationSubmission
@@ -28,21 +31,62 @@ class PlatformOverviewService:
     }
 
     @staticmethod
+    def _daily_counts(
+        model,
+        timestamp_field,
+        period,
+    ):
+        """Group retained events by Manila date within the single captured reporting window."""
+        rows = (
+            model.objects.filter(
+                **{
+                    f"{timestamp_field}__gte": period.start,
+                    f"{timestamp_field}__lt": period.end,
+                },
+            )
+            .order_by()
+            .annotate(
+                date=TruncDate(
+                    timestamp_field,
+                    tzinfo=MANILA,
+                ),
+            )
+            .values("date")
+            .annotate(count=Count("pk"))
+        )
+        return {
+            row["date"]: row["count"]
+            for row in rows
+        }
+
+    @staticmethod
     def get_overview():
         """Assemble four SQL aggregates using the canonical Manila period without snapshot guarantees."""
         period = resolve_period(preset="7")
-        applications_submitted = MerchantApplicationSubmission.objects.filter(
-            MASUB_SUBMITTED_AT__gte=period.start,
-            MASUB_SUBMITTED_AT__lt=period.end,
-        ).count()
-        reviews_published = Review.objects.filter(
-            REVW_PUBLISHED_AT__gte=period.start,
-            REVW_PUBLISHED_AT__lt=period.end,
-        ).count()
-        vouches_created = BusinessVouch.objects.filter(
-            VOUCH_CREATED_AT__gte=period.start,
-            VOUCH_CREATED_AT__lt=period.end,
-        ).count()
+        sources = (
+            (
+                "applications_submitted",
+                MerchantApplicationSubmission,
+                "MASUB_SUBMITTED_AT",
+            ),
+            ("reviews_published", Review, "REVW_PUBLISHED_AT"),
+            ("vouches_created", BusinessVouch, "VOUCH_CREATED_AT"),
+        )
+        daily = [
+            {"date": period.start_date + timedelta(days=offset)}
+            for offset in range(7)
+        ]
+        totals = {}
+        for metric, model, timestamp_field in sources:
+            counts = PlatformOverviewService._daily_counts(
+                model,
+                timestamp_field,
+                period,
+            )
+            for bucket in daily:
+                bucket[metric] = counts.get(bucket["date"], 0)
+            # Derive each total from the same grouped read, avoiding count-to-series races.
+            totals[metric] = sum(counts.values())
         distribution = User.objects.aggregate(
             total=Count("USER_ID"),
             explorer=Count(
@@ -81,9 +125,8 @@ class PlatformOverviewService:
                     "timezone": MANILA.key,
                     "includes_partial_day": period.includes_partial_day,
                 },
-                "applications_submitted": applications_submitted,
-                "reviews_published": reviews_published,
-                "vouches_created": vouches_created,
+                **totals,
+                "daily": daily,
                 "definitions": PlatformOverviewService.ACTIVITY_DEFINITIONS,
             },
             "user_distribution": distribution,
