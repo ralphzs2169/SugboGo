@@ -64,9 +64,10 @@ function waitForVisibilityRetry(
   });
 }
 
-/** Keep delivery in React Query with one lifecycle-cancellable retry, never a paused queue. */
+/** Keep delivery in React Query with bounded lifecycle-cancellable retries, never a paused queue. */
 function useVisibilityMutation<TInput, TOutput>(
   deliver: (input: TInput) => Promise<ApiResponse<TOutput>>,
+  retryLimit = 1,
 ) {
   const lifecycle = useRef<AbortController | null>(null);
 
@@ -87,24 +88,35 @@ function useVisibilityMutation<TInput, TOutput>(
     mutationFn: async (input: TInput) => {
       const signal = lifecycle.current?.signal;
       const generation = getAuthSessionGeneration();
-      try {
-        return throwOnApiError(await deliver(input));
-      } catch (error) {
-        const delay = visibilityRetryDelay(error);
-        if (
-          delay === null ||
-          !signal ||
-          signal.aborted ||
-          generation !== getAuthSessionGeneration()
-        ) {
-          throw error;
+      const startedDay = new Date().toISOString().slice(0, 10);
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          return throwOnApiError(await deliver(input));
+        } catch (error) {
+          const delay = visibilityRetryDelay(error);
+          if (
+            attempt >= retryLimit ||
+            delay === null ||
+            !signal ||
+            signal.aborted ||
+            generation !== getAuthSessionGeneration()
+          ) {
+            throw error;
+          }
+          await waitForVisibilityRetry(
+            Math.max(delay, 1000 * 2 ** attempt),
+            signal,
+            error,
+          );
+          // Daily server deduplication cannot promise idempotency across UTC dates.
+          if (
+            signal.aborted ||
+            generation !== getAuthSessionGeneration() ||
+            startedDay !== new Date().toISOString().slice(0, 10)
+          ) {
+            throw error;
+          }
         }
-
-        await waitForVisibilityRetry(delay, signal, error);
-        if (signal.aborted || generation !== getAuthSessionGeneration()) {
-          throw error;
-        }
-        return throwOnApiError(await deliver(input));
       }
     },
     // TanStack's mutation retry sleep cannot be cancelled on observer unmount.
@@ -132,5 +144,5 @@ async function deliverProfileVisit(visit: ProfileVisit) {
 
 /** Submit displayed profile visits through the same bounded delivery lifecycle. */
 export function useRecordBusinessProfileVisit() {
-  return useVisibilityMutation(deliverProfileVisit);
+  return useVisibilityMutation(deliverProfileVisit, 2);
 }

@@ -1,6 +1,6 @@
 import logging
 
-from django.db import transaction
+from django.db import OperationalError, transaction
 from django.db.models import F
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
@@ -57,15 +57,34 @@ class PocketService:
     def _record_save_visibility_event(
         explorer_id: int,
         business_id: int,
+        occurred_at=None,
     ) -> None:
-        """Records the existing derived SAVE event without failing a committed save."""
+        """Record a committed save or enqueue bounded recovery without undoing the save."""
+        if occurred_at is None:
+            occurred_at = timezone.now()
         try:
             VisibilityEventService.record_save(
                 explorer_id=explorer_id,
                 business_id=business_id,
+                occurred_at=occurred_at,
             )
-        except VisibilityTrackingUnavailable:
-            return
+        except (VisibilityTrackingUnavailable, OperationalError):
+            from apps.business.tasks import (
+                TRANSIENT_RETRY_BASE_SECONDS,
+                retry_save_visibility_event,
+            )
+
+            try:
+                retry_save_visibility_event.apply_async(
+                    kwargs={
+                        "explorer_id": explorer_id,
+                        "business_id": business_id,
+                        "occurred_at": occurred_at.isoformat(),
+                    },
+                    countdown=TRANSIENT_RETRY_BASE_SECONDS,
+                )
+            except Exception:
+                logger.exception("Failed to enqueue committed-save visibility recovery.")
         except Exception:
             logger.exception(
                 "Failed to record the derived Pocket SAVE visibility event.",
@@ -200,6 +219,7 @@ class PocketService:
                 lambda: PocketService._record_save_visibility_event(
                     explorer_id=owner.pk,
                     business_id=business.pk,
+                    occurred_at=saved.PCKT_CREATED_AT,
                 ),
             )
 

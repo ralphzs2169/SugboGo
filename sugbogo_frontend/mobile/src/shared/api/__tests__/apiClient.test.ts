@@ -92,6 +92,16 @@ describe("apiClient authentication interceptors", () => {
     queryClient.clear();
   });
 
+  it("rejects a profile event bound to a replaced session before transport", async () => {
+    const config = { _authSessionGeneration: beginAuthSession(), headers: {} };
+    beginAuthSession();
+    mockAxios.onPost("/profile-visit/").reply(200, {});
+    await expect(
+      apiClient.post("/profile-visit/", undefined, config),
+    ).rejects.toMatchObject({ name: "AUTH_ERROR" });
+    expect(mockAxios.history.post).toHaveLength(0);
+  });
+
   it("attaches the current access token", async () => {
     mockAxios.onGet("/users/me/").reply((config) => {
       expect(config.headers?.Authorization).toBe("Bearer access-a");

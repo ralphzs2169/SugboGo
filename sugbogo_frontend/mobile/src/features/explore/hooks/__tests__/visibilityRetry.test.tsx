@@ -310,12 +310,70 @@ describe("visibility retry reliability", () => {
       wrapper: Wrapper,
     });
     await advance(30000);
-    expect(visits).toHaveBeenCalledTimes(2);
+    await advance(30000);
+    expect(visits).toHaveBeenCalledTimes(3);
     visits.mockResolvedValue(visitSuccess);
     mockFocused = false;
     await rerender(undefined);
     mockFocused = true;
     await rerender(undefined);
+    expect(visits).toHaveBeenCalledTimes(4);
+  });
+  it("recovers profile delivery after two transient failures", async () => {
+    visits
+      .mockResolvedValueOnce(unavailable)
+      .mockResolvedValueOnce(unavailable);
+    const { result } = await renderHook(useRecordBusinessProfileVisit, {
+      wrapper: Wrapper,
+    });
+    let delivery!: Promise<unknown>;
+    await act(async () => {
+      delivery = result.current.mutateAsync({
+        businessId: 1,
+        discoverySource: "MAP",
+      });
+    });
+    await advance(30000);
+    await advance(30000);
+    await expect(delivery).resolves.toEqual(visitSuccess.data);
+    expect(visits.mock.calls).toEqual([
+      [1, "MAP"],
+      [1, "MAP"],
+      [1, "MAP"],
+    ]);
+  });
+
+  it("rearms an exhausted profile visit on foreground without a navigation failure", async () => {
+    let listener!: (state: string) => void;
+    jest
+      .spyOn(AppState, "addEventListener")
+      .mockImplementation((_event, callback) => {
+        listener = callback;
+        return { remove: jest.fn() };
+      });
+    visits.mockResolvedValue(unavailable);
+    await renderHook(() => useBusinessProfileVisit(1, 1), { wrapper: Wrapper });
+    await advance(30000);
+    await advance(30000);
     expect(visits).toHaveBeenCalledTimes(3);
+    visits.mockResolvedValue(visitSuccess);
+    await act(async () => listener("background"));
+    await act(async () => listener("active"));
+    expect(visits).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not retry a profile event across the daily deduplication boundary", async () => {
+    jest.setSystemTime(new Date("2026-11-01T23:59:59Z"));
+    visits.mockResolvedValue(unavailable);
+    const { result } = await renderHook(useRecordBusinessProfileVisit, {
+      wrapper: Wrapper,
+    });
+    let delivery!: Promise<unknown>;
+    await act(async () => {
+      delivery = result.current.mutateAsync(1).catch((error) => error);
+    });
+    await advance(30000);
+    await expect(delivery).resolves.toEqual(unavailable);
+    expect(visits).toHaveBeenCalledTimes(1);
   });
 });

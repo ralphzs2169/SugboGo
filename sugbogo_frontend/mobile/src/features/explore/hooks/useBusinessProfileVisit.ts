@@ -3,6 +3,7 @@ import { useIsFocused } from "expo-router";
 import { AppState } from "react-native";
 
 import { useRecordBusinessProfileVisit } from "./useVisibilityMutations";
+import { getAuthSessionGeneration } from "@/shared/api/authSessionGeneration.service";
 import { normalizeDiscoverySource } from "../constants/discoverySources";
 
 /** Records displayed profile content once per business/focus experience. */
@@ -41,7 +42,21 @@ export default function useBusinessProfileVisit(
     }
 
     attemptedId.current = businessId;
-    mutate({ businessId, discoverySource });
+    const generation = getAuthSessionGeneration();
+    mutate(
+      { businessId, discoverySource },
+      {
+        onError: () => {
+          // Rearm the next foreground/focus encounter without an immediate retry loop.
+          if (
+            generation === getAuthSessionGeneration() &&
+            attemptedId.current === businessId
+          ) {
+            attemptedId.current = null;
+          }
+        },
+      },
+    );
   }, [
     appState,
     businessId,
