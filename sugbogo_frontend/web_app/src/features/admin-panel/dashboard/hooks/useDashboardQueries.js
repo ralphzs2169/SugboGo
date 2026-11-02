@@ -1,15 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { dashboardQueryOptions } from "../queries/dashboardQueryOptions";
-import { useDashboardPreview } from "../preview/DashboardPreviewContext";
 
-/** Keep real query identity intact while development previews supply isolated query state. */
+/** Expose authoritative server queries with their native loading and error states. */
 function useDashboardResource(resource, enabled) {
-  const preview = useDashboardPreview()?.queries[resource];
-  const query = useQuery({
+  return useQuery({
     ...dashboardQueryOptions[resource](),
-    enabled: enabled && !preview,
+    enabled,
   });
-  return preview ?? query;
 }
 
 /** Expose the operational summary's native query state and targeted recovery. */

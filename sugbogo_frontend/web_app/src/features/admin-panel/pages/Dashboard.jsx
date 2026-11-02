@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
 import {
   ArrowRight,
   ChartNoAxesCombined,
@@ -12,7 +12,8 @@ import {
 import { Link } from "react-router-dom";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import useDashboardErrorNotification from "../dashboard/hooks/useDashboardErrorNotification";
+import { useDiscoveryScoreAnalytics } from "../analytics/hooks/useAnalyticsReports";
 import navigation from "../config/sidebarNavigation";
 import { formatTimestamp } from "../analytics/utils/presentation";
 import NeedsAttention from "../dashboard/components/NeedsAttention";
@@ -45,22 +46,8 @@ import {
 } from "../dashboard/utils/platformActivity";
 import { dashboardInformation } from "../dashboard/utils/dashboardInformation";
 
-// Keep the preview panel and synthetic datasets outside the production import graph.
-const DashboardPreview = import.meta.env.DEV
-  ? lazy(() => import("../dashboard/preview/DashboardPreview"))
-  : null;
-
-/** Expose preview controls only in development; production renders the ordinary Dashboard. */
-export default function Dashboard() {
-  return DashboardPreview ? (
-    <Suspense fallback={<p role="status">Loading Dashboard…</p>}>
-      <DashboardPreview><DashboardContent /></DashboardPreview>
-    </Suspense>
-  ) : <DashboardContent />;
-}
-
 /** Present independently recoverable Dashboard sections using their existing query contracts. */
-function DashboardContent() {
+export default function Dashboard() {
   useDocumentTitle("Dashboard | SugboGo Admin");
 
   const [details, setDetails] = useState({
@@ -107,25 +94,16 @@ function DashboardContent() {
     );
   }
 
-  useApiErrorNotification(summary.error, {
-    toastId: "admin-dashboard-summary-load-error",
-    fallbackMessage:
-      "Unable to load the Dashboard operational summary. Please try again.",
-  });
-  useApiErrorNotification(recentDecisions.error, {
-    toastId: "admin-dashboard-decisions-load-error",
-    fallbackMessage:
-      "Unable to load recent administrative decisions. Please try again.",
-  });
-  useApiErrorNotification(platformOverview.error, {
-    toastId: "admin-dashboard-platform-overview-load-error",
-    fallbackMessage:
-      "Unable to load the Dashboard platform overview. Please try again.",
-  });
-  useApiErrorNotification(priorityWorklist.error, {
-    toastId: "admin-dashboard-priority-worklist-load-error",
-    fallbackMessage:
-      "Unable to load the Dashboard priority worklist. Please try again.",
+  const scores = useDiscoveryScoreAnalytics(
+    { page_size: 1 },
+    { enabled: canViewScores },
+  );
+  useDashboardErrorNotification({
+    summary,
+    recentDecisions,
+    platformOverview,
+    priorityWorklist,
+    scores: canViewScores ? scores : {},
   });
 
   return (
@@ -154,6 +132,7 @@ function DashboardContent() {
       <DashboardQuerySection
         query={summary}
         label="Administrative Queues"
+        skeletonVariant="queues"
         informationAction={informationTrigger("Administrative Queues")}
         icon={ClipboardList}
         description="Open review workflows and pending cases. Categories may overlap."
@@ -233,6 +212,7 @@ function DashboardContent() {
           </DashboardQuerySection>
         </div>
         <BusinessHealth
+          scores={scores}
           canViewScores={canViewScores}
           informationAction={informationTrigger("Discovery Score Health")}
         />

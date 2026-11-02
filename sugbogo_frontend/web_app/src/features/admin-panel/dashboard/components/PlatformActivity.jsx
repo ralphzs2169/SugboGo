@@ -74,24 +74,26 @@ export default function PlatformActivity({ query, onAbout, onData }) {
       className="min-w-0 [&>section]:h-full"
     >
       <AnalyticsSection
+        detectOffline
         title="Platform Activity Trend"
         titleIcon={ChartNoAxesCombined}
         description="Last 7 calendar dates · PHT · recorded events"
         onAbout={onAbout}
         {...sectionQueryState(query)}
         errorMessage="Unable to load platform activity. Please try again."
-        footer={
+        footer={rows && (
           <AnalyticsReportFooter
             title="Platform Activity Trend"
             timestampLabel="Data as of"
             meta={meta}
+            hideInvalidTimestamp
             hasData={Boolean(rows)}
             hasDetails={Boolean(activity)}
             coverageLabel="Today is partial"
             coverageDescription="Recorded events in the server-selected PHT window, start-inclusive and end-exclusive. The current day may be partial; the chart does not show a previous-period series."
             onData={onData}
           />
-        }
+        )}
       >
         <AnalyticsPeriodLabel
           period={{ start_date: rows?.[0]?.date, end_date: rows?.at(-1)?.date }}

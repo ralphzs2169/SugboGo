@@ -1,15 +1,12 @@
 import { Activity, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
-import { useDiscoveryScoreAnalytics } from "../../analytics/hooks/useAnalyticsReports";
 import {
   formatCount,
   formatTimestamp,
 } from "../../analytics/utils/presentation";
 import { dashboardLinkClass } from "../utils/dashboardPresentation";
 import DashboardQuerySection from "./DashboardQuerySection";
-import { useDashboardPreview } from "../preview/DashboardPreviewContext";
 
 const STATUSES = [
   { key: "stale", label: "Stale", tone: "text-warning" },
@@ -18,17 +15,7 @@ const STATUSES = [
 ];
 
 /** Keep authoritative active-business score coverage compact, independently recoverable, and shared with Analytics. */
-export default function BusinessHealth({ canViewScores, informationAction }) {
-  const preview = useDashboardPreview()?.queries.scores;
-  const liveScores = useDiscoveryScoreAnalytics(
-    { page_size: 1 },
-    { enabled: canViewScores && !preview },
-  );
-  const scores = preview ?? liveScores;
-  useApiErrorNotification(scores.error, {
-    toastId: "admin-dashboard-discovery-health-load-error",
-    fallbackMessage: "Unable to load Discovery Score health. Please try again.",
-  });
+export default function BusinessHealth({ canViewScores, informationAction, scores }) {
   const coverage = scores.data?.coverage;
   const freshnessPercent =
     Number.isFinite(coverage?.fresh) &&

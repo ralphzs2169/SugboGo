@@ -410,23 +410,21 @@ for (const [resource, , failingUrl, label] of resources) {
         loadedSectionCount() === 3,
     );
     assert.equal(container.querySelector("h1").textContent, "Dashboard");
+    assert.doesNotMatch(section().textContent, /You're offline/);
     assert.equal(loadedContent(resource), false);
     if (resource === "platformOverview") {
       const accounts = container.querySelector(
         'section[aria-label="Active Accounts"]',
       );
-      assert.ok(accounts.querySelector('[role="alert"]'));
-      assert.equal(accounts.querySelector(".text-3xl"), null);
+      assert.equal(accounts, null);
+      const overview = container.querySelector('section[aria-label="Platform Overview"]');
+      assert.equal(overview.querySelectorAll('[role="alert"]').length, 1);
+      assert.match(overview.textContent, /Unable to load Platform Overview/);
+      assert.equal(overview.querySelectorAll('button').length, 2);
+      assert.doesNotMatch(section().textContent, /Unknown PHT|View data/);
     }
     const notificationIds = notifications.map(([, options]) => options.id);
-    const expectedId =
-      resource === "summary"
-        ? "admin-dashboard-summary-load-error"
-        : resource === "recentDecisions"
-          ? "admin-dashboard-decisions-load-error"
-          : resource === "priorityWorklist"
-            ? "admin-dashboard-priority-worklist-load-error"
-            : "admin-dashboard-platform-overview-load-error";
+    const expectedId = "admin-dashboard-load-error";
     assert.ok(notificationIds.includes(expectedId));
     failing = false;
     const previousReads = reads.length;
@@ -859,6 +857,7 @@ test("top sections freshness identifies independent source updates, not decision
 
 for (const [resource, label] of [
   ["summary", "Administrative Queues"],
+  ["platformOverview", "User Distribution"],
   ["priorityWorklist", "Priority Worklist"],
 ]) {
   test(`${resource} background refresh and failure preserve loaded section content`, async () => {
@@ -885,10 +884,17 @@ for (const [resource, label] of [
       await refresh;
     });
     await until(() =>
-      container.textContent.includes("Previously loaded data remains visible"),
+      container.textContent.includes("Showing previously loaded data."),
     );
     assert.equal(loadedSectionCount(), 4);
     assert.equal(loadedContent(resource), true);
+    const affected = container.querySelector(`section[aria-label="${label}"]`);
+    assert.equal(affected.querySelectorAll('[role="alert"]').length, 1);
+    transport = async (url) => ({ data: { data: dashboardFixture(url) } });
+    const previousReads = reads.length;
+    await act(async () => container.querySelector('[role="alert"] button').click());
+    await until(() => !container.querySelector('[role="alert"]'));
+    assert.equal(reads.length, previousReads + 1);
   });
 }
 
@@ -2144,7 +2150,7 @@ test("Discovery health failure leaves other Dashboard data visible and retries o
   assert.ok(
     notifications.some(
       ([, options]) =>
-        options.id === "admin-dashboard-discovery-health-load-error",
+        options.id === "admin-dashboard-load-error",
     ),
   );
   const previousReads = reads.length;
@@ -2396,7 +2402,7 @@ test("score health background failures retain recorded metrics and Retry uses on
     await refresh;
   });
   await until(() => section().querySelector('[role="alert"]'));
-  assert.match(section().textContent, /Previously loaded data remains visible/);
+  assert.match(section().textContent, /Showing previously loaded data./);
   assert.match(section().textContent, /Failed11/);
   assert.ok(
     container.querySelector(
@@ -2792,3 +2798,55 @@ for (const [current, previous, label] of [[8, 3, "5 more"], [3, 8, "5 fewer"], [
     }
   });
 }
+
+
+test("KPI initial failures collapse into one panel and Retry recovers only failed sources", async () => {
+  let failing = true;
+  transport = async (url) => {
+    if (failing && ["/admin/dashboard/", "/admin/dashboard/platform-overview/"].includes(url)) {
+      throw new Error("Internal implementation details");
+    }
+    return { data: { data: dashboardFixture(url) } };
+  };
+  await render(React.createElement(Page));
+  const overview = () => container.querySelector('section[aria-label="Platform Overview"]');
+  await until(() => overview()?.textContent.includes("Unable to load Platform Overview"));
+  assert.equal(overview().querySelectorAll('[role="alert"]').length, 1);
+  assert.equal(overview().querySelectorAll('[role="alert"] button').length, 1);
+  assert.doesNotMatch(overview().textContent, /Internal implementation details/);
+  failing = false;
+  const previousReads = reads.length;
+  await act(async () => overview().querySelector('[role="alert"] button').click());
+  await until(() => overview().querySelectorAll('section').length === 4);
+  assert.equal(reads.length, previousReads + 2);
+});
+
+test("Dashboard initial error wording uses offline text only when the browser reports offline", async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(window.navigator, "onLine");
+  Object.defineProperty(window.navigator, "onLine", { configurable: true, value: false });
+  try {
+    transport = async () => { throw new Error("Network implementation details"); };
+    await render(React.createElement(Page));
+    await until(() => container.textContent.includes("You're offline"));
+    assert.match(container.textContent, /Check your connection and try again/);
+  } finally {
+    if (descriptor) Object.defineProperty(window.navigator, "onLine", descriptor);
+    else delete window.navigator.onLine;
+  }
+});
+
+
+test("activity without a valid timestamp omits Unknown PHT and retains usable View data", async () => {
+  transport = async (url) => {
+    const data = dashboardFixture(url);
+    if (url === "/admin/dashboard/platform-overview/") data.as_of = "invalid";
+    return { data: { data } };
+  };
+  await render(React.createElement(Page));
+  await until(() => loadedSectionCount() === 4);
+  const trend = container.querySelector('section[aria-label="Platform Activity Trend"]');
+  assert.doesNotMatch(trend.textContent, /Unknown PHT|Data as of/);
+  const viewData = [...trend.querySelectorAll("button")].find((button) => button.textContent.includes("View data"));
+  assert.ok(viewData);
+  assert.equal(viewData.disabled, false);
+});

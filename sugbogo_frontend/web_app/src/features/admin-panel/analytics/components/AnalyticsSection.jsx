@@ -21,8 +21,10 @@ export default function AnalyticsSection({
   isLoading = false,
   isFetching = false,
   hasData = false,
+  refreshErrorHandled = false,
   error,
   onRetry,
+  detectOffline = false,
   errorMessage = "Unable to load this report. Please try again.",
   isEmpty = false,
   emptyMessage = "No records were found for this selection.",
@@ -44,6 +46,7 @@ export default function AnalyticsSection({
     content = (
       <DataErrorState
         compact
+        detectOffline={detectOffline}
         title="Unable to load report"
         message={errorMessage}
         onRetry={onRetry}
@@ -95,11 +98,8 @@ export default function AnalyticsSection({
       </header>
 
       {/* Source limitations and recoverable refresh errors */}
-      {error && hasData && (
-        <div role="alert" className="mb-4 space-y-2">
-          <AnalyticsDataNotice kind="unavailable" title="Refresh failed">{errorMessage} Previously loaded data is shown.</AnalyticsDataNotice>
-          {onRetry && <Button variant="secondary" loading={isFetching} onClick={onRetry}>Retry</Button>}
-        </div>
+      {error && hasData && !refreshErrorHandled && (
+        <DataErrorState retainedData onRetry={onRetry} retrying={isFetching} retryLabel="Retry" />
       )}
       {partialNotice && !unavailable && !isLoading && !(error && !hasData) && (
         <div className="mb-2 flex justify-end"><AnalyticsDisclosure label="Partial coverage" inline>{partialNotice}</AnalyticsDisclosure></div>
