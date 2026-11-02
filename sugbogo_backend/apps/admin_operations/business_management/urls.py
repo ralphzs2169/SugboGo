@@ -1,4 +1,7 @@
 from django.urls import path
+from apps.admin_operations.business_management.views.business_overview_views import (
+    BusinessOverviewView,
+)
 from apps.merchant_application.views.duplicate_views import AdminDuplicateReviewView
 
 from apps.admin_operations.business_management.views.manage_business_classification_change_views import (
@@ -36,6 +39,11 @@ from apps.admin_operations.business_management.views.manage_business_views impor
 )
 
 urlpatterns = [
+    path(
+        "overview/",
+        BusinessOverviewView.as_view(),
+        name="admin-business-overview",
+    ),
     path(
         "applications/<int:application_id>/duplicates/",
         AdminDuplicateReviewView.as_view(),

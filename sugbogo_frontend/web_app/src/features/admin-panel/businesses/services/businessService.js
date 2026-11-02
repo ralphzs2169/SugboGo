@@ -1,5 +1,14 @@
 import apiClient from "@/shared/api/apiClient";
 
+/** Read the server-owned directory snapshot and PHT additions comparison. */
+export async function fetchBusinessOverview({ signal } = {}) {
+  const response = await apiClient.get("/admin/businesses/overview/", {
+    signal,
+  });
+
+  return response.data.data;
+}
+
 export async function fetchBusinesses(params = {}) {
   const response = await apiClient.get("/admin/businesses/", {
     params,
