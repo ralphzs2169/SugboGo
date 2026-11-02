@@ -8,12 +8,14 @@ import {
 import { adminClassificationUpdateRequestKeys } from "./classificationUpdateRequestQueryKeys";
 import { adminBusinessUpdateRequestKeys } from "./businessUpdateRequestQueryKeys";
 import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
+import { notifyBusinessChanged } from "../../businesses/queries/businessResourceEvents";
 
 /** Records classification decisions and refreshes its independent queue and detail caches. */
 export default function useClassificationUpdateRequestDecisions() {
   const queryClient = useQueryClient();
 
   async function refreshRequests(requestId) {
+    notifyBusinessChanged(null);
     await Promise.all([
       invalidateDashboardDecision(queryClient),
       queryClient.invalidateQueries({

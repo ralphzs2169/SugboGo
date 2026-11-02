@@ -1,5 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { reactivateBusiness, suspendBusiness } from "../services/businessService";
+import {
+  reactivateBusiness,
+  suspendBusiness,
+} from "../services/businessService";
 import { businessStatusKeys } from "../queries/businessStatusQuery";
 import { refreshBusinessStatusResources } from "../queries/businessStatusQueryEffects";
 
@@ -12,7 +15,10 @@ export default function useBusinessStatusTransition(businessId, operation) {
         ? suspendBusiness(businessId, payload)
         : reactivateBusiness(businessId, payload),
     retry: false,
-    onSuccess: (status) => {
+    onSuccess: async (status) => {
+      await queryClient.cancelQueries({
+        queryKey: businessStatusKeys.status(businessId),
+      });
       queryClient.setQueryData(businessStatusKeys.status(businessId), status);
       // A committed transition remains successful even if a subsequent refresh fails.
       void refreshBusinessStatusResources(queryClient, businessId);

@@ -1,9 +1,9 @@
 export const BUSINESS_CHANGED_EVENT = "admin-business-changed";
 
-/** Bridge lifecycle mutations to the existing manually fetched list, detail and map. */
+/** Refresh existing consumers after decisions; null scopes an unknown affected business to all. */
 export function notifyBusinessChanged(businessId) {
   window.dispatchEvent(
-    new CustomEvent(BUSINESS_CHANGED_EVENT, {
+    new window.CustomEvent(BUSINESS_CHANGED_EVENT, {
       detail: { businessId },
     }),
   );

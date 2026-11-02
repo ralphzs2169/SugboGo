@@ -40,6 +40,7 @@ before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost", pretendToBeVisual: true });
   Object.assign(globalThis, {
     window: dom.window, document: dom.window.document,
+    localStorage: dom.window.localStorage,
     HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, Node: dom.window.Node,
     CustomEvent: dom.window.CustomEvent,
     requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window),
@@ -106,7 +107,7 @@ after(async () => {
   Object.assign(toast, originalToast);
   await server.close();
   dom.window.close();
-  for (const key of ["window", "document", "HTMLElement", "Element", "Node", "CustomEvent", "requestAnimationFrame", "cancelAnimationFrame", "IS_REACT_ACT_ENVIRONMENT", "__actionsGet", "__actionsPost"]) delete globalThis[key];
+  for (const key of ["window", "document", "localStorage", "HTMLElement", "Element", "Node", "CustomEvent", "requestAnimationFrame", "cancelAnimationFrame", "IS_REACT_ACT_ENVIRONMENT", "__actionsGet", "__actionsPost"]) delete globalThis[key];
 });
 
 function Location() {

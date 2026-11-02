@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import useBusinessMediaFocus from "../../../hooks/useBusinessMediaFocus";
 import {
   Flag,
   Image as ImageIcon,
@@ -80,6 +81,8 @@ function ImageWithLoadingState({ src, alt, className = "" }) {
  * dedicated fullscreen photo viewer.
  */
 export default function ReviewPreviewModal({ review, onClose }) {
+  const dialog = useRef(null);
+  useBusinessMediaFocus(dialog);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
 
   const hasSelectedPhoto = selectedPhotoIndex !== null;
@@ -124,7 +127,14 @@ export default function ReviewPreviewModal({ review, onClose }) {
         }}
       >
         {/* Modal */}
-        <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-stroke bg-background shadow-xl">
+        <div
+          ref={dialog}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review preview"
+          tabIndex={-1}
+          className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-stroke bg-background shadow-xl outline-none"
+        >
           {/* Modal header */}
           <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
             <div className="flex min-w-0 items-center gap-3">

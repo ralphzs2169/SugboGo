@@ -1,5 +1,6 @@
 import { Image as ImageIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import BusinessImage from "./BusinessImage";
 
 import BusinessPhotoPreviewModal from "../../../business-applications/components/review/business-photos/BusinessPhotoPreviewModal";
 
@@ -41,36 +42,9 @@ export default function BusinessPhotosPreview({ photos = [], businessName }) {
     setSelectedIndex((selectedIndex + 1) % photos.length);
   }
 
-  // Keyboard navigation for the focused photo preview.
-  useEffect(() => {
-    if (!hasSelectedPhoto) {
-      return;
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        closePreview();
-      }
-
-      if (event.key === "ArrowLeft") {
-        showPreviousPhoto();
-      }
-
-      if (event.key === "ArrowRight") {
-        showNextPhoto();
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [hasSelectedPhoto, selectedIndex]);
-
   if (photos.length === 0) {
     return (
-      <section className="overflow-hidden rounded-xl border border-stroke bg-background">
+      <section className="w-full overflow-hidden rounded-xl border border-stroke bg-background">
         {/* Section header */}
         <div className="border-b border-stroke bg-metric-header px-5 py-4">
           <h2 className="text-sm font-semibold text-text-primary">
@@ -130,7 +104,7 @@ export default function BusinessPhotosPreview({ photos = [], businessName }) {
           onClick={() => setSelectedIndex(0)}
           className="aspect-[4/3] flex-[2] cursor-pointer overflow-hidden rounded-lg bg-surface-muted"
         >
-          <img
+          <BusinessImage
             src={featuredPhoto.photo_url}
             alt={`${businessName ?? "Business"} photo 1`}
             className="h-full w-full object-cover"
@@ -152,7 +126,7 @@ export default function BusinessPhotosPreview({ photos = [], businessName }) {
                   onClick={() => setSelectedIndex(photoIndex)}
                   className="relative min-h-0 flex-1 cursor-pointer overflow-hidden rounded-lg bg-surface-muted"
                 >
-                  <img
+                  <BusinessImage
                     src={photo.photo_url}
                     alt={`${businessName ?? "Business"} photo ${
                       photoIndex + 1
@@ -184,6 +158,7 @@ export default function BusinessPhotosPreview({ photos = [], businessName }) {
           onClose={closePreview}
           onPrevious={showPreviousPhoto}
           onNext={showNextPhoto}
+          onSelectPhoto={setSelectedIndex}
         />
       )}
     </section>

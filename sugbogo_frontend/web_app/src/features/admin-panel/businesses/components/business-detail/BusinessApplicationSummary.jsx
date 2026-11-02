@@ -1,172 +1,91 @@
-import {
-  Calendar,
-  Clock,
-  ExternalLink,
-  History,
-  UserRound,
-} from "lucide-react";
-import { useNavigate } from "react-router-dom";
-
-import ApplicationQueueStatus from "../../../business-applications/components/ApplicationQueueStatus";
-import { formatApplicationDate } from "../../../business-applications/utils/applicationReview.utils";
+import { Link } from "react-router-dom";
+import { ExternalLink } from "lucide-react";
+import StatusBadge from "@/shared/components/StatusBadge";
+import statusConfig from "../../../business-applications/config/applicationStatus.config";
 import { formatLabel } from "@/shared/utils/stringUtils";
-/**
- * Displays a compact summary of the application associated with an
- * already-registered business.
- *
- * Provides the authorized representative, application dates, processing
- * status, submission history, and direct access to the complete application.
- */
+import { formatBusinessDateTime } from "../../utils/businessDetailPresentation";
+
+/** Present linked application provenance without confusing review, submission and business dates. */
 export default function BusinessApplicationSummary({ application }) {
-  const navigate = useNavigate();
-
-  if (!application) {
-    return null;
-  }
-
-  const submissionCount = application.submission_count ?? 0;
-  const identity = application.identity;
-
-  function handleViewApplication() {
-    navigate(`/admin-panel/business/application/${application.id}`);
-  }
-
+  const status = statusConfig[application?.status];
+  const identity = application?.identity;
+  const values = application
+    ? [
+        [
+          "Authorized representative",
+          identity?.representative_name || "Unavailable",
+          identity?.representative_role
+            ? formatLabel(identity.representative_role)
+            : null,
+        ],
+        ["Submitted", formatBusinessDateTime(application.submitted_at)],
+        [
+          application.status === "approved" ? "Approved" : "Reviewed",
+          formatBusinessDateTime(application.reviewed_at),
+        ],
+        [
+          "Submissions",
+          Number.isInteger(application.submission_count)
+            ? application.submission_count +
+              (application.submission_count === 1 ? " attempt" : " attempts")
+            : "Unavailable",
+        ],
+      ]
+    : [];
   return (
     <section className="overflow-hidden rounded-xl border border-stroke bg-background">
-      {/* Section header */}
-      <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
-        <div>
-          <h2 className="text-sm font-semibold text-text-primary">
-            Application Summary
-          </h2>
-        </div>
-
-        <span className="text-xs font-medium text-text-secondary">
-          #{application.id}
-        </span>
+      {/* Application identity and outcome */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke bg-metric-header px-5 py-4">
+        <h2 className="text-sm font-semibold text-text-primary">
+          Business Application
+        </h2>
+        {application && (
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-text-secondary">
+              #{application.id}
+            </span>
+            <StatusBadge variant={status?.variant || "neutral"}>
+              {status?.label || application.status || "Unknown outcome"}
+            </StatusBadge>
+          </div>
+        )}
       </div>
-
-      {/* Application summary */}
-      <div className="p-5">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {/* Authorized representative */}
-          <div className="flex min-w-0 items-start gap-3">
-            <UserRound
-              size={18}
-              strokeWidth={2}
-              className="shrink-0 text-text-secondary"
-            />
-
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-text-secondary">
-                Authorized Representative
-              </p>
-
-              <p
-                className="mt-1 truncate text-sm font-medium text-text-primary"
-                title={identity?.representative_name || ""}
-              >
-                {identity?.representative_name || "—"}
-              </p>
-
-              {identity?.representative_role && (
-                <p
-                  className="mt-0.5 truncate text-xs text-text-secondary"
-                  title={identity.representative_role}
-                >
-                  {formatLabel(identity.representative_role)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Submitted */}
-          <div className="flex items-start gap-3">
-            <Calendar
-              size={18}
-              strokeWidth={2}
-              className="shrink-0 text-text-secondary"
-            />
-
-            <div>
-              <p className="text-xs font-medium text-text-secondary">
-                Submitted
-              </p>
-
-              <p className="mt-1 text-sm font-medium text-text-primary">
-                {formatApplicationDate(application.submitted_at)}
-              </p>
-            </div>
-          </div>
-
-          {/* Reviewed and processing status */}
-          <div className="flex items-start gap-3">
-            <History
-              size={18}
-              strokeWidth={2}
-              className="shrink-0 text-text-secondary"
-            />
-
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-text-secondary">
-                Reviewed
-              </p>
-
-              <p className="mt-1 text-sm font-medium text-text-primary">
-                {formatApplicationDate(application.reviewed_at)}
-              </p>
-
-              <div className="mt-2 flex items-center gap-1.5">
-                <span className="text-[11px] font-medium text-text-secondary">
-                  Resolved in{" "}
-                </span>
-
-                <ApplicationQueueStatus
-                  submittedAt={application.submitted_at}
-                  resolvedAt={application.reviewed_at}
-                  days={application.time_in_queue_business_days}
-                  status={application.queue_status}
-                  compact
-                />
+      {!application ? (
+        <p className="p-5 text-sm text-text-secondary">
+          No linked application is available for this business.
+        </p>
+      ) : (
+        <div className="p-5">
+          {/* Original application provenance */}
+          <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {values.map(([label, value, secondary]) => (
+              <div key={label} className="min-w-0">
+                <dt className="text-xs text-text-secondary">{label}</dt>
+                <dd className="mt-1 break-words text-sm font-medium text-text-primary">
+                  {value}
+                  {secondary && (
+                    <span className="mt-1 block text-xs font-normal text-text-secondary">
+                      {secondary}
+                    </span>
+                  )}
+                </dd>
               </div>
-            </div>
-          </div>
-
-          {/* Submission count */}
-          <div className="flex items-start gap-3">
-            <History
-              size={18}
-              strokeWidth={2}
-              className="shrink-0 text-text-secondary"
-            />
-
-            <div>
-              <p className="text-xs font-medium text-text-secondary">
-                Submissions
-              </p>
-
-              <p className="mt-1 text-sm font-semibold text-text-primary">
-                {submissionCount}{" "}
-                <span className="font-normal text-text-secondary">
-                  {submissionCount === 1 ? "attempt" : "attempts"}
-                </span>
-              </p>
-            </div>
+            ))}
+          </dl>
+          <p className="mt-4 text-xs text-text-secondary">
+            Dates shown in Philippine time.
+          </p>
+          <div className="mt-4 flex justify-end border-t border-stroke pt-4">
+            <Link
+              to={"/admin-panel/business/application/" + application.id}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-text-primary hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-info"
+            >
+              View Full Application
+              <ExternalLink size={16} aria-hidden="true" />
+            </Link>
           </div>
         </div>
-
-        {/* Application action */}
-        <div className="mt-5 flex justify-end border-t border-stroke pt-4">
-          <button
-            type="button"
-            onClick={handleViewApplication}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-stroke/50"
-          >
-            View Full Application
-            <ExternalLink size={16} strokeWidth={2} />
-          </button>
-        </div>
-      </div>
+      )}
     </section>
   );
 }

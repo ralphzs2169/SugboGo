@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import {
   Flag,
   Image as ImageIcon,
@@ -14,29 +13,16 @@ import { formatRelativeDate } from "@/shared/utils/dateUtils";
  *
  * Mirrors the identity and content layout of the Explorer mobile app's review
  * card while keeping the admin view focused on recent activity and providing
- * direct access to the full review moderation queue.
+ * full text and photo inspection without promising an unavailable all-reviews route.
  */
-export default function BusinessReviewsPreview({
-  reviews = [],
-  reviewCount = 0,
-  businessId,
-}) {
+export default function BusinessReviewsPreview({ reviews = [] }) {
   return (
     <section className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-stroke bg-background">
       {/* Section header */}
       <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
         <h2 className="text-sm font-semibold text-text-primary">
-          Recent Reviews
+          Recent published reviews
         </h2>
-
-        {reviewCount > 0 && (
-          <Link
-            to={`/admin-panel/reviews?businessId=${businessId}`}
-            className="cursor-pointer text-sm font-semibold text-primary hover:underline"
-          >
-            View all ({reviewCount})
-          </Link>
-        )}
       </div>
 
       {/* Section content */}
@@ -53,7 +39,7 @@ export default function BusinessReviewsPreview({
             </div>
 
             <p className="mt-3 text-sm font-medium text-text-primary">
-              No reviews yet
+              No published reviews yet
             </p>
 
             <p className="mt-1 max-w-xs text-xs text-text-secondary">

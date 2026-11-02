@@ -1,6 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, FileText, Ellipsis, ClipboardList, Ban, CirclePlay } from "lucide-react";
+import {
+  Eye,
+  FileText,
+  Ellipsis,
+  ClipboardList,
+  Ban,
+  CirclePlay,
+} from "lucide-react";
 import Button from "@/shared/components/Button";
 import Flyout from "@/shared/components/overlay/Flyout";
 
@@ -8,7 +15,12 @@ const menuItemClass =
   "flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm hover:bg-interaction-hover focus:bg-interaction-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-stroke-active";
 
 /** Compose verified row actions using the existing portal overlay and menu conventions. */
-export default function BusinessRowActions({ business, onViewBusiness, onManageStatus }) {
+export default function BusinessRowActions({
+  business,
+  onViewBusiness,
+  onManageStatus,
+  showViewBusiness = true,
+}) {
   const [open, setOpen] = useState(false);
   const anchor = useRef(null);
   const panel = useRef(null);
@@ -60,7 +72,9 @@ export default function BusinessRowActions({ business, onViewBusiness, onManageS
     }
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const items = Array.from(panel.current.querySelectorAll('[role="menuitem"]'));
+    const items = Array.from(
+      panel.current.querySelectorAll('[role="menuitem"]'),
+    );
     const index = items.indexOf(document.activeElement);
     let next = event.key === "ArrowUp" ? index - 1 : index + 1;
     if (event.key === "Home") next = 0;
@@ -73,15 +87,17 @@ export default function BusinessRowActions({ business, onViewBusiness, onManageS
       className="flex items-center justify-center gap-1"
       onClick={(event) => event.stopPropagation()}
     >
-      <Button
-        variant="action"
-        size="md"
-        icon={Eye}
-        iconOnly
-        aria-label="View business"
-        tooltipMessage="View business"
-        onClick={() => onViewBusiness(business)}
-      />
+      {showViewBusiness && (
+        <Button
+          variant="action"
+          size="md"
+          icon={Eye}
+          iconOnly
+          aria-label="View business"
+          tooltipMessage="View business"
+          onClick={() => onViewBusiness(business)}
+        />
+      )}
       <button
         ref={anchor}
         type="button"
@@ -109,7 +125,8 @@ export default function BusinessRowActions({ business, onViewBusiness, onManageS
           className="max-h-[calc(100vh-1rem)] w-56 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border border-stroke-strong bg-background py-1 text-text-primary shadow-lg"
           onClick={(event) => event.stopPropagation()}
           onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+            if (!event.currentTarget.contains(event.relatedTarget))
+              setOpen(false);
           }}
           onKeyDown={navigateMenu}
         >
@@ -121,7 +138,9 @@ export default function BusinessRowActions({ business, onViewBusiness, onManageS
               className={menuItemClass}
               onClick={() => {
                 close();
-                navigate(`/admin-panel/business/application/${business.application_id}`);
+                navigate(
+                  `/admin-panel/business/application/${business.application_id}`,
+                );
               }}
             >
               <FileText aria-hidden="true" size={16} />
