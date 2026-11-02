@@ -137,6 +137,36 @@ it("older in-flight detail receipts cannot overwrite a newer unavailable confirm
     checkedAt: later,
   });
 });
+it.each(["resolves", "rejects"])(
+  "rechecks an interrupted batch when focus returns before the old request %s",
+  async (settlement) => {
+    let finish = () => {};
+    let signal: AbortSignal | undefined;
+    fetchAvailability.mockImplementationOnce(
+      (_ids: number[], requestSignal: AbortSignal) =>
+        new Promise((resolve, reject) => {
+          signal = requestSignal;
+          finish = () => {
+            if (settlement === "rejects") {
+              reject(new Error("Request cancelled"));
+            } else {
+              resolve(success([21], "unavailable"));
+            }
+          };
+        }),
+    );
+    const interrupted = store.reconcile([21]).catch(() => undefined);
+    await Promise.resolve();
+    expect(fetchAvailability).toHaveBeenCalledTimes(1);
+    store.interrupt();
+    expect(signal?.aborted).toBe(true);
+    const resumed = store.reconcile([21]);
+    finish();
+    await Promise.all([interrupted, resumed]);
+    expect(fetchAvailability).toHaveBeenCalledTimes(2);
+    expect(store.get(21)?.state).toBe("available");
+  },
+);
 it("session switching rejects stale callbacks and does not expose a previous owner's records", async () => {
   const old = store.begin();
   await store.confirm(old, [{ businessId: 21, state: "unavailable" }], now);

@@ -11,6 +11,7 @@ import { EXPLORE_COLLECTIONS_QUERY_KEY } from "@/features/explore/hooks/useExplo
 import { SIMILAR_BUSINESSES_QUERY_KEY } from "@/features/explore/hooks/useSimilarBusinesses";
 import {
   MAP_DIRECTORY_QUERY_KEY,
+  MAP_BUSINESS_QUERY_KEY,
   mapBusinessQueryKey,
 } from "@/features/map/hooks/mapDirectoryQueryKeys";
 import { pocketCollectionsQueryKey } from "@/features/pockets/hooks/pocketQueryKeys";
@@ -64,6 +65,10 @@ export function refreshAvailabilityCaches(
       predicate: (query) =>
         publicPrefixes.has(String(query.queryKey[0])) &&
         query.queryKey[0] !== "explore-business-detail" &&
+        !(
+          query.queryKey[0] === MAP_BUSINESS_QUERY_KEY[0] &&
+          query.queryKey[1] === MAP_BUSINESS_QUERY_KEY[1]
+        ) &&
         idsIn(query.state.data).some((id) => ids.has(id)),
     }),
     client.invalidateQueries({ queryKey: pocketCollectionsQueryKey(ownerId) }),

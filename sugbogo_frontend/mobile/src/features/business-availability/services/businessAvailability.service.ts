@@ -173,14 +173,15 @@ export function createBusinessAvailability({
     ids
       .filter((id) => Number.isSafeInteger(id) && id > 0)
       .forEach((id) => {
-        if (!inFlight.has(id)) pending.add(id);
+        if (!inFlight.has(id) || controller?.signal.aborted) pending.add(id);
       });
     if (draining) {
       const previous = drainContext;
+      const previousSignal = controller?.signal;
       try {
         await draining;
       } catch (error) {
-        if (previous?.current()) throw error;
+        if (previous?.current() && !previousSignal?.aborted) throw error;
       }
       if (context.current() && pending.size) return reconcile([]);
       return;

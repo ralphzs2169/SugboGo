@@ -2,17 +2,26 @@ import { createColumnHelper } from "@tanstack/react-table";
 import {
   MapPin,
   Image,
-  CalendarDays,
 } from "lucide-react";
 
 import UserAvatar from "@/shared/components/UserAvatar";
 import BusinessRowActions from "../components/BusinessRowActions";
 import StatusBadge from "@/shared/components/StatusBadge";
-import { formatDate } from "@/shared/utils/dateUtils";
 import { getBusinessStatusConfig } from "@/shared/constants/businessStatus";
 import { CLUSTER_ICONS } from "../../cluster-category/constants/clusterIcons";
 
 const columnHelper = createColumnHelper();
+
+const dateFormatter = new Intl.DateTimeFormat("en-PH", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const timeFormatter = new Intl.DateTimeFormat("en-PH", {
+  hour: "numeric",
+  minute: "2-digit",
+});
 
 /**
  * Creates the TanStack Table column definitions for business management.
@@ -184,18 +193,28 @@ export default function getBusinessColumns(
       meta: {
         skeleton: "text",
       },
-      cell: (info) => (
-        <div className="flex items-center gap-1.5">
-          <CalendarDays
-            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
-            strokeWidth={1.75}
-          />
+      cell: (info) => {
+        const value = info.getValue();
+        const date = value ? new Date(value) : null;
 
-          <span className="text-sm text-text-secondary">
-            {formatDate(info.getValue())}
-          </span>
-        </div>
-      ),
+        if (!date || Number.isNaN(date.getTime())) {
+          return <span className="text-sm text-text-secondary">—</span>;
+        }
+
+        return (
+          <time
+            dateTime={date.toISOString()}
+            className="flex min-w-0 flex-col gap-0.5"
+          >
+            <span className="whitespace-nowrap text-sm font-medium text-text-primary">
+              {dateFormatter.format(date)}
+            </span>
+            <span className="text-xs text-text-secondary">
+              {timeFormatter.format(date)}
+            </span>
+          </time>
+        );
+      },
     }),
 
     columnHelper.display({

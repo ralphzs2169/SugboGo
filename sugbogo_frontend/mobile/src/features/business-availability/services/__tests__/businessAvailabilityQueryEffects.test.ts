@@ -1,7 +1,8 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { cachedBusinessIds, refreshAvailabilityCaches } from "../businessAvailabilityQueryEffects";
 import { pocketCollectionsQueryKey } from "@/features/pockets/hooks/pocketQueryKeys";
 import { exploreBusinessDetailKey } from "@/features/explore/hooks/reviewQueryKeys";
+import { mapBusinessQueryKey } from "@/features/map/hooks/mapDirectoryQueryKeys";
 
 jest.mock("@/features/explore/api/exploreBusiness.service", () => ({}));
 
@@ -34,4 +35,27 @@ it("reactivation refreshes a denied detail without manufacturing new saved conte
   expect(client.getQueryState(exploreBusinessDetailKey(21))?.isInvalidated).toBe(true);
   expect(client.getQueryData(exploreBusinessDetailKey(21))).toBeNull();
   client.clear();
+});
+it("refreshes an observed map business once per availability change", async () => {
+  const client = new QueryClient();
+  const queryKey = mapBusinessQueryKey(21);
+  client.setQueryData(queryKey, [{ id: 21 }]);
+  const queryFn = jest.fn(async ({ signal }: { signal: AbortSignal }) => {
+    // The real map loader consumes cancellation while fetching directory pages.
+    signal.throwIfAborted();
+    return [{ id: 21 }];
+  });
+  const observer = new QueryObserver(client, {
+    queryKey,
+    queryFn,
+    staleTime: Infinity,
+  });
+  const unsubscribe = observer.subscribe(() => {});
+  try {
+    await refreshAvailabilityCaches(client, 7, [21]);
+    expect(queryFn).toHaveBeenCalledTimes(1);
+  } finally {
+    unsubscribe();
+    client.clear();
+  }
 });
