@@ -167,6 +167,7 @@ export function historyFixture(page = 1) {
       {
         id: page === 1 ? 9 : 8,
         status: page === 1 ? "active" : "suspended",
+        previous_status: page === 1 ? "suspended" : "active",
         actor_name: page === 1 ? "Admin Juan" : "Admin Maria",
         created_at:
           page === 1 ? "2026-11-02T06:15:00Z" : "2026-09-30T02:24:00Z",

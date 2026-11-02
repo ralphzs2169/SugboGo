@@ -27,7 +27,7 @@ export default function BusinessDescription({ description }) {
     };
   }, [description]);
   return (
-    <div className="mt-5">
+    <div className="mt-4">
       {/* Listing description */}
       <h2 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
         Description

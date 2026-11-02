@@ -288,6 +288,15 @@ function visitsProps(extra = {}) {
 test("page follows the six-section hierarchy and consumes canonical counts", async () => {
   await page();
   await until(() => content().includes("217"));
+  for (const path of [
+    "/admin/businesses/41/",
+    "/admin/businesses/41/status/",
+    "/admin/businesses/41/status-history/",
+    "/admin/analytics/discovery-summary/",
+  ]) {
+    assert.equal(reads.filter((read) => read.url === path).length, 1);
+  }
+  assert.equal(reads.some((read) => read.url.includes("rating")), false);
   const text = content();
   const sections = [
     "Business Engagement",
@@ -369,6 +378,45 @@ test("map action opens the existing modal without a Static Maps request", async 
     /Existing interactive map/,
   );
 });
+
+for (const label of ["View map", "Refresh Review Insights"]) {
+  test(`${label} dialog traps keyboard focus and restores its opener`, async () => {
+    await page();
+    const opener = button(label);
+    opener.focus();
+    await click(opener);
+    const dialog = document.querySelector('[role="dialog"]');
+    await until(() => document.activeElement === dialog);
+    const controls = [...dialog.querySelectorAll("button:not(:disabled)")];
+    const first = controls[0];
+    const last = controls.at(-1);
+    last.focus();
+    const forward = new window.KeyboardEvent("keydown", {
+      key: "Tab",
+      bubbles: true,
+      cancelable: true,
+    });
+    await act(async () => last.dispatchEvent(forward));
+    assert.equal(forward.defaultPrevented, true);
+    assert.equal(document.activeElement, first);
+    const backward = new window.KeyboardEvent("keydown", {
+      key: "Tab",
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    await act(async () => first.dispatchEvent(backward));
+    assert.equal(backward.defaultPrevented, true);
+    assert.equal(document.activeElement, last);
+    await act(async () =>
+      last.dispatchEvent(
+        new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      ),
+    );
+    assert.equal(document.querySelector('[role="dialog"]'), null);
+    assert.equal(document.activeElement, opener);
+  });
+}
 
 test("current suspension explanation stays separate from merchant status and history", async () => {
   business = { ...business, status: "suspended" };
@@ -539,9 +587,11 @@ test("history uses pagination and existing update request and application naviga
   await page();
   await until(() => button("Show more history"));
   assert.match(content(), /Admin Juan/);
+  assert.match(content(), /Suspended → Active/);
   await click(button("Show more history"));
   await until(() => content().includes("Inaccurate business location."));
   assert.match(content(), /Admin Maria/);
+  assert.match(content(), /Active → Suspended/);
   assert.equal(button("Show more history"), undefined);
   await click(
     container.querySelector('a[href*="update-requests?business_id=41"]'),
@@ -707,6 +757,46 @@ test("published review text and attached photos retain modal inspection", async 
   assert.equal(document.querySelector('[aria-label="Review preview"]'), null);
   await click(button("View review photo 1"));
   assert.ok(document.querySelector('[aria-label="Review preview"]'));
+});
+
+test("nested review photos retain focus, survive image failure and return to the review", async () => {
+  business.latest_reviews[0].photos = [
+    { id: 1, photo_url: "https://example.com/first.jpg" },
+    { id: 2, photo_url: "https://example.com/second.jpg" },
+  ];
+  await page();
+  await click(button("View review photo 1"));
+  const review = document.querySelector('[aria-label="Review preview"]');
+  await until(() => document.activeElement === review);
+  const opener = review.querySelector('img[alt="Review photo 1"]').closest("button");
+  opener.focus();
+  await click(opener);
+  const viewer = document.querySelector('[aria-label="Review photo viewer"]');
+  await until(() => document.activeElement === viewer);
+  const first = viewer.querySelector("button");
+  const last = [...viewer.querySelectorAll("button")].at(-1);
+  last.focus();
+  const tab = new window.KeyboardEvent("keydown", {
+    key: "Tab",
+    bubbles: true,
+    cancelable: true,
+  });
+  await act(async () => last.dispatchEvent(tab));
+  assert.equal(tab.defaultPrevented, true);
+  assert.equal(document.activeElement, first);
+  await event(viewer.querySelector('img[alt="Review photo 1"]'), "error");
+  assert.match(viewer.textContent, /Photo unavailable/);
+  assert.equal(viewer.querySelector('img[alt="Review photo 1"]'), null);
+  await click(button("Next review photo"));
+  assert.ok(viewer.querySelector('img[alt="Review photo 2"]'));
+  await act(async () =>
+    document.dispatchEvent(
+      new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    ),
+  );
+  assert.equal(document.querySelector('[aria-label="Review photo viewer"]'), null);
+  assert.ok(document.querySelector('[aria-label="Review preview"]'));
+  assert.equal(document.activeElement, opener);
 });
 
 test("sticky business context starts only after the hero leaves the viewport", async () => {
@@ -883,6 +973,46 @@ test("normal hours distinguish opening, closing and closed days in Manila", () =
       new Date("2026-10-12T10:00:00Z"),
     ).status,
     "closed",
+  );
+});
+
+test("6 PM to 2 AM uses the previous Manila day until the closing boundary", () => {
+  const schedule = [
+    {
+      day: "monday",
+      is_open: true,
+      is_24_hours: false,
+      open_time: "18:00",
+      close_time: "02:00",
+    },
+    { day: "tuesday", is_open: false, is_24_hours: false },
+  ];
+  for (const [instant, expected] of [
+    ["2026-10-12T09:59:00Z", "closed"],
+    ["2026-10-12T10:00:00Z", "open"],
+    ["2026-10-12T15:00:00Z", "open"],
+    ["2026-10-12T17:00:00Z", "open"],
+    ["2026-10-12T18:00:00Z", "closed"],
+    ["2026-10-12T19:00:00Z", "closed"],
+  ]) {
+    assert.equal(
+      hoursRules.getBusinessHoursSummary(schedule, new Date(instant)).status,
+      expected,
+    );
+  }
+  assert.match(
+    hoursRules.getBusinessHoursSummary(
+      schedule,
+      new Date("2026-10-12T09:59:00Z"),
+    ).label,
+    /Opens today at 6:00 PM/,
+  );
+  assert.match(
+    hoursRules.getBusinessHoursSummary(
+      schedule,
+      new Date("2026-10-12T17:00:00Z"),
+    ).label,
+    /Closes 2:00 AM/,
   );
 });
 

@@ -1,4 +1,4 @@
-import { MapPin } from "lucide-react";
+import { ArrowUpRight, MapPin } from "lucide-react";
 import Button from "@/shared/components/Button";
 
 /** Display a complete address and open the existing interactive map without static-image requests. */
@@ -12,13 +12,13 @@ export default function BusinessLocationPreview({ location, onClick }) {
     .filter(Boolean)
     .join(", ");
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="min-w-0 space-y-3">
       {/* Address and map navigation */}
-      <div className="min-w-0 flex-1 basis-48">
-        <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+      <div className="min-w-0">
+        <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
           <MapPin size={14} aria-hidden="true" /> Location
         </h2>
-        <p className="mt-2 whitespace-pre-wrap break-words text-sm font-medium text-text-primary">
+        <p className="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm font-medium text-text-primary">
           {location?.address || "Address unavailable"}
         </p>
         {context && (
@@ -31,8 +31,21 @@ export default function BusinessLocationPreview({ location, onClick }) {
         )}
       </div>
       {hasCoordinates && (
-        <Button variant="secondary" size="sm" onClick={onClick}>
-          View map
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onClick}
+          className="border-primary/20! bg-primary/5! text-primary! hover:border-primary/40! hover:bg-primary/10! focus-visible:ring-primary/30"
+        >
+          <span className="inline-flex items-center gap-2">
+            View map
+            <ArrowUpRight
+              size={15}
+              strokeWidth={1.75}
+              aria-hidden="true"
+              className="shrink-0"
+            />
+          </span>
         </Button>
       )}
     </div>

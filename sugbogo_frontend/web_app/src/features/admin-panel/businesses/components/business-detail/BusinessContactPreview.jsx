@@ -1,4 +1,4 @@
-import { Globe, Mail, Phone } from "lucide-react";
+import { ContactRound, Globe, Mail, Phone } from "lucide-react";
 
 /**
  * Displays a business's contact channels — phone, email, and website.
@@ -18,29 +18,31 @@ export default function BusinessContactPreview({
   }
 
   return (
-    <div className="mt-4 border-t border-stroke pt-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-        Contact
-      </p>
+    <div className="min-w-0">
+      <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        <ContactRound size={14} aria-hidden="true" /> Contact
+      </h2>
 
-      <div className="mt-2.5 space-y-2.5">
+      <div className="mt-2 space-y-2.5">
         {contactNumber && (
           <a
             href={`tel:${contactNumber}`}
-            className="flex items-center gap-2 text-sm text-text-secondary transition-colors hover:text-primary"
+            className="flex min-w-0 cursor-pointer items-start gap-2 text-sm text-text-secondary transition-colors hover:text-primary"
           >
             <Phone className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-            <span className="truncate">{contactNumber}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere]">
+              {contactNumber}
+            </span>
           </a>
         )}
 
         {email && (
           <a
             href={`mailto:${email}`}
-            className="flex items-center gap-2 text-sm text-text-secondary transition-colors hover:text-primary"
+            className="flex min-w-0 cursor-pointer items-start gap-2 text-sm text-text-secondary transition-colors hover:text-primary"
           >
             <Mail className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-            <span className="truncate">{email}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere]">{email}</span>
           </a>
         )}
 
@@ -49,10 +51,10 @@ export default function BusinessContactPreview({
             href={website.startsWith("http") ? website : `https://${website}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-text-secondary transition-colors hover:text-primary"
+            className="flex min-w-0 cursor-pointer items-start gap-2 text-sm text-text-secondary transition-colors hover:text-primary"
           >
             <Globe className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-            <span className="truncate">{website}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere]">{website}</span>
           </a>
         )}
       </div>

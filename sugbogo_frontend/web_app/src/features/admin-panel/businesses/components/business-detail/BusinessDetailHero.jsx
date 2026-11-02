@@ -1,3 +1,4 @@
+import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
@@ -8,7 +9,6 @@ import BusinessLocationPreview from "./BusinessLocationPreview";
 import BusinessHoursPreview from "./BusinessHoursPreview";
 import BusinessContactPreview from "./BusinessContactPreview";
 import UserAvatar from "@/shared/components/UserAvatar";
-import { USER_STATUS_BADGE_VARIANT } from "../../../users/constants/userManagement";
 import BusinessImage from "./BusinessImage";
 import BusinessDescription from "./BusinessDescription";
 
@@ -40,9 +40,9 @@ export default function BusinessDetailHero({
     <section>
       {/* Business profile */}
       <div className="overflow-hidden rounded-xl border border-stroke bg-background">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] xl:grid-cols-[minmax(260px,300px)_minmax(0,1fr)]">
           {/* Business photos and owner */}
-          <div className="p-4 sm:p-5">
+          <div className="min-w-0 p-4 sm:p-5 lg:pr-0">
             {/* Cover photo */}
             <BusinessImage
               src={business.cover_photo_url}
@@ -53,14 +53,14 @@ export default function BusinessDetailHero({
             />
 
             {/* Linked SugboGo account */}
-            <div className="mt-4 rounded-xl border border-stroke bg-surface-muted/40 p-4">
+            <div className="mt-3 rounded-xl border border-stroke bg-surface-muted/40 p-3.5">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">
                   Linked Merchant Account
                 </p>
               </div>
 
-              <div className="mt-3 flex items-center gap-3">
+              <div className="mt-2.5 flex items-center gap-3">
                 <UserAvatar
                   avatarUrl={owner?.avatar_url}
                   avatarKey={owner?.avatar_key}
@@ -83,11 +83,16 @@ export default function BusinessDetailHero({
                 </div>
               </div>
               {owner?.status && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+                <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
                   <span>Account status</span>
                   <StatusBadge
                     variant={
-                      USER_STATUS_BADGE_VARIANT[owner.status] || "neutral"
+                      {
+                        active: "successSoft",
+                        pending: "warningSoft",
+                        suspended: "dangerSoft",
+                        disabled: "mutedSoft",
+                      }[owner.status] || "mutedSoft"
                     }
                   >
                     {owner.status.charAt(0).toUpperCase() +
@@ -98,10 +103,10 @@ export default function BusinessDetailHero({
               {owner?.id != null ? (
                 <Link
                   to={`/admin-panel/users/${owner.id}`}
-                  className="mt-3 flex w-full cursor-pointer items-center justify-between rounded-lg border border-stroke bg-background px-3 py-2 text-xs font-semibold text-text-secondary hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-info"
+                  className="mt-3 flex w-full cursor-pointer items-center justify-between rounded-lg border border-stroke bg-background px-3 py-2 text-xs font-semibold text-primary transition-colors hover:border-primary/40 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-info"
                 >
                   <span>View account</span>
-                  <span aria-hidden="true">→</span>
+                  <ArrowUpRight size={16} aria-hidden="true" />
                 </Link>
               ) : (
                 <p className="mt-3 text-xs text-text-secondary">
@@ -112,11 +117,11 @@ export default function BusinessDetailHero({
           </div>
 
           {/* Business identity */}
-          <div className="flex min-w-0 flex-col p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-col p-4 sm:p-5 lg:p-6">
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="break-words text-2xl font-bold text-text-primary">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <h1 className="min-w-0 text-2xl font-bold leading-tight text-text-primary [overflow-wrap:anywhere]">
                     {business.business_name}
                   </h1>
 
@@ -131,7 +136,7 @@ export default function BusinessDetailHero({
               </div>
 
               {/* Business actions */}
-              {actions}
+              <div className="shrink-0">{actions}</div>
             </div>
 
             {/* Current merchant-facing suspension context */}
@@ -166,7 +171,7 @@ export default function BusinessDetailHero({
             )}
 
             {/* Classification */}
-            <div className="mt-6 flex flex-wrap items-center gap-x-2 gap-y-2">
+            <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2">
               <ClusterDisplay
                 clusterName={business.cluster_name}
                 clusterIcon={business.cluster_icon}
@@ -181,7 +186,18 @@ export default function BusinessDetailHero({
 
             {/* Specialty tags */}
             {business.specialty_tags?.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-1.5">
+              <div
+                className={[
+                  "mt-3 flex flex-wrap gap-2",
+                  "[&>span]:max-w-full [&>span]:[overflow-wrap:anywhere] [&>span]:border",
+                  "[&>span.bg-blue-500]:bg-blue-500/10 [&>span.bg-blue-500]:border-blue-500/25 [&>span.bg-blue-500]:text-blue-700 dark:[&>span.bg-blue-500]:text-blue-300",
+                  "[&>span.bg-green-600]:bg-green-600/10 [&>span.bg-green-600]:border-green-600/25 [&>span.bg-green-600]:text-green-700 dark:[&>span.bg-green-600]:text-green-300",
+                  "[&>span.bg-purple-600]:bg-purple-600/10 [&>span.bg-purple-600]:border-purple-600/25 [&>span.bg-purple-600]:text-purple-700 dark:[&>span.bg-purple-600]:text-purple-300",
+                  "[&>span.bg-yellow-500]:bg-yellow-500/10 [&>span.bg-yellow-500]:border-yellow-500/25 [&>span.bg-yellow-500]:text-yellow-800 dark:[&>span.bg-yellow-500]:text-yellow-300",
+                  "[&>span.bg-rose-600]:bg-rose-600/10 [&>span.bg-rose-600]:border-rose-600/25 [&>span.bg-rose-600]:text-rose-700 dark:[&>span.bg-rose-600]:text-rose-300",
+                  "[&>span.bg-teal-700]:bg-teal-700/10 [&>span.bg-teal-700]:border-teal-700/25 [&>span.bg-teal-700]:text-teal-700 dark:[&>span.bg-teal-700]:text-teal-300",
+                ].join(" ")}
+              >
                 {business.specialty_tags.map((tag) => (
                   <SpecialtyTagChip key={tag.id} tag={tag} showIcon />
                 ))}
@@ -192,7 +208,7 @@ export default function BusinessDetailHero({
             <BusinessDescription description={business.description} />
 
             {/* Location, hours & contact */}
-            <div className="mt-5 space-y-4 border-t border-stroke pt-5">
+            <div className="mt-4 grid min-w-0 grid-cols-1 items-stretch gap-5 border-t border-stroke pt-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-3 xl:gap-4 xl:[&>*+*]:border-l xl:[&>*+*]:border-stroke xl:[&>*+*]:pl-4">
               <BusinessLocationPreview
                 location={business.location}
                 onClick={onOpenLocation}

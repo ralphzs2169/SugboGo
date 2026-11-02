@@ -23,6 +23,7 @@ export default function DetailPageLayout({
   errorTitle = "Unable to load details",
   errorMessage = "The requested information could not be loaded.",
   headerRef,
+  headerActions,
   aside,
   children,
 }) {
@@ -43,6 +44,7 @@ export default function DetailPageLayout({
         breadcrumbs={breadcrumbs}
         title={title}
         backAction={backButton}
+        actions={headerActions}
       />
     </div>
   );

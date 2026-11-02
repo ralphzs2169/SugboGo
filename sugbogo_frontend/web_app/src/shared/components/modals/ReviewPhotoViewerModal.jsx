@@ -13,7 +13,9 @@ export default function ReviewPhotoViewerModal({
   initialIndex = 0,
   review,
   onClose,
+  dialogRef,
 }) {
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(
     Math.min(Math.max(initialIndex, 0), Math.max(photos.length - 1, 0)),
   );
@@ -71,6 +73,8 @@ export default function ReviewPhotoViewerModal({
 
   return createPortal(
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-[60] flex flex-col bg-black"
       role="dialog"
       aria-modal="true"
@@ -125,12 +129,19 @@ export default function ReviewPhotoViewerModal({
           }
         }}
       >
-        <img
-          key={currentPhoto.id}
-          src={currentPhoto.photo_url}
-          alt={`Review photo ${currentIndex + 1}`}
-          className="max-h-full max-w-full object-contain"
-        />
+        {currentPhoto.photo_url && failedPhotoUrl !== currentPhoto.photo_url ? (
+          <img
+            key={currentPhoto.id}
+            src={currentPhoto.photo_url}
+            alt={`Review photo ${currentIndex + 1}`}
+            onError={() => setFailedPhotoUrl(currentPhoto.photo_url)}
+            className="max-h-full max-w-full object-contain"
+          />
+        ) : (
+          <p role="status" className="text-sm text-white/70">
+            Photo unavailable
+          </p>
+        )}
 
         {/* Previous */}
         {photos.length > 1 && (

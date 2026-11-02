@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import Button from "@/shared/components/Button";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import StatusBadge from "@/shared/components/StatusBadge";
+import { formatLabel } from "@/shared/utils/stringUtils";
 import { formatBusinessDateTime } from "../../utils/businessDetailPresentation";
 
 /** Inspect paginated private transitions and navigate to existing business-scoped requests. */
@@ -59,6 +60,12 @@ export default function BusinessAdministrativeHistory({ businessId, history }) {
                       ? "Reactivated"
                       : record.status}
                 </StatusBadge>
+                {record.previous_status && (
+                  <p className="mt-2 text-xs text-text-secondary">
+                    {formatLabel(record.previous_status)} →{" "}
+                    {formatLabel(record.status)}
+                  </p>
+                )}
                 <p className="mt-2 break-words text-xs text-text-secondary">
                   {formatBusinessDateTime(record.created_at)} · PHT · by{" "}
                   {record.actor_name || "Administrator unavailable"}

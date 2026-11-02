@@ -82,10 +82,12 @@ function ImageWithLoadingState({ src, alt, className = "" }) {
  */
 export default function ReviewPreviewModal({ review, onClose }) {
   const dialog = useRef(null);
+  const photoDialog = useRef(null);
   useBusinessMediaFocus(dialog);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(null);
 
   const hasSelectedPhoto = selectedPhotoIndex !== null;
+  useBusinessMediaFocus(photoDialog, hasSelectedPhoto);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -228,6 +230,7 @@ export default function ReviewPreviewModal({ review, onClose }) {
       {/* Fullscreen review photo viewer */}
       {hasSelectedPhoto && (
         <ReviewPhotoViewerModal
+          dialogRef={photoDialog}
           photos={review.photos}
           initialIndex={selectedPhotoIndex}
           review={review}

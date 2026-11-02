@@ -104,20 +104,9 @@ function BusinessDetailContent({ businessId }) {
           { label: business?.business_name || "Business" },
         ]}
         title="Business Details"
-        backLabel="Back to Businesses"
-        onBack={handleBack}
-        isLoading={isLoading}
-        error={!business ? error : null}
-        hasData={hasBusiness}
-        onRetry={refetch}
-        loadingContent={<BusinessDetailSkeleton />}
-        errorTitle="Business unavailable"
-        errorMessage="The business details could not be loaded. Please try again."
-      >
-        {displayedBusiness && (
-          <div className="min-w-0 space-y-6 sm:space-y-8">
-            {/* Business identity and retained-content refresh feedback */}
-            <div className="flex flex-wrap items-center justify-end gap-3">
+        headerActions={
+          displayedBusiness && (
+            <>
               {isFetching && (
                 <p role="status" className="text-xs text-text-secondary">
                   Refreshing business details…
@@ -132,7 +121,22 @@ function BusinessDetailContent({ businessId }) {
               >
                 Refresh business
               </Button>
-            </div>
+            </>
+          )
+        }
+        backLabel="Back to Businesses"
+        onBack={handleBack}
+        isLoading={isLoading}
+        error={!business ? error : null}
+        hasData={hasBusiness}
+        onRetry={refetch}
+        loadingContent={<BusinessDetailSkeleton />}
+        errorTitle="Business unavailable"
+        errorMessage="The business details could not be loaded. Please try again."
+      >
+        {displayedBusiness && (
+          <div className="min-w-0 space-y-6 sm:space-y-8">
+            {/* Business identity and retained-content refresh feedback */}
             {error && (
               <DataErrorState
                 compact

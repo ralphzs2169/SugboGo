@@ -1,4 +1,4 @@
-import { ChevronDown, Clock } from "lucide-react";
+import { ChevronDown, Clock, Moon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import {
   getBusinessDay,
@@ -67,17 +67,19 @@ export default function BusinessHoursPreview({ operatingHours = EMPTY_HOURS }) {
     label += " tomorrow";
   }
   return (
-    <div className="border-t border-stroke pt-4">
+    <div className="min-w-0">
+      <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        <Clock size={14} aria-hidden="true" /> Operating hours
+      </h2>
       {/* Live operating state */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-2 flex flex-col items-start gap-3">
         <p
           role="status"
           className={
-            "flex min-w-0 items-center gap-2 text-sm " +
+            "flex min-w-0 items-start gap-2 text-sm [overflow-wrap:anywhere] " +
             (summary.isOpen ? "text-success" : "text-text-secondary")
           }
         >
-          <Clock size={16} aria-hidden="true" className="shrink-0" />
           <span>{label}</span>
         </p>
         {!!operatingHours.length && (
@@ -101,7 +103,7 @@ export default function BusinessHoursPreview({ operatingHours = EMPTY_HOURS }) {
       {expanded && (
         <div
           id={id}
-          className="mt-4 divide-y divide-stroke rounded-lg border border-stroke"
+          className="mt-4 space-y-1 rounded-lg border border-stroke p-1"
         >
           <p className="px-4 py-2 text-xs text-text-secondary">
             Philippine time · Asia/Manila
@@ -121,26 +123,41 @@ export default function BusinessHoursPreview({ operatingHours = EMPTY_HOURS }) {
               <div
                 key={day}
                 className={
-                  "flex flex-wrap items-start justify-between gap-2 px-4 py-3 text-sm " +
-                  (day === today ? "bg-surface-muted" : "")
+                  "flex flex-wrap items-start justify-between gap-x-3 gap-y-1 rounded-lg px-2.5 py-2.5 text-sm " +
+                  (day === today ? "bg-primary/10" : "")
                 }
               >
                 <div>
-                  <p className="font-medium capitalize text-text-primary">
+                  <p
+                    className={
+                      "font-medium capitalize " +
+                      (day === today ? "text-primary" : "text-text-secondary")
+                    }
+                  >
                     {day}
                     {day === today && (
-                      <span className="ml-2 text-xs text-text-secondary">
+                      <span className="ml-2 rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                         Today
                       </span>
                     )}
                   </p>
                   {schedule && isOvernightOperatingHours(schedule) && (
-                    <p className="mt-1 text-xs text-text-secondary">
-                      Closes the following day
+                    <p className="mt-1 flex items-center gap-1 text-xs text-text-secondary">
+                      <Moon size={12} aria-hidden="true" /> Overnight · closes
+                      the following day
                     </p>
                   )}
                 </div>
-                <p className="text-text-secondary">{hours}</p>
+                <p
+                  className={
+                    "min-w-0 text-right text-sm leading-5 " +
+                    (day === today
+                      ? "font-semibold text-text-primary"
+                      : "text-text-secondary")
+                  }
+                >
+                  {hours}
+                </p>
               </div>
             );
           })}

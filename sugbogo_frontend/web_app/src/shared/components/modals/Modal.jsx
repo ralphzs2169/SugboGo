@@ -44,20 +44,55 @@ export default function Modal({
   useEffect(() => {
     if (!isOpen) return;
 
-    function handleEscape(event) {
+    function handleKeyDown(event) {
       if (event.key === "Escape") {
         onClose();
       }
+
+      const dialog = dialogRef.current;
+      if (
+        event.key !== "Tab" ||
+        event.defaultPrevented ||
+        document.activeElement?.closest('[role="dialog"]') !== dialog
+      ) {
+        return;
+      }
+
+      const controls = Array.from(
+        dialog.querySelectorAll(
+          'button:not(:disabled), a[href], input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+        ),
+      ).filter(
+        (control) =>
+          control.tabIndex >= 0 &&
+          !control.closest('[hidden], [inert], [aria-hidden="true"]'),
+      );
+      const first = controls[0];
+      const last = controls.at(-1);
+
+      if (!first) {
+        event.preventDefault();
+        dialog.focus();
+      } else if (
+        event.shiftKey &&
+        (document.activeElement === first || document.activeElement === dialog)
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
 
-    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("keydown", handleKeyDown);
 
     if (lockBodyScroll) {
       document.body.style.overflow = "hidden";
     }
 
     return () => {
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("keydown", handleKeyDown);
 
       if (lockBodyScroll) {
         document.body.style.overflow = "";
