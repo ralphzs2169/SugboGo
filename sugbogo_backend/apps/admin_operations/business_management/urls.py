@@ -1,3 +1,9 @@
+from apps.admin_operations.business_management.views.business_lifecycle_views import (
+    BusinessStatusView,
+    BusinessSuspendView,
+    BusinessReactivateView,
+    BusinessStatusHistoryView,
+)
 from django.urls import path
 from apps.admin_operations.business_management.views.business_overview_views import (
     BusinessOverviewView,
@@ -39,6 +45,26 @@ from apps.admin_operations.business_management.views.manage_business_views impor
 )
 
 urlpatterns = [
+    path(
+        "<int:business_id>/status/",
+        BusinessStatusView.as_view(),
+        name="admin-business-status",
+    ),
+    path(
+        "<int:business_id>/suspend/",
+        BusinessSuspendView.as_view(),
+        name="admin-business-suspend",
+    ),
+    path(
+        "<int:business_id>/reactivate/",
+        BusinessReactivateView.as_view(),
+        name="admin-business-reactivate",
+    ),
+    path(
+        "<int:business_id>/status-history/",
+        BusinessStatusHistoryView.as_view(),
+        name="admin-business-status-history",
+    ),
     path(
         "overview/",
         BusinessOverviewView.as_view(),
