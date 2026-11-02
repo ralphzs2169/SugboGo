@@ -32,5 +32,7 @@ class MerchantPlusAccessStatusSerializer(MerchantPlusStatusSerializer):
     paid_payment_reference = serializers.UUIDField(allow_null=True)
     unresolved_payment_id = serializers.IntegerField(allow_null=True)
     unresolved_payment_reference = serializers.UUIDField(allow_null=True)
+    unresolved_payment_status = serializers.CharField(allow_null=True)
+    unresolved_checkout_status = serializers.CharField(allow_null=True)
     purchase_eligible = serializers.BooleanField()
     purchase_ineligibility_reason = serializers.CharField(allow_null=True)

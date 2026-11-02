@@ -29,6 +29,8 @@ class MerchantPlusStatusService:
             "paid_payment_reference": None,
             "unresolved_payment_id": None,
             "unresolved_payment_reference": None,
+            "unresolved_payment_status": None,
+            "unresolved_checkout_status": None,
             "purchase_eligible": eligibility["eligible"],
             "purchase_ineligibility_reason": eligibility["reason"],
         })
@@ -36,6 +38,10 @@ class MerchantPlusStatusService:
         if unresolved is not None:
             status["unresolved_payment_id"] = unresolved.pk
             status["unresolved_payment_reference"] = unresolved.PYMT_REFERENCE
+            status["unresolved_payment_status"] = unresolved.PYMT_STATUS
+            checkout = unresolved.checkout_sessions.order_by("-PCHK_ID").first()
+            if checkout is not None:
+                status["unresolved_checkout_status"] = checkout.PCHK_STATE
         if paid is not None:
             status.update({
                 "effective_tier": "plus",

@@ -328,6 +328,7 @@ REST_FRAMEWORK = {
 
         # Merhcant Operations
         "business_cover_photo_update": "3/day",
+        "merchant_plus_checkout": "10/min",
     },
 
     "EXCEPTION_HANDLER": "core.exceptions.custom_exception_handler",
