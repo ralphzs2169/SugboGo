@@ -3,6 +3,9 @@ from core.responses import success_response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
+from apps.admin_operations.business_management.serializers.update_request_filter_serializers import (
+    BusinessUpdateRequestFilterSerializer,
+)
 from apps.authentication.permissions import HasRole
 from apps.merchant_operations.business_profile.serializers.business_classification_change_serializers import (
     AdminBusinessClassificationChangeSerializer,
@@ -23,9 +26,12 @@ class AdminBusinessClassificationChangeListView(APIView):
     )
 
     def get(self, request):
-        """Return the paginated queue with optional status filtering."""
+        """Return the paginated queue with optional status and business filtering."""
+        filters = BusinessUpdateRequestFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
         requests = BusinessClassificationChangeService.list_for_admin(
             status=request.query_params.get("status"),
+            business_id=filters.validated_data.get("business_id"),
         )
         paginator = StandardPagination()
         page = paginator.paginate_queryset(requests, request)

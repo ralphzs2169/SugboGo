@@ -283,9 +283,15 @@ class BusinessClassificationChangeService:
         return BusinessClassificationChangeService.get_for_merchant(user, request_id)
 
     @staticmethod
-    def list_for_admin(status=None):
+    def list_for_admin(
+        status=None,
+        business_id=None,
+    ):
         """Return a paginated-ready queue with pending proposals first."""
         queryset = BusinessClassificationChangeService._request_queryset()
+        if business_id is not None:
+            queryset = queryset.filter(BUSN_ID_id=business_id)
+
         if status:
             if status not in BusinessClassificationChangeRequest.Status.values:
                 raise ValidationError({"status": ["Choose a valid status."]})

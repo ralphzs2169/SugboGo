@@ -38,3 +38,29 @@ export async function queueReviewInsightsRefresh(businessId) {
 
   return response.data;
 }
+
+/** Retrieve the authoritative lifecycle snapshot only when an action needs it. */
+export async function fetchBusinessStatus(businessId, { signal } = {}) {
+  const response = await apiClient.get(`/admin/businesses/${businessId}/status/`, {
+    signal,
+  });
+  return response.data.data;
+}
+
+/** Suspend using the unchanged transition identity from the status response. */
+export async function suspendBusiness(businessId, payload) {
+  const response = await apiClient.post(
+    `/admin/businesses/${businessId}/suspend/`,
+    payload,
+  );
+  return response.data.data;
+}
+
+/** Restore business eligibility without changing the merchant account. */
+export async function reactivateBusiness(businessId, payload) {
+  const response = await apiClient.post(
+    `/admin/businesses/${businessId}/reactivate/`,
+    payload,
+  );
+  return response.data.data;
+}

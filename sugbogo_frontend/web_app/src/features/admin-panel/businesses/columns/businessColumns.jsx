@@ -17,11 +17,12 @@ const columnHelper = createColumnHelper();
 /**
  * Creates the TanStack Table column definitions for business management.
  *
- * Displays business identity, location, specialty tags, classification,
+ * Displays business identity, location, classification,
  * ownership, status, creation date, and supported navigation.
  */
 export default function getBusinessColumns(
   onViewBusiness,
+  onManageStatus,
 ) {
   return [
     columnHelper.display({
@@ -208,7 +209,14 @@ export default function getBusinessColumns(
       cell: ({ row }) => {
         const business = row.original;
 
-        return <BusinessRowActions business={business} onViewBusiness={onViewBusiness} />;
+        return (
+          <BusinessRowActions
+            key={business.id}
+            business={business}
+            onViewBusiness={onViewBusiness}
+            onManageStatus={onManageStatus}
+          />
+        );
       },
     }),
   ];

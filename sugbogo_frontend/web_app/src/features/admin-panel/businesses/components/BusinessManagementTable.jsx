@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, Map, Tag, Layers, Tags, Download } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import FilterMenu from "../../../admin-panel/components/data-table/FilterMenu";
+import BusinessStatusDialog from "./BusinessStatusDialog";
 import BusinessColumns from "../columns/businessColumns";
 import useBusinesses from "../hooks/useBusinesses";
 import useBusinessMap from "../hooks/useBusinessMap";
@@ -21,6 +23,7 @@ const STATUS_OPTIONS = [
 
 export default function BusinessManagementTable() {
   const navigate = useNavigate();
+  const [statusAction, setStatusAction] = useState(null);
 
   const {
     currentTab,
@@ -80,7 +83,9 @@ export default function BusinessManagementTable() {
     navigate(`/admin-panel/businesses/${business.id}`);
   }
 
-  const columns = BusinessColumns(handleViewBusiness);
+  const columns = BusinessColumns(handleViewBusiness, (business, operation) => {
+    setStatusAction({ business, operation });
+  });
 
   function renderFilters() {
     return (
@@ -143,74 +148,84 @@ export default function BusinessManagementTable() {
   });
 
   return (
-    <DataTable
-      data={businesses}
-      columns={columns}
-      isLoading={isLoading}
-      isFetching={isFetching}
-      error={error}
-      onRetry={refetch}
-      pagination={pagination}
-      state={{ globalFilter, sorting }}
-      pageCount={pageCount}
-      totalItems={totalItems}
-      onPaginationChange={setPagination}
-      onGlobalFilterChange={setGlobalFilter}
-      onSortingChange={setSorting}
-      hasActiveFilters={hasActiveFilters}
-      onResetFilters={handleResetFilters}
-      isSearching={isSearching}
-      config={{
-        tabs: [
-          { id: "businesses", label: "Businesses", icon: Building2 },
-          { id: "map", label: "Map View", icon: Map },
-        ],
-        activeTab: currentTab,
-        onTabChange: setCurrentTab,
-        searchPlaceholder: "Search businesses...",
-        emptyState: {
-          title: "No businesses yet",
-          description:
-            "Approved merchant businesses will appear here once they are created.",
-          icon: <Building2 className="h-10 w-10 text-text-secondary" />,
-        },
-        noResultsState: { title: "No businesses found" },
-        errorState: {
-          title: "Unable to load businesses",
-          message: "The requested businesses could not be loaded.",
-        },
-      }}
-      slots={{
-        renderFilters,
-        renderHeaderActions: () => (
-          <Button
-            variant="secondary"
-            size="md"
-            icon={Download}
-            onClick={() => {}}
-          >
-            Export
-          </Button>
-        ),
-        renderContent:
-          currentTab === "map"
-            ? () => (
-                <div className="overflow-hidden rounded-lg border border-stroke bg-background">
-                  <BusinessManagementMap
-                    businesses={mapBusinesses}
-                    isLoading={isMapLoading}
-                    isFetching={isMapFetching}
-                    error={mapError}
-                    onRetry={refetchMap}
-                    hasActiveFilters={hasActiveFilters}
-                    onResetFilters={handleResetFilters}
-                    onViewBusiness={handleViewBusiness}
-                    className="h-[600px] rounded-none border-0"
-                  />
-                </div>
-              )
-            : undefined,
-      }}
-    />
+    <>
+      <DataTable
+        data={businesses}
+        columns={columns}
+        isLoading={isLoading}
+        isFetching={isFetching}
+        error={error}
+        onRetry={refetch}
+        pagination={pagination}
+        state={{ globalFilter, sorting }}
+        pageCount={pageCount}
+        totalItems={totalItems}
+        onPaginationChange={setPagination}
+        onGlobalFilterChange={setGlobalFilter}
+        onSortingChange={setSorting}
+        hasActiveFilters={hasActiveFilters}
+        onResetFilters={handleResetFilters}
+        isSearching={isSearching}
+        config={{
+          tabs: [
+            { id: "businesses", label: "Businesses", icon: Building2 },
+            { id: "map", label: "Map View", icon: Map },
+          ],
+          activeTab: currentTab,
+          onTabChange: setCurrentTab,
+          searchPlaceholder: "Search businesses...",
+          emptyState: {
+            title: "No businesses yet",
+            description:
+              "Approved merchant businesses will appear here once they are created.",
+            icon: <Building2 className="h-10 w-10 text-text-secondary" />,
+          },
+          noResultsState: { title: "No businesses found" },
+          errorState: {
+            title: "Unable to load businesses",
+            message: "The requested businesses could not be loaded.",
+          },
+        }}
+        slots={{
+          renderFilters,
+          renderHeaderActions: () => (
+            <Button
+              variant="secondary"
+              size="md"
+              icon={Download}
+              onClick={() => {}}
+            >
+              Export
+            </Button>
+          ),
+          renderContent:
+            currentTab === "map"
+              ? () => (
+                  <div className="overflow-hidden rounded-lg border border-stroke bg-background">
+                    <BusinessManagementMap
+                      businesses={mapBusinesses}
+                      isLoading={isMapLoading}
+                      isFetching={isMapFetching}
+                      error={mapError}
+                      onRetry={refetchMap}
+                      hasActiveFilters={hasActiveFilters}
+                      onResetFilters={handleResetFilters}
+                      onViewBusiness={handleViewBusiness}
+                      className="h-[600px] rounded-none border-0"
+                    />
+                  </div>
+                )
+              : undefined,
+        }}
+      />
+      {statusAction && (
+        <BusinessStatusDialog
+          key={`${statusAction.business.id}-${statusAction.operation}`}
+          business={statusAction.business}
+          operation={statusAction.operation}
+          onClose={() => setStatusAction(null)}
+        />
+      )}
+    </>
   );
 }

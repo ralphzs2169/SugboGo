@@ -1,3 +1,4 @@
+import { BUSINESS_CHANGED_EVENT } from "../queries/businessResourceEvents";
 import { useEffect, useRef, useState } from "react";
 import { fetchBusinesses } from "../services/businessService";
 
@@ -17,8 +18,10 @@ export default function useBusinesses(params = {}, { enabled = true } = {}) {
   const [error, setError] = useState(null);
 
   const hasLoadedOnce = useRef(false);
+  const latestRequest = useRef(0);
 
   async function loadBusinesses() {
+    const requestId = ++latestRequest.current;
     if (!hasLoadedOnce.current) {
       setIsLoading(true);
     } else {
@@ -30,10 +33,13 @@ export default function useBusinesses(params = {}, { enabled = true } = {}) {
     try {
       const response = await fetchBusinesses(params);
 
+      // Ignore requests superseded by a filter change or lifecycle refresh.
+      if (requestId !== latestRequest.current) return;
       setBusinesses(response.items ?? []);
       setTotalItems(response.pagination?.total_items ?? 0);
       setPageCount(response.pagination?.total_pages ?? 0);
     } catch (error) {
+      if (requestId !== latestRequest.current) return;
       console.error("Failed to load businesses:", error);
 
       setError(error);
@@ -41,9 +47,11 @@ export default function useBusinesses(params = {}, { enabled = true } = {}) {
       setTotalItems(0);
       setPageCount(0);
     } finally {
-      hasLoadedOnce.current = true;
-      setIsLoading(false);
-      setIsFetching(false);
+      if (requestId === latestRequest.current) {
+        hasLoadedOnce.current = true;
+        setIsLoading(false);
+        setIsFetching(false);
+      }
     }
   }
 
@@ -52,7 +60,14 @@ export default function useBusinesses(params = {}, { enabled = true } = {}) {
       return;
     }
 
+    // Preserve the legacy hook's initial fetch; lifecycle updates use the event subscription below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadBusinesses();
+    window.addEventListener(BUSINESS_CHANGED_EVENT, loadBusinesses);
+    return () => {
+      latestRequest.current += 1;
+      window.removeEventListener(BUSINESS_CHANGED_EVENT, loadBusinesses);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     enabled,

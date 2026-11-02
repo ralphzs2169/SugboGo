@@ -34,10 +34,12 @@ export async function fetchSourceRequests(
   page,
   pageSize,
   fetchAll,
+  businessId,
 ) {
   const params = {
     status: status === "all" ? undefined : status,
     page_size: SOURCE_PAGE_SIZE,
+    ...(businessId ? { business_id: businessId } : {}),
   };
   const first = await fetchPage({ ...params, page: 1 });
   const total = first.pagination.total_items;
