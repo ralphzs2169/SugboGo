@@ -1,4 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { formatPiePercentage } from "../utils/formatPiePercentage";
 
 /**
  * Shares Admin donut styling and native Recharts hover details, with a primary
@@ -82,7 +83,7 @@ export default function MetricDonut({
         {centerContent ?? (
           <>
             <span className="text-sm font-bold leading-none text-text-primary">
-              {percentage.toFixed(1)}%
+              {formatPiePercentage(percentage)}
             </span>
 
             <span className="mt-1 text-[8px] font-semibold uppercase tracking-wide text-text-secondary">

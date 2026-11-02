@@ -1,3 +1,4 @@
+import { formatPiePercentage } from "../../utils/formatPiePercentage";
 import { useState } from "react";
 import { Sector } from "recharts";
 import MetricDonut from "../../components/MetricDonut";
@@ -27,7 +28,7 @@ export default function DashboardDonut({
   });
   const visibleRows = rows.filter((row) => !row.optional || row.count > 0);
   const percent = (value) =>
-    `${(total > 0 ? (value / total) * 100 : 0).toFixed(1)}%`;
+    formatPiePercentage(total > 0 ? (value / total) * 100 : 0);
   const description = (row) =>
     `${row.label}: ${formatCount(row.count)} ${unit}, ${available ? `${percent(row.count)} of ${denominator}` : "distribution unavailable"}`;
   function highlight(key) {

@@ -11,10 +11,12 @@ from ..serializers.mock_plus_serializers import (
     EmptyPlusInputSerializer, MerchantPlusStatusSerializer, MockPlusActivationSerializer, MockPlusMutationSerializer,
 )
 from ..services.mock_plus_service import MockPlusService
+from ..services.merchant_plus_status_service import MerchantPlusStatusService
+from ..serializers.plus_status_serializers import MerchantPlusAccessStatusSerializer
 
 
 class MerchantPlusStatusView(APIView):
-    """Read owned demo state under normal merchant role and ownership checks."""
+    """Read paid, preview, and demo state under Merchant ownership checks."""
 
     permission_classes = (IsAuthenticated, HasRole(User.UserRole.MERCHANT))
 
@@ -22,8 +24,12 @@ class MerchantPlusStatusView(APIView):
         """Validate the parameter-free status API without mutating entitlement records."""
         query = EmptyPlusInputSerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
-        return success_response(data=MerchantPlusStatusSerializer(MockPlusService.get_status(request.user)).data,
-                                message="Merchant Plus status retrieved successfully.")
+        return success_response(
+            data=MerchantPlusAccessStatusSerializer(
+                MerchantPlusStatusService.get_status(request.user),
+            ).data,
+            message="Merchant Plus status retrieved successfully.",
+        )
 
 
 class MockPlusActivationView(APIView):

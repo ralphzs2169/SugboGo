@@ -152,9 +152,14 @@ test("failed background refresh retains report values beside a persistent retry 
   let retries = 0;
   await render("AnalyticsChartCard", { title: "Growth", hasData: true, error: new Error("failed"), onRetry: () => { retries += 1; } }, "Retained values");
   assert.match(container.textContent, /Retained values/);
-  assert.match(container.textContent, /Previously loaded data is shown/);
+  assert.match(container.textContent, /Showing previously loaded data./);
+  assert.equal(container.querySelectorAll('[role="alert"]').length, 1);
+  assert.ok(container.querySelector('[role="alert"]').className.includes("bg-surface-muted"));
   await act(async () => button("Retry").click());
   assert.equal(retries, 1);
+  await render("AnalyticsChartCard", { title: "Growth", hasData: true }, "Recovered values");
+  assert.equal(container.querySelector('[role="alert"]'), null);
+  assert.match(container.textContent, /Recovered values/);
 });
 
 

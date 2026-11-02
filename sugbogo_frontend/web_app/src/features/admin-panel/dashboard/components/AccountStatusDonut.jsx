@@ -1,3 +1,4 @@
+import { formatPiePercentage } from "../../utils/formatPiePercentage";
 import { useMemo, useState } from "react";
 import { Sector } from "recharts";
 import MetricDonut from "../../components/MetricDonut";
@@ -44,7 +45,7 @@ export default function AccountStatusDonut({ activeCount, distribution }) {
         stroke="none"
         role="button"
         tabIndex={0}
-        aria-label={`${row.name}: ${formatCount(row.value)} accounts, ${((row.value / total) * 100).toFixed(1)}% of Explorer and Merchant accounts`}
+        aria-label={`${row.name}: ${formatCount(row.value)} accounts, ${formatPiePercentage((row.value / total) * 100)} of Explorer and Merchant accounts`}
         className="cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
         onFocus={() => select(props.index)}
         onBlur={() => setSelected(null)}
@@ -84,7 +85,7 @@ export default function AccountStatusDonut({ activeCount, distribution }) {
             active: selected !== null ? true : undefined,
             defaultIndex: selected ?? undefined,
             formatter: (value, name) => [
-              `${formatCount(value)} accounts · ${((value / total) * 100).toFixed(1)}%`,
+              `${formatCount(value)} accounts · ${formatPiePercentage((value / total) * 100)}`,
               name,
             ],
           }}

@@ -40,7 +40,7 @@ export function ActivityTooltip({ active, payload, label }) {
   );
 }
 
-/** Plot seven real Manila-date buckets with isolatable series, a shared count axis, and exact-value text. */
+/** Plot seven real PHT-date buckets as solid, isolatable series with exact-value text. */
 export default function PlatformActivity({ query, onAbout, onData }) {
   const activity = query.data?.activity;
   const asOf = query.data?.as_of;
@@ -74,24 +74,26 @@ export default function PlatformActivity({ query, onAbout, onData }) {
       className="min-w-0 [&>section]:h-full"
     >
       <AnalyticsSection
+        detectOffline
         title="Platform Activity Trend"
         titleIcon={ChartNoAxesCombined}
         description="Last 7 calendar dates · PHT · recorded events"
         onAbout={onAbout}
         {...sectionQueryState(query)}
         errorMessage="Unable to load platform activity. Please try again."
-        footer={
+        footer={rows && (
           <AnalyticsReportFooter
             title="Platform Activity Trend"
             timestampLabel="Data as of"
             meta={meta}
+            hideInvalidTimestamp
             hasData={Boolean(rows)}
             hasDetails={Boolean(activity)}
             coverageLabel="Today is partial"
             coverageDescription="Recorded events in the server-selected PHT window, start-inclusive and end-exclusive. The current day may be partial; the chart does not show a previous-period series."
             onData={onData}
           />
-        }
+        )}
       >
         <AnalyticsPeriodLabel
           period={{ start_date: rows?.[0]?.date, end_date: rows?.at(-1)?.date }}
@@ -124,7 +126,7 @@ export default function PlatformActivity({ query, onAbout, onData }) {
                   y2="2"
                   stroke={series.color}
                   strokeWidth="2"
-                  strokeDasharray={series.dash}
+                  strokeLinecap="round"
                 />
               </svg>
               {series.label}
@@ -186,7 +188,8 @@ export default function PlatformActivity({ query, onAbout, onData }) {
                       type="linear"
                       connectNulls={false}
                       stroke={series.color}
-                      strokeDasharray={series.dash}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                       strokeWidth={2}
                       dot={visible.length === 1 ? { r: 2 } : false}
                       activeDot={{ r: 5 }}

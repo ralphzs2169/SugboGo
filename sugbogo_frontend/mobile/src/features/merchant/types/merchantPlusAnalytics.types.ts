@@ -130,13 +130,13 @@ export type PlusReviewPerformanceReport = {
   meta: PlusAnalyticsMeta;
 };
 
-/** Read-only server status; preview/mock access is not a paid subscription. */
+/** Read-only server access; paid purchases remain distinct from preview and mock grants. */
 export type MerchantPlusStatus = {
   business: OwnedAnalyticsBusiness;
   stored_demo_state: "not_created" | "inactive" | "active";
   effective_tier: "standard" | "plus";
   has_plus_access: boolean;
-  access_source: "none" | "preview" | "mock";
+  access_source: "none" | "preview" | "mock" | "paymongo_test" | "paymongo_live";
   enforcement_enabled: boolean;
   mock_enabled: boolean;
   is_simulation: boolean;

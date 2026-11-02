@@ -1,3 +1,4 @@
+import DataErrorState from "@/shared/components/errors/DataErrorState";
 import {
   Heart,
   Info,
@@ -26,9 +27,9 @@ function ActivityValue({ current, previous }) {
   return (
     <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
       {/* Analytics-style value and inline comparison */}
-      <span className="font-semibold tabular-nums">{formatCount(current)}</span>
+      <span className="text-4xl font-semibold tabular-nums">{formatCount(current)}</span>
       <span className={`inline-flex items-center gap-1 text-sm font-medium ${difference < 0 ? "text-danger" : "text-text-secondary"}`}>
-        {available && <Icon aria-hidden="true" className="h-3 w-3 shrink-0" />}
+        {available && <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />}
         <span>{label}</span>
       </span>
     </span>
@@ -41,6 +42,13 @@ export default function PlatformOverviewKpis({
   summary,
   informationAction,
 }) {
+  const failedRefreshes = [overview, summary].filter(
+    (query) => query.error && query.data != null,
+  );
+  const initialFailures = [overview, summary].filter(
+    (query) => query.error && query.data == null,
+  );
+  const hasLoadedMetrics = [overview, summary].some((query) => query.data != null);
   const metrics = [
     {
       label: "Active Accounts",
@@ -77,7 +85,10 @@ export default function PlatformOverviewKpis({
     },
   ];
   return (
-    <section aria-label="Platform Overview" className="min-w-0">
+    <section
+      aria-label="Platform Overview"
+      className="min-w-0"
+    >
       {/* Shared Admin metrics keep current inventory distinct from period activity */}
       <div className="mb-3 flex items-center gap-1">
         <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
@@ -89,11 +100,35 @@ export default function PlatformOverviewKpis({
       <p className="-mt-2 mb-3 text-xs text-text-secondary">
         Reviews and vouches · Last 7 days · PHT
       </p>
-      <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
+      {/* Initial failures are presented once for the complete KPI section. */}
+      {initialFailures.length > 0 && (
+        <DataErrorState
+          compact
+          framed
+          detectOffline
+          title="Unable to load Platform Overview"
+          message="We couldn't retrieve the latest platform metrics."
+          onRetry={() => Promise.all(initialFailures.map((query) => query.refetch()))}
+          retrying={initialFailures.some((query) => query.isFetching)}
+          retryLabel="Retry"
+        />
+      )}
+      {/* One contextual warning covers failed refreshes for this KPI section. */}
+      {failedRefreshes.length > 0 && (
+        <DataErrorState
+          retainedData
+          onRetry={() => Promise.all(failedRefreshes.map((query) => query.refetch()))}
+          retrying={failedRefreshes.some((query) => query.isFetching)}
+          retryLabel="Retry"
+        />
+      )}
+      {(initialFailures.length === 0 || hasLoadedMetrics) && <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.filter((metric) => !(metric.query.error && metric.query.data == null)).map((metric) => (
           <DashboardQuerySection
             key={metric.key}
             query={metric.query}
+            skeletonVariant={metric.scope === "Current count" ? "inventory" : "activity"}
+            refreshErrorHandled
             label={metric.label}
             headerVisible={false}
             framed={false}
@@ -105,7 +140,9 @@ export default function PlatformOverviewKpis({
                 icon={metric.icon}
                 value={metric.scope === "Last 7 days" ? (
                   <ActivityValue current={metric.value(data)} previous={data.activity?.previous?.[metric.key]} />
-                ) : formatCount(metric.value(data))}
+                ) : (
+                  <span className="text-4xl">{formatCount(metric.value(data))}</span>
+                )}
                 measurementLabel={metric.scope === "Last 7 days" ? (
                   <span>Prev. period: {formatCount(data.activity?.previous?.[metric.key])}</span>
                 ) : metric.scope}
@@ -149,7 +186,7 @@ export default function PlatformOverviewKpis({
             )}
           </DashboardQuerySection>
         ))}
-      </div>
+      </div>}
     </section>
   );
 }

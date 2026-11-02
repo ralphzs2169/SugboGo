@@ -12,9 +12,11 @@ export default function DashboardQuerySection({
   framed = true,
   headingAs = "h2",
   headerVisible = true,
+  refreshErrorHandled = false,
+  skeletonVariant = "default",
   icon: Icon,
 }) {
-  const hasData = query.data !== undefined;
+  const hasData = query.data != null;
   const Heading = headingAs;
 
   return (
@@ -52,10 +54,13 @@ export default function DashboardQuerySection({
         </header>
       )}
       {/* Independent initial load and persistent recovery */}
-      {query.isLoading && !hasData && <DashboardSkeleton label={label} />}
-      {query.error && (
+      {query.isLoading && !hasData && <DashboardSkeleton label={label} variant={skeletonVariant} />}
+      {query.error && (!hasData || !refreshErrorHandled) && (
         <DataErrorState
           compact
+          framed={!framed && headerVisible && !hasData}
+          detectOffline
+          retainedData={hasData}
           title={`Unable to load ${label.toLowerCase()}`}
           message={
             hasData

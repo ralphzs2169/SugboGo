@@ -2,6 +2,9 @@
 
 from django.conf import settings
 
+from apps.payments.services.payment_service import PaymentService
+from apps.users.models import User
+
 from .models import DemoMerchantPlusEntitlement
 
 
@@ -15,13 +18,19 @@ def demo_plus_access_source(*, has_mock_grant):
 
 
 def merchant_has_plus_access(user):
-    """Keep preview access and consult demo grants only under explicit mock enforcement."""
+    """Resolve valid paid access separately from existing preview and mock grants."""
+    if (
+        not user
+        or not user.is_authenticated
+        or not user.is_active
+        or user.USER_ROLE != User.UserRole.MERCHANT
+    ):
+        return False
+    if PaymentService.get_active_paid_entitlement(user) is not None:
+        return True
     if not settings.MERCHANT_PLUS_ENFORCED:
         return True
     if not settings.MERCHANT_PLUS_MOCK_ENABLED:
-        # Ralph: future real entitlements belong here; demo grants never confer paid access.
-        return False
-    if not user or not user.is_authenticated:
         return False
     has_grant = DemoMerchantPlusEntitlement.objects.filter(
         BUSN_ID__USER_ID=user, DMPE_IS_ACTIVE=True,
