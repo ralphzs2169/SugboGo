@@ -40,7 +40,7 @@ export function ActivityTooltip({ active, payload, label }) {
   );
 }
 
-/** Plot seven real Manila-date buckets with isolatable series, a shared count axis, and exact-value text. */
+/** Plot seven real PHT-date buckets as solid, isolatable series with exact-value text. */
 export default function PlatformActivity({ query, onAbout, onData }) {
   const activity = query.data?.activity;
   const asOf = query.data?.as_of;
@@ -124,7 +124,7 @@ export default function PlatformActivity({ query, onAbout, onData }) {
                   y2="2"
                   stroke={series.color}
                   strokeWidth="2"
-                  strokeDasharray={series.dash}
+                  strokeLinecap="round"
                 />
               </svg>
               {series.label}
@@ -186,7 +186,8 @@ export default function PlatformActivity({ query, onAbout, onData }) {
                       type="linear"
                       connectNulls={false}
                       stroke={series.color}
-                      strokeDasharray={series.dash}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                       strokeWidth={2}
                       dot={visible.length === 1 ? { r: 2 } : false}
                       activeDot={{ r: 5 }}

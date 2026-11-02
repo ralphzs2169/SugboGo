@@ -89,9 +89,16 @@ class MockPlusServiceTests(MerchantAnalyticsFixtures, TestCase):
             self.assertTrue(status["has_plus_access"])
             self.assertEqual(status["access_source"], "preview")
 
-    def test_disabled_mock_mode_ignores_stored_grants_without_entitlement_query(self):
+    def test_disabled_mock_mode_ignores_stored_grants_without_demo_entitlement_query(self):
         MockPlusService.activate(self.merchant_a, "success")
-        with override_settings(MERCHANT_PLUS_MOCK_ENABLED=False), self.assertNumQueries(0):
+        with (
+            override_settings(MERCHANT_PLUS_MOCK_ENABLED=False),
+            patch.object(
+                DemoMerchantPlusEntitlement.objects,
+                "filter",
+                side_effect=AssertionError("Disabled mock access queried demo grants."),
+            ),
+        ):
             self.assertFalse(merchant_has_plus_access(self.merchant_a))
 
     def test_disabled_mutations_fail_before_business_lookup(self):

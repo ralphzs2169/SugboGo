@@ -15,6 +15,7 @@ import { formatCount } from "../../analytics/utils/presentation";
 import DashboardQuerySection from "./DashboardQuerySection";
 import BusinessStatusDonut from "./BusinessStatusDonut";
 import AccountStatusDonut from "./AccountStatusDonut";
+import { getMetricVariant } from "../../constants/metricVariants";
 
 /** Show inline activity comparisons with red emphasis for declining volume. */
 function ActivityValue({ current, previous }) {
@@ -27,7 +28,7 @@ function ActivityValue({ current, previous }) {
     <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
       {/* Analytics-style value and inline comparison */}
       <span className="font-semibold tabular-nums">{formatCount(current)}</span>
-      <span className={`inline-flex items-center gap-1 text-sm font-medium ${difference < 0 ? "text-danger" : "text-text-secondary"}`}>
+      <span className={`inline-flex items-center gap-1 text-sm font-medium ${getMetricVariant(difference < 0 ? "danger" : "neutral").text}`}>
         {available && <Icon aria-hidden="true" className="h-3 w-3 shrink-0" />}
         <span>{label}</span>
       </span>

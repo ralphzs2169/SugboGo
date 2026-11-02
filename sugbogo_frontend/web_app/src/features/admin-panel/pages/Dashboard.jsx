@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import {
   ArrowRight,
   ChartNoAxesCombined,
@@ -45,8 +45,22 @@ import {
 } from "../dashboard/utils/platformActivity";
 import { dashboardInformation } from "../dashboard/utils/dashboardInformation";
 
-/** Present real operational queues and concise context with independent query recovery and existing Admin styling. */
+// Keep the preview panel and synthetic datasets outside the production import graph.
+const DashboardPreview = import.meta.env.DEV
+  ? lazy(() => import("../dashboard/preview/DashboardPreview"))
+  : null;
+
+/** Expose preview controls only in development; production renders the ordinary Dashboard. */
 export default function Dashboard() {
+  return DashboardPreview ? (
+    <Suspense fallback={<p role="status">Loading Dashboard…</p>}>
+      <DashboardPreview><DashboardContent /></DashboardPreview>
+    </Suspense>
+  ) : <DashboardContent />;
+}
+
+/** Present independently recoverable Dashboard sections using their existing query contracts. */
+function DashboardContent() {
   useDocumentTitle("Dashboard | SugboGo Admin");
 
   const [details, setDetails] = useState({

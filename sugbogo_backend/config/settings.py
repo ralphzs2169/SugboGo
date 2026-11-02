@@ -22,6 +22,8 @@ from celery.schedules import crontab
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
+from config.paymongo import load_paymongo_configuration
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -37,6 +39,14 @@ _merchant_plus_mock_enabled = os.getenv("MERCHANT_PLUS_MOCK_ENABLED", "False").s
 if _merchant_plus_mock_enabled not in {"true", "false"}:
     raise ImproperlyConfigured("MERCHANT_PLUS_MOCK_ENABLED must be True or False.")
 MERCHANT_PLUS_MOCK_ENABLED = _merchant_plus_mock_enabled == "true"
+
+globals().update(
+    load_paymongo_configuration(
+        os.environ,
+        plus_enforced=MERCHANT_PLUS_ENFORCED,
+        mock_enabled=MERCHANT_PLUS_MOCK_ENABLED,
+    ),
+)
 
 if os.name == 'nt':
     GDAL_LIBRARY_PATH = os.environ.get("GDAL_LIBRARY_PATH")
@@ -214,6 +224,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
 
     'apps.users.apps.UsersConfig',
+    'apps.payments.apps.PaymentsConfig',
     'apps.authentication.apps.AuthenticationConfig',
     # 'apps.merchant_operations.apps.MerchantOperationsConfig',
 

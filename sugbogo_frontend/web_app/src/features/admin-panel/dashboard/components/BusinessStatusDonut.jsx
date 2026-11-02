@@ -1,3 +1,4 @@
+import { formatPiePercentage } from "../../utils/formatPiePercentage";
 import MetricDonut from "../../components/MetricDonut";
 import useChartEntrance from "../hooks/useChartEntrance";
 import { formatCount } from "../../analytics/utils/presentation";
@@ -39,7 +40,7 @@ export default function BusinessStatusDonut({ status }) {
           }}
           tooltipProps={{
             formatter: (value, name) => [
-              `${formatCount(value)} businesses · ${((value / status.total) * 100).toFixed(1)}%`,
+              `${formatCount(value)} businesses · ${formatPiePercentage((value / status.total) * 100)}`,
               name,
             ],
           }}

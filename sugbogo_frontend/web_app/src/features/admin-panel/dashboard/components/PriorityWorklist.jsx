@@ -69,10 +69,13 @@ export default function PriorityWorklist({ items }) {
               : "bg-neutral";
         const content = (
           <>
-            <Icon
+            {/* Match decision icon geometry while keeping pending work visually neutral. */}
+            <span
               aria-hidden="true"
-              className="mt-0.5 h-4 w-4 shrink-0 text-text-secondary"
-            />
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${overdue ? "bg-warning/10 text-warning" : "bg-neutral/10 text-text-secondary"}`}
+            >
+              <Icon className="h-4 w-4" strokeWidth={2} />
+            </span>
             <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
               <p className="text-sm font-medium leading-5 text-text-primary">
                 {entityLabel}
@@ -125,13 +128,13 @@ export default function PriorityWorklist({ items }) {
                 }
                 className={
                   dashboardLinkClass +
-                  " group flex items-start gap-2.5 py-2.5 hover:bg-surface-hover"
+                  " group flex items-start gap-3 py-2.5 hover:bg-surface-hover"
                 }
               >
                 {content}
               </Link>
             ) : (
-              <div className="flex items-start gap-2.5 py-2.5">
+              <div className="flex items-start gap-3 py-2.5">
                 {content}
                 <span className="sr-only">Destination unavailable</span>
               </div>

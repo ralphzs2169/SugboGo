@@ -9,6 +9,7 @@ import {
 } from "../../analytics/utils/presentation";
 import { dashboardLinkClass } from "../utils/dashboardPresentation";
 import DashboardQuerySection from "./DashboardQuerySection";
+import { useDashboardPreview } from "../preview/DashboardPreviewContext";
 
 const STATUSES = [
   { key: "stale", label: "Stale", tone: "text-warning" },
@@ -18,10 +19,12 @@ const STATUSES = [
 
 /** Keep authoritative active-business score coverage compact, independently recoverable, and shared with Analytics. */
 export default function BusinessHealth({ canViewScores, informationAction }) {
-  const scores = useDiscoveryScoreAnalytics(
+  const preview = useDashboardPreview()?.queries.scores;
+  const liveScores = useDiscoveryScoreAnalytics(
     { page_size: 1 },
-    { enabled: canViewScores },
+    { enabled: canViewScores && !preview },
   );
+  const scores = preview ?? liveScores;
   useApiErrorNotification(scores.error, {
     toastId: "admin-dashboard-discovery-health-load-error",
     fallbackMessage: "Unable to load Discovery Score health. Please try again.",
