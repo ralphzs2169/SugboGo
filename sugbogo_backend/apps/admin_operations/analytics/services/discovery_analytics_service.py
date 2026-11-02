@@ -3,8 +3,9 @@
 from dataclasses import replace
 from datetime import timedelta
 
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 
+from apps.business.models import Business
 from apps.business.services.visibility_event_service import (
     VisibilityEventService,
     VisibilityEventType,
@@ -38,7 +39,11 @@ class DiscoveryAnalyticsService:
     )
 
     DEFINITIONS = {
-        "profile_visits": "Recorded PROFILE_VISIT events during the selected period.",
+        "profile_visits": (
+            "Recorded PROFILE_VISIT events during the selected period; "
+            "not physical visits, raw profile opens, impressions or unique visitors. "
+            "Authenticated Explorer and Merchant accounts are counted; owners are excluded."
+        ),
         "impressions": "Recorded IMPRESSION events during the selected period.",
         "saves": (
             "Recorded SAVE events during the selected period; "
@@ -62,8 +67,23 @@ class DiscoveryAnalyticsService:
     def get_summary(
         cls,
         period,
+        *,
+        business_id=None,
     ):
-        """Read all three recorded period totals in one existing visibility aggregation."""
+        """Read recorded period totals with optional business scope and isolated source failure."""
+        business_ids = None
+        if business_id is not None:
+            if (
+                type(business_id) is not int
+                or business_id <= 0
+            ):
+                raise ValidationError({
+                    "business_id": "Use a positive integer business ID.",
+                })
+            if not Business.objects.filter(pk=business_id).exists():
+                raise NotFound("The business could not be found.")
+            business_ids = [business_id]
+
         values = {
             metric: None
             for metric in cls.EVENT_METRICS
@@ -71,18 +91,24 @@ class DiscoveryAnalyticsService:
         availability = "available"
         reasons = ()
         try:
+            scope = {}
+            if business_ids is not None:
+                scope["business_ids"] = business_ids
             totals = VisibilityEventService.get_analytics_totals(
                 start_time=period.start,
                 end_time=period.end,
+                **scope,
             )
             values = {
                 metric: totals[event.value]
                 for metric, event in cls.EVENT_METRICS.items()
             }
-        except VisibilityTrackingUnavailable:
+        except VisibilityTrackingUnavailable as error:
             availability = "unavailable"
             reasons = ("total_read_unavailable",)
-        return {
+            if error.reason is not None:
+                reasons += (error.reason,)
+        report = {
             "totals": values,
             "definitions": cls.DEFINITIONS,
             "meta": build_meta(
@@ -91,6 +117,9 @@ class DiscoveryAnalyticsService:
                 partial_reasons=reasons,
             ),
         }
+        if business_id is not None:
+            report["business_id"] = business_id
+        return report
 
     @staticmethod
     def build_timeline(

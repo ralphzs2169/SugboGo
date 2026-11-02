@@ -15,6 +15,7 @@ from apps.admin_operations.analytics.serializers.platform_analytics_serializers 
     DiscoveryTrendQuerySerializer,
     DiscoveryTrendSerializer,
     DiscoverySummarySerializer,
+    DiscoverySummaryQuerySerializer,
     PlatformAnalyticsSerializer,
 )
 from apps.admin_operations.analytics.services.discovery_analytics_service import (
@@ -64,10 +65,11 @@ class DiscoverySummaryView(APIView):
         request,
     ):
         """Validate one reporting period and serialize the existing totals aggregation."""
-        query = AnalyticsPeriodQuerySerializer(data=request.query_params)
+        query = DiscoverySummaryQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         report = DiscoveryAnalyticsService.get_summary(
             query.validated_data["report_period"],
+            business_id=query.validated_data.get("business_id"),
         )
         return success_response(
             data=DiscoverySummarySerializer(report).data,

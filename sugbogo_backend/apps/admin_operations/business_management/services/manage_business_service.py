@@ -1,8 +1,14 @@
-from apps.business.services.display_cover_photo import display_cover_photo_expression
 from django.db.models import Prefetch
+from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
-from apps.business.models import Business, BusinessSpecialtyTag
+from apps.business.models import Business, BusinessPhoto, BusinessSpecialtyTag
+from apps.business.services.display_cover_photo import display_cover_photo_expression
+from apps.business.services.pocket_service import PocketService
+from apps.business.services.vouch_service import VouchService
+from apps.explorer_operations.explore_businesses.services.published_review_count import (
+    published_review_count,
+)
 from apps.reviews.models import Review
 
 
@@ -140,10 +146,13 @@ class BusinessService:
 
     @staticmethod
     def get_business_detail(business_id):
+        """Load authoritative relational metrics and stored insights without analytics I/O."""
+        as_of = timezone.now()
         active_specialty_tags = (
             BusinessSpecialtyTag.objects
             .filter(
                 BST_IS_ACTIVE=True,
+                BST_CREATED_AT__lte=as_of,
             )
             .select_related(
                 "TAG_ID",
@@ -166,14 +175,22 @@ class BusinessService:
         )
 
         try:
-            return (
+            business = (
                 Business.objects
+                .annotate(
+                    display_cover_photo_url=display_cover_photo_expression(),
+                    published_review_count=published_review_count(),
+                )
                 .select_related(
                     "USER_ID",
                     "CTGRY_ID",
                     "CTGRY_ID__CLUS_ID",
                     "LOCT_ID",
                     "merchant_application",
+                    "merchant_application__identity",
+                    "merchant_application__identity__CLUS_ID",
+                    "merchant_application__identity__CTGRY_ID",
+                    "business_rating",
                     "review_summary",
                     "review_insight_regeneration",
                 )
@@ -183,7 +200,12 @@ class BusinessService:
                         queryset=active_specialty_tags,
                         to_attr="active_specialty_tag_links",
                     ),
-                    "photos",
+                    Prefetch(
+                        "photos",
+                        queryset=BusinessPhoto.objects.order_by("BPHO_ID"),
+                    ),
+                    "LOCT_ID__landmarks",
+                    "merchant_application__identity__specialty_tags",
                     "operating_hours",
                     Prefetch(
                         "reviews",
@@ -199,3 +221,24 @@ class BusinessService:
             raise NotFound(
                 "The business could not be found.",
             )
+
+        business.current_specialty_support = VouchService.get_current_specialty_support(
+            business_id,
+            as_of=as_of,
+        )
+        business.current_specialty_vouch_count = sum(
+            specialty["valid_vouches"]
+            for specialty in business.current_specialty_support
+        )
+        support_by_id = {
+            specialty["specialty_id"]: specialty["valid_vouches"]
+            for specialty in business.current_specialty_support
+        }
+        for link in business.active_specialty_tag_links:
+            link.current_valid_vouch_count = support_by_id.get(link.TAG_ID_id, 0)
+
+        business.current_saved_count = PocketService.get_current_holder_count(
+            business_id,
+            as_of=as_of,
+        )
+        return business

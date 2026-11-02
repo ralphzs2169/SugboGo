@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 
 from apps.admin_operations.business_management.serializers.manage_application_serializers import (
@@ -20,6 +21,7 @@ from apps.explorer_operations.explore_businesses.serializers.review_insights_ser
 )
 from apps.merchant_application.models import MerchantApplication
 from apps.reviews.models import Review
+from apps.reviews.serializers.business_rating_serializers import BusinessRatingSerializer
 from apps.reviews.serializers.review_reply_serializers import (
     ReviewReplyResponseSerializer,
 )
@@ -424,8 +426,52 @@ class AdminBusinessReviewInsightsSerializer(BusinessReviewInsightsSerializer):
         )
 
 
+class AdminBusinessOwnerSerializer(BusinessOwnerSerializer):
+    """Add navigation identity and account state only to the protected detail projection."""
+
+    id = serializers.IntegerField(
+        source="USER_ID",
+        read_only=True,
+    )
+    status = serializers.CharField(
+        source="USER_STATUS",
+        read_only=True,
+    )
+
+    class Meta(BusinessOwnerSerializer.Meta):
+        fields = BusinessOwnerSerializer.Meta.fields + (
+            "id",
+            "status",
+        )
+
+
+class AdminBusinessSpecialtyTagSerializer(BusinessSpecialtyTagSerializer):
+    """Keep detail specialty counts aligned with current valid specialty support."""
+
+    vouch_count = serializers.IntegerField(
+        source="current_valid_vouch_count",
+        read_only=True,
+    )
+    icon = serializers.CharField(
+        source="TAG_ID.TAG_ICON",
+        read_only=True,
+    )
+
+    class Meta(BusinessSpecialtyTagSerializer.Meta):
+        fields = BusinessSpecialtyTagSerializer.Meta.fields + ("icon",)
+
+
+class AdminCurrentSpecialtySupportSerializer(serializers.Serializer):
+    """Expose valid endorsements and distinct accounts separately for each active specialty."""
+
+    specialty_id = serializers.IntegerField(read_only=True)
+    specialty_name = serializers.CharField(read_only=True)
+    valid_vouches = serializers.IntegerField(read_only=True)
+    distinct_supporters = serializers.IntegerField(read_only=True)
+
+
 class AdminBusinessDetailSerializer(serializers.ModelSerializer):
-    """Complete administrator-facing business detail serializer."""
+    """Expose protected detail with legacy count names aliasing authoritative current metrics."""
 
     id = serializers.IntegerField(
         source="BUSN_ID",
@@ -438,8 +484,9 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
     )
 
     cover_photo_url = serializers.CharField(
-        source="BUSN_COVER_PHOTO_URL",
+        source="display_cover_photo_url",
         read_only=True,
+        allow_null=True,
     )
 
     description = serializers.CharField(
@@ -475,22 +522,35 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
     )
 
     vouch_count = serializers.IntegerField(
-        source="BUSN_VOUCH_COUNT",
+        source="current_specialty_vouch_count",
+        read_only=True,
+    )
+    current_specialty_vouch_count = serializers.IntegerField(read_only=True)
+    current_specialty_support = AdminCurrentSpecialtySupportSerializer(
+        many=True,
         read_only=True,
     )
 
     review_count = serializers.IntegerField(
-        source="BUSN_REVIEW_COUNT",
+        source="published_review_count",
         read_only=True,
     )
+    published_review_count = serializers.IntegerField(read_only=True)
 
     pocket_count = serializers.IntegerField(
-        source="BUSN_POCKET_COUNT",
+        source="current_saved_count",
+        read_only=True,
+    )
+    current_saved_count = serializers.IntegerField(read_only=True)
+
+    sentiment_rating_enabled = serializers.SerializerMethodField()
+    sentiment_rating = BusinessRatingSerializer(
+        source="*",
         read_only=True,
     )
 
     
-    owner = BusinessOwnerSerializer(
+    owner = AdminBusinessOwnerSerializer(
         source="USER_ID",
         read_only=True,
     )
@@ -510,7 +570,7 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    specialty_tags = BusinessSpecialtyTagSerializer(
+    specialty_tags = AdminBusinessSpecialtyTagSerializer(
         source="active_specialty_tag_links",
         many=True,
         read_only=True,
@@ -557,7 +617,23 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
     
 
 
-    def get_location(self, obj):
+    def get_fields(self):
+        """Match Mobile's opt-in exposure without exposing disabled rating snapshots."""
+        fields = super().get_fields()
+        if not settings.EXPERIMENTAL_BUSINESS_RATINGS_ENABLED:
+            fields.pop("sentiment_rating", None)
+        return fields
+
+    @staticmethod
+    def get_sentiment_rating_enabled(_business):
+        """Distinguish disabled rating exposure from a pending or unavailable snapshot."""
+        return settings.EXPERIMENTAL_BUSINESS_RATINGS_ENABLED
+
+    def get_location(
+        self,
+        obj,
+    ):
+        """Project the permanent address and coordinates without related-object queries."""
         point = obj.LOCT_ID.LOCT_POINT
 
         return {
@@ -582,8 +658,14 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
             "status",
             "is_verified",
             "vouch_count",
+            "current_specialty_vouch_count",
+            "current_specialty_support",
             "review_count",
+            "published_review_count",
             "pocket_count",
+            "current_saved_count",
+            "sentiment_rating_enabled",
+            "sentiment_rating",
             "owner",
             "category_name",
             "cluster_name",

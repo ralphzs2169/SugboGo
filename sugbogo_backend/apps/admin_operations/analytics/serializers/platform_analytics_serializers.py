@@ -27,6 +27,29 @@ class AnalyticsPeriodQuerySerializer(serializers.Serializer):
         return attrs
 
 
+class DiscoverySummaryQuerySerializer(AnalyticsPeriodQuerySerializer):
+    """Optionally scope the existing discovery summary to one business, including suspended ones."""
+
+    business_id = serializers.IntegerField(
+        min_value=1,
+        required=False,
+    )
+
+    def validate(
+        self,
+        attrs,
+    ):
+        """Reject an explicitly blank HTML selector rather than silently returning platform totals."""
+        if (
+            "business_id" in self.initial_data
+            and "business_id" not in attrs
+        ):
+            raise serializers.ValidationError({
+                "business_id": "Use a positive integer business ID.",
+            })
+        return super().validate(attrs)
+
+
 class DiscoveryTrendQuerySerializer(AnalyticsPeriodQuerySerializer):
     """Validate the selected discovery metric and bucket interval."""
 
@@ -151,6 +174,7 @@ class DiscoverySummaryTotalsSerializer(serializers.Serializer):
 class DiscoverySummarySerializer(serializers.Serializer):
     """Expose one compact selected-period summary with source metadata."""
 
+    business_id = serializers.IntegerField(required=False)
     totals = DiscoverySummaryTotalsSerializer()
     definitions = DiscoveryDefinitionsSerializer()
     meta = AnalyticsMetaSerializer()

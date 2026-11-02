@@ -8,6 +8,7 @@ from apps.admin_operations.business_management.services.manage_business_service 
     BusinessService,
 )
 from apps.reviews.models import BusinessReviewSummary, ReviewInsightRegeneration
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 from apps.reviews.services.tests.test_business_review_summary_service import (
     SummaryFixtureMixin,
 )
@@ -16,6 +17,7 @@ from apps.users.models import User
 
 class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
     def setUp(self):
+        AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
         self.business = self.create_business()
         self.admin = self.create_user("admin", User.UserRole.ADMIN)
         self.super_admin = self.create_user(
