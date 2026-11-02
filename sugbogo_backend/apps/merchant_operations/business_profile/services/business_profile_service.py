@@ -117,8 +117,20 @@ class BusinessProfileService:
             raise NotFound("The requested document could not be found.")
 
     @staticmethod
-    def update_information(business, validated_data):
+    @transaction.atomic
+    def update_information(
+        business,
+        validated_data,
+    ):
         """Persist only validated operational fields on the live business."""
+
+        try:
+            business = Business.objects.select_for_update().get(
+                pk=business.pk,
+                USER_ID_id=business.USER_ID_id,
+            )
+        except Business.DoesNotExist:
+            raise NotFound("Your business could not be found.") from None
 
         if business.BUSN_STATUS != Business.BusinessStatus.ACTIVE:
             raise PermissionDenied(
@@ -229,57 +241,58 @@ class BusinessProfileService:
         )
 
     @staticmethod
-    @transaction.atomic
-    def update_cover_photo(business, photo):
-        """
-        Replace the business cover photo with a newly uploaded image.
+    def update_cover_photo(
+        business,
+        photo,
+    ):
+        """Stage an upload before locking and revalidating the owned business write."""
+        def eligible_business():
+            """Reload ownership and eligibility using the caller's captured identity."""
+            try:
+                current = Business.objects.get(
+                    pk=business.pk,
+                    USER_ID_id=business.USER_ID_id,
+                )
+            except Business.DoesNotExist:
+                raise NotFound("Your business could not be found.") from None
+            if current.BUSN_STATUS != Business.BusinessStatus.ACTIVE:
+                raise PermissionDenied(
+                    "Cover photos cannot be edited while your business is suspended.",
+                )
+            return current
 
-        The business row is locked for the duration of the transaction to
-        prevent concurrent cover photo updates from overwriting each other.
-        The previous Cloudinary asset is removed only after the database
-        transaction successfully commits.
-        """
-
-        business = (
-            Business.objects
-            .select_for_update()
-            .get(
-                pk=business.pk,
-            )
+        eligible_business()
+        result = CloudinaryService.upload_image(
+            file=photo,
+            folder="business_profile_covers",
         )
-
-        old_public_id = business.BUSN_COVER_PHOTO_PUBLIC_ID
-
         try:
-            result = CloudinaryService.upload_image(
-                file=photo,
-                folder="business_profile_covers",
-            )
-
-            business.BUSN_COVER_PHOTO_URL = result["secure_url"]
-            business.BUSN_COVER_PHOTO_PUBLIC_ID = result["public_id"]
-
-            business.save(
-                update_fields=[
+            with transaction.atomic():
+                try:
+                    current = Business.objects.select_for_update().get(
+                        pk=business.pk,
+                        USER_ID_id=business.USER_ID_id,
+                    )
+                except Business.DoesNotExist:
+                    raise NotFound("Your business could not be found.") from None
+                if current.BUSN_STATUS != Business.BusinessStatus.ACTIVE:
+                    raise PermissionDenied(
+                        "Cover photos cannot be edited while your business is suspended.",
+                    )
+                old_public_id = current.BUSN_COVER_PHOTO_PUBLIC_ID
+                current.BUSN_COVER_PHOTO_URL = result["secure_url"]
+                current.BUSN_COVER_PHOTO_PUBLIC_ID = result["public_id"]
+                current.save(update_fields=[
                     "BUSN_COVER_PHOTO_URL",
                     "BUSN_COVER_PHOTO_PUBLIC_ID",
                     "BUSN_UPDATED_AT",
-                ],
-            )
-
+                ])
+                if old_public_id:
+                    transaction.on_commit(
+                        lambda: CloudinaryService.delete_image(old_public_id),
+                        robust=True,
+                    )
         except Exception:
-            if "result" in locals() and result.get("public_id"):
-                CloudinaryService.delete_image(
-                    result["public_id"],
-                )
-
+            CloudinaryService.delete_image(result["public_id"])
             raise
-
-        if old_public_id:
-            transaction.on_commit(
-                lambda: CloudinaryService.delete_image(
-                    old_public_id,
-                )
-            )
-
-        return business
+        return current

@@ -33,31 +33,16 @@ class BusinessService:
         the relationships required by the list serializer.
         """
 
-        active_specialty_tags = (
-            BusinessSpecialtyTag.objects
-            .filter(
-                BST_IS_ACTIVE=True,
-            )
-            .select_related(
-                "TAG_ID",
-            )
-        )
-
         queryset = (
             Business.objects
             .select_related(
                 "USER_ID",
+                "merchant_application",
                 "CTGRY_ID",
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
             )
-            .prefetch_related(
-                Prefetch(
-                    "specialty_tag_links",
-                    queryset=active_specialty_tags,
-                    to_attr="active_specialty_tag_links",
-                ),
-            )
+
         )
 
         if search:

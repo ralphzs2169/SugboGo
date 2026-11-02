@@ -18,6 +18,7 @@ from apps.reviews.models import (
 )
 from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
 from apps.shared.services.cloudinary_service import CloudinaryService
+from apps.reviews.services.business_eligibility import require_active_business
 from apps.users.models import User
 
 logger = logging.getLogger(__name__)
@@ -33,73 +34,61 @@ class ReviewReplyService:
     """Handles creating, updating, and deleting business-owner replies."""
 
     @staticmethod
-    @transaction.atomic
     def create_reply(
         user: User,
         review_id: int,
         text: str,
         photos: list | None = None,
     ) -> ReviewReply:
-        """Lock a published review before accepting its business owner's reply."""
+        """Upload outside locks and revalidate published ownership and business eligibility before writing."""
         try:
-            review = (
-                Review.objects
-                .select_for_update(of=("self",))
-                .select_related("BUSN_ID")
-                .get(
-                    REVW_ID=review_id,
-                    REVW_STATUS=Review.ReviewStatus.PUBLISHED,
-                )
+            source = Review.objects.get(
+                pk=review_id,
+                REVW_STATUS=Review.ReviewStatus.PUBLISHED,
             )
         except Review.DoesNotExist:
-            raise NotFound(
-                "The review could not be found.",
-            )
-
-        if review.BUSN_ID.USER_ID_id != user.USER_ID:
-            raise PermissionDenied(
-                "You do not have permission to reply to this review.",
-            )
-
-        try:
-            reply = ReviewReply.objects.create(
-                REVW_ID=review,
-                RPLY_TEXT=text,
-            )
-        except IntegrityError:
-            raise ValidationError(
-                "This review already has a reply.",
-            ) from None
-
-        uploaded_public_ids = []
-
+            raise NotFound("The review could not be found.") from None
+        business = require_active_business(source.BUSN_ID_id)
+        if business.USER_ID_id != user.pk:
+            raise PermissionDenied("You do not have permission to reply to this review.")
+        uploaded = []
         try:
             for photo in photos or []:
-                upload_result = CloudinaryService.upload_image(
+                uploaded.append(CloudinaryService.upload_image(
                     photo,
                     folder="sugbogo/review-replies",
+                ))
+            with transaction.atomic():
+                try:
+                    review = Review.objects.select_for_update().get(
+                        pk=review_id,
+                        REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+                    )
+                except Review.DoesNotExist:
+                    raise NotFound("The review could not be found.") from None
+                business = require_active_business(
+                    review.BUSN_ID_id,
+                    lock=True,
                 )
-
-                public_id = upload_result["public_id"]
-
-                uploaded_public_ids.append(
-                    public_id,
-                )
-
-                ReplyPhoto.objects.create(
-                    RPLY_ID=reply,
-                    RPHO_PHOTO_URL=upload_result["secure_url"],
-                    RPHO_PHOTO_PUBLIC_ID=public_id,
-                )
-
-            return reply
-
+                if business.USER_ID_id != user.pk:
+                    raise PermissionDenied("You do not have permission to reply to this review.")
+                try:
+                    reply = ReviewReply.objects.create(
+                        REVW_ID=review,
+                        RPLY_TEXT=text,
+                    )
+                except IntegrityError:
+                    raise ValidationError("This review already has a reply.") from None
+                for upload in uploaded:
+                    ReplyPhoto.objects.create(
+                        RPLY_ID=reply,
+                        RPHO_PHOTO_URL=upload["secure_url"],
+                        RPHO_PHOTO_PUBLIC_ID=upload["public_id"],
+                    )
+                return reply
         except Exception:
-            for public_id in uploaded_public_ids:
-                CloudinaryService.delete_image(
-                    public_id,
-                )
-
+            for upload in uploaded:
+                CloudinaryService.delete_image(upload["public_id"])
             raise
 
     @staticmethod
@@ -149,6 +138,8 @@ class ReviewReplyService:
             user,
         )
 
+        require_active_business(reply.REVW_ID.BUSN_ID_id)
+
         existing_photos = list(
             reply.photos.order_by("RPHO_ID"),
         )
@@ -185,6 +176,10 @@ class ReviewReplyService:
                     reply.REVW_ID_id,
                 )
                 ReviewReplyService._ensure_owner(current, user)
+                require_active_business(
+                    current.REVW_ID.BUSN_ID_id,
+                    lock=True,
+                )
                 current_photos = list(current.photos.order_by("RPHO_ID"))
                 if (
                     ReviewReplyService._source_identity(

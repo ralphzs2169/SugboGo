@@ -3,6 +3,7 @@ from django.db.models.functions import Greatest
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.reviews.models import Review, ReviewLike
+from apps.reviews.services.business_eligibility import require_active_business
 from apps.users.models import User
 
 
@@ -30,6 +31,11 @@ class ReviewLikeService:
             raise NotFound(
                 "The review could not be found.",
             )
+
+        require_active_business(
+            review.BUSN_ID_id,
+            lock=True,
+        )
 
         if (
             user.USER_ROLE == User.UserRole.MERCHANT

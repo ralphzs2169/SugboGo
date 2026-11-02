@@ -48,6 +48,13 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
+    application_id = serializers.IntegerField(
+        source="merchant_application.MAPP_ID",
+        read_only=True,
+        default=None,
+        allow_null=True,
+    )
+
     owner = BusinessOwnerSerializer(
         source="USER_ID",
         read_only=True,
@@ -67,8 +74,6 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
         source="CTGRY_ID.CTGRY_NAME",
         read_only=True,
     )
-
-    specialty_tags = serializers.SerializerMethodField()
 
     location = serializers.CharField(
         source="LOCT_ID.LOCT_ADDRESS",
@@ -107,10 +112,10 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
             "business_name",
             "cover_photo_url",
             "owner",
+            "application_id",
             "cluster_name",
             "cluster_icon",
             "category_name",
-            "specialty_tags",
             "location",
             "vouch_count",
             "review_count",
@@ -118,17 +123,6 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
             "status",
             "created_at",
         )
-
-    def get_specialty_tags(self, obj):
-        specialty_tags = [
-            business_specialty.TAG_ID
-            for business_specialty in obj.active_specialty_tag_links
-        ]
-
-        return SpecialtyTagSerializer(
-            specialty_tags,
-            many=True,
-        ).data
 
 
 class AdminBusinessMapSerializer(serializers.ModelSerializer):

@@ -1,21 +1,14 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import {
-  Eye,
-  FileText,
-  Ban,
-  CheckCircle,
   MapPin,
   Image,
-  Heart,
-  MessageCircle,
-  Bookmark,
   CalendarDays,
 } from "lucide-react";
 
-import Button from "@/shared/components/Button";
+import UserAvatar from "@/shared/components/UserAvatar";
+import BusinessRowActions from "../components/BusinessRowActions";
 import StatusBadge from "@/shared/components/StatusBadge";
 import { formatDate } from "@/shared/utils/dateUtils";
-import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { getBusinessStatusConfig } from "@/shared/constants/businessStatus";
 import { CLUSTER_ICONS } from "../../cluster-category/constants/clusterIcons";
 
@@ -25,12 +18,10 @@ const columnHelper = createColumnHelper();
  * Creates the TanStack Table column definitions for business management.
  *
  * Displays business identity, location, specialty tags, classification,
- * community activity, status, creation date, and management actions.
+ * ownership, status, creation date, and supported navigation.
  */
 export default function getBusinessColumns(
   onViewBusiness,
-  onViewApplication,
-  onToggleStatus,
 ) {
   return [
     columnHelper.display({
@@ -51,8 +42,8 @@ export default function getBusinessColumns(
     columnHelper.accessor((business) => business.business_name, {
       id: "business_name",
       header: "Business",
-      size: 320,
-      minSize: 280,
+      size: 390,
+      minSize: 340,
 
       meta: {
         skeleton: "longText",
@@ -60,7 +51,6 @@ export default function getBusinessColumns(
       cell: (info) => {
         const business = info.row.original;
         const photoUrl = business.cover_photo_url;
-        const tags = business.specialty_tags ?? [];
 
         return (
           <div className="flex items-center gap-3">
@@ -69,10 +59,10 @@ export default function getBusinessColumns(
               <img
                 src={photoUrl}
                 alt={`${business.business_name} cover`}
-                className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                className="h-16 w-16 shrink-0 rounded-lg object-cover"
               />
             ) : (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-stroke bg-surface-secondary">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-stroke bg-surface-secondary">
                 <Image
                   className="h-5 w-5 text-text-secondary"
                   strokeWidth={1.75}
@@ -80,25 +70,11 @@ export default function getBusinessColumns(
               </div>
             )}
 
-            {/* Business identity and specialty tags */}
+            {/* Business identity and address */}
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-text-primary">
+              <p className="max-w-72 truncate text-sm font-bold text-text-primary" title={business.business_name}>
                 {business.business_name || "—"}
               </p>
-
-              {tags.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-1">
-                  {tags.slice(0, 3).map((tag) => (
-                    <SpecialtyTagChip key={tag.id} tag={tag} size="small" />
-                  ))}
-
-                  {tags.length > 3 && (
-                    <span className="ml-0.5 text-[10px] font-medium text-text-secondary">
-                      +{tags.length - 3}
-                    </span>
-                  )}
-                </div>
-              )}
 
               <div className="mt-1 flex items-center gap-1.5">
                 <MapPin className="h-3 w-3 shrink-0 text-text-secondary" />
@@ -135,7 +111,7 @@ export default function getBusinessColumns(
 
         return (
           <div>
-            <p className="text-[13px] font-medium text-text-primary">
+            <p className="max-w-52 truncate text-[13px] font-medium text-text-primary" title={business.category_name}>
               {business.category_name || "—"}
             </p>
 
@@ -155,44 +131,26 @@ export default function getBusinessColumns(
       },
     }),
 
-    // Community activity will be populated once the backend
-    // starts returning the corresponding business-level metrics.
     columnHelper.display({
-      id: "community_activity",
-      header: "Community Activity",
-      size: 180,
-      minSize: 160,
-      meta: {
-        skeleton: "longText",
-      },
+      id: "owner",
+      header: "Owner",
+      size: 240,
+      minSize: 200,
+      meta: { skeleton: "longText" },
       enableSorting: false,
       cell: ({ row }) => {
-        const business = row.original;
+        const owner = row.original.owner;
 
         return (
-          <div className="space-y-1.5">
-            {/* Vouches */}
-            <div className="flex items-center gap-1.5">
-              <Heart className="h-3.5 w-3.5 text-text-secondary" />
-              <span className="text-xs font-medium text-text-secondary">
-                {business.vouch_count ?? 0} vouches
-              </span>
-            </div>
-
-            {/* Reviews */}
-            <div className="flex items-center gap-1.5">
-              <MessageCircle className="h-3.5 w-3.5 text-text-secondary" />
-              <span className="text-xs text-text-secondary">
-                {business.review_count ?? 0} reviews
-              </span>
-            </div>
-
-            {/* Pockets */}
-            <div className="flex items-center gap-1.5">
-              <Bookmark className="h-3.5 w-3.5 text-text-secondary" />
-              <span className="text-xs text-text-secondary">
-                {business.pocket_count ?? 0} saves
-              </span>
+          <div className="flex min-w-0 items-center gap-3">
+            <UserAvatar avatarUrl={owner?.avatar_url} avatarKey={owner?.avatar_key} size="lg" />
+            <div className="min-w-0 max-w-48">
+              <p className="truncate text-sm font-medium text-text-primary" title={owner?.name}>
+                {owner?.name || "Owner unavailable"}
+              </p>
+              <p className="mt-1 truncate text-xs text-text-secondary" title={owner?.email}>
+                {owner?.email || "Email unavailable"}
+              </p>
             </div>
           </div>
         );
@@ -220,7 +178,7 @@ export default function getBusinessColumns(
 
     columnHelper.accessor((business) => business.created_at, {
       id: "created_at",
-      header: "Approved",
+      header: "Date Added",
       size: 130,
       meta: {
         skeleton: "text",
@@ -249,40 +207,8 @@ export default function getBusinessColumns(
       enableSorting: false,
       cell: ({ row }) => {
         const business = row.original;
-        const isActive = business.status === "active";
 
-        return (
-          <div className="flex items-center justify-center">
-            <Button
-              variant="action"
-              size="md"
-              icon={Eye}
-              iconOnly
-              tooltipMessage="View business"
-              onClick={() => onViewBusiness(business)}
-            />
-
-            <Button
-              variant="action"
-              size="md"
-              icon={FileText}
-              iconOnly
-              tooltipMessage="View application"
-              onClick={() => onViewApplication(business)}
-            />
-
-            <Button
-              variant="action"
-              size="md"
-              icon={isActive ? Ban : CheckCircle}
-              iconOnly
-              tooltipMessage={
-                isActive ? "Suspend business" : "Activate business"
-              }
-              onClick={() => onToggleStatus(business)}
-            />
-          </div>
-        );
+        return <BusinessRowActions business={business} onViewBusiness={onViewBusiness} />;
       },
     }),
   ];

@@ -18,7 +18,7 @@ import { createPortal } from "react-dom";
  * @returns {JSX.Element|null}
  */
 const Flyout = forwardRef(function Flyout(
-  { anchorRef, open, children, offset = 8 },
+  { anchorRef, open, children, offset = 8, placement = "right" },
   ref,
 ) {
   const [position, setPosition] = useState({
@@ -32,10 +32,17 @@ const Flyout = forwardRef(function Flyout(
     const updatePosition = () => {
       const rect = anchorRef.current.getBoundingClientRect();
 
-      setPosition({
-        top: rect.top,
-        left: rect.right + offset,
-      });
+      if (placement === "bottom-end") {
+        const width = ref?.current?.offsetWidth || 208;
+        const height = ref?.current?.offsetHeight || 48;
+        setPosition({
+          top: Math.max(8, rect.bottom + offset + height > window.innerHeight
+            ? rect.top - height - offset : rect.bottom + offset),
+          left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
+        });
+      } else {
+        setPosition({ top: rect.top, left: rect.right + offset });
+      }
     };
 
     updatePosition();
@@ -47,7 +54,7 @@ const Flyout = forwardRef(function Flyout(
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [open, anchorRef, offset]);
+  }, [open, anchorRef, offset, placement, ref]);
 
   if (!open) return null;
 
