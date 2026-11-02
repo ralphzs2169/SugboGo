@@ -210,8 +210,9 @@ class PocketMembershipServiceTests(PocketFixtures, TestCase):
     def test_unavailable_business_retains_memberships_but_only_allows_removals(self):
         self.replace([self.favorites.pk, self.custom.pk])
         Business.objects.filter(pk=self.business.pk).update(BUSN_STATUS=Business.BusinessStatus.SUSPENDED)
-        self.assertEqual(PocketCollectionService.get_collection(self.user, self.favorites.pk).business_count, 0)
-        self.assertFalse(PocketCollectionQueryService.list_businesses(self.user, self.favorites.pk).exists())
+        self.assertEqual(PocketCollectionService.get_collection(self.user, self.favorites.pk).business_count, 1)
+        self.assertTrue(PocketCollectionQueryService.list_businesses(self.user, self.favorites.pk).exists())
+        self.assertEqual(PocketCollectionService.get_collection(self.user, self.favorites.pk).available_business_count, 0)
         with self.assertRaises(ValidationError):
             self.replace([self.favorites.pk, self.second.pk])
         self.assertEqual(len(PocketService.get_memberships(self.user, self.business.pk)["pocket_ids"]), 2)

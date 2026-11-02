@@ -26,6 +26,15 @@ import {
   pocketCollectionsQueryKey,
 } from "../pocketQueryKeys";
 import usePocketCollectionBusinesses from "../usePocketCollectionBusinesses";
+jest.mock(
+  "@/features/business-availability/services/businessAvailability.service",
+  () => ({
+    businessAvailability: {
+      begin: jest.fn(() => ({})),
+      confirm: jest.fn(async () => undefined),
+    },
+  }),
+);
 
 jest.mock("../../api/pockets.service", () => ({
   getPocketCollectionBusinesses: jest.fn(),

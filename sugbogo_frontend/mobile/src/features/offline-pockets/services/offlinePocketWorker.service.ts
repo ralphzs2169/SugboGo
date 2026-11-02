@@ -1,3 +1,4 @@
+import { businessAvailability } from "@/features/business-availability/services/businessAvailability.service";
 import { z } from "zod";
 
 import { getExploreBusinessDetail } from "@/features/explore/api/exploreBusiness.service";
@@ -113,12 +114,22 @@ export async function cacheOfflinePocketBusiness(
       return;
     }
     await checkpoint();
+    const observation = businessAvailability.begin();
     const response = await getExploreBusinessDetail(
       operation.businessId,
       signal,
     );
     const fetchedAt = new Date().toISOString();
     await checkpoint();
+    if (!response.success && response.code === "NOT_FOUND") {
+      await businessAvailability
+        .confirm(
+          observation,
+          [{ businessId: operation.businessId, state: "unavailable" }],
+          fetchedAt,
+        )
+        .catch(() => undefined);
+    }
     const snapshot = createOfflineBusinessSnapshot(
       responseData(response),
       fetchedAt,
@@ -131,6 +142,13 @@ export async function cacheOfflinePocketBusiness(
     }
     await checkpoint();
     await publishOfflineBusinessSnapshot(operation, snapshot);
+    await businessAvailability
+      .confirm(
+        observation,
+        [{ businessId: operation.businessId, state: "available" }],
+        fetchedAt,
+      )
+      .catch(() => undefined);
     await checkpoint();
     try {
       await cacheOfflinePocketCover(

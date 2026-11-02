@@ -1,3 +1,4 @@
+import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
 import { router, type Href } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
@@ -62,6 +63,7 @@ export default function LocationChangeRequestScreen() {
   const [reasonError, setReasonError] = useState<string>();
 
   const {
+    statusQuery,
     business,
     isLoading: isProfileLoading,
     error: profileError,
@@ -401,6 +403,7 @@ export default function LocationChangeRequestScreen() {
   if (business.status !== "active") {
     return (
       <>
+        <MerchantBusinessStatusNotice query={statusQuery} />
         <ErrorState
           title="Location changes unavailable"
           description="Your business must be active to request a location change."

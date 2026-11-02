@@ -14,10 +14,12 @@ export default function OfflineBusinessCard({
   entry,
   onPress,
   localCoverUri,
+  unavailable = false,
 }: {
   entry: OfflineBusinessSnapshotRead;
   onPress: () => void;
   localCoverUri?: string;
+  unavailable?: boolean;
 }) {
   const snapshot = entry.status === "available" ? entry.snapshot : null;
   const business = snapshot?.business;
@@ -84,6 +86,11 @@ export default function OfflineBusinessCard({
               </AppText>
             </View>
           </View>
+          {unavailable && (
+            <AppText className="mt-2 text-xs text-text-secondary">
+              Listing currently unavailable � Device copy preserved
+            </AppText>
+          )}
           {/* Saved specialty identity never implies current Vouch state. */}
           {business && business.specialty_tags.length > 0 && (
             <View className="mt-2 flex-row flex-wrap items-center">

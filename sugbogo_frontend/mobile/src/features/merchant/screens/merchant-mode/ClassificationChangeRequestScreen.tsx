@@ -1,3 +1,4 @@
+import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router, type Href } from "expo-router";
@@ -52,6 +53,7 @@ import { validateMerchantChangeReason } from "../../utils/merchantChangeReason";
 export default function ClassificationChangeRequestScreen() {
   const insets = useSafeAreaInsets();
   const {
+    statusQuery,
     business,
     isLoading: isProfileLoading,
     error: profileError,
@@ -431,13 +433,14 @@ export default function ClassificationChangeRequestScreen() {
     );
   }
 
-  if (business.status === "suspended") {
+  if (business.status !== "active") {
     return (
       <>
         <View className="flex-1 bg-background">
+          <MerchantBusinessStatusNotice query={statusQuery} />
           <ErrorState
             title="Request unavailable"
-            description="Classification changes cannot be requested while your business is suspended."
+            description="Classification changes cannot be requested until your business is confirmed active."
             primaryActionTitle="Go Back"
             onPrimaryAction={() => router.back()}
           />

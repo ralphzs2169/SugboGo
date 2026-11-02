@@ -154,6 +154,15 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
         { id: 1, name: "Coffee", color: "purple", icon: "coffee" },
       ],
     },
+    statusQuery: {
+      data: {
+        status: mockProfileStatus,
+        suspension_reason: "Listing review required.",
+      },
+      isPending: false,
+      error: null,
+      refetch: mockRefetchProfile,
+    },
     error: mockProfileError,
     isLoading: mockProfileLoading,
     refetch: mockRefetchProfile,
@@ -369,12 +378,12 @@ describe("MerchantDashboardScreen", () => {
       await screen.findByRole("header", { name: "Business overview" });
       await waitFor(() => expect(getAnalytics).toHaveBeenCalled());
       if (status === "suspended") {
-        expect(screen.getByText("Business suspended")).toBeTruthy();
+        expect(screen.getByText("Business Suspended")).toBeTruthy();
         await fireEvent.press(
           screen.getByRole("button", { name: "View Business" }),
         );
         expect(mockNavigate).toHaveBeenCalledWith("/(merchant)/(tabs)/profile");
-      } else expect(screen.queryByText("Business suspended")).toBeNull();
+      } else expect(screen.queryByText("Business Suspended")).toBeNull();
       expect(
         screen.getByRole("header", { name: "Business overview" }),
       ).toBeTruthy();

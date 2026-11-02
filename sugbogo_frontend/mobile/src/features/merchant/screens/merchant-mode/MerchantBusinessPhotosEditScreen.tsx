@@ -1,3 +1,4 @@
+import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -53,7 +54,8 @@ export default function MerchantBusinessPhotosEditScreen() {
   const savingRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const { statusQuery, business, isLoading, error, refetch } =
+    useMerchantBusinessProfile();
   useApiErrorNotification({
     error,
     toastId: "merchant-business-photos-profile-error",
@@ -276,9 +278,10 @@ export default function MerchantBusinessPhotosEditScreen() {
   if (business.status !== "active") {
     return (
       <>
+        <MerchantBusinessStatusNotice query={statusQuery} />
         <ErrorState
           title="Editing unavailable"
-          description="Photos cannot be edited while your business is suspended."
+          description="Photos cannot be edited until your business is confirmed active."
           primaryActionTitle="Go Back"
           onPrimaryAction={() => router.back()}
         />

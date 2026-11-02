@@ -58,3 +58,21 @@ export async function updateMerchantBusinessPhotos(
     apiClient.patch("/merchant/business-profile/photos/", formData),
   );
 }
+
+export type MerchantBusinessStatus = {
+  business_id: number;
+  status: "active" | "suspended";
+  transition_id: number;
+  owner_account_status: string;
+  suspension_reason: string | null;
+  updated_at: string;
+};
+
+/** Retrieve only the signed-in merchant's authoritative listing status and explanation. */
+export function getMerchantBusinessStatus(
+  signal?: AbortSignal,
+): Promise<ApiResponse<MerchantBusinessStatus>> {
+  return request(
+    apiClient.get("/merchant/business-profile/status/", { signal }),
+  );
+}

@@ -220,6 +220,12 @@ export function createRecentBusinessDetails({
       generation,
       isAuthorized,
       isCurrent,
+      listIds() {
+        return safely(
+          async () => (await readEntries()).map((entry) => entry.business.id),
+          [] as number[],
+        );
+      },
       get(businessId: number) {
         return safely(
           async () => {

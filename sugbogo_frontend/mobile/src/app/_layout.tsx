@@ -1,3 +1,4 @@
+import BusinessAvailabilitySync from "@/features/business-availability/components/BusinessAvailabilitySync";
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import LogoutConfirmationModal from "@/features/auth/components/LogoutConfirmationModal";
 import "@/features/explore/stores/recentSearches.store";
@@ -97,6 +98,7 @@ export default function RootLayout() {
       <RecentExploreReconnect />
       <NotificationRealtimeSync />
       <OfflinePocketSync />
+      <BusinessAvailabilitySync />
       <GestureHandlerRootView style={{ flex: 1 }}>
         <StatusBar style="dark" />
 

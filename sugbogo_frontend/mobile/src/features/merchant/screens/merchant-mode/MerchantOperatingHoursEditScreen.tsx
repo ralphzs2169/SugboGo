@@ -1,3 +1,4 @@
+import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -63,7 +64,8 @@ export default function MerchantOperatingHoursEditScreen() {
     editedDays: ReturnType<typeof editedOperatingDays>;
   } | null>(null);
 
-  const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const { statusQuery, business, isLoading, error, refetch } =
+    useMerchantBusinessProfile();
   useApiErrorNotification({
     error,
     toastId: "merchant-operating-hours-profile-error",
@@ -297,9 +299,10 @@ export default function MerchantOperatingHoursEditScreen() {
   if (business.status !== "active") {
     return (
       <View className="flex-1 bg-surface">
+        <MerchantBusinessStatusNotice query={statusQuery} />
         <ErrorState
           title="Editing unavailable"
-          description="Operating hours cannot be edited while your business is suspended."
+          description="Operating hours cannot be edited until your business is confirmed active."
           primaryActionTitle="Go Back"
           onPrimaryAction={() => router.back()}
         />

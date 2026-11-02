@@ -19,6 +19,25 @@ jest.mock("../../api/exploreBusiness.service", () => ({
   getExploreBusinessDetail: jest.fn(),
 }));
 
+jest.mock("expo-router", () => ({
+  useFocusEffect: (callback: () => void) =>
+    jest.requireActual("react").useEffect(callback, [callback]),
+}));
+jest.mock(
+  "@/features/business-availability/api/businessAvailability.service",
+  () => ({
+    getBusinessAvailability: jest.fn(async (ids: number[]) => ({
+      success: true,
+      data: {
+        checked_at: new Date().toISOString(),
+        items: ids.map((business_id) => ({
+          business_id,
+          availability: "available",
+        })),
+      },
+    })),
+  }),
+);
 let client: QueryClient;
 beforeEach(async () => {
   beginAuthSession();
@@ -61,7 +80,7 @@ it("saves an authoritative fetch without letting a storage failure break live re
   expect(hook.result.current.error).toBeNull();
 });
 
-it("removes denied details from both temporary storage and retained live Query data", async () => {
+it("preserves denied historical details while clearing retained live Query data", async () => {
   jest.mocked(getExploreBusinessDetail).mockResolvedValueOnce({
     success: true,
     message: "Loaded",
@@ -84,7 +103,7 @@ it("removes denied details from both temporary storage and retained live Query d
   await waitFor(() => expect(hook.result.current.business).toBeNull());
   expect(hook.result.current.error).toMatchObject({ code: "NOT_FOUND" });
   await recentBusinessDetails.flush();
-  expect(await recentBusinessDetails.capture().get(21)).toBeNull();
+  expect(await recentBusinessDetails.capture().get(21)).not.toBeNull();
   // Even a later ambiguous error must not resurrect the denied in-memory DTO.
   jest.mocked(getExploreBusinessDetail).mockResolvedValue({
     success: false,

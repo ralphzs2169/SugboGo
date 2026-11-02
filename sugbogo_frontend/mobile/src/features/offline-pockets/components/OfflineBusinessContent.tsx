@@ -1,3 +1,5 @@
+import type { ComponentProps } from "react";
+import BusinessAvailabilityNotice from "@/features/business-availability/components/BusinessAvailabilityNotice";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
 
@@ -25,10 +27,12 @@ export default function OfflineBusinessContent({
   snapshot,
   localCoverUri,
   source = "offline-pocket",
+  availability,
 }: {
   snapshot: OfflineBusinessSnapshot;
   localCoverUri?: string;
   source?: "offline-pocket" | "recent";
+  availability?: ComponentProps<typeof BusinessAvailabilityNotice>;
 }) {
   const business = snapshot.business;
   const contacts = [
@@ -76,6 +80,9 @@ export default function OfflineBusinessContent({
           · Updated {new Date(snapshot.fetchedAt).toLocaleString()}. Information
           may have changed.
         </AppText>
+      </View>
+      <View className="px-screen-x pb-4">
+        <BusinessAvailabilityNotice {...availability} />
       </View>
       {/* Reuses the online profile's section hierarchy, without its data-fetching children. */}
       <BusinessProfileSection title="About">

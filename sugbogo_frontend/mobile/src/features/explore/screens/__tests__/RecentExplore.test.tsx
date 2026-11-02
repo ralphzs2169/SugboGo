@@ -21,6 +21,18 @@ import {
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { suspendAuthSession } from "@/shared/api/authSessionGeneration.service";
+jest.mock(
+  "@/features/business-availability/hooks/useBusinessAvailability",
+  () => ({
+    __esModule: true,
+    default: () => ({
+      get: () => undefined,
+      online: false,
+      error: null,
+      refetch: jest.fn(),
+    }),
+  }),
+);
 
 jest.mock("../../hooks/useRecentExplore", () => ({
   __esModule: true,

@@ -190,16 +190,18 @@ class PocketCollectionViewTests(PocketFixtures, APIResponseAssertionsMixin, APIT
         self.assertIn("location", business)
         self.assertIn("review_count", business)
         Business.objects.filter(pk=self.business_two.pk).update(BUSN_STATUS=Business.BusinessStatus.SUSPENDED)
-        self.assertEqual(self.client.get(self.detail_url).data["data"]["business_count"], 1)
-        self.assertEqual(self.client.get(self.contents_url).data["data"]["pagination"]["total_items"], 1)
+        self.assertEqual(self.client.get(self.detail_url).data["data"]["business_count"], 2)
+        self.assertEqual(self.client.get(self.detail_url).data["data"]["available_business_count"], 1)
+        self.assertEqual(self.client.get(self.contents_url).data["data"]["pagination"]["total_items"], 2)
 
-    def test_unavailable_saves_are_hidden_but_can_be_read_and_removed(self):
+    def test_unavailable_saves_remain_visible_and_can_be_removed(self):
         self.put_selection([self.custom.pk])
         Business.objects.filter(pk=self.business.pk).update(BUSN_STATUS=Business.BusinessStatus.SUSPENDED)
         self.assertTrue(self.client.get(self.memberships_url).data["data"]["is_pocketed"])
         self.assertValidationError(self.put_selection([self.custom.pk, self.second.pk]))
         self.assertValidationError(self.client.post(self.legacy_url, format="json"))
-        self.assertEqual(self.client.get(self.detail_url).data["data"]["business_count"], 0)
+        self.assertEqual(self.client.get(self.detail_url).data["data"]["business_count"], 1)
+        self.assertEqual(self.client.get(self.detail_url).data["data"]["available_business_count"], 0)
         self.assertEqual(self.client.delete(self.legacy_url).status_code, 200)
         missing = self.base + "businesses/999999/pockets/"
         self.assertEqual(self.client.get(missing).status_code, 404)

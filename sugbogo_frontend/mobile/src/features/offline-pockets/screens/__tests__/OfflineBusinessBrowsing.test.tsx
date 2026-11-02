@@ -6,6 +6,18 @@ import { removeUnreadableOfflineBusinessSnapshot } from "../../services/offlineP
 import { snapshotFixture } from "../../validation/__tests__/snapshotFixture";
 import OfflineBusinessDetailScreen from "../OfflineBusinessDetailScreen";
 import OfflinePocketLibraryScreen from "../OfflinePocketLibraryScreen";
+jest.mock(
+  "@/features/business-availability/hooks/useBusinessAvailability",
+  () => ({
+    __esModule: true,
+    default: () => ({
+      get: () => undefined,
+      online: false,
+      error: null,
+      refetch: jest.fn(),
+    }),
+  }),
+);
 
 jest.mock("../../hooks/useOfflineBusinessSnapshots");
 jest.mock("../../services/offlinePockets.service", () => ({

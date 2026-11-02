@@ -1,3 +1,4 @@
+import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -43,7 +44,8 @@ export default function MerchantBusinessInformationEditScreen() {
   const savingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const { statusQuery, business, isLoading, error, refetch } =
+    useMerchantBusinessProfile();
   useApiErrorNotification({
     error,
     toastId: "merchant-business-information-profile-error",
@@ -233,12 +235,13 @@ export default function MerchantBusinessInformationEditScreen() {
   }
 
   // Suspended businesses cannot edit information
-  if (business.status === "suspended") {
+  if (business.status !== "active") {
     return (
       <View className="flex-1 bg-surface">
+        <MerchantBusinessStatusNotice query={statusQuery} />
         <ErrorState
           title="Editing unavailable"
-          description="Business information cannot be edited while your business is suspended."
+          description="Business information cannot be edited until your business is confirmed active."
           primaryActionTitle="Go Back"
           onPrimaryAction={() => router.back()}
         />

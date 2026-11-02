@@ -7,7 +7,8 @@ export type MerchantBusinessProfileResponse = {
   contact_number: string;
   business_email: string | null;
   website: string | null;
-  status: "active" | "suspended";
+  /** Null is local unverified state, never a persisted business status. */
+  status: "active" | "suspended" | null;
   category: MerchantBusinessClassification;
   cluster: MerchantBusinessClassification;
   specialty_tags: MerchantBusinessSpecialty[];

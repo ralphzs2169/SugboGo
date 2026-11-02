@@ -1,3 +1,4 @@
+import useBusinessAvailability from "@/features/business-availability/hooks/useBusinessAvailability";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
 import { FlatList, Platform, View } from "react-native";
@@ -16,6 +17,9 @@ import useOfflineBusinessSnapshots from "../hooks/useOfflineBusinessSnapshots";
 /** Flat, device-only business library; collections remain managed in My Pockets online. */
 export default function OfflinePocketLibraryScreen() {
   const saved = useOfflineBusinessSnapshots();
+  const availability = useBusinessAvailability(
+    saved.data?.entries.map((entry) => entry.businessId) ?? [],
+  );
   return (
     <SafeAreaView
       edges={["left", "right", "bottom"]}
@@ -103,6 +107,9 @@ export default function OfflinePocketLibraryScreen() {
           renderItem={({ item }) => (
             <OfflineBusinessCard
               entry={item}
+              unavailable={
+                availability.get(item.businessId)?.state === "unavailable"
+              }
               localCoverUri={saved.data?.covers?.[item.businessId]}
               onPress={() =>
                 router.push({

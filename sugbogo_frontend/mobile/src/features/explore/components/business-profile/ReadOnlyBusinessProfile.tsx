@@ -1,3 +1,5 @@
+import type { ComponentProps } from "react";
+import type BusinessAvailabilityNotice from "@/features/business-availability/components/BusinessAvailabilityNotice";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { RefreshControl, ScrollView, View } from "react-native";
@@ -14,6 +16,7 @@ import SafePressable from "@/shared/components/SafePressable";
 /** Presents historical information without mounting reviews, actions, maps or analytics. */
 export default function ReadOnlyBusinessProfile({
   snapshot,
+  availability,
   source,
   localCoverUri,
   onRefresh,
@@ -21,6 +24,7 @@ export default function ReadOnlyBusinessProfile({
   onGoBack,
 }: {
   snapshot: OfflineBusinessSnapshot;
+  availability?: ComponentProps<typeof BusinessAvailabilityNotice>;
   source: "offline-pocket" | "recent";
   localCoverUri?: string;
   onRefresh: () => void;
@@ -44,6 +48,7 @@ export default function ReadOnlyBusinessProfile({
       >
         <OfflineBusinessContent
           snapshot={snapshot}
+          availability={availability}
           source={source}
           localCoverUri={localCoverUri}
         />

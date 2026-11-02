@@ -8,9 +8,9 @@ from apps.users.models import User
 from core.pagination import StandardPagination
 from core.responses import success_response
 
-from ..serializers.explore_business_serializer import ExploreBusinessSerializer
 from ..serializers.pocket_collection_serializers import (
     PocketCollectionSerializer,
+    PocketBusinessSerializer,
     PocketCollectionWriteSerializer,
 )
 from ..services.pocket_collection_query_service import PocketCollectionQueryService
@@ -101,5 +101,9 @@ class PocketCollectionBusinessesView(APIView):
         paginator = StandardPagination()
         page = paginator.paginate_queryset(queryset, request)
         return paginator.get_paginated_response(
-            ExploreBusinessSerializer(page, many=True).data,
+            PocketBusinessSerializer(
+                page,
+                many=True,
+                context={"request": request},
+            ).data,
         )

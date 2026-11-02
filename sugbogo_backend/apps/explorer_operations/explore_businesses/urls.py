@@ -1,3 +1,4 @@
+from .views.business_availability_views import BusinessAvailabilityView
 from apps.explorer_operations.explore_businesses.views.business_detail_views import (
     BusinessDetailView,
 )
@@ -71,6 +72,11 @@ from .views.business_pocket_membership_views import (
 )
 
 urlpatterns = [
+    path(
+        "businesses/availability/",
+        BusinessAvailabilityView.as_view(),
+        name="business-availability",
+    ),
     path(
         "activity-timeline/",
         ActivityTimelineView.as_view(),

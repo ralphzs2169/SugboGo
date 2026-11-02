@@ -23,7 +23,7 @@ type MerchantProfileHeaderProps = {
   businessName: string;
   classification: string;
   clusterIcon?: ClusterIcon;
-  status: "active" | "suspended";
+  status: "active" | "suspended" | null;
   coverPhotoUrl?: string | null;
   onEditCover: (imageUri: string) => void;
   isUploading?: boolean;
@@ -252,24 +252,40 @@ export default function MerchantProfileHeader({
           {/* Business status badge */}
           <View
             className={`mt-1 shrink-0 flex-row items-center gap-1.5 rounded-full px-3 py-1.5 ${
-              status === "active" ? "bg-success/10" : "bg-error"
+              status === null
+                ? "bg-surface-muted"
+                : status === "active"
+                  ? "bg-success/10"
+                  : "bg-error"
             }`}
           >
             <MaterialCommunityIcons
-              name={status === "active" ? "check-circle" : "alert-circle"}
+              name={
+                status === null
+                  ? "help-circle-outline"
+                  : status === "active"
+                    ? "check-circle"
+                    : "alert-circle"
+              }
               size={14}
               color={
-                status === "active"
-                  ? theme.extends.colors.border.success
-                  : theme.extends.colors.error
+                status === null
+                  ? theme.extends.colors.text.secondary
+                  : status === "active"
+                    ? theme.extends.colors.border.success
+                    : theme.extends.colors.error
               }
             />
 
             <AppText
               weight="semibold"
-              className={`text-xs ${status === "active" ? "text-green-700" : "text-text-error"}`}
+              className={`text-xs ${status === null ? "text-text-secondary" : status === "active" ? "text-green-700" : "text-text-error"}`}
             >
-              {status === "active" ? "Active" : "Suspended"}
+              {status === null
+                ? "Status unavailable"
+                : status === "active"
+                  ? "Active"
+                  : "Suspended"}
             </AppText>
           </View>
         </View>

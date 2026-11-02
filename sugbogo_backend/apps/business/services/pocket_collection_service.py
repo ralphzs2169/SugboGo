@@ -51,9 +51,10 @@ class PocketCollectionService:
 
     @staticmethod
     def list_collections(user):
-        """Returns owned collections with counts matching the available business list."""
+        """Returns owned collections with saved-membership and available-listing counts."""
         return PocketCollection.objects.filter(USER_ID=user).annotate(
-            business_count=Count(
+            business_count=Count("memberships"),
+            available_business_count=Count(
                 "memberships",
                 filter=Q(
                     memberships__PCKT_ID__BUSN_ID__BUSN_STATUS=(

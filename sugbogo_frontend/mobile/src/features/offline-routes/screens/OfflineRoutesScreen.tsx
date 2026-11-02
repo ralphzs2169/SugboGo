@@ -1,3 +1,5 @@
+import BusinessAvailabilityNotice from "@/features/business-availability/components/BusinessAvailabilityNotice";
+import useBusinessAvailability from "@/features/business-availability/hooks/useBusinessAvailability";
 import { router, Stack } from "expo-router";
 import { useRef, useState } from "react";
 import { FlatList, Platform, ScrollView, View } from "react-native";
@@ -37,6 +39,11 @@ export default function OfflineRoutesScreen({
   journeyKey?: string;
 }) {
   const saved = useSavedJourneys();
+  const availability = useBusinessAvailability(
+    saved.items.flatMap((item) =>
+      item.snapshot ? [item.snapshot.business.id] : [],
+    ),
+  );
   const [toDelete, setToDelete] = useState<{
     ownerId: number;
     generation: number;
@@ -179,6 +186,12 @@ export default function OfflineRoutesScreen({
                 </AppText>
               </View>
             </View>
+            <BusinessAvailabilityNotice
+              record={availability.get(snapshot.business.id)}
+              online={availability.online}
+              error={availability.error}
+              onRetry={() => void availability.refetch()}
+            />
             {/* Text guidance remains usable without map tiles or GPS */}
             <View>
               <AppText
@@ -329,6 +342,14 @@ export default function OfflineRoutesScreen({
                 >
                   {item.snapshot?.business.name ?? "Unreadable saved journey"}
                 </AppText>
+                {item.snapshot &&
+                  availability.get(item.snapshot.business.id)?.state ===
+                    "unavailable" && (
+                    <AppText className="text-sm text-text-secondary">
+                      Destination currently unavailable � Saved guidance
+                      preserved
+                    </AppText>
+                  )}
                 {item.snapshot ? (
                   <View className="flex-row items-center gap-3">
                     <View className="flex-row items-center gap-1.5 rounded-lg bg-brand px-2.5 py-2">
