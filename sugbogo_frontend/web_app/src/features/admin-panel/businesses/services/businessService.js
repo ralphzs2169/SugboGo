@@ -17,9 +17,10 @@ export async function fetchBusinesses(params = {}) {
   return response.data.data;
 }
 
-export async function fetchBusinessLocations(params = {}) {
+export async function fetchBusinessLocations(params = {}, signal) {
   const response = await apiClient.get("/admin/businesses/map/", {
     params,
+    signal,
   });
 
   return response.data.data;

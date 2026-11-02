@@ -1,3 +1,6 @@
+import { useState } from "react";
+import StatusBadge from "@/shared/components/StatusBadge";
+import { getBusinessStatusConfig } from "@/shared/constants/businessStatus";
 import { ArrowRight, Image, MapPin, Tag } from "lucide-react";
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 
@@ -8,37 +11,44 @@ import ClusterDisplay from "@/shared/components/ClusterDisplay";
  * status, and an explicit action for opening the business management page.
  */
 export default function BusinessMapInfoWindow({ business, onView }) {
+  const [failedPhoto, setFailedPhoto] = useState(null);
   const photoUrl = business.cover_photo_url;
+  const status = getBusinessStatusConfig(business.status);
 
   return (
-    <div className="w-[240px] overflow-hidden">
+    <div className="w-full overflow-hidden px-3 pb-4">
       {/* Business photo */}
-      <div className="relative">
-        {photoUrl ? (
+      <div className="relative overflow-hidden rounded-lg">
+        {photoUrl && failedPhoto !== photoUrl ? (
           <img
             src={photoUrl}
+            onError={() => setFailedPhoto(photoUrl)}
             alt={`${business.business_name} storefront`}
             className="h-32 w-full object-cover"
           />
         ) : (
-          <div className="flex h-32 w-full items-center justify-center bg-gray-100">
-            <Image className="h-8 w-8 text-gray-400" strokeWidth={1.75} />
+          <div className="flex h-32 w-full items-center justify-center bg-surface-muted">
+            <Image className="h-8 w-8 text-text-secondary" strokeWidth={1.75} />
           </div>
         )}
 
         {/* Business cluster */}
-        <div className="absolute right-2 top-2">
+        <div className="absolute right-2 top-2 max-w-[calc(100%-16px)]">
           <ClusterDisplay
             clusterName={business.cluster_name}
             clusterIcon={business.cluster_icon}
             variant="badge"
+            className="max-w-full border border-stroke text-xs [&>span]:truncate [&>svg]:shrink-0 [&>svg]:text-primary"
           />
         </div>
       </div>
 
       {/* Business information */}
-      <div className="p-3">
-        <p className="truncate text-sm font-semibold text-gray-900">
+      <div className="px-2 pt-3">
+        <p
+          title={business.business_name}
+          className="line-clamp-2 text-base font-bold leading-5 text-text-primary"
+        >
           {business.business_name || "Unnamed business"}
         </p>
 
@@ -46,11 +56,14 @@ export default function BusinessMapInfoWindow({ business, onView }) {
         {business.category_name && (
           <div className="mt-1 flex items-center gap-1.5">
             <Tag
-              className="h-3 w-3 shrink-0 text-gray-400"
+              className="h-3 w-3 shrink-0 text-text-secondary"
               strokeWidth={1.75}
             />
 
-            <p className="truncate text-xs text-gray-600">
+            <p
+              title={business.category_name}
+              className="truncate text-xs text-text-secondary"
+            >
               {business.category_name}
             </p>
           </div>
@@ -60,37 +73,30 @@ export default function BusinessMapInfoWindow({ business, onView }) {
         {business.location && (
           <div className="mt-1 flex items-center gap-1.5">
             <MapPin
-              className="h-3 w-3 shrink-0 text-gray-400"
+              className="h-3 w-3 shrink-0 text-text-secondary"
               strokeWidth={1.75}
             />
 
-            <p className="truncate text-xs text-gray-600">
+            <p
+              title={business.location}
+              className="truncate text-xs text-text-secondary"
+            >
               {business.location}
             </p>
           </div>
         )}
 
         {/* Business status */}
-        {business.status && (
-          <p
-            className={`mt-1 text-xs font-medium capitalize ${
-              business.status === "active"
-                ? "text-emerald-600"
-                : business.status === "suspended"
-                  ? "text-amber-600"
-                  : "text-gray-700"
-            }`}
-          >
-            {business.status}
-          </p>
-        )}
+        <div className="mt-2">
+          <StatusBadge variant={status.variant}>{status.label}</StatusBadge>
+        </div>
 
         {/* Business action */}
         {onView && (
           <button
             type="button"
             onClick={() => onView(business)}
-            className="mt-3 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-[#F27F0D] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary/90"
+            className="mt-3 flex min-h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 active:bg-primary/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             <span>View business</span>
             <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />

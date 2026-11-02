@@ -1,3 +1,4 @@
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from django.db.models import Prefetch
 from rest_framework.exceptions import NotFound
 
@@ -96,6 +97,9 @@ class BusinessService:
 
         queryset = (
             Business.objects
+            .annotate(
+                display_cover_photo_url=display_cover_photo_expression(),
+            )
             .select_related(
                 "CTGRY_ID",
                 "CTGRY_ID__CLUS_ID",

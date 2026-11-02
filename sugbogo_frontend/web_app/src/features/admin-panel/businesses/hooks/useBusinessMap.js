@@ -24,9 +24,13 @@ export default function useBusinessMap({
 
   const hasLoadedOnce = useRef(false);
   const latestRequest = useRef(0);
+  const controller = useRef(null);
 
   async function loadBusinessLocations() {
     const requestId = ++latestRequest.current;
+    controller.current?.abort();
+    const requestController = new AbortController();
+    controller.current = requestController;
     if (!hasLoadedOnce.current) {
       setIsLoading(true);
     } else {
@@ -36,19 +40,30 @@ export default function useBusinessMap({
     setError(null);
 
     try {
-      const data = await fetchBusinessLocations({
-        search,
-        status,
-        cluster,
-        category,
-        specialty_tag: specialtyTag,
-      });
+      const data = await fetchBusinessLocations(
+        {
+          search,
+          status,
+          cluster,
+          category,
+          specialty_tag: specialtyTag,
+        },
+        requestController.signal,
+      );
 
       // Ignore requests superseded by a filter change or lifecycle refresh.
-      if (requestId !== latestRequest.current) return;
+      if (
+        requestId !== latestRequest.current ||
+        requestController.signal.aborted
+      )
+        return;
       setBusinesses(data ?? []);
     } catch (error) {
-      if (requestId !== latestRequest.current) return;
+      if (
+        requestId !== latestRequest.current ||
+        requestController.signal.aborted
+      )
+        return;
       console.error("Failed to load business locations:", error);
 
       setError(error);
@@ -73,6 +88,7 @@ export default function useBusinessMap({
     window.addEventListener(BUSINESS_CHANGED_EVENT, loadBusinessLocations);
     return () => {
       latestRequest.current += 1;
+      controller.current?.abort();
       window.removeEventListener(BUSINESS_CHANGED_EVENT, loadBusinessLocations);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

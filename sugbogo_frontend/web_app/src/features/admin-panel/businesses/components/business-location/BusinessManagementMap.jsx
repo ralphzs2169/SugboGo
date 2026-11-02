@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { GoogleMapsAuthContext } from "@/shared/utils/googleMapsAuthContext";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
-  AdvancedMarker,
   ControlPosition,
-  InfoWindow,
   Map,
   MapControl,
   useMap,
+  useApiLoadingStatus,
+  APILoadingStatus,
 } from "@vis.gl/react-google-maps";
 import BusinessMapInfoWindow from "./BusinessMapInfoWindow";
-import BusinessMapMarker from "@/shared/components/maps/BusinessMapMarker";
+import BusinessMapClusters from "./BusinessMapClusters";
+import AnchoredMapPopup from "./AnchoredMapPopup";
+import BusinessMapChooser from "./BusinessMapChooser";
 
 const DEFAULT_CENTER = {
   lat: 10.3157,
@@ -37,10 +40,35 @@ export default function BusinessManagementMap({
   className = "h-[480px]",
 }) {
   const map = useMap();
-  const [selectedBusiness, setSelectedBusiness] = useState(null);
+  const loadingStatus = useApiLoadingStatus();
+  const authFailed = useContext(GoogleMapsAuthContext);
+  const [selectedId, setSelectedId] = useState(null);
+  const [overlapIds, setOverlapIds] = useState([]);
+  const selectedBusiness = businesses.find(
+    (business) => business.id === selectedId,
+  );
+  const overlappingBusinesses = businesses.filter((item) =>
+    overlapIds.includes(item.id),
+  );
+  const onOverlap = useCallback((items) => {
+    setSelectedId(null);
+    setOverlapIds(items.map((item) => item.id));
+  }, []);
+  const closePopup = useCallback(() => {
+    setSelectedId(null);
+    setOverlapIds([]);
+  }, []);
 
-  const businessesWithCoordinates = businesses.filter(
-    (business) => business.latitude != null && business.longitude != null,
+  const businessesWithCoordinates = useMemo(
+    () =>
+      businesses.filter(
+        (business) =>
+          business.latitude != null &&
+          business.longitude != null &&
+          Number.isFinite(Number(business.latitude)) &&
+          Number.isFinite(Number(business.longitude)),
+      ),
+    [businesses],
   );
 
   useEffect(() => {
@@ -58,7 +86,7 @@ export default function BusinessManagementMap({
       return;
     }
 
-    const bounds = new google.maps.LatLngBounds();
+    const bounds = new globalThis.google.maps.LatLngBounds();
 
     businessesWithCoordinates.forEach((business) => {
       bounds.extend({
@@ -68,15 +96,38 @@ export default function BusinessManagementMap({
     });
 
     map.fitBounds(bounds, 60);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, businessesWithCoordinates]);
 
-  function handleMarkerClick(business) {
-    setSelectedBusiness(business);
-  }
+  useEffect(() => {
+    if (
+      selectedId !== null &&
+      !businesses.some((item) => item.id === selectedId)
+    ) {
+      // A removed result must not regain selection if a later query contains it.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedId(null);
+    }
+  }, [businesses, selectedId]);
 
-  function handleInfoWindowClose() {
-    setSelectedBusiness(null);
+  useEffect(() => {
+    if (
+      overlapIds.some(
+        (id) => !businesses.some((business) => business.id === id),
+      )
+    ) {
+      // Keep removed choices from reappearing after a later filter change.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOverlapIds((current) =>
+        current.filter((id) =>
+          businesses.some((business) => business.id === id),
+        ),
+      );
+    }
+  }, [businesses, overlapIds]);
+
+  function handleMarkerClick(business) {
+    setSelectedId(business.id);
+    setOverlapIds([]);
   }
 
   function handleViewBusiness() {
@@ -86,6 +137,28 @@ export default function BusinessManagementMap({
 
     onViewBusiness(selectedBusiness);
   }
+
+  if (authFailed || loadingStatus === APILoadingStatus.FAILED) {
+    return (
+      <div
+        role="alert"
+        className={`flex items-center justify-center bg-surface-muted text-sm text-text-secondary ${className}`}
+      >
+        Google Maps could not initialize. Business data may still be available
+        in the Businesses tab.
+      </div>
+    );
+  }
+
+  if (isLoading)
+    return (
+      <div
+        role="status"
+        className={`animate-pulse rounded-lg bg-surface-muted ${className}`}
+      >
+        Loading business locations…
+      </div>
+    );
 
   if (error) {
     return (
@@ -124,51 +197,47 @@ export default function BusinessManagementMap({
         streetViewControl={false}
         fullscreenControl={true}
         mapTypeControl={false}
+        onClick={closePopup}
       >
         {/* Business markers */}
-        {businessesWithCoordinates.map((business) => {
-          const position = {
-            lat: Number(business.latitude),
-            lng: Number(business.longitude),
-          };
-
-          return (
-            <AdvancedMarker
-              key={business.id}
-              position={position}
-              title={business.business_name}
-              onClick={() => handleMarkerClick(business)}
-            >
-              <div
-                style={{
-                  opacity: isFetching ? 0.5 : 1,
-                  transition: "opacity 150ms",
-                }}
-              >
-                <BusinessMapMarker
-                  variant="business"
-                  clusterIcon={business.cluster_icon}
-                />
-              </div>
-            </AdvancedMarker>
-          );
-        })}
-
-        {/* Selected business information */}
+        <BusinessMapClusters
+          businesses={businessesWithCoordinates}
+          selectedId={selectedBusiness?.id}
+          onSelect={handleMarkerClick}
+          onOverlap={onOverlap}
+        />
+        {overlappingBusinesses.length > 1 && (
+          <AnchoredMapPopup
+            position={{
+              lat: Number(overlappingBusinesses[0].latitude),
+              lng: Number(overlappingBusinesses[0].longitude),
+            }}
+            title="Choose a business"
+            width={392}
+            onClose={closePopup}
+          >
+            <BusinessMapChooser
+              businesses={overlappingBusinesses}
+              selectedId={selectedId}
+              onSelect={handleMarkerClick}
+            />
+          </AnchoredMapPopup>
+        )}
+        {/* Selected business information shares the same coordinate-anchored shell. */}
         {selectedBusiness && (
-          <InfoWindow
+          <AnchoredMapPopup
+            key={selectedBusiness.id}
             position={{
               lat: Number(selectedBusiness.latitude),
               lng: Number(selectedBusiness.longitude),
             }}
-            pixelOffset={[0, -20]}
-            onCloseClick={handleInfoWindowClose}
+            onClose={closePopup}
           >
             <BusinessMapInfoWindow
               business={selectedBusiness}
               onView={handleViewBusiness}
             />
-          </InfoWindow>
+          </AnchoredMapPopup>
         )}
 
         {/* Map status */}

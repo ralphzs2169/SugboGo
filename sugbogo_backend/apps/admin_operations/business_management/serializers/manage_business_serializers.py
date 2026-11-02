@@ -132,7 +132,8 @@ class AdminBusinessMapSerializer(serializers.ModelSerializer):
     business_name = serializers.CharField(source="BUSN_NAME", read_only=True)
 
     cover_photo_url = serializers.CharField(
-        source="BUSN_COVER_PHOTO_URL",
+        source="display_cover_photo_url",
+        allow_null=True,
         read_only=True,
     )
     category_name = serializers.CharField(

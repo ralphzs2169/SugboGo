@@ -211,7 +211,7 @@ export default function BusinessManagementTable() {
                       hasActiveFilters={hasActiveFilters}
                       onResetFilters={handleResetFilters}
                       onViewBusiness={handleViewBusiness}
-                      className="h-[600px] rounded-none border-0"
+                      className="h-[680px] rounded-none border-0"
                     />
                   </div>
                 )
