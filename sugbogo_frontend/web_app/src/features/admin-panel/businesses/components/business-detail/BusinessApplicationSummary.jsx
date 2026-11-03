@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, FileText } from "lucide-react";
 import StatusBadge from "@/shared/components/StatusBadge";
 import statusConfig from "../../../business-applications/config/applicationStatus.config";
 import { formatLabel } from "@/shared/utils/stringUtils";
@@ -51,9 +51,19 @@ export default function BusinessApplicationSummary({ application }) {
         )}
       </div>
       {!application ? (
-        <p className="p-5 text-sm text-text-secondary">
-          No linked application is available for this business.
-        </p>
+        <div className="flex min-h-40 flex-col items-center justify-center px-5 py-8 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted">
+            <FileText
+              aria-hidden="true"
+              size={20}
+              strokeWidth={1.75}
+              className="text-text-secondary"
+            />
+          </div>
+          <p className="mt-3 max-w-sm text-sm font-medium text-text-primary">
+            No linked application is available for this business.
+          </p>
+        </div>
       ) : (
         <div className="p-5">
           {/* Original application provenance */}

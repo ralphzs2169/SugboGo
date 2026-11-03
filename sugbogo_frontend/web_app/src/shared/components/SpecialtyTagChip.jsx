@@ -5,12 +5,12 @@ import { SPECIALTY_TAG_ICONS } from "@/features/admin-panel/specialty-tags/const
 export const TAG_COLORS = ["blue", "green", "purple", "yellow", "red", "teal"];
 
 export const colorClasses = {
-  blue: "bg-blue-500 text-white",
-  green: "bg-green-600 text-white",
-  purple: "bg-purple-600 text-white",
-  yellow: "bg-yellow-500 text-white",
-  red: "bg-rose-600 text-white",
-  teal: "bg-teal-700 text-white",
+  blue: "bg-blue-100 text-blue-700",
+  green: "bg-green-100 text-green-700",
+  purple: "bg-purple-100 text-purple-700",
+  yellow: "bg-yellow-100 text-yellow-800",
+  red: "bg-rose-100 text-rose-700",
+  teal: "bg-teal-100 text-teal-800",
 };
 
 export const ringClasses = {
@@ -23,7 +23,7 @@ export const ringClasses = {
 };
 
 /**
- * Displays a specialty tag using its configured color.
+ * Displays a specialty tag using the same soft background and text palette as Mobile.
  *
  * Supports compact sizing, optional specialty icon display, and optional
  * vouch count presentation for reusable tag rendering across the app.
@@ -48,7 +48,7 @@ export default function SpecialtyTagChip({
     <span
       className={`inline-flex items-center ${
         chipStyle ? "rounded-full" : "rounded-md"
-      } font-medium ${
+      } font-semibold ${
         isSmall ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-xs"
       } ${colorClasses[tag.color] ?? colorClasses.blue}`}
     >
@@ -66,7 +66,7 @@ export default function SpecialtyTagChip({
       {/* Vouch count */}
       {hasVouchCount && (
         <>
-          <span className="mx-1.5 h-3 w-px bg-white/30" />
+          <span className="mx-1.5 h-3 w-px bg-black/10" />
 
           <Heart
             className="shrink-0"

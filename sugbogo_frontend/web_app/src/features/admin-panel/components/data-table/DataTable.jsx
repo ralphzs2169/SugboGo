@@ -61,6 +61,8 @@ function DataTable({
     searchPlaceholder = "Search...",
     showSearch = true,
     compact = false,
+    tableLabel,
+    tableMinWidth = 720,
 
     emptyState = {},
     noResultsState = {},
@@ -139,7 +141,11 @@ function DataTable({
         renderContent()
       ) : (
         <div className={`${compact ? "" : "min-h-[520px]"} overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface`}>
-          <table className="w-full min-w-[720px] table-fixed border-collapse text-left">
+          <table
+            aria-label={tableLabel}
+            className="w-full table-fixed border-collapse text-left"
+            style={{ minWidth: tableMinWidth }}
+          >
             <TableHeader table={table} />
 
             {isLoading ? (
