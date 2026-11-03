@@ -33,6 +33,10 @@ class AdminAllReviewFilterSerializer(serializers.Serializer):
         required=False,
     )
     reported = serializers.BooleanField(required=False)
+    business_id = serializers.IntegerField(
+        min_value=1,
+        required=False,
+    )
     start_date = serializers.DateField(required=False)
     end_date = serializers.DateField(required=False)
     ordering = serializers.ChoiceField(

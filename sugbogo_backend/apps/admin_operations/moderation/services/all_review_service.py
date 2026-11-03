@@ -118,6 +118,10 @@ class AllReviewService:
             "REVW_RELIABILITY_REASONS",
             "REVW_INSTALLATION_ID",
         )
+        business_id = filters.get("business_id")
+        if business_id is not None:
+            queryset = queryset.filter(BUSN_ID_id=business_id)
+
         search = filters.get("search")
         if search:
             queryset = queryset.annotate(

@@ -1,4 +1,4 @@
-from django.db.models import Prefetch
+from django.db.models import Count, Prefetch
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
@@ -180,6 +180,7 @@ class BusinessService:
                 .annotate(
                     display_cover_photo_url=display_cover_photo_expression(),
                     published_review_count=published_review_count(),
+                    total_review_count=Count("reviews", distinct=True),
                 )
                 .select_related(
                     "USER_ID",

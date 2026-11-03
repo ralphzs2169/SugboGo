@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import MetricCard from "../../components/MetricCard";
+import DashboardSkeleton from "../../dashboard/components/DashboardSkeleton";
 import { formatCount } from "../../analytics/utils/presentation";
 import { allReviewSummaryOptions } from "../queries/allReviewQueries";
 
@@ -38,7 +39,7 @@ const METRICS = [
 ];
 const GRID = "grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4";
 
-/** Display independent global metrics with the existing compact, clickable card treatment. */
+/** Display global review counts with the same shared cards as Business Management. */
 export default function AllReviewMetrics({ filters, onFilterChange }) {
   const query = useQuery(allReviewSummaryOptions());
   const hasData = query.data != null;
@@ -75,22 +76,11 @@ export default function AllReviewMetrics({ filters, onFilterChange }) {
       {query.isLoading && !hasData && (
         <div className={GRID}>
           {METRICS.map((metric) => (
-            <div
+            <DashboardSkeleton
               key={metric.key}
-              role="status"
-              aria-label={`Loading ${metric.title}`}
-              className="min-h-32 rounded-xl border border-stroke bg-background p-4"
-            >
-              <span className="sr-only">Loading {metric.title}</span>
-              <div
-                aria-hidden="true"
-                className="space-y-3 motion-safe:animate-pulse"
-              >
-                <div className="h-3 w-28 rounded bg-skeleton" />
-                <div className="h-8 w-16 rounded bg-skeleton" />
-                <div className="h-3 w-32 rounded bg-skeleton" />
-              </div>
-            </div>
+              label={metric.title}
+              variant="activity"
+            />
           ))}
         </div>
       )}
@@ -106,12 +96,11 @@ export default function AllReviewMetrics({ filters, onFilterChange }) {
               className="min-w-0 cursor-pointer rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info [&>div]:h-full hover:[&>div]:border-text-secondary"
             >
               <MetricCard
-                compact
                 wrapTitle
                 title={metric.title}
                 icon={metric.icon}
                 value={
-                  <span className="tabular-nums">
+                  <span className="text-4xl tabular-nums">
                     {formatCount(query.data[metric.key])}
                   </span>
                 }

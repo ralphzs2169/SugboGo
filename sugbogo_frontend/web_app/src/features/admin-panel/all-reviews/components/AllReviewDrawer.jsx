@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import Modal from "@/shared/components/modals/Modal";
@@ -10,8 +10,25 @@ import AllReviewDetail from "./AllReviewDetail";
 /** Fetch selected details on demand inside the existing focus-managed modal primitive. */
 export default function AllReviewDrawer({ reviewId, onClose }) {
   const query = useQuery(allReviewDetailOptions(reviewId));
-  const close = useCallback(() => onClose(), [onClose]);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const close = useCallback(() => {
+    setIsVisible(false);
+    setIsClosing(true);
+  }, []);
   const gone = query.error?.response?.status === 404;
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setIsVisible(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!isClosing) return undefined;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const timer = setTimeout(onClose, reducedMotion ? 0 : 300);
+    return () => clearTimeout(timer);
+  }, [isClosing, onClose]);
 
   return createPortal(
     <Modal
@@ -22,6 +39,9 @@ export default function AllReviewDrawer({ reviewId, onClose }) {
       placement="right"
       maxWidth="max-w-3xl"
       scrollable
+      bodyClassName="themed-scrollbar"
+      overlayClassName={`transition-opacity duration-300 motion-reduce:transition-none ${isVisible ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      panelClassName={`transition-transform duration-300 ease-out motion-reduce:transition-none ${isVisible ? "translate-x-0" : "translate-x-full"}`}
     >
       <div aria-busy={query.isFetching}>
         {query.isLoading ? (

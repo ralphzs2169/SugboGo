@@ -4,6 +4,7 @@ import {
   MessageSquare,
   ThumbsUp,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import ReviewContentPreview from "./ReviewContentPreview";
 import UserAvatar from "@/shared/components/UserAvatar";
@@ -13,21 +14,33 @@ import { formatRelativeDate } from "@/shared/utils/dateUtils";
  *
  * Mirrors the identity and content layout of the Explorer mobile app's review
  * card while keeping the admin view focused on recent activity and providing
- * full text and photo inspection without promising an unavailable all-reviews route.
+ * full text and photo inspection with a link to all of this business's reviews.
  */
-export default function BusinessReviewsPreview({ reviews = [] }) {
+export default function BusinessReviewsPreview({
+  reviews = [],
+  businessId,
+  totalReviews,
+}) {
   return (
-    <section className="w-full overflow-hidden rounded-xl border border-stroke bg-background">
+    <section className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-stroke bg-background">
       {/* Section header */}
-      <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-stroke bg-metric-header px-5 py-4">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
           <MessageSquare aria-hidden="true" className="h-4 w-4 shrink-0" />
           Recent published reviews
         </h2>
+        {businessId && (
+          <Link
+            to={`/admin-panel/reviews?business_id=${businessId}`}
+            className="cursor-pointer rounded text-sm font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
+          >
+            View all reviews ({Number.isInteger(totalReviews) ? totalReviews : "—"})
+          </Link>
+        )}
       </div>
 
       {/* Section content */}
-      <div className="min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col">
         {reviews.length === 0 ? (
           /* Empty state */
           <div className="flex min-h-40 flex-1 flex-col items-center justify-center px-5 py-8 text-center">

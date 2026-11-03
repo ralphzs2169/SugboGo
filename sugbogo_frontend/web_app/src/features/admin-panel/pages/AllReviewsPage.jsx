@@ -45,9 +45,22 @@ export default function AllReviewsPage() {
           { label: "All Reviews" },
         ]}
       />
-      <p className="mb-6 text-sm text-text-secondary">
-        Inspect reviews submitted across SugboGo.
-      </p>
+      {state.business_id ? (
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-text-secondary">
+          <span>Reviews for business #{state.business_id}</span>
+          <button
+            type="button"
+            className="cursor-pointer text-primary underline focus-visible:outline-2 focus-visible:outline-info"
+            onClick={() => table.changeFilters({ business_id: null })}
+          >
+            Show all businesses
+          </button>
+        </div>
+      ) : (
+        <p className="mb-6 text-sm text-text-secondary">
+          Inspect reviews submitted across SugboGo.
+        </p>
+      )}
       <AllReviewMetrics filters={state} onFilterChange={table.changeFilters} />
       <section aria-label="Reviews directory" className="min-w-0">
         <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
@@ -72,6 +85,7 @@ export default function AllReviewsPage() {
           config={{
             tableLabel: "All reviews",
             tableMinWidth: 1430,
+            scrollbarClassName: "themed-scrollbar",
             searchPlaceholder: "Search reviews, reviewers, or businesses…",
             emptyState: {
               title: "No reviews yet",

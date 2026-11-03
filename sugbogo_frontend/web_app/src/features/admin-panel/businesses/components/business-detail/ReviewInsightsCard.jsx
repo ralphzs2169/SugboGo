@@ -133,9 +133,6 @@ export default function ReviewInsightsCard({
               <h3 className="text-sm font-semibold text-text-primary">
                 AI-derived rating
               </h3>
-              {rating?.experimental && (
-                <StatusBadge variant="neutral">Experimental</StatusBadge>
-              )}
             </div>
             {ready ? (
               <div className="mt-4 space-y-3">

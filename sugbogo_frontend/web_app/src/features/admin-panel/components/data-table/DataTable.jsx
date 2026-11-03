@@ -63,6 +63,7 @@ function DataTable({
     compact = false,
     tableLabel,
     tableMinWidth = 720,
+    scrollbarClassName = "",
 
     emptyState = {},
     noResultsState = {},
@@ -140,7 +141,7 @@ function DataTable({
       {renderContent ? (
         renderContent()
       ) : (
-        <div className={`${compact ? "" : "min-h-[520px]"} overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface`}>
+        <div className={`${scrollbarClassName} ${compact ? "" : "min-h-[520px]"} overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface`}>
           <table
             aria-label={tableLabel}
             className="w-full table-fixed border-collapse text-left"

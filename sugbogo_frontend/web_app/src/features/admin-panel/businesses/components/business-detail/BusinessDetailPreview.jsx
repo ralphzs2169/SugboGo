@@ -268,11 +268,15 @@ function PreviewContent({ mode, onReset }) {
             <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
               Recent Reviews & Photo Gallery
             </h2>
-            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
               <div className="min-w-0 lg:col-span-3">
-                <BusinessReviewsPreview reviews={business.latest_reviews} />
+                <BusinessReviewsPreview
+                  reviews={business.latest_reviews}
+                  businessId={business.id}
+                  totalReviews={business.total_review_count}
+                />
               </div>
-              <div className="min-w-0 lg:col-span-2">
+              <div className="min-w-0 self-start lg:col-span-2">
                 <BusinessPhotosPreview
                   photos={business.photos}
                   businessName={business.business_name}

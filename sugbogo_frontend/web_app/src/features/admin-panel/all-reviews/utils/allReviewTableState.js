@@ -1,6 +1,7 @@
 import { REVIEW_STATUSES } from "./allReviewPresentation";
 
 const FILTER_KEYS = [
+  "business_id",
   "search",
   "status",
   "reported",
@@ -16,7 +17,9 @@ export function readAllReviewState(searchParams) {
   const page = Number(searchParams.get("page"));
   const pageSize = Number(searchParams.get("page_size"));
   const reviewId = Number(searchParams.get("review_id"));
+  const businessId = Number(searchParams.get("business_id"));
   return {
+    business_id: Number.isSafeInteger(businessId) && businessId > 0 ? businessId : null,
     search: (searchParams.get("search") || "").slice(0, 200),
     status: Object.hasOwn(REVIEW_STATUSES, status) ? status : "",
     reported: ["true", "false"].includes(reported) ? reported : "",
@@ -54,6 +57,7 @@ export function resetAllReviewParams(previous) {
 /** Project UI state into the exact list request contract, omitting unset filters. */
 export function allReviewListParams(state, search = state.search) {
   return {
+    business_id: state.business_id || undefined,
     search: search.trim() || undefined,
     status: state.status || undefined,
     reported: state.reported || undefined,

@@ -59,6 +59,7 @@ export default function useAllReviewTableState() {
     params: allReviewListParams(state, search),
     isSearching,
     hasActiveFilters: Boolean(
+      state.business_id ||
       state.search ||
       state.status ||
       state.reported ||

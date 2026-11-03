@@ -16,8 +16,8 @@ const TITLES = [
   "Pending Business Updates",
 ];
 
-/** Show absolute additions differences neutrally, only for valid equal-elapsed windows. */
-function AdditionsComparison({ additions }) {
+/** Present the provided additions comparison only for valid equal-elapsed windows. */
+function AdditionsComparison({ additions, contextOnly = false }) {
   const available = additions?.comparison_available === true
     && Number.isInteger(additions.count)
     && Number.isInteger(additions.previous_count)
@@ -29,6 +29,12 @@ function AdditionsComparison({ additions }) {
     return null;
   }
 
+  if (contextOnly) {
+    return (
+      <span>Prev. equivalent period: {formatCount(additions.previous_count)}</span>
+    );
+  }
+
   const difference = additions.difference;
   const Icon = difference > 0 ? TrendingUp : difference < 0 ? TrendingDown : Minus;
   const label = difference === 0
@@ -36,12 +42,14 @@ function AdditionsComparison({ additions }) {
     : `${formatCount(Math.abs(difference))} ${difference > 0 ? "more" : "fewer"}`;
 
   return (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-text-secondary">
-      <span className="inline-flex items-center gap-1 font-medium">
-        <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
-        {label}
-      </span>
-      <span>Prev. equivalent period: {formatCount(additions.previous_count)}</span>
+    <span
+      className={
+        "inline-flex items-center gap-1 text-sm font-medium " +
+        (difference < 0 ? "text-danger" : "text-text-secondary")
+      }
+    >
+      <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
+      <span>{label}</span>
     </span>
   );
 }
@@ -82,6 +90,9 @@ export default function BusinessMetrics() {
       count: data.new_businesses?.count,
       supporting: "Added this month",
       comparison: <AdditionsComparison additions={data.new_businesses} />,
+      comparisonContext: (
+        <AdditionsComparison additions={data.new_businesses} contextOnly />
+      ),
     },
     {
       title: TITLES[3],
@@ -123,9 +134,20 @@ export default function BusinessMetrics() {
                   wrapTitle
                   title={metric.title}
                   icon={metric.icon}
-                  value={<span className="text-4xl tabular-nums">{formatCount(metric.count)}</span>}
+                  value={metric.comparison ? (
+                    <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                      <span className="text-4xl font-semibold tabular-nums">
+                        {formatCount(metric.count)}
+                      </span>
+                      {metric.comparison}
+                    </span>
+                  ) : (
+                    <span className="text-4xl tabular-nums">
+                      {formatCount(metric.count)}
+                    </span>
+                  )}
                   footerValue={metric.supporting}
-                  measurementLabel={metric.comparison}
+                  measurementLabel={metric.comparisonContext}
                 />
               );
 

@@ -161,7 +161,7 @@ export default function allReviewColumns(onView) {
               className={`text-sm tabular-nums ${total > 0 ? "font-medium text-text-primary" : "text-text-secondary"}`}
             >
               {total === 0
-                ? "No reports"
+                ? "—"
                 : `${total} ${total === 1 ? "report" : "reports"}`}
             </p>
             {pending > 0 && (

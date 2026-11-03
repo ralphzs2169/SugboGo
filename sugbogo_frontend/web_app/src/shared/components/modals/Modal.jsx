@@ -18,6 +18,9 @@ export default function Modal({
   scrollable = false,
   lockBodyScroll = true,
   placement = "center",
+  overlayClassName = "",
+  panelClassName = "",
+  bodyClassName = "",
 }) {
   const dialogRef = useRef(null);
   const titleId = useId();
@@ -113,7 +116,7 @@ export default function Modal({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex bg-black/50 ${placement === "right" ? "items-stretch justify-end" : "items-center justify-center p-4"}`}
+      className={`fixed inset-0 z-50 flex bg-black/50 ${placement === "right" ? "items-stretch justify-end" : "items-center justify-center p-4"} ${overlayClassName}`}
       onClick={onClose}
     >
       <div
@@ -126,7 +129,7 @@ export default function Modal({
         className={`w-full ${maxWidth} ${placement === "right"
           ? "flex h-dvh min-h-0 flex-col border-l shadow-xl"
           : `${scrollable ? "max-h-[calc(100vh-2rem)]" : ""} rounded-xl border shadow-x`
-        } overflow-hidden border-stroke bg-background outline-none focus-visible:ring-2 focus-visible:ring-stroke-active/30`}
+        } overflow-hidden border-stroke bg-background outline-none focus-visible:ring-2 focus-visible:ring-stroke-active/30 ${panelClassName}`}
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}
@@ -163,11 +166,11 @@ export default function Modal({
 
         {/* Body */}
         <div
-          className={
+          className={`${bodyClassName} ${
             placement === "right"
               ? "min-h-0 flex-1 overflow-y-auto p-5 sm:p-6"
               : scrollable ? "max-h-[calc(100vh-10rem)] overflow-y-auto p-6" : "p-6"
-          }
+          }`}
         >
           {children}
         </div>
