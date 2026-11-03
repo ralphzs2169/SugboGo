@@ -18,7 +18,8 @@ export default function BusinessAdministrativeHistory({ businessId, history }) {
   return (
     <section className="overflow-hidden rounded-xl border border-stroke bg-background">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke bg-metric-header px-5 py-4">
-        <h2 className="text-sm font-semibold text-text-primary">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          <History size={16} aria-hidden="true" />
           Administrative History & Requests
         </h2>
         <Link

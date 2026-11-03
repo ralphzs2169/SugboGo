@@ -1,5 +1,4 @@
-import { ArrowUpRight, MapPin } from "lucide-react";
-import Button from "@/shared/components/Button";
+import { ArrowRight, MapPin } from "lucide-react";
 
 /** Display a complete address and open the existing interactive map without static-image requests. */
 export default function BusinessLocationPreview({ location, onClick }) {
@@ -31,22 +30,22 @@ export default function BusinessLocationPreview({ location, onClick }) {
         )}
       </div>
       {hasCoordinates && (
-        <Button
-          variant="secondary"
-          size="sm"
+        <button
+          type="button"
+          aria-label="View map"
           onClick={onClick}
-          className="border-primary/20! bg-primary/5! text-primary! hover:border-primary/40! hover:bg-primary/10! focus-visible:ring-primary/30"
+          className="inline-flex cursor-pointer items-center rounded text-sm font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info"
         >
           <span className="inline-flex items-center gap-2">
             View map
-            <ArrowUpRight
+            <ArrowRight
               size={15}
               strokeWidth={1.75}
               aria-hidden="true"
               className="shrink-0"
             />
           </span>
-        </Button>
+        </button>
       )}
     </div>
   );

@@ -5,6 +5,13 @@ import statusConfig from "../../../business-applications/config/applicationStatu
 import { formatLabel } from "@/shared/utils/stringUtils";
 import { formatBusinessDateTime } from "../../utils/businessDetailPresentation";
 
+const SOFT_VARIANTS = {
+  neutral: "mutedSoft",
+  info: "infoSoft",
+  danger: "dangerSoft",
+  success: "successSoft",
+};
+
 /** Present linked application provenance without confusing review, submission and business dates. */
 export default function BusinessApplicationSummary({ application }) {
   const status = statusConfig[application?.status];
@@ -36,7 +43,8 @@ export default function BusinessApplicationSummary({ application }) {
     <section className="overflow-hidden rounded-xl border border-stroke bg-background">
       {/* Application identity and outcome */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke bg-metric-header px-5 py-4">
-        <h2 className="text-sm font-semibold text-text-primary">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          <FileText size={16} aria-hidden="true" />
           Business Application
         </h2>
         {application && (
@@ -44,7 +52,7 @@ export default function BusinessApplicationSummary({ application }) {
             <span className="text-xs text-text-secondary">
               #{application.id}
             </span>
-            <StatusBadge variant={status?.variant || "neutral"}>
+            <StatusBadge variant={SOFT_VARIANTS[status?.variant] || "mutedSoft"}>
               {status?.label || application.status || "Unknown outcome"}
             </StatusBadge>
           </div>
