@@ -128,6 +128,23 @@ GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "60"))
 if not 1 <= GEMINI_TIMEOUT_SECONDS <= 300:
     raise ImproperlyConfigured("GEMINI_TIMEOUT_SECONDS must be between 1 and 300 seconds.")
 
+# Shadow observations never replace legacy sentiment or public rating inputs.
+_shadow_enabled = os.getenv("GEMINI_SENTIMENT_SHADOW_ENABLED", "False").strip().lower()
+if _shadow_enabled not in {"true", "false"}:
+    raise ImproperlyConfigured("GEMINI_SENTIMENT_SHADOW_ENABLED must be True or False.")
+GEMINI_SENTIMENT_SHADOW_ENABLED = _shadow_enabled == "true"
+GEMINI_SENTIMENT_SHADOW_MODEL = os.getenv("GEMINI_SENTIMENT_SHADOW_MODEL", GEMINI_KEYWORD_MODEL).strip()
+if not GEMINI_SENTIMENT_SHADOW_MODEL or len(GEMINI_SENTIMENT_SHADOW_MODEL) > 100:
+    raise ImproperlyConfigured("Provide a Gemini shadow model identifier of at most 100 characters.")
+try:
+    GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS = frozenset(
+        int(value.strip()) for value in os.getenv("GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS", "").split(",") if value.strip()
+    )
+    if any(value <= 0 for value in GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS):
+        raise ValueError
+except ValueError:
+    raise ImproperlyConfigured("GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS must contain positive integer IDs.") from None
+
 
 # Product-defined Metro Cebu urban-core scope for Explorer origin autocomplete.
 # It covers Cebu City, Mandaue, Lapu-Lapu/Mactan, and the adjacent urban
@@ -453,6 +470,10 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
+    "recover-gemini-sentiment-shadow": {
+        "task": "apps.reviews.tasks.recover_gemini_sentiment_shadow",
+        "schedule": 60.0,
+    },
     "recover-business-ratings": {
         "task": "apps.reviews.tasks.recover_business_ratings",
         "schedule": 60.0,

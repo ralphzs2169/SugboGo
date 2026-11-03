@@ -141,6 +141,13 @@ class ReviewService:
 
         transaction.on_commit(publish, robust=True)
 
+        # Independent observer: failures cannot prevent publication or legacy inference.
+        from apps.reviews.services.gemini_sentiment_shadow_service import GeminiSentimentShadowService
+        transaction.on_commit(
+            lambda: GeminiSentimentShadowService.observe_after_commit(review_id),
+            robust=True,
+        )
+
     @staticmethod
     def _queue_review_insights_after_commit(
         business_id: int,
