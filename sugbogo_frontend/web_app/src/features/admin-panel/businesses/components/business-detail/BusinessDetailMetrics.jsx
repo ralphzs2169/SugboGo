@@ -1,6 +1,7 @@
 import { Bookmark, Eye, Info, MessageSquare, ShieldCheck } from "lucide-react";
 import MetricCard from "@/features/admin-panel/components/MetricCard";
 import Tooltip from "@/shared/components/actions/Tooltip";
+import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 
 /** Present exactly four server-owned metrics with visits availability isolated to its card. */
 export default function BusinessDetailMetrics({ business, visits }) {
@@ -9,14 +10,9 @@ export default function BusinessDetailMetrics({ business, visits }) {
     !visits.error && report?.meta?.availability !== "unavailable"
       ? report?.totals?.profile_visits
       : null;
-  const coverage = [
-    report?.definitions?.profile_visits ||
-      "Recorded business profile visits, not physical foot traffic.",
-    report?.definitions?.deduplication,
-    "Recorded activity only. Tracking coverage and freshness are not verified.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const coverage =
+    "Recorded business profile visits over the last 30 days. " +
+    "Not physical foot traffic. Tracking coverage and freshness are not verified.";
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {/* Current relational metrics */}
@@ -32,9 +28,18 @@ export default function BusinessDetailMetrics({ business, visits }) {
               {business.current_specialty_support.map((tag) => (
                 <li
                   key={tag.specialty_id}
-                  className="flex flex-wrap justify-between gap-x-3"
+                  className="flex flex-wrap items-center justify-between gap-3"
                 >
-                  <span className="break-words">{tag.specialty_name}</span>
+                  <SpecialtyTagChip
+                    tag={{
+                      ...business.specialty_tags?.find(
+                        (specialty) => specialty.id === tag.specialty_id,
+                      ),
+                      name: tag.specialty_name,
+                    }}
+                    size="small"
+                    showIcon
+                  />
                   <span className="font-semibold text-text-primary">
                     {tag.valid_vouches}
                   </span>
@@ -64,7 +69,12 @@ export default function BusinessDetailMetrics({ business, visits }) {
         footerValue="Last 30 days"
         unavailableLabel={visits.isPending ? "Loading…" : "Unavailable"}
         headerAction={
-          <Tooltip content={coverage} asChild place="bottom">
+          <Tooltip
+            content={coverage}
+            asChild
+            place="bottom"
+            className="!z-50 !w-max !max-w-[min(18rem,calc(100vw-2rem))] !whitespace-normal !break-words !px-3 !py-2 !text-left !leading-relaxed shadow-lg"
+          >
             <button
               type="button"
               aria-label="About recorded profile visits"

@@ -17,16 +17,17 @@ import { formatRelativeDate } from "@/shared/utils/dateUtils";
  */
 export default function BusinessReviewsPreview({ reviews = [] }) {
   return (
-    <section className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-stroke bg-background">
+    <section className="w-full overflow-hidden rounded-xl border border-stroke bg-background">
       {/* Section header */}
       <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
-        <h2 className="text-sm font-semibold text-text-primary">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          <MessageSquare aria-hidden="true" className="h-4 w-4 shrink-0" />
           Recent published reviews
         </h2>
       </div>
 
       {/* Section content */}
-      <div className="flex flex-1">
+      <div className="min-w-0">
         {reviews.length === 0 ? (
           /* Empty state */
           <div className="flex min-h-40 flex-1 flex-col items-center justify-center px-5 py-8 text-center">
