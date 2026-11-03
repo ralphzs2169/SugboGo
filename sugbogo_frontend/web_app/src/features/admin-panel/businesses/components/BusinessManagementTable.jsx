@@ -4,6 +4,7 @@ import { Building2, Map, Tag, Layers, Tags, Download } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import DataErrorState from "@/shared/components/errors/DataErrorState";
 import FilterMenu from "../../../admin-panel/components/data-table/FilterMenu";
 import BusinessStatusDialog from "./BusinessStatusDialog";
 import BusinessColumns from "../columns/businessColumns";
@@ -57,7 +58,7 @@ export default function BusinessManagementTable() {
     isFetching,
     error,
     refetch,
-  } = useBusinesses(params);
+  } = useBusinesses(params, { enabled: currentTab === "businesses" });
 
   const {
     businesses: mapBusinesses,
@@ -149,12 +150,23 @@ export default function BusinessManagementTable() {
 
   return (
     <>
+      {currentTab === "businesses" && error && businesses.length > 0 && (
+        <DataErrorState
+          compact
+          framed
+          retainedData
+          title="Unable to load businesses"
+          message="Previously loaded businesses remain visible. Retry to refresh them."
+          onRetry={refetch}
+          retrying={isFetching}
+        />
+      )}
       <DataTable
         data={businesses}
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
-        error={error}
+        error={businesses.length > 0 ? null : error}
         onRetry={refetch}
         pagination={pagination}
         state={{ globalFilter, sorting }}
