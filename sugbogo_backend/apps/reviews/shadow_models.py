@@ -29,6 +29,7 @@ class ReviewSentimentShadow(models.Model):
     RSSH_RETRY_AT = models.DateTimeField(null=True)
     RSSH_ERROR = models.CharField(max_length=100, blank=True)
     RSSH_USAGE = models.JSONField(default=dict)
+    RSSH_PROMOTED_AT = models.DateTimeField(null=True)
     RSSH_CREATED_AT = models.DateTimeField(auto_now_add=True)
     RSSH_UPDATED_AT = models.DateTimeField(auto_now=True)
 

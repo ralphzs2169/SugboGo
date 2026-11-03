@@ -13,6 +13,7 @@ from apps.reviews.constants import (
     REVIEW_INSIGHT_QUIET_SECONDS,
 )
 from apps.reviews.shadow_models import ReviewSentimentShadow  # noqa: F401
+from apps.reviews.cutover_models import BusinessSentimentPolicy, ReviewLegacySentimentSnapshot  # noqa: F401
 
 
 class ReviewRatingResult(models.Model):
@@ -27,7 +28,8 @@ class ReviewRatingResult(models.Model):
     )
     RRSR_SCORING_VERSION = models.CharField(max_length=100)
     RRSR_SOURCE_TEXT = models.TextField(max_length=1000)
-    RRSR_SCORE = models.FloatField()
+    RRSR_SCORE = models.FloatField(null=True)
+    RRSR_IS_ELIGIBLE = models.BooleanField(default=True)
     RRSR_IS_VALID = models.BooleanField(default=True)
     RRSR_LABEL = models.CharField(
         max_length=20,
@@ -46,6 +48,13 @@ class ReviewRatingResult(models.Model):
             models.CheckConstraint(
                 condition=models.Q(RRSR_SCORE__gte=-1, RRSR_SCORE__lte=1),
                 name="rrsr_score_range",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(RRSR_IS_ELIGIBLE=True, RRSR_SCORE__isnull=False)
+                    | models.Q(RRSR_IS_ELIGIBLE=False, RRSR_SCORE__isnull=True)
+                ),
+                name="rrsr_eligibility_score",
             ),
         ]
 

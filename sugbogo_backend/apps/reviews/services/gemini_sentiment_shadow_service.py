@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 from apps.reviews.models import Review, ReviewSentimentShadow as Shadow
@@ -24,6 +24,9 @@ class GeminiSentimentShadowService:
     @staticmethod
     def allowed(business_id):
         """Require both explicit enablement and a controlled business cohort."""
+        from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
+        if GeminiSentimentCutoverService.active_policy(business_id) is not None:
+            return settings.GEMINI_SENTIMENT_CUTOVER_ENABLED
         return settings.GEMINI_SENTIMENT_SHADOW_ENABLED and business_id in settings.GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS
 
     @staticmethod
@@ -38,7 +41,7 @@ class GeminiSentimentShadowService:
     @classmethod
     def request(cls, review_id):
         """Create durable demand only for published nonblank reviews in the cohort."""
-        if not settings.GEMINI_SENTIMENT_SHADOW_ENABLED:
+        if not (settings.GEMINI_SENTIMENT_SHADOW_ENABLED or settings.GEMINI_SENTIMENT_CUTOVER_ENABLED):
             return None
         return cls._request(review_id)
 
@@ -51,7 +54,11 @@ class GeminiSentimentShadowService:
             return None
         if review.REVW_STATUS != Review.ReviewStatus.PUBLISHED or not review.REVW_TEXT.strip():
             return None
-        model = settings.GEMINI_SENTIMENT_SHADOW_MODEL
+        from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
+        policy = GeminiSentimentCutoverService.active_policy(review.BUSN_ID_id)
+        model = policy.BSPO_MODEL if policy else settings.GEMINI_SENTIMENT_SHADOW_MODEL
+        if policy and policy.BSPO_VERSION != contract_version(model):
+            return None
         version, digest = contract_version(model), text_hash(review.REVW_TEXT)
         job, _ = Shadow.objects.get_or_create(
             REVW_ID=review, RSSH_VERSION=version, RSSH_SOURCE_HASH=digest,
@@ -59,12 +66,17 @@ class GeminiSentimentShadowService:
         )
         if job.RSSH_STATE == Shadow.State.PENDING:
             transaction.on_commit(lambda: cls.dispatch(job.pk), robust=True)
+        elif policy and job.RSSH_STATE == Shadow.State.READY:
+            if not GeminiSentimentCutoverService.has_projection(review, job):
+                job.RSSH_PROMOTED_AT = None
+                job.save(update_fields=['RSSH_PROMOTED_AT', 'RSSH_UPDATED_AT'])
+                transaction.on_commit(lambda: GeminiSentimentCutoverService.promote_safely(job.pk), robust=True)
         return job.pk
 
     @classmethod
     def observe_after_commit(cls, review_id):
         """Isolate shadow scheduling failures from committed publication and legacy work."""
-        if not settings.GEMINI_SENTIMENT_SHADOW_ENABLED:
+        if not (settings.GEMINI_SENTIMENT_SHADOW_ENABLED or settings.GEMINI_SENTIMENT_CUTOVER_ENABLED):
             return
         try:
             cls.request(review_id)
@@ -74,7 +86,7 @@ class GeminiSentimentShadowService:
     @classmethod
     def process(cls, job_id):
         """Claim once, infer outside locks and fence publication against edits and leases."""
-        if not settings.GEMINI_SENTIMENT_SHADOW_ENABLED:
+        if not (settings.GEMINI_SENTIMENT_SHADOW_ENABLED or settings.GEMINI_SENTIMENT_CUTOVER_ENABLED):
             return 'disabled'
         hint = Shadow.objects.filter(pk=job_id).values('REVW_ID_id').first()
         if hint is None:
@@ -87,7 +99,10 @@ class GeminiSentimentShadowService:
                 return 'missing'
             if not cls.allowed(review.BUSN_ID_id):
                 return 'disabled'
-            if job.RSSH_VERSION != contract_version(settings.GEMINI_SENTIMENT_SHADOW_MODEL):
+            from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
+            policy = GeminiSentimentCutoverService.active_policy(review.BUSN_ID_id)
+            expected_model = policy.BSPO_MODEL if policy else settings.GEMINI_SENTIMENT_SHADOW_MODEL
+            if job.RSSH_VERSION != contract_version(expected_model):
                 return 'superseded'
             if review.REVW_STATUS != Review.ReviewStatus.PUBLISHED or review.REVW_TEXT != job.RSSH_SOURCE_TEXT:
                 job.RSSH_STATE = Shadow.State.STALE
@@ -95,6 +110,8 @@ class GeminiSentimentShadowService:
                 job.save(update_fields=['RSSH_STATE', 'RSSH_TOKEN', 'RSSH_UPDATED_AT'])
                 return 'stale'
             if job.RSSH_STATE in (Shadow.State.READY, Shadow.State.STALE):
+                if policy and job.RSSH_STATE == Shadow.State.READY:
+                    transaction.on_commit(lambda: GeminiSentimentCutoverService.promote_safely(job.pk), robust=True)
                 return job.RSSH_STATE
             if job.RSSH_STATE == Shadow.State.PROCESSING and job.RSSH_LEASE_UNTIL and job.RSSH_LEASE_UNTIL > now:
                 return 'busy'
@@ -137,7 +154,9 @@ class GeminiSentimentShadowService:
             current = Shadow.objects.select_for_update().filter(pk=job_id, RSSH_TOKEN=token).first()
             if review is None or current is None:
                 return 'superseded'
-            if current.RSSH_VERSION != contract_version(settings.GEMINI_SENTIMENT_SHADOW_MODEL):
+            policy = GeminiSentimentCutoverService.active_policy(review.BUSN_ID_id)
+            expected_model = policy.BSPO_MODEL if policy else settings.GEMINI_SENTIMENT_SHADOW_MODEL
+            if current.RSSH_VERSION != contract_version(expected_model):
                 current.RSSH_STATE = Shadow.State.STALE
             elif not cls.allowed(review.BUSN_ID_id):
                 current.RSSH_STATE = Shadow.State.FAILED
@@ -159,18 +178,39 @@ class GeminiSentimentShadowService:
             current.RSSH_TOKEN = None
             current.RSSH_LEASE_UNTIL = None
             current.save()
+            if current.RSSH_STATE == Shadow.State.READY and policy:
+                transaction.on_commit(lambda: GeminiSentimentCutoverService.promote_safely(job_id), robust=True)
             return current.RSSH_STATE
 
     @classmethod
     def recover(cls, limit=50):
-        """Redispatch existing due jobs only; never automatically backfill historical reviews."""
-        if not settings.GEMINI_SENTIMENT_SHADOW_ENABLED:
+        """Recover due jobs and missed active demand without backfilling shadow cohorts."""
+        if not (settings.GEMINI_SENTIMENT_SHADOW_ENABLED or settings.GEMINI_SENTIMENT_CUTOVER_ENABLED):
             return 0
+        from apps.reviews.models import BusinessSentimentPolicy
+        from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
         now = timezone.now()
         due = Q(RSSH_STATE=Shadow.State.PENDING) | Q(RSSH_STATE=Shadow.State.FAILED, RSSH_RETRY_AT__lte=now) | Q(RSSH_STATE=Shadow.State.PROCESSING, RSSH_LEASE_UNTIL__lte=now)
+        scope = Q(pk__in=[])
+        if settings.GEMINI_SENTIMENT_SHADOW_ENABLED:
+            scope |= Q(RSSH_VERSION=contract_version(settings.GEMINI_SENTIMENT_SHADOW_MODEL), REVW_ID__BUSN_ID_id__in=settings.GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS) & ~Q(REVW_ID__BUSN_ID__sentiment_policy__BSPO_MODE=BusinessSentimentPolicy.Mode.GEMINI)
+        if settings.GEMINI_SENTIMENT_CUTOVER_ENABLED:
+            GeminiSentimentCutoverService.recover_requests(limit=limit)
+            for policy in BusinessSentimentPolicy.objects.filter(BSPO_MODE=BusinessSentimentPolicy.Mode.GEMINI):
+                scope |= Q(REVW_ID__BUSN_ID_id=policy.BUSN_ID_id, RSSH_VERSION=policy.BSPO_VERSION)
+            ready = Shadow.objects.filter(
+                scope, RSSH_STATE=Shadow.State.READY, RSSH_PROMOTED_AT__isnull=True,
+                REVW_ID__BUSN_ID__sentiment_policy__BSPO_MODE=BusinessSentimentPolicy.Mode.GEMINI,
+                RSSH_VERSION=F('REVW_ID__BUSN_ID__sentiment_policy__BSPO_VERSION'),
+                RSSH_SOURCE_TEXT=F('REVW_ID__REVW_TEXT'),
+                REVW_ID__REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+            ).order_by('pk').values_list('pk', flat=True)[:limit]
+            for job_id in list(ready):
+                GeminiSentimentCutoverService.promote_safely(job_id)
         jobs = Shadow.objects.filter(
-            due, RSSH_VERSION=contract_version(settings.GEMINI_SENTIMENT_SHADOW_MODEL),
-            REVW_ID__BUSN_ID_id__in=settings.GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS,
+            due, scope,
+            REVW_ID__REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+            RSSH_SOURCE_TEXT=F('REVW_ID__REVW_TEXT'),
         ).order_by('RSSH_UPDATED_AT').values_list('pk', flat=True)[:limit]
         ids = list(jobs)
         for job_id in ids:
