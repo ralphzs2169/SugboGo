@@ -46,7 +46,14 @@ export default function UpdateRequestsPage() {
     Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pagination = { pageIndex: page - 1, pageSize: 10 };
 
+  const selectedBusiness = Number(searchParams.get("business_id"));
+  const businessId = Number.isSafeInteger(selectedBusiness) && selectedBusiness > 0
+    ? selectedBusiness
+    : undefined;
+  const businessScope = businessId ? { business_id: String(businessId) } : {};
+
   const filters = {
+    business_id: businessId,
     status: status === "all" ? undefined : status,
     page: pagination.pageIndex + 1,
     page_size: pagination.pageSize,
@@ -69,6 +76,7 @@ export default function UpdateRequestsPage() {
       page,
       pageSize: pagination.pageSize,
       search: debouncedGlobalFilter,
+      businessId,
     },
     { enabled: useCombinedQueue },
   );
@@ -87,6 +95,7 @@ export default function UpdateRequestsPage() {
 
   function selectStatus(nextStatus) {
     setSearchParams({
+      ...businessScope,
       type: requestType,
       status: nextStatus || "all",
       search: globalFilter,
@@ -95,6 +104,7 @@ export default function UpdateRequestsPage() {
 
   function selectRequestType(nextType) {
     setSearchParams({
+      ...businessScope,
       type: nextType || "all",
       status,
       search: globalFilter,
@@ -103,16 +113,17 @@ export default function UpdateRequestsPage() {
 
   function changeSearch(value) {
     setGlobalFilter(value);
-    setSearchParams({ type: requestType, status, search: value });
+    setSearchParams({ ...businessScope, type: requestType, status, search: value });
   }
 
   function resetFilters() {
     setGlobalFilter("");
-    setSearchParams({ type: "all", status: "all" });
+    setSearchParams({ ...businessScope, type: "all", status: "all" });
   }
 
   function changePagination(nextPagination) {
     setSearchParams({
+      ...businessScope,
       type: requestType,
       status,
       search: globalFilter,
@@ -137,6 +148,18 @@ export default function UpdateRequestsPage() {
         title="Update Requests"
       />
 
+      {businessId && (
+        <div className="mb-4 flex items-center gap-3 text-sm text-text-secondary">
+          <span>Update requests for business #{businessId}</span>
+          <button type="button" className="cursor-pointer text-primary underline focus-visible:outline-2 focus-visible:outline-info"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("business_id");
+              next.delete("page");
+              setSearchParams(next);
+            }}>Show all businesses</button>
+        </div>
+      )}
       {/* Request queue */}
       {query.error && query.hasData && (
         <div

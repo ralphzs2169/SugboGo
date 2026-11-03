@@ -1,47 +1,42 @@
 import { ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 import StickyContextBar from "@/shared/components/StickyContextBar";
 import StatusBadge from "@/shared/components/StatusBadge";
 import ClusterDisplay from "@/shared/components/ClusterDisplay";
 import { getBusinessStatusConfig } from "@/shared/constants/businessStatus";
 import useNavigateBack from "@/shared/hooks/useNavigateBack";
+import BusinessImage from "./BusinessImage";
 /**
  * Provides persistent business identity and status while the administrator
  * scrolls through the business detail page.
  */
 export default function BusinessDetailContextBar({ business }) {
-  const navigate = useNavigate();
-
   const status = getBusinessStatusConfig(business.status);
 
   const handleBack = useNavigateBack("/admin-panel/businesses");
 
   return (
-    <StickyContextBar>
+    <StickyContextBar responsive ariaLabel="Business context">
       {/* Back navigation */}
       <button
         type="button"
         onClick={handleBack}
-        className="inline-flex shrink-0 cursor-pointer items-center gap-2 text-sm font-medium transition-colors hover:text-text-primary"
+        className="inline-flex w-full shrink-0 cursor-pointer items-center gap-2 text-sm font-medium transition-colors hover:text-text-primary sm:w-auto"
       >
         <ArrowLeft size={17} strokeWidth={1.8} />
         <span>Back to Businesses</span>
       </button>
 
       {/* Business context */}
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex w-full min-w-0 items-center justify-between gap-3 sm:w-auto sm:flex-1 sm:justify-end">
         {/* Business thumbnail */}
         <div className="hidden h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-surface-muted sm:block">
-          {business.cover_photo_url ? (
-            <img
-              src={business.cover_photo_url}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="h-full w-full bg-surface-muted" />
-          )}
+          <BusinessImage
+            src={business.cover_photo_url}
+            alt=""
+            fallback=""
+            className="h-full w-full"
+          />
         </div>
 
         {/* Business identity and classification */}
@@ -51,7 +46,7 @@ export default function BusinessDetailContextBar({ business }) {
               {business.business_name || "Unnamed Business"}
             </p>
 
-            <span className="hidden text-xs text-text-secondary sm:inline">
+            <span className="shrink-0 text-xs text-text-secondary">
               #{business.id}
             </span>
           </div>

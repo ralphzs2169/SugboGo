@@ -1,3 +1,4 @@
+import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router, type Href } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -43,6 +44,7 @@ export default function BusinessNameChangeRequestScreen() {
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string>();
   const {
+    statusQuery,
     business,
     isLoading: isProfileLoading,
     error: profileError,
@@ -286,13 +288,14 @@ export default function BusinessNameChangeRequestScreen() {
     );
   }
 
-  if (business.status === "suspended") {
+  if (business.status !== "active") {
     return (
       <>
         <View className="flex-1 bg-background">
+          <MerchantBusinessStatusNotice query={statusQuery} />
           <ErrorState
             title="Request unavailable"
-            description="Name changes cannot be requested while your business is suspended."
+            description="Name changes cannot be requested until your business is confirmed active."
             primaryActionTitle="Go Back"
             onPrimaryAction={() => router.back()}
           />

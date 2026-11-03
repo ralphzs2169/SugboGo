@@ -1,3 +1,4 @@
+import { BUSINESS_CHANGED_EVENT } from "../queries/businessResourceEvents";
 import { useEffect, useRef, useState } from "react";
 import { fetchBusinessLocations } from "../services/businessService";
 
@@ -22,8 +23,14 @@ export default function useBusinessMap({
   const [error, setError] = useState(null);
 
   const hasLoadedOnce = useRef(false);
+  const latestRequest = useRef(0);
+  const controller = useRef(null);
 
   async function loadBusinessLocations() {
+    const requestId = ++latestRequest.current;
+    controller.current?.abort();
+    const requestController = new AbortController();
+    controller.current = requestController;
     if (!hasLoadedOnce.current) {
       setIsLoading(true);
     } else {
@@ -33,24 +40,40 @@ export default function useBusinessMap({
     setError(null);
 
     try {
-      const data = await fetchBusinessLocations({
-        search,
-        status,
-        cluster,
-        category,
-        specialty_tag: specialtyTag,
-      });
+      const data = await fetchBusinessLocations(
+        {
+          search,
+          status,
+          cluster,
+          category,
+          specialty_tag: specialtyTag,
+        },
+        requestController.signal,
+      );
 
+      // Ignore requests superseded by a filter change or lifecycle refresh.
+      if (
+        requestId !== latestRequest.current ||
+        requestController.signal.aborted
+      )
+        return;
       setBusinesses(data ?? []);
     } catch (error) {
+      if (
+        requestId !== latestRequest.current ||
+        requestController.signal.aborted
+      )
+        return;
       console.error("Failed to load business locations:", error);
 
       setError(error);
       setBusinesses([]);
     } finally {
-      hasLoadedOnce.current = true;
-      setIsLoading(false);
-      setIsFetching(false);
+      if (requestId === latestRequest.current) {
+        hasLoadedOnce.current = true;
+        setIsLoading(false);
+        setIsFetching(false);
+      }
     }
   }
 
@@ -59,7 +82,15 @@ export default function useBusinessMap({
       return;
     }
 
+    // Preserve the legacy hook's initial fetch; lifecycle updates use the event subscription below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadBusinessLocations();
+    window.addEventListener(BUSINESS_CHANGED_EVENT, loadBusinessLocations);
+    return () => {
+      latestRequest.current += 1;
+      controller.current?.abort();
+      window.removeEventListener(BUSINESS_CHANGED_EVENT, loadBusinessLocations);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, search, status, cluster, category, specialtyTag]);
 

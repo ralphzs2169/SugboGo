@@ -1,5 +1,4 @@
-import InfoBanner from "@/shared/components/InfoBanner";
-import AppText from "@/shared/components/AppText";
+import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsFocused, useRouter } from "expo-router";
@@ -161,6 +160,7 @@ export default function MerchantDashboardScreen() {
   // Business identity for the shared header
   const {
     business,
+    statusQuery,
     isLoading: isProfileLoading,
     error: profileError,
     refetch: refetchProfile,
@@ -329,19 +329,14 @@ export default function MerchantDashboardScreen() {
             </View>
           ) : null}
 
-          {business?.status === "suspended" && (
+          {(statusQuery?.error ||
+            statusQuery?.isPending ||
+            statusQuery?.data?.status === "suspended") && (
             <View className="px-5 pt-4">
-              <InfoBanner
-                title="Business suspended"
-                variant="warning"
-                actionTitle="View Business"
-                onAction={() => router.push("/(merchant)/(tabs)/profile")}
-              >
-                <AppText className="text-sm leading-5 text-text-secondary">
-                  Some listing-management actions may be restricted. Review your
-                  business status for details.
-                </AppText>
-              </InfoBanner>
+              <MerchantBusinessStatusNotice
+                query={statusQuery}
+                onViewBusiness={() => router.push("/(merchant)/(tabs)/profile")}
+              />
             </View>
           )}
           {/* Business overview */}

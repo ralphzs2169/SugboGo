@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
+import { notifyBusinessChanged } from "../../businesses/queries/businessResourceEvents";
 
 import {
   dismissReviewDispute,
@@ -10,6 +11,7 @@ export default function useReviewDisputeMutations() {
   const queryClient = useQueryClient();
 
   async function invalidateReviewDisputeQueries(disputeId) {
+    notifyBusinessChanged(null);
     await Promise.all([
       invalidateDashboardDecision(queryClient),
       queryClient.invalidateQueries({

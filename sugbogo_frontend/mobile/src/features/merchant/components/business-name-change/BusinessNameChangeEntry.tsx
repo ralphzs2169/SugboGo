@@ -17,7 +17,7 @@ export default function BusinessNameChangeEntry({
   onRetry,
 }: {
   businessName: string;
-  businessStatus: "active" | "suspended";
+  businessStatus: "active" | "suspended" | null;
   pendingRequest: BusinessNameChangeRequest | null;
   isChecking: boolean;
   hasError: boolean;

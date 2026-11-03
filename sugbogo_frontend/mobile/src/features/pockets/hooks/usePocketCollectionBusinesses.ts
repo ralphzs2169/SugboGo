@@ -1,3 +1,4 @@
+import { businessAvailability } from "@/features/business-availability/services/businessAvailability.service";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -46,10 +47,30 @@ export default function usePocketCollectionBusinesses(
       ) {
         throw new Error("Sign in to view your Pockets.");
       }
-      return throwOnApiError(
+      const observation = businessAvailability.begin();
+      const response = throwOnApiError(
         await getPocketCollectionBusinesses(validCollectionId, pageParam),
       );
+      // Availability is owner-scoped metadata, separate from the immutable local snapshot.
+      const confirmed = response.items.filter(
+        (item) => item.availability_checked_at,
+      );
+      if (confirmed.length) {
+        await businessAvailability
+          .confirm(
+            observation,
+            confirmed.map((item) => ({
+              businessId: item.id,
+              state: item.availability ?? "available",
+            })),
+            confirmed[0].availability_checked_at!,
+          )
+          .catch(() => undefined);
+      }
+      return response;
     },
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: "always",
     getNextPageParam: (lastPage) =>
       lastPage.pagination.has_next ? lastPage.pagination.page + 1 : undefined,
   });

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { businessOverviewQueryKey } from "../../businesses/queries/businessOverviewQuery";
 
 import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
 import { approveBusinessApplication } from "../services/businessApplicationService";
@@ -25,7 +26,13 @@ export default function useApproveBusinessApplication() {
         expectedSubmissionId,
       );
 
-      await invalidateDashboardDecision(queryClient, { roleComposition: true });
+      await Promise.all([
+        invalidateDashboardDecision(queryClient, { roleComposition: true }),
+        queryClient.invalidateQueries({
+          queryKey: businessOverviewQueryKey,
+          exact: true,
+        }),
+      ]);
 
       return response;
     } catch (error) {

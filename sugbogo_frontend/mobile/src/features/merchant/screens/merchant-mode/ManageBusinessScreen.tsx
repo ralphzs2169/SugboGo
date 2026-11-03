@@ -1,3 +1,4 @@
+import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import { Pressable, ScrollView, View } from "react-native";
@@ -26,7 +27,8 @@ type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
  */
 export default function ManageBusinessScreen() {
   const hasFocused = useRef(false);
-  const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const { business, statusQuery, isLoading, error, refetch } =
+    useMerchantBusinessProfile();
   useApiErrorNotification({
     error,
     toastId: "merchant-manage-business-profile-error",
@@ -131,6 +133,7 @@ export default function ManageBusinessScreen() {
         showsVerticalScrollIndicator={false}
       >
         <MerchantRefreshRecovery error={error} refetch={refetch} />
+        <MerchantBusinessStatusNotice query={statusQuery} />
         {/* Page introduction */}
         <View className="mb-6 px-1">
           <AppText className="text-sm leading-5 text-text-secondary">
@@ -146,7 +149,7 @@ export default function ManageBusinessScreen() {
               />
 
               <AppText className="ml-2 flex-1 text-sm leading-5 text-text-error">
-                Changes are unavailable while your business is suspended.
+                Changes are unavailable until your business is confirmed active.
               </AppText>
             </View>
           ) : null}

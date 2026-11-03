@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
+import { notifyBusinessChanged } from "../../businesses/queries/businessResourceEvents";
 
 import {
   approveUnderReviewReview,
@@ -10,6 +11,7 @@ export default function useUnderReviewDecisions() {
   const queryClient = useQueryClient();
 
   async function refreshReviews(reviewId, { publication = false } = {}) {
+    notifyBusinessChanged(null);
     queryClient.removeQueries({
       queryKey: ["admin", "under-review", "detail", reviewId],
     });

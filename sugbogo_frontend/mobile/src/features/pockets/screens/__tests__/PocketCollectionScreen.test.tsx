@@ -33,6 +33,28 @@ import {
 import type { PocketCollection } from "../../types/pockets.types";
 import PocketCollectionScreen from "../PocketCollectionScreen";
 import { makeBusinessAvailableOffline } from "@/features/offline-pockets/services/offlineStorageActions.service";
+const mockAvailabilityGet = () => undefined;
+jest.mock(
+  "@/features/business-availability/services/businessAvailability.service",
+  () => ({
+    businessAvailability: {
+      begin: jest.fn(() => ({})),
+      confirm: jest.fn(async () => undefined),
+    },
+  }),
+);
+jest.mock(
+  "@/features/business-availability/hooks/useBusinessAvailability",
+  () => ({
+    __esModule: true,
+    default: () => ({
+      get: mockAvailabilityGet,
+      online: false,
+      error: null,
+      refetch: jest.fn(),
+    }),
+  }),
+);
 
 jest.mock("@react-native-community/netinfo", () => ({
   useNetInfo: jest.fn(() => ({ isConnected: true, isInternetReachable: true })),
@@ -340,7 +362,9 @@ describe("PocketCollectionScreen", () => {
   it("passes the current account's Pocket query hint when opening a profile", async () => {
     const screen = await loaded();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Open Business 81 business profile" }),
+      screen.getByRole("button", {
+        name: "Open Business 81 business profile",
+      }),
     );
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]",
@@ -360,7 +384,9 @@ describe("PocketCollectionScreen", () => {
       screen.getAllByText(/^Business \d+$/).map((node) => node.props.children),
     ).toEqual(["Business 81", "Business 7"]);
     await fireEvent.press(
-      screen.getByRole("button", { name: "Open Business 81 business profile" }),
+      screen.getByRole("button", {
+        name: "Open Business 81 business profile",
+      }),
     );
     expect(router.push).toHaveBeenCalledWith({
       pathname: "/(explorer)/business/[businessId]",
@@ -388,7 +414,6 @@ describe("PocketCollectionScreen", () => {
       expect(screen.getByTestId("pocket-detail-empty")).toBeTruthy(),
     );
     expect(screen.getByText("Favorites")).toBeTruthy();
-    expect(screen.getByText("Default")).toBeTruthy();
     expect(screen.getByText("0 businesses")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
   });
@@ -903,5 +928,49 @@ describe("PocketCollectionScreen", () => {
     expect(screen.getByText("1 business")).toBeTruthy();
     expect(screen.getByText("Business 7")).toBeTruthy();
     expect(router.push).not.toHaveBeenCalled();
+  });
+  it("keeps suspended saves as removable placeholders without live profile navigation or new saves", async () => {
+    const unavailable = {
+      id: 81,
+      business_name: "Business 81",
+      is_pocketed: true,
+      availability: "unavailable" as const,
+      availability_checked_at: "2026-11-02T02:00:00Z",
+    };
+    jest
+      .mocked(getPocketCollection)
+      .mockResolvedValue({
+        ...metadata(20, 1),
+        data: { ...metadata(20, 1).data, available_business_count: 0 },
+      });
+    jest
+      .mocked(getPocketCollectionBusinesses)
+      .mockResolvedValue({
+        ...page([81]),
+        data: { ...page([81]).data, items: [unavailable] },
+      });
+    const screen = await loaded();
+    expect(screen.getByText("Currently unavailable")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", {
+        name: /^Open Business 81 business profile/,
+      }),
+    ).toBeNull();
+    expect(screen.getByText("0 available")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: "Remove Business 81 from this Pocket",
+      }),
+    );
+    expect(router.push).not.toHaveBeenCalled();
+    expect(makeBusinessAvailableOffline).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Cancel removal" })).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Confirm removal" }),
+    );
+    await waitFor(() =>
+      expect(removePocketCollectionBusiness).toHaveBeenCalledWith(20, 81),
+    );
+    expect(makeBusinessAvailableOffline).not.toHaveBeenCalled();
   });
 });

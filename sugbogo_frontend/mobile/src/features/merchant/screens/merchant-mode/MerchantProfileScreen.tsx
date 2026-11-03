@@ -1,3 +1,4 @@
+import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
 import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import MerchantMetricCard from "../../components/MerchantMetricCard";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -69,7 +70,8 @@ export default function MerchantProfileScreen() {
   );
   const bottomSpacing = useTabBarSpacing();
 
-  const { business, isLoading, error, refetch } = useMerchantBusinessProfile();
+  const { business, statusQuery, isLoading, error, refetch } =
+    useMerchantBusinessProfile();
   const { rating, refetch: refetchRating } = useMerchantBusinessRating(
     business?.status === "active" ? business.id : 0,
   );
@@ -342,6 +344,7 @@ export default function MerchantProfileScreen() {
           showsVerticalScrollIndicator={false}
         >
           <MerchantRefreshRecovery error={error} refetch={refetch} />
+          <MerchantBusinessStatusNotice query={statusQuery} />
           {/* Cover hero and live business identity */}
           <View
             testID="merchant-profile-hero-container"

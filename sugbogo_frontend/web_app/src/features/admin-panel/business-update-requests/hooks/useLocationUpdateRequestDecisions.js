@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { businessOverviewQueryKey } from "../../businesses/queries/businessOverviewQuery";
 
 import {
   approveLocationUpdateRequest,
@@ -7,14 +8,20 @@ import {
 import { adminLocationUpdateRequestKeys } from "./locationUpdateRequestQueryKeys";
 import { adminBusinessUpdateRequestKeys } from "./businessUpdateRequestQueryKeys";
 import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
+import { notifyBusinessChanged } from "../../businesses/queries/businessResourceEvents";
 
 /** Records a location decision and refreshes only its queue and detail resources. */
 export default function useLocationUpdateRequestDecisions() {
   const queryClient = useQueryClient();
 
   async function refreshRequests(requestId) {
+    notifyBusinessChanged(null);
     await Promise.all([
       invalidateDashboardDecision(queryClient),
+      queryClient.invalidateQueries({
+        queryKey: businessOverviewQueryKey,
+        exact: true,
+      }),
       queryClient.invalidateQueries({
         queryKey: adminLocationUpdateRequestKeys.lists,
       }),

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { businessOverviewQueryKey } from "../../businesses/queries/businessOverviewQuery";
 
 import {
   approveBusinessUpdateRequest,
@@ -6,14 +7,20 @@ import {
 } from "../services/businessUpdateRequestService";
 import { adminBusinessUpdateRequestKeys } from "./businessUpdateRequestQueryKeys";
 import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
+import { notifyBusinessChanged } from "../../businesses/queries/businessResourceEvents";
 
 /** Applies Admin decisions and refreshes only the affected request resources. */
 export default function useBusinessUpdateRequestDecisions() {
   const queryClient = useQueryClient();
 
   async function refreshRequests(requestId) {
+    notifyBusinessChanged(null);
     await Promise.all([
       invalidateDashboardDecision(queryClient),
+      queryClient.invalidateQueries({
+        queryKey: businessOverviewQueryKey,
+        exact: true,
+      }),
       queryClient.invalidateQueries({
         queryKey: adminBusinessUpdateRequestKeys.lists,
       }),

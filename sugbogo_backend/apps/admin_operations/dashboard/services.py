@@ -59,7 +59,45 @@ class DashboardSummaryService:
             applications["pending_review"] - sum(aging.values())
         )
 
-        change_requests = {
+        change_requests = DashboardSummaryService.get_pending_business_updates()
+        reviews_under_review = Review.objects.filter(
+            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
+        ).count()
+        reported_review_cases = (
+            ReviewReport.objects
+            .filter(
+                RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+            )
+            .aggregate(
+                total=Count(
+                    "REVW_ID",
+                    distinct=True,
+                ),
+            )["total"]
+        )
+        pending_disputes = MerchantReviewDispute.objects.filter(
+            MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+        ).count()
+        businesses = DashboardSummaryService.get_business_status()
+
+        return {
+            "as_of": as_of,
+            "applications": {
+                "pending_review": applications["pending_review"],
+                "aging": aging,
+            },
+            "change_requests": change_requests,
+            "reviews_under_review": reviews_under_review,
+            "reported_review_cases": reported_review_cases,
+            "pending_disputes": pending_disputes,
+            "active_businesses": businesses["active"],
+            "business_status": businesses,
+        }
+
+    @staticmethod
+    def get_pending_business_updates():
+        """Count pending request records across the three listing update workflows."""
+        by_type = {
             "business_name": (
                 BusinessNameChangeRequest.objects
                 .filter(
@@ -82,24 +120,14 @@ class DashboardSummaryService:
                 .count()
             ),
         }
-        reviews_under_review = Review.objects.filter(
-            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
-        ).count()
-        reported_review_cases = (
-            ReviewReport.objects
-            .filter(
-                RREP_STATUS=ReviewReport.ReportStatus.PENDING,
-            )
-            .aggregate(
-                total=Count(
-                    "REVW_ID",
-                    distinct=True,
-                ),
-            )["total"]
-        )
-        pending_disputes = MerchantReviewDispute.objects.filter(
-            MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
-        ).count()
+        return {
+            "pending_total": sum(by_type.values()),
+            "by_type": by_type,
+        }
+
+    @staticmethod
+    def get_business_status():
+        """Count permanent records without conflating owner status or verification."""
         businesses = Business.objects.aggregate(
             total=Count("BUSN_ID"),
             active=Count(
@@ -115,19 +143,4 @@ class DashboardSummaryService:
             businesses["total"] - businesses["active"] - businesses["suspended"]
         )
 
-        return {
-            "as_of": as_of,
-            "applications": {
-                "pending_review": applications["pending_review"],
-                "aging": aging,
-            },
-            "change_requests": {
-                "pending_total": sum(change_requests.values()),
-                "by_type": change_requests,
-            },
-            "reviews_under_review": reviews_under_review,
-            "reported_review_cases": reported_review_cases,
-            "pending_disputes": pending_disputes,
-            "active_businesses": businesses["active"],
-            "business_status": businesses,
-        }
+        return businesses

@@ -253,7 +253,7 @@ it("does not treat pending worker or a live is_pocketed flag as a readable snaps
 });
 
 it.each(["NOT_FOUND", "PERMISSION_DENIED", "SESSION_EXPIRED"])(
-  "never masks an authoritative %s, even with live and Pocket data",
+  "keeps listing-unavailable offline history while respecting %s authorization",
   async (code) => {
     await recentBusinessDetails.capture().save(businessFixture(), Date.now());
     jest.mocked(useExploreBusinessProfile).mockReturnValue({
@@ -271,10 +271,14 @@ it.each(["NOT_FOUND", "PERMISSION_DENIED", "SESSION_EXPIRED"])(
       },
     } as never);
     const hook = await renderHook(() => useBusinessDetailSource(21));
-    expect(hook.result.current.source).toBe("unavailable");
-    expect(hook.result.current.snapshot).toBeNull();
+    expect(hook.result.current.source).toBe(
+      code === "NOT_FOUND" ? "offline-pocket" : "unavailable",
+    );
+    if (code !== "NOT_FOUND") expect(hook.result.current.snapshot).toBeNull();
     await recentBusinessDetails.flush();
-    expect(await recentBusinessDetails.capture().get(21)).toBeNull();
+    if (code === "NOT_FOUND")
+      expect(await recentBusinessDetails.capture().get(21)).not.toBeNull();
+    else expect(await recentBusinessDetails.capture().get(21)).toBeNull();
   },
 );
 

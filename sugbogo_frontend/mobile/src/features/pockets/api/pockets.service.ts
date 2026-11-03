@@ -1,10 +1,10 @@
-import type { ExploreBusinessListResponse } from "@/features/explore/types/exploreBusiness.types";
 import apiClient from "@/shared/api/apiClient.service";
 import { request } from "@/shared/api/request.service";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
 
 import type {
   BusinessPocketMemberships,
+  PocketBusinessListResponse,
   PocketCollection,
   PocketCollectionListResponse,
 } from "../types/pockets.types";
@@ -36,7 +36,7 @@ export function getPocketCollectionBusinesses(
   collectionId: number,
   page = 1,
   pageSize?: number,
-): Promise<ApiResponse<ExploreBusinessListResponse>> {
+): Promise<ApiResponse<PocketBusinessListResponse>> {
   return request(
     apiClient.get(`/explorer/explore/pockets/${collectionId}/businesses/`, {
       params: {

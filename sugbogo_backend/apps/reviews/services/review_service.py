@@ -40,6 +40,7 @@ from apps.reviews.services.review_moderation_service import ReviewModerationServ
 from apps.reviews.services.review_media_cleanup_service import ReviewMediaCleanupService
 from apps.reviews.services.review_reply_eligibility import actionable_unanswered_reviews
 from apps.shared.services.cloudinary_service import CloudinaryService
+from apps.reviews.services.business_eligibility import require_active_business
 from apps.users.models import User
 from apps.users.services.reputation_service import ReputationService
 
@@ -403,14 +404,9 @@ class ReviewService:
         show_in_community: bool = True,
     ) -> Review:
         """Upload and save a private review before dispatching stored-content moderation."""
-        try:
-            business = Business.objects.get(
-                BUSN_ID=business_id,
-            )
-        except Business.DoesNotExist:
-            raise NotFound(
-                "The business could not be found.",
-            )
+        business = require_active_business(
+            business_id,
+        )
 
         # Prevent merchants from reviewing their own business.
         if business.USER_ID_id == user.USER_ID:
@@ -447,6 +443,10 @@ class ReviewService:
                 ReviewService._lock_reliability_creation_keys(
                     user.USER_ID,
                     installation_id,
+                )
+                business = require_active_business(
+                    business_id,
+                    lock=True,
                 )
                 initial_moderation = ReviewModerationRetryService.initial_metadata()
                 try:
@@ -698,8 +698,15 @@ class ReviewService:
 
         try:
             review = ReviewService._annotated_review_queryset(user).get(
-                models.Q(REVW_STATUS=Review.ReviewStatus.PUBLISHED)
-                | models.Q(USER_ID=user),
+                models.Q(
+                    REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+                    BUSN_ID__BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+                )
+                | models.Q(USER_ID=user)
+                | models.Q(
+                    REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+                    BUSN_ID__USER_ID=user,
+                ),
                 REVW_ID=review_id,
             )
         except Review.DoesNotExist:
@@ -780,14 +787,10 @@ class ReviewService:
         user: User,
     ):
         """Return a bounded public preview and the current user's review."""
-        try:
-            Business.objects.get(
-                BUSN_ID=business_id,
-            )
-        except Business.DoesNotExist:
-            raise NotFound(
-                "The business could not be found.",
-            )
+        require_active_business(
+            business_id,
+            reader=user,
+        )
 
         total_count = Review.objects.filter(
             BUSN_ID=business_id,
@@ -832,14 +835,10 @@ class ReviewService:
         needs_reply: bool = False,
     ):
         """Build a filterable and deterministically ordered review queryset."""
-        try:
-            business = Business.objects.get(
-                BUSN_ID=business_id,
-            )
-        except Business.DoesNotExist:
-            raise NotFound(
-                "The business could not be found.",
-            )
+        business = require_active_business(
+            business_id,
+            reader=user,
+        )
 
         reviews = ReviewService._get_review_queryset(
             business_id,
@@ -976,6 +975,7 @@ class ReviewService:
 
         if source.USER_ID_id != user.USER_ID:
             raise PermissionDenied("You do not have permission to update this review.")
+        require_active_business(source.BUSN_ID_id)
         ReviewService._require_editable_review(source)
 
         existing_photos = list(source.photos.all().order_by("RPHO_ID"))
@@ -1146,6 +1146,10 @@ class ReviewService:
                 "You do not have permission to update this review.",
             )
 
+        require_active_business(
+            review.BUSN_ID_id,
+            lock=True,
+        )
         ReviewService._require_editable_review(review)
 
         existing_photos = list(review.photos.all().order_by("RPHO_ID"))

@@ -172,13 +172,19 @@ class BusinessNameChangeService:
         return change_request
 
     @staticmethod
-    def list_for_admin(status=None):
+    def list_for_admin(
+        status=None,
+        business_id=None,
+    ):
         """Return a review queue with pending requests before recent history."""
         queryset = BusinessNameChangeRequest.objects.select_related(
             "BUSN_ID",
             "USER_ID",
             "REVIEWER_ID",
         )
+
+        if business_id is not None:
+            queryset = queryset.filter(BUSN_ID_id=business_id)
 
         if status:
             if status not in BusinessNameChangeRequest.Status.values:

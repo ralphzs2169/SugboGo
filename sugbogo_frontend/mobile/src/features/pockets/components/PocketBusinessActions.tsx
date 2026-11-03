@@ -25,7 +25,11 @@ export default function PocketBusinessActions({
   onRemove,
   onClose,
 }: {
-  business: { id: number; business_name: string };
+  business: {
+    id: number;
+    business_name: string;
+    availability?: "available" | "unavailable";
+  };
   ownerId: number;
   generation: number;
   onRemove: () => void;

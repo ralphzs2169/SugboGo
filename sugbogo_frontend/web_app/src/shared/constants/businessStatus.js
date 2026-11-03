@@ -1,11 +1,11 @@
 export const BUSINESS_STATUS_CONFIG = {
   active: {
     label: "Active",
-    variant: "success",
+    variant: "successSoft",
   },
   suspended: {
     label: "Suspended",
-    variant: "warning",
+    variant: "warningSoft",
   },
 };
 

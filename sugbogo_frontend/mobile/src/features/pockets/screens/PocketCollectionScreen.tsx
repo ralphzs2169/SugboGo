@@ -1,9 +1,10 @@
+import useBusinessAvailability from "@/features/business-availability/hooks/useBusinessAvailability";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { hashKey } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, Stack } from "expo-router";
 import LottieView from "lottie-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import {
   SafeAreaView,
@@ -53,7 +54,11 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
   } | null>(null);
   const [removing, setRemoving] = useState<{
     collectionId: number;
-    business: { id: number; business_name: string };
+    business: {
+      id: number;
+      business_name: string;
+      availability?: "available" | "unavailable";
+    };
     ownerId: number;
     generation: number;
   } | null>(null);
@@ -71,7 +76,34 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
   );
   const canShowContents =
     metadata.isEnabled && metadata.hasData && !unavailable;
-  const businesses = canShowContents ? contents.businesses : [];
+  const { get: getAvailability, revision: availabilityRevision } =
+    useBusinessAvailability(
+      contents.businesses.map((business) => business.id),
+      { check: false },
+    );
+  const businesses = useMemo(
+    () =>
+      canShowContents
+        ? contents.businesses.map((business) => {
+            const record = getAvailability(business.id);
+            return record?.state === "unavailable"
+              ? {
+                  id: business.id,
+                  business_name: business.business_name,
+                  is_pocketed: true,
+                  availability: "unavailable" as const,
+                  availability_checked_at: record.checkedAt,
+                }
+              : business;
+          })
+        : [],
+    [
+      canShowContents,
+      contents.businesses,
+      availabilityRevision,
+      getAvailability,
+    ],
+  );
 
   useEffect(() => {
     // Settling requests retain their own guards after an identity change.
@@ -261,6 +293,13 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
                     ? "business"
                     : "businesses"}
                 </AppText>
+                {metadata.collection.available_business_count !== undefined &&
+                  metadata.collection.available_business_count <
+                    metadata.collection.business_count && (
+                    <AppText className="mr-2 text-xs text-text-secondary">
+                      {metadata.collection.available_business_count} available
+                    </AppText>
+                  )}
                 {!metadata.collection.is_default && (
                   <SafePressable
                     accessibilityRole="button"
@@ -305,38 +344,31 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
         }
         renderItem={({ item }) => (
           <View className="mb-3">
-            <BusinessCard
-              business={item}
-              variant="compact"
-              distance={null}
-              distanceAccuracy={null}
-              onPress={() =>
-                router.push({
-                  pathname: "/(explorer)/business/[businessId]",
-                  params: {
-                    businessId: String(item.id),
-                    previewQueryHash: hashKey(
-                      pocketCollectionBusinessesQueryKey(
-                        contents.userId,
-                        collectionId,
-                      ),
-                    ),
-                  },
-                })
-              }
-              compactTrailingAction={
+            {item.availability === "unavailable" ? (
+              <View className="flex-row items-center gap-3 rounded-card border border-border-primary bg-surface px-4 py-4">
+                <View className="min-w-0 flex-1">
+                  <AppText
+                    weight="semibold"
+                    className="text-base text-text-primary"
+                  >
+                    {item.business_name}
+                  </AppText>
+                  <AppText className="mt-1 text-sm text-text-secondary">
+                    Currently unavailable
+                  </AppText>
+                  <AppText className="mt-1 text-xs text-text-secondary">
+                    This business listing is currently unavailable. Your save
+                    has been preserved.
+                  </AppText>
+                </View>
                 <SafePressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Options for ${item.business_name}`}
-                  className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-muted"
+                  accessibilityLabel={`Remove ${item.business_name} from this Pocket`}
+                  className="min-h-12 min-w-12 cursor-pointer items-center justify-center rounded-full active:bg-surface-muted"
                   onPress={() => {
-                    if (
-                      !canShowContents ||
-                      metadata.userId === null ||
-                      !isValidId
-                    )
+                    if (metadata.userId === null || collectionId === null)
                       return;
-                    setBusinessAction({
+                    setRemoving({
                       collectionId,
                       business: item,
                       ownerId: metadata.userId,
@@ -345,15 +377,64 @@ export default function PocketCollectionScreen({ collectionId }: Props) {
                   }}
                 >
                   <MaterialCommunityIcons
-                    name="dots-horizontal"
+                    name="bookmark-remove-outline"
                     size={22}
                     color={theme.extends.colors.text.secondary}
-                    accessibilityElementsHidden
-                    importantForAccessibility="no"
+                    accessible={false}
                   />
                 </SafePressable>
-              }
-            />
+              </View>
+            ) : (
+              <BusinessCard
+                business={item}
+                variant="compact"
+                distance={null}
+                distanceAccuracy={null}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(explorer)/business/[businessId]",
+                    params: {
+                      businessId: String(item.id),
+                      previewQueryHash: hashKey(
+                        pocketCollectionBusinessesQueryKey(
+                          contents.userId,
+                          collectionId,
+                        ),
+                      ),
+                    },
+                  })
+                }
+                compactTrailingAction={
+                  <SafePressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Options for ${item.business_name}`}
+                    className="h-12 w-12 items-center justify-center rounded-full active:bg-surface-muted"
+                    onPress={() => {
+                      if (
+                        !canShowContents ||
+                        metadata.userId === null ||
+                        !isValidId
+                      )
+                        return;
+                      setBusinessAction({
+                        collectionId,
+                        business: item,
+                        ownerId: metadata.userId,
+                        generation: getAuthSessionGeneration(),
+                      });
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="dots-horizontal"
+                      size={22}
+                      color={theme.extends.colors.text.secondary}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no"
+                    />
+                  </SafePressable>
+                }
+              />
+            )}
           </View>
         )}
         ListEmptyComponent={emptyContent}

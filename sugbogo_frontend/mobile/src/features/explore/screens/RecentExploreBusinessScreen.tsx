@@ -1,3 +1,4 @@
+import useBusinessAvailability from "@/features/business-availability/hooks/useBusinessAvailability";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +25,7 @@ export default function RecentExploreBusinessScreen({
 }) {
   const [now, setNow] = useState(() => Date.now());
   const recent = useRecentExplore();
+  const availability = useBusinessAvailability([businessId]);
   const grant = recent.grant;
   const allowed = grant !== null && recent.feeds.length > 0;
   const pocket = useOfflineBusinessSnapshots(businessId, allowed);
@@ -91,6 +93,12 @@ export default function RecentExploreBusinessScreen({
     return (
       <ReadOnlyBusinessProfile
         snapshot={snapshot}
+        availability={{
+          record: availability.get(businessId),
+          online: availability.online,
+          error: availability.error,
+          onRetry: () => void availability.refetch(),
+        }}
         source={durable ? "offline-pocket" : "recent"}
         localCoverUri={durable ? pocket.data?.covers?.[businessId] : undefined}
         refreshing={false}

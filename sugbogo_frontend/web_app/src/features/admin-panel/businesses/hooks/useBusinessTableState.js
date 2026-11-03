@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import useTableState from "@/shared/hooks/useTableState";
 
 export default function useBusinessTableState() {
@@ -18,23 +19,30 @@ export default function useBusinessTableState() {
     updateSearchParams,
   } = useTableState({ defaultTab: "businesses" });
 
-  const [statusFilter, setStatusFilterState] = useState(
-    () => new URLSearchParams(window.location.search).get("status") || "",
-  );
+  // Observe same-page overview links and browser back/forward navigation.
+  const [searchParams] = useSearchParams();
+  const statusFilter = searchParams.get("status") || "";
+  const previousStatus = useRef(statusFilter);
+
+  useEffect(() => {
+    if (previousStatus.current !== statusFilter) {
+      previousStatus.current = statusFilter;
+      resetPageIndex();
+    }
+  }, [statusFilter, resetPageIndex]);
 
   const [clusterFilter, setClusterFilterState] = useState(
-    () => new URLSearchParams(window.location.search).get("cluster") || "",
+    () => searchParams.get("cluster") || "",
   );
   const [categoryFilter, setCategoryFilterState] = useState(
-    () => new URLSearchParams(window.location.search).get("category") || "",
+    () => searchParams.get("category") || "",
   );
   const [specialtyTagFilter, setSpecialtyTagFilterState] = useState(
     () =>
-      new URLSearchParams(window.location.search).get("specialty_tag") || "",
+      searchParams.get("specialty_tag") || "",
   );
 
   function setStatusFilter(status) {
-    setStatusFilterState(status);
     updateSearchParams({ status: status || null, page: null });
     resetPageIndex();
   }
@@ -79,7 +87,6 @@ export default function useBusinessTableState() {
 
   function handleResetFilters() {
     setGlobalFilter("");
-    setStatusFilterState("");
     setClusterFilterState("");
     setCategoryFilterState("");
     setSpecialtyTagFilterState("");

@@ -10,6 +10,8 @@ class AdminActivity(models.Model):
         ADMIN_CREATED = "admin_created", "Admin created"
         USER_SUSPENDED = "user_suspended", "User suspended"
         USER_REACTIVATED = "user_reactivated", "User reactivated"
+        BUSINESS_SUSPENDED = "business_suspended", "Business suspended"
+        BUSINESS_REACTIVATED = "business_reactivated", "Business reactivated"
         REVIEW_DISPUTE_UPHELD = "review_dispute_upheld", "Review dispute upheld"
         REVIEW_DISPUTE_DISMISSED = "review_dispute_dismissed", "Review dispute dismissed"
         REVIEW_REPORT_APPROVED = "review_report_approved", "Review report approved"

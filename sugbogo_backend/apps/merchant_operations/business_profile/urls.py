@@ -1,3 +1,6 @@
+from apps.merchant_operations.business_profile.views.business_status_views import (
+    MerchantBusinessStatusView,
+)
 from django.urls import path
 
 from apps.merchant_operations.business_profile.views.business_classification_change_views import (
@@ -33,6 +36,11 @@ from apps.merchant_operations.business_profile.views.verification_document_views
 )
 
 urlpatterns = [
+    path(
+        "status/",
+        MerchantBusinessStatusView.as_view(),
+        name="merchant-business-status",
+    ),
     path(
         "verification-documents/<int:document_id>/access/",
         MerchantVerificationDocumentAccessView.as_view(),

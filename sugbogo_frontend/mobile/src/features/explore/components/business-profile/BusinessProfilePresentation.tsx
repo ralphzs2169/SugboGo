@@ -1,3 +1,4 @@
+import BusinessAvailabilityNotice from "@/features/business-availability/components/BusinessAvailabilityNotice";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { View } from "react-native";
@@ -34,7 +35,11 @@ type Props = BusinessProfileProps & {
   preview?: BusinessProfilePreview | null;
   sourceLabel?: string;
   extraBottomPadding?: number;
-  detail: Omit<ReturnType<typeof useBusinessDetailSource>, "refetch"> & {
+  detail: Omit<
+    ReturnType<typeof useBusinessDetailSource>,
+    "refetch" | "availability"
+  > & {
+    availability?: ReturnType<typeof useBusinessDetailSource>["availability"];
     refetch: () => Promise<unknown>;
   };
 };
@@ -154,6 +159,16 @@ export default function BusinessProfilePresentation({
                   )}
                 </ExploreBusinessHero>
               </View>
+              {!live && business && (
+                <View className="px-4 pt-3">
+                  <BusinessAvailabilityNotice
+                    record={detail.availability?.get(business.id)}
+                    online={detail.availability?.online}
+                    error={detail.availability?.error}
+                    onRetry={() => void detail.availability?.refetch()}
+                  />
+                </View>
+              )}
               {/* One contextual source label for the entire profile */}
               {!live && detail.snapshot && (
                 <View className="flex-row items-start gap-2 bg-surface px-4 pt-3">

@@ -5,6 +5,18 @@ import useSavedJourneys from "../../hooks/useSavedJourneys";
 import { deleteSavedJourney } from "../../services/savedJourneys.service";
 import { snapshot } from "../../utils/__tests__/savedJourney.fixture";
 import OfflineRoutesScreen from "../OfflineRoutesScreen";
+jest.mock(
+  "@/features/business-availability/hooks/useBusinessAvailability",
+  () => ({
+    __esModule: true,
+    default: () => ({
+      get: () => undefined,
+      online: false,
+      error: null,
+      refetch: jest.fn(),
+    }),
+  }),
+);
 
 jest.mock("../../hooks/useSavedJourneys");
 jest.mock("../../services/savedJourneys.service", () => ({

@@ -1,3 +1,4 @@
+import useBusinessAvailability from "@/features/business-availability/hooks/useBusinessAvailability";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { onlineManager } from "@tanstack/react-query";
@@ -34,6 +35,9 @@ export default function OfflineBusinessDetailScreen({
   businessId: number;
 }) {
   const saved = useOfflineBusinessSnapshots(businessId);
+  const availability = useBusinessAvailability([businessId]);
+  const canOpenCurrent =
+    availability.get(businessId)?.state === "available" && !availability.error;
   const openingProfile = useRef(false);
   useFocusEffect(
     useCallback(() => {
@@ -154,6 +158,7 @@ export default function OfflineBusinessDetailScreen({
           extraBottomPadding={online && authenticated ? actionHeight + 32 : 0}
           detail={{
             source: "offline-pocket",
+            availability,
             business: null,
             snapshot: entry.snapshot,
             localCoverUri: saved.data?.covers?.[businessId],
@@ -199,7 +204,8 @@ export default function OfflineBusinessDetailScreen({
         !saved.isPending &&
         Platform.OS !== "web" &&
         online &&
-        authenticated && (
+        authenticated &&
+        canOpenCurrent && (
           <View
             onLayout={({ nativeEvent }) =>
               setActionHeight(nativeEvent.layout.height)
@@ -214,6 +220,7 @@ export default function OfflineBusinessDetailScreen({
               onPress={() => {
                 const auth = useAuthStore.getState();
                 if (
+                  !canOpenCurrent ||
                   openingProfile.current ||
                   !onlineManager.isOnline() ||
                   !auth.isAuthenticated ||

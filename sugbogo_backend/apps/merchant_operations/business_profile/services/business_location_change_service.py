@@ -381,9 +381,15 @@ class BusinessLocationChangeService:
         return BusinessLocationChangeService.get_for_merchant(user, request_id)
 
     @staticmethod
-    def list_for_admin(status=None):
+    def list_for_admin(
+        status=None,
+        business_id=None,
+    ):
         """Return a review queue with pending proposals first."""
         queryset = BusinessLocationChangeService._request_queryset()
+        if business_id is not None:
+            queryset = queryset.filter(BUSN_ID_id=business_id)
+
         if status:
             if status not in BusinessLocationChangeRequest.Status.values:
                 raise ValidationError({"status": ["Choose a valid status."]})

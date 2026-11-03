@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Image as ImageIcon } from "lucide-react";
 
 import ReviewPreviewModal from "./ReviewPreviewModal";
+import BusinessImage from "../BusinessImage";
 
 const MAX_PREVIEW_PHOTOS = 3;
 
@@ -53,9 +53,10 @@ export default function ReviewContentPreview({ review }) {
               aria-label={`View review photo ${index + 1}`}
               className="relative h-14 w-14 cursor-pointer overflow-hidden rounded-lg bg-surface-muted transition-opacity hover:opacity-90"
             >
-              <img
+              <BusinessImage
                 src={photo.photo_url}
-                alt=""
+                alt={`Review photo ${index + 1}`}
+                fallback=""
                 className="h-full w-full object-cover"
               />
 

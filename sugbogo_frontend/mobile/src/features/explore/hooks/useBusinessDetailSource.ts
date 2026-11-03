@@ -102,7 +102,12 @@ export default function useBusinessDetailSource(businessId: number) {
     online;
   const mayFallback =
     current &&
-    !denied &&
+    (!denied ||
+      (!online &&
+        typeof live.error === "object" &&
+        live.error !== null &&
+        "code" in live.error &&
+        live.error.code === "NOT_FOUND")) &&
     !isLive &&
     (!online || live.isPaused || !!live.error || requiresRecovery) &&
     (!live.error ||
@@ -134,9 +139,17 @@ export default function useBusinessDetailSource(businessId: number) {
   }, [readIdentity]);
 
   useEffect(() => {
-    // Review synchronization can also fetch this same authoritative query key.
-    if (denied && session) void session.remove(businessId);
-  }, [denied, session, businessId]);
+    // Preserve listing-unavailable history; keep prior cleanup for authorization denials.
+    if (
+      denied &&
+      session &&
+      typeof live.error === "object" &&
+      live.error !== null &&
+      "code" in live.error &&
+      live.error.code !== "NOT_FOUND"
+    )
+      void session.remove(businessId);
+  }, [denied, session, businessId, live.error]);
 
   const entry = pocket.data?.entries[0];
   const readablePocket =
@@ -207,6 +220,7 @@ export default function useBusinessDetailSource(businessId: number) {
 
   return {
     source,
+    availability: live.availability,
     business: isLive ? live.business : null,
     snapshot,
     localCoverUri: readablePocket

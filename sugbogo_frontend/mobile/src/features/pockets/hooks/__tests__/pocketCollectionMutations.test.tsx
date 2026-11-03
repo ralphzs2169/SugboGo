@@ -30,6 +30,7 @@ import {
   useDeletePocketCollection,
   useRemovePocketBusiness,
 } from "../usePocketCollectionMutations";
+jest.mock("@react-native-async-storage/async-storage", () => jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock"));
 
 jest.mock("../../api/pockets.service", () => ({
   createPocketCollection: jest.fn(),
