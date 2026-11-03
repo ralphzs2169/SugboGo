@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MessageSquareText } from "lucide-react";
+import { MessageSquareText, List } from "lucide-react";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import Button from "@/shared/components/Button";
 import PageHeader from "../components/PageHeader";
@@ -63,7 +63,8 @@ export default function AllReviewsPage() {
       )}
       <AllReviewMetrics filters={state} onFilterChange={table.changeFilters} />
       <section aria-label="Reviews directory" className="min-w-0">
-        <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
+        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+          <List aria-hidden="true" className="h-4 w-4 shrink-0" />
           Reviews directory
         </h2>
         <DataTable

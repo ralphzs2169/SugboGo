@@ -1,7 +1,7 @@
 import { collectAttentionPages } from "../utils/reportExport";
 import { fetchBusinessAttention } from "../../services/analyticsService";
 import { useState } from "react";
-import { AlertCircle, Clock3, Heart, ImageOff, Info, SearchX, Users } from "lucide-react";
+import { AlertCircle, Clock3, Heart, ImageOff, Info, SearchX, Users, CircleAlert } from "lucide-react";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { Link } from "react-router-dom";
 import { useBusinessAttention } from "../hooks/useAnalyticsReports";
@@ -178,7 +178,9 @@ function AttentionView({ period, mode, onMode }) {
   };
   return (
     <>
-      <AnalyticsTableSection onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Businesses Needing Attention"
+      <AnalyticsTableSection
+        titleIcon={CircleAlert}
+        onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Businesses Needing Attention"
         description={mode === "support" ? "Businesses with the lowest recorded specialty support in current evidence." : "Businesses with the lowest recorded discovery activity during the selected period."}
         {...state}
         filters={<>

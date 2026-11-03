@@ -1,10 +1,9 @@
 import { useNavigate } from "react-router-dom";
-import { Clock, FileText, Tag, Layers, Tags } from "lucide-react";
+import { Clock, FileText, Tag, Layers } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import getBusinessApplicationColumns from "../columns/businessApplicationColumns";
 import useBusinessApplications from "../hooks/useBusinessApplications";
-import useBusinessApplicationTableState from "../hooks/useBusinessApplicationTableState";
 import FilterMenu from "../../../admin-panel/components/data-table/FilterMenu";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import useClusters from "../../cluster-category/hooks/useClusters";
@@ -30,7 +29,7 @@ const QUEUE_STATUS_OPTIONS = [
  * classification filtering, sorting, pagination, and navigation to the
  * dedicated application review page.
  */
-export default function BusinessApplicationManagementTable() {
+export default function BusinessApplicationManagementTable({ tableState }) {
   const navigate = useNavigate();
 
   const {
@@ -52,7 +51,7 @@ export default function BusinessApplicationManagementTable() {
     hasActiveFilters,
     handleResetFilters,
     isSearching,
-  } = useBusinessApplicationTableState();
+  } = tableState;
 
   const {
     applications,

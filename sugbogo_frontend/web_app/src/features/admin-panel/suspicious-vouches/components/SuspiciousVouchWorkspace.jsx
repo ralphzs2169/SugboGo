@@ -206,7 +206,10 @@ export default function SuspiciousVouchWorkspace() {
     <div className="grid min-h-[620px] overflow-hidden rounded-xl border border-stroke bg-background lg:grid-cols-[minmax(320px,38%)_minmax(0,1fr)]">
       <aside aria-label="Suspicious vouch list" className="min-w-0 border-b border-stroke lg:border-b-0 lg:border-r">
         <div className="space-y-3 border-b border-stroke p-4">
-          <h2 className="text-base font-semibold text-text-primary">Suspicious Vouches</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+            <ShieldAlert aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Suspicious Vouches
+          </h2>
           <p className="text-sm text-text-secondary">Flagged submissions, including withdrawn and invalid evidence.</p>
           <label className="block">
             <span className="sr-only">Search suspicious vouches</span>

@@ -15,6 +15,9 @@ let root;
 let container;
 let failure;
 let pending;
+let approaching;
+let overdue;
+let oldest;
 let reads;
 
 before(async () => {
@@ -40,7 +43,7 @@ before(async () => {
           return "export default { get: (...args) => globalThis.__statisticsTransport(...args) };";
         }
         if (path.endsWith("/BusinessApplicationManagementTable.jsx")) {
-          return "export default function Table() { return null; }";
+          return "export default function Table({ tableState }) { globalThis.__applicationTableState = tableState; return null; }";
         }
       },
     }],
@@ -54,6 +57,9 @@ beforeEach(() => {
   mock.method(console, "error", () => {});
   failure = false;
   pending = 0;
+  approaching = 0;
+  overdue = 0;
+  oldest = null;
   reads = [];
   globalThis.__statisticsTransport = async (url) => {
     reads.push(url);
@@ -61,6 +67,9 @@ beforeEach(() => {
     if (failure) throw new Error("Statistics unavailable");
     return { data: { data: {
       pending_review: pending,
+      approaching_sla: approaching,
+      overdue,
+      oldest_pending_business_days: oldest,
       approved: 0,
       rejected: 0,
       total_applications: pending,
@@ -83,6 +92,7 @@ after(async () => {
   await server?.close();
   dom.window.close();
   delete globalThis.__statisticsTransport;
+  delete globalThis.__applicationTableState;
   delete globalThis.IS_REACT_ACT_ENVIRONMENT;
 });
 
@@ -92,15 +102,22 @@ async function renderPage() {
   ));
 }
 
-function pendingCard() {
+function metricCard(title) {
   return [...container.querySelectorAll("h3")]
-    .find((heading) => heading.textContent === "Pending Review")?.parentElement.parentElement;
+    .find((heading) => heading.textContent === title)?.closest(".relative.flex");
+}
+
+function pendingCard() {
+  return metricCard("Pending Review");
 }
 
 test("a successful measured zero remains visible as zero", async () => {
   await renderPage();
   assert.ok(pendingCard());
   assert.match(pendingCard().textContent, /Pending Review0/);
+  assert.match(metricCard("Approaching SLA").textContent, /Approaching SLA0/);
+  assert.match(metricCard("Overdue").textContent, /Overdue0/);
+  assert.match(metricCard("Oldest Pending").textContent, /Oldest Pending—/);
   assert.doesNotMatch(container.textContent, /Unable to load application statistics/);
 });
 
@@ -122,4 +139,55 @@ test("section Retry recovers values through the existing statistics hook", async
   assert.equal(reads.length, 2);
   assert.doesNotMatch(container.textContent, /Unable to load application statistics/);
   assert.match(pendingCard().textContent, /Pending Review7/);
+});
+
+test("four operational cards show backend values without historical indicators", async () => {
+  pending = 9;
+  approaching = 3;
+  overdue = 2;
+  oldest = 8;
+  await renderPage();
+
+  assert.deepEqual(
+    [...container.querySelectorAll("h3")].map((heading) => heading.textContent),
+    ["Pending Review", "Approaching SLA", "Overdue", "Oldest Pending"],
+  );
+  assert.match(pendingCard().textContent, /Pending Review9Applications awaiting a decision/);
+  assert.match(metricCard("Approaching SLA").textContent, /Approaching SLA33–4 business days/);
+  assert.match(metricCard("Overdue").textContent, /Overdue25\+ business days/);
+  assert.match(metricCard("Oldest Pending").textContent, /8 business daysLongest unresolved application/);
+  assert.doesNotMatch(container.textContent, /Approval Rate|Resubmission Rate|SLA Compliance|last week|this week/);
+  assert.equal(container.querySelector(".recharts-wrapper"), null);
+  assert.match(container.textContent, /9 applications/);
+  assert.match(container.textContent, /0 approved/);
+  assert.match(container.textContent, /0 rejected/);
+  assert.match(container.textContent, /9 pending/);
+});
+
+test("a newly submitted pending application displays zero business days", async () => {
+  pending = 1;
+  oldest = 0;
+  await renderPage();
+  assert.match(metricCard("Oldest Pending").textContent, /0 business days/);
+});
+
+test("queue cards reuse table filters and reset pagination", async () => {
+  await renderPage();
+
+  for (const [title, queueStatus] of [
+    ["Approaching SLA", "approaching"],
+    ["Overdue", "overdue"],
+    ["Pending Review", undefined],
+  ]) {
+    await act(async () => {
+      globalThis.__applicationTableState.setPagination({ pageIndex: 2, pageSize: 10 });
+    });
+    const button = container.querySelector(`[aria-label="Filter applications: ${title}"]`);
+    await act(async () => button.click());
+
+    assert.equal(globalThis.__applicationTableState.params.status, "submitted");
+    assert.equal(globalThis.__applicationTableState.params.queue_status, queueStatus);
+    assert.equal(globalThis.__applicationTableState.params.page, 1);
+  }
+  assert.equal(container.querySelector('[aria-label="Filter applications: Oldest Pending"]'), null);
 });

@@ -357,6 +357,9 @@ class MerchantApplicationViewTests(
     def test_application_statistics_returns_statistics(self):
         statistics = {
             "pending_review": 2,
+            "approaching_sla": 1,
+            "overdue": 1,
+            "oldest_pending_business_days": 6,
             "approved": 10,
             "rejected": 4,
             "total_applications": 16,

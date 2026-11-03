@@ -1,3 +1,4 @@
+import { Route } from "lucide-react";
 import AnalyticsTooltip from "../components/AnalyticsTooltip";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
@@ -49,7 +50,9 @@ export default function TransportationPlanningSection({ period }) {
   return (
     <>
       {/* Compact distribution keeps secondary trends and rankings out of the main workspace. */}
-      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Transportation Planning" description="Recorded road-route and Jeepney guidance planning requests." {...state}
+      <AnalyticsSection
+        titleIcon={Route}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Transportation Planning" description="Recorded road-route and Jeepney guidance planning requests." {...state}
         unavailable={unavailable}
         unavailableMessage={data?.meta?.partial_reasons?.includes("tracking_not_started_in_period") ? "This period is before transportation tracking began." : "Transportation planning observations are unavailable, not zero."}
         isEmpty={data?.total_requests === 0}

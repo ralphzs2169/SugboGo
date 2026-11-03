@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Info, Minus } from "lucide-react";
+import { Info, Minus, TrendingUp } from "lucide-react";
 import { FaCaretDown, FaCaretUp } from "react-icons/fa6";
 import { ReferenceArea } from "recharts";
 
@@ -179,7 +179,9 @@ export default function PlatformGrowthSection({ period }) {
 
   return (
     <>
-      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data}
+      <AnalyticsSection
+        titleIcon={TrendingUp}
+        onAbout={() => setMode("about")} aboutDisabled={!data}
         title="Platform Growth"
         description="New accounts and businesses joining SugboGo."
         compactHeader

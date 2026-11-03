@@ -1,3 +1,4 @@
+import { Signpost } from "lucide-react";
 import { AnalyticsCategoryTooltip } from "../components/AnalyticsTooltip";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
 import AnalyticsPeriodLabel from "../components/AnalyticsPeriodLabel";
@@ -35,7 +36,9 @@ export default function DiscoverySourcesSection({ period }) {
   return (
     <>
       {/* Full-width comparison complements the existing two-column discovery reports. */}
-      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Discovery Sources" description="Where recorded business profile visits originate." {...state}
+      <AnalyticsSection
+        titleIcon={Signpost}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Discovery Sources" description="Where recorded business profile visits originate." {...state}
         unavailable={unavailable} unavailableMessage="Discovery sources are unavailable. This does not mean zero visits."
         isEmpty={data?.total_profile_visits === 0} emptyMessage="No profile visits were recorded during this period. View data includes all seven sources."
         footer={<AnalyticsReportFooter title="Discovery Sources" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}

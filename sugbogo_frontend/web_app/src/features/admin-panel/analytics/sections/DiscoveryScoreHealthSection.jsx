@@ -1,3 +1,4 @@
+import { Gauge } from "lucide-react";
 import { useState } from "react";
 import { useDiscoveryScoreAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
@@ -28,7 +29,9 @@ export default function DiscoveryScoreHealthSection() {
     && ["stale", "pending", "failed", "missing", "provisional"].every((key) => coverage[key] === 0);
   return (
     <>
-      <AnalyticsSection onAbout={() => setDrawer("about")} aboutDisabled={!coverage} title="Discovery Score Health" description="Current score freshness across active businesses." {...state}
+      <AnalyticsSection
+        titleIcon={Gauge}
+        onAbout={() => setDrawer("about")} aboutDisabled={!coverage} title="Discovery Score Health" description="Current score freshness across active businesses." {...state}
         action={<AnalyticsDrilldown to="/admin-panel/analytics/discovery-scores">View Discovery Scores</AnalyticsDrilldown>}
         isEmpty={coverage?.active_businesses === 0}
         emptyMessage="No active businesses to assess."

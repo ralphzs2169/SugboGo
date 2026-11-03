@@ -1,3 +1,4 @@
+import { Store } from "lucide-react";
 import { useState } from "react";
 
 import DataErrorState from "@/shared/components/errors/DataErrorState";
@@ -41,7 +42,9 @@ export default function BusinessAcquisitionSection({ period }) {
   return (
     <>
       {/* Ranked distribution and one overall total preserve the report's original scope. */}
-      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data}
+      <AnalyticsSection
+        titleIcon={Store}
+        onAbout={() => setMode("about")} aboutDisabled={!data}
         title="Business Acquisition"
         description="New businesses by current cluster and category."
         {...state}

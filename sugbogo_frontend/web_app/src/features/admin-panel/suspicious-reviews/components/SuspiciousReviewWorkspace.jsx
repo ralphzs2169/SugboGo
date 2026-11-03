@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Inbox } from "lucide-react";
+import { Inbox, ShieldAlert } from "lucide-react";
 
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import useDebounce from "@/shared/hooks/useDebounce";
@@ -97,7 +97,10 @@ export default function SuspiciousReviewWorkspace() {
     <div className="grid min-h-[620px] overflow-hidden rounded-xl border border-stroke bg-background lg:grid-cols-[minmax(320px,38%)_minmax(0,1fr)]">
       <aside aria-label="Suspicious review queue" className="min-w-0 border-b border-stroke lg:border-b-0 lg:border-r">
         <div className="px-4 pt-4">
-          <h2 className="text-base font-semibold text-text-primary">Suspicious Reviews</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+            <ShieldAlert aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Suspicious Reviews
+          </h2>
           <p className="mt-1 text-sm text-text-secondary">Published reviews with advisory reliability signals.</p>
         </div>
         <QueueFilters

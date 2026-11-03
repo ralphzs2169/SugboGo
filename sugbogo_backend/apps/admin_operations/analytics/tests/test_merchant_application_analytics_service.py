@@ -1,8 +1,15 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
 
+from apps.admin_operations.business_management.serializers.manage_application_serializers import (
+    AdminMerchantApplicationListSerializer,
+)
+from apps.admin_operations.business_management.services.manage_application_service import (
+    ApplicationService,
+)
 from apps.admin_operations.analytics.services.merchant_application_analytics_service import (
     MerchantApplicationAnalyticsService,
 )
@@ -22,6 +29,113 @@ class MerchantApplicationAnalyticsServiceTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         AnalyticsPolicyConfiguration.objects.get_or_create(pk=1)
+
+    def test_review_queue_metrics_match_table_business_day_boundaries(self):
+        reference_time = datetime.fromisoformat("2026-11-02T00:30:00+08:00")
+        submitted_dates = [
+            "2026-11-02",
+            "2026-10-29",
+            "2026-10-28",
+            "2026-10-27",
+            "2026-10-26",
+            "2026-10-23",
+        ]
+        statuses = [
+            MerchantApplication.ApplicationStatus.SUBMITTED,
+        ] * len(submitted_dates)
+        for status in (
+            MerchantApplication.ApplicationStatus.APPROVED,
+            MerchantApplication.ApplicationStatus.REJECTED,
+            MerchantApplication.ApplicationStatus.DRAFT,
+        ):
+            submitted_dates.append("2026-10-01")
+            statuses.append(status)
+
+        for index, (date, status) in enumerate(zip(submitted_dates, statuses)):
+            merchant = User.objects.create_user(
+                email=f"queue-metrics-{index}@example.com",
+                password=None,
+                USER_FNAME="Queue",
+                USER_LNAME="Metrics",
+            )
+            MerchantApplication.objects.create(
+                USER_ID=merchant,
+                MAPP_STATUS=status,
+                MAPP_SUBMITTED_AT=datetime.fromisoformat(
+                    f"{date}T00:15:00+08:00",
+                ),
+            )
+
+        statistics = MerchantApplicationAnalyticsService.get_application_statistics(
+            now=reference_time,
+        )
+        self.assertEqual(statistics["pending_review"], 6)
+        self.assertEqual(statistics["approaching_sla"], 2)
+        self.assertEqual(statistics["overdue"], 2)
+        self.assertEqual(statistics["oldest_pending_business_days"], 6)
+
+        with patch("django.utils.timezone.now", return_value=reference_time):
+            for queue_status, metric in (
+                ("approaching", "approaching_sla"),
+                ("overdue", "overdue"),
+            ):
+                applications = ApplicationService.list_applications(
+                    queue_status=queue_status,
+                )
+                self.assertEqual(applications.count(), statistics[metric])
+
+            pending = ApplicationService.list_applications(
+                status="submitted",
+            )
+            rows = AdminMerchantApplicationListSerializer(
+                pending,
+                many=True,
+            ).data
+            self.assertEqual(
+                sorted(
+                    row["time_in_queue_business_days"]
+                    for row in rows
+                ),
+                [0, 2, 3, 4, 5, 6],
+            )
+
+        weekend = MerchantApplicationAnalyticsService.get_application_statistics(
+            now=datetime.fromisoformat("2026-11-01T23:30:00+08:00"),
+        )
+        self.assertEqual(weekend["approaching_sla"], 2)
+        self.assertEqual(weekend["overdue"], 1)
+        self.assertEqual(weekend["oldest_pending_business_days"], 5)
+
+    def test_review_queue_metrics_are_empty_without_pending_applications(self):
+        statistics = MerchantApplicationAnalyticsService.get_application_statistics()
+
+        self.assertEqual(statistics["pending_review"], 0)
+        self.assertEqual(statistics["approaching_sla"], 0)
+        self.assertEqual(statistics["overdue"], 0)
+        self.assertIsNone(statistics["oldest_pending_business_days"])
+
+    def test_oldest_pending_preserves_zero_business_days(self):
+        reference_time = datetime.fromisoformat("2026-11-02T15:00:00+08:00")
+        merchant = User.objects.create_user(
+            email="queue-metrics-today@example.com",
+            password=None,
+            USER_FNAME="Queue",
+            USER_LNAME="Today",
+        )
+        MerchantApplication.objects.create(
+            USER_ID=merchant,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+            MAPP_SUBMITTED_AT=reference_time - timedelta(hours=1),
+        )
+
+        statistics = MerchantApplicationAnalyticsService.get_application_statistics(
+            now=reference_time,
+        )
+
+        self.assertEqual(statistics["pending_review"], 1)
+        self.assertEqual(statistics["approaching_sla"], 0)
+        self.assertEqual(statistics["overdue"], 0)
+        self.assertEqual(statistics["oldest_pending_business_days"], 0)
 
     def test_sla_compliance_rate_returns_none_when_no_reviews_exist(self):
         result = (

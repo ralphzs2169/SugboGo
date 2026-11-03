@@ -1,3 +1,4 @@
+import { HeartPulse } from "lucide-react";
 import { useState } from "react";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
 import { useCommunityHealthAnalytics } from "../hooks/useAnalyticsReports";
@@ -27,7 +28,9 @@ export default function CommunityHealthSection({ period }) {
   const rows = SENTIMENTS.map((item) => ({ ...item, ...cohort?.sentiment?.[item.name] }));
   return (
     <>
-      <AnalyticsChartCard onAbout={() => setMode("about")} aboutDisabled={!data} title="Community Health" description="Published review activity and sentiment." {...state}
+      <AnalyticsChartCard
+        titleIcon={HeartPulse}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Community Health" description="Published review activity and sentiment." {...state}
         controls={<AnalyticsIntervalControl value={interval} onChange={setInterval} />}
         summaryContent={<AnalyticsSummary items={[{ label: "Published reviews in period", value: formatCount(cohort?.published_review_count), context: comparisonText(data?.published_review_count_change) }]} />}
         accessibleData={<div className="mt-3">

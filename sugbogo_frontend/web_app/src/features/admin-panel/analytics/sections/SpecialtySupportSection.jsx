@@ -1,3 +1,4 @@
+import { Tags } from "lucide-react";
 import { useState } from "react";
 import { useSpecialtySupportAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
@@ -21,7 +22,9 @@ export default function SpecialtySupportSection() {
   const allRows = data?.specialties ?? rows;
   return (
     <>
-      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Specialty Support" description="Current specialty evidence and leading endorsements." {...state}
+      <AnalyticsSection
+        titleIcon={Tags}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Specialty Support" description="Current specialty evidence and leading endorsements." {...state}
         footer={<AnalyticsReportFooter title="Specialty Support" meta={data?.meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
         {/* Backend global totals stay independent of tag-level supporter counts */}

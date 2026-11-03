@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Inbox } from "lucide-react";
+import { Inbox, Flag } from "lucide-react";
 
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import useDebounce from "@/shared/hooks/useDebounce";
@@ -126,7 +126,10 @@ export default function ReportedReviewWorkspace() {
     <div className="grid min-h-[620px] overflow-hidden rounded-xl border border-stroke bg-background lg:grid-cols-[minmax(320px,38%)_minmax(0,1fr)]">
       <aside aria-label="Reported review queue" className="min-w-0 border-b border-stroke lg:border-b-0 lg:border-r">
         <div className="px-4 pt-4">
-          <h2 className="text-base font-semibold text-text-primary">Reported Reviews</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+            <Flag aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Reported Reviews
+          </h2>
           <p className="mt-1 text-sm text-text-secondary">One review per queue item, with all pending reports together.</p>
         </div>
         <QueueFilters

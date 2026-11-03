@@ -1,3 +1,4 @@
+import { Layers, List } from "lucide-react";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 import MetricCardsSkeleton from "@/features/admin-panel/components/MetricCardsSkeleton";
@@ -57,7 +58,8 @@ export default function ClusterCategoryPage() {
 
       {/* Classification overview */}
       <div className="mb-4">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+          <Layers aria-hidden="true" className="h-4 w-4 shrink-0" />
           Classification Overview
         </h2>
       </div>
@@ -80,7 +82,8 @@ export default function ClusterCategoryPage() {
       )}
 
       <div className="mb-4">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+          <List aria-hidden="true" className="h-4 w-4 shrink-0" />
           Classification Management
         </h2>
       </div>

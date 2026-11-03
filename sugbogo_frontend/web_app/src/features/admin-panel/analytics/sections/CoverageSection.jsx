@@ -1,3 +1,4 @@
+import { Layers } from "lucide-react";
 import { useId, useState } from "react";
 import TableTabs from "../../components/data-table/TableTabs";
 import useWorkspaceSelection from "../hooks/useWorkspaceSelection";
@@ -36,7 +37,9 @@ export default function CoverageSection({ period }) {
   const overall = data?.overall;
   return (
     <>
-      <AnalyticsSection onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Business Coverage" {...state}
+      <AnalyticsSection
+        titleIcon={Layers}
+        onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Business Coverage" {...state}
         controls={<AnalyticsScopeFilters scope="Coverage" value={scope} onChange={setScope} />}
         isEmpty={overall?.eligible_businesses === 0}
         emptyMessage="No eligible active businesses match the selected scope."

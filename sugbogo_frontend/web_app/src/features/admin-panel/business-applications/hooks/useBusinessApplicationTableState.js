@@ -52,6 +52,17 @@ export default function useBusinessApplicationTableState() {
     resetPageIndex();
   }
 
+  function setReviewQueueFilter(queueStatus) {
+    setStatusFilterState("submitted");
+    setQueueStatusFilterState(queueStatus);
+    updateSearchParams({
+      status: "submitted",
+      queue_status: queueStatus || null,
+      page: null,
+    });
+    resetPageIndex();
+  }
+
   function setClusterFilter(value) {
     setClusterFilterState(value);
     updateSearchParams({ cluster: value || null, page: null });
@@ -116,6 +127,7 @@ export default function useBusinessApplicationTableState() {
 
     queueStatusFilter,
     setQueueStatusFilter,
+    setReviewQueueFilter,
 
     clusterFilter,
     setClusterFilter,

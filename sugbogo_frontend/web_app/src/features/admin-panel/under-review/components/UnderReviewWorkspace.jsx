@@ -131,7 +131,10 @@ export default function UnderReviewWorkspace() {
         <aside className="min-w-0 border-b border-stroke lg:border-b-0 lg:border-r" aria-label="Review Moderation queue">
           <div className="flex items-center justify-between px-4 pt-4">
             <div>
-              <h2 className="text-base font-semibold text-text-primary">Review Moderation</h2>
+              <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+                <Inbox aria-hidden="true" className="h-4 w-4 shrink-0" />
+                Review Moderation
+              </h2>
               <p className="mt-0.5 text-xs text-text-secondary">
                 {pagination?.total_items ?? 0}{" "}
                 {filters.status === "pending" ? "waiting for a decision" : "matching reviews"}

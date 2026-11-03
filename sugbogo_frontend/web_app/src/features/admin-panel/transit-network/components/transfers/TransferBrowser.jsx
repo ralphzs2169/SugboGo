@@ -34,7 +34,10 @@ export default function TransferBrowser({
       {/* Browser heading */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-text-primary">Transfers</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+            <ArrowRightLeft aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Transfers
+          </h2>
           <p className="mt-0.5 text-xs text-text-secondary">
             Directed reviewed connections
           </p>

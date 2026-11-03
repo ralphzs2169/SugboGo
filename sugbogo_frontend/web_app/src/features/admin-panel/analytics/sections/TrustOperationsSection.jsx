@@ -1,3 +1,4 @@
+import { ShieldCheck, FilePenLine } from "lucide-react";
 import { useState } from "react";
 import Tooltip from "@/shared/components/actions/Tooltip";
 import { useAttentionQueueAnalytics, useChangeRequestAnalytics } from "../hooks/useAnalyticsReports";
@@ -33,7 +34,9 @@ export function ModerationWorkload({ period }) {
   const report = { ...data, meta: data?.turnaround_meta ?? data?.meta };
   return (
     <>
-      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Reports & disputes" description="Current backlog · selected-period resolution time." {...state}
+      <AnalyticsSection
+        titleIcon={ShieldCheck}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Reports & disputes" description="Current backlog · selected-period resolution time." {...state}
         action={<AnalyticsDrilldown to="/admin-panel/moderation-integrity">View moderation</AnalyticsDrilldown>}
         footer={<AnalyticsReportFooter title="Reports & disputes" meta={data?.meta ?? data?.turnaround_meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
@@ -172,7 +175,9 @@ export function ChangeRequestWorkload({ period }) {
   );
   return (
     <>
-      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant change requests" description="Current workload · selected-period processing." {...state}
+      <AnalyticsSection
+        titleIcon={FilePenLine}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant change requests" description="Current workload · selected-period processing." {...state}
         action={<AnalyticsDrilldown to="/admin-panel/businesses/update-requests">View change requests</AnalyticsDrilldown>}
         footer={<AnalyticsReportFooter title="Merchant change requests" meta={data?.meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
