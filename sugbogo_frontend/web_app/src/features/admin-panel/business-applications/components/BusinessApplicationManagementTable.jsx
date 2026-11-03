@@ -150,6 +150,8 @@ export default function BusinessApplicationManagementTable({ tableState }) {
         renderFilters,
       }}
       config={{
+        defaultSortLabel: "Pending first, oldest submitted first",
+        managementControls: true,
         searchPlaceholder: "Search merchant applications...",
 
         emptyState: {

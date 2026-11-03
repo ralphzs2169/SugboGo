@@ -52,16 +52,21 @@ export default function BusinessApplicationsPage() {
 
       {/* Application overview */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
-          <ClipboardList aria-hidden="true" className="h-4 w-4 shrink-0" />
-          Merchant Application Overview
-        </h2>
+        <div>
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+            <ClipboardList aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Merchant Application Overview
+          </h2>
+          <p className="-mt-2 mb-3 text-xs text-text-secondary">
+            Current review queue and SLA status · PHT
+          </p>
+        </div>
 
         {!isStatisticsLoading && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
             <span>
               {statisticsUnavailable ? "—" : statistics.total_applications}{" "}
-              applications
+              total
             </span>
 
             <span className="text-stroke">·</span>
@@ -75,6 +80,8 @@ export default function BusinessApplicationsPage() {
             <span className="text-rose-500">
               {statisticsUnavailable ? "—" : statistics.rejected} rejected
             </span>
+
+            <span className="text-stroke">·</span>
 
             <span>
               {statisticsUnavailable ? "—" : statistics.pending_review} pending

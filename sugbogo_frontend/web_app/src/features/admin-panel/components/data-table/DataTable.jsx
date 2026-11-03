@@ -1,5 +1,6 @@
 import TableTabs from "./TableTabs";
 import TableControls from "./TableControls";
+import TableViewControls from "./TableViewControls";
 import TableHeader from "./TableHeader";
 import TableBody from "./TableBody";
 import TablePagination from "./TablePagination";
@@ -59,8 +60,10 @@ function DataTable({
     activeTab,
     onTabChange,
     searchPlaceholder = "Search...",
+    defaultSortLabel = "Default order",
     showSearch = true,
     compact = false,
+    managementControls = false,
     tableLabel,
     tableMinWidth = 720,
     scrollbarClassName = "",
@@ -111,9 +114,32 @@ function DataTable({
     getCoreRowModel: getCoreRowModel(),
   });
 
+  let renderTableActions = renderHeaderActions;
+
+  if (managementControls && !renderContent) {
+    renderTableActions = () => (
+      <>
+        {renderHeaderActions?.()}
+        <TableViewControls
+          defaultSortLabel={defaultSortLabel}
+          table={table}
+          pagination={pagination}
+          onPaginationChange={onPaginationChange}
+        />
+      </>
+    );
+  }
+
+  const showControls =
+    !compact ||
+    showSearch ||
+    renderFilters ||
+    renderTableActions ||
+    hasActiveFilters;
+
   return (
     <div
-      className={compact ? "relative min-w-0 w-full" : `relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 ${tabs.length > 0 ? "pt-2" : "pt-6"}`}
+      className={compact ? "relative min-w-0 w-full" : `relative min-w-0 w-full rounded-2xl border border-stroke bg-background px-3 pb-6 sm:px-6 ${tabs.length > 0 ? "pt-2" : "pt-6"}`}
       aria-busy={isLoading || isFetching}
     >
       {tabs.length > 0 && (
@@ -126,22 +152,24 @@ function DataTable({
         </div>
       )}
 
-      {(!compact || showSearch || renderFilters || renderHeaderActions || hasActiveFilters) && <TableControls
-        globalFilter={state.globalFilter ?? ""}
-        setGlobalFilter={onGlobalFilterChange}
-        searchPlaceholder={searchPlaceholder}
-        showSearch={showSearch}
-        renderFilters={renderFilters}
-        renderHeaderActions={renderHeaderActions}
-        hasActiveFilters={hasActiveFilters}
-        onResetFilters={onResetFilters}
-        isSearching={isSearching}
-      />}
+      {showControls && (
+        <TableControls
+          globalFilter={state.globalFilter ?? ""}
+          setGlobalFilter={onGlobalFilterChange}
+          searchPlaceholder={searchPlaceholder}
+          showSearch={showSearch}
+          renderFilters={renderFilters}
+          renderHeaderActions={renderTableActions}
+          hasActiveFilters={hasActiveFilters}
+          onResetFilters={onResetFilters}
+          isSearching={isSearching}
+        />
+      )}
 
       {renderContent ? (
         renderContent()
       ) : (
-        <div className={`${scrollbarClassName} ${compact ? "" : "min-h-[520px]"} overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface`}>
+        <div className={`${scrollbarClassName || "themed-scrollbar"} ${compact ? "" : "min-h-[520px]"} overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface`}>
           <table
             aria-label={tableLabel}
             className="w-full table-fixed border-collapse text-left"

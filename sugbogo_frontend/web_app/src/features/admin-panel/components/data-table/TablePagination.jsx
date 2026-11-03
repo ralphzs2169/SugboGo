@@ -1,4 +1,3 @@
-import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /**
@@ -101,7 +100,7 @@ function TablePagination({
           disabled={safePageIndex === 0}
           onClick={() => onPageChange(safePageIndex - 1)}
           aria-label="Previous page"
-          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -128,7 +127,7 @@ function TablePagination({
               onClick={() => onPageChange(item)}
               aria-current={isCurrentPage ? "page" : undefined}
               className={[
-                "flex h-8 min-w-8 cursor-pointer items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors",
+                "flex h-9 min-w-9 cursor-pointer items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-info",
                 isCurrentPage
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
@@ -145,7 +144,7 @@ function TablePagination({
           disabled={safePageIndex >= safePageCount - 1}
           onClick={() => onPageChange(safePageIndex + 1)}
           aria-label="Next page"
-          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ChevronRight className="h-4 w-4" />
         </button>

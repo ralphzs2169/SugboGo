@@ -158,7 +158,11 @@ test("four operational cards show backend values without historical indicators",
   assert.match(metricCard("Oldest Pending").textContent, /8 business daysLongest unresolved application/);
   assert.doesNotMatch(container.textContent, /Approval Rate|Resubmission Rate|SLA Compliance|last week|this week/);
   assert.equal(container.querySelector(".recharts-wrapper"), null);
-  assert.match(container.textContent, /9 applications/);
+  assert.match(container.textContent, /Current review queue and SLA status · PHT/);
+  assert.match(container.textContent, /9 total·0 approved·0 rejected·9 pending/);
+  assert.match(container.textContent, /0–2 business days/);
+  assert.match(container.textContent, /3–4 business days/);
+  assert.match(container.textContent, /5\+ business days/);
   assert.match(container.textContent, /0 approved/);
   assert.match(container.textContent, /0 rejected/);
   assert.match(container.textContent, /9 pending/);

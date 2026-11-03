@@ -33,11 +33,11 @@ function TableControls({
   }, [isSearching]);
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-      <div className="flex min-w-0 flex-1 flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
+    <div className="mb-6 flex min-w-0 flex-wrap items-center justify-between gap-4">
+      <div className="flex min-w-0 flex-[1_1_32rem] flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
         {/* Search Bar */}
         {showSearch && (
-          <div className="relative w-full sm:w-72 md:w-96 lg:w-[420px]">
+          <div className="relative w-full sm:w-72 md:w-96 lg:w-[420px] max-w-full">
             {isSearching ? (
               <span className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-stroke-strong border-t-primary" />
             ) : (
@@ -63,7 +63,7 @@ function TableControls({
           <button
             type="button"
             onClick={onResetFilters}
-            className="inline-flex cursor-pointer items-center gap-1 rounded-md px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:border-stroke-active hover:bg-interaction-hover"
+            className="inline-flex cursor-pointer items-center gap-1 rounded-md px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:border-stroke-active hover:bg-interaction-hover focus-visible:outline-2 focus-visible:outline-info"
           >
             <FaRotateLeft className="h-4 w-4" />
             <span>Clear Filters</span>
@@ -72,7 +72,7 @@ function TableControls({
       </div>
 
       {renderHeaderActions && (
-        <div className="flex items-center justify-end">
+        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
           {renderHeaderActions()}
         </div>
       )}
