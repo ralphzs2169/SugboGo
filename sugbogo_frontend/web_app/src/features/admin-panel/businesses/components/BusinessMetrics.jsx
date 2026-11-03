@@ -88,7 +88,6 @@ export default function BusinessMetrics() {
       title: TITLES[2],
       icon: Store,
       count: data.new_businesses?.count,
-      supporting: "Added this month",
       comparison: <AdditionsComparison additions={data.new_businesses} />,
       comparisonContext: (
         <AdditionsComparison additions={data.new_businesses} contextOnly />
