@@ -536,6 +536,7 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     published_review_count = serializers.IntegerField(read_only=True)
+    total_review_count = serializers.IntegerField(read_only=True)
 
     pocket_count = serializers.IntegerField(
         source="current_saved_count",
@@ -662,6 +663,7 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
             "current_specialty_support",
             "review_count",
             "published_review_count",
+            "total_review_count",
             "pocket_count",
             "current_saved_count",
             "sentiment_rating_enabled",

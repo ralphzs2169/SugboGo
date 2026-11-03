@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
@@ -22,9 +22,27 @@ import BusinessApplicationSummary from "../businesses/components/business-detail
 import BusinessAdministrativeHistory from "../businesses/components/business-detail/BusinessAdministrativeHistory";
 import BusinessDetailContextBar from "../businesses/components/business-detail/BusinessDetailContextBar";
 
+const BusinessDetailPreview = import.meta.env.DEV
+  ? lazy(() =>
+      import("../businesses/components/business-detail/BusinessDetailPreview"),
+    )
+  : null;
+
 /** Scope local dialogs and insight observation to the business route's ownership. */
 export default function BusinessDetailPage() {
   const { businessId } = useParams();
+  if (BusinessDetailPreview) {
+    return (
+      <Suspense fallback={<BusinessDetailSkeleton />}>
+        <BusinessDetailPreview
+          key={businessId}
+          renderLive={() => (
+            <BusinessDetailContent key={businessId} businessId={businessId} />
+          )}
+        />
+      </Suspense>
+    );
+  }
   return <BusinessDetailContent key={businessId} businessId={businessId} />;
 }
 
@@ -186,11 +204,15 @@ function BusinessDetailContent({ businessId }) {
               >
                 Recent Reviews & Photo Gallery
               </h2>
-              <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-5">
-                <div className="flex min-w-0 lg:col-span-3">
-                  <BusinessReviewsPreview reviews={business.latest_reviews} />
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+                <div className="min-w-0 lg:col-span-3">
+                  <BusinessReviewsPreview
+                    reviews={business.latest_reviews}
+                    businessId={business.id}
+                    totalReviews={business.total_review_count}
+                  />
                 </div>
-                <div className="flex min-w-0 lg:col-span-2">
+                <div className="min-w-0 self-start lg:col-span-2">
                   <BusinessPhotosPreview
                     photos={business.photos}
                     businessName={business.business_name}

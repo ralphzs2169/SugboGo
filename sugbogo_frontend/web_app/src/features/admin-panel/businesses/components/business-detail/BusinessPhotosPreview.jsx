@@ -9,9 +9,9 @@ const PREVIEW_COUNT = 3;
 /**
  * Displays a compact visual preview of a business's photo gallery.
  *
- * Mirrors the Explorer mobile app's photo preview layout — one featured
- * photo alongside two supporting photos, with an overlay showing how many
- * additional photos exist. Clicking any thumbnail or "View all" opens the
+ * Uses bounded full-width, paired, or featured-and-stacked tiles based on
+ * photo count, with an overlay showing how many additional photos exist.
+ * Clicking any thumbnail or "View all" opens the
  * full photo preview modal with keyboard navigation.
  */
 export default function BusinessPhotosPreview({ photos = [], businessName }) {
@@ -47,7 +47,8 @@ export default function BusinessPhotosPreview({ photos = [], businessName }) {
       <section className="w-full overflow-hidden rounded-xl border border-stroke bg-background">
         {/* Section header */}
         <div className="border-b border-stroke bg-metric-header px-5 py-4">
-          <h2 className="text-sm font-semibold text-text-primary">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+            <ImageIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
             Photo Gallery
           </h2>
         </div>
@@ -75,15 +76,14 @@ export default function BusinessPhotosPreview({ photos = [], businessName }) {
   }
 
   const previewPhotos = photos.slice(0, PREVIEW_COUNT);
-  const featuredPhoto = previewPhotos[0];
-  const supportingPhotos = previewPhotos.slice(1);
   const additionalPhotoCount = photos.length - PREVIEW_COUNT;
 
   return (
-    <section className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-stroke bg-background">
+    <section className="w-full overflow-hidden rounded-xl border border-stroke bg-background">
       {/* Section header */}
-      <div className="flex items-center justify-between border-b border-stroke bg-metric-header px-5 py-4">
-        <h2 className="text-sm font-semibold text-text-primary">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke bg-metric-header px-5 py-4">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          <ImageIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
           Photo Gallery
         </h2>
 
@@ -96,57 +96,43 @@ export default function BusinessPhotosPreview({ photos = [], businessName }) {
         </button>
       </div>
 
-      {/* Photo gallery preview */}
-      <div className="flex flex-1 gap-2 p-5">
-        {/* Featured photo */}
-        <button
-          type="button"
-          onClick={() => setSelectedIndex(0)}
-          className="aspect-[4/3] flex-[2] cursor-pointer overflow-hidden rounded-lg bg-surface-muted"
+      {/* Bounded, count-aware photo preview */}
+      <div className="p-5">
+        <div
+          className={
+            "grid h-64 min-w-0 gap-2 sm:h-72 " +
+            (previewPhotos.length === 1
+              ? "grid-cols-1 grid-rows-1"
+              : previewPhotos.length === 2
+                ? "grid-cols-2 grid-rows-1"
+                : "grid-cols-[minmax(0,2fr)_minmax(0,1fr)] grid-rows-2")
+          }
         >
-          <BusinessImage
-            src={featuredPhoto.photo_url}
-            alt={`${businessName ?? "Business"} photo 1`}
-            className="h-full w-full object-cover"
-          />
-        </button>
-
-        {/* Supporting photos */}
-        {supportingPhotos.length > 0 && (
-          <div className="flex flex-1 flex-col gap-2">
-            {supportingPhotos.map((photo, index) => {
-              const photoIndex = index + 1;
-              const isLastPreview = index === supportingPhotos.length - 1;
-              const hasMorePhotos = additionalPhotoCount > 0;
-
-              return (
-                <button
-                  key={photo.id}
-                  type="button"
-                  onClick={() => setSelectedIndex(photoIndex)}
-                  className="relative min-h-0 flex-1 cursor-pointer overflow-hidden rounded-lg bg-surface-muted"
-                >
-                  <BusinessImage
-                    src={photo.photo_url}
-                    alt={`${businessName ?? "Business"} photo ${
-                      photoIndex + 1
-                    }`}
-                    className="h-full w-full object-cover"
-                  />
-
-                  {/* More photos overlay */}
-                  {isLastPreview && hasMorePhotos && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                      <span className="text-lg font-bold text-white">
-                        +{additionalPhotoCount}
-                      </span>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
+          {previewPhotos.map((photo, index) => (
+            <button
+              key={photo.id}
+              type="button"
+              onClick={() => setSelectedIndex(index)}
+              className={
+                "relative min-h-0 min-w-0 cursor-pointer overflow-hidden rounded-lg bg-surface-muted " +
+                (previewPhotos.length === 3 && index === 0 ? "row-span-2" : "")
+              }
+            >
+              <BusinessImage
+                src={photo.photo_url}
+                alt={`${businessName ?? "Business"} photo ${index + 1}`}
+                className="h-full w-full object-cover"
+              />
+              {index === PREVIEW_COUNT - 1 && additionalPhotoCount > 0 && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <span className="text-lg font-bold text-white">
+                    +{additionalPhotoCount}
+                  </span>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Focused photo preview */}

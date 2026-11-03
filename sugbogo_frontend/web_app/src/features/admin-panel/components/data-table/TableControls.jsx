@@ -34,7 +34,7 @@ function TableControls({
 
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-      <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      <div className="flex min-w-0 flex-1 flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
         {/* Search Bar */}
         {showSearch && (
           <div className="relative w-full sm:w-72 md:w-96 lg:w-[420px]">
@@ -50,6 +50,7 @@ function TableControls({
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
               placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
               className="h-9 w-full rounded-md border border-stroke-strong bg-background py-2 pl-9 pr-4 text-sm text-text-primary outline-none placeholder:text-slate-400 focus:border-stroke-active focus:ring-2 focus:ring-stroke-active/10"
             />
           </div>

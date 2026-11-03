@@ -183,6 +183,13 @@ const navigation = [
         Icon: FiActivity,
         roles: ["admin", "super_admin"],
       },
+      {
+        type: "link",
+        to: "/admin-panel/reviews",
+        label: "All Reviews",
+        Icon: FiFileText,
+        roles: ["admin", "super_admin"],
+      },
     ],
   },
 

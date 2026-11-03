@@ -8,8 +8,8 @@ import { adminLocationUpdateRequestKeys } from "../../business-update-requests/h
 
 /** Refresh both React Query resources and mounted legacy business consumers. */
 export function refreshBusinessStatusResources(queryClient, businessId) {
-  notifyBusinessChanged(businessId);
   return Promise.all([
+    notifyBusinessChanged(businessId, queryClient),
     queryClient.invalidateQueries({ queryKey: businessOverviewQueryKey }),
     queryClient.invalidateQueries({
       queryKey: businessStatusKeys.status(businessId),

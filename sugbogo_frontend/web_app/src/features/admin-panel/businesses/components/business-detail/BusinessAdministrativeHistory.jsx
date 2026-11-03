@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
+import { History } from "lucide-react";
 import Button from "@/shared/components/Button";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import StatusBadge from "@/shared/components/StatusBadge";
 import { formatLabel } from "@/shared/utils/stringUtils";
 import { formatBusinessDateTime } from "../../utils/businessDetailPresentation";
 
-/** Inspect paginated private transitions and navigate to existing business-scoped requests. */
+/** Present recorded lifecycle transitions as a timeline while preserving pagination and request navigation. */
 export default function BusinessAdministrativeHistory({ businessId, history }) {
   const records = [
     ...new Map(
@@ -17,7 +18,8 @@ export default function BusinessAdministrativeHistory({ businessId, history }) {
   return (
     <section className="overflow-hidden rounded-xl border border-stroke bg-background">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke bg-metric-header px-5 py-4">
-        <h2 className="text-sm font-semibold text-text-primary">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          <History size={16} aria-hidden="true" />
           Administrative History & Requests
         </h2>
         <Link
@@ -39,14 +41,34 @@ export default function BusinessAdministrativeHistory({ businessId, history }) {
           </p>
         )}
         {!history.isPending && !history.error && !records.length && (
-          <p className="text-sm text-text-secondary">
-            No recorded status transitions.
-          </p>
+          <div className="flex min-h-40 flex-col items-center justify-center px-5 py-8 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted">
+              <History
+                aria-hidden="true"
+                size={20}
+                strokeWidth={1.75}
+                className="text-text-secondary"
+              />
+            </div>
+            <p className="mt-3 text-sm font-medium text-text-primary">
+              No recorded status transitions.
+            </p>
+          </div>
         )}
         {!!records.length && (
-          <ol className="divide-y divide-stroke">
+          <ol className="max-w-3xl">
             {records.map((record) => (
-              <li key={record.id} className="py-4 first:pt-0 last:pb-0">
+              <li
+                key={record.id}
+                className="relative min-w-0 pb-6 pl-7 before:absolute before:-bottom-4 before:left-1 before:top-4 before:w-px before:bg-stroke last:pb-0 last:before:hidden"
+              >
+                <span
+                  aria-hidden="true"
+                  className={
+                    "absolute left-0 top-3 h-2 w-2 rounded-full ring-4 ring-background " +
+                    (record.status === "suspended" ? "bg-warning" : "bg-success")
+                  }
+                />
                 <StatusBadge
                   variant={
                     record.status === "suspended"
@@ -61,7 +83,7 @@ export default function BusinessAdministrativeHistory({ businessId, history }) {
                       : record.status}
                 </StatusBadge>
                 {record.previous_status && (
-                  <p className="mt-2 text-xs text-text-secondary">
+                  <p className="mt-2 break-words text-sm font-medium text-text-primary">
                     {formatLabel(record.previous_status)} →{" "}
                     {formatLabel(record.status)}
                   </p>
@@ -71,10 +93,12 @@ export default function BusinessAdministrativeHistory({ businessId, history }) {
                   {record.actor_name || "Administrator unavailable"}
                 </p>
                 {record.status === "suspended" && record.reason && (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm text-text-primary">
-                    <span className="font-semibold">Reason: </span>
-                    {record.reason}
-                  </p>
+                  <div className="mt-3 min-w-0">
+                    <p className="text-xs font-medium text-text-secondary">Reason</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-text-secondary">
+                      {record.reason}
+                    </p>
+                  </div>
                 )}
               </li>
             ))}

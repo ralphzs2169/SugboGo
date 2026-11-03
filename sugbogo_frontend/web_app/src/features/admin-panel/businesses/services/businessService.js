@@ -9,9 +9,10 @@ export async function fetchBusinessOverview({ signal } = {}) {
   return response.data.data;
 }
 
-export async function fetchBusinesses(params = {}) {
+export async function fetchBusinesses(params = {}, { signal } = {}) {
   const response = await apiClient.get("/admin/businesses/", {
     params,
+    signal,
   });
 
   return response.data.data;

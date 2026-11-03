@@ -1,93 +1,20 @@
-import { BUSINESS_CHANGED_EVENT } from "../queries/businessResourceEvents";
-import { useEffect, useRef, useState } from "react";
-import { fetchBusinesses } from "../services/businessService";
+import { useQuery } from "@tanstack/react-query";
+import { businessListQueryOptions } from "../queries/businessListQuery";
 
-/**
- * Fetches businesses for the administrator business management table.
- * Mirrors the search/status filters, sorting, and pagination applied to the table,
- * so the table reflects the same filtered subset. Exposes loading, error, and retry
- * states to the page.
- */
+/** Expose the existing directory interface through cancellable parameter-keyed queries. */
 export default function useBusinesses(params = {}, { enabled = true } = {}) {
-  const [businesses, setBusinesses] = useState([]);
-  const [totalItems, setTotalItems] = useState(0);
-  const [pageCount, setPageCount] = useState(0);
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [isFetching, setIsFetching] = useState(false);
-  const [error, setError] = useState(null);
-
-  const hasLoadedOnce = useRef(false);
-  const latestRequest = useRef(0);
-
-  async function loadBusinesses() {
-    const requestId = ++latestRequest.current;
-    if (!hasLoadedOnce.current) {
-      setIsLoading(true);
-    } else {
-      setIsFetching(true);
-    }
-
-    setError(null);
-
-    try {
-      const response = await fetchBusinesses(params);
-
-      // Ignore requests superseded by a filter change or lifecycle refresh.
-      if (requestId !== latestRequest.current) return;
-      setBusinesses(response.items ?? []);
-      setTotalItems(response.pagination?.total_items ?? 0);
-      setPageCount(response.pagination?.total_pages ?? 0);
-    } catch (error) {
-      if (requestId !== latestRequest.current) return;
-      console.error("Failed to load businesses:", error);
-
-      setError(error);
-      setBusinesses([]);
-      setTotalItems(0);
-      setPageCount(0);
-    } finally {
-      if (requestId === latestRequest.current) {
-        hasLoadedOnce.current = true;
-        setIsLoading(false);
-        setIsFetching(false);
-      }
-    }
-  }
-
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
-    // Preserve the legacy hook's initial fetch; lifecycle updates use the event subscription below.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadBusinesses();
-    window.addEventListener(BUSINESS_CHANGED_EVENT, loadBusinesses);
-    return () => {
-      latestRequest.current += 1;
-      window.removeEventListener(BUSINESS_CHANGED_EVENT, loadBusinesses);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
+  const query = useQuery({
+    ...businessListQueryOptions(params),
     enabled,
-    params.search,
-    params.status,
-    params.cluster,
-    params.category,
-    params.specialty_tag,
-    params.page,
-    params.page_size,
-    params.ordering,
-  ]);
+  });
 
   return {
-    businesses,
-    totalItems,
-    pageCount,
-    isLoading,
-    isFetching,
-    error,
-    refetch: loadBusinesses,
+    businesses: query.data?.items ?? [],
+    totalItems: query.data?.pagination?.total_items ?? 0,
+    pageCount: query.data?.pagination?.total_pages ?? 0,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: query.error,
+    refetch: query.refetch,
   };
 }

@@ -1,9 +1,16 @@
 import { Link } from "react-router-dom";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, FileText } from "lucide-react";
 import StatusBadge from "@/shared/components/StatusBadge";
 import statusConfig from "../../../business-applications/config/applicationStatus.config";
 import { formatLabel } from "@/shared/utils/stringUtils";
 import { formatBusinessDateTime } from "../../utils/businessDetailPresentation";
+
+const SOFT_VARIANTS = {
+  neutral: "mutedSoft",
+  info: "infoSoft",
+  danger: "dangerSoft",
+  success: "successSoft",
+};
 
 /** Present linked application provenance without confusing review, submission and business dates. */
 export default function BusinessApplicationSummary({ application }) {
@@ -36,7 +43,8 @@ export default function BusinessApplicationSummary({ application }) {
     <section className="overflow-hidden rounded-xl border border-stroke bg-background">
       {/* Application identity and outcome */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stroke bg-metric-header px-5 py-4">
-        <h2 className="text-sm font-semibold text-text-primary">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          <FileText size={16} aria-hidden="true" />
           Business Application
         </h2>
         {application && (
@@ -44,16 +52,26 @@ export default function BusinessApplicationSummary({ application }) {
             <span className="text-xs text-text-secondary">
               #{application.id}
             </span>
-            <StatusBadge variant={status?.variant || "neutral"}>
+            <StatusBadge variant={SOFT_VARIANTS[status?.variant] || "mutedSoft"}>
               {status?.label || application.status || "Unknown outcome"}
             </StatusBadge>
           </div>
         )}
       </div>
       {!application ? (
-        <p className="p-5 text-sm text-text-secondary">
-          No linked application is available for this business.
-        </p>
+        <div className="flex min-h-40 flex-col items-center justify-center px-5 py-8 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted">
+            <FileText
+              aria-hidden="true"
+              size={20}
+              strokeWidth={1.75}
+              className="text-text-secondary"
+            />
+          </div>
+          <p className="mt-3 max-w-sm text-sm font-medium text-text-primary">
+            No linked application is available for this business.
+          </p>
+        </div>
       ) : (
         <div className="p-5">
           {/* Original application provenance */}
