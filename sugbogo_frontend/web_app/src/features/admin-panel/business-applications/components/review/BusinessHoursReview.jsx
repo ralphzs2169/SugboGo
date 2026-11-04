@@ -56,18 +56,18 @@ export default function BusinessHoursReview({
             return (
               <div
                 key={schedule.day}
-                className="flex items-center justify-between gap-6 px-4 py-4"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5"
               >
                 {/* Day and operating hours */}
-                <div className="min-w-0">
+                <div className="grid min-w-0 items-baseline gap-x-3 gap-y-1 sm:grid-cols-[6rem_minmax(0,1fr)]">
                   <p className="text-sm font-medium text-text-primary">
                     {dayLabels[schedule.day] ?? schedule.day}
                   </p>
 
-                  <p className="mt-1 text-sm text-text-secondary">{hours}</p>
+                  <p className="text-sm text-text-secondary">{hours}</p>
 
                   {overnight && (
-                    <p className="mt-0.5 text-xs text-text-secondary">
+                    <p className="text-xs text-text-secondary sm:col-start-2">
                       Overnight · closes the following day
                     </p>
                   )}

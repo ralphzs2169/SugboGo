@@ -20,16 +20,16 @@ export default function BusinessPhotoGallery({ photos = [], onPhotoSelect }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] items-start gap-4">
       {photos.map((photo, index) => (
         <button
           key={photo.id}
           type="button"
           onClick={() => onPhotoSelect(index)}
-          className="group cursor-pointer overflow-hidden rounded-lg border border-stroke bg-surface text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="group w-full min-w-0 max-w-60 cursor-pointer overflow-hidden rounded-lg border border-stroke bg-surface text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30"
         >
           {/* Photo thumbnail */}
-          <div className="relative aspect-square overflow-hidden bg-surface-muted">
+          <div className="relative aspect-[4/3] overflow-hidden bg-surface-muted">
             <img
               src={photo.photo_url}
               alt={photo.file_name || "Business photo"}

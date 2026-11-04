@@ -60,47 +60,55 @@ export default function BusinessIdentityReview({
       />
 
       {/* Business information */}
-      <dl className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
+      <dl className="grid grid-cols-1 gap-y-5 md:grid-cols-3">
         <ApplicationReviewField
           label="Business Name"
           value={identity.business_name}
-          className="md:col-span-2"
+          className="md:pr-6"
           isBusinessName={true}
-        />
-
-        <ApplicationReviewField
-          label="Business Description"
-          value={identity.business_description}
-          className="md:col-span-2"
         />
 
         <ApplicationReviewField
           label="Contact Number"
           value={identity.contact_number}
+          className="md:border-l md:border-stroke md:px-6"
         />
 
         <ApplicationReviewField
           label="Business Email"
           value={identity.business_email}
+          className="md:border-l md:border-stroke md:pl-6"
         />
 
-        <ApplicationReviewField label="Website" value={identity.website} />
+        <ApplicationReviewField
+          label="Business Description"
+          value={identity.business_description}
+          className="border-t border-stroke pt-4 md:col-span-3"
+        />
+
+        <ApplicationReviewField
+          label="Website"
+          value={identity.website}
+          className="border-t border-stroke pt-4 md:col-span-3"
+        />
       </dl>
 
       {/* Representative information */}
-      <div className="mt-8 border-t border-stroke pt-6">
+      <div className="mt-6 border-t border-stroke pt-5">
         <h3 className="text-sm font-semibold text-text-primary">
           Representative
         </h3>
 
-        <dl className="mt-5 grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
+        <dl className="mt-4 grid grid-cols-1 gap-y-5 md:grid-cols-2">
           <ApplicationReviewField
             label="Representative Name"
             value={identity.representative_name}
+            className="md:pr-6"
           />
 
           <ApplicationReviewField
             label="Representative Role"
+            className="md:border-l md:border-stroke md:pl-6"
             value={
               representativeRoleLabels[identity.representative_role] ??
               identity.representative_role ??
@@ -111,53 +119,54 @@ export default function BusinessIdentityReview({
       </div>
 
       {/* Business classification */}
-      <div className="mt-8 border-t border-stroke pt-6">
+      <div className="mt-6 border-t border-stroke pt-5">
         <h3 className="text-sm font-semibold text-text-primary">
           Business Classification
         </h3>
 
-        <dl className="mt-5 grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
-          <div>
+        <dl className="mt-4 grid grid-cols-1 gap-y-5 md:grid-cols-3">
+          <div className="min-w-0 md:pr-6">
             <dt className="text-xs font-medium uppercase tracking-wide text-text-secondary">
               Cluster
             </dt>
 
-            <div className="mt-2 flex items-center gap-2">
+            <dd className="mt-2 flex items-center gap-2">
               {ClusterIcon && (
                 <div className="flex shrink-0 items-center justify-center text-text-secondary">
-                  <ClusterIcon className="h-4 w-4" strokeWidth={2} />
+                  <ClusterIcon aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
                 </div>
               )}
 
-              <span className="text-sm text-text-primary">
+              <span className="min-w-0 break-words text-sm text-text-primary">
                 {identity.business_cluster_name || "—"}
               </span>
-            </div>
+            </dd>
           </div>
 
           <ApplicationReviewField
             label="Category"
             value={identity.business_category_name}
+            className="md:border-l md:border-stroke md:px-6"
           />
-        </dl>
 
-        <div className="mt-6">
-          <dt className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-            Specialty Tags
-          </dt>
+          <div className="min-w-0 md:border-l md:border-stroke md:pl-6">
+            <dt className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+              Specialty Tags
+            </dt>
 
-          <div className="mt-2 flex flex-wrap gap-2">
-            {identity.specialty_tags?.length ? (
-              identity.specialty_tags.map((tag) => (
-                <SpecialtyTagChip key={tag.id} tag={tag} />
-              ))
-            ) : (
-              <span className="text-sm text-text-secondary">
-                No specialty tags provided.
-              </span>
-            )}
+            <dd className="mt-2 flex flex-wrap gap-2">
+              {identity.specialty_tags?.length ? (
+                identity.specialty_tags.map((tag) => (
+                  <SpecialtyTagChip key={tag.id} tag={tag} showIcon />
+                ))
+              ) : (
+                <span className="text-sm text-text-secondary">
+                  No specialty tags provided.
+                </span>
+              )}
+            </dd>
           </div>
-        </div>
+        </dl>
       </div>
     </ApplicationReviewSection>
   );
