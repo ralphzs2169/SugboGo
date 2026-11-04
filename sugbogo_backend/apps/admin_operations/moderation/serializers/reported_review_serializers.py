@@ -1,5 +1,7 @@
 """Admin-only grouped community-report responses."""
 
+from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPhotoField
+
 from rest_framework import serializers
 
 from apps.reviews.models import Review, ReviewReply, ReviewReport
@@ -101,6 +103,9 @@ class ReportedReviewListSerializer(serializers.ModelSerializer):
         return {
             "id": review.BUSN_ID_id,
             "name": review.BUSN_ID.BUSN_NAME,
+            "cover_photo_url": BusinessDisplayCoverPhotoField(
+                business_source="BUSN_ID",
+            ).to_representation(review),
         }
 
     def get_text_preview(
@@ -183,7 +188,9 @@ class ReportedReviewDetailSerializer(ReportedReviewListSerializer):
         return {
             "id": review.BUSN_ID_id,
             "name": business.BUSN_NAME,
-            "cover_photo_url": business.BUSN_COVER_PHOTO_URL,
+            "cover_photo_url": BusinessDisplayCoverPhotoField(
+                business_source="BUSN_ID",
+            ).to_representation(review),
             "cluster_name": cluster.CLUS_NAME,
             "category_name": category.CTGRY_NAME,
         }

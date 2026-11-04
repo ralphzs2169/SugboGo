@@ -1,5 +1,7 @@
 """Explicit Admin directory and inspection contracts without investigation payloads."""
 
+from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPhotoField
+
 from datetime import date
 
 from django.urls import reverse
@@ -113,7 +115,9 @@ class AdminAllReviewListSerializer(serializers.ModelSerializer):
         return {
             "id": business.pk,
             "name": business.BUSN_NAME,
-            "cover_photo_url": business.BUSN_COVER_PHOTO_URL,
+            "cover_photo_url": BusinessDisplayCoverPhotoField(
+                business_source="BUSN_ID",
+            ).to_representation(review),
             "category_name": category.CTGRY_NAME,
             "cluster_name": category.CLUS_ID.CLUS_NAME,
         }

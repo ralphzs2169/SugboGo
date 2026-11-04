@@ -1,3 +1,4 @@
+from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPhotoField
 from rest_framework import serializers
 
 from apps.business.serializers.business_serializers import (
@@ -46,10 +47,8 @@ class AdminReviewDisputeListSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
-    business_cover_photo_url = serializers.CharField(
-        source="BUSN_ID.BUSN_COVER_PHOTO_URL",
-        read_only=True,
-        allow_null=True,
+    business_cover_photo_url = BusinessDisplayCoverPhotoField(
+        business_source="BUSN_ID",
     )
     review_id = serializers.IntegerField(
         source="MRDSP_ORIGINAL_REVIEW_ID",
@@ -296,10 +295,21 @@ class AdminReviewDisputeDetailSerializer(serializers.ModelSerializer):
         source="MRDSP_UPDATED_AT",
         read_only=True,
     )
-    business = BusinessContextSerializer(
-        source="BUSN_ID",
-        read_only=True,
-    )
+    business = serializers.SerializerMethodField()
+
+    def get_business(
+        self,
+        obj,
+    ):
+        """Keep business context intact while using the shared display cover preference."""
+        if obj.BUSN_ID is None:
+            return None
+        data = BusinessContextSerializer(obj.BUSN_ID, context=self.context).data
+        data["cover_photo_url"] = BusinessDisplayCoverPhotoField(
+            business_source="BUSN_ID",
+        ).to_representation(obj)
+        return data
+
     merchant = BusinessOwnerSerializer(
         source="USER_ID",
         read_only=True,

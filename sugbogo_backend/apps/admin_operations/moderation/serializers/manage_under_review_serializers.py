@@ -1,5 +1,7 @@
 """Admin-only review moderation input and structured evidence responses."""
 
+from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPhotoField
+
 from rest_framework import serializers
 
 from apps.admin_operations.activity_management.models import AdminActivity
@@ -223,7 +225,9 @@ class AdminUnderReviewDetailSerializer(AdminUnderReviewListSerializer):
         return {
             "id": review.BUSN_ID_id,
             "name": business.BUSN_NAME,
-            "cover_photo_url": business.BUSN_COVER_PHOTO_URL,
+            "cover_photo_url": BusinessDisplayCoverPhotoField(
+                business_source="BUSN_ID",
+            ).to_representation(review),
             "cluster_name": cluster.CLUS_NAME,
             "category_name": category.CTGRY_NAME,
         }

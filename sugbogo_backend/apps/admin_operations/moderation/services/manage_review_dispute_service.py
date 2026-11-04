@@ -1,3 +1,4 @@
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from django.db import transaction
 from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
 from django.utils import timezone
@@ -40,6 +41,9 @@ class ManageReviewDisputeService:
 
         return (
             MerchantReviewDispute.objects
+            .annotate(
+                display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+            )
             .select_related(
                 "BUSN_ID",
                 "BUSN_ID__USER_ID",

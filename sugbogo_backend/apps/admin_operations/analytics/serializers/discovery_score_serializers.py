@@ -1,5 +1,7 @@
 """Administrator-facing persisted Discovery Score serializers."""
 
+from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPhotoField
+
 from rest_framework import serializers
 
 from apps.business.models import Business, DiscoveryScore
@@ -155,7 +157,21 @@ class DiscoveryScoreBusinessSerializer(serializers.ModelSerializer):
 class AdminDiscoveryScoreSerializer(serializers.ModelSerializer):
     """Keep persisted computation state separate from unverified telemetry context."""
 
-    business = DiscoveryScoreBusinessSerializer(source="BUSN_ID", read_only=True)
+    business = serializers.SerializerMethodField()
+
+    def get_business(
+        self,
+        obj,
+    ):
+        """Keep business context intact while using the shared display cover preference."""
+        if obj.BUSN_ID is None:
+            return None
+        data = DiscoveryScoreBusinessSerializer(obj.BUSN_ID, context=self.context).data
+        data["cover_photo_url"] = BusinessDisplayCoverPhotoField(
+            business_source="BUSN_ID",
+        ).to_representation(obj)
+        return data
+
     specialty_score = serializers.DecimalField(
         source="DSC_S_SCORE",
         max_digits=6,

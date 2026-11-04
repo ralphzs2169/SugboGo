@@ -1,3 +1,4 @@
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from collections import Counter
 
 from django.contrib.gis.geos import Point
@@ -386,7 +387,9 @@ class BusinessLocationChangeService:
         business_id=None,
     ):
         """Return a review queue with pending proposals first."""
-        queryset = BusinessLocationChangeService._request_queryset()
+        queryset = BusinessLocationChangeService._request_queryset().annotate(
+            display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+        )
         if business_id is not None:
             queryset = queryset.filter(BUSN_ID_id=business_id)
 
@@ -409,7 +412,9 @@ class BusinessLocationChangeService:
     def get_for_admin(request_id):
         """Return request snapshots with separate current live state."""
         try:
-            return BusinessLocationChangeService._request_queryset().get(
+            return BusinessLocationChangeService._request_queryset().annotate(
+                display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+            ).get(
                 BLCR_ID=request_id,
             )
         except BusinessLocationChangeRequest.DoesNotExist:

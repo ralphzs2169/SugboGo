@@ -1,5 +1,7 @@
 """Discovery score monitoring queries for administrators."""
 
+from apps.business.services.display_cover_photo import display_cover_photo_expression
+
 from dataclasses import asdict
 from datetime import timedelta
 
@@ -124,6 +126,9 @@ class DiscoveryScoreMonitoringService:
         )
         queryset = (
             DiscoveryScore.objects
+            .annotate(
+                display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+            )
             .annotate(
                 score_state=Case(
                     When(~Q(DSC_LAST_ERROR=""), then=Value("FAILED")),

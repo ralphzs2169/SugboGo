@@ -1,5 +1,7 @@
 """Administrator queue and decisions for reviews held before publication."""
 
+from apps.business.services.display_cover_photo import display_cover_photo_expression
+
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, TextField
 from django.db.models.fields.json import KeyTextTransform
@@ -35,6 +37,9 @@ class ManageUnderReviewService:
         )
         return (
             Review.objects
+            .annotate(
+                display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+            )
             .select_related("USER_ID", "BUSN_ID")
             .annotate(
                 moderation_activity_id=Subquery(decisions.values("AACT_ID")[:1]),

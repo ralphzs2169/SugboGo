@@ -1,3 +1,4 @@
+from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPhotoField
 from django.conf import settings
 from rest_framework import serializers
 
@@ -45,10 +46,7 @@ class AdminBusinessListSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    cover_photo_url = serializers.CharField(
-        source="BUSN_COVER_PHOTO_URL",
-        read_only=True,
-    )
+    cover_photo_url = BusinessDisplayCoverPhotoField()
 
     application_id = serializers.IntegerField(
         source="merchant_application.MAPP_ID",
