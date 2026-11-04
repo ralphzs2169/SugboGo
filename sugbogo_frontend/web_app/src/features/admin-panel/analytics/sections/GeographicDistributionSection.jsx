@@ -1,3 +1,4 @@
+import { MapPinned } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useDiscoveryHeatmap } from "../hooks/useAnalyticsReports";
 import useAnalyticsTaxonomy from "../hooks/useAnalyticsTaxonomy";
@@ -62,7 +63,9 @@ function GeographicReport({ period }) {
   }
   return (
     <>
-      <AnalyticsSection onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Geographic Distribution" description="Business locations across Cebu City." {...state}
+      <AnalyticsSection
+        titleIcon={MapPinned}
+        onAbout={() => setDrawer("about")} aboutDisabled={!data} title="Geographic Distribution" description="Business locations across Cebu City." {...state}
         controls={<>
           <AnalyticsMetricSelector label="Metric" options={MODES} value={metric} onChange={changeMetric} />
           <AnalyticsScopeFilters scope="Geographic" value={scope} onChange={changeScope} />

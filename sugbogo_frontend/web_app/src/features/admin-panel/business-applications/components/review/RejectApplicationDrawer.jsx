@@ -350,7 +350,7 @@ export default function RejectApplicationDrawer({
           >
             <div className="themed-scrollbar min-h-0 flex-1 overflow-y-auto">
               <fieldset disabled={isSubmitting} className="space-y-3 px-6 pt-4">
-                <legend className="pt-4 text-sm font-semibold">
+                  <legend className="pt-4 text-sm font-semibold text-text-primary">
                   {rejectionType === "duplicate"
                     ? "Confirmed Duplicate"
                     : "Corrections Required"}

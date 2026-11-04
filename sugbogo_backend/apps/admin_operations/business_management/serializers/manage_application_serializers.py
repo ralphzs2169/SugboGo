@@ -474,6 +474,11 @@ class AdminMerchantApplicationReviewSerializer(serializers.ModelSerializer):
 
 class AdminMerchantApplicationStatisticsSerializer(serializers.Serializer):
     pending_review = serializers.IntegerField()
+    approaching_sla = serializers.IntegerField()
+    overdue = serializers.IntegerField()
+    oldest_pending_business_days = serializers.IntegerField(
+        allow_null=True,
+    )
     approved = serializers.IntegerField()
     rejected = serializers.IntegerField()
     total_applications = serializers.IntegerField()

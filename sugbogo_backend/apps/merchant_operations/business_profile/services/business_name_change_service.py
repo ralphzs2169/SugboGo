@@ -1,3 +1,4 @@
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from django.db import IntegrityError, transaction
 from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
@@ -177,7 +178,9 @@ class BusinessNameChangeService:
         business_id=None,
     ):
         """Return a review queue with pending requests before recent history."""
-        queryset = BusinessNameChangeRequest.objects.select_related(
+        queryset = BusinessNameChangeRequest.objects.annotate(
+            display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+        ).select_related(
             "BUSN_ID",
             "USER_ID",
             "REVIEWER_ID",
@@ -208,6 +211,9 @@ class BusinessNameChangeService:
         try:
             return (
                 BusinessNameChangeRequest.objects
+                .annotate(
+                    display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+                )
                 .select_related("BUSN_ID", "USER_ID", "REVIEWER_ID")
                 .get(BNCR_ID=request_id)
             )

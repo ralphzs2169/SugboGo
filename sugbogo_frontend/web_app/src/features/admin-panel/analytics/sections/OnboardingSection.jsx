@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ClipboardCheck } from "lucide-react";
 import { useOnboardingAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
@@ -52,7 +52,9 @@ export default function OnboardingSection({ period }) {
   );
   return (
     <>
-      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant Onboarding" description="Application volume, processing efficiency, and rejection patterns." {...state}
+      <AnalyticsSection
+        titleIcon={ClipboardCheck}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant Onboarding" description="Application volume, processing efficiency, and rejection patterns." {...state}
         action={<AnalyticsDrilldown to="/admin-panel/businesses/applications">View applications</AnalyticsDrilldown>}
         footer={<AnalyticsReportFooter title="Merchant Onboarding" meta={meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >

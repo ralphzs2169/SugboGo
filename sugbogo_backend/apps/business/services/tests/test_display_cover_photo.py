@@ -1,3 +1,25 @@
+from apps.admin_operations.business_management.services.manage_business_service import (
+    BusinessService,
+)
+from apps.admin_operations.business_management.serializers.manage_business_serializers import (
+    AdminBusinessListSerializer,
+)
+from apps.admin_operations.moderation.services.all_review_service import AllReviewService
+from apps.admin_operations.moderation.serializers.all_review_serializers import (
+    AdminAllReviewListSerializer,
+)
+from apps.merchant_operations.business_profile.models import BusinessNameChangeRequest
+from apps.merchant_operations.business_profile.services.business_name_change_service import (
+    BusinessNameChangeService,
+)
+from apps.merchant_operations.business_profile.serializers.business_name_change_serializers import (
+    AdminBusinessNameChangeSerializer,
+)
+from apps.merchant_application.services.duplicate_review_presentation import (
+    add_duplicate_display_context,
+)
+from apps.reviews.models import Review
+from django.utils import timezone
 from apps.business.models import Business, BusinessPhoto, Category, Cluster, Location
 from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.explorer_operations.explore_businesses.services.discovery_feed_service import (
@@ -146,3 +168,90 @@ class DisplayCoverPhotoTests(TestCase):
         self.assertEqual(len(businesses), 4)
         self.assertEqual(len(queries), 2)
         self.assertIn("https://example.com/storefront-2.jpg", urls)
+
+    def test_admin_business_and_review_lists_share_cover_preference_without_extra_queries(self):
+        self._photo(
+            self.business,
+            BusinessPhoto.PhotoCategory.INTERIOR,
+            "https://example.com/interior.jpg",
+        )
+        self._photo(
+            self.business,
+            BusinessPhoto.PhotoCategory.STOREFRONT,
+            "",
+        )
+        first = self._photo(
+            self.business,
+            BusinessPhoto.PhotoCategory.STOREFRONT,
+            "https://example.com/storefront.jpg",
+        )
+        Review.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.explorer,
+            REVW_TEXT="A retained review.",
+        )
+        for cover in (None, "", "https://example.com/custom.jpg"):
+            Business.objects.filter(pk=self.business.pk).update(
+                BUSN_COVER_PHOTO_URL=cover,
+            )
+            expected = cover or first.BPHO_PHOTO_URL
+            businesses = list(BusinessService.list_businesses())
+            reviews = list(AllReviewService.queryset())
+            with self.assertNumQueries(0):
+                business_data = AdminBusinessListSerializer(
+                    businesses,
+                    many=True,
+                ).data
+                review_data = AdminAllReviewListSerializer(
+                    reviews,
+                    many=True,
+                ).data
+            self.assertEqual(business_data[0]["cover_photo_url"], expected)
+            self.assertEqual(review_data[0]["business"]["cover_photo_url"], expected)
+
+    def test_admin_update_request_cover_is_batched_and_preserves_missing_image(self):
+        change = BusinessNameChangeRequest.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.business.USER_ID,
+            BNCR_PREVIOUS_BUSINESS_NAME=self.business.BUSN_NAME,
+            BNCR_PROPOSED_BUSINESS_NAME="Updated Cafe",
+            BNCR_SUBMITTED_AT=timezone.now(),
+        )
+        for cover in (None, "https://example.com/storefront.jpg"):
+            if cover:
+                self._photo(
+                    self.business,
+                    BusinessPhoto.PhotoCategory.STOREFRONT,
+                    cover,
+                )
+            rows = list(BusinessNameChangeService.list_for_admin())
+            with self.assertNumQueries(0):
+                data = AdminBusinessNameChangeSerializer(rows, many=True).data
+            self.assertEqual(data[0]["cover_photo_url"], cover)
+            detail = BusinessNameChangeService.get_for_admin(change.pk)
+            with self.assertNumQueries(0):
+                self.assertEqual(
+                    AdminBusinessNameChangeSerializer(detail).data["cover_photo_url"],
+                    cover,
+                )
+
+    def test_admin_duplicate_business_context_prefers_custom_cover(self):
+        self._photo(
+            self.business,
+            BusinessPhoto.PhotoCategory.STOREFRONT,
+            "https://example.com/storefront.jpg",
+        )
+        for cover in (None, "https://example.com/custom.jpg"):
+            Business.objects.filter(pk=self.business.pk).update(
+                BUSN_COVER_PHOTO_URL=cover,
+            )
+            state = add_duplicate_display_context({
+                "candidates": [{
+                    "record_id": self.business.pk,
+                    "record_type": "business",
+                }],
+            })
+            self.assertEqual(
+                state["candidates"][0]["cover_photo_url"],
+                cover or "https://example.com/storefront.jpg",
+            )

@@ -13,29 +13,26 @@ export default function ApplicationReviewSection({
   children,
 }) {
   return (
-    <section className="rounded-xl border border-stroke bg-background p-6">
+    <section className="min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-6">
       {/* Section header */}
-      <div className="flex items-start gap-2 border-b border-stroke pb-5">
-        {Icon && (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-            <Icon size={25} strokeWidth={2} />
-          </div>
-        )}
-
+      <div className="flex items-start gap-3 border-b border-stroke pb-4">
         <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-bold leading-8 text-text-primary">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+            {Icon && (
+              <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
+            )}
             {title}
           </h2>
 
           {description && (
-            <p className="mt-1 text-sm text-text-secondary">{description}</p>
+            <p className="mt-1 text-xs leading-relaxed text-text-secondary">{description}</p>
           )}
         </div>
         {headerAction}
       </div>
 
       {/* Section content */}
-      <div className="pt-6">{children}</div>
+      <div className="pt-5">{children}</div>
     </section>
   );
 }

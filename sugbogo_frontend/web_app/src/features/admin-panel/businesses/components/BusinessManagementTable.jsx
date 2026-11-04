@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Map, Tag, Layers, Tags, Download } from "lucide-react";
+import { Building2, Map, Tag, Layers, Tags } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
@@ -15,7 +15,6 @@ import BusinessManagementMap from "./business-location/BusinessManagementMap";
 import useClusters from "../../cluster-category/hooks/useClusters";
 import useCategories from "../../cluster-category/hooks/useCategories";
 import useSpecialtyTags from "../../specialty-tags/hooks/useSpecialtyTags";
-import Button from "@/shared/components/Button";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -179,6 +178,7 @@ export default function BusinessManagementTable() {
         onResetFilters={handleResetFilters}
         isSearching={isSearching}
         config={{
+          managementControls: true,
           tabs: [
             { id: "businesses", label: "Businesses", icon: Building2 },
             { id: "map", label: "Map View", icon: Map },
@@ -200,16 +200,6 @@ export default function BusinessManagementTable() {
         }}
         slots={{
           renderFilters,
-          renderHeaderActions: () => (
-            <Button
-              variant="secondary"
-              size="md"
-              icon={Download}
-              onClick={() => {}}
-            >
-              Export
-            </Button>
-          ),
           renderContent:
             currentTab === "map"
               ? () => (

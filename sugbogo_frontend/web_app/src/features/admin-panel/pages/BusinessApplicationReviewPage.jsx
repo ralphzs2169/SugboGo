@@ -1,6 +1,7 @@
 import { useParams } from "react-router-dom";
 
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 import DetailPageLayout from "@/shared/components/layout/DetailPageLayout";
 import BusinessApplicationReview from "../business-applications/components/review/BusinessApplicationReview";
@@ -17,6 +18,11 @@ export default function BusinessApplicationReviewPage() {
 
   const { application, isLoading, error, refetch } =
     useMerchantApplicationReview(applicationId);
+
+  useApiErrorNotification(error, {
+    toastId: "merchant-application-detail-error",
+    fallbackMessage: "Unable to load application details. Please try again.",
+  });
 
   const breadcrumbs = [
     { label: "SugboGo Admin" },

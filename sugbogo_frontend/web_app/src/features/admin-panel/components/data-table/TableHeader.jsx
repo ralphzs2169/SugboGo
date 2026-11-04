@@ -1,4 +1,3 @@
-import React from "react";
 import { flexRender } from "@tanstack/react-table";
 import { FaSort, FaSortUp, FaSortDown } from "react-icons/fa6";
 
@@ -24,20 +23,34 @@ function TableHeader({ table }) {
           {headerGroup.headers.map((header) => {
             const canSort = header.column.getCanSort();
             const isSorted = header.column.getIsSorted();
+            const HeaderContent = canSort ? "button" : "div";
+            let ariaSort;
+
+            if (canSort) {
+              ariaSort = "none";
+              if (isSorted === "asc") {
+                ariaSort = "ascending";
+              } else if (isSorted === "desc") {
+                ariaSort = "descending";
+              }
+            }
 
             return (
               <th
                 key={header.id}
+                scope="col"
+                aria-sort={ariaSort}
                 className={`border-b border-stroke-strong px-4 py-3 text-[14px] bg-surface-muted font-medium text-text-primary select-none group/th ${
                   canSort ? "cursor-pointer hover:text-text-hover" : ""
                 } ${header.id === "actions" ? "text-center" : "text-left"}`}
                 style={{
                   width: header.getSize(),
                 }}
-                onClick={header.column.getToggleSortingHandler()}
               >
-                <div
-                  className={`flex items-center gap-1.5 ${
+                <HeaderContent
+                  type={canSort ? "button" : undefined}
+                  onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                  className={`flex min-h-8 w-full items-center gap-1.5 rounded text-left focus-visible:outline-2 focus-visible:outline-info ${canSort ? "cursor-pointer" : ""} ${
                     header.id === "actions" ? "justify-center" : ""
                   }`}
                 >
@@ -61,7 +74,7 @@ function TableHeader({ table }) {
                       )}
                     </span>
                   )}
-                </div>
+                </HeaderContent>
               </th>
             );
           })}

@@ -42,6 +42,9 @@ class BusinessService:
 
         queryset = (
             Business.objects
+            .annotate(
+                display_cover_photo_url=display_cover_photo_expression(),
+            )
             .select_related(
                 "USER_ID",
                 "merchant_application",

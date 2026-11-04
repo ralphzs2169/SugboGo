@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MessageSquareText } from "lucide-react";
+import { MessageSquareText, List } from "lucide-react";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import Button from "@/shared/components/Button";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/data-table/DataTable";
 import SortMenu from "../components/data-table/SortMenu";
+import RowsPerPageMenu from "../components/data-table/RowsPerPageMenu";
 import AllReviewMetrics from "../all-reviews/components/AllReviewMetrics";
 import AllReviewFilters from "../all-reviews/components/AllReviewFilters";
 import AllReviewDrawer from "../all-reviews/components/AllReviewDrawer";
@@ -31,9 +32,6 @@ export default function AllReviewsPage() {
     pageIndex: metadata ? metadata.page - 1 : state.page - 1,
     pageSize: metadata?.page_size ?? state.page_size,
   };
-  const pageSizes = [...new Set([10, 25, 50, 100, state.page_size])].sort(
-    (a, b) => a - b,
-  );
 
   return (
     <div className="min-w-0">
@@ -63,7 +61,8 @@ export default function AllReviewsPage() {
       )}
       <AllReviewMetrics filters={state} onFilterChange={table.changeFilters} />
       <section aria-label="Reviews directory" className="min-w-0">
-        <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
+        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+          <List aria-hidden="true" className="h-4 w-4 shrink-0" />
           Reviews directory
         </h2>
         <DataTable
@@ -150,26 +149,13 @@ export default function AllReviewsPage() {
                   ariaLabel="Sort reviews"
                   onChange={(ordering) => table.changeFilters({ ordering })}
                 />
-                <label className="flex items-center gap-2 whitespace-nowrap text-xs font-medium text-text-secondary">
-                  Rows
-                  <select
-                    aria-label="Reviews per page"
-                    value={state.page_size}
-                    onChange={(event) =>
-                      table.changePagination({
-                        pageIndex: 0,
-                        pageSize: Number(event.target.value),
-                      })
-                    }
-                    className="h-9 rounded-md border border-stroke-strong bg-background px-2 text-xs text-text-primary focus-visible:outline-2 focus-visible:outline-info"
-                  >
-                    {pageSizes.map((size) => (
-                      <option key={size} value={size}>
-                        {size}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <RowsPerPageMenu
+                  ariaLabel="Reviews per page"
+                  value={state.page_size}
+                  onChange={(pageSize) =>
+                    table.changePagination({ pageIndex: 0, pageSize })
+                  }
+                />
               </div>
             ),
           }}

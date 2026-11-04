@@ -1,7 +1,7 @@
 from datetime import datetime, time, timedelta
 
 from django.conf import settings
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Count, Exists, Min, OuterRef, Q
 from django.utils import timezone
 
 from apps.shared.analytics.policy import current_policy, with_policy_snapshot
@@ -14,6 +14,10 @@ from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationReview,
     MerchantApplicationSubmission,
+)
+from apps.merchant_application.utils.application_queue import (
+    count_business_days,
+    get_application_queue_aging_filters,
 )
 
 
@@ -33,11 +37,30 @@ class MerchantApplicationAnalyticsService:
             MerchantApplicationAnalyticsService
             .get_weekly_comparison_periods(reference_time)
         )
+        aging_filters = get_application_queue_aging_filters(
+            reference_time=reference_time,
+        )
         statistics = MerchantApplication.objects.aggregate(
             pending_review=Count(
                 "MAPP_ID",
                 filter=Q(
                     MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+                ),
+            ),
+            approaching_sla=Count(
+                "MAPP_ID",
+                filter=aging_filters["approaching"],
+            ),
+            overdue=Count(
+                "MAPP_ID",
+                filter=aging_filters["overdue"],
+            ),
+            oldest_pending_submitted_at=Min(
+                "MAPP_SUBMITTED_AT",
+                filter=Q(
+                    MAPP_STATUS=MerchantApplication.ApplicationStatus.SUBMITTED,
+                    MAPP_SUBMITTED_AT__lte=reference_time,
+                    MAPP_REVIEWED_AT__isnull=True,
                 ),
             ),
             approved=Count(
@@ -58,6 +81,13 @@ class MerchantApplicationAnalyticsService:
                     MAPP_STATUS__in=REVIEWABLE_APPLICATION_STATUSES,
                 ),
             ),
+        )
+        oldest_pending_submitted_at = statistics.pop(
+            "oldest_pending_submitted_at",
+        )
+        statistics["oldest_pending_business_days"] = count_business_days(
+            oldest_pending_submitted_at,
+            reference_time,
         )
 
         return {

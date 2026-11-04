@@ -187,6 +187,7 @@ export default function UserManagementTable() {
         onResetFilters={tableState.handleResetFilters}
         isSearching={tableState.isSearching}
         config={{
+          managementControls: true,
           searchPlaceholder: "Search by name or email...",
           emptyState: {
             title: "No users yet",

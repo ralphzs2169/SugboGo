@@ -30,7 +30,10 @@ export default function TransitPointList({
       {/* List heading and search */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-text-primary">Transit Points</h3>
+          <h3 className="flex items-center gap-2 text-base font-semibold text-text-primary">
+            <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Transit Points
+          </h3>
           <p className="mt-0.5 text-xs text-text-secondary">
             Map and list show the current result page.
           </p>

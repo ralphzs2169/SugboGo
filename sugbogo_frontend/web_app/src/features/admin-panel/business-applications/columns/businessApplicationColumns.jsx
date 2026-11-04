@@ -159,7 +159,7 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
       (application) => application.time_in_queue_business_days,
       {
         id: "time_in_queue_business_days",
-        header: "Time in Queue",
+        header: "Review Time",
         size: 170,
         minSize: 150,
         meta: {
@@ -198,7 +198,8 @@ export default function getBusinessApplicationColumns(onReviewApplication) {
               size="sm"
               icon={Eye}
               iconOnly
-              tooltipMessage="Review application"
+              tooltipMessage="View application"
+              aria-label="View application"
               onClick={() => onReviewApplication(application)}
             />
           </div>

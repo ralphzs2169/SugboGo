@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { adminApplicationKeys } from "../queries/applicationQueryKeys";
 import {
   fetchApplicationDuplicates,
   saveApplicationDuplicateReview,
@@ -8,7 +9,7 @@ import {
 /** Keeps duplicate review authoritative and refreshes evidence after stale decisions fail. */
 export default function useApplicationDuplicates(applicationId) {
   const client = useQueryClient();
-  const key = ["admin", "application-duplicates", applicationId];
+  const key = adminApplicationKeys.duplicates(applicationId);
   const query = useQuery({
     queryKey: key,
     queryFn: () => fetchApplicationDuplicates(applicationId),

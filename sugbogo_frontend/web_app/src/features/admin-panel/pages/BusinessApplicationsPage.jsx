@@ -1,7 +1,9 @@
+import { ClipboardList, List } from "lucide-react";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import PageHeader from "../components/PageHeader";
 import BusinessApplicationManagementTable from "../business-applications/components/BusinessApplicationManagementTable";
 import useBusinessApplicationStatistics from "../business-applications/hooks/useBusinessApplicationStatistics";
+import useBusinessApplicationTableState from "../business-applications/hooks/useBusinessApplicationTableState";
 import BusinessApplicationMetrics from "../business-applications/components/BusinessApplicationMetrics";
 import ApplicationReviewSlaInfo from "../business-applications/components/ApplicationReviewSlaInfo";
 import MetricCardsSkeleton from "@/features/admin-panel/components/MetricCardsSkeleton";
@@ -11,6 +13,8 @@ import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 export default function BusinessApplicationsPage() {
   useDocumentTitle("Business Applications | SugboGo Admin");
+
+  const tableState = useBusinessApplicationTableState();
 
   const {
     statistics,
@@ -48,15 +52,21 @@ export default function BusinessApplicationsPage() {
 
       {/* Application overview */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-text-secondary">
-          Merchant Application Overview
-        </h2>
+        <div>
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+            <ClipboardList aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Merchant Application Overview
+          </h2>
+          <p className="-mt-2 mb-3 text-xs text-text-secondary">
+            Current review queue and SLA status · PHT
+          </p>
+        </div>
 
         {!isStatisticsLoading && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
             <span>
               {statisticsUnavailable ? "—" : statistics.total_applications}{" "}
-              applications
+              total
             </span>
 
             <span className="text-stroke">·</span>
@@ -71,6 +81,8 @@ export default function BusinessApplicationsPage() {
               {statisticsUnavailable ? "—" : statistics.rejected} rejected
             </span>
 
+            <span className="text-stroke">·</span>
+
             <span>
               {statisticsUnavailable ? "—" : statistics.pending_review} pending
             </span>
@@ -80,7 +92,7 @@ export default function BusinessApplicationsPage() {
 
       {/* Application metrics */}
       {isStatisticsLoading ? (
-        <MetricCardsSkeleton count={4} includeSparkline={true} />
+        <MetricCardsSkeleton count={4} />
       ) : statisticsUnavailable ? (
         <div className="mb-6">
           <DataErrorState
@@ -91,19 +103,11 @@ export default function BusinessApplicationsPage() {
         </div>
       ) : (
         <BusinessApplicationMetrics
-          isError={statisticsUnavailable}
           pendingReview={statistics.pending_review}
-          approvalRate={statistics.approval_rate}
-          resubmissionRate={statistics.resubmission_rate}
-          slaComplianceRate={statistics.sla_compliance_rate}
-          pendingReviewThisWeek={statistics.pending_review_this_week}
-          approvalRateTrend={statistics.approval_rate_trend}
-          resubmissionRateTrend={statistics.resubmission_rate_trend}
-          slaComplianceRateTrend={statistics.sla_compliance_rate_trend}
-          pendingReviewHistory={statistics.pending_review_history}
-          approvalRateHistory={statistics.approval_rate_history}
-          resubmissionRateHistory={statistics.resubmission_rate_history}
-          slaComplianceRateHistory={statistics.sla_compliance_rate_history}
+          approachingSla={statistics.approaching_sla}
+          overdue={statistics.overdue}
+          oldestPendingBusinessDays={statistics.oldest_pending_business_days}
+          onFilterQueue={tableState.setReviewQueueFilter}
         />
       )}
 
@@ -120,11 +124,12 @@ export default function BusinessApplicationsPage() {
         />
       )}
 
-      <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
+      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+        <List aria-hidden="true" className="h-4 w-4 shrink-0" />
         All Merchant Applications
       </h2>
       {/* Application management */}
-      <BusinessApplicationManagementTable />
+      <BusinessApplicationManagementTable tableState={tableState} />
     </>
   );
 }

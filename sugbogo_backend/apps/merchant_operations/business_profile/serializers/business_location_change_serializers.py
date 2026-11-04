@@ -1,3 +1,4 @@
+from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPhotoField
 import math
 
 from rest_framework import serializers
@@ -253,9 +254,8 @@ class AdminBusinessLocationChangeSerializer(MerchantBusinessLocationChangeSerial
         source="BUSN_ID.BUSN_NAME",
         read_only=True,
     )
-    cover_photo_url = serializers.URLField(
-        source="BUSN_ID.BUSN_COVER_PHOTO_URL",
-        read_only=True,
+    cover_photo_url = BusinessDisplayCoverPhotoField(
+        business_source="BUSN_ID",
     )
     current = serializers.SerializerMethodField()
     merchant = BusinessNameChangeUserSerializer(source="USER_ID", read_only=True)

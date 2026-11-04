@@ -9,13 +9,13 @@ export default function ApplicationReviewField({
   isBusinessName = false,
 }) {
   return (
-    <div className={className}>
+    <div className={`min-w-0 ${className}`}>
       <dt className="text-xs font-medium uppercase tracking-wide text-text-secondary">
         {label}
       </dt>
 
       <dd
-        className={`mt-1.5 ${isBusinessName ? "font-bold text-primary text-3xl" : "text-text-primary text-sm"}`}
+        className={`mt-1.5 break-words ${isBusinessName ? "font-bold text-primary text-3xl" : "text-text-primary text-sm"}`}
       >
         {value || "—"}
       </dd>

@@ -1,54 +1,22 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchBusinessApplication } from "../services/businessApplicationService";
+import { adminApplicationKeys } from "../queries/applicationQueryKeys";
 
-/**
- * Fetches a single business application for administrative review.
- *
- * Manages the application's loading, error, and data states and
- * refetches when the application ID changes.
- */
+/** Loads the authoritative application record for administrative review. */
 export default function useMerchantApplicationReview(
   applicationId,
   { enabled = true } = {},
 ) {
-  const [application, setApplication] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  async function loadBusinessApplication() {
-    if (!applicationId) {
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetchBusinessApplication(applicationId);
-
-      setApplication(response);
-    } catch (error) {
-      console.error("Failed to load business application:", error);
-
-      setError(error);
-      setApplication(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
-    loadBusinessApplication();
-  }, [applicationId, enabled]);
+  const query = useQuery({
+    queryKey: adminApplicationKeys.detail(applicationId),
+    queryFn: () => fetchBusinessApplication(applicationId),
+    enabled: enabled && Boolean(applicationId),
+  });
 
   return {
-    application,
-    isLoading,
-    error,
-    refetch: loadBusinessApplication,
+    application: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
   };
 }

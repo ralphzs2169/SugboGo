@@ -283,30 +283,34 @@ export default function BusinessApplicationReview({
         isResubmission={isResubmission}
       />
 
-      {/* Operating hours */}
-      <BusinessHoursReview
-        operatingHours={application.operating_hours}
-        feedback={getSectionFeedback("operating_hours")}
-        isChangedSinceLastReview={hasSectionChanged("operating_hours")}
-        isResubmission={isResubmission}
-      />
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-2">
+        {/* Operating hours */}
+        <BusinessHoursReview
+          operatingHours={application.operating_hours}
+          feedback={getSectionFeedback("operating_hours")}
+          isChangedSinceLastReview={hasSectionChanged("operating_hours")}
+          isResubmission={isResubmission}
+        />
 
-      {/* Business photos */}
-      <BusinessPhotosReview
-        photos={application.photos}
-        feedback={getSectionFeedback("photos")}
-        isChangedSinceLastReview={hasSectionChanged("photos")}
-        isResubmission={isResubmission}
-      />
+        <div className="min-w-0 space-y-6">
+          {/* Business photos */}
+          <BusinessPhotosReview
+            photos={application.photos}
+            feedback={getSectionFeedback("photos")}
+            isChangedSinceLastReview={hasSectionChanged("photos")}
+            isResubmission={isResubmission}
+          />
 
-      {/* Verification documents */}
-      <BusinessDocumentsReview
-        documents={application.documents}
-        documentPreviewUrls={documentPreviewUrls}
-        feedback={getSectionFeedback("documents")}
-        isChangedSinceLastReview={hasSectionChanged("documents")}
-        isResubmission={isResubmission}
-      />
+          {/* Verification documents */}
+          <BusinessDocumentsReview
+            documents={application.documents}
+            documentPreviewUrls={documentPreviewUrls}
+            feedback={getSectionFeedback("documents")}
+            isChangedSinceLastReview={hasSectionChanged("documents")}
+            isResubmission={isResubmission}
+          />
+        </div>
+      </div>
 
       <div
         id="duplicate-review"
@@ -376,7 +380,7 @@ export default function BusinessApplicationReview({
               <div className="flex w-full flex-col-reverse gap-3 sm:w-auto sm:flex-row sm:justify-end">
                 <Button
                   type="button"
-                  variant="danger"
+                  variant="danger-outline"
                   disabled={!!assessmentBlockReason}
                   disabledTooltip={assessmentBlockReason}
                   onClick={() => {

@@ -1,5 +1,7 @@
 """Read-only queries for Admin reliability investigations."""
 
+from apps.business.services.display_cover_photo import display_cover_photo_expression
+
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Concat
 from django.utils import timezone
@@ -18,6 +20,9 @@ class SuspiciousReviewService:
         """Limit the investigation queue to published reviews with signals."""
         return (
             Review.objects
+            .annotate(
+                display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+            )
             .select_related("USER_ID", "BUSN_ID")
             .filter(REVW_STATUS=Review.ReviewStatus.PUBLISHED)
             .exclude(REVW_RELIABILITY_REASONS=[])
@@ -111,6 +116,9 @@ class SuspiciousReviewService:
                     source_filter |= Q(REVW_INSTALLATION_ID=installation_id)
                 candidates = (
                     Review.objects
+                    .annotate(
+                        display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+                    )
                     .select_related("USER_ID", "BUSN_ID")
                     .filter(
                         source_filter,
@@ -156,6 +164,9 @@ class SuspiciousReviewService:
             else:
                 related[Review.ReliabilityReason.RAPID_SUBMISSION] = list(
                     Review.objects
+                    .annotate(
+                        display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+                    )
                     .select_related("USER_ID", "BUSN_ID")
                     .filter(
                         REVW_INSTALLATION_ID=installation_id,
@@ -173,6 +184,9 @@ class SuspiciousReviewService:
         ):
             related[Review.ReliabilityReason.SHARED_INSTALLATION_ACCOUNTS] = list(
                 Review.objects
+                .annotate(
+                    display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+                )
                 .select_related("USER_ID", "BUSN_ID")
                 .filter(
                     REVW_INSTALLATION_ID=installation_id,

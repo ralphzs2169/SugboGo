@@ -1,5 +1,7 @@
 """Read-only directory queries across the complete retained review inventory."""
 
+from apps.business.services.display_cover_photo import display_cover_photo_expression
+
 from datetime import datetime, time, timedelta
 
 from django.db.models import (
@@ -84,6 +86,9 @@ class AllReviewService:
         )
         return (
             Review.objects
+            .annotate(
+                display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+            )
             .select_related("USER_ID", "BUSN_ID__CTGRY_ID__CLUS_ID")
             .annotate(
                 has_reports=Exists(reports),

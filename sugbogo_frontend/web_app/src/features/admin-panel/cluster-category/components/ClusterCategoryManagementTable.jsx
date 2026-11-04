@@ -323,6 +323,7 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
         hasActiveFilters={hasActiveFilters}
         onResetFilters={handleResetFilters}
         config={{
+          managementControls: true,
           tabs: [
             {
               id: "clusters",

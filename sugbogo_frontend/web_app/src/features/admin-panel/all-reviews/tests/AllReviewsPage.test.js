@@ -418,10 +418,8 @@ test("pagination and page-size changes use backend metadata and keep row numbers
   await click("Next page");
   await until(() => rowNumbers()[0] === "11");
   assert.equal(listReads().at(-1).params.page, 2);
-  await input(
-    container.querySelector('select[aria-label="Reviews per page"]'),
-    "25",
-  );
+  await click("Reviews per page: Rows: 10");
+  await click("25");
   await until(
     () => listReads().at(-1).params.page_size === 25 && rowNumbers()[0] === "1",
   );

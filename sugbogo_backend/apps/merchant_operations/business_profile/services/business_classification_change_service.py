@@ -1,3 +1,4 @@
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 
 from django.db import IntegrityError, transaction
 from django.db.models import Case, IntegerField, Prefetch, Value, When
@@ -288,7 +289,9 @@ class BusinessClassificationChangeService:
         business_id=None,
     ):
         """Return a paginated-ready queue with pending proposals first."""
-        queryset = BusinessClassificationChangeService._request_queryset()
+        queryset = BusinessClassificationChangeService._request_queryset().annotate(
+            display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+        )
         if business_id is not None:
             queryset = queryset.filter(BUSN_ID_id=business_id)
 
@@ -311,7 +314,9 @@ class BusinessClassificationChangeService:
     def get_for_admin(request_id):
         """Load request snapshots alongside the current live classification."""
         try:
-            return BusinessClassificationChangeService._request_queryset().get(
+            return BusinessClassificationChangeService._request_queryset().annotate(
+                display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+            ).get(
                 BCCR_ID=request_id,
             )
         except BusinessClassificationChangeRequest.DoesNotExist:

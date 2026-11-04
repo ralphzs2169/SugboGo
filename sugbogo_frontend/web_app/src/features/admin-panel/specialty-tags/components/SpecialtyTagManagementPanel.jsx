@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { FiTag } from "react-icons/fi";
 import toast from "react-hot-toast";
@@ -133,6 +133,7 @@ export default function SpecialtyTagManagementPanel() {
         hasActiveFilters={hasActiveFilters}
         onResetFilters={handleResetFilters}
         config={{
+          managementControls: true,
           searchPlaceholder: "Search specialty tags...",
           emptyState: {
             title: "No specialty tags found",

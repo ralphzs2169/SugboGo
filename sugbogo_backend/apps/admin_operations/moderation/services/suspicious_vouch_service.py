@@ -1,5 +1,7 @@
 """Read-only queries for advisory vouch findings."""
 
+from apps.business.services.display_cover_photo import display_cover_photo_expression
+
 from django.db.models import Q, Value
 from django.db.models.functions import Concat
 from django.utils import timezone
@@ -18,7 +20,9 @@ class SuspiciousVouchService:
     @staticmethod
     def queryset():
         """Retains withdrawn and invalid findings with joined display identities."""
-        return BusinessVouch.objects.select_related(
+        return BusinessVouch.objects.annotate(
+            display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+        ).select_related(
             "USER_ID",
             "BUSN_ID",
             "TAG_ID",
@@ -85,7 +89,9 @@ class SuspiciousVouchService:
             return None
 
         rows = list(
-            BusinessVouch.objects.select_related(
+            BusinessVouch.objects.annotate(
+                display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+            ).select_related(
                 "USER_ID",
                 "BUSN_ID",
                 "TAG_ID",

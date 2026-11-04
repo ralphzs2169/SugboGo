@@ -1,3 +1,4 @@
+import { MousePointerClick, ChartNoAxesCombined } from "lucide-react";
 import TableTabs from "../../components/data-table/TableTabs";
 import AnalyticsTooltip from "../components/AnalyticsTooltip";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
@@ -83,7 +84,9 @@ export default function DiscoveryActivitySection({ period }) {
   return (
     <>
       {/* Selected metric, compact headline and independent report states */}
-      <AnalyticsSection onAbout={() => setMode("about")} aboutDisabled={!(data || summaryQuery.data)}
+      <AnalyticsSection
+        titleIcon={MousePointerClick}
+        onAbout={() => setMode("about")} aboutDisabled={!(data || summaryQuery.data)}
         title="Discovery Activity"
         description="Recorded discovery activity and distinct accounts."
         hasData={Boolean(data || summaryQuery.data)}
@@ -116,6 +119,7 @@ export default function DiscoveryActivitySection({ period }) {
         </div>
         <div role="tabpanel" id={`discovery-trend-metrics-panel-${metric}`} aria-labelledby={`discovery-trend-metrics-${metric}`} tabIndex={0} className="min-w-0 rounded focus-visible:outline-2 focus-visible:outline-info">
         <AnalyticsChartCard
+          titleIcon={ChartNoAxesCombined}
           compact
           framed={false}
           title={metric === "distinct_engaged_explorers" ? `Distinct discovery participants by ${interval === "weekly" ? "week" : "day"}` : `Recorded ${selected.label.toLowerCase()} by ${interval === "weekly" ? "week" : "day"}`}

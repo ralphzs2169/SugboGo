@@ -1,5 +1,7 @@
 """Review-grouped, read-only queries for pending community reports."""
 
+from apps.business.services.display_cover_photo import display_cover_photo_expression
+
 from django.db.models import Count, Exists, Max, Min, OuterRef, Prefetch, Q, Subquery, Value
 from django.db.models.functions import Concat
 from rest_framework.exceptions import NotFound
@@ -27,6 +29,9 @@ class ReportedReviewService:
         )
         return (
             Review.objects
+            .annotate(
+                display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+            )
             .select_related("USER_ID", "BUSN_ID")
             .annotate(has_pending_reports=Exists(pending_exists))
             .filter(has_pending_reports=True)

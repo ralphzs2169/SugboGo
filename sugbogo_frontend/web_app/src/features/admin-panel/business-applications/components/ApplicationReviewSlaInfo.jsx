@@ -30,12 +30,12 @@ export default function ApplicationReviewSlaInfo({
       <div className="mb-6 overflow-hidden rounded-xl border border-info/20 bg-info/5">
         {/* SLA header */}
         <div className="flex items-center gap-3 p-4 sm:px-5">
-          <div className="shrink-0 rounded-lg bg-info/10 p-2 text-info">
-            <Clock3 size={18} strokeWidth={2} />
+          <div className="shrink-0 text-text-primary">
+            <Clock3 aria-hidden="true" size={16} strokeWidth={2} />
           </div>
 
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold text-text-primary">
+            <h2 className="text-base font-semibold text-text-primary">
               Application Review SLA
             </h2>
 
@@ -57,12 +57,12 @@ export default function ApplicationReviewSlaInfo({
         className="flex w-full cursor-pointer items-center gap-3 p-4 text-left transition-colors hover:bg-info/5 sm:px-5"
         aria-expanded={isExpanded}
       >
-        <div className="shrink-0 rounded-lg bg-info/10 p-2 text-info">
-          <Clock3 size={18} strokeWidth={2} />
+        <div className="shrink-0 text-text-primary">
+          <Clock3 aria-hidden="true" size={16} strokeWidth={2} />
         </div>
 
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold text-text-primary">
+          <h2 className="text-base font-semibold text-text-primary">
             Application Review SLA
           </h2>
 

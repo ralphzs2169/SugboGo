@@ -1,7 +1,6 @@
 import { ExternalLink, FileText } from "lucide-react";
 
 import ApplicationReviewSection from "./ApplicationReviewSection";
-import PdfFirstPagePreview from "./business-documents/PdfFirstPagePreview";
 import ApplicationReviewFeedback from "./ApplicationReviewFeedback";
 import DocumentPreview from "./business-documents/DocumentPreview";
 import ApplicationReviewChangeStatus from "./ApplicationReviewChangeStatus";
@@ -39,14 +38,14 @@ export default function BusinessDocumentsReview({
           {documents.map((document) => (
             <div
               key={document.id}
-              className="flex items-center gap-4 bg-surface px-4 py-4"
+              className="flex items-center gap-3 bg-surface px-3 py-3"
             >
               {/* Document preview */}
               <a
                 href={document.document_url}
                 target="_blank"
                 rel="noreferrer"
-                className="block h-20 w-16 shrink-0 cursor-pointer overflow-hidden rounded border border-stroke bg-surface-muted"
+                className="block h-14 w-11 shrink-0 cursor-pointer overflow-hidden rounded border border-stroke bg-surface-muted"
                 aria-label={`Open ${document.file_name || "document"}`}
               >
                 <DocumentPreview
@@ -57,7 +56,7 @@ export default function BusinessDocumentsReview({
 
               {/* Document information */}
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium capitalize text-text-primary">
+                <p className="break-words text-sm font-medium capitalize text-text-primary">
                   {document.document_type?.replaceAll("_", " ") ||
                     "Verification document"}
                 </p>
@@ -69,6 +68,7 @@ export default function BusinessDocumentsReview({
 
               {/* Open original document */}
               <a
+                aria-label={`View ${document.file_name || "verification document"}`}
                 href={document.document_url}
                 target="_blank"
                 rel="noreferrer"

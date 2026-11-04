@@ -1,4 +1,4 @@
-import { Calendar, Contact, Clock, User, Mail, History } from "lucide-react";
+import { Calendar, Contact, Clock, Mail, History } from "lucide-react";
 import UserAvatar from "@/shared/components/UserAvatar";
 import StatusBadge from "@/shared/components/StatusBadge";
 import statusConfig from "../../config/applicationStatus.config";
@@ -6,8 +6,6 @@ import ApplicationQueueStatus from "../../components/ApplicationQueueStatus";
 
 import {
   formatApplicationDate,
-  formatApplicationElapsedTime,
-  isApplicationResolved,
 } from "../../utils/applicationReview.utils";
 
 const statusAccents = {
@@ -53,18 +51,7 @@ export default function ApplicationReviewHeader({ application }) {
   const statusInfo = statusConfig[status];
   const statusAccent = statusAccents[status] ?? statusAccents.draft;
 
-  const resolved = isApplicationResolved(status);
-
-  const queueLabel = resolved ? "Resolved in" : "Time in queue";
-
-  const queueEndTime = resolved
-    ? application.reviewed_at || application.updated_at
-    : Date.now();
-
-  const queueValue = formatApplicationElapsedTime(
-    application.submitted_at,
-    queueEndTime,
-  );
+  const queueLabel = "Review Time";
 
   return (
     <section className="overflow-hidden rounded-xl border border-stroke bg-background">

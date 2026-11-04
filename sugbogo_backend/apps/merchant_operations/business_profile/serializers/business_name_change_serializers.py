@@ -1,3 +1,4 @@
+from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPhotoField
 from rest_framework import serializers
 
 from apps.merchant_operations.business_profile.models import (
@@ -116,9 +117,8 @@ class AdminBusinessNameChangeSerializer(MerchantBusinessNameChangeSerializer):
         source="BUSN_ID.BUSN_NAME",
         read_only=True,
     )
-    cover_photo_url = serializers.URLField(
-        source="BUSN_ID.BUSN_COVER_PHOTO_URL",
-        read_only=True,
+    cover_photo_url = BusinessDisplayCoverPhotoField(
+        business_source="BUSN_ID",
     )
     merchant = BusinessNameChangeUserSerializer(
         source="USER_ID",

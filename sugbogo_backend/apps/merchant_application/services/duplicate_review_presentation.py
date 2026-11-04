@@ -2,7 +2,8 @@
 
 from django.db.models import OuterRef, Subquery
 
-from apps.business.models import Business, BusinessPhoto
+from apps.business.models import Business
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.merchant_application.models import MerchantApplication, MerchantApplicationPhotos
 
 
@@ -18,12 +19,8 @@ def add_duplicate_display_context(state):
         for candidate in state["candidates"]
         if candidate["record_type"] == "application"
     ]
-    covers = BusinessPhoto.objects.filter(
-        BUSN_ID=OuterRef("pk"),
-        BPHO_CATEGORY="storefront",
-    ).order_by("BPHO_ID").values("BPHO_PHOTO_URL")[:1]
     businesses = Business.objects.filter(pk__in=business_ids).annotate(
-        cover_photo_url=Subquery(covers),
+        cover_photo_url=display_cover_photo_expression(),
     ).values(
         "pk",
         "cover_photo_url",
