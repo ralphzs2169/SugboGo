@@ -1,43 +1,24 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { invalidateDashboardDecision } from "../../dashboard/queries/dashboardQueryEffects";
+import { invalidateApplicationDecision } from "../queries/applicationQueryEffects";
 import { rejectBusinessApplication } from "../services/businessApplicationService";
 
-/**
- * Handles rejection of a business application.
- *
- * Manages submission state and API errors while exposing a reusable
- * rejection action for the application review workflow.
- */
+/** Applies an application reject decision and refreshes the affected server resources. */
 export default function useRejectBusinessApplication() {
   const queryClient = useQueryClient();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-
-  async function rejectApplication(applicationId, payload) {
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      const response = await rejectBusinessApplication(applicationId, payload);
-
-      await invalidateDashboardDecision(queryClient);
-
-      return response;
-    } catch (error) {
-      console.error("Failed to reject business application:", error);
-
-      setError(error);
-      throw error;
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  const mutation = useMutation({
+    mutationFn: ({ applicationId, payload }) =>
+      rejectBusinessApplication(applicationId, payload),
+    onSuccess: (_, { applicationId }) => Promise.all([
+      invalidateApplicationDecision(queryClient, applicationId),
+      invalidateDashboardDecision(queryClient),
+    ]),
+  });
 
   return {
-    rejectApplication,
-    isSubmitting,
-    error,
+    rejectApplication: (applicationId, payload) =>
+      mutation.mutateAsync({ applicationId, payload }),
+    isSubmitting: mutation.isPending,
+    error: mutation.error,
   };
 }

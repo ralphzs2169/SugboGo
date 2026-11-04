@@ -1,79 +1,41 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchBusinessApplicationStatistics } from "../services/businessApplicationService";
+import { adminApplicationKeys } from "../queries/applicationQueryKeys";
 
-/**
- * Fetches current review queue metrics and status totals for application management.
- */
-export default function useBusinessApplicationStatistics({
-  enabled = true,
-} = {}) {
-  const [statistics, setStatistics] = useState({
-    pending_review: null,
-    approaching_sla: null,
-    overdue: null,
-    oldest_pending_business_days: null,
-    approved: null,
-    rejected: null,
-    total_applications: null,
+const emptyStatistics = {
+  pending_review: null,
+  approaching_sla: null,
+  overdue: null,
+  oldest_pending_business_days: null,
+  approved: null,
+  rejected: null,
+  total_applications: null,
+  review_sla_business_days: 0,
+  review_sla_approaching_business_days: 0,
+};
 
-    review_sla_business_days: 0,
-    review_sla_approaching_business_days: 0,
+/** Normalize missing measurements without converting measured zeroes to unavailable. */
+function selectStatistics(response) {
+  return Object.fromEntries(
+    Object.entries(emptyStatistics).map(([key, fallback]) => [
+      key, response[key] ?? fallback,
+    ]),
+  );
+}
+
+/** Loads current review queue metrics and status totals for application management. */
+export default function useBusinessApplicationStatistics({ enabled = true } = {}) {
+  const query = useQuery({
+    queryKey: adminApplicationKeys.statistics,
+    queryFn: fetchBusinessApplicationStatistics,
+    enabled,
+    select: selectStatistics,
   });
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const loadStatistics = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetchBusinessApplicationStatistics();
-
-      setStatistics({
-        pending_review: response.pending_review ?? null,
-        approaching_sla: response.approaching_sla ?? null,
-        overdue: response.overdue ?? null,
-        oldest_pending_business_days:
-          response.oldest_pending_business_days ?? null,
-        approved: response.approved ?? null,
-        rejected: response.rejected ?? null,
-        total_applications: response.total_applications ?? null,
-
-        review_sla_business_days: response.review_sla_business_days ?? 0,
-        review_sla_approaching_business_days:
-          response.review_sla_approaching_business_days ?? 0,
-      });
-    } catch (error) {
-      console.error("Failed to load business application statistics:", error);
-
-      setError(error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (!cancelled) {
-        loadStatistics();
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, loadStatistics]);
-
   return {
-    statistics,
-    isLoading,
-    error,
-    refetch: loadStatistics,
+    statistics: query.data ?? emptyStatistics,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
   };
 }
