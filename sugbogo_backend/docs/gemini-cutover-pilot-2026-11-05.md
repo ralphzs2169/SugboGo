@@ -41,4 +41,17 @@ The experimental star-display flag remains disabled; automatic aggregate updates
 
 The 122-test transition regression result covers rollback, edit/deletion invalidation, provider failures, stale worker fencing, rating isolation, and exclusion-placeholder handling. The seeded live pilot supplements those tests with real provider/worker execution; it does not replace emulator/admin acceptance.
 
-Next manual acceptance: submit and approve a new review, edit it, then delete it in the emulator/admin flow. Confirm the matching Gemini result and aggregate revisions after each action. Preserve the seed manifest for later cleanup; do not delete real reviews or blindly cascade-delete synthetic users through unrelated unmigrated modules.
+## Live HTTP lifecycle acceptance
+
+Recorded in `docs/evidence/gemini-cutover-lifecycle-2026-11-05.json` using disposable review 158 and passwordless synthetic author 183:
+
+| Action | Observed result | Contributors | Exact aggregate |
+| --- | --- | ---: | ---: |
+| Submit positive review | Initially held; real moderation published it; Gemini scored +1 | 28 | 3.0000000000 |
+| Edit to negative | Real edit moderation accepted; Gemini scored -1 for updated text | 28 | 2.8571428571 |
+| Edit to factual | Published text retained; excluded with null score | 27 | 2.9259259259 |
+| Delete | Review and associated results removed; baseline restored | 27 | 2.9259259259 |
+
+These checks used the running HTTP API, real moderation, Gemini, Celery workers, and aggregate processing. They did not simulate emulator gestures or exercise a manual administrator approval. The disposable review was deleted; its synthetic account remains with an unusable password to avoid unrelated user-cascade dependencies.
+
+Remaining manual acceptance: inspect the same user journey visually in the emulator/admin UI, including a manual approval case. Preserve the seed manifest for later cleanup; do not delete real reviews or blindly cascade-delete synthetic users through unrelated unmigrated modules. Star display remains a separate rollout decision.

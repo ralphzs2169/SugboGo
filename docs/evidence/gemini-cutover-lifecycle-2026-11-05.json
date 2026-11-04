@@ -1,0 +1,45 @@
+{
+  "recorded_at": "2026-11-04T17:38:33.281193+00:00",
+  "business_id": 11,
+  "disposable_review_id": 158,
+  "events": [
+    {
+      "action": "submit_and_automatic_moderation",
+      "initial_status": "under_review",
+      "review_status": "published",
+      "label": "positive",
+      "score": 1.0,
+      "eligible": true,
+      "rating": "3.0000000000",
+      "contributing_count": 28
+    },
+    {
+      "action": "edit_to_negative",
+      "review_status": "published",
+      "label": "negative",
+      "score": -1.0,
+      "eligible": true,
+      "rating": "2.8571428571",
+      "contributing_count": 28
+    },
+    {
+      "action": "edit_to_factual_exclusion",
+      "review_status": "published",
+      "label": "neutral",
+      "score": null,
+      "eligible": false,
+      "rating": "2.9259259259",
+      "contributing_count": 27
+    },
+    {
+      "action": "delete",
+      "review_removed": true,
+      "associated_results_removed": true,
+      "baseline_rating_restored": true
+    }
+  ],
+  "baseline_rating": "2.9259259259",
+  "baseline_contributors": 27,
+  "interface": "Real local HTTP endpoints; no emulator gestures or administrator manual approval were performed.",
+  "synthetic_author_retained_with_unusable_password": 183
+}
