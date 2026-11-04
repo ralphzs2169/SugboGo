@@ -9,7 +9,7 @@ from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_
 from django.utils import timezone
 
 from apps.reviews.models import Review, ReviewSentimentShadow as Shadow, ReviewRatingResult, BusinessRating
-from apps.reviews.services.gemini_sentiment_contract import contract_version, validate_output
+from apps.reviews.services.gemini_sentiment_contract import contract_version, validate_output, normalize_provider_output
 from apps.reviews.services.gemini_sentiment_shadow_service import GeminiSentimentShadowService as Service
 from apps.reviews.services.review_service import ReviewService
 from apps.reviews.services.tests.test_business_review_summary_service import SummaryFixtureMixin
@@ -20,6 +20,37 @@ PROVIDER = 'apps.reviews.services.gemini_sentiment_shadow_service.GeminiStructur
 
 
 class GeminiContractTests(SimpleTestCase):
+    def test_exclusion_placeholder_is_dropped_without_creating_a_neutral_rating(self):
+        original = dict(label='neutral', score=0, eligible=False, reason='factual')
+        result, corrected = normalize_provider_output(original)
+        self.assertTrue(corrected)
+        self.assertIsNone(result['score'])
+        self.assertFalse(result['eligible'])
+        self.assertEqual(original['score'], 0)
+
+    def test_placeholder_correction_rejects_other_contradictions(self):
+        for score in (True, 0.5, -1):
+            with self.subTest(score=score), self.assertRaises(ValueError):
+                normalize_provider_output(dict(label='neutral', score=score, eligible=False, reason='factual'))
+        with self.assertRaises(ValueError):
+            normalize_provider_output(dict(label='positive', score=0, eligible=False, reason='factual'))
+
+    def test_eligible_zero_remains_a_valid_balanced_rating(self):
+        result, corrected = normalize_provider_output(dict(label='neutral', score=0, eligible=True, reason='evaluative'))
+        self.assertFalse(corrected)
+        self.assertEqual(result['score'], 0)
+
+    def test_factual_zero_is_rejected_instead_of_becoming_three_stars(self):
+        with self.assertRaisesRegex(ValueError, 'invalid_exclusion'):
+            validate_output(dict(label='neutral', score=0, eligible=False, reason='factual'))
+
+    def test_schema_change_invalidates_previously_scored_cohort(self):
+        from apps.reviews.services import gemini_sentiment_contract as contract
+        current = contract_version('gemini-test')
+        previous_schema = {key: value for key, value in contract.SCHEMA.items() if key != 'anyOf'}
+        with patch.object(contract, 'SCHEMA', previous_schema):
+            self.assertNotEqual(current, contract_version('gemini-test'))
+
     def test_all_anchors_and_exclusions(self):
         for score in [-1, -0.5, 0, 0.5, 1]:
             label = 'positive' if score > 0 else 'negative' if score < 0 else 'neutral'
@@ -89,6 +120,16 @@ class GeminiShadowTests(SummaryFixtureMixin, TestCase):
         self.assertFalse(result.RSSH_ELIGIBLE)
         self.review.refresh_from_db()
         self.assertEqual(self.review.REVW_SENTIMENT_SCORE, 0.75)
+
+    def test_factual_zero_placeholder_records_correction_without_rating_input(self):
+        with patch(PROVIDER, return_value=(json.dumps(dict(label='neutral', score=0, eligible=False, reason='factual')), {})):
+            job = self.job()
+            self.assertEqual(Service.process(job), 'ready')
+        row = Shadow.objects.get(pk=job)
+        self.assertIsNone(row.RSSH_SCORE)
+        self.assertFalse(row.RSSH_ELIGIBLE)
+        self.assertEqual(row.RSSH_USAGE['normalization'], 'excluded_zero_to_null')
+        self.assertFalse(ReviewRatingResult.objects.exists())
 
     def test_edit_during_inference_discards_result(self):
         job = self.job()

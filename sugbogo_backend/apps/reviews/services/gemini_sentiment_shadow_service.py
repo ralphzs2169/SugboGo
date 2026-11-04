@@ -10,7 +10,7 @@ from django.db.models import F, Q
 from django.utils import timezone
 
 from apps.reviews.models import Review, ReviewSentimentShadow as Shadow
-from apps.reviews.services.gemini_sentiment_contract import PROMPT, SCHEMA, contract_version, text_hash, validate_output
+from apps.reviews.services.gemini_sentiment_contract import PROMPT, SCHEMA, contract_version, text_hash, normalize_provider_output
 from apps.shared.services.gemini_structured_service import GeminiStructuredService, TransientGenerationError
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,9 @@ class GeminiSentimentShadowService:
             raw, usage = GeminiStructuredService.generate(
                 model=model, instruction=PROMPT, evidence={'text': source}, schema=SCHEMA,
             )
-            result = validate_output(json.loads(raw))
+            result, corrected = normalize_provider_output(json.loads(raw))
+            if corrected:
+                usage = dict(usage, normalization='excluded_zero_to_null')
         except Exception as exc:
             retryable = isinstance(exc, (TransientGenerationError, ValueError))
             # Never store raw provider errors, prompts or credentials in failure metadata.

@@ -25,7 +25,36 @@ SCHEMA = {
     },
     'required': ['label', 'score', 'eligible', 'reason'],
     'additionalProperties': False,
+    # Constrain related fields together; independent enums permit factual zeroes.
+    'anyOf': [
+        {
+            'properties': {
+                'label': {'enum': ['neutral' if score is None or score == 0 else 'positive' if score > 0 else 'negative']},
+                'score': {'type': 'null'} if score is None else {'enum': [score]},
+                'eligible': {'enum': [score is not None]},
+                'reason': {'enum': ['factual', 'uncertain'] if score is None else ['evaluative']},
+            },
+        }
+        for score in (-1, -0.5, 0, 0.5, 1, None)
+    ],
 }
+
+
+def normalize_provider_output(payload):
+    """Discard a zero placeholder only for explicit neutral factual/uncertain exclusions."""
+    normalized = payload
+    corrected = (
+        isinstance(payload, dict)
+        and payload.get('eligible') is False
+        and payload.get('label') == 'neutral'
+        and isinstance(payload.get('reason'), str)
+        and payload['reason'] in ('factual', 'uncertain')
+        and type(payload.get('score')) in (int, float)
+        and payload['score'] == 0
+    )
+    if corrected:
+        normalized = dict(payload, score=None)
+    return validate_output(normalized), corrected
 
 
 def validate_output(payload):
@@ -48,7 +77,7 @@ def validate_output(payload):
 
 def contract_version(model):
     """Bind model identifier, prompt, schema and policy to one compatibility version."""
-    content = json.dumps({'model': model, 'prompt': PROMPT, 'schema': SCHEMA, 'policy': 'anchored-shadow-v1'}, sort_keys=True)
+    content = json.dumps({'model': model, 'prompt': PROMPT, 'schema': SCHEMA, 'policy': 'anchored-exclusion-placeholder-v2'}, sort_keys=True)
     return sha256(content.encode()).hexdigest()
 
 
