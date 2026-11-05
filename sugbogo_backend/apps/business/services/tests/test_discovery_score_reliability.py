@@ -1,20 +1,24 @@
 from datetime import timedelta
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from celery.exceptions import Retry
 from django.db import transaction
 from django.test import TestCase
 from django.utils import timezone
+from pymongo.errors import AutoReconnect, ConfigurationError, ExecutionTimeout
 
-from apps.business.models import Business, DiscoveryScore
+from apps.business.models import Business, BusinessPocket, BusinessSpecialtyTag, DiscoveryScore
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 from apps.business.services.discovery_score_service import (
     DiscoveryScoreRecomputeStatus,
     DiscoveryScoreService,
 )
 from apps.business.services.tests import test_discovery_score_service as fixtures
-from apps.business.services.visibility_event_service import VisibilityTrackingUnavailable
+from apps.business.services.visibility_event_service import (
+    VisibilityEventService,
+    VisibilityTrackingUnavailable,
+)
 from apps.business.services.visibility_gap_service import VisibilityGapService
 from apps.business.services.vouch_service import VouchService
 from apps.business.tasks import recompute_business_discovery_score, recompute_discovery_scores
@@ -360,6 +364,107 @@ class DiscoveryScoreReliabilityTests(TestCase):
         self.assertEqual(score.DSC_D_SCORE, previous.discovery_score)
         self.assertEqual(score.DSC_COMPUTED_AT, previous.reference_time)
         self.assertEqual(score.DSC_LAST_ERROR, "VisibilityTrackingUnavailable")
+
+    def test_real_visibility_reads_distinguish_zero_from_dns_timeout_and_partial_cursor_failures(self):
+        """Keep successful scores and tags when MongoDB fails despite available Pocket rows."""
+        explorer = fixtures.DiscoveryScoreServiceTests._create_explorer(
+            self,
+            Decimal("0.20"),
+        )
+        pocket = BusinessPocket.objects.create(
+            USER_ID=explorer,
+            BUSN_ID=self.business,
+        )
+        collection = Mock()
+        collection.aggregate.return_value = []
+        with (
+            patch.object(VisibilityEventService, "_indexes_initialized", True),
+            patch.object(VisibilityEventService, "_unavailable_until", 0.0),
+            patch.object(VisibilityEventService, "_get_collection", return_value=collection),
+        ):
+            result = DiscoveryScoreService.recompute_business_score(
+                self.business.pk,
+                reference_time=self.reference_time,
+            )
+        self.assertEqual(result.visibility_result.impression_count, 0)
+        self.assertEqual(result.visibility_result.profile_visit_count, 0)
+        self.assertEqual(result.visibility_result.unique_saver_count, 0)
+        self.assertEqual(result.visibility_gap, Decimal("1.00000"))
+        score = DiscoveryScore.objects.get()
+        score_values = (
+            score.DSC_S_SCORE,
+            score.DSC_V_SCORE,
+            score.DSC_D_SCORE,
+            score.DSC_COMPUTED_AT,
+        )
+        tag_values = list(BusinessSpecialtyTag.objects.values().order_by("pk"))
+
+        def interrupted_cursor():
+            yield {
+                "_id": {
+                    "business_id": self.business.pk,
+                    "event_type": "IMPRESSION",
+                },
+                "event_count": 7,
+                "explorer_ids": [explorer.pk],
+            }
+            raise AutoReconnect("Cursor disconnected after a partial result.")
+
+        attempt = 0
+        for batch in (False, True):
+            for failure in ("dns", "timeout", "partial_cursor"):
+                with self.subTest(batch=batch, failure=failure):
+                    attempt += 1
+                    collection.reset_mock()
+                    collection.aggregate.side_effect = None
+                    collection_error = None
+                    if failure == "dns":
+                        collection_error = ConfigurationError("Private DNS failure.")
+                    elif failure == "timeout":
+                        collection.aggregate.side_effect = ExecutionTimeout("Query timed out.")
+                    else:
+                        collection.aggregate.return_value = interrupted_cursor()
+                    with (
+                        patch.object(VisibilityEventService, "_indexes_initialized", True),
+                        patch.object(VisibilityEventService, "_unavailable_until", 0.0),
+                        patch.object(
+                            VisibilityEventService,
+                            "_get_collection",
+                            return_value=collection,
+                            side_effect=collection_error,
+                        ),
+                        patch("apps.business.services.visibility_event_service.logger.exception"),
+                        self.assertRaises(VisibilityTrackingUnavailable),
+                    ):
+                        reference_time = self.reference_time + timedelta(seconds=attempt)
+                        if batch:
+                            DiscoveryScoreService.recompute_business_scores(
+                                reference_time=reference_time,
+                            )
+                        else:
+                            DiscoveryScoreService.recompute_business_score(
+                                self.business.pk,
+                                reference_time=reference_time,
+                            )
+                    score.refresh_from_db()
+                    self.assertEqual(
+                        (
+                            score.DSC_S_SCORE,
+                            score.DSC_V_SCORE,
+                            score.DSC_D_SCORE,
+                            score.DSC_COMPUTED_AT,
+                        ),
+                        score_values,
+                    )
+                    self.assertEqual(score.DSC_LAST_ATTEMPT_AT, reference_time)
+                    self.assertEqual(score.DSC_LAST_ERROR, "VisibilityTrackingUnavailable")
+                    self.assertIsNotNone(score.DSC_REFRESH_REQUESTED_AT)
+                    self.assertFalse(score.DSC_IS_PROVISIONAL)
+                    self.assertEqual(
+                        list(BusinessSpecialtyTag.objects.values().order_by("pk")),
+                        tag_values,
+                    )
+                    self.assertTrue(BusinessPocket.objects.filter(pk=pocket.pk).exists())
 
     def test_new_attempt_clears_previous_error_and_preserves_last_success(self):
         """Report the latest worker attempt as pending instead of retaining an old failure."""

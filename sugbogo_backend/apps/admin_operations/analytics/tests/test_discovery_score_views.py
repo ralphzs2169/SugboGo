@@ -1,5 +1,6 @@
 """API coverage for administrator Discovery Score monitoring."""
 
+from dataclasses import asdict
 from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -333,6 +334,62 @@ class DiscoveryScoreMonitoringViewTests(APITestCase):
             DiscoveryScore.objects.values().get(BUSN_ID=self.business),
             before,
         )
+
+    def test_diagnostic_and_production_visibility_share_nonzero_observations_and_normalization(self):
+        """Compare actual calculation paths over the same MongoDB aggregation rows."""
+        reference_time = timezone.now()
+        context = DiscoveryScoreMonitoringService.visibility_context()
+        context["reference_time"] = reference_time
+        collection = Mock()
+        collection.aggregate.return_value = [
+            {
+                "_id": {
+                    "business_id": self.business.pk,
+                    "event_type": event_type,
+                },
+                "event_count": count,
+                "explorer_ids": savers,
+            }
+            for event_type, count, savers in (
+                ("IMPRESSION", 5, [100, 101]),
+                ("PROFILE_VISIT", 2, [100]),
+                ("SAVE", 3, [100, 101]),
+            )
+        ]
+        self.client.force_authenticate(user=self.admin)
+        with (
+            patch.object(DiscoveryScoreMonitoringService, "visibility_context", return_value=context),
+            patch.object(VisibilityEventService, "_indexes_initialized", True),
+            patch.object(VisibilityEventService, "_unavailable_until", 0.0),
+            patch.object(VisibilityEventService, "_get_collection", return_value=collection),
+        ):
+            production_result = VisibilityGapService.calculate_business_visibility_gap(
+                business_id=self.business.pk,
+                reference_time=reference_time,
+                configuration=context["configuration"],
+            )
+            response = self.client.get(self.diagnostic_url())
+        self.assertEqual(response.status_code, 200)
+        data = response.data["data"]
+        for field, value in asdict(production_result).items():
+            with self.subTest(field=field):
+                if isinstance(value, Decimal):
+                    self.assertEqual(Decimal(data[field]), value)
+                elif field in ("window_start", "window_end"):
+                    self.assertEqual(data[field], value.isoformat().replace("+00:00", "Z"))
+                else:
+                    self.assertEqual(data[field], value)
+        self.assertEqual(data["impression_count"], 5)
+        self.assertEqual(data["profile_visit_count"], 2)
+        self.assertEqual(data["unique_saver_count"], 2)
+        self.assertEqual(
+            collection.aggregate.call_args_list[0],
+            collection.aggregate.call_args_list[1],
+        )
+        self.assertIsNone(data["telemetry_coverage"]["value"])
+        self.assertEqual(data["telemetry_coverage"]["reason"], "coverage_unverified")
+        collection.create_index.assert_not_called()
+        collection.bulk_write.assert_not_called()
 
     def test_monitoring_observation_context_is_capped_and_does_not_read_mongo(self):
         """Use configured potential age independently of telemetry and score state."""

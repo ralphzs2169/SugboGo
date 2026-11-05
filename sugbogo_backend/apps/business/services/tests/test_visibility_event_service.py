@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.test import TestCase, override_settings
-from pymongo.errors import AutoReconnect
+from pymongo.errors import AutoReconnect, ConfigurationError
 from rest_framework.exceptions import NotFound
 
 from apps.business.models import (
@@ -705,6 +705,34 @@ class VisibilityEventServiceTests(TestCase):
 
         with self.assertRaises(VisibilityTrackingUnavailable):
             self._record_first_impression()
+
+    def test_dns_failure_blocks_impression_and_visit_writes_before_or_after_index_initialization(self):
+        """Expose SRV resolution failures as unavailable rather than successful observations."""
+        self.get_database.side_effect = ConfigurationError("Private MongoDB DNS failure.")
+        for indexes_initialized in (False, True):
+            for event in ("impression", "profile_visit"):
+                with self.subTest(indexes_initialized=indexes_initialized, event=event):
+                    with (
+                        patch.object(
+                            VisibilityEventService,
+                            "_indexes_initialized",
+                            indexes_initialized,
+                        ),
+                        patch.object(VisibilityEventService, "_unavailable_until", 0.0),
+                        patch("apps.business.services.visibility_event_service.logger.exception"),
+                        self.assertRaises(VisibilityTrackingUnavailable) as failure,
+                    ):
+                        if event == "impression":
+                            self._record_first_impression()
+                        else:
+                            VisibilityEventService.record_profile_visit(
+                                explorer_id=self.explorer.pk,
+                                business_id=self.first_business.pk,
+                            )
+                    self.assertEqual(failure.exception.status_code, 503)
+                    self.assertNotIn("Private", str(failure.exception))
+                    self.assertGreater(failure.exception.wait, 0)
+                    self.assertEqual(self.collection.documents, {})
 
     @override_settings(
         MONGODB_VISIBILITY_FAILURE_COOLDOWN_SECONDS=30,
