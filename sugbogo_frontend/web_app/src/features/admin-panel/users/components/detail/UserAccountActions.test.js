@@ -8,14 +8,22 @@ import { createServer } from "vite";
 let server;
 let UserAccountActions;
 let authStore;
+let getUserColumns;
 
 before(async () => {
-  server = await createServer({ appType: "custom", server: { middlewareMode: true } });
+  server = await createServer({
+    appType: "custom",
+    optimizeDeps: { noDiscovery: true, include: [] },
+    server: { middlewareMode: true, hmr: false },
+  });
   ({ default: UserAccountActions } = await server.ssrLoadModule(
     "/src/features/admin-panel/users/components/detail/UserAccountActions.jsx",
   ));
   ({ useAuthStore: authStore } = await server.ssrLoadModule(
     "/src/features/auth/storage/auth.store.js",
+  ));
+  ({ default: getUserColumns } = await server.ssrLoadModule(
+    "/src/features/admin-panel/users/columns/userColumns.jsx",
   ));
 });
 
@@ -59,4 +67,54 @@ test("suspension and reactivation remain available for their existing eligible s
   assert.match(renderActions(actor, { ...target, status: "active" }), /Suspend User/);
   assert.match(renderActions(actor, { ...target, status: "suspended" }), /Reactivate User/);
   assert.doesNotMatch(renderActions(actor, { ...target, status: "pending" }), /Reactivate User|Suspend User/);
+});
+
+test("table columns preserve sorting contracts, page numbering, and PHT dates", () => {
+  const columns = getUserColumns({ currentUser: { id: 1, role: "admin" } });
+  assert.deepEqual(
+    columns.map((column) => column.header),
+    ["No.", "User", "Email", "Role", "Status", "Date Joined", "Actions"],
+  );
+  assert.equal(columns[0].enableSorting, false);
+  assert.equal(columns.at(-1).enableSorting, false);
+  assert.equal(columns[0].cell({
+    row: { index: 2 },
+    table: { getState: () => ({ pagination: { pageIndex: 2, pageSize: 25 } }) },
+  }), 53);
+  const joined = columns.find((column) => column.id === "joined_at");
+  assert.match(
+    renderToString(joined.cell({ getValue: () => "2026-11-04T16:30:00Z" })),
+    /Nov 5, 2026/,
+  );
+});
+
+test("table actions enforce protected accounts and backend resend eligibility", () => {
+  function items(actor, target) {
+    const column = getUserColumns({ currentUser: actor }).at(-1);
+    return column.cell({ row: { original: target } }).props.items
+      .map((item) => item.key)
+      .filter(Boolean);
+  }
+
+  const admin = { id: 1, role: "admin" };
+  const superAdmin = { id: 1, role: "super_admin" };
+  const target = { id: 2, role: "explorer", status: "disabled" };
+  assert.deepEqual(items(admin, target), ["view", "reactivate"]);
+  assert.deepEqual(items(admin, { ...target, id: 1 }), ["view"]);
+  assert.deepEqual(items(admin, { ...target, role: "admin" }), ["view"]);
+  assert.deepEqual(items(superAdmin, { ...target, role: "admin" }), ["view", "reactivate"]);
+  assert.deepEqual(items(superAdmin, { ...target, role: "super_admin" }), ["view"]);
+
+  const invitation = {
+    id: 3,
+    role: "admin",
+    status: "pending",
+    invitation_resend_eligible: true,
+  };
+  assert.deepEqual(items(superAdmin, invitation), ["view", "resend-invitation"]);
+  assert.deepEqual(items(admin, invitation), ["view"]);
+  assert.deepEqual(
+    items(superAdmin, { ...invitation, invitation_resend_eligible: false }),
+    ["view"],
+  );
 });

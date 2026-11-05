@@ -1,13 +1,17 @@
 /**
- * Formats an ISO date string into a readable dashboard date.
+ * Formats an ISO date string, optionally in an explicit timezone.
  */
-export function formatDate(value) {
+export function formatDate(
+  value,
+  { timeZone } = {},
+) {
   if (!value) return "-";
 
   return new Date(value).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
+    timeZone,
   });
 }
 

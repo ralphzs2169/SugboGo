@@ -2,16 +2,16 @@ import { CheckCircle2, Mail, ShieldCheck, XCircle } from "lucide-react";
 
 import StatusBadge from "@/shared/components/StatusBadge";
 import UserAvatar from "@/shared/components/UserAvatar";
-import { formatDate } from "@/shared/utils/dateUtils";
 import { formatLabel } from "@/shared/utils/stringUtils";
 
 import { USER_STATUS_BADGE_VARIANT } from "../../constants/userManagement";
+import { formatUserJoinedDate } from "../../utils/userPresentation";
 
 export default function UserAccountInformation({ user }) {
   const details = [
     { label: "Email", value: user.email },
     { label: "Role", value: formatLabel(user.role) },
-    { label: "Joined", value: formatDate(user.joined_at) },
+    { label: "Joined", value: formatUserJoinedDate(user.joined_at) },
     { label: "Reputation", value: user.reputation ?? "—" },
   ];
 

@@ -1,17 +1,21 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { CalendarDays, Eye, Send, UserCheck, UserX } from "lucide-react";
+import { Eye, Send, UserCheck, UserX } from "lucide-react";
 
 import ActionMenu from "@/features/admin-panel/components/ActionMenu";
 import StatusBadge from "@/shared/components/StatusBadge";
 import UserAvatar from "@/shared/components/UserAvatar";
-import { formatDate } from "@/shared/utils/dateUtils";
 import { formatLabel } from "@/shared/utils/stringUtils";
 
 import {
   canManageUserStatus,
+  USER_ROLE_BADGE_VARIANT,
   USER_STATUS_BADGE_VARIANT,
 } from "../constants/userManagement";
 import { canResendAdminInvitation } from "../utils/adminInvitationUi";
+import {
+  formatUserJoinedDate,
+  formatUserJoinedTime,
+} from "../utils/userPresentation";
 
 const columnHelper = createColumnHelper();
 
@@ -24,6 +28,18 @@ export default function getUserColumns({
   isResendingInvitation = false,
 }) {
   return [
+    columnHelper.display({
+      id: "rowNumber",
+      header: "No.",
+      size: 60,
+      enableSorting: false,
+      meta: { skeleton: "number" },
+      cell: ({ row, table }) => {
+        const { pageIndex, pageSize } = table.getState().pagination;
+
+        return pageIndex * pageSize + row.index + 1;
+      },
+    }),
     columnHelper.accessor((user) => user.name, {
       id: "name",
       header: "User",
@@ -76,9 +92,12 @@ export default function getUserColumns({
       size: 130,
       meta: { skeleton: "text" },
       cell: (info) => (
-        <span className="text-sm font-medium text-text-primary">
+        <StatusBadge
+          variant={USER_ROLE_BADGE_VARIANT[info.getValue()] || "neutral"}
+          showDot={false}
+        >
           {formatLabel(info.getValue())}
-        </span>
+        </StatusBadge>
       ),
     }),
     columnHelper.accessor((user) => user.status, {
@@ -96,19 +115,32 @@ export default function getUserColumns({
     }),
     columnHelper.accessor((user) => user.joined_at, {
       id: "joined_at",
-      header: "Joined",
+      header: "Date Joined",
       size: 160,
       meta: { skeleton: "text" },
-      cell: (info) => (
-        <div className="flex items-center gap-1.5 text-sm text-text-secondary">
-          <CalendarDays
-            className="h-3.5 w-3.5 shrink-0"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-          <span>{formatDate(info.getValue())}</span>
-        </div>
-      ),
+      cell: (info) => {
+        const value = info.getValue();
+        const date = value ? new Date(value) : null;
+
+        if (!date || Number.isNaN(date.getTime())) {
+          return <span className="text-sm text-text-secondary">—</span>;
+        }
+
+        return (
+          <time
+            dateTime={date.toISOString()}
+            className="flex min-w-0 flex-col gap-0.5"
+            title="Philippine Time (Asia/Manila)"
+          >
+            <span className="whitespace-nowrap text-sm font-medium text-text-primary">
+              {formatUserJoinedDate(value)}
+            </span>
+            <span className="text-xs text-text-secondary">
+              {formatUserJoinedTime(value)}
+            </span>
+          </time>
+        );
+      },
     }),
     columnHelper.display({
       id: "actions",
@@ -141,7 +173,7 @@ export default function getUserColumns({
           });
         }
 
-        if (canManage && user.status === "suspended") {
+        if (canManage && ["suspended", "disabled"].includes(user.status)) {
           items.push({
             separator: true,
           });

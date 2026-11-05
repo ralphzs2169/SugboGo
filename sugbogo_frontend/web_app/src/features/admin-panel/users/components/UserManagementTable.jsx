@@ -187,7 +187,10 @@ export default function UserManagementTable() {
         onResetFilters={tableState.handleResetFilters}
         isSearching={tableState.isSearching}
         config={{
+          defaultSortLabel: "Newest joined first",
           managementControls: true,
+          tableLabel: "All users",
+          tableMinWidth: 1100,
           searchPlaceholder: "Search by name or email...",
           emptyState: {
             title: "No users yet",

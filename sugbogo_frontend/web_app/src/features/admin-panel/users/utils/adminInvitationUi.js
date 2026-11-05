@@ -8,7 +8,8 @@ export function canResendAdminInvitation(actor, targetUser) {
   return (
     canCreateAdmin(actor) &&
     targetUser?.role === "admin" &&
-    targetUser?.status === "pending"
+    targetUser?.status === "pending" &&
+    targetUser?.invitation_resend_eligible === true
   );
 }
 
