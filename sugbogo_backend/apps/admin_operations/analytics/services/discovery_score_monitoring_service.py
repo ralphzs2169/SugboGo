@@ -271,6 +271,15 @@ class DiscoveryScoreMonitoringService:
             discovery_score__DSC_IS_PROVISIONAL=False,
             discovery_score__DSC_COMPUTED_AT__isnull=False,
         )
+        stale = computed & Q(
+            discovery_score__DSC_COMPUTED_AT__lt=(
+                now - DiscoveryScoreRefreshService.MAX_SCORE_AGE
+            ),
+        )
+        failed = (
+            Q(discovery_score__isnull=False)
+            & ~Q(discovery_score__DSC_LAST_ERROR="")
+        )
         counts = active.aggregate(
             active_businesses=Count("pk"),
             missing=Count("pk", filter=Q(discovery_score__isnull=True)),
@@ -286,11 +295,7 @@ class DiscoveryScoreMonitoringService:
             ),
             stale=Count(
                 "pk",
-                filter=computed & Q(
-                    discovery_score__DSC_COMPUTED_AT__lt=(
-                        now - DiscoveryScoreRefreshService.MAX_SCORE_AGE
-                    ),
-                ),
+                filter=stale,
             ),
             pending=Count(
                 "pk",
@@ -298,8 +303,12 @@ class DiscoveryScoreMonitoringService:
             ),
             failed=Count(
                 "pk",
-                filter=Q(discovery_score__isnull=False)
-                & ~Q(discovery_score__DSC_LAST_ERROR=""),
+                filter=failed,
+            ),
+            needs_attention=Count(
+                "pk",
+                filter=failed | stale,
+                distinct=True,
             ),
             last_successful_computation=Max(
                 "discovery_score__DSC_COMPUTED_AT",

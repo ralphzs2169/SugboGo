@@ -35,3 +35,26 @@ export function visibilityDiagnosticOptions(businessId) {
     refetchOnReconnect: false,
   };
 }
+
+/** Load persisted details independently of live visibility diagnostics. */
+export async function fetchDiscoveryScoreDetail(businessId, signal) {
+  const response = await apiClient.get(
+    `/admin/analytics/discovery-scores/${businessId}/`,
+    { signal },
+  );
+  return response.data.data;
+}
+
+export const discoveryScoreDetailKey = ["admin", "discovery-score-detail"];
+
+/** Fetch only the selected business without retaining another business's detail. */
+export function discoveryScoreDetailOptions(businessId) {
+  return {
+    queryKey: [...discoveryScoreDetailKey, businessId],
+    queryFn: ({ signal }) => fetchDiscoveryScoreDetail(businessId, signal),
+    enabled: Boolean(businessId),
+    staleTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  };
+}

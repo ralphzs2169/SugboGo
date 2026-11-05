@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Layers, RotateCw, Tag, Tags, Gem } from "lucide-react";
+import { useRef, useState } from "react";
+import { BarChart3, Layers, List, RotateCw, Tag, Tags, Gem } from "lucide-react";
 import toast from "react-hot-toast";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
@@ -16,9 +15,11 @@ import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import PageHeader from "../components/PageHeader";
 import getDiscoveryScoreColumns from "../discovery-scores/columns/discoveryScoreColumns";
 import useDiscoveryScores from "../discovery-scores/hooks/useDiscoveryScores";
-import { recomputeDiscoveryScores } from "../discovery-scores/services/discoveryScoreService";
-import VisibilityDiagnosticsModal from "../discovery-scores/components/VisibilityDiagnosticsModal";
-import { analyticsQueryKeys } from "../analytics/queries/analyticsQueryKeys";
+import DiscoveryScoreDetailsModal from "../discovery-scores/components/DiscoveryScoreDetailsModal";
+import DiscoveryScoreOverview from "../discovery-scores/components/DiscoveryScoreOverview";
+import DiscoveryScoringInfo from "../discovery-scores/components/DiscoveryScoringInfo";
+import useRecomputeDiscoveryScores from "../discovery-scores/hooks/useRecomputeDiscoveryScores";
+import DataErrorState from "@/shared/components/errors/DataErrorState";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -28,10 +29,11 @@ const STATUS_OPTIONS = [
 /** Monitor persisted scores and refresh shared health after confirmed Admin recomputation. */
 export default function DiscoveryScoresPage() {
   useDocumentTitle("Discovery Scores | SugboGo Admin");
-  const queryClient = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [isRecomputing, setIsRecomputing] = useState(false);
-  const [diagnosticBusiness, setDiagnosticBusiness] = useState(null);
+  const [selectedBusiness, setSelectedBusiness] = useState(null);
+  const recompute = useRecomputeDiscoveryScores();
+  const submitting = useRef(false);
+  const isRecomputing = recompute.isPending;
   const {
     globalFilter,
     setGlobalFilter,
@@ -69,30 +71,26 @@ export default function DiscoveryScoresPage() {
     toastId: "discovery-scores-load-error",
     fallbackMessage: "Unable to load Discovery Scores. Please try again.",
   });
+  useApiErrorNotification(recompute.error, {
+    toastId: "discovery-score-recompute-error",
+    fallbackMessage: "Unable to recompute Discovery Scores. Please try again.",
+  });
 
   async function handleRecompute() {
-    if (isRecomputing) return;
-    setIsRecomputing(true);
+    if (submitting.current) return;
+    submitting.current = true;
     try {
-      const summary = await recomputeDiscoveryScores();
+      const summary = await recompute.mutateAsync();
       setConfirmOpen(false);
-      await Promise.all([
-        refetch(),
-        queryClient.invalidateQueries({
-          queryKey: analyticsQueryKeys.discoveryScores({ page_size: 1 }),
-          exact: true,
-        }),
-      ]);
-      toast.success(
-        `${summary.updated} businesses updated. ${summary.failed} failed.`,
-      );
-    } catch (requestError) {
-      toast.error(
-        requestError.response?.data?.message ||
-          "Unable to recompute Discovery Scores. Please try again.",
-      );
+      if (summary.status === "COMPLETED_WITH_FAILURES") {
+        toast.error(`Recomputation completed with refresh failures: ${summary.updated} updated, ${summary.failed} failed. Previous successful scores were retained.`);
+      } else {
+        toast.success(`Discovery Scores recomputed successfully. ${summary.updated} businesses updated.`);
+      }
+    } catch {
+      // The mutation exposes the persistent error and the shared notification hook reports it.
     } finally {
-      setIsRecomputing(false);
+      submitting.current = false;
     }
   }
 
@@ -152,25 +150,48 @@ export default function DiscoveryScoresPage() {
       <PageHeader
         breadcrumbs={[
           { label: "SugboGo Admin" },
-          { label: "Analytics" },
+          { label: "Insights" },
           { label: "Discovery Scores" },
         ]}
         title="Discovery Scores"
+        actions={(
+          <Button variant="secondary" icon={RotateCw} loading={isRecomputing}
+            onClick={() => { recompute.reset(); setConfirmOpen(true); }}>
+            Recompute Discovery Scores
+          </Button>
+        )}
       />
       <p className="mb-6 text-sm text-text-secondary">
-        Monitor the scores used to surface businesses in Hidden Gems. Freshness
-        describes score computation; telemetry coverage remains unverified. Zero
-        recorded activity does not establish zero exposure.
+        Monitor business discovery scores, calculation health, and visibility data for Hidden Gems.
       </p>
+
+      <section className="mb-6" aria-label="Discovery Score Overview">
+        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+          <BarChart3 aria-hidden="true" className="h-4 w-4 shrink-0" />
+          Discovery Score Overview
+        </h2>
+        <p className="-mt-2 mb-3 text-xs text-text-secondary">Current scoring health and freshness · PHT</p>
+        <DiscoveryScoreOverview />
+      </section>
+      <DiscoveryScoringInfo />
+
+      <section aria-label="Business Discovery Scores">
+        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+          <List aria-hidden="true" className="h-4 w-4 shrink-0" />
+          Business Discovery Scores
+        </h2>
+        {error && scores.length > 0 && (
+          <DataErrorState compact retainedData onRetry={() => refetch()} retrying={isFetching} retryLabel="Retry scores" />
+        )}
 
       {/* The shared table owns search, skeleton, empty, error, and pagination UI. */}
       <DataTable
         data={scores}
-        columns={getDiscoveryScoreColumns(setDiagnosticBusiness)}
+        columns={getDiscoveryScoreColumns(setSelectedBusiness)}
         isLoading={isLoading}
         isFetching={isFetching}
         isSearching={isSearching}
-        error={error}
+        error={scores.length > 0 ? null : error}
         onRetry={refetch}
         pagination={pagination}
         state={{ globalFilter, sorting }}
@@ -182,6 +203,9 @@ export default function DiscoveryScoresPage() {
         hasActiveFilters={hasActiveFilters}
         onResetFilters={handleResetFilters}
         config={{
+          managementControls: true,
+          tableLabel: "Business Discovery Scores",
+          tableMinWidth: 1200,
           searchPlaceholder: "Search businesses...",
           emptyState: {
             title: "No Discovery Scores yet",
@@ -196,25 +220,15 @@ export default function DiscoveryScoresPage() {
         }}
         slots={{
           renderFilters,
-          renderHeaderActions: () => (
-            <Button
-              variant="secondary"
-              size="md"
-              icon={RotateCw}
-              onClick={() => setConfirmOpen(true)}
-              disabled={isRecomputing}
-            >
-              Recompute Discovery Scores
-            </Button>
-          ),
         }}
       />
+      </section>
 
-      {diagnosticBusiness && (
-        <VisibilityDiagnosticsModal
-          key={diagnosticBusiness.id}
-          business={diagnosticBusiness}
-          onClose={() => setDiagnosticBusiness(null)}
+      {selectedBusiness && (
+        <DiscoveryScoreDetailsModal
+          key={selectedBusiness.id}
+          business={selectedBusiness}
+          onClose={() => setSelectedBusiness(null)}
         />
       )}
 
@@ -227,6 +241,11 @@ export default function DiscoveryScoresPage() {
         title="Recompute Discovery Scores?"
         description="This will recalculate Discovery Scores for all active businesses using the latest available specialty and visibility data."
       >
+        {recompute.error && (
+          <div role="alert" className="mb-4 rounded-lg border border-danger/25 bg-danger/10 p-3 text-sm text-text-primary">
+            {recompute.error.response?.data?.message || recompute.error.message || "Recomputation failed. Please try again."}
+          </div>
+        )}
         <div className="flex justify-end gap-3">
           <Button
             variant="secondary"

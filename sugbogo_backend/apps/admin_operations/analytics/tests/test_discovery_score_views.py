@@ -570,17 +570,29 @@ class DiscoveryScoreMonitoringViewTests(APITestCase):
         cutoff = now - DiscoveryScoreRefreshService.MAX_SCORE_AGE
         self.client.force_authenticate(user=self.admin)
         cases = (
-            (now, False, now, "VisibilityTrackingUnavailable", 1, 1, 1),
-            (cutoff, False, now, "", 1, 1, 0),
-            (cutoff - timedelta(microseconds=1), False, None, "", 1, 0, 0),
-            (None, True, now, "VisibilityTrackingUnavailable", 0, 0, 1),
-            (None, False, None, "", 0, 0, 0),
+            (now, False, now, "VisibilityTrackingUnavailable", 1, 1, 1, 1),
+            (now, False, now, "", 1, 1, 0, 0),
+            (cutoff, False, now, "", 1, 1, 0, 0),
+            (cutoff - timedelta(microseconds=1), False, None, "", 1, 0, 0, 1),
+            (cutoff - timedelta(microseconds=1), False, now, "OperationalError", 1, 0, 1, 1),
+            (None, True, now, "VisibilityTrackingUnavailable", 0, 0, 1, 1),
+            (None, True, now, "", 0, 0, 0, 0),
+            (None, False, None, "", 0, 0, 0, 0),
         )
         with patch(
             "apps.admin_operations.analytics.services.discovery_score_monitoring_service.timezone.now",
             return_value=now,
         ), patch.object(VisibilityEventService, "_get_collection") as collection:
-            for computed_at, provisional, pending, error, computed, fresh, failed in cases:
+            for (
+                computed_at,
+                provisional,
+                pending,
+                error,
+                computed,
+                fresh,
+                failed,
+                needs_attention,
+            ) in cases:
                 with self.subTest(computed_at=computed_at, error=error):
                     DiscoveryScore.objects.update(
                         DSC_COMPUTED_AT=computed_at,
@@ -589,16 +601,25 @@ class DiscoveryScoreMonitoringViewTests(APITestCase):
                         DSC_LAST_ERROR=error,
                         DSC_D_SCORE=0,
                     )
-                    response = self.client.get(reverse("discovery-score-list"))
+                    response = self.client.get(
+                        reverse("discovery-score-list"),
+                        {"search": "No matching scored business", "page_size": 1},
+                    )
+                    self.assertEqual(response.data["data"]["items"], [])
                     coverage = response.data["data"]["coverage"]
                     self.assertEqual(coverage["computed"], computed)
                     self.assertEqual(coverage["fresh"], fresh)
                     self.assertEqual(coverage["failed"], failed)
+                    self.assertEqual(coverage["needs_attention"], needs_attention)
                     telemetry = coverage["telemetry_coverage"]
                     self.assertIsNone(telemetry["value"])
                     self.assertFalse(telemetry["coverage_verified"])
                     self.assertEqual(telemetry["reason"], "coverage_unverified")
                     self.assertEqual(len(telemetry["assessments"]), 3)
+            DiscoveryScore.objects.update(
+                DSC_COMPUTED_AT=cutoff - timedelta(seconds=1),
+                DSC_LAST_ERROR="OperationalError",
+            )
             Business.objects.filter(pk=self.business.pk).update(
                 BUSN_STATUS=Business.BusinessStatus.SUSPENDED,
             )
@@ -606,6 +627,7 @@ class DiscoveryScoreMonitoringViewTests(APITestCase):
             self.assertEqual(coverage["active_businesses"], 0)
             self.assertEqual(coverage["computed"], 0)
             self.assertEqual(coverage["failed"], 0)
+            self.assertEqual(coverage["needs_attention"], 0)
             Business.objects.filter(pk=self.business.pk).update(
                 BUSN_STATUS=Business.BusinessStatus.ACTIVE,
             )
@@ -613,6 +635,7 @@ class DiscoveryScoreMonitoringViewTests(APITestCase):
             coverage = self.client.get(reverse("discovery-score-list")).data["data"]["coverage"]
             self.assertEqual(coverage["missing"], 1)
             self.assertEqual(coverage["computed"], 0)
+            self.assertEqual(coverage["needs_attention"], 0)
             collection.assert_not_called()
 
     def test_detail_reuses_list_values_and_discloses_current_weight_basis(self):
