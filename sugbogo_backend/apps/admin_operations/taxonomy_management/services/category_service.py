@@ -7,13 +7,18 @@ from apps.business.models import Category
 
 class CategoryService:
     @staticmethod
-    def list_categories(search=None, ordering=None, cluster_id=None):
-        """
-        Retrieve categories with optional search filtering,
-        cluster filtering, ordering, and application usage count.
-        """
+    def list_categories(
+        search=None,
+        ordering=None,
+        cluster_id=None,
+    ):
+        """Retrieve filtered categories with distinct business and application references."""
 
         queryset = Category.objects.select_related("CLUS_ID").annotate(
+            business_count=Count(
+                "businesses",
+                distinct=True,
+            ),
             application_count=Count(
                 "merchant_application_identities",
                 distinct=True,
@@ -34,6 +39,14 @@ class CategoryService:
         ordering_map = {
             "name": "CTGRY_NAME",
             "-name": "-CTGRY_NAME",
+            "business_count": "business_count",
+            "-business_count": "-business_count",
+            "msme_count": "business_count",
+            "-msme_count": "-business_count",
+            "application_count": "application_count",
+            "-application_count": "-application_count",
+            "cluster_name": "CLUS_ID__CLUS_NAME",
+            "-cluster_name": "-CLUS_ID__CLUS_NAME",
             "created_at": "CTGRY_CREATED_AT",
             "-created_at": "-CTGRY_CREATED_AT",
             "updated_at": "CTGRY_UPDATED_AT",

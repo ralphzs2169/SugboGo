@@ -17,7 +17,15 @@ export default function TableSkeletonBody({ columns, rowCount = 8 }) {
         >
           {columns.map((column) => (
             <td key={column.id} className="px-4 py-4">
-              <SkeletonCell type={column.columnDef.meta?.skeleton} />
+              <div className={
+                column.columnDef.meta?.align === "right"
+                  ? "flex justify-end"
+                  : column.columnDef.meta?.align === "center"
+                    ? "flex justify-center"
+                    : undefined
+              }>
+                <SkeletonCell type={column.columnDef.meta?.skeleton} />
+              </div>
             </td>
           ))}
         </tr>

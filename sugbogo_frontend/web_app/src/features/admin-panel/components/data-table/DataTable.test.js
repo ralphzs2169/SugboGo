@@ -124,6 +124,55 @@ test("controlled search, filter, pagination and row action keep their callbacks"
   assert.equal(container.querySelector("table").getAttribute("aria-label"), "Businesses");
 });
 
+test("embedded content fits its rows and aligns numeric columns without changing defaults", async () => {
+  await render();
+  assert.equal(container.querySelector("table").parentElement.classList.contains("min-h-[520px]"), true);
+  await render({
+    config: { managementControls: true, embedded: true, fitContent: true },
+    columns: [
+      { accessorKey: "name", header: "Name" },
+      { accessorKey: "count", header: "Count", meta: { align: "right" } },
+    ],
+    data: [{ name: "Cebu business", count: 7 }],
+  });
+  assert.equal(container.firstElementChild.classList.contains("rounded-2xl"), false);
+  assert.equal(container.querySelector("table").parentElement.classList.contains("min-h-[520px]"), false);
+  assert.equal(container.querySelectorAll("th")[1].classList.contains("text-right"), true);
+  assert.equal(container.querySelectorAll("th")[1].firstElementChild.classList.contains("justify-end"), true);
+  assert.equal(container.querySelectorAll("td")[1].classList.contains("text-right"), true);
+  assert.ok(container.querySelector('[aria-label="Table pagination"]'));
+});
+
+test("utility columns keep their pixel widths while content columns share the remaining space", async () => {
+  await render({
+    config: {
+      managementControls: true,
+      fixedUtilityColumns: true,
+      fitContent: true,
+    },
+    columns: [
+      { id: "rowNumber", header: "No.", size: 56, cell: () => 1 },
+      { accessorKey: "name", header: "Name", size: 260 },
+      { accessorKey: "count", header: "Businesses", size: 136, meta: { align: "center" } },
+      { accessorKey: "created_at", header: "Date Added", size: 148 },
+      { id: "actions", header: "Actions", size: 112, cell: () => null },
+    ],
+    data: [{ name: "Cebu business", count: 7 }],
+  });
+  const columns = container.querySelectorAll("colgroup col");
+  assert.equal(columns[0].style.width, "56px");
+  assert.equal(columns[3].style.width, "148px");
+  assert.equal(columns[4].style.width, "112px");
+  assert.match(columns[1].style.width, /calc\(/);
+  assert.match(columns[2].style.width, /calc\(/);
+  assert.equal(container.querySelectorAll("th")[2].classList.contains("text-center"), true);
+  assert.equal(container.querySelectorAll("td")[2].classList.contains("text-center"), true);
+  assert.equal(container.querySelector("th").style.width, "");
+  const footer = container.querySelector('[aria-label="Table pagination"]').parentElement;
+  assert.ok(footer.classList.contains("mt-3"));
+  assert.equal(footer.classList.contains("border-t"), false);
+});
+
 test("rows flyout changes page size, resets to page one and restores focus", async () => {
   await render();
   const trigger = button("Rows per page: Rows: 10");

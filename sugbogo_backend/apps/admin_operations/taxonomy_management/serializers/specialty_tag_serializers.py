@@ -33,6 +33,9 @@ class SpecialtyTagSerializer(serializers.ModelSerializer):
     application_count = serializers.IntegerField(
         read_only=True,
     )
+    business_count = serializers.IntegerField(
+        read_only=True,
+    )
 
     class Meta:
         model = SpecialtyTag
@@ -44,6 +47,7 @@ class SpecialtyTagSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "application_count",
+            "business_count",
         )
 
 

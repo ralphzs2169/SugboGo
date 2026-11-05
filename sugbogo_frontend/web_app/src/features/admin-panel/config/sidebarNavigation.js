@@ -3,7 +3,7 @@ import {
   FiSettings,
   FiShield,
   FiUsers,
-  FiTag,
+  FiCompass,
   FiMapPin,
   FiFileText,
   FiLayers,
@@ -113,7 +113,7 @@ const navigation = [
       {
         type: "link",
         to: "/admin-panel/businesses",
-        label: "Businesses",
+        label: "Business Management",
         Icon: MdStorefront,
         roles: ["admin", "super_admin"],
         activePaths: [
@@ -145,16 +145,16 @@ const navigation = [
       },
       {
         type: "link",
-        to: "/admin-panel/cluster-category",
-        label: "Clusters & Categories",
+        to: "/admin-panel/business-taxonomy",
+        label: "Business Taxonomy",
         Icon: FiLayers,
         roles: ["admin", "super_admin"],
       },
       {
         type: "link",
-        to: "/admin-panel/specialty-tags",
-        label: "Specialty Tags",
-        Icon: FiTag,
+        to: "/admin-panel/explore-configuration",
+        label: "Explore Configuration",
+        Icon: FiCompass,
         roles: ["admin", "super_admin"],
       },
       {

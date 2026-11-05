@@ -7,13 +7,20 @@ from apps.business.models import SpecialtyTag
 
 class SpecialtyTagService:
     @staticmethod
-    def list_specialty_tags(search=None, ordering=None):
-        """
-        Retrieve specialty tags with optional search filtering
-        and ordering.
-        """
+    def list_specialty_tags(
+        search=None,
+        ordering=None,
+    ):
+        """Retrieve searchable tags with current business and application reference counts."""
 
         queryset = SpecialtyTag.objects.annotate(
+            business_count=Count(
+                "business_links__BUSN_ID",
+                filter=Q(
+                    business_links__BST_IS_ACTIVE=True,
+                ),
+                distinct=True,
+            ),
             application_count=Count(
                 "merchant_application_identities",
                 distinct=True,
@@ -28,6 +35,10 @@ class SpecialtyTagService:
         ordering_map = {
             "name": "TAG_NAME",
             "-name": "-TAG_NAME",
+            "business_count": "business_count",
+            "-business_count": "-business_count",
+            "application_count": "application_count",
+            "-application_count": "-application_count",
             "created_at": "TAG_CREATED_AT",
             "-created_at": "-TAG_CREATED_AT",
             "updated_at": "TAG_UPDATED_AT",

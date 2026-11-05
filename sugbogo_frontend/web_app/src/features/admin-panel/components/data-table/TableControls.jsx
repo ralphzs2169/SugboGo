@@ -15,6 +15,7 @@ function TableControls({
   hasActiveFilters,
   onResetFilters,
   isSearching = false,
+  dense = false,
 }) {
   const inputRef = useRef(null);
   const wasFocusedRef = useRef(false);
@@ -33,7 +34,7 @@ function TableControls({
   }, [isSearching]);
 
   return (
-    <div className="mb-6 flex min-w-0 flex-wrap items-center justify-between gap-4">
+    <div className={`${dense ? "mb-4" : "mb-6"} flex min-w-0 flex-wrap items-center justify-between gap-4`}>
       <div className="flex min-w-0 flex-[1_1_32rem] flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
         {/* Search Bar */}
         {showSearch && (

@@ -1,60 +1,50 @@
 import { createColumnHelper } from "@tanstack/react-table";
+import { Pencil, Trash2 } from "lucide-react";
 import Button from "@/shared/components/Button";
-import { Pencil, Trash2, CalendarDays } from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
-const columnHelper = createColumnHelper();
-import { formatDate } from "@/shared/utils/dateUtils";
+import { formatCount } from "@/features/admin-panel/analytics/utils/presentation";
 import { CLUSTER_ICONS } from "../../constants/clusterIcons";
+import DateAddedCell from "../../../components/data-table/DateAddedCell";
 
-/**
- * Creates TanStack Table column definitions for cluster management.
+const columnHelper = createColumnHelper();
 
- */
-export default function getClusterColumns(onEditCluster, onDeleteCluster) {
+/** Present current cluster usage with the existing protected management actions. */
+export default function getClusterColumns(
+  onEditCluster,
+  onDeleteCluster,
+) {
   return [
     columnHelper.display({
       id: "rowNumber",
       header: "No.",
-      size: 50,
-      meta: {
-        skeleton: "number",
-      },
+      size: 56,
+      meta: { skeleton: "number", align: "center" },
       enableSorting: false,
       cell: ({ row, table }) => {
         const { pageIndex, pageSize } = table.getState().pagination;
-
         return pageIndex * pageSize + row.index + 1;
       },
     }),
-
     columnHelper.accessor("name", {
-      header: "Cluster Name",
-      size: 200,
-      minSize: 150,
-      meta: {
-        skeleton: "longText",
-      },
-      cell: (info) => {
-        const cluster = info.row.original;
-
-        const clusterIcon = CLUSTER_ICONS.find(
+      header: "Cluster",
+      size: 260,
+      meta: { skeleton: "longText" },
+      cell: ({ row }) => {
+        const cluster = row.original;
+        const Icon = CLUSTER_ICONS.find(
           (icon) => icon.value === cluster.icon,
-        );
-
-        const Icon = clusterIcon?.icon;
+        )?.icon;
 
         return (
-          <div className="flex items-center gap-3">
-            <div className="flex shrink-0 items-center justify-center  text-text-secondary">
-              {Icon && <Icon className="h-5 w-5" strokeWidth={2} />}
-            </div>
-
+          <div className="flex min-w-0 items-center gap-3">
+            {Icon && (
+              <Icon aria-hidden="true" className="h-5 w-5 shrink-0 text-text-secondary" />
+            )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-text-primary">
+              <p className="text-sm font-semibold text-text-primary">
                 {cluster.name}
               </p>
-
-              <p className="mt-1 truncate text-xs text-text-secondary">
+              <p className="mt-1 text-xs text-text-secondary">
                 {cluster.description || "No description"}
               </p>
             </div>
@@ -62,87 +52,36 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
         );
       },
     }),
-
     columnHelper.accessor("category_count", {
       header: "Categories",
-      meta: {
-        skeleton: "number",
-      },
-      cell: (info) => {
-        const count = info.getValue() ?? 0;
-
-        return (
-          <span
-            className={`text-sm ${
-              count === 0 ? "text-text-secondary" : "text-text-primary"
-            }`}
-          >
-            {count}
-          </span>
-        );
-      },
+      size: 128,
+      meta: { skeleton: "number", align: "center" },
+      cell: (info) => (
+        <span className="text-sm tabular-nums text-text-primary">
+          {formatCount(info.getValue())}
+        </span>
+      ),
     }),
-
-    columnHelper.accessor("msme_count", {
+    columnHelper.accessor("business_count", {
       header: "Businesses",
-      meta: {
-        skeleton: "number",
-      },
-      cell: (info) => {
-        const count = info.getValue() ?? 0;
-
-        return (
-          <span
-            className={`text-sm ${
-              count === 0 ? "text-text-secondary" : "text-text-primary"
-            }`}
-          >
-            {count}
-          </span>
-        );
-      },
+      size: 136,
+      meta: { skeleton: "number", align: "center" },
+      cell: (info) => (
+        <span className="text-sm tabular-nums text-text-primary">
+          {formatCount(info.getValue())}
+        </span>
+      ),
     }),
 
     columnHelper.accessor("created_at", {
-      header: "Created",
-      meta: {
-        skeleton: "text",
-      },
-      cell: (info) => (
-        <div className="flex items-center gap-1.5">
-          <CalendarDays
-            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
-            strokeWidth={1.75}
-          />
-
-          <span className="text-sm text-text-secondary">
-            {formatDate(info.getValue())}
-          </span>
-        </div>
-      ),
+      header: "Date Added",
+      size: 148,
+      meta: { skeleton: "text" },
+      cell: (info) => <DateAddedCell value={info.getValue()} />,
     }),
-
-    columnHelper.accessor("updated_at", {
-      header: "Last Updated",
-      meta: {
-        skeleton: "text",
-      },
-      cell: (info) => (
-        <div className="flex items-center gap-1.5">
-          <CalendarDays
-            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
-            strokeWidth={1.75}
-          />
-
-          <span className="text-sm text-text-secondary">
-            {formatDate(info.getValue())}
-          </span>
-        </div>
-      ),
-    }),
-
     columnHelper.display({
       id: "actions",
+      size: 112,
       header: "Actions",
       meta: {
         skeleton: "actions",
@@ -158,6 +97,7 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
             size="sm"
             icon={Trash2}
             iconOnly
+            aria-label={`Delete ${cluster.name}`}
             disabled={hasCategories}
             onClick={() => onDeleteCluster(cluster)}
             disabledTooltip={
@@ -175,6 +115,7 @@ export default function getClusterColumns(onEditCluster, onDeleteCluster) {
               size="sm"
               icon={Pencil}
               iconOnly
+              aria-label={`Edit ${cluster.name}`}
               onClick={() => onEditCluster(cluster)}
             />
 

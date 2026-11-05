@@ -1,11 +1,26 @@
+from django.db.models.deletion import ProtectedError
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.business.models import SpecialtyTag
+from apps.admin_operations.taxonomy_management.serializers.specialty_tag_serializers import (
+    SpecialtyTagSerializer,
+)
+from apps.admin_operations.taxonomy_management.services.specialty_tag_service import (
+    SpecialtyTagService,
+)
+from apps.business.models import (
+    BusinessSpecialtyTag,
+    Category,
+    Cluster,
+    SpecialtyTag,
+)
+from apps.merchant_application.models import MerchantApplication
 from apps.users.models import User
 
+from . import TaxonomyUsageFixtures
 
-class SpecialtyTagViewTests(APITestCase):
+
+class SpecialtyTagViewTests(TaxonomyUsageFixtures, APITestCase):
     """Tests for Specialty Tag CRUD API endpoints."""
 
     def setUp(self):
@@ -57,6 +72,114 @@ class SpecialtyTagViewTests(APITestCase):
         self.assertIn("color", tag)
         self.assertIn("created_at", tag)
         self.assertIn("updated_at", tag)
+        self.assertEqual(tag["business_count"], 0)
+
+    def test_list_specialty_tags_counts_only_current_assignments_and_all_applications(self):
+        """Exclude inactive assignments without filtering business or application statuses."""
+        cluster = Cluster.objects.create(CLUS_NAME="Food")
+        category = Category.objects.create(
+            CTGRY_NAME="Cafes",
+            CLUS_ID=cluster,
+        )
+        for business_status in ("active", "suspended"):
+            business = self.create_usage_business(
+                category,
+                status=business_status,
+                owner_status=User.UserStatus.SUSPENDED,
+            )
+            BusinessSpecialtyTag.objects.create(
+                BUSN_ID=business,
+                TAG_ID=self.tag,
+            )
+        inactive_business = self.create_usage_business(category)
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=inactive_business,
+            TAG_ID=self.tag,
+            BST_IS_ACTIVE=False,
+        )
+        for application_status in MerchantApplication.ApplicationStatus.values:
+            self.create_application_reference(
+                category,
+                status=application_status,
+                tags=[self.tag],
+            )
+
+        for field in ("business_count", "application_count"):
+            for prefix in ("", "-"):
+                with self.subTest(
+                    field=field,
+                    prefix=prefix,
+                ):
+                    response = self.client.get(
+                        "/api/admin/taxonomy/specialty-tags/",
+                        {"ordering": f"{prefix}{field}"},
+                    )
+                    self.assertEqual(
+                        response.status_code,
+                        status.HTTP_200_OK,
+                    )
+                    items = response.data["data"]["items"]
+                    expected = [self.other_tag.pk, self.tag.pk]
+                    if prefix:
+                        expected.reverse()
+                    self.assertEqual(
+                        [item["id"] for item in items],
+                        expected,
+                    )
+                    tag = next(
+                        item
+                        for item in items
+                        if item["id"] == self.tag.pk
+                    )
+                    self.assertEqual(
+                        tag["business_count"],
+                        2,
+                    )
+                    self.assertEqual(
+                        tag["application_count"],
+                        4,
+                    )
+                    self.assertNotIn("vouch_count", tag)
+
+        with self.assertNumQueries(1):
+            tags = SpecialtyTagSerializer(
+                SpecialtyTagService.list_specialty_tags(),
+                many=True,
+            ).data
+        self.assertEqual(len(tags), 2)
+
+        response = self.client.get(
+            "/api/admin/taxonomy/specialty-tags/",
+            {"search": "Eco", "page_size": 1},
+        )
+        self.assertEqual(
+            response.data["data"]["pagination"]["total_items"],
+            1,
+        )
+        self.assertEqual(
+            response.data["data"]["items"][0]["business_count"],
+            2,
+        )
+
+    def test_zero_current_business_count_does_not_allow_deleting_inactive_assignment(self):
+        """Preserve protected retained assignments even when current usage is zero."""
+        cluster = Cluster.objects.create(CLUS_NAME="Food")
+        category = Category.objects.create(
+            CTGRY_NAME="Cafes",
+            CLUS_ID=cluster,
+        )
+        business = self.create_usage_business(category)
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=business,
+            TAG_ID=self.tag,
+            BST_IS_ACTIVE=False,
+        )
+        tag = SpecialtyTagService.list_specialty_tags().get(pk=self.tag.pk)
+        self.assertEqual(tag.business_count, 0)
+        self.assertEqual(tag.application_count, 0)
+        with self.assertRaises(ProtectedError):
+            SpecialtyTagService.delete_specialty_tag(tag)
+        self.assertTrue(SpecialtyTag.objects.filter(pk=self.tag.pk).exists())
 
     def test_list_specialty_tags_filters_by_search(self):
         response = self.client.get(

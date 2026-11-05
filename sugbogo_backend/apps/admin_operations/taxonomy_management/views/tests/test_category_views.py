@@ -1,11 +1,24 @@
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.admin_operations.taxonomy_management.serializers.category_serializers import (
+    CategorySerializer,
+)
+from apps.admin_operations.taxonomy_management.services.category_service import (
+    CategoryService,
+)
 from apps.business.models import Category, Cluster
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationSubmission,
+)
 from apps.users.models import User
 
+from . import TaxonomyUsageFixtures
 
-class CategoryViewTests(APITestCase):
+
+class CategoryViewTests(TaxonomyUsageFixtures, APITestCase):
     """Tests for Category CRUD API endpoints."""
 
     def setUp(self):
@@ -61,6 +74,120 @@ class CategoryViewTests(APITestCase):
             len(response.data["data"]["items"]),
             2,
         )
+        self.assertEqual(
+            response.data["data"]["items"][0]["business_count"],
+            0,
+        )
+        self.assertEqual(
+            response.data["data"]["items"][0]["msme_count"],
+            0,
+        )
+
+    def test_list_categories_counts_distinct_current_businesses_and_applications(self):
+        """Preserve all application statuses while counting independent current businesses."""
+        self.create_usage_business(self.category)
+        self.create_usage_business(
+            self.category,
+            status="suspended",
+            owner_status=User.UserStatus.DISABLED,
+        )
+        moved_business = self.create_usage_business(self.category)
+        moved_business.CTGRY_ID = self.other_category
+        moved_business.save(update_fields=["CTGRY_ID"])
+
+        for application_status in MerchantApplication.ApplicationStatus.values:
+            identity = self.create_application_reference(
+                self.category,
+                status=application_status,
+            )
+        for submission_number in (1, 2):
+            MerchantApplicationSubmission.objects.create(
+                MAPP_ID=identity.MAPP_ID,
+                MASUB_SUBMISSION_NUMBER=submission_number,
+                MASUB_SUBMITTED_AT=timezone.now(),
+            )
+
+        response = self.client.get(
+            "/api/admin/taxonomy/categories/",
+            {
+                "search": "Restaurants",
+                "cluster_id": self.cluster.pk,
+                "page_size": 1,
+            },
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data["data"]["pagination"]["total_items"],
+            1,
+        )
+        category = response.data["data"]["items"][0]
+        self.assertEqual(
+            category["business_count"],
+            2,
+        )
+        self.assertEqual(
+            category["msme_count"],
+            2,
+        )
+        self.assertEqual(
+            category["application_count"],
+            4,
+        )
+        self.assertEqual(
+            category["cluster_id"],
+            self.cluster.pk,
+        )
+        self.assertEqual(
+            category["cluster_name"],
+            self.cluster.CLUS_NAME,
+        )
+
+        with self.assertNumQueries(1):
+            categories = CategorySerializer(
+                CategoryService.list_categories(),
+                many=True,
+            ).data
+        self.assertEqual(len(categories), 2)
+
+    def test_list_categories_orders_by_usage_counts_and_parent_name(self):
+        """Support ascending and descending usage and parent-name ordering."""
+        self.create_usage_business(self.category)
+        self.create_application_reference(self.category)
+
+        for field in (
+            "business_count",
+            "msme_count",
+            "application_count",
+            "cluster_name",
+        ):
+            for prefix in ("", "-"):
+                with self.subTest(
+                    field=field,
+                    prefix=prefix,
+                ):
+                    response = self.client.get(
+                        "/api/admin/taxonomy/categories/",
+                        {"ordering": f"{prefix}{field}"},
+                    )
+                    self.assertEqual(
+                        response.status_code,
+                        status.HTTP_200_OK,
+                    )
+                    expected = [self.other_category.pk, self.category.pk]
+                    if field == "cluster_name":
+                        expected.reverse()
+                    if prefix:
+                        expected.reverse()
+                    self.assertEqual(
+                        [
+                            item["id"]
+                            for item in response.data["data"]["items"]
+                        ],
+                        expected,
+                    )
 
     def test_list_categories_filters_by_search(self):
         response = self.client.get(

@@ -1,4 +1,14 @@
 export const PAGE_METADATA = {
+  "/admin-panel/explore-configuration": {
+    title: "Explore Configuration",
+    subtitle:
+      "Manage discovery shortcuts and navigation entry points shown to explorers.",
+  },
+  "/admin-panel/business-taxonomy": {
+    title: "Business Taxonomy Management",
+    subtitle:
+      "Manage business clusters, categories, and specialty tags used throughout SugboGo.",
+  },
   "/admin-panel/dashboard": {
     title: "Dashboard",
     subtitle: "Monitor platform activity and business discovery at a glance.",
@@ -7,12 +17,6 @@ export const PAGE_METADATA = {
   "/admin-panel/msmes": {
     title: "MSME Management",
     subtitle: "Manage Micro, Small and Medium Enterprise Listings.",
-  },
-
-  "/admin-panel/cluster-category": {
-    title: "Cluster & Category Management",
-    subtitle:
-      "Manage MSME business clusters and categories to organize enterprise listings and improve platform discovery.",
   },
 
   "/admin-panel/users": {
@@ -29,12 +33,6 @@ export const PAGE_METADATA = {
   "/admin-panel/explorer-activity": {
     title: "Explorer Activity Management",
     subtitle: "Monitor and moderate community activity.",
-  },
-
-  "/admin-panel/specialty-tags": {
-    title: "Specialty Tag Management",
-    subtitle:
-      "Manage specialty tags, validation, and weighted impact on business discovery.",
   },
 
   "/admin-panel/transit-network": {

@@ -1,48 +1,14 @@
-import { useEffect, useState } from "react";
-import { fetchSpecialtyTagStatistics } from "../services/specialtyTagService";
+import { useQuery } from "@tanstack/react-query";
+import { taxonomyStatisticsOptions } from "../../taxonomy/queries/taxonomyQueries";
 
+/** Keep specialty inventory unavailable on failure while retaining successful reads. */
 export default function useSpecialtyTagStatistics({ enabled = true } = {}) {
-  const [statistics, setStatistics] = useState({
-    totalTags: 0,
+  const query = useQuery({
+    ...taxonomyStatisticsOptions("specialty-tags"),
+    enabled,
   });
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  async function loadStatistics() {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetchSpecialtyTagStatistics();
-
-      setStatistics({
-        totalTags: response.total_tags ?? 0,
-      });
-    } catch (error) {
-      console.error("Failed to load specialty tag statistics:", error);
-
-      setError(error);
-      setStatistics({
-        totalTags: 0,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
-    loadStatistics();
-  }, [enabled]);
-
   return {
-    statistics,
-    isLoading,
-    error,
-    refetch: loadStatistics,
+    ...query,
+    statistics: { totalTags: query.data?.total_tags },
   };
 }

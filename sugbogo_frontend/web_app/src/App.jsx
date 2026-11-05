@@ -19,6 +19,8 @@ import Settings from "@/features/admin-panel/pages/Settings";
 import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
 import ProtectedRoute from "@/features/auth/routes/ProtectedRoute";
 import ClusterCategoryPage from "@/features/admin-panel/pages/ClusterCategoryPage";
+import BusinessTaxonomyPage from "@/features/admin-panel/pages/BusinessTaxonomyPage";
+import ExploreConfigurationPage from "@/features/admin-panel/pages/ExploreConfigurationPage";
 import BusinessApplications from "@/features/admin-panel/pages/BusinessApplicationsPage";
 import BusinessApplicationReviewPage from "@/features/admin-panel/pages/BusinessApplicationReviewPage";
 import BusinessDetailPage from "@/features/admin-panel/pages/BusinessDetailPage";
@@ -113,6 +115,8 @@ function App() {
             />
 
             <Route path="cluster-category" element={<ClusterCategoryPage />} />
+            <Route path="business-taxonomy" element={<BusinessTaxonomyPage />} />
+            <Route path="explore-configuration" element={<ExploreConfigurationPage />} />
             <Route path="users" element={<Users />} />
             <Route path="users/all" element={<Users />} />
             <Route path="users/:userId" element={<UserDetailPage />} />
