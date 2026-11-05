@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import Button from "@/shared/components/Button";
 import Modal from "@/shared/components/modals/Modal";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
+import StatusBadge from "@/shared/components/StatusBadge";
 import { formatTimestamp } from "../../analytics/utils/presentation";
 import { formatScore, telemetryPresentation } from "../utils/presentation";
 import { visibilityDiagnosticOptions } from "../services/discoveryScoreService";
@@ -79,10 +80,11 @@ export function VisibilityDiagnosticContent({ query }) {
           <dd>{data.business_id}</dd>
           <dt>Reference time</dt>
           <dd>{formatTimestamp(data.reference_time)} · PHT</dd>
-          <dt>Window start</dt>
-          <dd>{formatTimestamp(data.window_start)} · PHT</dd>
-          <dt>Window end (exclusive)</dt>
-          <dd>{formatTimestamp(data.window_end)} · PHT</dd>
+          <dt>Observation window</dt>
+          <dd className="flex flex-col gap-1">
+            <span>{formatTimestamp(data.window_start)} · PHT</span>
+            <span>to {formatTimestamp(data.window_end)} · PHT (exclusive)</span>
+          </dd>
           <dt>Comparison group</dt>
           <dd>
             {data.comparison_group_level} · {data.comparison_group_size} active
@@ -92,7 +94,7 @@ export function VisibilityDiagnosticContent({ query }) {
           <dd>
             {observation ? <>{observation.potential_observation_days} days of a{" "}
               {observation.window_days}-day window
-              {observation.short_history ? " · Short history" : ""}</> : "Unavailable"}
+              {observation.short_history && <span className="ml-2"><StatusBadge variant="warning">Short history</StatusBadge></span>}</> : "Unavailable"}
           </dd>
         </dl>
         <p className="text-xs text-text-secondary">
@@ -107,7 +109,7 @@ export function VisibilityDiagnosticContent({ query }) {
         <h3 className="font-semibold text-text-primary">
           Recorded activity and normalization
         </h3>
-        <div className="overflow-x-auto rounded-lg border border-stroke">
+        <div className="themed-scrollbar overflow-x-auto rounded-lg border border-stroke">
           <table className="w-full text-left text-xs">
             <thead className="bg-surface text-text-secondary">
               <tr>
@@ -180,6 +182,7 @@ export default function VisibilityDiagnosticsModal({ business, onClose }) {
       title={`Visibility diagnostics · ${business.business_name}`}
       description="Current diagnostic calculation. Newer events, group membership, or configuration may differ from the persisted score. This does not reproduce a historical score or update ranking."
       maxWidth="max-w-2xl"
+      bodyClassName="themed-scrollbar"
       scrollable
     >
       <VisibilityDiagnosticContent query={query} />

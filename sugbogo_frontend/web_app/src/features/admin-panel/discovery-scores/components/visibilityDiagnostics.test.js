@@ -224,7 +224,8 @@ test("visibility diagnostics render recorded counts and normalization without re
   }
   assert.match(html, /Current Visibility Gap: .*0\.635/);
   assert.match(html, /Traction: .*0\.365/);
-  assert.match(html, /8 days of a 14-day window · Short history/);
+  assert.match(html, /8 days of a 14-day window/);
+  assert.match(html, /Short history/);
   assert.match(html, /proxy, not verified tracking duration/);
   assert.match(html, /zero recorded events do not establish zero exposure/);
 });
@@ -310,11 +311,16 @@ test("persisted details retain last success, current tag scores and historical l
       specialty_score: "0.72000", visibility_gap: "0.61000", discovery_score: "0.69800",
       refresh_status: "FAILED", computed_at: "2026-11-03T18:38:00Z",
       last_attempt_at: "2026-11-04T18:38:00Z", last_error_code: "VisibilityTrackingUnavailable",
-      score_breakdown: { weighted_specialty_contribution: "0.5760000000", weighted_visibility_contribution: "0.1220000000" },
+      score_breakdown: { specialty_weight: "0.80000", visibility_weight: "0.20000", weighted_specialty_contribution: "0.5760000000", weighted_visibility_contribution: "0.1220000000" },
     } },
   })).replaceAll("<!-- -->", "");
   for (const text of ["0.698", "0.576", "0.122", "Local Coffee", "0.123", "Current-configuration contributions", "Historical weights and observation windows were not persisted", "last successfully computed score remains available", "VisibilityTrackingUnavailable"]) assert.ok(html.includes(text), text);
   assert.match(html, /Nov 4, 2026, 2:38 AM/);
+  assert.match(html, /80%/);
+  assert.match(html, /20%/);
+  assert.match(html, /Contributions use current configuration and stored component scores/);
+  assert.match(html, /Specialty Tag/);
+  assert.match(html, /Last Updated/);
 });
 
 test("detail and diagnostic errors retain loaded data and expose separate retry actions", () => {

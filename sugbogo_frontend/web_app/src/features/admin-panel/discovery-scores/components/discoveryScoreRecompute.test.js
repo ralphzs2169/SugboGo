@@ -26,6 +26,7 @@ let version;
 let completionStatus;
 let successes;
 let failDiagnostic;
+let DetailsModal;
 const globals = [
   "window",
   "document",
@@ -80,6 +81,9 @@ before(async () => {
   });
   ({ default: Page } = await server.ssrLoadModule(
     "/src/features/admin-panel/pages/DiscoveryScoresPage.jsx",
+  ));
+  ({ default: DetailsModal } = await server.ssrLoadModule(
+    "/src/features/admin-panel/discovery-scores/components/DiscoveryScoreDetailsModal.jsx",
   ));
   ({ useDiscoveryScoreAnalytics: useHealth } = await server.ssrLoadModule(
     "/src/features/admin-panel/analytics/hooks/useAnalyticsReports.js",
@@ -279,6 +283,9 @@ test("View Details targets the selected business and retries only failed diagnos
   assert.match(container.textContent, /Local Coffee/);
   assert.ok(gets.some((request) => request.url.endsWith("/42/")));
   assert.equal(gets.filter((request) => request.url.endsWith("/visibility-diagnostics/")).length, 1);
+  const advanced = [...container.querySelectorAll("button")].find((button) => button.textContent.startsWith("Advanced Visibility Diagnostics"));
+  assert.equal(advanced.getAttribute("aria-expanded"), "false");
+  await act(async () => advanced.click());
   const detailReads = gets.filter((request) => request.url.endsWith("/42/")).length;
   failDiagnostic = false;
   const retry = [...container.querySelectorAll("button")].find((button) => button.textContent === "Retry visibility diagnostics");
@@ -346,4 +353,56 @@ test("management controls send supported server search filtering sorting and pag
   assert.equal(latest.page, 1);
   await until(() => container.querySelector("tbody tr td")?.textContent === "1");
   assert.equal(container.querySelector("tbody tr td").textContent, "1");
+});
+
+test("detail accordions preserve independent defaults and do not fetch on toggles or show another business", async () => {
+  async function renderBusiness(business) {
+    await act(async () => root.render(React.createElement(
+      QueryClientProvider, { client },
+      React.createElement(DetailsModal, { business, onClose() {} }),
+    )));
+  }
+  const transport = globalThis.__recomputeGet;
+  let releaseSecond;
+  globalThis.__recomputeGet = (url, options) => {
+    if (url.endsWith("/43/")) {
+      gets.push({ url });
+      return new Promise((resolve) => { releaseSecond = resolve; });
+    }
+    return transport(url, options);
+  };
+  await renderBusiness({ id: 42, business_name: "Cafe" });
+  await until(() => container.textContent.includes("Local Coffee"));
+  const buttons = () => [...container.querySelectorAll("button[aria-expanded]")];
+  assert.deepEqual(buttons().map((button) => button.getAttribute("aria-expanded")), ["true", "false", "false"]);
+  const [specialty, computation, advanced] = buttons();
+  const content = (button) => document.getElementById(button.getAttribute("aria-controls"));
+  assert.equal(content(specialty).getAttribute("aria-hidden"), "false");
+  assert.equal(content(computation).getAttribute("aria-hidden"), "true");
+  assert.equal(content(advanced).getAttribute("aria-hidden"), "true");
+  const readCount = gets.length;
+  await act(async () => computation.click());
+  assert.equal(content(specialty).getAttribute("aria-hidden"), "false");
+  assert.equal(content(computation).getAttribute("aria-hidden"), "false");
+  await act(async () => advanced.click());
+  assert.equal(content(advanced).getAttribute("aria-hidden"), "false");
+  await act(async () => specialty.click());
+  assert.equal(content(specialty).getAttribute("aria-hidden"), "true");
+  assert.equal(content(computation).getAttribute("aria-hidden"), "false");
+  assert.equal(content(advanced).getAttribute("aria-hidden"), "false");
+  assert.equal(gets.length, readCount);
+  assert.equal(container.querySelector('[aria-label="Score breakdown"]').closest("[hidden]"), null);
+  await renderBusiness({ id: 43, business_name: "Second business" });
+  assert.doesNotMatch(container.textContent, /Local Coffee/);
+  assert.equal(buttons()[0].getAttribute("aria-expanded"), "false");
+  await until(() => Boolean(releaseSecond));
+  await act(async () => releaseSecond({ data: { data: {
+    business: { id: 43, specialty_tags: [{ id: 2, name: "Second tag", tag_score: "0.22222" }] },
+    discovery_score: "0.33333", score_state: "FRESH", refresh_status: "SUCCEEDED",
+  } } }));
+  await until(() => container.textContent.includes("Second tag"));
+  assert.deepEqual(buttons().map((button) => button.getAttribute("aria-expanded")), ["true", "false", "false"]);
+  assert.match(container.textContent, /0\.333/);
+  assert.match(container.textContent, /Fresh/);
+  assert.doesNotMatch(container.textContent, /FRESH|Local Coffee/);
 });
