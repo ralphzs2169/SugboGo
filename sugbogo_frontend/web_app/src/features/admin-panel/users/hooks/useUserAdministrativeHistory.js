@@ -18,6 +18,7 @@ export default function useUserAdministrativeHistory(
   return {
     history: query.data?.items ?? [],
     pagination: query.data?.pagination ?? null,
+    hasData: query.data !== undefined,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: query.error,

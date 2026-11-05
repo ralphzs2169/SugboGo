@@ -102,7 +102,7 @@ test("successful creation invalidates only Admin user list queries", async () =>
   ]);
 });
 
-test("resend is visible only to Super Admins for pending Admins", () => {
+test("resend requires a Super Admin and explicit backend account eligibility", () => {
   const superAdmin = { role: "super_admin" };
   const admin = { role: "admin" };
 
@@ -110,6 +110,7 @@ test("resend is visible only to Super Admins for pending Admins", () => {
     canResendAdminInvitation(superAdmin, {
       role: "admin",
       status: "pending",
+      invitation_resend_eligible: true,
     }),
     true,
   );
@@ -117,6 +118,7 @@ test("resend is visible only to Super Admins for pending Admins", () => {
     canResendAdminInvitation(admin, {
       role: "admin",
       status: "pending",
+      invitation_resend_eligible: true,
     }),
     false,
   );
@@ -129,6 +131,23 @@ test("resend is visible only to Super Admins for pending Admins", () => {
     { role: "admin", status: "suspended" },
     { role: "admin", status: "disabled" },
   ]) {
-    assert.equal(canResendAdminInvitation(superAdmin, target), false);
+    assert.equal(
+      canResendAdminInvitation(superAdmin, {
+        ...target,
+        invitation_resend_eligible: true,
+      }),
+      false,
+    );
+  }
+
+  for (const eligible of [false, undefined, null, "true"]) {
+    assert.equal(
+      canResendAdminInvitation(superAdmin, {
+        role: "admin",
+        status: "pending",
+        invitation_resend_eligible: eligible,
+      }),
+      false,
+    );
   }
 });

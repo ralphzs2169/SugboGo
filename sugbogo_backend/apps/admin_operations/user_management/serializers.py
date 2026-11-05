@@ -1,6 +1,9 @@
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
+from apps.admin_operations.user_management.services import (
+    UserManagementService,
+)
 from apps.users.models import User
 
 
@@ -105,6 +108,16 @@ class AdminUserListSerializer(serializers.ModelSerializer):
         source="USER_CREATED_AT",
         read_only=True,
     )
+    invitation_resend_eligible = serializers.SerializerMethodField()
+
+    def get_invitation_resend_eligible(
+        self,
+        obj,
+    ):
+        """Returns account eligibility without granting invitation permissions."""
+        return UserManagementService.is_invitation_resend_eligible(
+            obj,
+        )
 
     class Meta:
         model = User
@@ -119,6 +132,7 @@ class AdminUserListSerializer(serializers.ModelSerializer):
             "avatar_url",
             "avatar_key",
             "joined_at",
+            "invitation_resend_eligible",
         )
 
 

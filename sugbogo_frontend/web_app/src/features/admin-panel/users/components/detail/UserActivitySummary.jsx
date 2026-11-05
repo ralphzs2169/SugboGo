@@ -1,45 +1,53 @@
 import { Flag, MessageSquareText, ShieldQuestion, ThumbsUp } from "lucide-react";
 
-import { formatLabel } from "@/shared/utils/stringUtils";
+import MetricCard from "@/features/admin-panel/components/MetricCard";
+import UserDetailHeading from "./UserDetailHeading";
 
 const METRIC_CONFIG = {
-  reviews: { icon: MessageSquareText },
-  vouches: { icon: ThumbsUp },
-  reports: { icon: Flag },
-  review_disputes: { icon: ShieldQuestion },
+  reviews: {
+    icon: MessageSquareText,
+    label: "Reviews Submitted",
+    description: "Retained reviews · all statuses",
+  },
+  vouches: {
+    icon: ThumbsUp,
+    label: "Non-withdrawn Vouches",
+    description: "Includes flagged and invalidated vouches",
+  },
+  reports: {
+    icon: Flag,
+    label: "Reports Submitted",
+    description: "All statuses · includes withdrawn reports",
+  },
+  review_disputes: {
+    icon: ShieldQuestion,
+    label: "Review Disputes",
+    description: "Disputes submitted · all statuses",
+  },
 };
 
-export default function UserActivitySummary({ summary = {} }) {
+export default function UserActivitySummary({ summary = {}, role }) {
+  const metrics = Object.entries(METRIC_CONFIG).filter(
+    ([key]) => key !== "review_disputes" || role === "merchant",
+  );
+
   return (
-    <section>
-      <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
-        Activity Summary
-      </h2>
+    <section aria-label="Activity summary" className="min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-5">
+      <UserDetailHeading icon={MessageSquareText} title="Activity Summary" description="Contributions submitted by this user" />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {Object.entries(summary).map(([key, value]) => {
-          const Icon = METRIC_CONFIG[key]?.icon ?? MessageSquareText;
-
-          return (
-            <div
-              key={key}
-              className="rounded-xl border border-stroke bg-background p-5"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-                  {formatLabel(key)}
-                </p>
-                <Icon
-                  className="h-4 w-4 text-text-secondary"
-                  aria-hidden="true"
-                />
-              </div>
-              <p className="mt-3 text-2xl font-bold text-text-primary">
-                {value}
-              </p>
-            </div>
-          );
-        })}
+      <div className={`grid min-w-0 grid-cols-1 gap-4 ${
+        metrics.length === 4 ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-3"
+      }`}>
+        {metrics.map(([key, metric]) => (
+          <MetricCard
+            key={key}
+            wrapTitle
+            title={metric.label}
+            icon={metric.icon}
+            value={summary[key] ?? "—"}
+            footerValue={metric.description}
+          />
+        ))}
       </div>
     </section>
   );

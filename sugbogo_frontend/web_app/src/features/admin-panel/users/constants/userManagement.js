@@ -19,6 +19,13 @@ export const USER_STATUS_BADGE_VARIANT = {
   disabled: "muted",
 };
 
+export const USER_ROLE_BADGE_VARIANT = {
+  explorer: "neutral",
+  merchant: "info",
+  admin: "orange",
+  super_admin: "purple",
+};
+
 export function canManageUserStatus(actor, targetUser) {
   if (!actor || !targetUser || Number(actor.id) === Number(targetUser.id)) {
     return false;

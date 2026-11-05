@@ -76,6 +76,16 @@ class UserManagementService:
         return invited_admin
 
     @staticmethod
+    def is_invitation_resend_eligible(user: User) -> bool:
+        """Checks account eligibility independently of the actor's permissions."""
+        return (
+            user.USER_ROLE == User.UserRole.ADMIN
+            and user.USER_STATUS == User.UserStatus.PENDING
+            and not user.EMAIL_VERIFIED
+            and not user.has_usable_password()
+        )
+
+    @staticmethod
     def get_invited_admin(
         *,
         actor: User,
@@ -85,11 +95,8 @@ class UserManagementService:
         UserManagementService._validate_super_admin_actor(actor)
         invited_admin = UserManagementService.get_user(user_id)
 
-        if not (
-            invited_admin.USER_ROLE == User.UserRole.ADMIN
-            and invited_admin.USER_STATUS == User.UserStatus.PENDING
-            and not invited_admin.EMAIL_VERIFIED
-            and not invited_admin.has_usable_password()
+        if not UserManagementService.is_invitation_resend_eligible(
+            invited_admin,
         ):
             raise ValidationError(
                 "Invitation can only be resent to an incomplete pending Admin.",
@@ -150,6 +157,7 @@ class UserManagementService:
                 ordering,
                 ("-USER_CREATED_AT",),
             ),
+            "USER_ID",
         )
 
     @staticmethod

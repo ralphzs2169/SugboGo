@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import StatusBadge from "@/shared/components/StatusBadge";
 import { formatLabel } from "@/shared/utils/stringUtils";
+import UserDetailHeading from "./UserDetailHeading";
 
 const STATUS_VARIANTS = {
   active: "success",
@@ -19,12 +20,10 @@ export default function UserMerchantInformation({ application, business }) {
   }
 
   return (
-    <section>
-      <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
-        Merchant Information
-      </h2>
+    <section aria-label="Merchant information" className="min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-5">
+      <UserDetailHeading icon={Store} title="Merchant Information" description="Linked application and business" />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {application && (
           <div className="rounded-xl border border-stroke bg-background p-5">
             <div className="flex items-start justify-between gap-3">

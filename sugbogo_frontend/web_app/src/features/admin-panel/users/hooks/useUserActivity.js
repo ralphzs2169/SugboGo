@@ -16,7 +16,9 @@ export default function useUserActivity(
 
   return {
     activities: query.data ?? [],
+    hasData: query.data !== undefined,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
     error: query.error,
     refetch: query.refetch,
   };

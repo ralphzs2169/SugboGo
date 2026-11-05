@@ -34,8 +34,13 @@ export default function SuspendUserModal({
     }
 
     setError("");
-    await onConfirm(normalizedReason);
-    setReason("");
+
+    try {
+      await onConfirm(normalizedReason);
+      setReason("");
+    } catch {
+      // The caller's mutation notification reports the error; retain the reason for retry.
+    }
   }
 
   return (
@@ -59,7 +64,8 @@ export default function SuspendUserModal({
           />
           <p className="text-sm leading-6 text-text-secondary">
             The user will no longer be able to access their SugboGo account
-            while suspended. Their linked business will remain active.
+            while suspended. All refresh sessions will be revoked.
+            Linked businesses retain their existing status.
           </p>
         </div>
 

@@ -16,6 +16,14 @@ export default function ReactivateUserModal({
     }
   }
 
+  async function handleConfirm() {
+    try {
+      await onConfirm();
+    } catch {
+      // The caller's mutation notification reports the error; keep the dialog open for retry.
+    }
+  }
+
   return (
     <Modal
       isOpen={isOpen}
@@ -51,7 +59,7 @@ export default function ReactivateUserModal({
           </Button>
           <Button
             variant="success"
-            onClick={onConfirm}
+            onClick={handleConfirm}
             loading={loading}
           >
             Reactivate User
