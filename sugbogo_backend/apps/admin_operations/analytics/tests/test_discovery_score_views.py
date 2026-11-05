@@ -1,5 +1,6 @@
 """API coverage for administrator Discovery Score monitoring."""
 
+from dataclasses import asdict
 from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ from unittest.mock import Mock, patch
 from django.contrib.gis.geos import Point
 from django.urls import reverse
 from django.utils import timezone
+from pymongo.errors import ConfigurationError
 from rest_framework.test import APITestCase
 
 from apps.business.models import (
@@ -33,6 +35,7 @@ from apps.business.services.visibility_gap_service import (
     VisibilityGapResult,
     VisibilityGapService,
 )
+from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 
 
 class DiscoveryScoreMonitoringViewTests(APITestCase):
@@ -332,6 +335,62 @@ class DiscoveryScoreMonitoringViewTests(APITestCase):
             before,
         )
 
+    def test_diagnostic_and_production_visibility_share_nonzero_observations_and_normalization(self):
+        """Compare actual calculation paths over the same MongoDB aggregation rows."""
+        reference_time = timezone.now()
+        context = DiscoveryScoreMonitoringService.visibility_context()
+        context["reference_time"] = reference_time
+        collection = Mock()
+        collection.aggregate.return_value = [
+            {
+                "_id": {
+                    "business_id": self.business.pk,
+                    "event_type": event_type,
+                },
+                "event_count": count,
+                "explorer_ids": savers,
+            }
+            for event_type, count, savers in (
+                ("IMPRESSION", 5, [100, 101]),
+                ("PROFILE_VISIT", 2, [100]),
+                ("SAVE", 3, [100, 101]),
+            )
+        ]
+        self.client.force_authenticate(user=self.admin)
+        with (
+            patch.object(DiscoveryScoreMonitoringService, "visibility_context", return_value=context),
+            patch.object(VisibilityEventService, "_indexes_initialized", True),
+            patch.object(VisibilityEventService, "_unavailable_until", 0.0),
+            patch.object(VisibilityEventService, "_get_collection", return_value=collection),
+        ):
+            production_result = VisibilityGapService.calculate_business_visibility_gap(
+                business_id=self.business.pk,
+                reference_time=reference_time,
+                configuration=context["configuration"],
+            )
+            response = self.client.get(self.diagnostic_url())
+        self.assertEqual(response.status_code, 200)
+        data = response.data["data"]
+        for field, value in asdict(production_result).items():
+            with self.subTest(field=field):
+                if isinstance(value, Decimal):
+                    self.assertEqual(Decimal(data[field]), value)
+                elif field in ("window_start", "window_end"):
+                    self.assertEqual(data[field], value.isoformat().replace("+00:00", "Z"))
+                else:
+                    self.assertEqual(data[field], value)
+        self.assertEqual(data["impression_count"], 5)
+        self.assertEqual(data["profile_visit_count"], 2)
+        self.assertEqual(data["unique_saver_count"], 2)
+        self.assertEqual(
+            collection.aggregate.call_args_list[0],
+            collection.aggregate.call_args_list[1],
+        )
+        self.assertIsNone(data["telemetry_coverage"]["value"])
+        self.assertEqual(data["telemetry_coverage"]["reason"], "coverage_unverified")
+        collection.create_index.assert_not_called()
+        collection.bulk_write.assert_not_called()
+
     def test_monitoring_observation_context_is_capped_and_does_not_read_mongo(self):
         """Use configured potential age independently of telemetry and score state."""
         reference_time = timezone.now()
@@ -495,6 +554,7 @@ class DiscoveryScoreMonitoringViewTests(APITestCase):
         self.assertEqual(
             response.data["data"],
             {
+                "status": "COMPLETED_WITH_FAILURES",
                 "considered": 2,
                 "updated": 1,
                 "skipped_stale": 0,
@@ -502,6 +562,199 @@ class DiscoveryScoreMonitoringViewTests(APITestCase):
                 "failed_business_ids": [42],
             },
         )
+        self.assertIn("completed with refresh failures", response.data["message"])
+
+    def test_overview_counts_success_freshness_independently_of_newer_attempts(self):
+        """Use active computed scores and the established age boundary for overview counts."""
+        now = timezone.now()
+        cutoff = now - DiscoveryScoreRefreshService.MAX_SCORE_AGE
+        self.client.force_authenticate(user=self.admin)
+        cases = (
+            (now, False, now, "VisibilityTrackingUnavailable", 1, 1, 1, 1),
+            (now, False, now, "", 1, 1, 0, 0),
+            (cutoff, False, now, "", 1, 1, 0, 0),
+            (cutoff - timedelta(microseconds=1), False, None, "", 1, 0, 0, 1),
+            (cutoff - timedelta(microseconds=1), False, now, "OperationalError", 1, 0, 1, 1),
+            (None, True, now, "VisibilityTrackingUnavailable", 0, 0, 1, 1),
+            (None, True, now, "", 0, 0, 0, 0),
+            (None, False, None, "", 0, 0, 0, 0),
+        )
+        with patch(
+            "apps.admin_operations.analytics.services.discovery_score_monitoring_service.timezone.now",
+            return_value=now,
+        ), patch.object(VisibilityEventService, "_get_collection") as collection:
+            for (
+                computed_at,
+                provisional,
+                pending,
+                error,
+                computed,
+                fresh,
+                failed,
+                needs_attention,
+            ) in cases:
+                with self.subTest(computed_at=computed_at, error=error):
+                    DiscoveryScore.objects.update(
+                        DSC_COMPUTED_AT=computed_at,
+                        DSC_IS_PROVISIONAL=provisional,
+                        DSC_REFRESH_REQUESTED_AT=pending,
+                        DSC_LAST_ERROR=error,
+                        DSC_D_SCORE=0,
+                    )
+                    response = self.client.get(
+                        reverse("discovery-score-list"),
+                        {"search": "No matching scored business", "page_size": 1},
+                    )
+                    self.assertEqual(response.data["data"]["items"], [])
+                    coverage = response.data["data"]["coverage"]
+                    self.assertEqual(coverage["computed"], computed)
+                    self.assertEqual(coverage["fresh"], fresh)
+                    self.assertEqual(coverage["failed"], failed)
+                    self.assertEqual(coverage["needs_attention"], needs_attention)
+                    telemetry = coverage["telemetry_coverage"]
+                    self.assertIsNone(telemetry["value"])
+                    self.assertFalse(telemetry["coverage_verified"])
+                    self.assertEqual(telemetry["reason"], "coverage_unverified")
+                    self.assertEqual(len(telemetry["assessments"]), 3)
+            DiscoveryScore.objects.update(
+                DSC_COMPUTED_AT=cutoff - timedelta(seconds=1),
+                DSC_LAST_ERROR="OperationalError",
+            )
+            Business.objects.filter(pk=self.business.pk).update(
+                BUSN_STATUS=Business.BusinessStatus.SUSPENDED,
+            )
+            coverage = self.client.get(reverse("discovery-score-list")).data["data"]["coverage"]
+            self.assertEqual(coverage["active_businesses"], 0)
+            self.assertEqual(coverage["computed"], 0)
+            self.assertEqual(coverage["failed"], 0)
+            self.assertEqual(coverage["needs_attention"], 0)
+            Business.objects.filter(pk=self.business.pk).update(
+                BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            )
+            DiscoveryScore.objects.all().delete()
+            coverage = self.client.get(reverse("discovery-score-list")).data["data"]["coverage"]
+            self.assertEqual(coverage["missing"], 1)
+            self.assertEqual(coverage["computed"], 0)
+            self.assertEqual(coverage["needs_attention"], 0)
+            collection.assert_not_called()
+
+    def test_detail_reuses_list_values_and_discloses_current_weight_basis(self):
+        """Keep successful persisted values available when a later refresh has failed."""
+        configuration = DiscoveryAlgorithmConfiguration(
+            DAC_SPECIALTY_SCORE_WEIGHT=Decimal("0.65432"),
+            DAC_VISIBILITY_GAP_WEIGHT=Decimal("0.34568"),
+        )
+        context = {
+            "configuration": configuration,
+            "reference_time": timezone.now(),
+        }
+        DiscoveryScore.objects.update(
+            DSC_LAST_ATTEMPT_AT=timezone.now(),
+            DSC_LAST_ERROR="VisibilityTrackingUnavailable",
+            DSC_REFRESH_REQUESTED_AT=timezone.now(),
+        )
+        BusinessSpecialtyTag.objects.filter(BST_IS_ACTIVE=True).update(
+            BST_TAG_SCORE=Decimal("0.12345"),
+            BST_SCORE_UPDATED_AT=timezone.now(),
+        )
+        before = DiscoveryScore.objects.values().get()
+        self.client.force_authenticate(user=self.admin)
+        with patch.object(
+            DiscoveryScoreMonitoringService,
+            "visibility_context",
+            return_value=context,
+        ), patch.object(VisibilityEventService, "_get_collection") as collection:
+            row = self.client.get(reverse("discovery-score-list")).data["data"]["items"][0]
+            with self.assertNumQueries(2):
+                response = self.client.get(reverse(
+                    "discovery-score-detail",
+                    kwargs={"business_id": self.business.pk},
+                ))
+            self.assertEqual(response.status_code, 200)
+            detail = response.data["data"]
+            for field, value in row.items():
+                self.assertEqual(detail[field], value)
+            self.assertEqual(detail["refresh_status"], "FAILED")
+            self.assertIsNotNone(detail["computed_at"])
+            self.assertEqual(detail["last_error_code"], "VisibilityTrackingUnavailable")
+            breakdown = detail["score_breakdown"]
+            self.assertEqual(
+                Decimal(breakdown["weighted_specialty_contribution"]),
+                Decimal("0.72000") * Decimal("0.65432"),
+            )
+            self.assertEqual(
+                Decimal(breakdown["weighted_visibility_contribution"]),
+                Decimal("0.61000") * Decimal("0.34568"),
+            )
+            self.assertEqual(breakdown["basis"], "current_weights_on_persisted_components")
+            self.assertFalse(breakdown["historical_inputs_available"])
+            tag = detail["business"]["specialty_tags"][0]
+            self.assertEqual(tag["tag_score"], "0.12345")
+            self.assertIsNotNone(tag["score_updated_at"])
+            collection.assert_not_called()
+        self.assertEqual(DiscoveryScore.objects.values().get(), before)
+
+    def test_detail_permissions_missing_score_and_write_restrictions(self):
+        """Enforce administrator access and controlled missing-score errors."""
+        url = reverse(
+            "discovery-score-detail",
+            kwargs={"business_id": self.business.pk},
+        )
+        for user in (None, self.owner):
+            self.client.force_authenticate(user=user)
+            self.assertIn(self.client.get(url).status_code, (401, 403))
+        self.client.force_authenticate(user=self.admin)
+        self.assertEqual(self.client.patch(url, {}).status_code, 405)
+        DiscoveryScore.objects.all().delete()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data["code"], "NOT_FOUND")
+
+    def test_diagnostic_dns_failure_returns_safe_unavailable_error_without_changing_score(self):
+        """Exercise the actual read path for the DNS error observed in application logs."""
+        before = DiscoveryScore.objects.values().get()
+        self.client.force_authenticate(user=self.admin)
+        with patch.object(
+            VisibilityEventService,
+            "_unavailable_until",
+            0.0,
+        ), patch.object(
+            VisibilityEventService,
+            "_get_collection",
+            side_effect=ConfigurationError("private MongoDB DNS resolution failure"),
+        ), patch("apps.business.services.visibility_event_service.logger.exception"):
+            response = self.client.get(self.diagnostic_url())
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.data["code"], "VISIBILITY_TRACKING_UNAVAILABLE")
+        self.assertNotIn("private", str(response.data))
+        self.assertGreater(response.data["retry_after"], 0)
+        self.assertEqual(DiscoveryScore.objects.values().get(), before)
+
+    @patch(
+        "apps.admin_operations.analytics.services.discovery_score_monitoring_service."
+        "DiscoveryScoreService.recompute_business_scores",
+    )
+    def test_manual_recompute_reports_completion_only_after_synchronous_result(
+        self,
+        recompute,
+    ):
+        """Keep completed synchronous work distinct from a rejected dependency failure."""
+        self.client.force_authenticate(user=self.admin)
+        recompute.return_value = SimpleNamespace(
+            considered_count=1,
+            updated_count=1,
+            stale_count=0,
+            failed_count=0,
+            failures=[],
+        )
+        response = self.client.post(reverse("discovery-score-recompute"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["status"], "COMPLETED")
+        recompute.side_effect = VisibilityTrackingUnavailable()
+        response = self.client.post(reverse("discovery-score-recompute"))
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(response.data["success"])
+        self.assertNotIn("data", response.data)
 
     def test_score_endpoints_do_not_allow_editing(self):
         """Reject PUT and PATCH on the read-only score list."""

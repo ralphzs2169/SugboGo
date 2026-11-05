@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.admin_operations.analytics.serializers.discovery_score_serializers import (
     AdminDiscoveryScoreSerializer,
+    AdminDiscoveryScoreDetailSerializer,
     DiscoveryScoreQuerySerializer,
     VisibilityGapDiagnosticSerializer,
 )
@@ -190,6 +191,33 @@ class DiscoveryScoreListView(APIView):
         return response
 
 
+class DiscoveryScoreDetailView(APIView):
+    """Expose persisted business score details independently of telemetry availability."""
+
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
+    )
+
+    def get(
+        self,
+        request,
+        business_id,
+    ):
+        """Reuse list values and safe refresh diagnostics without querying MongoDB."""
+        score = DiscoveryScoreMonitoringService.get_score(business_id)
+        serializer = AdminDiscoveryScoreDetailSerializer(
+            score,
+            context={
+                "visibility_context": DiscoveryScoreMonitoringService.visibility_context(),
+            },
+        )
+        return success_response(
+            data=serializer.data,
+            message="Discovery Score retrieved successfully.",
+        )
+
+
 class VisibilityGapDiagnosticView(APIView):
     """Provide an opt-in current visibility calculation for one active business."""
 
@@ -221,11 +249,17 @@ class DiscoveryScoreRecomputeView(APIView):
         HasRole(User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN),
     )
 
-    def post(self, request):
+    def post(
+        self,
+        request,
+    ):
         """Recompute scores and return a safe batch summary."""
 
         summary = DiscoveryScoreMonitoringService.recompute_scores()
+        message = "Discovery Scores recomputed successfully."
+        if summary["failed"]:
+            message = "Discovery Score recomputation completed with refresh failures."
         return success_response(
             data=summary,
-            message="Discovery Scores recomputed successfully.",
+            message=message,
         )

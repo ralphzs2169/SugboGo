@@ -218,6 +218,7 @@ class DiscoveryScoreRefreshService:
             DSC_REFRESH_VERSION=version,
         ).update(
             DSC_LAST_ATTEMPT_AT=reference_time,
+            DSC_LAST_ERROR="",
             DSC_REFRESH_REQUESTED_AT=Coalesce(
                 "DSC_REFRESH_REQUESTED_AT",
                 Value(reference_time),

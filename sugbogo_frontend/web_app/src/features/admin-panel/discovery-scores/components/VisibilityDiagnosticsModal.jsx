@@ -2,67 +2,75 @@ import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/shared/components/Button";
 import Modal from "@/shared/components/modals/Modal";
-import { formatDateTime } from "@/shared/utils/dateUtils";
+import DataErrorState from "@/shared/components/errors/DataErrorState";
+import StatusBadge from "@/shared/components/StatusBadge";
+import { formatTimestamp } from "../../analytics/utils/presentation";
+import { formatScore, telemetryPresentation } from "../utils/presentation";
 import { visibilityDiagnosticOptions } from "../services/discoveryScoreService";
 
 /** Render live calculation context with the existing operational feedback patterns. */
 export function VisibilityDiagnosticContent({ query }) {
   const { data, isFetching, error, refetch } = query;
-  if (isFetching) {
+  if (isFetching && !data && !error) {
     return (
       <p role="status" aria-busy="true" className="text-sm text-text-secondary">
         Calculating current visibility diagnostics…
       </p>
     );
   }
-  if (error) {
+  if (error && !data) {
     return (
-      <div className="space-y-3">
-        <p role="alert" className="text-sm text-text-secondary">
-          {error.response?.data?.message ||
-            "Unable to load visibility diagnostics."}
-        </p>
-        <Button variant="secondary" onClick={() => refetch()}>
-          Try again
-        </Button>
-      </div>
+      <DataErrorState compact framed title="Unable to load visibility diagnostics"
+        message={error.response?.data?.message || "Visibility diagnostics are currently unavailable."}
+        onRetry={() => refetch()} retrying={isFetching} retryLabel="Retry visibility diagnostics" />
     );
   }
   if (!data) {
     return (
-      <p className="text-sm text-text-secondary">
-        No diagnostic data returned.
-      </p>
+      <div className="space-y-3 text-sm text-text-secondary">
+        <p>No diagnostic data returned.</p>
+        <Button variant="secondary" onClick={() => refetch()}>Retry visibility diagnostics</Button>
+      </div>
     );
   }
 
   const observation = data.observation_context;
+  const coverage = data.telemetry_coverage ?? {
+    value: null,
+    reason: data.telemetry_reason ?? (
+      data.coverage_verified === false ? "coverage_unverified" : null
+    ),
+  };
+  const telemetry = telemetryPresentation(coverage);
   const signals = [
     [
       "Impressions",
       data.impression_count,
       data.maximum_impression_count,
       data.normalized_impressions,
-      data.signal_weights.impressions,
+      data.signal_weights?.impressions,
     ],
     [
       "Profile visits",
       data.profile_visit_count,
       data.maximum_profile_visit_count,
       data.normalized_profile_visits,
-      data.signal_weights.profile_visits,
+      data.signal_weights?.profile_visits,
     ],
     [
       "Distinct savers",
       data.unique_saver_count,
       data.maximum_unique_saver_count,
       data.normalized_saves,
-      data.signal_weights.saves,
+      data.signal_weights?.saves,
     ],
   ];
 
   return (
-    <div className="space-y-5 text-sm">
+    <div className="space-y-5 text-sm" aria-busy={isFetching}>
+      {error && <DataErrorState compact retainedData title="Unable to refresh visibility diagnostics"
+        onRetry={() => refetch()} retrying={isFetching} retryLabel="Retry visibility diagnostics" />}
+      {isFetching && <p role="status" className="text-xs text-text-secondary">Refreshing visibility diagnostics…</p>}
       <section aria-label="Current calculation context" className="space-y-2">
         <h3 className="font-semibold text-text-primary">
           Current calculation context
@@ -71,11 +79,12 @@ export function VisibilityDiagnosticContent({ query }) {
           <dt>Business ID</dt>
           <dd>{data.business_id}</dd>
           <dt>Reference time</dt>
-          <dd>{formatDateTime(data.reference_time)}</dd>
-          <dt>Window start</dt>
-          <dd>{formatDateTime(data.window_start)}</dd>
-          <dt>Window end (exclusive)</dt>
-          <dd>{formatDateTime(data.window_end)}</dd>
+          <dd>{formatTimestamp(data.reference_time)} · PHT</dd>
+          <dt>Observation window</dt>
+          <dd className="flex flex-col gap-1">
+            <span>{formatTimestamp(data.window_start)} · PHT</span>
+            <span>to {formatTimestamp(data.window_end)} · PHT (exclusive)</span>
+          </dd>
           <dt>Comparison group</dt>
           <dd>
             {data.comparison_group_level} · {data.comparison_group_size} active
@@ -83,9 +92,9 @@ export function VisibilityDiagnosticContent({ query }) {
           </dd>
           <dt>Potential observation period</dt>
           <dd>
-            {observation.potential_observation_days} days of a{" "}
-            {observation.window_days}-day window
-            {observation.short_history ? " · Short history" : ""}
+            {observation ? <>{observation.potential_observation_days} days of a{" "}
+              {observation.window_days}-day window
+              {observation.short_history && <span className="ml-2"><StatusBadge variant="warning">Short history</StatusBadge></span>}</> : "Unavailable"}
           </dd>
         </dl>
         <p className="text-xs text-text-secondary">
@@ -100,7 +109,7 @@ export function VisibilityDiagnosticContent({ query }) {
         <h3 className="font-semibold text-text-primary">
           Recorded activity and normalization
         </h3>
-        <div className="overflow-x-auto rounded-lg border border-stroke">
+        <div className="themed-scrollbar overflow-x-auto rounded-lg border border-stroke">
           <table className="w-full text-left text-xs">
             <thead className="bg-surface text-text-secondary">
               <tr>
@@ -132,7 +141,7 @@ export function VisibilityDiagnosticContent({ query }) {
                       key={index}
                       className="px-3 py-2 font-mono tabular-nums"
                     >
-                      {value}
+                      {index < 2 ? (value ?? "—") : formatScore(value)}
                     </td>
                   ))}
                 </tr>
@@ -141,11 +150,11 @@ export function VisibilityDiagnosticContent({ query }) {
           </table>
         </div>
         <p className="text-text-secondary">
-          Traction: <span className="font-mono">{data.traction}</span>
+          Traction: <span className="tabular-nums">{formatScore(data.traction)}</span>
         </p>
         <p className="font-semibold text-text-primary">
           Current Visibility Gap:{" "}
-          <span className="font-mono">{data.visibility_gap}</span>
+          <span className="tabular-nums">{formatScore(data.visibility_gap)}</span>
         </p>
       </section>
       <section
@@ -153,9 +162,10 @@ export function VisibilityDiagnosticContent({ query }) {
         className="space-y-2 border-t border-stroke pt-4"
       >
         <h3 className="font-semibold text-text-primary">
-          Telemetry coverage: Unverified
+          Telemetry coverage: {telemetry.value}
         </h3>
         <p className="text-text-secondary">{data.telemetry_note}</p>
+        <p className="text-xs text-text-secondary">Distinct savers are unique accounts with recorded SAVE events in the observation window. They may no longer hold the business in a Pocket.</p>
       </section>
     </div>
   );
@@ -172,6 +182,7 @@ export default function VisibilityDiagnosticsModal({ business, onClose }) {
       title={`Visibility diagnostics · ${business.business_name}`}
       description="Current diagnostic calculation. Newer events, group membership, or configuration may differ from the persisted score. This does not reproduce a historical score or update ranking."
       maxWidth="max-w-2xl"
+      bodyClassName="themed-scrollbar"
       scrollable
     >
       <VisibilityDiagnosticContent query={query} />

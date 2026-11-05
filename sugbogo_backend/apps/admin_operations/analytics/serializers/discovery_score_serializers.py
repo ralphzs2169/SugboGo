@@ -106,6 +106,7 @@ class VisibilityGapDiagnosticSerializer(serializers.Serializer):
     coverage_verified = serializers.BooleanField(read_only=True)
     telemetry_reason = serializers.CharField(read_only=True)
     telemetry_note = serializers.CharField(read_only=True)
+    telemetry_coverage = serializers.DictField(read_only=True)
 
 
 class DiscoveryScoreBusinessSerializer(serializers.ModelSerializer):
@@ -140,8 +141,11 @@ class DiscoveryScoreBusinessSerializer(serializers.ModelSerializer):
             "specialty_tags",
         )
 
-    def get_specialty_tags(self, obj):
-        """Return only the prefetched active tag identities."""
+    def get_specialty_tags(
+        self,
+        obj,
+    ):
+        """Return prefetched current active tags and their persisted individual scores."""
 
         return [
             {
@@ -149,6 +153,10 @@ class DiscoveryScoreBusinessSerializer(serializers.ModelSerializer):
                 "name": link.TAG_ID.TAG_NAME,
                 "icon": link.TAG_ID.TAG_ICON,
                 "color": link.TAG_ID.TAG_COLOR,
+                "tag_score": format(link.BST_TAG_SCORE, "f"),
+                "score_updated_at": serializers.DateTimeField().to_representation(
+                    link.BST_SCORE_UPDATED_AT,
+                ),
             }
             for link in obj.active_specialty_tag_links
         ]
@@ -195,6 +203,7 @@ class AdminDiscoveryScoreSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     score_state = serializers.CharField(read_only=True)
+    refresh_status = serializers.CharField(read_only=True)
     is_provisional = serializers.BooleanField(source="DSC_IS_PROVISIONAL", read_only=True)
     refresh_requested_at = serializers.DateTimeField(
         source="DSC_REFRESH_REQUESTED_AT",
@@ -231,6 +240,7 @@ class AdminDiscoveryScoreSerializer(serializers.ModelSerializer):
             "discovery_score",
             "computed_at",
             "score_state",
+            "refresh_status",
             "is_provisional",
             "refresh_requested_at",
             "last_attempt_at",
@@ -238,4 +248,70 @@ class AdminDiscoveryScoreSerializer(serializers.ModelSerializer):
             "coverage_verified",
             "telemetry_reason",
             "observation_context",
+        )
+
+
+class DiscoveryScoreBreakdownSerializer(serializers.Serializer):
+    """Explain current weights applied to persisted components without claiming history."""
+
+    specialty_weight = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        read_only=True,
+    )
+    visibility_weight = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=5,
+        read_only=True,
+    )
+    weighted_specialty_contribution = serializers.DecimalField(
+        max_digits=11,
+        decimal_places=10,
+        read_only=True,
+    )
+    weighted_visibility_contribution = serializers.DecimalField(
+        max_digits=11,
+        decimal_places=10,
+        read_only=True,
+    )
+    basis = serializers.CharField(read_only=True)
+    historical_inputs_available = serializers.BooleanField(read_only=True)
+    configuration_updated_at = serializers.DateTimeField(read_only=True)
+    note = serializers.CharField(read_only=True)
+
+
+class AdminDiscoveryScoreDetailSerializer(AdminDiscoveryScoreSerializer):
+    """Extend the persisted list contract with an explicitly current-weight breakdown."""
+
+    score_breakdown = serializers.SerializerMethodField()
+
+    def get_score_breakdown(
+        self,
+        obj,
+    ):
+        """Keep derived contributions at full precision and disclose unavailable snapshots."""
+        configuration = self.context["visibility_context"]["configuration"]
+        specialty_weight = configuration.DAC_SPECIALTY_SCORE_WEIGHT
+        visibility_weight = configuration.DAC_VISIBILITY_GAP_WEIGHT
+        return DiscoveryScoreBreakdownSerializer(
+            {
+                "specialty_weight": specialty_weight,
+                "visibility_weight": visibility_weight,
+                "weighted_specialty_contribution": obj.DSC_S_SCORE * specialty_weight,
+                "weighted_visibility_contribution": obj.DSC_V_SCORE * visibility_weight,
+                "basis": "current_weights_on_persisted_components",
+                "historical_inputs_available": False,
+                "configuration_updated_at": configuration.DAC_UPDATED_AT,
+                "note": (
+                    "Calculation inputs and observation windows are not stored as historical "
+                    "snapshots. These contributions use current weights and rounded persisted "
+                    "components; they may differ from the last successful calculation. "
+                    "Specialty tags show current assignments and their own score timestamps."
+                ),
+            },
+        ).data
+
+    class Meta(AdminDiscoveryScoreSerializer.Meta):
+        fields = AdminDiscoveryScoreSerializer.Meta.fields + (
+            "score_breakdown",
         )
