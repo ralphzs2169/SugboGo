@@ -64,7 +64,8 @@ export default function SuspendUserModal({
           />
           <p className="text-sm leading-6 text-text-secondary">
             The user will no longer be able to access their SugboGo account
-            while suspended. Linked businesses retain their existing status.
+            while suspended. All refresh sessions will be revoked.
+            Linked businesses retain their existing status.
           </p>
         </div>
 

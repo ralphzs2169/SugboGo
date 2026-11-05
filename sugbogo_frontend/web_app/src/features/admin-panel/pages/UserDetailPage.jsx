@@ -1,31 +1,50 @@
-import { useState } from "react";
+import { lazy, Suspense } from "react";
 import { useParams } from "react-router-dom";
 
 import DetailPageLayout from "@/shared/components/layout/DetailPageLayout";
+import DataErrorState from "@/shared/components/errors/DataErrorState";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import useNavigateBack from "@/shared/hooks/useNavigateBack";
 
 import UserAccountActions from "../users/components/detail/UserAccountActions";
-import UserAccountInformation from "../users/components/detail/UserAccountInformation";
-import UserActivitySummary from "../users/components/detail/UserActivitySummary";
+import UserDetailOverview from "../users/components/detail/UserDetailOverview";
 import UserAdministrativeHistory from "../users/components/detail/UserAdministrativeHistory";
 import UserDetailSkeleton from "../users/components/detail/UserDetailSkeleton";
-import UserMerchantInformation from "../users/components/detail/UserMerchantInformation";
 import UserRecentActivity from "../users/components/detail/UserRecentActivity";
 import useUserActivity from "../users/hooks/useUserActivity";
 import useUserAdministrativeHistory from "../users/hooks/useUserAdministrativeHistory";
 import useUserDetail from "../users/hooks/useUserDetail";
 
+const UserDetailPreview = import.meta.env.DEV
+  ? lazy(() => import("../users/components/detail/UserDetailPreview"))
+  : null;
+
 export default function UserDetailPage() {
   const { userId } = useParams();
-  const [historyPage, setHistoryPage] = useState(1);
+
+  if (UserDetailPreview) {
+    return (
+      <Suspense fallback={<UserDetailSkeleton />}>
+        <UserDetailPreview
+          key={userId}
+          renderLive={() => <UserDetailContent key={userId} userId={userId} />}
+        />
+      </Suspense>
+    );
+  }
+
+  return <UserDetailContent key={userId} userId={userId} />;
+}
+
+/** Keeps account data and local history pagination scoped to the selected user. */
+function UserDetailContent({ userId }) {
   const handleBack = useNavigateBack("/admin-panel/users/all");
 
   const userQuery = useUserDetail(userId);
   const activityQuery = useUserActivity(userId, { limit: 20 });
   const historyQuery = useUserAdministrativeHistory(userId, {
-    page: historyPage,
+    page: 1,
     page_size: 10,
   });
 
@@ -63,7 +82,7 @@ export default function UserDetailPage() {
       backLabel="Back to Users"
       onBack={handleBack}
       isLoading={userQuery.isLoading}
-      error={userQuery.error}
+      error={!user ? userQuery.error : null}
       hasData={Boolean(user)}
       onRetry={userQuery.refetch}
       loadingContent={<UserDetailSkeleton />}
@@ -71,29 +90,42 @@ export default function UserDetailPage() {
       errorMessage="The user could not be loaded. They may not exist or you may not have access."
     >
       {user && (
-        <div className="space-y-6 pb-12">
-          <UserAccountInformation user={user} />
-          <UserMerchantInformation
-            application={user.application}
-            business={user.business}
-          />
-          <UserActivitySummary summary={user.activity_summary} />
+        <div className="min-w-0 space-y-6 pb-12 sm:space-y-8">
+          <UserDetailOverview
+            user={user}
+            accountActions={<UserAccountActions user={user} />}
+            accountNotice={userQuery.error && (
+              <DataErrorState
+                compact
+                framed
+                retainedData
+                refreshLabel="Account information"
+                title="Unable to refresh account information"
+                onRetry={() => userQuery.refetch()}
+                retrying={userQuery.isFetching}
+                retryLabel="Retry"
+              />
+            )}
+          >
           <UserRecentActivity
             activities={activityQuery.activities}
             isLoading={activityQuery.isLoading}
+            isFetching={activityQuery.isFetching}
+            hasData={activityQuery.hasData}
             error={activityQuery.error}
             onRetry={activityQuery.refetch}
           />
           <UserAdministrativeHistory
+            userId={userId}
             history={historyQuery.history}
             pagination={historyQuery.pagination}
             isLoading={historyQuery.isLoading}
             isFetching={historyQuery.isFetching}
+            hasData={historyQuery.hasData}
             error={historyQuery.error}
             onRetry={historyQuery.refetch}
-            onPageChange={setHistoryPage}
           />
-          <UserAccountActions user={user} />
+          </UserDetailOverview>
         </div>
       )}
     </DetailPageLayout>

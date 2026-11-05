@@ -19,6 +19,7 @@ export default function UserAvatar({
     queue: "h-8 w-8",
     compact: "h-9 w-9",
     lg: "h-10 w-10",
+    profile: "h-20 w-20",
   };
 
   const sizeClass = sizeClasses[size] ?? sizeClasses.md;

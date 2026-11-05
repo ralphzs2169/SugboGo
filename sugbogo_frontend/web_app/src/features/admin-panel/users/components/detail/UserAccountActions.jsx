@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ShieldAlert, UserCheck, UserX } from "lucide-react";
+import { Send, ShieldAlert, UserCheck, UserX } from "lucide-react";
 import toast from "react-hot-toast";
 
 import Button from "@/shared/components/Button";
@@ -8,8 +8,11 @@ import { useAuthStore } from "@/features/auth/storage/auth.store";
 
 import { canManageUserStatus } from "../../constants/userManagement";
 import useUserStatusMutations from "../../hooks/useUserStatusMutations";
+import useResendAdminInvitation from "../../hooks/useResendAdminInvitation";
+import { canResendAdminInvitation } from "../../utils/adminInvitationUi";
 import ReactivateUserModal from "../ReactivateUserModal";
 import SuspendUserModal from "../SuspendUserModal";
+import UserDetailHeading from "./UserDetailHeading";
 
 function getUnavailableMessage(currentUser, user) {
   if (String(currentUser?.id) === String(user.id)) {
@@ -34,6 +37,11 @@ export default function UserAccountActions({ user }) {
     suspendError,
     reactivateError,
   } = useUserStatusMutations();
+  const {
+    resendInvitation,
+    isResending,
+    error: resendError,
+  } = useResendAdminInvitation();
 
   useApiErrorNotification(suspendError, {
     toastId: `admin-user-${user.id}-suspend-error`,
@@ -42,6 +50,10 @@ export default function UserAccountActions({ user }) {
   useApiErrorNotification(reactivateError, {
     toastId: `admin-user-${user.id}-reactivate-error`,
     fallbackMessage: "Unable to reactivate the user. Please try again.",
+  });
+  useApiErrorNotification(resendError, {
+    toastId: `admin-user-${user.id}-invitation-error`,
+    fallbackMessage: "Unable to resend the Admin invitation. Please try again.",
   });
 
   const canManage = canManageUserStatus(currentUser, user);
@@ -64,26 +76,51 @@ export default function UserAccountActions({ user }) {
     closeAction(true);
   }
 
-  return (
-    <section>
-      <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-text-secondary">
-        Account Actions
-      </h2>
+  async function handleResendInvitation() {
+    try {
+      await resendInvitation(user.id);
+      toast.success("Invitation email sent.");
+    } catch {
+      // The mutation notification reports delivery failures and allows retry.
+    }
+  }
 
-      <div className="rounded-xl border border-stroke bg-background p-5">
-        {canManage && user.status === "active" ? (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+  return (
+    <>
+      <section
+        aria-label="Account actions"
+        className="min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-5"
+      >
+      <UserDetailHeading icon={ShieldAlert} title="Account Actions" />
+
+      <div>
+        {canResendAdminInvitation(currentUser, user) ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-text-primary">
-                Suspend account access
+                Complete Admin account setup
               </h3>
-              <p className="mt-1 text-sm leading-6 text-text-secondary">
-                Blocks authenticated access and revokes all refresh sessions.
-                Linked businesses are not changed.
+              <p className="mt-1 text-xs leading-5 text-text-secondary">
+                Resend the account setup email.
+              </p>
+            </div>
+            <Button size="sm" icon={Send} loading={isResending} onClick={handleResendInvitation}>
+              {isResending ? "Sending Invitation..." : "Resend Invitation"}
+            </Button>
+          </div>
+        ) : canManage && user.status === "active" ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-text-primary">
+                Suspend account
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-text-secondary">
+                Restrict this user's access.
               </p>
             </div>
             <Button
               variant="danger"
+              size="sm"
               icon={UserX}
               onClick={() => setActiveAction("suspend")}
             >
@@ -91,18 +128,18 @@ export default function UserAccountActions({ user }) {
             </Button>
           </div>
         ) : canManage && ["suspended", "disabled"].includes(user.status) ? (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-text-primary">
                 Restore account access
               </h3>
-              <p className="mt-1 text-sm leading-6 text-text-secondary">
-                Allows the user to sign in again. Revoked sessions remain
-                revoked.
+              <p className="mt-1 text-xs leading-5 text-text-secondary">
+                Allow this user to sign in again.
               </p>
             </div>
             <Button
               variant="success"
+              size="sm"
               icon={UserCheck}
               onClick={() => setActiveAction("reactivate")}
             >
@@ -126,6 +163,7 @@ export default function UserAccountActions({ user }) {
           </div>
         )}
       </div>
+      </section>
 
       <SuspendUserModal
         isOpen={activeAction === "suspend"}
@@ -141,6 +179,6 @@ export default function UserAccountActions({ user }) {
         onConfirm={handleReactivate}
         loading={isReactivating}
       />
-    </section>
+    </>
   );
 }

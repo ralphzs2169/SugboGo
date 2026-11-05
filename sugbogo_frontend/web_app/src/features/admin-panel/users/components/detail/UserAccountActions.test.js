@@ -69,6 +69,25 @@ test("suspension and reactivation remain available for their existing eligible s
   assert.doesNotMatch(renderActions(actor, { ...target, status: "pending" }), /Reactivate User|Suspend User/);
 });
 
+test("detail invitation resend requires Super Admin authority and explicit eligibility", () => {
+  const target = {
+    id: 2,
+    role: "admin",
+    status: "pending",
+    invitation_resend_eligible: true,
+  };
+  assert.match(renderActions({ id: 1, role: "super_admin" }, target), /Resend Invitation/);
+  assert.doesNotMatch(renderActions({ id: 1, role: "admin" }, target), /Resend Invitation/);
+  assert.doesNotMatch(
+    renderActions({ id: 1, role: "super_admin" }, { ...target, invitation_resend_eligible: false }),
+    /Resend Invitation/,
+  );
+  assert.doesNotMatch(
+    renderActions({ id: 1, role: "super_admin" }, { ...target, status: "active" }),
+    /Resend Invitation/,
+  );
+});
+
 test("table columns preserve sorting contracts, page numbering, and PHT dates", () => {
   const columns = getUserColumns({ currentUser: { id: 1, role: "admin" } });
   assert.deepEqual(
