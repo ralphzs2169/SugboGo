@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import { invalidateTaxonomyQueries } from "../../taxonomy/queries/taxonomyQueries";
+import { discoveryShortcutQueryKey } from "../../explore-configuration/queries/discoveryShortcutQueries";
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import { FaLayerGroup } from "react-icons/fa6";
 import { MessageSquareText, Plus } from "lucide-react";
@@ -51,6 +52,7 @@ export default function ClusterCategoryManagementTable({
   onStatisticsChange,
   resource,
   enabled = true,
+  embedded = false,
 }) {
   const queryClient = useQueryClient();
   // Table state management
@@ -195,8 +197,17 @@ export default function ClusterCategoryManagementTable({
   );
 
   async function refreshTaxonomy(type) {
-    await invalidateTaxonomyQueries(queryClient, type);
+    await Promise.all([
+      invalidateTaxonomyQueries(queryClient, type),
+      refreshShortcuts(),
+    ]);
     await onStatisticsChange?.();
+  }
+
+  function refreshShortcuts() {
+    return queryClient.invalidateQueries({
+      queryKey: discoveryShortcutQueryKey,
+    });
   }
 
   // Event handlers for table actions, modals, and CRUD operations
@@ -278,7 +289,7 @@ export default function ClusterCategoryManagementTable({
 
       if (deleteType === "discovery shortcut") {
         await deleteDiscoveryShortcut(deletingItem.id);
-        await refetchShortcuts();
+        await refreshShortcuts();
         toast.success("Discovery shortcut deleted successfully.");
       }
 
@@ -365,8 +376,11 @@ export default function ClusterCategoryManagementTable({
         onResetFilters={handleResetFilters}
         config={{
           managementControls: true,
+          embedded,
+          fitContent: true,
+          fixedUtilityColumns: true,
           tableLabel: isClusterTab ? "Clusters" : isCategoryTab ? "Categories" : "Discovery Shortcuts",
-          tableMinWidth: isCategoryTab ? 960 : 760,
+          tableMinWidth: isCategoryTab ? 1080 : isClusterTab ? 840 : 900,
           tabs: resource ? [] : [
             {
               id: "clusters",
@@ -507,7 +521,7 @@ export default function ClusterCategoryManagementTable({
         shortcuts={shortcuts}
         onClose={() => setIsCreateDiscoveryShortcutOpen(false)}
         onSuccess={async () => {
-          await refetchShortcuts();
+          await refreshShortcuts();
           toast.success("Discovery shortcut created successfully.");
         }}
       />}
@@ -517,7 +531,7 @@ export default function ClusterCategoryManagementTable({
         shortcut={editingDiscoveryShortcut}
         onClose={() => setEditingDiscoveryShortcut(null)}
         onSuccess={async () => {
-          await refetchShortcuts();
+          await refreshShortcuts();
           toast.success("Discovery shortcut updated successfully.");
         }}
       />}

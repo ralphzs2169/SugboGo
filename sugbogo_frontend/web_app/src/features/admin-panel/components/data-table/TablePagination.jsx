@@ -10,6 +10,7 @@ function TablePagination({
   totalItems = 0,
   pageSize = 10,
   onPageChange,
+  dense = false,
 }) {
   const safePageIndex = Math.max(0, pageIndex);
   const safePageCount = Math.max(0, pageCount);
@@ -69,7 +70,7 @@ function TablePagination({
 
   if (safeTotalItems === 0) {
     return (
-      <div className="mt-6 flex items-center justify-between border-t border-stroke/40 pt-4">
+      <div className={`${dense ? "mt-3" : "mt-6 border-t border-stroke/40 pt-4"} flex items-center justify-between`}>
         <p className="text-[11px] font-medium text-text-secondary">
           No results
         </p>
@@ -78,7 +79,7 @@ function TablePagination({
   }
 
   return (
-    <div className="mt-6 flex flex-col gap-4 border-t border-stroke/40 pt-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className={`${dense ? "mt-3" : "mt-6 border-t border-stroke/40 pt-4"} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
       {/* Result range */}
       <p className="text-[11px] font-medium text-text-secondary">
         Showing{" "}

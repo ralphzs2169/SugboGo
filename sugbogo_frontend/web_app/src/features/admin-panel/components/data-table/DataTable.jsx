@@ -63,6 +63,9 @@ function DataTable({
     defaultSortLabel = "Default order",
     showSearch = true,
     compact = false,
+    embedded = false,
+    fitContent = false,
+    fixedUtilityColumns = false,
     managementControls = false,
     tableLabel,
     tableMinWidth = 720,
@@ -96,6 +99,7 @@ function DataTable({
   const table = useReactTable({
     data,
     columns,
+    meta: { fixedUtilityColumns },
 
     state: {
       ...state,
@@ -113,6 +117,14 @@ function DataTable({
 
     getCoreRowModel: getCoreRowModel(),
   });
+
+  const visibleColumns = table.getVisibleLeafColumns();
+  const utilityIds = ["rowNumber", "created_at", "actions", "is_active"];
+  const utilityWidth = visibleColumns.reduce(
+    (total, column) => total + (utilityIds.includes(column.id) ? column.getSize() : 0),
+    0,
+  );
+  const contentWidth = table.getTotalSize() - utilityWidth;
 
   let renderTableActions = renderHeaderActions;
 
@@ -139,7 +151,7 @@ function DataTable({
 
   return (
     <div
-      className={compact ? "relative min-w-0 w-full" : `relative min-w-0 w-full rounded-2xl border border-stroke bg-background px-3 pb-6 sm:px-6 ${tabs.length > 0 ? "pt-2" : "pt-6"}`}
+      className={compact || embedded ? "relative min-w-0 w-full" : `relative min-w-0 w-full rounded-2xl border border-stroke bg-background px-3 sm:px-6 ${fitContent ? "pb-4" : "pb-6"} ${tabs.length > 0 ? "pt-2" : fitContent ? "pt-4" : "pt-6"}`}
       aria-busy={isLoading || isFetching}
     >
       {tabs.length > 0 && (
@@ -154,6 +166,7 @@ function DataTable({
 
       {showControls && (
         <TableControls
+          dense={fitContent}
           globalFilter={state.globalFilter ?? ""}
           setGlobalFilter={onGlobalFilterChange}
           searchPlaceholder={searchPlaceholder}
@@ -169,12 +182,24 @@ function DataTable({
       {renderContent ? (
         renderContent()
       ) : (
-        <div className={`${scrollbarClassName || "themed-scrollbar"} ${compact ? "" : "min-h-[520px]"} overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface`}>
+        <div className={`${scrollbarClassName || "themed-scrollbar"} ${compact || fitContent ? "" : "min-h-[520px]"} overflow-x-auto overflow-y-hidden rounded-lg border border-stroke-strong bg-surface`}>
           <table
             aria-label={tableLabel}
             className="w-full table-fixed border-collapse text-left"
             style={{ minWidth: tableMinWidth }}
           >
+            {fixedUtilityColumns && (
+              <colgroup>
+                {visibleColumns.map((column) => {
+                  let width = column.getSize();
+                  if (!utilityIds.includes(column.id)) {
+                    const share = column.getSize() / contentWidth;
+                    width = `calc(${100 * share}% - ${utilityWidth * share}px)`;
+                  }
+                  return <col key={column.id} style={{ width }} />;
+                })}
+              </colgroup>
+            )}
             <TableHeader table={table} />
 
             {isLoading ? (
@@ -211,6 +236,7 @@ function DataTable({
       )}
 
       <TablePagination
+        dense={fitContent}
         pageIndex={pagination.pageIndex}
         pageCount={pageCount}
         totalItems={totalItems}

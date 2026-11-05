@@ -22,7 +22,11 @@ export default function TableBody({ table, emptyState, onRowClick, compact = fal
               <td
                 key={cell.id}
                 className={`min-w-0 overflow-hidden px-4 py-2 align-middle ${
-                  cell.column.id === "actions" ? "text-center" : ""
+                  cell.column.columnDef.meta?.align === "right"
+                    ? "text-right"
+                    : cell.column.columnDef.meta?.align === "center" || cell.column.id === "actions"
+                      ? "text-center"
+                      : ""
                 }`}
               >
                 <div className="min-w-0 break-words">

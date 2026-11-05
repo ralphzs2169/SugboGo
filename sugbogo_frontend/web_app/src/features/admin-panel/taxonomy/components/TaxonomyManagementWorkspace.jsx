@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Layers, Tag, Tags } from "lucide-react";
 
 import ClusterCategoryManagementTable from "../../cluster-category/components/ClusterCategoryManagementTable";
@@ -13,15 +13,27 @@ const TABS = [
 
 /** Retain each management panel's state while fetching only the active taxonomy. */
 export default function TaxonomyManagementWorkspace() {
-  const [activeTab, setActiveTab] = useState("clusters");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const activeTab = TABS.some((tab) => tab.id === requestedTab)
+    ? requestedTab
+    : "clusters";
+
+  function handleTabChange(tab) {
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set("tab", tab);
+      return next;
+    });
+  }
 
   return (
-    <>
+    <div className="relative min-w-0 w-full rounded-2xl border border-stroke bg-background px-3 pb-4 pt-2 sm:px-6">
       <div className="mb-4 overflow-x-auto pb-1">
         <TableTabs
           tabs={TABS}
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           tabListId="business-taxonomy"
           ariaLabel="Business taxonomy types"
         />
@@ -35,15 +47,19 @@ export default function TaxonomyManagementWorkspace() {
           hidden={activeTab !== tab.id}
         >
           {tab.id === "specialty-tags" ? (
-            <SpecialtyTagManagementPanel enabled={activeTab === tab.id} />
+            <SpecialtyTagManagementPanel
+              embedded
+              enabled={activeTab === tab.id}
+            />
           ) : (
             <ClusterCategoryManagementTable
+              embedded
               resource={tab.id}
               enabled={activeTab === tab.id}
             />
           )}
         </div>
       ))}
-    </>
+    </div>
   );
 }

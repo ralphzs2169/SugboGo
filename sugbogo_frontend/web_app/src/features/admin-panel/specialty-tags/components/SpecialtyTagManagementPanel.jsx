@@ -29,7 +29,10 @@ import useApiErrorNotification from "../../../../shared/hooks/useApiErrorNotific
  * - Mutation success and refresh flows
  * - Delete confirmation
  */
-export default function SpecialtyTagManagementPanel({ enabled = true }) {
+export default function SpecialtyTagManagementPanel({
+  enabled = true,
+  embedded = false,
+}) {
   const queryClient = useQueryClient();
   // Modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -148,8 +151,11 @@ export default function SpecialtyTagManagementPanel({ enabled = true }) {
         onResetFilters={handleResetFilters}
         config={{
           managementControls: true,
+          embedded,
+          fitContent: true,
+          fixedUtilityColumns: true,
           tableLabel: "Specialty Tags",
-          tableMinWidth: 760,
+          tableMinWidth: 880,
           searchPlaceholder: "Search specialty tags...",
           emptyState: {
             title: "No specialty tags found",

@@ -17,8 +17,6 @@ let root;
 let container;
 let client;
 let Page;
-let LegacyPage;
-let LegacyTagsPage;
 let records;
 let reads;
 let writes;
@@ -69,12 +67,6 @@ before(async () => {
   ({ default: Page } = await server.ssrLoadModule(
     "/src/features/admin-panel/pages/BusinessTaxonomyPage.jsx",
   ));
-  ({ default: LegacyPage } = await server.ssrLoadModule(
-    "/src/features/admin-panel/pages/ClusterCategoryPage.jsx",
-  ));
-  ({ default: LegacyTagsPage } = await server.ssrLoadModule(
-    "/src/features/admin-panel/pages/SpecialtyTagsPage.jsx",
-  ));
   ({ taxonomyQueryKeys: keys } = await server.ssrLoadModule(
     "/src/features/admin-panel/taxonomy/queries/taxonomyQueries.js",
   ));
@@ -105,6 +97,11 @@ beforeEach(async () => {
       { id: 1, title: "Find a meal", subtitle: "Places to eat", cluster: { id: 1, name: "Food", icon: "utensils" }, business_count: 5, is_active: true },
     ],
   };
+  for (const resource of ["clusters", "categories", "specialty-tags"]) {
+    for (const record of records[resource]) {
+      record.created_at = "2026-11-05T04:30:00Z";
+    }
+  }
   reads = [];
   writes = [];
   failures = new Set();
@@ -191,10 +188,10 @@ async function settleQueries() {
   assert.fail("Taxonomy queries did not settle");
 }
 
-async function render(Component = Page) {
+async function render(Component = Page, entry = "/admin-panel/business-taxonomy") {
   await act(async () => root.render(
     React.createElement(QueryClientProvider, { client },
-      React.createElement(MemoryRouter, null, React.createElement(Component))),
+      React.createElement(MemoryRouter, { initialEntries: [entry], key: entry }, React.createElement(Component))),
   ));
   await settleQueries();
 }
@@ -246,23 +243,61 @@ test("four fixed inventories, final columns, and canonical counts survive tab ch
   assert.match(card("Total Categories").textContent, /Total Categories2Business classifications/);
   assert.match(card("Specialty Tags").textContent, /Specialty Tags2Available specialty labels/);
   assert.match(card("Classified Businesses").textContent, /Classified Businesses12Total retained businesses/);
-  assert.deepEqual(headers(), ["Cluster", "Categories", "Businesses", "Actions"]);
+  assert.deepEqual(headers(), ["No.", "Cluster", "Categories", "Businesses", "Date Added", "Actions"]);
+  const tabs = container.querySelector('[role="tablist"]');
+  const managementContainer = tabs.closest(".rounded-2xl");
+  assert.equal(panel().querySelector("table").closest(".rounded-2xl"), managementContainer);
+  assert.equal(managementContainer.querySelectorAll(".rounded-2xl").length, 0);
+  assert.ok(tabs.compareDocumentPosition(panel().querySelector("input")) & Node.DOCUMENT_POSITION_FOLLOWING);
+  assert.equal(panel().querySelector("table").parentElement.classList.contains("min-h-[520px]"), false);
+  assert.equal(panel().querySelector("colgroup col").style.width, "56px");
+  assert.equal(panel().querySelectorAll("th")[2].classList.contains("text-center"), true);
+  assert.equal(panel().querySelectorAll("tbody tr:first-child td")[2].classList.contains("text-center"), true);
   assert.doesNotMatch(panel().textContent, /999|Created|Last Updated/);
   assert.match(panel().querySelector("tbody").textContent, /7/);
   assert.equal(reads.filter((item) => item.url === `${API}categories/`).length, 0);
   assert.equal(reads.filter((item) => item.url === `${API}specialty-tags/`).length, 0);
 
   await tab("categories");
-  assert.deepEqual(headers(), ["Category", "Cluster", "Businesses", "Application References", "Actions"]);
+  assert.deepEqual(headers(), ["No.", "Category", "Cluster", "Businesses", "Application References", "Date Added", "Actions"]);
   assert.doesNotMatch(panel().textContent, /999/);
   assert.equal(button("Delete Restaurants").disabled, true);
   await tab("specialty-tags");
-  assert.deepEqual(headers(), ["Specialty Tag", "Businesses", "Application References", "Actions"]);
+  assert.deepEqual(headers(), ["No.", "Specialty Tag", "Businesses", "Application References", "Date Added", "Actions"]);
   assert.match(panel().querySelector("tbody").textContent, /HeritageUnavailable/);
   assert.equal(button("Delete Eco Friendly").disabled, true);
   assert.match(card("Classified Businesses").textContent, /12/);
   assert.equal(reads.filter((item) => item.url.endsWith("statistics/")).length, 3);
   assert.equal(reads.filter((item) => item.url === "/admin/businesses/overview/").length, 1);
+});
+
+test("all taxonomy tables number server pages and expose the existing creation date ordering", async () => {
+  totalItems = 80;
+  await render();
+  for (const resource of ["clusters", "categories", "specialty-tags"]) {
+    await tab(resource);
+    const firstNumber = () => panel().querySelector("tbody tr:first-child td").textContent.trim();
+    assert.equal(firstNumber(), "1");
+    const date = panel().querySelector("tbody time");
+    assert.equal(date.getAttribute("datetime"), "2026-11-05T04:30:00.000Z");
+    assert.match(date.firstElementChild.textContent, /Nov.*2026/);
+    assert.match(date.lastElementChild.textContent, /\d+:\d+/);
+    assert.equal(panel().querySelector("table").parentElement.classList.contains("min-h-[520px]"), false);
+    await click(panel().querySelector('[aria-label="Next page"]'));
+    assert.equal(firstNumber(), "11");
+    await click(panel().querySelector('[aria-label^="Rows per page:"]'));
+    await click(button("25"));
+    assert.equal(firstNumber(), "1");
+    await click(panel().querySelector('[aria-label="Next page"]'));
+    assert.equal(firstNumber(), "26");
+    assert.match(panel().querySelector('[aria-label="Table pagination"]').parentElement.textContent, /Showing 26–50 of 80 results/);
+    await click(panel().querySelector('[aria-label^="Sort items:"]'));
+    assert.equal(button("No.: ascending"), undefined);
+    await click(button("Date Added: ascending"));
+    const params = reads.filter((item) => item.url === `${API}${resource}/`).at(-1).params;
+    assert.equal(params.ordering, "created_at");
+    assert.equal(params.page, 1);
+  }
 });
 
 test("each tab retains independent server-side search, sorting, page size, page, and category filter", async () => {
@@ -397,20 +432,32 @@ test("edit and protected delete preserve backend messages and refresh successful
   assert.match(card("Specialty Tags").textContent, /Specialty Tags1/);
 });
 
-test("legacy taxonomy pages, routes, navigation, and Discovery Shortcuts remain available", async () => {
-  await render(LegacyPage);
-  await click(button("Discovery Shortcuts"));
-  assert.match(container.textContent, /Find a meal/);
-  assert.ok(button("Add Discovery Shortcut"));
-  await render(LegacyTagsPage);
-  assert.match(container.textContent, /Specialty Tag Management/);
-  assert.ok(button("Add Specialty Tag"));
+test("existing routes remain registered and navigation exposes only the new destinations", () => {
   const routes = readFileSync("src/App.jsx", "utf8");
   for (const path of ["business-taxonomy", "cluster-category", "specialty-tags"]) {
     assert.match(routes, new RegExp(`path="${path}"`));
   }
   const navigation = readFileSync("src/features/admin-panel/config/sidebarNavigation.js", "utf8");
-  for (const path of ["business-taxonomy", "cluster-category", "specialty-tags"]) {
-    assert.match(navigation, new RegExp(`to: "/admin-panel/${path}"`));
+  const activeNavigation = navigation.split("\n").filter(
+    (line) => !line.trim().startsWith("//"),
+  ).join("\n");
+  for (const path of ["business-taxonomy", "explore-configuration"]) {
+    assert.match(activeNavigation, new RegExp(`to: "/admin-panel/${path}"`));
+  }
+  for (const path of ["cluster-category", "specialty-tags"]) {
+    assert.doesNotMatch(activeNavigation, new RegExp(`to: "/admin-panel/${path}"`));
+  }
+});
+
+test("taxonomy direct links select the matching tab without duplicating the workspace", async () => {
+  for (const [selected, table] of [
+    ["categories", "Categories"],
+    ["specialty-tags", "Specialty Tags"],
+    ["clusters", "Clusters"],
+  ]) {
+    await render(Page, `/admin-panel/business-taxonomy?tab=${selected}`);
+    assert.equal(container.querySelector('[role="tab"][aria-selected="true"]').id, `business-taxonomy-${selected}`);
+    assert.equal(panel().querySelector("table").getAttribute("aria-label"), table);
+    assert.equal(container.querySelectorAll('[role="tabpanel"]:not([hidden])').length, 1);
   }
 });

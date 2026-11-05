@@ -88,9 +88,10 @@ export async function deleteCategory(categoryId) {
 
 // Discovery Shortcut API Services
 
-export async function fetchDiscoveryShortcuts(params = {}) {
+export async function fetchDiscoveryShortcuts(params = {}, { signal } = {}) {
   const response = await apiClient.get("/admin/taxonomy/discovery-shortcuts/", {
     params,
+    signal,
   });
 
   return response.data.data;
