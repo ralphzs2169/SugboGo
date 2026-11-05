@@ -128,7 +128,12 @@ GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "60"))
 if not 1 <= GEMINI_TIMEOUT_SECONDS <= 300:
     raise ImproperlyConfigured("GEMINI_TIMEOUT_SECONDS must be between 1 and 300 seconds.")
 
-# Shadow observations never replace legacy sentiment or public rating inputs.
+# Activation is explicit and persisted per business; disabling pauses inference only.
+_cutover_enabled = os.getenv("GEMINI_SENTIMENT_CUTOVER_ENABLED", "False").strip().lower()
+if _cutover_enabled not in ("true", "false"):
+    raise ImproperlyConfigured("GEMINI_SENTIMENT_CUTOVER_ENABLED must be True or False.")
+GEMINI_SENTIMENT_CUTOVER_ENABLED = _cutover_enabled == "true"
+# Shadow observations remain isolated unless an explicit business cutover is active.
 _shadow_enabled = os.getenv("GEMINI_SENTIMENT_SHADOW_ENABLED", "False").strip().lower()
 if _shadow_enabled not in {"true", "false"}:
     raise ImproperlyConfigured("GEMINI_SENTIMENT_SHADOW_ENABLED must be True or False.")

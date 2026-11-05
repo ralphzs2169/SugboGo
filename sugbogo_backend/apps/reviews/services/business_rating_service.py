@@ -71,6 +71,10 @@ class BusinessRatingService:
             raise NotFound("The review could not be found.") from None
         if review.REVW_TEXT != source_text:
             raise ValidationError("The sentiment result refers to stale review text.")
+        from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
+        policy = GeminiSentimentCutoverService.active_policy(review.BUSN_ID_id)
+        if policy and scoring_version != policy.BSPO_VERSION:
+            raise ValidationError("The result does not match the business's active scoring contract.")
         result, _ = ReviewRatingResult.objects.update_or_create(
             REVW_ID=review,
             defaults={
@@ -79,6 +83,7 @@ class BusinessRatingService:
                 "RRSR_LABEL": label,
                 "RRSR_SCORING_VERSION": scoring_version,
                 "RRSR_IS_VALID": True,
+                "RRSR_IS_ELIGIBLE": True,
             },
         )
         from apps.reviews.services.business_rating_work_service import BusinessRatingWorkService
@@ -126,6 +131,7 @@ class BusinessRatingService:
             reviews = reviews.filter(
                 rating_result__RRSR_SCORING_VERSION=scoring_version,
                 rating_result__RRSR_IS_VALID=True,
+                rating_result__RRSR_IS_ELIGIBLE=True,
                 rating_result__RRSR_SOURCE_TEXT=F("REVW_TEXT"),
             )
             score_field = "rating_result__RRSR_SCORE"
@@ -157,6 +163,10 @@ class BusinessRatingService:
             business = Business.objects.select_for_update().get(pk=business_id)
         except Business.DoesNotExist:
             raise NotFound("The business could not be found.") from None
+        from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
+        policy = GeminiSentimentCutoverService.active_policy(business_id)
+        if policy and scoring_version != policy.BSPO_VERSION:
+            raise ValidationError("The rating must use the business's active scoring contract.")
         aggregate, _ = BusinessRating.objects.select_for_update().get_or_create(
             BUSN_ID=business,
             defaults={

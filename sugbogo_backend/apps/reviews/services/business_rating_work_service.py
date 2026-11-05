@@ -51,13 +51,20 @@ class BusinessRatingWorkService:
             and not BusinessRating.objects.filter(BUSN_ID=business).exists()
         ):
             return False
+        from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
+        policy = GeminiSentimentCutoverService.active_policy(business_id)
         aggregate, _ = BusinessRating.objects.select_for_update().get_or_create(
             BUSN_ID=business,
             defaults={
-                "BRAT_SCORING_VERSION": settings.BUSINESS_RATING_DEFAULT_SCORING_VERSION,
+                "BRAT_SCORING_VERSION": policy.BSPO_VERSION if policy else settings.BUSINESS_RATING_DEFAULT_SCORING_VERSION,
                 "BRAT_CALCULATION_VERSION": BusinessRatingService.CALCULATION_VERSION,
             },
         )
+        if policy and aggregate.BRAT_SCORING_VERSION != policy.BSPO_VERSION:
+            aggregate.BRAT_SCORING_VERSION = policy.BSPO_VERSION
+            aggregate.BRAT_VALUE = None
+            aggregate.BRAT_STATE = BusinessRating.State.PENDING
+            aggregate.save(update_fields=["BRAT_SCORING_VERSION", "BRAT_VALUE", "BRAT_STATE", "BRAT_UPDATED_AT"])
         aggregate.BRAT_REQUESTED_REVISION += 1
         aggregate.BRAT_ATTEMPTS = 0
         aggregate.BRAT_RETRY_AT = None

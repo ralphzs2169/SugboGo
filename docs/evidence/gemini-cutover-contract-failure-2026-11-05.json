@@ -1,0 +1,16 @@
+{
+  "business_id": 11,
+  "failed_review_id": 155,
+  "failed_job_id": 36,
+  "automatic_attempts": 3,
+  "state": "failed",
+  "stored_score": null,
+  "activation_performed_with_failed_cohort": false,
+  "diagnostic_response": {"label": "neutral", "score": 0, "eligible": false, "reason": "factual"},
+  "diagnostic_validation_error": "invalid_exclusion",
+  "conditional_schema_probe": {"label": "neutral", "score": null, "eligible": false, "reason": "factual"},
+  "conditional_schema_reanalysis": "Again reached 34/35 and failed review 155 after three automatic attempts; failed job 71 retained.",
+  "repair": "Add conditional schema branches and a versioned, audited provider-boundary rule discarding only a numeric zero placeholder from neutral ineligible factual/uncertain results. Persist canonical null and no rating contribution. Other contradictions remain invalid. Reanalyze all published reviews under the final version.",
+  "manual_score_override": false,
+  "documentation": "https://ai.google.dev/gemini-api/docs/structured-output"
+}

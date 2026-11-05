@@ -41,6 +41,11 @@ class ReviewSentimentService:
             return "ineligible"
 
         business_id = source["BUSN_ID_id"]
+        from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
+        if GeminiSentimentCutoverService.active_policy(business_id) is not None:
+            from apps.reviews.services.gemini_sentiment_shadow_service import GeminiSentimentShadowService
+            GeminiSentimentShadowService.request(review_id)
+            return "gemini_queued"
         outcome = "already_scored"
         if not (
             source["REVW_SENTIMENT_SCORE"] is not None
@@ -62,6 +67,9 @@ class ReviewSentimentService:
                     return "ineligible"
                 if review.REVW_TEXT != source_text:
                     return "stale"
+                # An activation may have committed during legacy inference.
+                if GeminiSentimentCutoverService.active_policy(business_id) is not None:
+                    return "superseded"
                 if not (
                     review.REVW_SENTIMENT_SCORE is not None
                     and review.REVW_SENTIMENT_LABEL is not None
