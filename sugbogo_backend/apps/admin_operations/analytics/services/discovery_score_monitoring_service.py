@@ -17,6 +17,9 @@ from apps.business.models import Business, BusinessSpecialtyTag, DiscoveryScore
 from apps.business.services.discovery_score_service import DiscoveryScoreService
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 from apps.business.services.visibility_gap_service import VisibilityGapService
+from apps.business.services.visibility_coverage_service import VisibilityCoverageService
+from apps.business.services.visibility_event_service import VisibilityEventType
+from apps.shared.analytics.date_ranges import AnalyticsPeriod
 
 
 class DiscoveryScoreMonitoringService:
@@ -67,6 +70,41 @@ class DiscoveryScoreMonitoringService:
             "short_history": age < window,
         }
 
+    @staticmethod
+    def telemetry_coverage(
+        reference_time,
+        window_days,
+        business_id=None,
+    ):
+        """Reuse coverage evidence without turning recorded activity into a percentage."""
+        window = timedelta(days=window_days)
+        start = reference_time - window
+        period = AnalyticsPeriod(
+            start_date=start.date(),
+            end_date=reference_time.date(),
+            start=start,
+            end=reference_time,
+            previous_start=start - window,
+            previous_end=start,
+            generated_at=reference_time,
+            includes_partial_day=True,
+        )
+        assessments = {
+            event_type.value: VisibilityCoverageService.assess(
+                business_id=business_id,
+                event_type=event_type,
+                period=period,
+            )
+            for event_type in VisibilityEventType
+        }
+        return {
+            "value": None,
+            "unit": "percent",
+            "coverage_verified": False,
+            "reason": "coverage_unverified",
+            "assessments": assessments,
+        }
+
     @classmethod
     def visibility_diagnostics(
         cls,
@@ -105,6 +143,11 @@ class DiscoveryScoreMonitoringService:
             "coverage_verified": False,
             "telemetry_reason": "coverage_unverified",
             "telemetry_note": cls.TELEMETRY_NOTE,
+            "telemetry_coverage": cls.telemetry_coverage(
+                reference_time,
+                configuration.DAC_VISIBILITY_WINDOW_DAYS,
+                business_id=business_id,
+            ),
         }
 
     @staticmethod
@@ -130,6 +173,22 @@ class DiscoveryScoreMonitoringService:
                 display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
             )
             .annotate(
+                refresh_status=Case(
+                    When(
+                        ~Q(DSC_LAST_ERROR=""),
+                        then=Value("FAILED"),
+                    ),
+                    When(
+                        DSC_REFRESH_REQUESTED_AT__isnull=False,
+                        then=Value("PENDING"),
+                    ),
+                    When(
+                        DSC_COMPUTED_AT__isnull=False,
+                        then=Value("SUCCEEDED"),
+                    ),
+                    default=Value("NOT_REQUESTED"),
+                    output_field=CharField(),
+                ),
                 score_state=Case(
                     When(~Q(DSC_LAST_ERROR=""), then=Value("FAILED")),
                     When(DSC_IS_PROVISIONAL=True, then=Value("PROVISIONAL")),
@@ -192,6 +251,17 @@ class DiscoveryScoreMonitoringService:
             "DSC_ID",
         )
 
+    @classmethod
+    def get_score(
+        cls,
+        business_id,
+    ):
+        """Retrieve persisted details with the same annotations and loading as the list."""
+        try:
+            return cls.list_scores().get(BUSN_ID_id=business_id)
+        except DiscoveryScore.DoesNotExist:
+            raise NotFound("The business Discovery Score could not be found.") from None
+
     @staticmethod
     def coverage():
         """Summarizes current active-business coverage without claiming job-run history."""
@@ -212,8 +282,6 @@ class DiscoveryScoreMonitoringService:
                     discovery_score__DSC_COMPUTED_AT__gte=(
                         now - DiscoveryScoreRefreshService.MAX_SCORE_AGE
                     ),
-                    discovery_score__DSC_REFRESH_REQUESTED_AT__isnull=True,
-                    discovery_score__DSC_LAST_ERROR="",
                 ),
             ),
             stale=Count(
@@ -253,6 +321,7 @@ class DiscoveryScoreMonitoringService:
             )
         else:
             coverage_percent = 0
+        context = DiscoveryScoreMonitoringService.visibility_context()
         return {
             **counts,
             "snapshot_at": now,
@@ -260,6 +329,10 @@ class DiscoveryScoreMonitoringService:
                 DiscoveryScoreRefreshService.MAX_SCORE_AGE.total_seconds() / 3600
             ),
             "authoritative_coverage_percent": coverage_percent,
+            "telemetry_coverage": DiscoveryScoreMonitoringService.telemetry_coverage(
+                now,
+                context["configuration"].DAC_VISIBILITY_WINDOW_DAYS,
+            ),
             "missing_businesses": missing,
             "missing_businesses_truncated": counts["missing"] > len(missing),
         }
@@ -269,7 +342,11 @@ class DiscoveryScoreMonitoringService:
         """Run the same batch service used by the scheduled task."""
 
         result = DiscoveryScoreService.recompute_business_scores()
+        status = "COMPLETED"
+        if result.failed_count:
+            status = "COMPLETED_WITH_FAILURES"
         return {
+            "status": status,
             "considered": result.considered_count,
             "updated": result.updated_count,
             "skipped_stale": result.stale_count,

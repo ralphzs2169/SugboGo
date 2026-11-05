@@ -361,6 +361,60 @@ class DiscoveryScoreReliabilityTests(TestCase):
         self.assertEqual(score.DSC_COMPUTED_AT, previous.reference_time)
         self.assertEqual(score.DSC_LAST_ERROR, "VisibilityTrackingUnavailable")
 
+    def test_new_attempt_clears_previous_error_and_preserves_last_success(self):
+        """Report the latest worker attempt as pending instead of retaining an old failure."""
+        previous = self._compute()
+        failed_at = self.reference_time + timedelta(seconds=1)
+        retry_at = failed_at + timedelta(seconds=1)
+        score = DiscoveryScore.objects.get()
+        DiscoveryScoreRefreshService.record_attempt(
+            self.business.pk,
+            score.DSC_REFRESH_VERSION,
+            failed_at,
+        )
+        DiscoveryScoreRefreshService.record_failure(
+            self.business.pk,
+            score.DSC_REFRESH_VERSION,
+            failed_at,
+            VisibilityTrackingUnavailable(),
+        )
+        self.assertEqual(DiscoveryScoreMonitoringService.coverage()["failed"], 1)
+
+        def inspect_pending_retry(**kwargs):
+            score.refresh_from_db()
+            self.assertEqual(score.DSC_LAST_ERROR, "")
+            self.assertEqual(score.DSC_LAST_ATTEMPT_AT, retry_at)
+            self.assertEqual(score.DSC_COMPUTED_AT, previous.reference_time)
+            self.assertEqual(score.DSC_D_SCORE, previous.discovery_score)
+            row = DiscoveryScoreMonitoringService.list_scores().get()
+            self.assertEqual(row.refresh_status, "PENDING")
+            self.assertEqual(DiscoveryScoreMonitoringService.coverage()["failed"], 0)
+            raise VisibilityTrackingUnavailable()
+
+        with patch.object(
+            VisibilityGapService,
+            "calculate_business_visibility_gap",
+            side_effect=inspect_pending_retry,
+        ), self.assertRaises(VisibilityTrackingUnavailable):
+            DiscoveryScoreService.recompute_business_score(
+                self.business.pk,
+                reference_time=retry_at,
+            )
+        score.refresh_from_db()
+        self.assertEqual(score.DSC_LAST_ERROR, "VisibilityTrackingUnavailable")
+        self.assertEqual(score.DSC_COMPUTED_AT, previous.reference_time)
+        self.assertEqual(score.DSC_D_SCORE, previous.discovery_score)
+        self.assertEqual(DiscoveryScoreMonitoringService.coverage()["failed"], 1)
+
+        self.assertEqual(DiscoveryScoreRefreshService.record_attempt(
+            self.business.pk,
+            score.DSC_REFRESH_VERSION,
+            failed_at,
+        ), 0)
+        score.refresh_from_db()
+        self.assertEqual(score.DSC_LAST_ATTEMPT_AT, retry_at)
+        self.assertEqual(score.DSC_LAST_ERROR, "VisibilityTrackingUnavailable")
+
     def test_configuration_change_during_calculation_cannot_persist_old_inputs(self):
         before = self._compute()
 
