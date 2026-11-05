@@ -1,0 +1,40 @@
+{
+  "injection": "One mocked transient provider failure in the real service; real broker/worker/Gemini then completed recovery.",
+  "failed_state_asserted_in_probe": {
+    "state": "failed",
+    "score": null,
+    "attempts": 1,
+    "retry_scheduled": true
+  },
+  "recovered_state": {
+    "state": "ready",
+    "attempts": 2,
+    "label": "positive",
+    "score": 1.0,
+    "eligible": true,
+    "usage": {
+      "duration_ms": 1890,
+      "input_tokens": 202,
+      "total_tokens": 227,
+      "output_tokens": 25
+    }
+  },
+  "legacy_fixture_score_unchanged": true,
+  "cleanup_note": "ORM author deletion encountered an unrelated unapplied PAYMENT table. Deleted only the disposable review with normal cascade, then raw-deleted the exact disposable passwordless author. Database FK constraints remained enforced. No payment migrations applied.",
+  "fixture_cleanup_confirmed": true,
+  "remaining_pilot_review_ids": [
+    77,
+    82,
+    83,
+    84,
+    121,
+    122
+  ],
+  "legacy_rating": [
+    {
+      "BRAT_VALUE": "1.7002337108",
+      "BRAT_REVIEW_COUNT": 5,
+      "BRAT_SCORING_VERSION": "legacy-unverified-v1"
+    }
+  ]
+}

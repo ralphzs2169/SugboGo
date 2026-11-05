@@ -12,6 +12,7 @@ from apps.reviews.constants import (
     REVIEW_INSIGHT_MAX_WAIT_SECONDS,
     REVIEW_INSIGHT_QUIET_SECONDS,
 )
+from apps.reviews.shadow_models import ReviewSentimentShadow  # noqa: F401
 
 
 class ReviewRatingResult(models.Model):

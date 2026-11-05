@@ -22,6 +22,20 @@ logger = logging.getLogger(__name__)
 TRANSIENT_RETRY_LIMIT = 3
 
 
+@shared_task(name="apps.reviews.tasks.process_gemini_sentiment_shadow", queue="gemini_sentiment_shadow", acks_late=True, reject_on_worker_lost=True)
+def process_gemini_sentiment_shadow(job_id):
+    """Process an isolated observation; durable recovery owns bounded retries."""
+    from apps.reviews.services.gemini_sentiment_shadow_service import GeminiSentimentShadowService
+    return GeminiSentimentShadowService.process(job_id)
+
+
+@shared_task(name="apps.reviews.tasks.recover_gemini_sentiment_shadow", queue="gemini_sentiment_shadow")
+def recover_gemini_sentiment_shadow():
+    """Recover existing due shadow jobs without backfilling historical reviews."""
+    from apps.reviews.services.gemini_sentiment_shadow_service import GeminiSentimentShadowService
+    return GeminiSentimentShadowService.recover()
+
+
 @shared_task(
     bind=True,
     name="apps.reviews.tasks.recalculate_business_rating",

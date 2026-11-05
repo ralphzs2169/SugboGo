@@ -1,0 +1,111 @@
+{
+  "database": "sugbogo_ralph_20261031",
+  "business_id": 11,
+  "review_ids": [
+    82,
+    83,
+    84,
+    121,
+    122
+  ],
+  "migration_applied": [
+    "reviews.0029",
+    "reviews.0030",
+    "reviews.0031"
+  ],
+  "reviews_unchanged": true,
+  "summary_unchanged": true,
+  "business_rating_rows": 0,
+  "authoritative_versioned_result_rows": 0,
+  "outside_cohort_skipped": true,
+  "duplicate_request_same_job": true,
+  "duplicate_delivery_task_id": "5585044b-2fe9-4497-9b30-9407ee1c4fa2",
+  "jobs": [
+    {
+      "RSSH_ID": 1,
+      "REVW_ID_id": 82,
+      "RSSH_STATE": "ready",
+      "RSSH_LABEL": "positive",
+      "RSSH_SCORE": 1.0,
+      "RSSH_ELIGIBLE": true,
+      "RSSH_REASON": "evaluative",
+      "RSSH_ATTEMPTS": 1,
+      "RSSH_MODEL": "gemini-3.5-flash-lite",
+      "RSSH_USAGE": {
+        "duration_ms": 1578,
+        "input_tokens": 189,
+        "total_tokens": 225,
+        "output_tokens": 36
+      }
+    },
+    {
+      "RSSH_ID": 2,
+      "REVW_ID_id": 83,
+      "RSSH_STATE": "ready",
+      "RSSH_LABEL": "positive",
+      "RSSH_SCORE": 1.0,
+      "RSSH_ELIGIBLE": true,
+      "RSSH_REASON": "evaluative",
+      "RSSH_ATTEMPTS": 1,
+      "RSSH_MODEL": "gemini-3.5-flash-lite",
+      "RSSH_USAGE": {
+        "duration_ms": 1313,
+        "input_tokens": 198,
+        "total_tokens": 223,
+        "output_tokens": 25
+      }
+    },
+    {
+      "RSSH_ID": 3,
+      "REVW_ID_id": 84,
+      "RSSH_STATE": "ready",
+      "RSSH_LABEL": "negative",
+      "RSSH_SCORE": -1.0,
+      "RSSH_ELIGIBLE": true,
+      "RSSH_REASON": "evaluative",
+      "RSSH_ATTEMPTS": 1,
+      "RSSH_MODEL": "gemini-3.5-flash-lite",
+      "RSSH_USAGE": {
+        "duration_ms": 1485,
+        "input_tokens": 200,
+        "total_tokens": 236,
+        "output_tokens": 36
+      }
+    },
+    {
+      "RSSH_ID": 4,
+      "REVW_ID_id": 121,
+      "RSSH_STATE": "ready",
+      "RSSH_LABEL": "negative",
+      "RSSH_SCORE": -0.5,
+      "RSSH_ELIGIBLE": true,
+      "RSSH_REASON": "evaluative",
+      "RSSH_ATTEMPTS": 1,
+      "RSSH_MODEL": "gemini-3.5-flash-lite",
+      "RSSH_USAGE": {
+        "duration_ms": 1438,
+        "input_tokens": 194,
+        "total_tokens": 221,
+        "output_tokens": 27
+      }
+    },
+    {
+      "RSSH_ID": 5,
+      "REVW_ID_id": 122,
+      "RSSH_STATE": "ready",
+      "RSSH_LABEL": "negative",
+      "RSSH_SCORE": -1.0,
+      "RSSH_ELIGIBLE": true,
+      "RSSH_REASON": "evaluative",
+      "RSSH_ATTEMPTS": 1,
+      "RSSH_MODEL": "gemini-3.5-flash-lite",
+      "RSSH_USAGE": {
+        "duration_ms": 1359,
+        "input_tokens": 190,
+        "total_tokens": 226,
+        "output_tokens": 36
+      }
+    }
+  ],
+  "limitations": "Live queue and inference on five existing reviews, no live author edits/deletes or moderation decisions performed. Those races were covered by disposable-database tests. No human gold scoring labels."
+}
