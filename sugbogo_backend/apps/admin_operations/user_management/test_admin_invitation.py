@@ -4,9 +4,13 @@ from unittest.mock import patch
 from django.db import IntegrityError
 from django.urls import reverse
 from rest_framework import status
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.test import APITestCase
 
 from apps.admin_operations.activity_management.models import AdminActivity
+from apps.admin_operations.user_management.services import (
+    UserManagementService,
+)
 from apps.users.models import User
 
 
@@ -280,16 +284,96 @@ class AdminProvisioningAPITests(APITestCase):
         invited_admin = self.create_invited_admin()
         self.authenticate(self.admin)
 
-        response = self.client.post(
-            reverse(
-                "admin-invitation-resend",
-                args=[invited_admin.USER_ID],
-            ),
-            {},
-            format="json",
+        list_response = self.client.get(
+            reverse("admin-user-list"),
+            {"search": invited_admin.USER_EMAIL},
+        )
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertIs(
+            list_response.data["data"]["items"][0]["invitation_resend_eligible"],
+            True,
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        for actor in (
+            self.admin,
+            self.explorer,
+            self.merchant,
+        ):
+            with self.subTest(role=actor.USER_ROLE):
+                self.authenticate(actor)
+                response = self.client.post(
+                    reverse(
+                        "admin-invitation-resend",
+                        args=[invited_admin.USER_ID],
+                    ),
+                    {},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+                with self.assertRaises(PermissionDenied):
+                    UserManagementService.get_invited_admin(
+                        actor=actor,
+                        user_id=invited_admin.USER_ID,
+                    )
+
+    def test_list_invitation_eligibility_matches_resend_validation(self):
+        """Exposes each account prerequisite without changing resend validation."""
+        invited_admin = self.create_invited_admin()
+        unusable_password = invited_admin.password
+        cases = (
+            ("eligible", {}, True),
+            ("explorer", {"USER_ROLE": User.UserRole.EXPLORER}, False),
+            ("merchant", {"USER_ROLE": User.UserRole.MERCHANT}, False),
+            ("super_admin", {"USER_ROLE": User.UserRole.SUPER_ADMIN}, False),
+            ("active", {"USER_STATUS": User.UserStatus.ACTIVE}, False),
+            ("suspended", {"USER_STATUS": User.UserStatus.SUSPENDED}, False),
+            ("disabled", {"USER_STATUS": User.UserStatus.DISABLED}, False),
+            ("verified", {"EMAIL_VERIFIED": True}, False),
+            ("usable_password", {"password": self.admin.password}, False),
+        )
+        self.authenticate(self.super_admin)
+
+        for label, overrides, eligible in cases:
+            with self.subTest(case=label):
+                attributes = {
+                    "USER_ROLE": User.UserRole.ADMIN,
+                    "USER_STATUS": User.UserStatus.PENDING,
+                    "EMAIL_VERIFIED": False,
+                    "password": unusable_password,
+                }
+                attributes.update(overrides)
+                User.objects.filter(
+                    pk=invited_admin.pk,
+                ).update(
+                    **attributes,
+                )
+
+                response = self.client.get(
+                    reverse("admin-user-list"),
+                    {"search": invited_admin.USER_EMAIL},
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertIs(
+                    response.data["data"]["items"][0]["invitation_resend_eligible"],
+                    eligible,
+                )
+
+                if eligible:
+                    target = UserManagementService.get_invited_admin(
+                        actor=self.super_admin,
+                        user_id=invited_admin.USER_ID,
+                    )
+                    self.assertEqual(target.USER_ID, invited_admin.USER_ID)
+                else:
+                    with self.assertRaisesMessage(
+                        ValidationError,
+                        "Invitation can only be resent to an incomplete pending Admin.",
+                    ):
+                        UserManagementService.get_invited_admin(
+                            actor=self.super_admin,
+                            user_id=invited_admin.USER_ID,
+                        )
 
     def test_resend_rejects_ineligible_target_states_and_roles(self):
         targets = (

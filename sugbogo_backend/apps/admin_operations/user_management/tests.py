@@ -1,7 +1,9 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.gis.geos import Point
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
@@ -117,6 +119,113 @@ class AdminUserManagementAPITests(APITestCase):
         self.assertTrue(response.data["success"])
         self.assertIn("items", response.data["data"])
         self.assertIn("pagination", response.data["data"])
+        item = response.data["data"]["items"][0]
+        self.assertEqual(
+            set(item),
+            {
+                "id",
+                "first_name",
+                "last_name",
+                "name",
+                "email",
+                "role",
+                "status",
+                "avatar_url",
+                "avatar_key",
+                "joined_at",
+                "invitation_resend_eligible",
+            },
+        )
+        self.assertIs(item["invitation_resend_eligible"], False)
+
+    def test_user_list_preserves_sort_directions_and_stable_paginated_ties(self):
+        """Keeps tied rows in ID order across pages for every supported sort."""
+        merchant = self.create_user(
+            email="ordering-c@example.com",
+            role=User.UserRole.MERCHANT,
+            first_name="Zed",
+            last_name="Alpha",
+        )
+        explorer = self.create_user(
+            email="ordering-a@example.com",
+            role=User.UserRole.EXPLORER,
+            first_name="Ada",
+            last_name="Beta",
+            user_status=User.UserStatus.SUSPENDED,
+        )
+        admin = self.create_user(
+            email="ordering-d@example.com",
+            role=User.UserRole.ADMIN,
+            first_name="Ada",
+            last_name="Alpha",
+            user_status=User.UserStatus.PENDING,
+        )
+        other_merchant = self.create_user(
+            email="ordering-b@example.com",
+            role=User.UserRole.MERCHANT,
+            first_name="Zed",
+            last_name="Alpha",
+        )
+        created_at = timezone.now()
+
+        for user, hours in (
+            (merchant, 1),
+            (explorer, 0),
+            (admin, 3),
+            (other_merchant, 1),
+        ):
+            User.objects.filter(
+                pk=user.pk,
+            ).update(
+                USER_CREATED_AT=created_at + timedelta(hours=hours),
+            )
+
+        cases = (
+            ("name", [admin, explorer, merchant, other_merchant]),
+            ("-name", [merchant, other_merchant, explorer, admin]),
+            ("email", [explorer, other_merchant, merchant, admin]),
+            ("-email", [admin, merchant, other_merchant, explorer]),
+            ("role", [admin, explorer, merchant, other_merchant]),
+            ("-role", [merchant, other_merchant, explorer, admin]),
+            ("status", [merchant, other_merchant, admin, explorer]),
+            ("-status", [explorer, admin, merchant, other_merchant]),
+            ("joined_at", [explorer, merchant, other_merchant, admin]),
+            ("-joined_at", [admin, merchant, other_merchant, explorer]),
+            (None, [admin, merchant, other_merchant, explorer]),
+        )
+        self.authenticate(self.admin)
+
+        for ordering, expected_users in cases:
+            with self.subTest(ordering=ordering):
+                actual_ids = []
+
+                for page in (1, 2):
+                    params = {
+                        "search": "ordering-",
+                        "page_size": 2,
+                        "page": page,
+                    }
+
+                    if ordering is not None:
+                        params["ordering"] = ordering
+
+                    response = self.client.get(
+                        reverse("admin-user-list"),
+                        params,
+                    )
+                    self.assertEqual(response.status_code, status.HTTP_200_OK)
+                    actual_ids.extend(
+                        item["id"]
+                        for item in response.data["data"]["items"]
+                    )
+
+                self.assertEqual(
+                    actual_ids,
+                    [
+                        user.USER_ID
+                        for user in expected_users
+                    ],
+                )
 
     def test_user_list_filters_by_role(self):
         self.authenticate(self.admin)
