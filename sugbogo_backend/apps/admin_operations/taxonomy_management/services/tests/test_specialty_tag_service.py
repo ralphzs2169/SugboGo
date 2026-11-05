@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.http import Http404
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.admin_operations.taxonomy_management.services.specialty_tag_service import (
     SpecialtyTagService,
@@ -20,6 +23,22 @@ class SpecialtyTagServiceTests(TestCase):
         self.third_tag = SpecialtyTag.objects.create(
             TAG_NAME="Heritage",
         )
+
+        # Give timestamp ordering distinct values regardless of clock resolution.
+        reference_time = timezone.now()
+        tags = (
+            self.tag,
+            self.other_tag,
+            self.third_tag,
+        )
+        for offset, tag in enumerate(tags):
+            timestamp = reference_time + timedelta(seconds=offset)
+            SpecialtyTag.objects.filter(
+                pk=tag.pk,
+            ).update(
+                TAG_CREATED_AT=timestamp,
+                TAG_UPDATED_AT=timestamp,
+            )
 
     def test_list_specialty_tags_returns_all_tags(self):
         tags = SpecialtyTagService.list_specialty_tags()

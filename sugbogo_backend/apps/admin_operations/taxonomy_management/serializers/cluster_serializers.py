@@ -14,6 +14,11 @@ class ClusterSerializer(serializers.ModelSerializer):
     created_at = serializers.DateTimeField(source="CLUS_CREATED_AT", read_only=True)
     updated_at = serializers.DateTimeField(source="CLUS_UPDATED_AT", read_only=True)
     category_count = serializers.IntegerField(read_only=True)
+    business_count = serializers.IntegerField(read_only=True)
+    msme_count = serializers.IntegerField(
+        source="business_count",
+        read_only=True,
+    )
     
     class Meta:
         model = Cluster
@@ -23,6 +28,8 @@ class ClusterSerializer(serializers.ModelSerializer):
             "icon",
             "description",
             "category_count",
+            "business_count",
+            "msme_count",
             "updated_at",
             "created_at",
         )

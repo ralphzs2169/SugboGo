@@ -7,15 +7,24 @@ from apps.business.models import Cluster
 
 class ClusterService:
     @staticmethod
-    def list_clusters(search=None, ordering=None):
-        """
-        Retrieve clusters with optional search filtering,
-        ordering, and category count annotation.
-        """
+    def list_clusters(
+        search=None,
+        ordering=None,
+    ):
+        """Retrieve searchable clusters with distinct category and current business counts."""
          
         queryset = (
             Cluster.objects
-            .annotate(category_count=Count("categories", distinct=True))
+            .annotate(
+                category_count=Count(
+                    "categories",
+                    distinct=True,
+                ),
+                business_count=Count(
+                    "categories__businesses",
+                    distinct=True,
+                ),
+            )
         )
 
         if search:
@@ -27,6 +36,12 @@ class ClusterService:
         ordering_map = {
             "name": "CLUS_NAME",
             "-name": "-CLUS_NAME",
+            "category_count": "category_count",
+            "-category_count": "-category_count",
+            "business_count": "business_count",
+            "-business_count": "-business_count",
+            "msme_count": "business_count",
+            "-msme_count": "-business_count",
             "created_at": "CLUS_CREATED_AT",
             "-created_at": "-CLUS_CREATED_AT",
             "updated_at": "CLUS_UPDATED_AT",

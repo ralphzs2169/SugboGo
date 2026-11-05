@@ -1,11 +1,19 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.admin_operations.taxonomy_management.serializers.cluster_serializers import (
+    ClusterSerializer,
+)
+from apps.admin_operations.taxonomy_management.services.cluster_service import (
+    ClusterService,
+)
 from apps.business.models import Category, Cluster
 from apps.users.models import User
 
+from . import TaxonomyUsageFixtures
 
-class ClusterViewTests(APITestCase):
+
+class ClusterViewTests(TaxonomyUsageFixtures, APITestCase):
     """Tests for Cluster CRUD API endpoints."""
 
     def setUp(self):
@@ -49,6 +57,103 @@ class ClusterViewTests(APITestCase):
             len(response.data["data"]["items"]),
             2,
         )
+        self.assertEqual(
+            response.data["data"]["items"][0]["business_count"],
+            0,
+        )
+        self.assertEqual(
+            response.data["data"]["items"][0]["msme_count"],
+            0,
+        )
+
+    def test_list_clusters_counts_current_businesses_and_orders_counts(self):
+        """Count all business statuses once without inflating category counts."""
+        category = Category.objects.create(
+            CTGRY_NAME="Cafes",
+            CLUS_ID=self.cluster,
+        )
+        second_category = Category.objects.create(
+            CTGRY_NAME="Restaurants",
+            CLUS_ID=self.cluster,
+        )
+        other_category = Category.objects.create(
+            CTGRY_NAME="Hotels",
+            CLUS_ID=self.other_cluster,
+        )
+        self.create_usage_business(category)
+        self.create_usage_business(
+            category,
+            status="suspended",
+            owner_status=User.UserStatus.SUSPENDED,
+        )
+        self.create_usage_business(second_category)
+        moved_business = self.create_usage_business(category)
+        moved_business.CTGRY_ID = other_category
+        moved_business.save(update_fields=["CTGRY_ID"])
+
+        for field in (
+            "business_count",
+            "msme_count",
+            "category_count",
+        ):
+            for prefix in ("", "-"):
+                with self.subTest(
+                    field=field,
+                    prefix=prefix,
+                ):
+                    response = self.client.get(
+                        "/api/admin/taxonomy/clusters/",
+                        {"ordering": f"{prefix}{field}"},
+                    )
+                    self.assertEqual(
+                        response.status_code,
+                        status.HTTP_200_OK,
+                    )
+                    items = response.data["data"]["items"]
+                    expected = [self.other_cluster.pk, self.cluster.pk]
+                    if prefix:
+                        expected.reverse()
+                    self.assertEqual(
+                        [item["id"] for item in items],
+                        expected,
+                    )
+                    cluster = next(
+                        item
+                        for item in items
+                        if item["id"] == self.cluster.pk
+                    )
+                    self.assertEqual(
+                        cluster["category_count"],
+                        2,
+                    )
+                    self.assertEqual(
+                        cluster["business_count"],
+                        3,
+                    )
+                    self.assertEqual(
+                        cluster["msme_count"],
+                        3,
+                    )
+
+        response = self.client.get(
+            "/api/admin/taxonomy/clusters/",
+            {"search": "Food", "page_size": 1},
+        )
+        self.assertEqual(
+            response.data["data"]["pagination"]["total_items"],
+            1,
+        )
+        self.assertEqual(
+            response.data["data"]["items"][0]["business_count"],
+            3,
+        )
+
+        with self.assertNumQueries(1):
+            clusters = ClusterSerializer(
+                ClusterService.list_clusters(),
+                many=True,
+            ).data
+        self.assertEqual(len(clusters), 2)
 
     def test_list_clusters_filters_by_search(self):
         response = self.client.get(

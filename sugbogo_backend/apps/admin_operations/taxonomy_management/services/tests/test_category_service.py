@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.http import Http404
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.admin_operations.taxonomy_management.services.category_service import (
     CategoryService,
@@ -36,6 +39,22 @@ class CategoryServiceTests(TestCase):
             CTGRY_DESCRIPTION="Outdoor hiking activities",
             CLUS_ID=self.other_cluster,
         )
+
+        # Give timestamp ordering distinct values regardless of clock resolution.
+        reference_time = timezone.now()
+        categories = (
+            self.category,
+            self.other_category,
+            self.adventure_category,
+        )
+        for offset, category in enumerate(categories):
+            timestamp = reference_time + timedelta(seconds=offset)
+            Category.objects.filter(
+                pk=category.pk,
+            ).update(
+                CTGRY_CREATED_AT=timestamp,
+                CTGRY_UPDATED_AT=timestamp,
+            )
 
     def test_list_categories_returns_all_categories(self):
         categories = CategoryService.list_categories()

@@ -25,6 +25,11 @@ class CategorySerializer(serializers.ModelSerializer):
         read_only=True,
     )
     application_count = serializers.IntegerField(read_only=True)
+    business_count = serializers.IntegerField(read_only=True)
+    msme_count = serializers.IntegerField(
+        source="business_count",
+        read_only=True,
+    )
 
     class Meta:
         model = Category
@@ -35,6 +40,8 @@ class CategorySerializer(serializers.ModelSerializer):
             "cluster_id",
             "cluster_name",
             "application_count",
+            "business_count",
+            "msme_count",
             "updated_at",
             "created_at",
             "cluster_icon",
