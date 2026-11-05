@@ -152,6 +152,13 @@ const navigation = [
       },
       {
         type: "link",
+        to: "/admin-panel/business-taxonomy",
+        label: "Business Taxonomy",
+        Icon: FiLayers,
+        roles: ["admin", "super_admin"],
+      },
+      {
+        type: "link",
         to: "/admin-panel/specialty-tags",
         label: "Specialty Tags",
         Icon: FiTag,

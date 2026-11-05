@@ -1,71 +1,47 @@
 import { createColumnHelper } from "@tanstack/react-table";
+import { Pencil, Trash2 } from "lucide-react";
 import Button from "@/shared/components/Button";
-import { Pencil, Trash2, CalendarDays } from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
-import { formatDate } from "@/shared/utils/dateUtils";
-
+import { formatCount } from "@/features/admin-panel/analytics/utils/presentation";
 import { CLUSTER_ICONS } from "../../constants/clusterIcons";
 
 const columnHelper = createColumnHelper();
 
-/**
- * Creates TanStack Table column definitions for category management.
- */
-export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
+/** Keep category hierarchy, current businesses, and application references distinct. */
+export default function getCategoryColumns(
+  onEditCategory,
+  onDeleteCategory,
+) {
   return [
-    columnHelper.display({
-      id: "rowNumber",
-      header: "No.",
-      size: 50,
-      enableSorting: false,
-      cell: ({ row, table }) => {
-        const { pageIndex, pageSize } = table.getState().pagination;
-
-        return pageIndex * pageSize + row.index + 1;
-      },
-    }),
-
     columnHelper.accessor("name", {
-      header: "Category Name",
-      size: 250,
-      minSize: 200,
-      meta: {
-        skeleton: "longText",
-      },
-      cell: (info) => {
-        const category = info.row.original;
-
-        return (
-          <div>
-            <p className="text-sm font-semibold text-text-primary">
-              {category.name}
-            </p>
-
-            <p className="mt-1 text-xs text-text-secondary">
-              {category.description || "No description"}
-            </p>
-          </div>
-        );
-      },
+      header: "Category",
+      size: 280,
+      meta: { skeleton: "longText" },
+      cell: ({ row }) => (
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-primary">
+            {row.original.name}
+          </p>
+          <p className="mt-1 text-xs text-text-secondary">
+            {row.original.description || "No description"}
+          </p>
+        </div>
+      ),
     }),
-
     columnHelper.accessor("cluster_name", {
       header: "Cluster",
-      cell: (info) => {
-        const category = info.row.original;
-
-        const clusterIcon = CLUSTER_ICONS.find(
+      size: 200,
+      cell: ({ row }) => {
+        const category = row.original;
+        const Icon = CLUSTER_ICONS.find(
           (icon) => icon.value === category.cluster_icon,
-        );
-
-        const Icon = clusterIcon?.icon;
+        )?.icon;
 
         return (
           <div className="flex items-center gap-2.5">
-            <div className="flex shrink-0 items-center justify-center text-text-secondary">
-              {Icon && <Icon className="h-5 w-5" strokeWidth={2} />}
-            </div>
-
+            {Icon && (
+              <Icon aria-hidden="true" className="h-5 w-5 shrink-0 text-text-secondary" />
+            )}
             <span className="text-sm text-text-primary">
               {category.cluster_name}
             </span>
@@ -73,51 +49,24 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
         );
       },
     }),
-
-    columnHelper.accessor("msme_count", {
+    columnHelper.accessor("business_count", {
       header: "Businesses",
+      size: 130,
+      meta: { skeleton: "number" },
       cell: (info) => (
-        <span className="text-sm text-text-primary">
-          {info.getValue() ?? 0}
+        <span className="text-sm tabular-nums text-text-primary">
+          {formatCount(info.getValue())}
         </span>
       ),
     }),
-
-    columnHelper.accessor("created_at", {
-      header: "Created",
-      meta: {
-        skeleton: "text",
-      },
+    columnHelper.accessor("application_count", {
+      header: "Application References",
+      size: 190,
+      meta: { skeleton: "number" },
       cell: (info) => (
-        <div className="flex items-center gap-1.5">
-          <CalendarDays
-            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
-            strokeWidth={1.75}
-          />
-
-          <span className="text-sm text-text-secondary">
-            {formatDate(info.getValue())}
-          </span>
-        </div>
-      ),
-    }),
-
-    columnHelper.accessor("updated_at", {
-      header: "Last Updated",
-      meta: {
-        skeleton: "text",
-      },
-      cell: (info) => (
-        <div className="flex items-center gap-1.5">
-          <CalendarDays
-            className="h-3.5 w-3.5 shrink-0 text-text-secondary"
-            strokeWidth={1.75}
-          />
-
-          <span className="text-sm text-text-secondary">
-            {formatDate(info.getValue())}
-          </span>
-        </div>
+        <span className="text-sm tabular-nums text-text-primary">
+          {formatCount(info.getValue())}
+        </span>
       ),
     }),
 
@@ -138,6 +87,7 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
             size="sm"
             icon={Trash2}
             iconOnly
+            aria-label={`Delete ${category.name}`}
             disabled={hasApplications}
             onClick={() => onDeleteCategory(category)}
             disabledTooltip={
@@ -155,6 +105,7 @@ export default function getCategoryColumns(onEditCategory, onDeleteCategory) {
               size="sm"
               icon={Pencil}
               iconOnly
+              aria-label={`Edit ${category.name}`}
               onClick={() => onEditCategory(category)}
             />
 

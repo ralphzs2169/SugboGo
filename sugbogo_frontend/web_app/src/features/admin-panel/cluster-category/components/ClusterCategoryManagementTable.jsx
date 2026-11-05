@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import DataErrorState from "@/shared/components/errors/DataErrorState";
+import { invalidateTaxonomyQueries } from "../../taxonomy/queries/taxonomyQueries";
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import { FaLayerGroup } from "react-icons/fa6";
 import { MessageSquareText, Plus } from "lucide-react";
@@ -44,9 +47,14 @@ import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
  * and useCategories hooks.
  *
  */
-export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
+export default function ClusterCategoryManagementTable({
+  onStatisticsChange,
+  resource,
+  enabled = true,
+}) {
+  const queryClient = useQueryClient();
   // Table state management
-  const [currentTab, setCurrentTab] = useState("clusters");
+  const [currentTab, setCurrentTab] = useState(resource ?? "clusters");
 
   // Modal state management
   const [isCreateClusterOpen, setIsCreateClusterOpen] = useState(false);
@@ -93,7 +101,7 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
     params,
     hasActiveFilters,
     handleResetFilters,
-  } = useClusterCategoryTableState(currentTab, setCurrentTab);
+  } = useClusterCategoryTableState(currentTab);
 
   // Data fetching hooks for clusters, categories, and summary
 
@@ -106,7 +114,7 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
     error: clusterError,
     refetch: refetchClusters,
   } = useClusters(params, {
-    enabled: currentTab === "clusters",
+    enabled: enabled && currentTab === "clusters",
   });
 
   const {
@@ -118,7 +126,7 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
     error: categoryError,
     refetch: refetchCategories,
   } = useCategories(params, {
-    enabled: currentTab === "categories",
+    enabled: enabled && currentTab === "categories",
   });
 
   const {
@@ -130,7 +138,7 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
     error: shortcutError,
     refetch: refetchShortcuts,
   } = useDiscoveryShortcuts(params, {
-    enabled: currentTab === "discovery-shortcuts",
+    enabled: enabled && currentTab === "discovery-shortcuts",
   });
 
   // Derived state for conditional rendering and actions
@@ -176,10 +184,20 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
       : shortcutError;
 
   // Fetch clusters for the category filter dropdown.
-  const { clusters: filterClusters } = useClusters(
+  const {
+    clusters: filterClusters,
+    error: filterError,
+    refetch: refetchFilterClusters,
+    isFetching: isFetchingFilterClusters,
+  } = useClusters(
     { page_size: 100 },
-    { enabled: currentTab === "categories" },
+    { enabled: enabled && currentTab === "categories" },
   );
+
+  async function refreshTaxonomy(type) {
+    await invalidateTaxonomyQueries(queryClient, type);
+    await onStatisticsChange?.();
+  }
 
   // Event handlers for table actions, modals, and CRUD operations
   function handleDeleteCluster(cluster) {
@@ -246,16 +264,14 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
     try {
       if (deleteType === "cluster") {
         await deleteCluster(deletingItem.id);
-        await refetchClusters();
-        await onStatisticsChange?.();
+        await refreshTaxonomy("clusters");
 
         toast.success("Cluster deleted successfully.");
       }
 
       if (deleteType === "category") {
         await deleteCategory(deletingItem.id);
-        await refetchCategories();
-        await onStatisticsChange?.();
+        await refreshTaxonomy("categories");
 
         toast.success("Category deleted successfully.");
       }
@@ -295,18 +311,43 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
     }
   }
 
-  useApiErrorNotification(activeError, {
-    toastId: "cluster-category-load-error",
+  useApiErrorNotification(enabled ? activeError : null, {
+    toastId: `taxonomy-${currentTab}-load-error`,
     fallbackMessage: "Unable to load the requested data. Please try again.",
+  });
+  useApiErrorNotification(enabled && isCategoryTab ? filterError : null, {
+    toastId: "taxonomy-cluster-filter-error",
+    fallbackMessage: "Unable to load the cluster filter. Please try again.",
   });
   return (
     <>
+      {activeError && data.length > 0 && (
+        <DataErrorState
+          compact
+          retainedData
+          refreshLabel={resourcePlural}
+          onRetry={onRetry}
+          retrying={isFetching}
+          retryLabel="Retry"
+        />
+      )}
+      {isCategoryTab && filterError && (
+        <DataErrorState
+          compact
+          framed
+          retainedData={filterClusters.length > 0}
+          title="Unable to load the cluster filter"
+          onRetry={() => refetchFilterClusters()}
+          retrying={isFetchingFilterClusters}
+          retryLabel="Retry cluster filter"
+        />
+      )}
       <DataTable
         data={data}
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
-        error={activeError}
+        error={data.length > 0 ? null : activeError}
         onRetry={onRetry}
         pagination={pagination}
         state={{
@@ -324,7 +365,9 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
         onResetFilters={handleResetFilters}
         config={{
           managementControls: true,
-          tabs: [
+          tableLabel: isClusterTab ? "Clusters" : isCategoryTab ? "Categories" : "Discovery Shortcuts",
+          tableMinWidth: isCategoryTab ? 960 : 760,
+          tabs: resource ? [] : [
             {
               id: "clusters",
               label: "Clusters",
@@ -411,29 +454,27 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
 
       {/* Modals */}
 
-      <CreateClusterModal
+      {isCreateClusterOpen && <CreateClusterModal
         isOpen={isCreateClusterOpen}
         onClose={() => setIsCreateClusterOpen(false)}
         onSuccess={async () => {
-          await refetchClusters();
-          await onStatisticsChange?.();
+          await refreshTaxonomy("clusters");
 
           toast.success("Cluster created successfully.");
         }}
-      />
+      />}
 
-      <CreateCategoryModal
+      {isCreateCategoryOpen && <CreateCategoryModal
         isOpen={isCreateCategoryOpen}
         onClose={() => setIsCreateCategoryOpen(false)}
         onSuccess={async () => {
-          await refetchCategories();
-          await onStatisticsChange?.();
+          await refreshTaxonomy("categories");
 
           toast.success("Category created successfully.");
         }}
-      />
+      />}
 
-      <EditClusterModal
+      {editingCluster && <EditClusterModal
         isOpen={isEditClusterOpen}
         cluster={editingCluster}
         onClose={() => {
@@ -441,14 +482,13 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
           setEditingCluster(null);
         }}
         onSuccess={async () => {
-          await refetchClusters();
-          await onStatisticsChange?.();
+          await refreshTaxonomy("clusters");
 
           toast.success("Cluster updated successfully.");
         }}
-      />
+      />}
 
-      <EditCategoryModal
+      {editingCategory && <EditCategoryModal
         isOpen={isEditCategoryOpen}
         category={editingCategory}
         onClose={() => {
@@ -456,14 +496,13 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
           setEditingCategory(null);
         }}
         onSuccess={async () => {
-          await refetchCategories();
-          await onStatisticsChange?.();
+          await refreshTaxonomy("categories");
 
           toast.success("Category updated successfully.");
         }}
-      />
+      />}
 
-      <CreateDiscoveryShortcutModal
+      {isCreateDiscoveryShortcutOpen && <CreateDiscoveryShortcutModal
         isOpen={isCreateDiscoveryShortcutOpen}
         shortcuts={shortcuts}
         onClose={() => setIsCreateDiscoveryShortcutOpen(false)}
@@ -471,9 +510,9 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
           await refetchShortcuts();
           toast.success("Discovery shortcut created successfully.");
         }}
-      />
+      />}
 
-      <EditDiscoveryShortcutModal
+      {editingDiscoveryShortcut && <EditDiscoveryShortcutModal
         isOpen={Boolean(editingDiscoveryShortcut)}
         shortcut={editingDiscoveryShortcut}
         onClose={() => setEditingDiscoveryShortcut(null)}
@@ -481,7 +520,7 @@ export default function ClusterCategoryManagementTable({ onStatisticsChange }) {
           await refetchShortcuts();
           toast.success("Discovery shortcut updated successfully.");
         }}
-      />
+      />}
 
       <ConfirmModal
         isOpen={deleteModalOpen}

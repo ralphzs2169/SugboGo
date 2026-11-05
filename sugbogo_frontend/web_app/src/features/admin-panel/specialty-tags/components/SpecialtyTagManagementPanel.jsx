@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import DataErrorState from "@/shared/components/errors/DataErrorState";
+import { invalidateTaxonomyQueries } from "../../taxonomy/queries/taxonomyQueries";
 import { Plus } from "lucide-react";
 import { FiTag } from "react-icons/fi";
 import toast from "react-hot-toast";
@@ -26,7 +29,8 @@ import useApiErrorNotification from "../../../../shared/hooks/useApiErrorNotific
  * - Mutation success and refresh flows
  * - Delete confirmation
  */
-export default function SpecialtyTagManagementPanel() {
+export default function SpecialtyTagManagementPanel({ enabled = true }) {
+  const queryClient = useQueryClient();
   // Modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -58,14 +62,14 @@ export default function SpecialtyTagManagementPanel() {
     isFetching,
     error,
     refetch,
-  } = useSpecialtyTags(params);
+  } = useSpecialtyTags(params, { enabled });
 
   // Mutations
   const { remove: deleteSpecialtyTag, isDeleting } = useDeleteSpecialtyTag();
 
   // Refresh the table after mutations.
   async function refreshSpecialtyTags() {
-    await refetch();
+    await invalidateTaxonomyQueries(queryClient, "specialty-tags");
   }
 
   // Open edit modal.
@@ -106,20 +110,30 @@ export default function SpecialtyTagManagementPanel() {
     handleDeleteSpecialtyTag,
   );
 
-  useApiErrorNotification(error, {
+  useApiErrorNotification(enabled ? error : null, {
     toastId: "specialty-tags-error",
     fallbackMessage: "Unable to load specialty tags. Please try again.",
   });
 
   return (
     <>
+      {error && specialtyTags.length > 0 && (
+        <DataErrorState
+          compact
+          retainedData
+          refreshLabel="Specialty Tags"
+          onRetry={() => refetch()}
+          retrying={isFetching}
+          retryLabel="Retry"
+        />
+      )}
       <DataTable
         data={specialtyTags}
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
         pagination={pagination}
-        error={error}
+        error={specialtyTags.length > 0 ? null : error}
         onRetry={refetch}
         state={{
           globalFilter,
@@ -134,6 +148,8 @@ export default function SpecialtyTagManagementPanel() {
         onResetFilters={handleResetFilters}
         config={{
           managementControls: true,
+          tableLabel: "Specialty Tags",
+          tableMinWidth: 760,
           searchPlaceholder: "Search specialty tags...",
           emptyState: {
             title: "No specialty tags found",

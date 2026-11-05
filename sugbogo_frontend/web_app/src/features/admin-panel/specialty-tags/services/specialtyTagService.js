@@ -1,16 +1,18 @@
 import apiClient from "@/shared/api/apiClient";
 
-export async function fetchSpecialtyTags(params = {}) {
+export async function fetchSpecialtyTags(params = {}, { signal } = {}) {
   const response = await apiClient.get("/admin/taxonomy/specialty-tags/", {
     params,
+    signal,
   });
 
   return response.data.data;
 }
 
-export async function fetchSpecialtyTagStatistics() {
+export async function fetchSpecialtyTagStatistics({ signal } = {}) {
   const response = await apiClient.get(
     "/admin/taxonomy/specialty-tags/statistics/",
+    { signal },
   );
 
   return response.data.data;

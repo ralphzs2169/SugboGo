@@ -24,15 +24,17 @@ export default function useClusterCategoryTableState(currentTab) {
   });
 
   // Converts table state into API query parameters.
-  // Converts table state into API query parameters.
   const params = {
     search: globalFilter,
     page: pagination.pageIndex + 1,
     page_size: pagination.pageSize,
     ordering: getOrdering(sorting),
 
-    cluster_id:
-      columnFilters.find((filter) => filter.id === "cluster_id")?.value ?? "",
+    ...(currentTab === "categories" ? {
+      cluster_id: columnFilters.find(
+        (filter) => filter.id === "cluster_id",
+      )?.value || undefined,
+    } : {}),
   };
 
   const hasActiveFilters =
@@ -44,14 +46,25 @@ export default function useClusterCategoryTableState(currentTab) {
     setGlobalFilter("");
     setSorting([]);
     setColumnFilters([]);
+    setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+  }
+
+  function handleSearchChange(value) {
+    setGlobalFilter(value);
+    setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+  }
+
+  function handleSortingChange(value) {
+    setSorting(value);
+    setPagination((previous) => ({ ...previous, pageIndex: 0 }));
   }
 
   return {
     globalFilter,
-    setGlobalFilter,
+    setGlobalFilter: handleSearchChange,
 
     sorting,
-    setSorting,
+    setSorting: handleSortingChange,
 
     columnFilters,
     setColumnFilters,

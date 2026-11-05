@@ -1,38 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { taxonomyStatisticsOptions } from "../../taxonomy/queries/taxonomyQueries";
 
-import { fetchCategoryStatistics } from "../services/clusterCategoryService";
-
-/**
- * Fetches category management statistics and exposes loading,
- * error, and retry state for the page.
- */
+/** Expose taxonomy inventory and independent retry through the existing hook. */
 export default function useCategoryStatistics() {
-  const [statistics, setStatistics] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const fetchStatistics = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const data = await fetchCategoryStatistics();
-      setStatistics(data);
-    } catch (error) {
-      setError(error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStatistics();
-  }, [fetchStatistics]);
-
-  return {
-    statistics,
-    isLoading,
-    error,
-    refetch: fetchStatistics,
-  };
+  const query = useQuery(taxonomyStatisticsOptions("categories"));
+  return { ...query, statistics: query.data };
 }

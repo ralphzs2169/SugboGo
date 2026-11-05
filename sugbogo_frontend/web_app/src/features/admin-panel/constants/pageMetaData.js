@@ -1,4 +1,9 @@
 export const PAGE_METADATA = {
+  "/admin-panel/business-taxonomy": {
+    title: "Business Taxonomy Management",
+    subtitle:
+      "Manage business clusters, categories, and specialty tags used throughout SugboGo.",
+  },
   "/admin-panel/dashboard": {
     title: "Dashboard",
     subtitle: "Monitor platform activity and business discovery at a glance.",

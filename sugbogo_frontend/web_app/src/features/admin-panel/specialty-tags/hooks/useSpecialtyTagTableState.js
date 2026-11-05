@@ -34,11 +34,21 @@ export default function useSpecialtyTagTableState() {
     }));
   }
 
+  function handleSearchChange(value) {
+    setGlobalFilter(value);
+    setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+  }
+
+  function handleSortingChange(value) {
+    setSorting(value);
+    setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+  }
+
   return {
     globalFilter,
-    setGlobalFilter,
+    setGlobalFilter: handleSearchChange,
     sorting,
-    setSorting,
+    setSorting: handleSortingChange,
     pagination,
     setPagination,
     params,

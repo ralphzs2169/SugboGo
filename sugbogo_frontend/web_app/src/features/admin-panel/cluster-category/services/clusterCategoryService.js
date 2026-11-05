@@ -2,16 +2,20 @@ import apiClient from "@/shared/api/apiClient";
 
 // Cluster API Services
 
-export async function fetchClusters(params = {}) {
+export async function fetchClusters(params = {}, { signal } = {}) {
   const response = await apiClient.get("/admin/taxonomy/clusters/", {
     params,
+    signal,
   });
 
   return response.data.data;
 }
 
-export async function fetchClusterStatistics() {
-  const response = await apiClient.get("/admin/taxonomy/clusters/statistics/");
+export async function fetchClusterStatistics({ signal } = {}) {
+  const response = await apiClient.get(
+    "/admin/taxonomy/clusters/statistics/",
+    { signal },
+  );
 
   return response.data.data;
 }
@@ -41,17 +45,19 @@ export async function deleteCluster(clusterId) {
 
 // Category API Services
 
-export async function fetchCategories(params = {}) {
+export async function fetchCategories(params = {}, { signal } = {}) {
   const response = await apiClient.get("/admin/taxonomy/categories/", {
     params,
+    signal,
   });
 
   return response.data.data;
 }
 
-export async function fetchCategoryStatistics() {
+export async function fetchCategoryStatistics({ signal } = {}) {
   const response = await apiClient.get(
     "/admin/taxonomy/categories/statistics/",
+    { signal },
   );
 
   return response.data.data;
