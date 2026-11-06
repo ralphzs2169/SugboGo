@@ -235,6 +235,13 @@ const navigation = [
     items: [
       {
         type: "link",
+        to: "/admin-panel/activity-logs",
+        label: "Activity Logs",
+        Icon: FiActivity,
+        roles: ["admin", "super_admin"],
+      },
+      {
+        type: "link",
         to: "/admin-panel/settings",
         label: "Settings",
         Icon: FiSettings,
