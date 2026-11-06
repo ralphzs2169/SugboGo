@@ -4,7 +4,7 @@ import {
   Flag,
   MessageSquareText,
   ShieldQuestion,
-  ThumbsUp,
+  Heart,
 } from "lucide-react";
 import { useState } from "react";
 import Button from "@/shared/components/Button";
@@ -24,7 +24,7 @@ const ACTIVITY_CONFIG = {
     label: "Submitted a review",
   },
   business_vouched: {
-    icon: ThumbsUp,
+    icon: Heart,
     label: "Vouched for a business specialty",
   },
   review_reported: {
