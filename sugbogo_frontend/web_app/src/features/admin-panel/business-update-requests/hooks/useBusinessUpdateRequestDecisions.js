@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { businessOverviewQueryKey } from "../../businesses/queries/businessOverviewQuery";
+import { updateRequestSummaryKey } from "../services/updateRequestMetricsService";
 
 import {
   approveBusinessUpdateRequest,
@@ -16,6 +17,7 @@ export default function useBusinessUpdateRequestDecisions() {
   async function refreshRequests(requestId) {
     notifyBusinessChanged(null);
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: updateRequestSummaryKey }),
       invalidateDashboardDecision(queryClient),
       queryClient.invalidateQueries({
         queryKey: businessOverviewQueryKey,

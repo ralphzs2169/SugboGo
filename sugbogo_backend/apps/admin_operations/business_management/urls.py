@@ -5,6 +5,9 @@ from apps.admin_operations.business_management.views.business_lifecycle_views im
     BusinessStatusHistoryView,
 )
 from django.urls import path
+from apps.admin_operations.business_management.views.update_request_metrics_views import (
+    UpdateRequestSummaryView,
+)
 from apps.admin_operations.business_management.views.business_overview_views import (
     BusinessOverviewView,
 )
@@ -45,6 +48,11 @@ from apps.admin_operations.business_management.views.manage_business_views impor
 )
 
 urlpatterns = [
+    path(
+        "update-requests/summary/",
+        UpdateRequestSummaryView.as_view(),
+        name="admin-update-request-summary",
+    ),
     path(
         "<int:business_id>/status/",
         BusinessStatusView.as_view(),

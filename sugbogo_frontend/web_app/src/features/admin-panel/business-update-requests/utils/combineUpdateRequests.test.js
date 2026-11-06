@@ -6,6 +6,21 @@ import {
   fetchSourceRequests,
 } from "./combineUpdateRequests.js";
 
+test("metric filters reach every source page while preserving business scope", async () => {
+  const calls = [];
+  const fetchPage = async (params) => {
+    calls.push(params);
+    return { items: [], pagination: { total_items: 101 } };
+  };
+  await fetchSourceRequests(fetchPage, "all", 1, 10, true, 7, "resolved_today");
+  assert.equal(calls.length, 2);
+  for (const params of calls) {
+    assert.equal(params.queue_view, "resolved_today");
+    assert.equal(params.business_id, 7);
+    assert.equal(params.status, undefined);
+  }
+});
+
 function request(type, id, submittedAt, status = "approved") {
   return {
     id,

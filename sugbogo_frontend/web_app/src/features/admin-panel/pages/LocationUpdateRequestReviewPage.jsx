@@ -10,6 +10,7 @@ import useNavigateBack from "@/shared/hooks/useNavigateBack";
 
 import ApproveLocationRequestModal from "../business-update-requests/components/ApproveLocationRequestModal";
 import LocationReviewCase from "../business-update-requests/components/LocationReviewCase";
+import UpdateRequestDetailSkeleton from "../business-update-requests/components/UpdateRequestDetailSkeleton";
 import RejectUpdateRequestModal from "../business-update-requests/components/RejectUpdateRequestModal";
 import useLocationUpdateRequestDecisions from "../business-update-requests/hooks/useLocationUpdateRequestDecisions";
 import useLocationUpdateRequestDetail from "../business-update-requests/hooks/useLocationUpdateRequestDetail";
@@ -138,7 +139,7 @@ export default function LocationUpdateRequestReviewPage() {
         hasData={Boolean(request)}
         onRetry={refetch}
         loadingContent={
-          <div className="h-80 animate-pulse rounded-xl bg-surface-muted" />
+          <UpdateRequestDetailSkeleton requestType="location" />
         }
         errorTitle="Request unavailable"
         errorMessage="The location request could not be loaded. Please try again."

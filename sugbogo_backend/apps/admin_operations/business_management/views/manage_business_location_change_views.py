@@ -15,6 +15,9 @@ from apps.merchant_operations.business_profile.services.business_location_change
     BusinessLocationChangeService,
 )
 from apps.users.models import User
+from apps.admin_operations.business_management.services.update_request_metrics_service import (
+    filter_metric_queue,
+)
 
 
 class AdminBusinessLocationChangeListView(APIView):
@@ -38,6 +41,11 @@ class AdminBusinessLocationChangeListView(APIView):
         requests = BusinessLocationChangeService.list_for_admin(
             status=request.query_params.get("status"),
             business_id=filters.validated_data.get("business_id"),
+        )
+        requests = filter_metric_queue(
+            requests,
+            "BLCR",
+            filters.validated_data.get("queue_view"),
         )
         paginator = StandardPagination()
         page = paginator.paginate_queryset(requests, request)
