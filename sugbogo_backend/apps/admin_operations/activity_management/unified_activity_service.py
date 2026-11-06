@@ -18,6 +18,7 @@ from django.db.models.functions import Cast, Coalesce, JSONObject, NullIf
 
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
+from apps.business.models import BusinessPocket, BusinessVouch
 from apps.merchant_application.models import MerchantApplicationSubmission
 from apps.merchant_operations.business_profile.models import (
     BusinessClassificationChangeRequest,
@@ -25,6 +26,7 @@ from apps.merchant_operations.business_profile.models import (
     BusinessNameChangeRequest,
 )
 from apps.review_disputes.models import MerchantReviewDispute
+from apps.reviews.models import Review, ReviewLike
 
 
 class UnifiedActivityService:
@@ -405,6 +407,101 @@ class UnifiedActivityService:
         return filed, withdrawn, resolved, closed
 
     @classmethod
+    def _reviews(cls):
+        """Read retained submission receipts without exposing content or treating latest edits as history."""
+        return cls._project(
+            Review.objects.all(),
+            "review",
+            "REVW_ID",
+            "REVW_CREATED_AT",
+            occurrence=Value("review_submitted", output_field=CharField()),
+            module=Value("reviews", output_field=CharField()),
+            actor_id=Cast("USER_ID_id", output_field=BigIntegerField()),
+            target_type=Value("review", output_field=CharField()),
+            target_id=Cast("REVW_ID", output_field=CharField()),
+            is_administrative=Value(False, output_field=BooleanField()),
+            provenance=JSONObject(
+                model=Value(Review._meta.label_lower),
+                business_id=F("BUSN_ID_id"),
+            ),
+        )
+
+    @classmethod
+    def _vouches(cls):
+        """Preserve original endorsement time and only the withdrawal timestamp still retained by its row."""
+        queryset = BusinessVouch.objects.all()
+        common = {
+            "module": Value("business", output_field=CharField()),
+            "actor_id": Cast("USER_ID_id", output_field=BigIntegerField()),
+            "target_type": Value("business_vouch", output_field=CharField()),
+            "target_id": Cast("VOUCH_ID", output_field=CharField()),
+            "is_administrative": Value(False, output_field=BooleanField()),
+            "provenance": JSONObject(
+                model=Value(BusinessVouch._meta.label_lower),
+                business_id=F("BUSN_ID_id"),
+                specialty_tag_id=F("TAG_ID_id"),
+            ),
+        }
+        submitted = cls._project(
+            queryset,
+            "business_vouch",
+            "VOUCH_ID",
+            "VOUCH_CREATED_AT",
+            occurrence=Value("business_vouch_submitted", output_field=CharField()),
+            **common,
+        )
+        withdrawn = cls._project(
+            queryset.filter(VOUCH_WITHDRAWN_AT__isnull=False),
+            "business_vouch",
+            "VOUCH_ID",
+            "VOUCH_WITHDRAWN_AT",
+            occurrence=Value("business_vouch_withdrawn", output_field=CharField()),
+            **common,
+        )
+        return submitted, withdrawn
+
+    @classmethod
+    def _pocket_saves(cls):
+        """Read each retained save once without reconstructing removals or duplicating collection memberships."""
+        return cls._project(
+            BusinessPocket.objects.all(),
+            "business_pocket",
+            "PCKT_ID",
+            "PCKT_CREATED_AT",
+            occurrence=Value("business_saved", output_field=CharField()),
+            module=Value("pocket", output_field=CharField()),
+            actor_id=Cast("USER_ID_id", output_field=BigIntegerField()),
+            target_type=Value("business", output_field=CharField()),
+            target_id=Cast("BUSN_ID_id", output_field=CharField()),
+            is_administrative=Value(False, output_field=BooleanField()),
+            provenance=JSONObject(
+                model=Value(BusinessPocket._meta.label_lower),
+                business_id=F("BUSN_ID_id"),
+            ),
+        )
+
+    @classmethod
+    def _community_likes(cls):
+        """Represent retained community likes without inventing posts, comments, or deleted unlike events."""
+        return cls._project(
+            ReviewLike.objects.all(),
+            "review_like",
+            "RLIK_ID",
+            "RLIK_CREATED_AT",
+            occurrence=Value("review_liked", output_field=CharField()),
+            module=Value("community", output_field=CharField()),
+            actor_id=Cast("USER_ID_id", output_field=BigIntegerField()),
+            target_type=Value("review", output_field=CharField()),
+            target_id=Cast("REVW_ID_id", output_field=CharField()),
+            is_administrative=Value(False, output_field=BooleanField()),
+            provenance=JSONObject(
+                model=Value(ReviewLike._meta.label_lower),
+                review_id=F("REVW_ID_id"),
+                business_id=F("REVW_ID__BUSN_ID_id"),
+            ),
+        )
+
+    @classmethod
     def list_activity(cls):
         """Combine retained source occurrences in SQL before the caller paginates them."""
         return (
@@ -440,6 +537,10 @@ class UnifiedActivityService:
                     },
                 ),
                 *cls._review_disputes(),
+                cls._reviews(),
+                *cls._vouches(),
+                cls._pocket_saves(),
+                cls._community_likes(),
                 all=True,
             )
             .order_by(

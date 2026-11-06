@@ -175,6 +175,15 @@ class UnifiedMerchantActivityTests(TestCase):
         )
         return dispute
 
+    @staticmethod
+    def merchant_rows():
+        """Focus merchant receipt assertions while the referenced review has its own activity entry."""
+        return [
+            row
+            for row in UnifiedActivityService.list_activity()
+            if row["source_type"] != "review"
+        ]
+
     def test_all_four_sources_normalize_submission_and_withdrawal_separately(self):
         records = {
             f"{request_type}_request": self.make_request(request_type)
@@ -183,7 +192,7 @@ class UnifiedMerchantActivityTests(TestCase):
         records["merchant_review_dispute"] = self.make_dispute()
 
         with CaptureQueriesContext(connection) as queries:
-            rows = list(UnifiedActivityService.list_activity())
+            rows = self.merchant_rows()
 
         self.assertEqual(len(queries), 1)
         self.assertIn("UNION ALL", queries[0]["sql"])
@@ -234,7 +243,7 @@ class UnifiedMerchantActivityTests(TestCase):
                     status,
                 )
 
-        rows = list(UnifiedActivityService.list_activity())
+        rows = self.merchant_rows()
         self.assertEqual(len(rows), 12)
         resolutions = [
             row
@@ -266,7 +275,7 @@ class UnifiedMerchantActivityTests(TestCase):
     def test_dispute_administrative_resolutions_never_credit_the_filing_merchant(self):
         self.make_dispute("upheld")
         self.make_dispute("dismissed")
-        rows = list(UnifiedActivityService.list_activity())
+        rows = self.merchant_rows()
 
         self.assertEqual(len(rows), 4)
         decisions = [
@@ -289,7 +298,7 @@ class UnifiedMerchantActivityTests(TestCase):
             ("review_removed", "original_review_removed"),
         ):
             self.make_dispute(status, closure_reason=reason)
-        rows = list(UnifiedActivityService.list_activity())
+        rows = self.merchant_rows()
         closures = [
             row
             for row in rows
@@ -312,7 +321,7 @@ class UnifiedMerchantActivityTests(TestCase):
             BUSN_ID=None,
             REVW_ID=None,
         )
-        rows = list(UnifiedActivityService.list_activity())
+        rows = self.merchant_rows()
 
         self.assertEqual(len(rows), 2)
         for row in rows:
@@ -323,7 +332,7 @@ class UnifiedMerchantActivityTests(TestCase):
     def test_terminal_status_without_a_terminal_timestamp_does_not_invent_occurrences(self):
         self.make_request("business_name_change", "approved", resolved=False)
         self.make_dispute("upheld", resolved=False)
-        rows = list(UnifiedActivityService.list_activity())
+        rows = self.merchant_rows()
 
         self.assertEqual(len(rows), 2)
         self.assertEqual(
@@ -353,7 +362,7 @@ class UnifiedMerchantActivityTests(TestCase):
             AACT_ACTION=AdminActivity.Action.REVIEW_DISPUTE_UPHELD,
             AACT_CONTEXT={"dispute_id": dispute.pk, "dispute_status": "upheld"},
         )
-        rows = list(UnifiedActivityService.list_activity())
+        rows = self.merchant_rows()
 
         self.assertEqual(len(rows), 8)
         decisions = [
@@ -371,6 +380,7 @@ class UnifiedMerchantActivityTests(TestCase):
         )
 
     def test_multi_occurrence_rows_sort_and_paginate_with_the_initial_sources(self):
+        Review.objects.filter(pk=self.review.pk).update(REVW_CREATED_AT=self.now)
         for request_type in self.REQUESTS:
             request = self.make_request(request_type, source_id=42)
             model, prefix = self.REQUESTS[request_type]
@@ -415,6 +425,7 @@ class UnifiedMerchantActivityTests(TestCase):
             ("merchant_application_submission", "merchant_application_submitted"),
             ("merchant_review_dispute", "merchant_review_dispute_filed"),
             ("merchant_review_dispute", "merchant_review_dispute_withdrawn"),
+            ("review", "review_submitted"),
         ]
         paginator = Paginator(UnifiedActivityService.list_activity(), 3)
         with CaptureQueriesContext(connection) as queries:
@@ -427,10 +438,17 @@ class UnifiedMerchantActivityTests(TestCase):
         self.assertEqual(len(queries), 5)
         self.assertIn("UNION ALL", queries[-1]["sql"])
         self.assertIn("LIMIT 3", queries[1]["sql"])
-        self.assertIn("LIMIT 2 OFFSET 9", queries[-1]["sql"])
-        self.assertEqual(paginator.count, 11)
+        self.assertIn("LIMIT 3 OFFSET 9", queries[-1]["sql"])
+        self.assertEqual(paginator.count, 12)
         self.assertEqual(
             [(row["source_type"], row["occurrence"]) for row in rows],
             expected,
         )
-        self.assertEqual({row["source_id"] for row in rows}, {"42"})
+        self.assertEqual(
+            {
+                row["source_id"]
+                for row in rows
+                if row["source_type"] != "review"
+            },
+            {"42"},
+        )
