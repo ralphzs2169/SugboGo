@@ -10,6 +10,7 @@ from django.db.models import (
     F,
     JSONField,
     OuterRef,
+    Q,
     Value,
     When,
 )
@@ -18,6 +19,8 @@ from django.db.models.functions import Cast, Coalesce, JSONObject, NullIf
 
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
+from apps.authentication.models import LoginEvent
+from apps.authentication.services.login_history_service import LoginHistoryService
 from apps.business.models import BusinessPocket, BusinessVouch
 from apps.merchant_application.models import MerchantApplicationSubmission
 from apps.merchant_operations.business_profile.models import (
@@ -502,6 +505,63 @@ class UnifiedActivityService:
         )
 
     @classmethod
+    def _authentication_events(cls):
+        """Read retained verified sign-ins and attributable OAuth outcomes without client or credential data."""
+        queryset = (
+            LoginEvent.objects
+            .filter(
+                USER__isnull=False,
+                LEVT_CREATED_AT__gte=LoginHistoryService.cutoff(),
+                LEVT_METHOD__in=LoginEvent.Method.values,
+            )
+            .filter(
+                Q(LEVT_OUTCOME=LoginEvent.Outcome.SUCCESS)
+                | Q(
+                    LEVT_METHOD__in=(
+                        LoginEvent.Method.GOOGLE,
+                        LoginEvent.Method.FACEBOOK,
+                    ),
+                    LEVT_OUTCOME__in=(
+                        LoginEvent.Outcome.FAILED,
+                        LoginEvent.Outcome.UNAVAILABLE,
+                    ),
+                ),
+            )
+        )
+        # Password failures can name another account; only OAuth failures carry verified identity linkage.
+        return cls._project(
+            queryset,
+            "login_event",
+            "LEVT_ID",
+            "LEVT_CREATED_AT",
+            occurrence=Case(
+                When(
+                    LEVT_OUTCOME=LoginEvent.Outcome.SUCCESS,
+                    then=Value("login_succeeded"),
+                ),
+                When(
+                    LEVT_OUTCOME=LoginEvent.Outcome.FAILED,
+                    then=Value("login_failed"),
+                ),
+                When(
+                    LEVT_OUTCOME=LoginEvent.Outcome.UNAVAILABLE,
+                    then=Value("login_unavailable"),
+                ),
+                output_field=CharField(),
+            ),
+            module=Value("authentication", output_field=CharField()),
+            actor_id=Cast("USER_id", output_field=BigIntegerField()),
+            target_type=Value("user", output_field=CharField()),
+            target_id=Cast("USER_id", output_field=CharField()),
+            outcome=F("LEVT_OUTCOME"),
+            is_administrative=Value(False, output_field=BooleanField()),
+            provenance=JSONObject(
+                model=Value(LoginEvent._meta.label_lower),
+                method=F("LEVT_METHOD"),
+            ),
+        )
+
+    @classmethod
     def list_activity(cls):
         """Combine retained source occurrences in SQL before the caller paginates them."""
         return (
@@ -541,6 +601,7 @@ class UnifiedActivityService:
                 *cls._vouches(),
                 cls._pocket_saves(),
                 cls._community_likes(),
+                cls._authentication_events(),
                 all=True,
             )
             .order_by(
