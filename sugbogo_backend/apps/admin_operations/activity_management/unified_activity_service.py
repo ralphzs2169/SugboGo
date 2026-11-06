@@ -1,5 +1,9 @@
 """Typed read projections over authoritative activity sources without copying their records."""
 
+import re
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
 from django.db.models import (
     BigIntegerField,
     BooleanField,
@@ -16,6 +20,7 @@ from django.db.models import (
 )
 from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast, Coalesce, JSONObject, NullIf
+from rest_framework.exceptions import NotFound
 
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
@@ -53,6 +58,78 @@ class UnifiedActivityService:
         "is_administrative",
         "provenance",
     )
+
+    MERCHANT_SOURCES = (
+        "merchant_application_submission",
+        "business_name_change_request",
+        "business_classification_change_request",
+        "business_location_change_request",
+        "merchant_review_dispute",
+    )
+    EXPLORER_SOURCES = (
+        "review",
+        "business_vouch",
+        "business_pocket",
+        "review_like",
+    )
+    SOURCE_TYPES = (
+        "admin_activity",
+        "analytics_policy_change",
+        "login_event",
+        *MERCHANT_SOURCES,
+        *EXPLORER_SOURCES,
+    )
+    MODULES = (
+        *AdminActivity.Module.values,
+        "system_configuration",
+        "reviews",
+        "pocket",
+        "community",
+        "authentication",
+    )
+    ACTIONS = (
+        *AdminActivity.Action.values,
+        "analytics_policy_revision",
+        "merchant_application_submitted",
+        *[
+            f"{source}_{occurrence}"
+            for source in MERCHANT_SOURCES[1:4]
+            for occurrence in ("submitted", "withdrawn")
+        ],
+        "merchant_review_dispute_filed",
+        "merchant_review_dispute_withdrawn",
+        "merchant_review_dispute_closed",
+        "review_submitted",
+        "business_vouch_submitted",
+        "business_vouch_withdrawn",
+        "business_saved",
+        "review_liked",
+        "login_succeeded",
+        "login_failed",
+        "login_unavailable",
+    )
+
+    @staticmethod
+    def category_for(event):
+        """Categorize the occurrence by recorded classification and source, never current user role."""
+        if event["is_administrative"] is True:
+            return "administrative"
+        if event["source_type"] == "login_event":
+            return "authentication"
+        if event["is_administrative"] is False:
+            if event["source_type"] in UnifiedActivityService.MERCHANT_SOURCES:
+                return "merchant"
+            if (
+                event["source_type"] in UnifiedActivityService.EXPLORER_SOURCES
+                or event["occurrence"] == AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR
+            ):
+                return "explorer"
+        return None
+
+    @staticmethod
+    def event_identity(event):
+        """Address each source occurrence independently without a new database identifier."""
+        return f"{event['source_type']}:{event['source_id']}:{event['occurrence']}"
 
     @classmethod
     def _project(
@@ -562,48 +639,109 @@ class UnifiedActivityService:
         )
 
     @classmethod
-    def list_activity(cls):
-        """Combine retained source occurrences in SQL before the caller paginates them."""
+    def _projections(cls):
+        """Build the existing source projections with their original deduplication rules."""
         return (
-            cls._admin_activities()
-            .union(
-                cls._policy_changes(),
-                cls._application_submissions(),
-                *cls._change_requests(
-                    BusinessNameChangeRequest,
-                    "BNCR",
-                    "business_name_change",
-                    {
-                        AdminActivity.Action.BUSINESS_NAME_CHANGE_APPROVED: "approved",
-                        AdminActivity.Action.BUSINESS_NAME_CHANGE_REJECTED: "rejected",
-                    },
-                ),
-                *cls._change_requests(
-                    BusinessClassificationChangeRequest,
-                    "BCCR",
-                    "business_classification_change",
-                    {
-                        AdminActivity.Action.BUSINESS_CLASSIFICATION_CHANGE_APPROVED: "approved",
-                        AdminActivity.Action.BUSINESS_CLASSIFICATION_CHANGE_REJECTED: "rejected",
-                    },
-                ),
-                *cls._change_requests(
-                    BusinessLocationChangeRequest,
-                    "BLCR",
-                    "business_location_change",
-                    {
-                        AdminActivity.Action.BUSINESS_LOCATION_CHANGE_APPROVED: "approved",
-                        AdminActivity.Action.BUSINESS_LOCATION_CHANGE_REJECTED: "rejected",
-                    },
-                ),
-                *cls._review_disputes(),
-                cls._reviews(),
-                *cls._vouches(),
-                cls._pocket_saves(),
-                cls._community_likes(),
-                cls._authentication_events(),
-                all=True,
+            cls._admin_activities(),
+            cls._policy_changes(),
+            cls._application_submissions(),
+            *cls._change_requests(
+                BusinessNameChangeRequest,
+                "BNCR",
+                "business_name_change",
+                {
+                    AdminActivity.Action.BUSINESS_NAME_CHANGE_APPROVED: "approved",
+                    AdminActivity.Action.BUSINESS_NAME_CHANGE_REJECTED: "rejected",
+                },
+            ),
+            *cls._change_requests(
+                BusinessClassificationChangeRequest,
+                "BCCR",
+                "business_classification_change",
+                {
+                    AdminActivity.Action.BUSINESS_CLASSIFICATION_CHANGE_APPROVED: "approved",
+                    AdminActivity.Action.BUSINESS_CLASSIFICATION_CHANGE_REJECTED: "rejected",
+                },
+            ),
+            *cls._change_requests(
+                BusinessLocationChangeRequest,
+                "BLCR",
+                "business_location_change",
+                {
+                    AdminActivity.Action.BUSINESS_LOCATION_CHANGE_APPROVED: "approved",
+                    AdminActivity.Action.BUSINESS_LOCATION_CHANGE_REJECTED: "rejected",
+                },
+            ),
+            *cls._review_disputes(),
+            cls._reviews(),
+            *cls._vouches(),
+            cls._pocket_saves(),
+            cls._community_likes(),
+            cls._authentication_events(),
+        )
+
+    @classmethod
+    def list_activity(
+        cls,
+        *,
+        category="all",
+        module=None,
+        action=None,
+        actor_id=None,
+        start_date=None,
+        end_date=None,
+        source_type=None,
+        source_id=None,
+        occurrence=None,
+    ):
+        """Filter every SQL projection before union, preserving global database pagination."""
+        filters = {}
+        for field, value in (
+            ("module", module),
+            ("occurrence", action),
+            ("actor_id", actor_id),
+            ("source_type", source_type),
+            ("source_id", source_id),
+            ("occurrence", occurrence),
+        ):
+            if value is not None:
+                filters[field] = value
+        manila = ZoneInfo("Asia/Manila")
+        if start_date is not None:
+            filters["occurred_at__gte"] = datetime.combine(
+                start_date,
+                time.min,
+                tzinfo=manila,
             )
+        if end_date is not None:
+            filters["occurred_at__lt"] = datetime.combine(
+                end_date + timedelta(days=1),
+                time.min,
+                tzinfo=manila,
+            )
+        category_filters = {
+            "all": Q(),
+            "administrative": Q(is_administrative=True),
+            "authentication": Q(source_type="login_event"),
+            "merchant": Q(
+                is_administrative=False,
+                source_type__in=cls.MERCHANT_SOURCES,
+            ),
+            "explorer": Q(is_administrative=False) & (
+                Q(source_type__in=cls.EXPLORER_SOURCES)
+                | Q(
+                    source_type="admin_activity",
+                    occurrence=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+                )
+            ),
+        }
+        projections = [
+            projection.filter(category_filters[category], **filters)
+            for projection in cls._projections()
+        ]
+        return (
+            projections[0]
+            .union(*projections[1:], all=True)
             .order_by(
                 "-occurred_at",
                 "source_type",
@@ -611,3 +749,64 @@ class UnifiedActivityService:
                 "occurrence",
             )
         )
+
+    @classmethod
+    def get_activity(
+        cls,
+        event_id,
+    ):
+        """Resolve only an occurrence still present in the same retained, deduplicated unified query."""
+        parts = event_id.split(":")
+        if (
+            len(parts) != 3
+            or parts[0] not in cls.SOURCE_TYPES
+            or re.fullmatch(r"[1-9][0-9]{0,18}", parts[1]) is None
+            or re.fullmatch(r"[a-z][a-z0-9_]{0,63}", parts[2]) is None
+        ):
+            raise NotFound("Activity not found.")
+        source_type = parts[0]
+        source_id = parts[1]
+        occurrence = parts[2]
+        events = list(
+            cls.list_activity(
+                source_type=source_type,
+                source_id=source_id,
+                occurrence=occurrence,
+            )[:1],
+        )
+        if not events:
+            raise NotFound("Activity not found.")
+        event = events[0]
+        event["previous_state"] = None
+        event["reason"] = None
+        event["context"] = None
+        if source_type == "admin_activity":
+            details = AdminActivity.objects.filter(pk=source_id).values(
+                "AACT_PREVIOUS_STATE",
+                "AACT_REASON",
+                "AACT_CONTEXT",
+            ).first()
+            if details is None:
+                raise NotFound("Activity not found.")
+            event["previous_state"] = details["AACT_PREVIOUS_STATE"]
+            event["reason"] = details["AACT_REASON"]
+            event["context"] = details["AACT_CONTEXT"]
+            if (
+                event["reason"] is None
+                and occurrence in (
+                    AdminActivity.Action.USER_SUSPENDED,
+                    AdminActivity.Action.BUSINESS_SUSPENDED,
+                )
+                and isinstance(event["context"], dict)
+            ):
+                event["reason"] = event["context"].get("reason")
+        elif source_type == "analytics_policy_change":
+            details = AnalyticsPolicyChange.objects.filter(pk=source_id).values(
+                "APCH_BEFORE",
+                "APCH_REASON",
+            ).first()
+            if details is None:
+                raise NotFound("Activity not found.")
+            event["previous_state"] = details["APCH_BEFORE"]
+            event["reason"] = details["APCH_REASON"]
+        return event
