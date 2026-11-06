@@ -355,6 +355,8 @@ describe("MerchantAnalyticsScreen", () => {
     expect(plusService.getMerchantPlusStatus).not.toHaveBeenCalled();
     expect(mockExport).toHaveBeenCalledWith({ enabled: true });
     expect(screen.queryByText("Report access unavailable")).toBeNull();
+    expect(screen.getByText("Stored narrative from eligible reviews.")).toBeTruthy();
+    expect(screen.queryByText("Mixed")).toBeNull();
   });
 
   it("retries report failures directly without an entitlement guard", async () => {

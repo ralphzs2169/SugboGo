@@ -1,19 +1,15 @@
 import { View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
-import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
-
-import type { OverallReviewVibe } from "../../../types/exploreBusiness.types";
 
 type Props = {
   recentCount: number;
   reviewPopulation?: "eligible" | "classified";
-  overallVibe?: OverallReviewVibe | null;
   compact?: boolean;
 };
 
 /**
- * Displays the shared Review Insights heading, recent-review context, and vibe.
+ * Displays the shared Review Insights heading and recent-review context.
  *
  * The compact variant preserves the smaller business-profile heading while the
  * default variant matches the full Reviews collection section hierarchy.
@@ -21,12 +17,11 @@ type Props = {
 export default function ReviewInsightsHeader({
   recentCount,
   reviewPopulation = "eligible",
-  overallVibe = null,
   compact = false,
 }: Props) {
   return (
     <View>
-      {/* Heading and overall vibe */}
+      {/* Heading */}
       <View className="flex-row flex-wrap items-center justify-between gap-3">
         <AppText
           weight="bold"
@@ -36,13 +31,6 @@ export default function ReviewInsightsHeader({
         >
           Review Insights
         </AppText>
-
-        <ReviewVibeBadge
-          vibe={overallVibe}
-          testID={
-            compact ? "preview-overall-review-vibe" : "overall-review-vibe"
-          }
-        />
       </View>
 
       {/* Rolling-window context */}

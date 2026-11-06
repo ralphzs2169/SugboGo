@@ -10,7 +10,6 @@ import ErrorState from "@/shared/components/ErrorState";
 import InfoBanner from "@/shared/components/InfoBanner";
 import SafePressable from "@/shared/components/SafePressable";
 import Skeleton from "@/shared/components/Skeleton";
-import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
 import type { PlusStoredInsightsReport } from "../../types/merchantAdvancedAnalytics.types";
 import AnalyticsReportSheet from "./AnalyticsReportSheet";
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
@@ -35,11 +34,6 @@ const RULES = [
     icon: "text-box-outline",
     title: "Summary and common mentions",
     text: "The summary is AI-generated from analyzed reviews. Mention counts describe those reviews, and do not automatically mean praise or complaints.",
-  },
-  {
-    icon: "emoticon-outline",
-    title: "Overall feedback",
-    text: "The feedback label uses categorized reviews from its own reporting window. Its sample may differ from the reviews analyzed for the written summary.",
   },
 ] as const;
 
@@ -154,7 +148,7 @@ export default function AnalyticsStoredReviewInsights({
             )}
             {contentAvailable ? (
               <View className="gap-4 rounded-card  bg-surface-muted p-4">
-                {/* Disclosure and the supported feedback label share the summary header. */}
+                {/* Summary disclosure */}
                 <View className="flex-row flex-wrap items-center justify-between gap-3">
                   <View className="flex-row items-center gap-1.5">
                     <MaterialCommunityIcons
@@ -167,9 +161,6 @@ export default function AnalyticsStoredReviewInsights({
                       AI-generated
                     </AppText>
                   </View>
-                  {summary.has_sufficient_sentiment_data && (
-                    <ReviewVibeBadge vibe={summary.overall_vibe} />
-                  )}
                 </View>
                 {summary.narrative ? (
                   <View className="gap-2">
@@ -353,10 +344,6 @@ export default function AnalyticsStoredReviewInsights({
                 {summary.eligible_review_count} reviews that qualified for
                 analysis.
                 {summary.is_sampled ? " Only a sample was analyzed." : ""}
-              </AppText>
-              <AppText className="text-sm leading-6 text-text-secondary">
-                {summary.classified_review_count} reviews are categorized for
-                the feedback label.
               </AppText>
               {summary.policy.generation_rules_match === false && (
                 <AppText className="text-sm leading-6 text-text-secondary">

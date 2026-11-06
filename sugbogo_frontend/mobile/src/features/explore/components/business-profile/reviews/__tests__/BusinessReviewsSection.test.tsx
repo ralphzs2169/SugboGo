@@ -13,6 +13,7 @@ jest.mock("@/shared/components/modals/FullScreenPhotoViewer", () => ({
 }));
 
 jest.mock("expo-router", () => ({
+  useNavigation: () => ({ isFocused: () => true }),
   router: { push: jest.fn() },
 }));
 jest.mock("../../../../hooks/useBusinessReviews");
@@ -126,7 +127,7 @@ describe("BusinessReviewsSection", () => {
     );
 
     expect(screen.getByText("Summary")).toBeTruthy();
-    expect(screen.getByText("Mostly negative")).toBeTruthy();
+    expect(screen.queryByText("Mostly negative")).toBeNull();
     expect(
       screen.getByText("Based on 5 eligible reviews from the past 30 days."),
     ).toBeTruthy();

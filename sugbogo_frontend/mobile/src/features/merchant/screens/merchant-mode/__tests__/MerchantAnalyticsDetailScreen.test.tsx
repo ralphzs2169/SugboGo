@@ -185,7 +185,7 @@ describe("lazy Core Plus detail reports", () => {
     ).toBeTruthy();
   });
 
-  it("uses only the current period's supplied vibe, and updates it with the period", async () => {
+  it("keeps reporting periods working without rendering supplied vibe labels", async () => {
     const current = reviewReport();
     current.current.overall_vibe = "mostly_positive";
     current.previous.overall_vibe = "mostly_negative";
@@ -193,7 +193,8 @@ describe("lazy Core Plus detail reports", () => {
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(current));
     const screen = await renderDetail("reviews");
-    await screen.findByText("Mostly positive");
+    await screen.findByLabelText("New reviews: 4");
+    expect(screen.queryByText("Mostly positive")).toBeNull();
     expect(screen.queryByText("Mostly negative")).toBeNull();
     const next = reviewReport();
     next.current.overall_vibe = "mixed";
@@ -206,7 +207,10 @@ describe("lazy Core Plus detail reports", () => {
       }),
     );
     await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
-    await screen.findByText("Mixed");
+    await waitFor(() =>
+      expect(service.getMerchantPlusReviewPerformance).toHaveBeenCalledTimes(2),
+    );
+    expect(screen.queryByText("Mixed")).toBeNull();
     expect(screen.queryByText("Mostly positive")).toBeNull();
     expect(
       jest
