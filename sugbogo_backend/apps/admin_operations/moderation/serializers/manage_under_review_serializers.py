@@ -4,6 +4,8 @@ from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPh
 
 from rest_framework import serializers
 
+from .moderation_metrics_serializers import ModerationAgingFilterSerializer
+
 from apps.admin_operations.activity_management.models import AdminActivity
 from apps.reviews.models import Review, ReviewReply
 from apps.reviews.serializers.review_serializers import (
@@ -37,7 +39,7 @@ def flagged_categories(finding):
     return [key for key, flagged in categories.items() if flagged is True]
 
 
-class AdminUnderReviewFilterSerializer(serializers.Serializer):
+class AdminUnderReviewFilterSerializer(ModerationAgingFilterSerializer):
     """Validate supported Admin queue filters and ordering."""
 
     search = serializers.CharField(

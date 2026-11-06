@@ -4,6 +4,8 @@ from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPh
 
 from rest_framework import serializers
 
+from .moderation_metrics_serializers import ModerationAgingFilterSerializer
+
 from apps.reviews.models import Review, ReviewReply, ReviewReport
 from apps.reviews.serializers.review_serializers import (
     ReviewAuthorResponseSerializer,
@@ -30,7 +32,7 @@ class ReportedReviewDecisionSerializer(serializers.Serializer):
     )
 
 
-class ReportedReviewFilterSerializer(serializers.Serializer):
+class ReportedReviewFilterSerializer(ModerationAgingFilterSerializer):
     """Validate grouped queue search, reason, status, and sort options."""
 
     search = serializers.CharField(

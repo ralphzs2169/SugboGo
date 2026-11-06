@@ -10,6 +10,7 @@ from rest_framework.exceptions import NotFound
 
 from apps.business.models import BusinessVouch
 from apps.business.services.vouch_service import VouchService
+from .moderation_metrics_service import filter_aging_cases
 
 
 class SuspiciousVouchService:
@@ -32,6 +33,11 @@ class SuspiciousVouchService:
     def list_vouches(filters):
         """Searches display identities before stable server-side pagination."""
         queryset = SuspiciousVouchService.queryset()
+        if filters.get("aging"):
+            queryset = filter_aging_cases(
+                queryset,
+                "suspicious-vouches",
+            )
         search = filters.get("search")
         if search:
             queryset = queryset.annotate(

@@ -23,6 +23,9 @@ export default function useReviewDisputeMutations() {
       queryClient.invalidateQueries({
         queryKey: ["admin", "moderation-counts"],
       }),
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "moderation-summary"],
+      }),
     ]);
   }
 

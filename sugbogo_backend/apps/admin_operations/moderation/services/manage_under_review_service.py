@@ -13,6 +13,7 @@ from apps.admin_operations.activity_management.services import AdminActivityServ
 from apps.notifications.services.notification_event_service import NotificationEventService
 from apps.reviews.models import Review, ReviewPhoto, ReviewReply
 from apps.reviews.services.review_service import ReviewService
+from .moderation_metrics_service import filter_aging_cases
 
 
 class ManageUnderReviewService:
@@ -67,6 +68,11 @@ class ManageUnderReviewService:
             photo_count=Count("photos", distinct=True),
             first_photo_url=Subquery(first_photo),
         )
+        if filters.get("aging"):
+            queryset = filter_aging_cases(
+                queryset.filter(REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW),
+                "under-review",
+            )
 
         status = filters.get("status", "pending")
         if status == "pending":

@@ -1,10 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Clock3, Flag, MessageSquareText, ShieldAlert } from "lucide-react";
+import { Clock3, Flag, List, MessageSquareText, ShieldAlert } from "lucide-react";
 
 import PageHeader from "../components/PageHeader";
 import TableTabs from "../components/data-table/TableTabs";
 import useModerationTabCounts from "../moderation/hooks/useModerationTabCounts";
+import ModerationMetrics from "../moderation/components/ModerationMetrics";
+import { moderationMetricParams } from "../moderation/utils/moderationMetricNavigation";
 import ReviewDisputeWorkspace from "../review-disputes/components/ReviewDisputeWorkspace";
 import UnderReviewWorkspace from "../under-review/components/UnderReviewWorkspace";
 import SuspiciousActivityWorkspace from "../moderation/components/SuspiciousActivityWorkspace";
@@ -29,6 +31,9 @@ export default function ModerationIntegrityPage() {
     ? requestedTab
     : "under-review";
   const tabCounts = useModerationTabCounts();
+  const [workspaceReset, setWorkspaceReset] = useState(0);
+  const queueScope = searchParams.get("queue_scope") === "aging" ? "aging" : "pending";
+  const activeTabLabel = MODERATION_TABS.find((tab) => tab.id === activeTab).label;
   const tabs = MODERATION_TABS.map((tab) => ({
     ...tab,
     count: tabCounts[tab.id].count,
@@ -57,9 +62,18 @@ export default function ModerationIntegrityPage() {
       const next = new URLSearchParams(previous);
 
       next.set("tab", tab);
+      next.delete("queue_scope");
 
       return next;
     });
+  }
+
+  function selectMetricQueue(
+    action,
+    oldest,
+  ) {
+    setWorkspaceReset((previous) => previous + 1);
+    setSearchParams((previous) => moderationMetricParams(previous, action, oldest));
   }
 
   return (
@@ -74,10 +88,10 @@ export default function ModerationIntegrityPage() {
       />
 
       <section>
-        <div className="relative w-full rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2">
+        <div className="min-w-0">
           <nav
             aria-label="Moderation & Integrity sections"
-            className="mb-6 overflow-x-auto pb-1"
+            className="themed-scrollbar mb-6 overflow-x-auto pb-1"
           >
             <TableTabs
               tabs={tabs}
@@ -86,15 +100,41 @@ export default function ModerationIntegrityPage() {
             />
           </nav>
 
-          {activeTab === "under-review" ? (
-            <UnderReviewWorkspace />
-          ) : activeTab === "suspicious" ? (
-            <SuspiciousActivityWorkspace />
-          ) : activeTab === "reported" ? (
-            <ReportedReviewWorkspace />
-          ) : (
-            <ReviewDisputeWorkspace />
+          <ModerationMetrics
+            tab={activeTab}
+            tabLabel={activeTabLabel}
+            onSelectQueue={selectMetricQueue}
+          />
+
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+            <List aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Moderation Workspace
+          </h2>
+
+          {queueScope === "aging" && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+              <span>Aging Cases: 48+ elapsed hours</span>
+              <button
+                type="button"
+                onClick={() => selectMetricQueue("pending")}
+                className="cursor-pointer rounded-md px-2 py-1 font-medium text-text-primary hover:bg-sidebar-active focus-visible:outline-2 focus-visible:outline-info"
+              >
+                Clear Aging Filter
+              </button>
+            </div>
           )}
+
+          <div key={`${activeTab}:${queueScope}:${workspaceReset}`}>
+            {activeTab === "under-review" ? (
+              <UnderReviewWorkspace />
+            ) : activeTab === "suspicious" ? (
+              <SuspiciousActivityWorkspace />
+            ) : activeTab === "reported" ? (
+              <ReportedReviewWorkspace />
+            ) : (
+              <ReviewDisputeWorkspace />
+            )}
+          </div>
         </div>
       </section>
     </>

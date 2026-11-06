@@ -76,7 +76,7 @@ function VouchDetail({ vouchId, onStale }) {
   const finding = vouch.detection_evidence?.[REASON];
   const activity = vouch.current_related_activity;
   return (
-    <article className="space-y-6 overflow-y-auto p-5 sm:p-6 lg:max-h-[calc(100vh-300px)]">
+    <article className="themed-scrollbar space-y-6 overflow-y-auto p-5 sm:p-6 lg:max-h-[calc(100vh-300px)]">
       <header className="space-y-2">
         <h2 className="text-base font-semibold text-text-primary">Vouch #{vouch.id}</h2>
         <Link className="text-sm text-info hover:underline" to={`/admin-panel/users/${vouch.author.id}`}>
@@ -139,6 +139,7 @@ function VouchDetail({ vouchId, onStale }) {
 export default function SuspiciousVouchWorkspace() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = Number(searchParams.get("suspicious_vouch_id")) || null;
+  const aging = searchParams.get("queue_scope") === "aging";
   const [search, setSearch] = useState("");
   const [ordering, setOrdering] = useState("newest");
   const [page, setPage] = useState(1);
@@ -149,7 +150,8 @@ export default function SuspiciousVouchWorkspace() {
     page_size: 10,
     search: debouncedSearch,
     ordering,
-  }), [page, debouncedSearch, ordering]);
+    ...(aging ? { aging: true } : {}),
+  }), [page, debouncedSearch, ordering, aging]);
   const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useQuery({
     queryKey: ["admin", "suspicious-vouches", "list", params],
     queryFn: () => fetchSuspiciousVouches(params),
@@ -217,7 +219,7 @@ export default function SuspiciousVouchWorkspace() {
           </label>
           <SortMenu value={ordering} options={SORT_OPTIONS} onChange={(value) => changeFilter(setOrdering, value)} ariaLabel="Sort suspicious vouches" />
         </div>
-        <div aria-busy={isLoading || isFetching} className="lg:max-h-[calc(100vh-400px)] lg:overflow-y-auto">
+        <div aria-busy={isLoading || isFetching} className="themed-scrollbar lg:max-h-[calc(100vh-400px)] lg:overflow-y-auto">
           {isLoading || isPlaceholderData ? (
             <ModerationQueueSkeleton label="Loading suspicious vouches" />
           ) : error ? (

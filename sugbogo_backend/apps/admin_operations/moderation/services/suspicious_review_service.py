@@ -10,6 +10,7 @@ from rest_framework.exceptions import NotFound
 
 from apps.reviews.models import Review, ReviewPhoto, ReviewReply
 from apps.reviews.services.review_service import ReviewService
+from .moderation_metrics_service import filter_aging_cases
 
 
 class SuspiciousReviewService:
@@ -43,6 +44,11 @@ class SuspiciousReviewService:
             first_photo_url=Subquery(first_photo),
             has_reply=Exists(reply_exists),
         )
+        if filters.get("aging"):
+            queryset = filter_aging_cases(
+                queryset,
+                "suspicious-reviews",
+            )
         search = filters.get("search")
         if search:
             queryset = queryset.annotate(

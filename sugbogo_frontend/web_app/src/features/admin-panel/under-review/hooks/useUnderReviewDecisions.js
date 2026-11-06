@@ -21,6 +21,9 @@ export default function useUnderReviewDecisions() {
     await queryClient.invalidateQueries({
       queryKey: ["admin", "moderation-counts"],
     });
+    await queryClient.invalidateQueries({
+      queryKey: ["admin", "moderation-summary"],
+    });
     await invalidateDashboardDecision(queryClient, { publication });
   }
 

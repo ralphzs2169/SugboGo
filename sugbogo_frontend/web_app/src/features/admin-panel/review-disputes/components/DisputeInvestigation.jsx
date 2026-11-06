@@ -54,7 +54,7 @@ export default function DisputeInvestigation({ disputeId, onDecision, decisionPe
   }
 
   return (
-    <div ref={scrollContainerRef} className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
+    <div ref={scrollContainerRef} className="themed-scrollbar overflow-y-auto lg:max-h-[calc(100vh-260px)]">
       <ReviewDisputeDetailContextBar dispute={dispute} visible={showContextBar} />
       <article className="space-y-6 p-5 pb-8 sm:p-6">
         <div ref={reviewHeaderRef}>
