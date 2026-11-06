@@ -1,6 +1,9 @@
 import { render } from "@testing-library/react-native";
 
-import type { BusinessReviewInsights } from "../../../../types/exploreBusiness.types";
+import type {
+  BusinessReviewInsights,
+  ReviewInsightRegeneration,
+} from "../../../../types/exploreBusiness.types";
 import ReviewInsightsPreview from "../review-preview-section/ReviewInsightsPreview";
 
 const insights: BusinessReviewInsights = {
@@ -30,6 +33,65 @@ const insights: BusinessReviewInsights = {
 };
 
 describe("ReviewInsightsPreview", () => {
+  const scheduled: ReviewInsightRegeneration = {
+    status: "scheduled",
+    is_outstanding: true,
+    requested_revision: 2,
+    completed_revision: 1,
+    run_after: null,
+    content_available: false,
+    content_is_current: false,
+  };
+
+  it.each(["mostly_positive", "mostly_negative", "mixed"] as const)(
+    "keeps the narrative without the %s label",
+    async (overall_vibe) => {
+      const screen = await render(
+        <ReviewInsightsPreview insights={{ ...insights, overall_vibe }} />,
+      );
+      expect(screen.getByText(insights.narrative!)).toBeTruthy();
+      expect(screen.queryByText(/Mostly positive|Mostly negative|Mixed/)).toBeNull();
+      expect(screen.queryByTestId("summary-overall-review-vibe")).toBeNull();
+    },
+  );
+
+  it.each([
+    ["scheduled", /refresh shortly/],
+    ["processing", /Updating insights with the latest reviews/],
+    ["retry_wait", /taking longer to update/],
+  ] as const)("shows %s work without an old summary", async (status, message) => {
+    const screen = await render(
+      <ReviewInsightsPreview
+        insights={null}
+        regeneration={{ ...scheduled, status }}
+      />,
+    );
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.queryByText(/Showing the previous summary/)).toBeNull();
+  });
+
+  it("shows pending work after publication restores eligibility from four to five", async () => {
+    const insufficient: BusinessReviewInsights = {
+      ...insights,
+      state: "insufficient_reviews",
+      eligible_review_count: 4,
+      content_available: false,
+      narrative: null,
+    };
+    const screen = await render(
+      <ReviewInsightsPreview insights={insufficient} />,
+    );
+    // A private submission does not change the authoritative eligible population.
+    expect(screen.toJSON()).toBeNull();
+    await screen.rerender(
+      <ReviewInsightsPreview
+        insights={{ ...insufficient, eligible_review_count: 5 }}
+        regeneration={scheduled}
+      />,
+    );
+    expect(screen.getByText(/refresh shortly/)).toBeTruthy();
+    expect(screen.queryByText(insights.narrative!)).toBeNull();
+  });
   it.each<BusinessReviewInsights | null>([
     null,
     { ...insights, state: "insufficient_reviews" },
@@ -86,6 +148,8 @@ describe("ReviewInsightsPreview", () => {
         regeneration={{ ...regeneration, content_available: false }}
       />,
     );
-    expect(screen.toJSON()).toBeNull();
+    expect(screen.queryByText(insights.narrative!)).toBeNull();
+    expect(screen.getByText(/Updating insights with the latest reviews/)).toBeTruthy();
+    expect(screen.queryByText(/Showing the previous summary/)).toBeNull();
   });
 });

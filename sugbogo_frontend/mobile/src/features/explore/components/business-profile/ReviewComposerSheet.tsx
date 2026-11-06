@@ -9,6 +9,7 @@ import { Image } from "expo-image";
 import {
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -17,6 +18,7 @@ import {
 import {
   ActivityIndicator,
   BackHandler,
+  Keyboard,
   Pressable,
   Switch,
   View,
@@ -247,8 +249,106 @@ export default function ReviewComposerSheet({
   const isEditing = Boolean(review);
   const submission = useAuthorReviewSubmissions(businessId)[0];
   const isPending = isCreatePending || isUpdatePending;
+  const traceId = useId();
+  const traceSubmissionStartedAt = useRef<number | null>(null);
+  const traceReceiptId = useRef<number | null>(null);
+  const traceKeyboardActive = useRef(false);
+  const traceState = useRef({
+    businessId,
+    isSheetOpen,
+    shouldDismiss,
+    isEditing,
+    isPending,
+    submissionState: submission?.state ?? null,
+  });
+
+  useLayoutEffect(() => {
+    if (!__DEV__) return;
+    traceState.current = {
+      businessId,
+      isSheetOpen,
+      shouldDismiss,
+      isEditing,
+      isPending,
+      submissionState: submission?.state ?? null,
+    };
+  }, [
+    businessId,
+    isSheetOpen,
+    shouldDismiss,
+    isEditing,
+    isPending,
+    submission?.state,
+  ]);
+
+  /** Records temporary development diagnostics without affecting sheet decisions. */
+  const traceDismissal = useCallback(
+    (
+      event: string,
+      details: Record<string, string | number | boolean | null> = {},
+    ) => {
+      if (!__DEV__) return;
+      console.debug(
+        "[ReviewComposerDismiss]",
+        JSON.stringify({
+          timestamp: new Date().toISOString(),
+          event,
+          composerId: traceId,
+          ...traceState.current,
+          mounted: mounted.current,
+          completed: completed.current,
+          dismissalRequested: dismissalRequested.current,
+          dismissalIssued: dismissalIssued.current,
+          submissionPending: submissionPending.current,
+          dismissedReceiptId: dismissedReceiptId.current,
+          receiptId: traceReceiptId.current,
+          nativeRefAvailable: nativeSheetRef.current !== null,
+          keyboardVisible: Keyboard.isVisible(),
+          submissionStartedAt: traceSubmissionStartedAt.current,
+          afterSubmission: (
+            traceSubmissionStartedAt.current !== null ||
+            traceReceiptId.current !== null
+          ),
+          ...details,
+        }),
+      );
+    },
+    [traceId],
+  );
 
   useEffect(() => {
+    if (!__DEV__) return;
+    const events = [
+      "keyboardWillShow",
+      "keyboardDidShow",
+      "keyboardWillHide",
+      "keyboardDidHide",
+    ] as const;
+    const listeners = events.map((event) =>
+      Keyboard.addListener(event, () => {
+        if (traceKeyboardActive.current) traceDismissal(event);
+      }),
+    );
+    return () => {
+      listeners.forEach((listener) => listener.remove());
+    };
+  }, [traceDismissal]);
+
+  useEffect(() => {
+    if (__DEV__ && submission?.state === "acknowledged" && submission.result) {
+      traceReceiptId.current = submission.result.id;
+      if (
+        !isEditing &&
+        isSheetOpen &&
+        dismissedReceiptId.current !== submission.result.id
+      ) {
+        traceKeyboardActive.current = true;
+      }
+      traceDismissal("receipt.success", {
+        source: "receipt_observer",
+        status: submission.result.status,
+      });
+    }
     if (
       isEditing ||
       !isSheetOpen ||
@@ -256,11 +356,18 @@ export default function ReviewComposerSheet({
       !submission.result ||
       dismissedReceiptId.current === submission.result.id
     ) {
+      if (submission?.state === "acknowledged" && submission.result) {
+        traceDismissal("receipt.observer.skipped", {
+          editing: isEditing,
+          sheetClosed: !isSheetOpen,
+          receiptAlreadyHandled: dismissedReceiptId.current === submission.result.id,
+        });
+      }
       return;
     }
 
     // Receipt is authoritative; cache refreshes and moderation can finish later.
-    completeCreate(submission.result);
+    completeCreate(submission.result, "receipt_observer");
     // Both receipt reconciliation and mutateAsync share the same completion gate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, isSheetOpen, submission]);
@@ -338,7 +445,9 @@ export default function ReviewComposerSheet({
   }
 
   const approveDismiss = useCallback(() => {
+    traceDismissal("dismiss.approve.enter");
     if (dismissalRequested.current) {
+      traceDismissal("dismiss.approve.skipped", { reason: "already_requested" });
       return;
     }
 
@@ -347,7 +456,8 @@ export default function ReviewComposerSheet({
     setIsPicking(false);
     setShowDiscard(false);
     setShouldDismiss(true);
-  }, []);
+    traceDismissal("dismiss.approve.requested");
+  }, [traceDismissal]);
 
   const requestDismiss = useCallback(() => {
     if (dismissalRequested.current) {
@@ -371,6 +481,15 @@ export default function ReviewComposerSheet({
   // Callers keep the existing sheet API; all removal methods use the same guard.
   useImperativeHandle(sheetRef, () => ({
     present: (data) => {
+      traceDismissal("present", {
+        trigger: "external_sheetRef.present",
+      });
+      if (__DEV__) {
+        traceKeyboardActive.current = (
+          traceSubmissionStartedAt.current !== null ||
+          traceReceiptId.current !== null
+        );
+      }
       if (!isSheetOpen) {
         resetForm();
       }
@@ -398,20 +517,35 @@ export default function ReviewComposerSheet({
   }));
 
   useEffect(() => {
+    traceDismissal("dismiss.effect", { shouldDismiss });
     if (!shouldDismiss || dismissalIssued.current) {
+      traceDismissal("dismiss.effect.skipped", {
+        reason: !shouldDismiss ? "not_requested" : "already_issued",
+      });
       return;
     }
     // Commit enableDismissOnClose before asking the native modal to unmount.
     dismissalIssued.current = true;
+    traceDismissal("native.dismiss.before");
     nativeSheetRef.current?.dismiss();
-  }, [shouldDismiss]);
+    traceDismissal("native.dismiss.after");
+  }, [shouldDismiss, traceDismissal]);
 
-  function completeCreate(result: ReviewCreateResult) {
+  function completeCreate(
+    result: ReviewCreateResult,
+    source: "receipt_observer" | "mutateAsync",
+  ) {
+    traceDismissal("completeCreate.enter", { source, reviewId: result.id });
     if (completed.current || dismissedReceiptId.current === result.id) {
+      traceDismissal("completeCreate.skipped", {
+        source,
+        reason: completed.current ? "already_completed" : "receipt_already_handled",
+      });
       return;
     }
     completed.current = true;
     dismissedReceiptId.current = result.id;
+    traceDismissal("completeCreate.accepted", { source });
     clearForm();
     Toast.show({
       type: "success",
@@ -540,6 +674,11 @@ export default function ReviewComposerSheet({
     }
 
     submissionPending.current = true;
+    if (__DEV__ && !review) {
+      traceSubmissionStartedAt.current = Date.now();
+      traceReceiptId.current = null;
+      traceKeyboardActive.current = true;
+    }
     const submittingUserId = useAuthStore.getState().user?.id;
     const submittingGeneration = getAuthSessionGeneration();
     submissionOwner.current = {
@@ -591,9 +730,21 @@ export default function ReviewComposerSheet({
           businessName,
         });
 
-        if (!isCurrentSubmission()) return;
+        if (__DEV__) {
+          traceReceiptId.current = created.id;
+        }
+        traceDismissal("receipt.success", {
+          source: "mutateAsync",
+          status: created.status,
+        });
+        if (!isCurrentSubmission()) {
+          traceDismissal("receipt.mutateAsync.skipped", {
+            reason: "unmounted_or_session_changed",
+          });
+          return;
+        }
 
-        completeCreate(created);
+        completeCreate(created, "mutateAsync");
       }
     } catch (error) {
       if (!isCurrentSubmission()) return;
@@ -712,6 +863,10 @@ export default function ReviewComposerSheet({
       // Keep a gesture-closed modal mounted until discard or completion is approved.
       enableDismissOnClose={shouldDismiss}
       onDismiss={() => {
+        traceDismissal("onDismiss");
+        if (__DEV__) {
+          traceKeyboardActive.current = false;
+        }
         setIsSheetOpen(false);
         pickerOperation.current = null;
         setIsPicking(false);
@@ -734,21 +889,29 @@ export default function ReviewComposerSheet({
         width: 40,
       }}
       onChange={(index) => {
+        traceDismissal("onChange", { index });
         const isOpen = index >= 0;
 
         if (!isOpen && !dismissalRequested.current) {
+          traceDismissal("present", { trigger: "onChange.unapproved_close", index });
           nativeSheetRef.current?.present();
           requestDismiss();
           return;
         }
         setIsSheetOpen(isOpen);
       }}
-      onAnimate={(_fromIndex, toIndex) => {
+      onAnimate={(fromIndex, toIndex) => {
+        traceDismissal("onAnimate", { fromIndex, toIndex });
         if (toIndex !== -1 || dismissalRequested.current) {
           return;
         }
         requestDismiss();
         if (!dismissalRequested.current) {
+          traceDismissal("present", {
+            trigger: "onAnimate.unapproved_close",
+            fromIndex,
+            toIndex,
+          });
           nativeSheetRef.current?.present();
         }
       }}

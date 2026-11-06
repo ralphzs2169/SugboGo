@@ -31,6 +31,7 @@ jest.mock("@gorhom/bottom-sheet", () =>
 );
 jest.mock("expo-router", () => ({
   useIsFocused: () => true,
+  useRouter: () => ({ push: jest.fn() }),
   useNavigation: () => ({ isFocused: () => true }),
 }));
 jest.mock("../../../api/merchantPlusAnalytics.service", () => ({
@@ -170,6 +171,7 @@ describe("advanced Plus detail integration", () => {
   it("uses stored insights' own coverage without a date selector or generation request", async () => {
     const screen = await renderDetail("review-insights");
     await screen.findByText("Stored narrative from eligible reviews.");
+    expect(screen.queryByText("Mixed")).toBeNull();
     expect(screen.getByText("This summary needs updating")).toBeTruthy();
     expect(screen.getByText(/Based on 6 reviews/)).toBeTruthy();
     expect(screen.getByText(/Sep 10/)).toBeTruthy();

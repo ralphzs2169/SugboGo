@@ -8,7 +8,6 @@ import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
-import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { PlusReviewPerformanceReport } from "../../types/merchantPlusAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
@@ -47,10 +46,6 @@ export default function AnalyticsReviewPerformance({
   const pending = loading && !report;
   const unavailable = report?.meta.availability === "unavailable";
   const cohort = unavailable ? undefined : report?.current;
-  const showOverallVibe =
-    !!cohort &&
-    cohort.has_sufficient_sentiment_data &&
-    cohort.classified_review_count > 0;
   const replyRate = cohort?.reply_rate;
   const validRate =
     replyRate != null &&
@@ -81,12 +76,6 @@ export default function AnalyticsReviewPerformance({
             >
               Review activity
             </AppText>
-            {showOverallVibe && (
-              <ReviewVibeBadge
-                vibe={cohort?.overall_vibe}
-                testID="analytics-review-vibe"
-              />
-            )}
             <AnalyticsHeaderControls
               period={period}
               onOpenPeriod={() => periodSheetRef.current?.present()}

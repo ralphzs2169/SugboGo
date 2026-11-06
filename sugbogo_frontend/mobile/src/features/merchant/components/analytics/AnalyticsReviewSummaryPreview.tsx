@@ -7,7 +7,6 @@ import AnalyticsSectionInformation from "./AnalyticsSectionInformation";
 import { AnalyticsReportLinks } from "./AnalyticsMoreInsights";
 import Skeleton from "@/shared/components/Skeleton";
 import ErrorState from "@/shared/components/ErrorState";
-import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
 import type { PlusStoredInsightsReport } from "../../types/merchantAdvancedAnalytics.types";
 import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
 import AnalyticsChartEmptyState from "./AnalyticsChartEmptyState";
@@ -112,9 +111,6 @@ export default function AnalyticsReviewSummaryPreview({
                   AI-generated summary
                 </AppText>
               </View>
-              {summary.has_sufficient_sentiment_data && (
-                <ReviewVibeBadge vibe={summary.overall_vibe} />
-              )}
             </View>
             <AppText className="text-xs leading-5 text-text-secondary">
               {summary.coverage_start && summary.coverage_end

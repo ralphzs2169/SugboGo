@@ -69,7 +69,7 @@ function ReportedReviewDetail({ reviewId, onStale, onDecision, decisionPending }
   }
 
   return (
-    <div ref={scrollContainerRef} className="overflow-y-auto lg:max-h-[calc(100vh-260px)]">
+    <div ref={scrollContainerRef} className="themed-scrollbar overflow-y-auto lg:max-h-[calc(100vh-260px)]">
       <ReviewStickyContextBar review={review} visible={showContextBar} statusVariant={review.status === "rejected" ? "dangerSoft" : undefined} />
       <article className="space-y-6 p-5 pb-8 sm:p-6 sm:pb-8">
         <div ref={reviewHeaderRef}>

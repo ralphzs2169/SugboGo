@@ -3,10 +3,6 @@ import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import {
-  OVERALL_REVIEW_VIBE_LABELS,
-  REVIEW_VIBE_COLORS,
-} from "@/shared/constants/reviewVibe";
 import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
 import type { BusinessSentimentRating as Rating } from "../../types/businessRating.types";
 import { usePresentedBusinessRating } from "../../hooks/businessRatingSync";
@@ -34,7 +30,6 @@ export default function BusinessProfileQuickInfo({
   businessId = 0,
   rating,
   reviewCount,
-  overallVibe,
   statusLabel,
   statusDetail,
   distance,
@@ -43,7 +38,6 @@ export default function BusinessProfileQuickInfo({
 }: Props) {
   const currentRating = usePresentedBusinessRating(businessId, rating);
   const hasRating = !unavailable && hasDisplayableBusinessRating(currentRating);
-  const vibe = !unavailable && overallVibe ? overallVibe : null;
   const statusColor =
     isOpenNow === null
       ? theme.extends.colors.text.secondary
@@ -58,19 +52,8 @@ export default function BusinessProfileQuickInfo({
         <View
           className="flex-row items-center gap-1.5"
           accessible
-          accessibilityLabel={
-            vibe
-              ? `${reviewCount} reviews. Customer feedback: ${OVERALL_REVIEW_VIBE_LABELS[vibe]}`
-              : `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}`
-          }
+          accessibilityLabel={`${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}`}
         >
-          {vibe && (
-            <View
-              accessible={false}
-              className="h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ backgroundColor: REVIEW_VIBE_COLORS[vibe].dot }}
-            />
-          )}
           <AppText className="text-xs text-text-secondary">
             {reviewCount} {reviewCount === 1 ? "review" : "reviews"}
           </AppText>

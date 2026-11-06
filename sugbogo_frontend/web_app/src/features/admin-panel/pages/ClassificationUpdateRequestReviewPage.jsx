@@ -10,6 +10,7 @@ import useNavigateBack from "@/shared/hooks/useNavigateBack";
 
 import ApproveClassificationRequestModal from "../business-update-requests/components/ApproveClassificationRequestModal";
 import ClassificationReviewCase from "../business-update-requests/components/ClassificationReviewCase";
+import UpdateRequestDetailSkeleton from "../business-update-requests/components/UpdateRequestDetailSkeleton";
 import RejectUpdateRequestModal from "../business-update-requests/components/RejectUpdateRequestModal";
 
 import useClassificationUpdateRequestDecisions from "../business-update-requests/hooks/useClassificationUpdateRequestDecisions";
@@ -201,7 +202,7 @@ export default function ClassificationUpdateRequestReviewPage() {
         hasData={Boolean(request)}
         onRetry={refetch}
         loadingContent={
-          <div className="h-80 animate-pulse rounded-xl bg-surface-muted" />
+          <UpdateRequestDetailSkeleton requestType="classification" />
         }
         errorTitle="Request unavailable"
         errorMessage="The classification request could not be loaded. Please try again."

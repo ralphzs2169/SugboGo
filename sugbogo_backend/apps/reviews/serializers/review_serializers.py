@@ -329,6 +329,12 @@ class ReviewResponseSerializer(serializers.ModelSerializer):
             data["sentiment_aggregate_included"] = (
                 BusinessReviewSummaryService.is_sentiment_included(instance)
             )
+            # A valid exact-text projection also completes factual exclusions.
+            data["rating_sentiment_complete"] = getattr(
+                instance,
+                "rating_sentiment_complete",
+                None,
+            )
         return data
 
 

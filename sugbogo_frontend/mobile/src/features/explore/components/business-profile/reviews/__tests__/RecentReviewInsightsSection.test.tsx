@@ -189,7 +189,8 @@ describe("RecentReviewInsightsSection", () => {
       screen.getByText("Based on 5 eligible reviews from the past 30 days."),
     ).toBeTruthy();
     expect(screen.getByText("Visitors praise friendly service.")).toBeTruthy();
-    expect(screen.getByText("Mostly positive")).toBeTruthy();
+    expect(screen.queryByText("Mostly positive")).toBeNull();
+    expect(screen.queryByTestId("overall-review-vibe")).toBeNull();
     expect(screen.queryByText("Positive")).toBeNull();
     expect(screen.queryByText("No recent insights yet")).toBeNull();
   });
@@ -232,7 +233,7 @@ describe("RecentReviewInsightsSection", () => {
     );
     expect(screen.getByText("More recent feedback needed")).toBeTruthy();
     expect(screen.queryByText("Review Insights")).toBeNull();
-    expect(screen.getByText("Mostly positive")).toBeTruthy();
+    expect(screen.queryByText("Mostly positive")).toBeNull();
     expect(screen.queryByText("Vibe Summary")).toBeNull();
   });
 
@@ -346,5 +347,17 @@ describe("RecentReviewInsightsSection", () => {
       screen.getByText("Based on 100 of 150 eligible recent reviews."),
     ).toBeTruthy();
     expect(JSON.stringify(screen.toJSON())).not.toContain("review_ids");
+  });
+
+  it("does not hide scheduled regeneration with missing content", async () => {
+    const screen = await render(
+      <RecentReviewInsightsSection
+        hideUnavailable
+        insights={null}
+        regeneration={{ ...scheduled, content_available: false }}
+      />,
+    );
+    expect(screen.getByText(/refresh shortly/)).toBeTruthy();
+    expect(screen.queryByText(/Showing the previous summary/)).toBeNull();
   });
 });

@@ -1,4 +1,3 @@
-import { lazy, Suspense } from "react";
 import { useParams } from "react-router-dom";
 
 import DetailPageLayout from "@/shared/components/layout/DetailPageLayout";
@@ -16,23 +15,8 @@ import useUserActivity from "../users/hooks/useUserActivity";
 import useUserAdministrativeHistory from "../users/hooks/useUserAdministrativeHistory";
 import useUserDetail from "../users/hooks/useUserDetail";
 
-const UserDetailPreview = import.meta.env.DEV
-  ? lazy(() => import("../users/components/detail/UserDetailPreview"))
-  : null;
-
 export default function UserDetailPage() {
   const { userId } = useParams();
-
-  if (UserDetailPreview) {
-    return (
-      <Suspense fallback={<UserDetailSkeleton />}>
-        <UserDetailPreview
-          key={userId}
-          renderLive={() => <UserDetailContent key={userId} userId={userId} />}
-        />
-      </Suspense>
-    );
-  }
 
   return <UserDetailContent key={userId} userId={userId} />;
 }

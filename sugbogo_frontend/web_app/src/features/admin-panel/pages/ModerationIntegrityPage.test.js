@@ -1911,7 +1911,8 @@ test("Disputes tab renders the moderation queue workspace", () => {
   assert.ok(html.includes("Select a dispute"));
   assert.ok(!html.includes("data-table"));
   assert.ok(html.includes('aria-busy="true"'));
-  assert.ok(html.includes("rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2"));
+  assert.ok(!html.includes("rounded-2xl border border-stroke bg-background px-6 pb-6 pt-2"));
+  assert.ok(html.indexOf('aria-label="Disputes metrics"') < html.indexOf('aria-label="Review dispute queue"'));
   assert.ok(html.indexOf("Review Moderation") < html.indexOf("Search review disputes"));
   assert.ok(html.includes("Status"));
   assert.ok(html.includes("Filter"));

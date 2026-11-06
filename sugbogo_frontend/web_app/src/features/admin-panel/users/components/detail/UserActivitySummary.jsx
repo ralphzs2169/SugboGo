@@ -1,4 +1,4 @@
-import { Flag, MessageSquareText, ShieldQuestion, ThumbsUp } from "lucide-react";
+import { Flag, Heart, MessageSquareText, ShieldQuestion } from "lucide-react";
 
 import MetricCard from "@/features/admin-panel/components/MetricCard";
 import UserDetailHeading from "./UserDetailHeading";
@@ -10,7 +10,7 @@ const METRIC_CONFIG = {
     description: "Retained reviews · all statuses",
   },
   vouches: {
-    icon: ThumbsUp,
+    icon: Heart,
     label: "Non-withdrawn Vouches",
     description: "Includes flagged and invalidated vouches",
   },

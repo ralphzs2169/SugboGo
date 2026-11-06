@@ -5,7 +5,6 @@ import { ActivityIndicator, View } from "react-native";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import ReviewVibeBadge from "@/shared/components/reviews/ReviewVibeBadge";
 
 import type {
   BusinessReviewInsights,
@@ -47,7 +46,6 @@ export default function RecentReviewInsightsSection({
 }: Props) {
   const recentCount = insights?.eligible_review_count ?? 0;
   const hasRecentReviews = recentCount > 0;
-  const classifiedCount = insights?.classified_review_count ?? 0;
 
   const progress = resolveReviewInsightRegeneration(regeneration, insights);
   const tracked = isTrackedReviewInsightRegeneration(progress);
@@ -55,15 +53,7 @@ export default function RecentReviewInsightsSection({
   const showGeneratedContent = Boolean(
     insights?.content_available && (progress?.content_available ?? true),
   );
-  if (hideUnavailable && !showGeneratedContent) return null;
-
-  const showOverallVibe = Boolean(
-    insights?.has_sufficient_sentiment_data &&
-    classifiedCount > 0 &&
-    Object.values(insights.sentiment).some(
-      (item) => item.count > 0 && item.percentage > 0,
-    ),
-  );
+  if (hideUnavailable && !showGeneratedContent && !updateMessage) return null;
 
   const isUpdating = Boolean(
     !tracked &&
@@ -74,23 +64,11 @@ export default function RecentReviewInsightsSection({
 
   const showSectionHeader = showGeneratedContent;
 
-  const overallVibe = showOverallVibe ? insights?.overall_vibe : null;
-
   return (
     <View className="gap-5 rounded-md bg-surface pb-2">
       {/* Review Insights heading and recent-review context */}
       {showSectionHeader && (
-        <ReviewInsightsHeader
-          recentCount={recentCount}
-          overallVibe={overallVibe}
-        />
-      )}
-
-      {/* Preserve the overall vibe when generated content has no heading. */}
-      {!showSectionHeader && overallVibe && (
-        <View className="self-start">
-          <ReviewVibeBadge vibe={overallVibe} testID="overall-review-vibe" />
-        </View>
+        <ReviewInsightsHeader recentCount={recentCount} />
       )}
 
       {/* Loading, error, and unavailable states */}

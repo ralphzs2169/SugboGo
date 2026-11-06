@@ -18,6 +18,7 @@ from apps.reviews.services.review_moderation_consistency_service import (
     ReviewModerationConsistencyService,
 )
 from apps.users.services.reputation_service import ReputationService
+from .moderation_metrics_service import filter_aging_cases
 from apps.notifications.services.notification_event_service import (
     NotificationEventService,
 )
@@ -76,9 +77,17 @@ class ManageReviewDisputeService:
         review_id=None,
         ordering=None,
         search=None,
+        aging=False,
     ):
         """List moderation cases with attempt numbers stable after source deletion."""
         queryset = ManageReviewDisputeService._detail_queryset()
+        if aging:
+            queryset = filter_aging_cases(
+                queryset.filter(
+                    MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+                ),
+                "disputes",
+            )
 
         earlier_attempts = (
             MerchantReviewDispute.objects

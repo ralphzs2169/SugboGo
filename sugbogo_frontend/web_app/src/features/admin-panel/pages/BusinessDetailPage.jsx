@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
@@ -22,27 +22,9 @@ import BusinessApplicationSummary from "../businesses/components/business-detail
 import BusinessAdministrativeHistory from "../businesses/components/business-detail/BusinessAdministrativeHistory";
 import BusinessDetailContextBar from "../businesses/components/business-detail/BusinessDetailContextBar";
 
-const BusinessDetailPreview = import.meta.env.DEV
-  ? lazy(() =>
-      import("../businesses/components/business-detail/BusinessDetailPreview"),
-    )
-  : null;
-
 /** Scope local dialogs and insight observation to the business route's ownership. */
 export default function BusinessDetailPage() {
   const { businessId } = useParams();
-  if (BusinessDetailPreview) {
-    return (
-      <Suspense fallback={<BusinessDetailSkeleton />}>
-        <BusinessDetailPreview
-          key={businessId}
-          renderLive={() => (
-            <BusinessDetailContent key={businessId} businessId={businessId} />
-          )}
-        />
-      </Suspense>
-    );
-  }
   return <BusinessDetailContent key={businessId} businessId={businessId} />;
 }
 

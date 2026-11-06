@@ -1,13 +1,20 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.admin_operations.system_configuration.models import (
     AnalyticsPolicyConfiguration,
 )
-from apps.reviews.models import BusinessReviewSummary, Review
+from apps.reviews.models import (
+    BusinessReviewSummary,
+    BusinessSentimentPolicy,
+    Review,
+    ReviewRatingResult,
+)
 from apps.reviews.services.business_review_summary_service import (
     BusinessReviewSummaryService,
 )
@@ -159,3 +166,53 @@ class SentimentCompletionViewTests(SummaryFixtureMixin, APITestCase):
         self.assertTrue(
             history.data["data"]["items"][0]["sentiment_aggregate_included"],
         )
+
+    def test_all_time_rating_completion_includes_exclusions_and_rejects_stale_inputs(self):
+        """Expose exact-text active projections independently of recent-summary inclusion."""
+        BusinessSentimentPolicy.objects.create(
+            BUSN_ID=self.business,
+            BSPO_MODE=BusinessSentimentPolicy.Mode.GEMINI,
+            BSPO_MODEL="gemini-test",
+            BSPO_VERSION="test-version",
+        )
+        Review.objects.filter(pk=self.review.pk).update(
+            REVW_CREATED_AT=timezone.now() - timedelta(days=40),
+            REVW_SENTIMENT_SCORE=None,
+            REVW_SENTIMENT_LABEL=None,
+        )
+        result = ReviewRatingResult.objects.create(
+            REVW_ID=self.review,
+            RRSR_SOURCE_TEXT=self.review.REVW_TEXT,
+            RRSR_SCORE=None,
+            RRSR_LABEL="neutral",
+            RRSR_IS_ELIGIBLE=False,
+            RRSR_IS_VALID=True,
+            RRSR_SCORING_VERSION="test-version",
+        )
+        completed = self.client.get(self.url).data["data"]["user_review"]
+        self.assertTrue(completed["rating_sentiment_complete"])
+        self.assertFalse(completed["sentiment_aggregate_included"])
+        self.assertIsNone(completed["sentiment_score"])
+        history = self.client.get("/api/reviews/mine/")
+        self.assertTrue(
+            history.data["data"]["items"][0]["rating_sentiment_complete"],
+        )
+
+        for changes in (
+            {"RRSR_SOURCE_TEXT": "Previous review text"},
+            {"RRSR_SCORING_VERSION": "previous-version"},
+            {"RRSR_IS_VALID": False},
+        ):
+            with self.subTest(changes=changes):
+                ReviewRatingResult.objects.filter(pk=result.pk).update(**changes)
+                pending = self.client.get(self.url).data["data"]["user_review"]
+                self.assertFalse(pending["rating_sentiment_complete"])
+                result.save()
+
+    def test_rating_completion_is_author_only_and_legacy_is_not_opted_in(self):
+        """Keep legacy behavior and public review payloads outside Gemini observation."""
+        own = self.client.get(self.url).data["data"]["user_review"]
+        self.assertIsNone(own["rating_sentiment_complete"])
+        self.client.force_authenticate(self.business.USER_ID)
+        public = self.client.get(self.url).data["data"]["reviews"][0]
+        self.assertNotIn("rating_sentiment_complete", public)

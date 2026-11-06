@@ -4,12 +4,14 @@ from apps.business.serializers.display_cover_photo import BusinessDisplayCoverPh
 
 from rest_framework import serializers
 
+from .moderation_metrics_serializers import ModerationAgingFilterSerializer
+
 from apps.business.models import BusinessVouch
 from apps.business.services.vouch_service import VouchService
 from apps.reviews.serializers.review_serializers import ReviewAuthorResponseSerializer
 
 
-class SuspiciousVouchFilterSerializer(serializers.Serializer):
+class SuspiciousVouchFilterSerializer(ModerationAgingFilterSerializer):
     """Validates search and ordering using existing investigation conventions."""
 
     search = serializers.CharField(

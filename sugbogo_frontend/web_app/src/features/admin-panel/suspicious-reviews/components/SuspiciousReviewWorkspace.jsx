@@ -18,6 +18,7 @@ const PAGE_SIZE = 10;
 export default function SuspiciousReviewWorkspace() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = Number(searchParams.get("suspicious_id")) || null;
+  const aging = searchParams.get("queue_scope") === "aging";
   const [search, setSearch] = useState("");
   const [signal, setSignal] = useState("");
   const [ordering, setOrdering] = useState("newest");
@@ -30,7 +31,8 @@ export default function SuspiciousReviewWorkspace() {
     search: debouncedSearch,
     signal: signal || undefined,
     ordering,
-  }), [page, debouncedSearch, signal, ordering]);
+    ...(aging ? { aging: true } : {}),
+  }), [page, debouncedSearch, signal, ordering, aging]);
   const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useQuery({
     queryKey: ["admin", "suspicious-reviews", "list", params],
     queryFn: () => fetchSuspiciousReviews(params),
@@ -111,7 +113,7 @@ export default function SuspiciousReviewWorkspace() {
           onSignalChange={(value) => changeFilter(setSignal, value)}
           onOrderingChange={(value) => changeFilter(setOrdering, value)}
         />
-        <div aria-busy={isLoading || isFetching} className="lg:max-h-[calc(100vh-360px)] lg:overflow-y-auto">
+        <div aria-busy={isLoading || isFetching} className="themed-scrollbar lg:max-h-[calc(100vh-360px)] lg:overflow-y-auto">
           {isLoading || isPlaceholderData ? (
             <ModerationQueueSkeleton label="Loading suspicious reviews" />
           ) : error ? (

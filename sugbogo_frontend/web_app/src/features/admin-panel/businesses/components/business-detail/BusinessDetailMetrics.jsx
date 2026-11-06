@@ -1,4 +1,4 @@
-import { Bookmark, Eye, Info, MessageSquare, ShieldCheck } from "lucide-react";
+import { Bookmark, Eye, Heart, Info, MessageSquare } from "lucide-react";
 import MetricCard from "@/features/admin-panel/components/MetricCard";
 import Tooltip from "@/shared/components/actions/Tooltip";
 import SpecialtyTagChip, { colorClasses } from "@/shared/components/SpecialtyTagChip";
@@ -22,7 +22,7 @@ export default function BusinessDetailMetrics({ business, visits }) {
         <MetricCard
           title="Current specialty vouches"
           wrapTitle
-          icon={ShieldCheck}
+          icon={Heart}
           value={
             <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)] items-center gap-3 @max-[260px]:grid-cols-1">
               <div className="min-w-0">

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FileText, Tag } from "lucide-react";
+import { FileText, List, Tag } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import FilterMenu from "@/features/admin-panel/components/data-table/FilterMenu";
@@ -18,6 +18,7 @@ import useBusinessUpdateRequests from "../business-update-requests/hooks/useBusi
 import useCombinedUpdateRequests from "../business-update-requests/hooks/useCombinedUpdateRequests";
 import useClassificationUpdateRequests from "../business-update-requests/hooks/useClassificationUpdateRequests";
 import useLocationUpdateRequests from "../business-update-requests/hooks/useLocationUpdateRequests";
+import UpdateRequestMetrics from "../business-update-requests/components/UpdateRequestMetrics";
 
 const VALID_STATUSES = new Set(UPDATE_REQUEST_STATUS_TABS.map((tab) => tab.id));
 const VALID_TYPES = new Set([
@@ -45,6 +46,11 @@ export default function UpdateRequestsPage() {
   const page =
     Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pagination = { pageIndex: page - 1, pageSize: 10 };
+  const requestedView = searchParams.get("queue_view");
+  const queueView = ["aging", "resolved_today"].includes(requestedView)
+    ? requestedView
+    : undefined;
+  const metricScope = queueView ? { queue_view: queueView } : {};
 
   const selectedBusiness = Number(searchParams.get("business_id"));
   const businessId = Number.isSafeInteger(selectedBusiness) && selectedBusiness > 0
@@ -57,6 +63,7 @@ export default function UpdateRequestsPage() {
     status: status === "all" ? undefined : status,
     page: pagination.pageIndex + 1,
     page_size: pagination.pageSize,
+    ...metricScope,
   };
   const nameQuery = useBusinessUpdateRequests(filters, {
     enabled: requestType === "business_name" && !debouncedGlobalFilter,
@@ -77,6 +84,7 @@ export default function UpdateRequestsPage() {
       pageSize: pagination.pageSize,
       search: debouncedGlobalFilter,
       businessId,
+      queueView,
     },
     { enabled: useCombinedQueue },
   );
@@ -105,6 +113,7 @@ export default function UpdateRequestsPage() {
   function selectRequestType(nextType) {
     setSearchParams({
       ...businessScope,
+      ...metricScope,
       type: nextType || "all",
       status,
       search: globalFilter,
@@ -113,7 +122,7 @@ export default function UpdateRequestsPage() {
 
   function changeSearch(value) {
     setGlobalFilter(value);
-    setSearchParams({ ...businessScope, type: requestType, status, search: value });
+    setSearchParams({ ...businessScope, ...metricScope, type: requestType, status, search: value });
   }
 
   function resetFilters() {
@@ -124,11 +133,31 @@ export default function UpdateRequestsPage() {
   function changePagination(nextPagination) {
     setSearchParams({
       ...businessScope,
+      ...metricScope,
       type: requestType,
       status,
       search: globalFilter,
       page: String(nextPagination.pageIndex + 1),
     });
+  }
+
+  function filterMetricQueue(view) {
+    setGlobalFilter("");
+    setSearchParams({
+      ...businessScope,
+      type: requestType,
+      status: view === "resolved_today" ? "all" : "pending",
+      ...(view === "pending" ? {} : { queue_view: view }),
+    });
+  }
+
+  function openRequest(request) {
+    const base = "/admin-panel/businesses/update-requests";
+    if (request.request_type === "business_name") {
+      navigate(`${base}/${request.id}`);
+    } else {
+      navigate(`${base}/${request.request_type}/${request.id}`);
+    }
   }
 
   const emptyLabel =
@@ -160,6 +189,30 @@ export default function UpdateRequestsPage() {
             }}>Show all businesses</button>
         </div>
       )}
+      <UpdateRequestMetrics
+        requestType={requestType}
+        typeLabel={UPDATE_REQUEST_TYPE_OPTIONS.find((type) => type.id === requestType)?.label ?? "All request types"}
+        businessId={businessId}
+        onFilterQueue={filterMetricQueue}
+        onOpenRequest={openRequest}
+      />
+
+      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+        <List aria-hidden="true" className="h-4 w-4 shrink-0" />
+        Update Request Queue
+      </h2>
+      {queueView && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+          <span>{queueView === "aging" ? "Aging Requests: 48+ elapsed hours pending" : "Resolved Today: Approved or rejected · PHT"}</span>
+          <button
+            type="button"
+            onClick={() => filterMetricQueue("pending")}
+            className="cursor-pointer rounded-md px-2 py-1 font-medium text-text-primary hover:bg-sidebar-active focus-visible:outline-2 focus-visible:outline-info"
+          >
+            Clear Metric Filter
+          </button>
+        </div>
+      )}
       {/* Request queue */}
       {query.error && query.hasData && (
         <div
@@ -178,13 +231,7 @@ export default function UpdateRequestsPage() {
       )}
       <DataTable
         data={query.requests}
-        columns={businessUpdateRequestColumns((request) =>
-          navigate(
-            request.request_type === "business_name"
-              ? `/admin-panel/businesses/update-requests/${request.id}`
-              : `/admin-panel/businesses/update-requests/${request.request_type}/${request.id}`,
-          ),
-        )}
+        columns={businessUpdateRequestColumns(openRequest)}
         isLoading={query.isLoading}
         isFetching={query.isFetching}
         error={query.hasData ? null : query.error}
@@ -196,7 +243,7 @@ export default function UpdateRequestsPage() {
         onPaginationChange={changePagination}
         onGlobalFilterChange={changeSearch}
         hasActiveFilters={
-          status !== "all" || requestType !== "all" || Boolean(globalFilter)
+          status !== "all" || requestType !== "all" || Boolean(globalFilter) || Boolean(queueView)
         }
         onResetFilters={resetFilters}
         isSearching={globalFilter !== debouncedGlobalFilter}
@@ -239,6 +286,7 @@ export default function UpdateRequestsPage() {
           ),
         }}
         config={{
+          scrollbarClassName: "themed-scrollbar",
           searchPlaceholder: "Search update requests...",
           emptyState: {
             title: emptyLabel,

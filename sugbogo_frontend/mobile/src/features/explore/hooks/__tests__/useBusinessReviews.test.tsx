@@ -483,13 +483,13 @@ describe("useBusinessReviews", () => {
       startedAt: expect.any(Number),
     });
     expect(mockStartGeneratedInsightsSync).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalledWith({
+    expect(invalidate).toHaveBeenCalledWith({
       queryKey: DISCOVERY_FEED_QUERY_KEY,
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: COMMUNITY_REVIEWS_QUERY_KEY,
     });
-    expect(invalidate).not.toHaveBeenCalledWith({
+    expect(invalidate).toHaveBeenCalledWith({
       queryKey: EXPLORE_COLLECTIONS_QUERY_KEY,
     });
     unmount();

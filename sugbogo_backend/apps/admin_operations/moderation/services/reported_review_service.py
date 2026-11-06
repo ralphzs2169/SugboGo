@@ -7,6 +7,7 @@ from django.db.models.functions import Concat
 from rest_framework.exceptions import NotFound
 
 from apps.reviews.models import Review, ReviewPhoto, ReviewReply, ReviewReport
+from .moderation_metrics_service import filter_aging_cases
 
 
 class ReportedReviewService:
@@ -89,6 +90,11 @@ class ReportedReviewService:
     def list_reviews(filters):
         """Filter and order review groups before pagination."""
         queryset = ReportedReviewService.queryset()
+        if filters.get("aging"):
+            queryset = filter_aging_cases(
+                queryset,
+                "reported",
+            )
         status = filters.get("status")
         if status:
             queryset = queryset.filter(REVW_STATUS=status)

@@ -21,6 +21,7 @@ const PAGE_SIZE = 10;
 export default function UnderReviewWorkspace() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = Number(searchParams.get("under_review_id")) || null;
+  const aging = searchParams.get("queue_scope") === "aging";
   const [filters, setFilters] = useState({
     search: "",
     status: "pending",
@@ -42,6 +43,7 @@ export default function UnderReviewWorkspace() {
       reason: filters.reason || undefined,
       content: filters.content || undefined,
       ordering: filters.ordering,
+      ...(aging ? { aging: true } : {}),
     }),
     [
       page,
@@ -50,6 +52,7 @@ export default function UnderReviewWorkspace() {
       filters.reason,
       filters.content,
       filters.ordering,
+      aging,
     ],
   );
   const {
@@ -156,7 +159,7 @@ export default function UnderReviewWorkspace() {
             />
           ) : reviews.length ? (
             <>
-              <div className="overflow-y-auto lg:max-h-[calc(100vh-380px)]">
+              <div className="themed-scrollbar overflow-y-auto lg:max-h-[calc(100vh-380px)]">
                 {reviews.map((review) => (
                   <QueueItem
                     key={review.id}

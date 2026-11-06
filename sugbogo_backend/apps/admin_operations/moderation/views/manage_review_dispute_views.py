@@ -13,6 +13,9 @@ from apps.admin_operations.moderation.services.manage_review_dispute_service imp
 )
 from apps.authentication.permissions import HasRole
 from apps.users.models import User
+from apps.admin_operations.moderation.serializers.moderation_metrics_serializers import (
+    ModerationAgingFilterSerializer,
+)
 
 
 class AdminReviewDisputeListView(APIView):
@@ -26,6 +29,8 @@ class AdminReviewDisputeListView(APIView):
     def get(self, request):
         """Retrieve a paginated list of review disputes."""
 
+        filters = ModerationAgingFilterSerializer(data=request.query_params.dict())
+        filters.is_valid(raise_exception=True)
         disputes = ManageReviewDisputeService.list_disputes(
             status=request.query_params.get("status"),
             reason=request.query_params.get("reason"),
@@ -33,6 +38,7 @@ class AdminReviewDisputeListView(APIView):
             review_id=request.query_params.get("review"),
             ordering=request.query_params.get("ordering"),
             search=request.query_params.get("search"),
+            aging=filters.validated_data["aging"],
         )
 
         paginator = StandardPagination()

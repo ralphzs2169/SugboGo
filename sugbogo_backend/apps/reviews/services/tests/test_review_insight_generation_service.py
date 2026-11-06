@@ -284,6 +284,13 @@ class ReviewInsightGenerationServiceTests(SummaryFixtureMixin, TransactionTestCa
             (TimeoutError(), "provider_unavailable"),
             (RuntimeError("provider failure"), "failed"),
             ("not JSON", "invalid_response"),
+            (
+                json.dumps({
+                    **json.loads(self.response()),
+                    "narrative": "Guests praise friendly service [82, 83]",
+                }),
+                "invalid_response",
+            ),
         ]:
             with self.subTest(outcome=outcome):
                 claim = self.request_claim()

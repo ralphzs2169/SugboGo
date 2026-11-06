@@ -112,7 +112,7 @@ export default function UnderReviewDetail({
   return (
     <div className="flex min-h-[640px] flex-col">
       <div
-        className="min-h-0 flex-1 overflow-y-auto lg:max-h-[calc(100vh-250px)]"
+        className="min-h-0 flex-1 overflow-y-auto lg:max-h-[calc(100vh-250px)] themed-scrollbar"
         ref={scrollContainerRef}
       >
         <ReviewStickyContextBar review={review} visible={showContextBar} />

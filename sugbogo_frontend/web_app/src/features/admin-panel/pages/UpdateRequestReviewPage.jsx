@@ -11,6 +11,7 @@ import useNavigateBack from "@/shared/hooks/useNavigateBack";
 import ApproveUpdateRequestModal from "../business-update-requests/components/ApproveUpdateRequestModal";
 import RejectUpdateRequestModal from "../business-update-requests/components/RejectUpdateRequestModal";
 import BusinessNameReviewCase from "../business-update-requests/components/BusinessNameReviewCase";
+import UpdateRequestDetailSkeleton from "../business-update-requests/components/UpdateRequestDetailSkeleton";
 
 import useBusinessUpdateRequestDecisions from "../business-update-requests/hooks/useBusinessUpdateRequestDecisions";
 import useBusinessUpdateRequestDetail from "../business-update-requests/hooks/useBusinessUpdateRequestDetail";
@@ -188,7 +189,7 @@ export default function UpdateRequestReviewPage() {
         hasData={Boolean(request)}
         onRetry={refetch}
         loadingContent={
-          <div className="h-80 animate-pulse rounded-xl bg-surface-muted" />
+          <UpdateRequestDetailSkeleton requestType="business_name" />
         }
         errorTitle="Request unavailable"
         errorMessage="The update request could not be loaded. Please try again."

@@ -38,6 +38,7 @@ export default function ReviewDisputeWorkspace() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = Number(searchParams.get("dispute_id")) || null;
+  const aging = searchParams.get("queue_scope") === "aging";
   const requestedStatus = searchParams.get("status");
   const initialStatus = requestedStatus === "all"
     ? ""
@@ -62,7 +63,8 @@ export default function ReviewDisputeWorkspace() {
     status: filters.status || undefined,
     reason: filters.reason || undefined,
     ordering: filters.ordering,
-  }), [page, debouncedSearch, filters.status, filters.reason, filters.ordering]);
+    ...(aging ? { aging: true } : {}),
+  }), [page, debouncedSearch, filters.status, filters.reason, filters.ordering, aging]);
   const { disputes, totalItems, pageCount, isLoading, isFetching, error, refetch } = useReviewDisputes(params);
   const { uphold, dismiss, isUpholding, isDismissing } = useReviewDisputeMutations();
   const decisionPending = isUpholding || isDismissing;
@@ -249,7 +251,7 @@ export default function ReviewDisputeWorkspace() {
           )}
         </div>
         <DisputeQueueFilters filters={filters} onChange={changeFilter} />
-        <div aria-busy={isLoading || isFetching} className="lg:max-h-[calc(100vh-360px)] lg:overflow-y-auto">
+        <div aria-busy={isLoading || isFetching} className="themed-scrollbar lg:max-h-[calc(100vh-360px)] lg:overflow-y-auto">
           {isLoading ? (
             <ModerationQueueSkeleton label="Loading review disputes" />
           ) : error ? (

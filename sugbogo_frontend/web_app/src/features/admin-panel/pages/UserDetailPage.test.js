@@ -444,37 +444,12 @@ test("suspension and reactivation still refresh account state and recorded histo
   ]);
 });
 
-test("development preview fills real components without live requests or account writes", async () => {
+test("User Details loads live data without development preview controls", async () => {
   await renderPage();
-  reads.length = 0;
-  const select = container.querySelector("#user-detail-preview");
-  assert.ok(select);
-  async function choose(mode) {
-    await act(async () => {
-      select.value = mode;
-      select.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    });
-  }
-  await choose("merchant");
-  assert.match(section("Account information").textContent, /Mara Villanueva/);
-  assert.match(section("Recent activity").textContent, /Traditional Cebuano dishes/);
-  assert.match(section("Administrative history").textContent, /report was investigated/);
-  const actions = section("Account actions");
-  assert.ok(actions.closest("fieldset").disabled);
-  await act(async () => button("Suspend User", actions).click());
+  assert.equal(container.querySelector("#user-detail-preview"), null);
+  assert.match(section("Account information").textContent, /Mara Merchant/);
+  assert.deepEqual(reads.map((read) => read.resource).sort(), ["activity", "detail", "history"]);
+  assert.ok(section("Activity summary").querySelector("svg.lucide-heart"));
+  assert.ok(section("Recent activity").querySelector("svg.lucide-heart"));
   assert.equal(posts.length, 0);
-  assert.equal(container.querySelector('[role="dialog"]'), null);
-  await act(async () => section("Recent activity").querySelector("a").click());
-  assert.match(section("Account information").textContent, /Mara Villanueva/);
-  for (const mode of ["explorer", "pending_admin", "suspended", "empty", "loading", "refresh_failed"]) {
-    await choose(mode);
-    if (mode === "pending_admin") assert.match(section("Account actions").textContent, /Resend Invitation/);
-    if (mode === "empty") assert.match(section("Recent activity").textContent, /No recent contributions/);
-    if (mode === "refresh_failed") assert.equal(container.querySelectorAll('[role="alert"]').length, 3);
-  }
-  assert.equal(reads.length, 0);
-  assert.equal(posts.length, 0);
-  await choose("live");
-  await until(() => client.isFetching() === 0 && section("Account information").textContent.includes("Mara Merchant"));
-  assert.equal(reads.length, 3);
 });

@@ -332,6 +332,71 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
             with self.subTest(value=value), self.assertRaises(InvalidKeywordResponse):
                 ReviewKeywordService._parse(json.dumps(value), selected)
 
+    def test_parser_rejects_inline_review_references(self):
+        """Keep clear numeric citations out of prose without changing structured evidence."""
+        selected = [
+            (review.pk, review.REVW_TEXT)
+            for review in self.reviews
+        ]
+        payload = json.loads(self.response())
+        for reference in (
+            "[82, 83, 84, 121, 129]",
+            "[82]",
+            "[82][83]",
+            "[82–84]",
+            "【82, 83】",
+            "Review IDs: 82, 83",
+            "review_ids: 82",
+            "Review #82",
+        ):
+            with self.subTest(reference=reference):
+                payload["narrative"] = f"Guests praised the service {reference}"
+                with self.assertRaisesRegex(
+                    InvalidKeywordResponse,
+                    "Narrative contains review references",
+                ):
+                    ReviewKeywordService._parse(
+                        json.dumps(payload),
+                        selected,
+                    )
+
+    def test_parser_preserves_natural_numbers_and_structured_review_ids(self):
+        """Prices, durations, ratings and nonnumeric brackets remain valid prose."""
+        selected = [
+            (review.pk, review.REVW_TEXT)
+            for review in self.reviews
+        ]
+        payload = json.loads(self.response())
+        for narrative in (
+            "Guests paid ₱150 for 2 meals and waited 15–20 minutes.",
+            "Guests described 24/7 opening and rated the visit 4.5/5.",
+            "The menu lists sizes [small, medium, large] and portions for 2.",
+        ):
+            with self.subTest(narrative=narrative):
+                payload["narrative"] = narrative
+                result = ReviewKeywordService._parse(
+                    json.dumps(payload),
+                    selected,
+                )
+                self.assertEqual(result["narrative"], narrative)
+                self.assertEqual(
+                    result["references"]["narrative_review_ids"],
+                    payload["narrative_review_ids"],
+                )
+
+    def test_inline_references_follow_existing_invalid_generation_failure(self):
+        """Malformed generated prose is not persisted as a ready summary."""
+        payload = json.loads(self.response())
+        payload["narrative"] += " [82, 83]"
+        self.provider.return_value = json.dumps(payload)
+        self.assertEqual(self.refresh(), "failed")
+        self.summary.refresh_from_db()
+        self.assertEqual(self.summary.BRSU_NARRATIVE, "")
+        self.assertEqual(
+            self.summary.BRSU_GENERATION_STATE,
+            BusinessReviewSummary.GenerationState.OUTDATED,
+        )
+
     def test_transient_failure_is_marked_retryable_and_propagated(self):
         self.provider.side_effect = RetryableKeywordError("unavailable")
         with self.assertRaises(RetryableKeywordError):
@@ -473,3 +538,30 @@ class ReviewKeywordServiceTests(SummaryFixtureMixin, TestCase):
         self.create_review(other_business)
 
         self.assertEqual(self.refresh(), "unchanged")
+
+
+@override_settings(GEMINI_API_KEY="test-only-key", GEMINI_KEYWORD_MODEL="test-model")
+class ReviewNarrativeGenerationContractTests(TestCase):
+    """Keep inline citations out of generated prose while retaining structured evidence."""
+
+    def test_prompt_keeps_references_in_the_structured_field(self):
+        with patch("google.genai.Client") as client:
+            provider = (
+                client.return_value.__enter__.return_value
+                .models.generate_content
+            )
+            provider.return_value.text = "{}"
+            ReviewKeywordService._generate([
+                (82, "The service was welcoming."),
+            ])
+
+        configuration = provider.call_args.kwargs["config"]
+        instruction = configuration.system_instruction
+        self.assertIn("Do not include review IDs", instruction)
+        self.assertIn("numeric citation lists", instruction)
+        self.assertIn("bracketed evidence references", instruction)
+        self.assertIn("structured narrative_review_ids field", instruction)
+        self.assertIn(
+            "narrative_review_ids",
+            configuration.response_json_schema["required"],
+        )

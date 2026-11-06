@@ -17,7 +17,7 @@ const SOURCES = {
 
 /** Combines the existing request queues for accurate cross-type search and pagination. */
 export default function useCombinedUpdateRequests(
-  { status, requestType, page, pageSize, search, businessId },
+  { status, requestType, page, pageSize, search, businessId, queueView },
   { enabled = true } = {},
 ) {
   const query = useQuery({
@@ -28,6 +28,7 @@ export default function useCombinedUpdateRequests(
       pageSize,
       search,
       businessId,
+      ...(queueView ? { queueView } : {}),
     }),
     enabled,
     queryFn: async () => {
@@ -36,7 +37,15 @@ export default function useCombinedUpdateRequests(
       const fetchAll = Boolean(search.trim());
       const sources = await Promise.all(
         types.map((type) =>
-          fetchSourceRequests(SOURCES[type], status, page, pageSize, fetchAll, businessId),
+          fetchSourceRequests(
+            SOURCES[type],
+            status,
+            page,
+            pageSize,
+            fetchAll,
+            businessId,
+            queueView,
+          ),
         ),
       );
       return combineUpdateRequests(sources, { search, page, pageSize });

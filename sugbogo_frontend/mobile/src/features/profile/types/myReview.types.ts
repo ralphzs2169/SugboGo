@@ -11,6 +11,7 @@ export type MyReview = Pick<
   | "non_public_reason"
   | "has_pending_merchant_dispute"
   | "sentiment_aggregate_included"
+  | "rating_sentiment_complete"
   | "created_at"
   | "updated_at"
   | "photos"

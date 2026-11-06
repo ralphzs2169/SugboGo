@@ -27,6 +27,7 @@ export default function ReportedReviewWorkspace() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = Number(searchParams.get("reported_id")) || null;
+  const aging = searchParams.get("queue_scope") === "aging";
   const [search, setSearch] = useState("");
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState("");
@@ -42,7 +43,8 @@ export default function ReportedReviewWorkspace() {
     reason: reason || undefined,
     status: status || undefined,
     ordering,
-  }), [page, debouncedSearch, reason, status, ordering]);
+    ...(aging ? { aging: true } : {}),
+  }), [page, debouncedSearch, reason, status, ordering, aging]);
   const listKey = ["admin", "reported-reviews", "list", params];
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: listKey,
@@ -59,6 +61,7 @@ export default function ReportedReviewWorkspace() {
     onSuccess: async () => {
       notifyBusinessChanged(null);
       queryClient.invalidateQueries({ queryKey: ["admin", "moderation-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "moderation-summary"] });
       await invalidateDashboardDecision(queryClient);
       setDecisionTarget(null);
       setNotes("");
@@ -142,7 +145,7 @@ export default function ReportedReviewWorkspace() {
           onStatusChange={(value) => changeFilter(setStatus, value)}
           onOrderingChange={(value) => changeFilter(setOrdering, value)}
         />
-        <div aria-busy={isLoading || isFetching} className="lg:max-h-[calc(100vh-360px)] lg:overflow-y-auto">
+        <div aria-busy={isLoading || isFetching} className="themed-scrollbar lg:max-h-[calc(100vh-360px)] lg:overflow-y-auto">
           {isLoading ? (
             <ModerationQueueSkeleton label="Loading reported reviews" />
           ) : error ? (

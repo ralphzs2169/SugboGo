@@ -217,4 +217,48 @@ describe("ReviewFiltersSection", () => {
     expect(screen.queryByText(/eligible|at least|five|30 days/i)).toBeNull();
     expect(screen.getByText("Filter & sort")).toBeTruthy();
   });
+
+  it("shows regeneration above filters when publication restores the threshold", async () => {
+    const props = {
+      insightsLoading: false,
+      insightsError: false,
+      onRetryInsights: jest.fn(),
+      filters: DEFAULT_BUSINESS_REVIEW_FILTERS,
+      onChange: jest.fn(),
+      onClear: jest.fn(),
+      onOpenFilter: jest.fn(),
+    };
+    const insufficient: BusinessReviewInsights = {
+      ...insights,
+      state: "insufficient_reviews",
+      content_available: false,
+      narrative: null,
+      eligible_review_count: 4,
+      minimum_eligible_review_count: 5,
+    };
+    const screen = await render(
+      <ReviewFiltersSection {...props} insights={insufficient} />,
+    );
+    expect(screen.getByText("More recent feedback needed")).toBeTruthy();
+    expect(screen.queryByText(/refresh shortly/)).toBeNull();
+    await screen.rerender(
+      <ReviewFiltersSection
+        {...props}
+        insights={{ ...insufficient, eligible_review_count: 5 }}
+        regeneration={{
+          status: "scheduled",
+          is_outstanding: true,
+          requested_revision: 3,
+          completed_revision: 2,
+          run_after: null,
+          content_available: false,
+          content_is_current: false,
+        }}
+      />,
+    );
+    expect(screen.getByText(/refresh shortly/)).toBeTruthy();
+    expect(screen.queryByText("More recent feedback needed")).toBeNull();
+    expect(screen.queryByText(insights.narrative!)).toBeNull();
+    expect(screen.getByText("Filter & sort")).toBeTruthy();
+  });
 });

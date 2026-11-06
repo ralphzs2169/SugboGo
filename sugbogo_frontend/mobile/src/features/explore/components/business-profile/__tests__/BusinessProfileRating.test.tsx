@@ -33,6 +33,15 @@ const stats = {
 beforeEach(() => onlineManager.setOnline(true));
 afterEach(() => onlineManager.setOnline(true));
 
+it("keeps review counts without a vibe label or sentiment announcement", async () => {
+  const screen = await render(
+    <BusinessProfileQuickInfo {...stats} overallVibe="mostly_positive" />,
+  );
+  expect(screen.getByText("28 reviews")).toBeTruthy();
+  expect(screen.queryByText("Mostly positive")).toBeNull();
+  expect(screen.queryByLabelText(/Customer feedback/)).toBeNull();
+});
+
 it("places the rating beside the identity and keeps metadata free of duplicate review counts", async () => {
   const view = await render(
     <ExploreBusinessHero
