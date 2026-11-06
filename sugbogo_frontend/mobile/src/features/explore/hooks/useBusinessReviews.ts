@@ -87,6 +87,7 @@ function useReviewMutation<TVariables, TResult>(
   const queryClient = useQueryClient();
   const {
     observeReviewSubmission,
+    observeEditedReviewRating,
     startGeneratedInsightsSync,
     startSentimentSync,
   } = useReviewDerivedDataSyncActions();
@@ -385,6 +386,11 @@ function useReviewMutation<TVariables, TResult>(
         (result as BusinessReview).status === "published" &&
         (variables as { textChanged: boolean }).textChanged
       ) {
+        if (
+          typeof (result as BusinessReview).rating_sentiment_complete === "boolean"
+        ) {
+          observeEditedReviewRating(result as BusinessReview);
+        }
         startSentimentSync({
           reviewId: (variables as { reviewId: number }).reviewId,
           reviewText: (result as BusinessReview).text,

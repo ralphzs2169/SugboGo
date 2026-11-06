@@ -290,12 +290,14 @@ async function continuePendingSynchronization(
 }
 
 type ReviewDerivedDataSyncActions = {
+  observeEditedReviewRating: (review: BusinessReview) => void;
   observeReviewSubmission: (reviewId: number) => void;
   startSentimentSync: (session: StartSentimentSync) => void;
   startGeneratedInsightsSync: (session: StartGeneratedInsightsSync) => void;
 };
 
 const NOOP_ACTIONS: ReviewDerivedDataSyncActions = {
+  observeEditedReviewRating: () => undefined,
   observeReviewSubmission: () => undefined,
   startSentimentSync: () => undefined,
   startGeneratedInsightsSync: () => undefined,
@@ -443,6 +445,8 @@ export function ReviewDerivedDataSyncProvider({
   });
   const [sentimentSession, setSentimentSession] =
     useState<SentimentSyncSession | null>(null);
+  const [editedRatingReview, setEditedRatingReview] =
+    useState<BusinessReview | null>(null);
   const [generatedSession, setGeneratedSession] =
     useState<GeneratedInsightsSyncSession | null>(null);
   const authorCheckingStartedAt = useRef(0);
@@ -513,6 +517,7 @@ export function ReviewDerivedDataSyncProvider({
       Boolean(
         checkingSubmission ||
         ratingPolling ||
+        editedRatingReview ||
         sentimentSession ||
         generatedSession ||
         (observeAuthorReview && needsAuthorCheck(cachedReview)),
@@ -526,7 +531,7 @@ export function ReviewDerivedDataSyncProvider({
       businessId &&
       authorized &&
       isFocused &&
-      (observeAuthorReview || sentimentSession || submission),
+      (observeAuthorReview || sentimentSession || editedRatingReview || submission),
     ),
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
@@ -540,6 +545,11 @@ export function ReviewDerivedDataSyncProvider({
       )
         return 5_000;
       if (sentimentSession) return POLL_INTERVAL_MS;
+      if (
+        editedRatingReview &&
+        Date.now() - authorCheckingStartedAt.current < AUTHOR_CHECK_TIMEOUT_MS
+      )
+        return 30_000;
       return observeAuthorReview &&
         needsAuthorCheck(query.state.data?.user_review) &&
         Date.now() - authorCheckingStartedAt.current < AUTHOR_CHECK_TIMEOUT_MS
@@ -720,6 +730,28 @@ export function ReviewDerivedDataSyncProvider({
     ],
   );
 
+  const observeEditedReviewRating = useCallback(
+    (review: BusinessReview) => {
+      if (
+        !mounted.current ||
+        !authorized ||
+        !ownsSession(ownerId!, ownerGeneration) ||
+        !queryClient.getQueryData<ExploreBusinessDetail>(
+          exploreBusinessDetailKey(businessId),
+        )?.sentiment_rating
+      )
+        return;
+      // Legacy responses do not opt into the Gemini completion observer.
+      if (typeof review.rating_sentiment_complete !== "boolean") {
+        setEditedRatingReview(null);
+        return;
+      }
+      authorCheckingStartedAt.current = Date.now();
+      setEditedRatingReview(review);
+    },
+    [authorized, businessId, ownerGeneration, ownerId, queryClient],
+  );
+
   const observeReviewSubmission = useCallback(
     (reviewId: number) => {
       if (authorized && ownsSession(ownerId!, ownerGeneration)) {
@@ -753,6 +785,55 @@ export function ReviewDerivedDataSyncProvider({
     },
     [authorized, ownerGeneration, ownerId],
   );
+
+  useEffect(() => {
+    if (
+      !authorized ||
+      !isFocused ||
+      !editedRatingReview ||
+      previewQuery.isError ||
+      !ownsSession(ownerId!, ownerGeneration)
+    )
+      return;
+    const review = previewQuery.data?.user_review;
+    if (
+      review?.id !== editedRatingReview.id ||
+      review.author?.id !== ownerId ||
+      edits[review.id] ||
+      review.status !== "published" ||
+      review.text !== editedRatingReview.text ||
+      Date.parse(review.updated_at) < Date.parse(editedRatingReview.updated_at) ||
+      review.rating_sentiment_complete !== true
+    )
+      return;
+    // All-time rating completion survives the recent-insight and short rating windows.
+    // Query data is the external completion signal for this observation.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEditedRatingReview(null);
+    void refreshAuthorReviewReads(queryClient, businessId, ownerId!).then(() => {
+      if (!ownsSession(ownerId!, ownerGeneration)) return;
+      const rating = queryClient.getQueryData<ExploreBusinessDetail>(
+        exploreBusinessDetailKey(businessId),
+      )?.sentiment_rating;
+      // Projection can finish before aggregation; give that work a fresh bounded window.
+      if (
+        rating?.automatic_updates_enabled &&
+        (rating.state === "pending" || rating.state === "unavailable")
+      )
+        beginBusinessRatingSync(queryClient, businessId, rating, false);
+    });
+  }, [
+    authorized,
+    businessId,
+    editedRatingReview,
+    edits,
+    isFocused,
+    ownerGeneration,
+    ownerId,
+    previewQuery.data,
+    previewQuery.isError,
+    queryClient,
+  ]);
 
   useEffect(() => {
     if (!authorized || !isFocused || !observeAuthorReview) return;
@@ -845,7 +926,12 @@ export function ReviewDerivedDataSyncProvider({
   ]);
 
   useEffect(() => {
-    if (!authorized || !isFocused || !observeAuthorReview) return;
+    if (
+      !authorized ||
+      !isFocused ||
+      (!observeAuthorReview && !editedRatingReview)
+    )
+      return;
     const recover = () => {
       authorCheckingStartedAt.current = Date.now();
       if (ownsSession(ownerId!, ownerGeneration))
@@ -864,6 +950,7 @@ export function ReviewDerivedDataSyncProvider({
     };
   }, [
     authorized,
+    editedRatingReview,
     isFocused,
     observeAuthorReview,
     ownerGeneration,
@@ -1124,11 +1211,17 @@ export function ReviewDerivedDataSyncProvider({
 
   const actions = useMemo(
     () => ({
+      observeEditedReviewRating,
       observeReviewSubmission,
       startSentimentSync,
       startGeneratedInsightsSync,
     }),
-    [observeReviewSubmission, startGeneratedInsightsSync, startSentimentSync],
+    [
+      observeEditedReviewRating,
+      observeReviewSubmission,
+      startGeneratedInsightsSync,
+      startSentimentSync,
+    ],
   );
 
   return (

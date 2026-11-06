@@ -22,6 +22,7 @@ from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.constants import MAX_REVIEW_PHOTOS
 from apps.reviews.models import (
     BusinessReviewSummary,
+    BusinessSentimentPolicy,
     Review,
     ReviewLike,
     ReviewMediaCleanup,
@@ -664,6 +665,13 @@ class ReviewService:
             .values("MRDSP_ID")[:1]
         )
 
+        current_rating_result = ReviewRatingResult.objects.filter(
+            REVW_ID=OuterRef("REVW_ID"),
+            RRSR_SOURCE_TEXT=OuterRef("REVW_TEXT"),
+            RRSR_SCORING_VERSION=OuterRef("BUSN_ID__sentiment_policy__BSPO_VERSION"),
+            RRSR_IS_VALID=True,
+        )
+
         return (
             BusinessReviewSummaryService.annotate_sentiment_source(
                 Review.objects.all(),
@@ -676,6 +684,18 @@ class ReviewService:
                 is_own_review=Exists(own_reviews),
                 has_reported=Exists(own_reports),
                 active_dispute_id=Subquery(active_disputes),
+                rating_sentiment_complete=models.Case(
+                    models.When(
+                        USER_ID=user,
+                        REVW_STATUS=Review.ReviewStatus.PUBLISHED,
+                        BUSN_ID__sentiment_policy__BSPO_MODE=(
+                            BusinessSentimentPolicy.Mode.GEMINI
+                        ),
+                        then=Exists(current_rating_result),
+                    ),
+                    default=models.Value(None),
+                    output_field=models.BooleanField(),
+                ),
             )
             .prefetch_related(
                 "photos",

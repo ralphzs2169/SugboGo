@@ -59,6 +59,8 @@ export type BusinessReview = {
   sentiment_score: number | null;
   /** Author-only proof that this classification is in the stored aggregate. */
   sentiment_aggregate_included?: boolean;
+  /** Author-only exact-text Gemini projection, including exclusions; null for legacy. */
+  rating_sentiment_complete?: boolean | null;
   is_liked: boolean;
   is_liked_by_owner: boolean;
   is_own_review: boolean;
