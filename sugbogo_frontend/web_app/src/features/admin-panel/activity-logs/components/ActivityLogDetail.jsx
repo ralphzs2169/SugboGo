@@ -4,7 +4,9 @@ import {
   STATE_LABELS,
 } from "../constants/activityLogOptions";
 import {
+  activityActionLabel,
   activityDetailEntries,
+  activityEntityLabel,
   activityLabel,
 } from "../utils/activityLogPresentation";
 import ActivityDate from "./ActivityDate";
@@ -71,7 +73,7 @@ export default function ActivityLogDetail({ activity }) {
     <div className="space-y-5">
       <DetailSection title="General Information">
         <Fields entries={[
-          ["Action", activityLabel(activity.occurrence)],
+          ["Action", activityActionLabel(activity)],
           ["Activity category", activityLabel(activity.category)],
           ["Module", activityLabel(activity.module)],
           ["Date & time", <ActivityDate key="time" value={activity.occurred_at} />],
@@ -89,7 +91,7 @@ export default function ActivityLogDetail({ activity }) {
       </DetailSection>
       <DetailSection title="Affected Record">
         <Fields entries={[
-          ["Target type", activityLabel(activity.target_type)],
+          ["Target type", activityEntityLabel(activity.target_type)],
           ["Target identifier", activity.target_id],
           ["Target label", activity.target_label],
         ]} />

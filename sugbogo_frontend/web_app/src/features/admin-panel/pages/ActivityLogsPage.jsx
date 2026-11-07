@@ -57,6 +57,10 @@ export default function ActivityLogsPage() {
           ariaLabel="Activity categories"
         />
       </div>
+      <p className="mb-4 text-xs text-text-secondary">
+        Categories describe the activity. An Explorer can submit a merchant application,
+        and a Merchant can review or save a business.
+      </p>
       <section
         role="tabpanel"
         id={`activity-categories-panel-${state.category}`}

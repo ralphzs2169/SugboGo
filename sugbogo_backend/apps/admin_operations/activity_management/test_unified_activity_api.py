@@ -501,6 +501,100 @@ class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
                 {"name", "role", "avatar_url", "avatar_key"},
             )
 
+    def test_resubmission_receipts_keep_separate_identity_time_and_merchant_category_for_explorers(self):
+        User.objects.filter(pk=self.merchant.pk).update(USER_ROLE=User.UserRole.EXPLORER)
+        receipts = [self.submission]
+        for number in (2, 3):
+            receipts.append(MerchantApplicationSubmission.objects.create(
+                MASUB_ID=7100 + number,
+                MAPP_ID=self.submission.MAPP_ID,
+                MASUB_SUBMISSION_NUMBER=number,
+                MASUB_SUBMITTED_AT=self.now + timedelta(hours=number),
+            ))
+        identities = []
+        timestamps = []
+        for page, receipt in enumerate(reversed(receipts), start=1):
+            response = self.client.get(self.url, {
+                "category": "merchant",
+                "action": "merchant_application_submitted",
+                "actor_id": self.merchant.pk,
+                "page": page,
+                "page_size": 1,
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["data"]["pagination"]["total_items"], 3)
+            event = response.data["data"]["items"][0]
+            identity = f"merchant_application_submission:{receipt.pk}:merchant_application_submitted"
+            self.assertEqual(event["id"], identity)
+            self.assertEqual(event["target_id"], str(self.submission.MAPP_ID_id))
+            self.assertEqual(event["provenance"]["submission_number"], receipt.MASUB_SUBMISSION_NUMBER)
+            self.assertEqual(parse_datetime(event["occurred_at"]), receipt.MASUB_SUBMITTED_AT)
+            self.assertEqual(event["category"], "merchant")
+            self.assertEqual(event["current_actor"]["role"], "explorer")
+            self.assertIsNone(event["actor_role_snapshot"])
+            self.assertIsNone(event["outcome"])
+            self.assertIsNone(event["new_state"])
+            detail = self.client.get(self.detail_url(identity))
+            self.assertEqual(detail.data["data"]["id"], identity)
+            self.assertEqual(detail.data["data"]["provenance"], event["provenance"])
+            identities.append(event["id"])
+            timestamps.append(event["occurred_at"])
+        self.assertEqual(len(set(identities)), 3)
+        self.assertEqual(len(set(timestamps)), 3)
+
+    def test_author_deletion_uses_only_retained_review_ids_and_preserves_explicit_targets(self):
+        User.objects.filter(pk=self.explorer.pk).update(USER_ROLE=User.UserRole.MERCHANT)
+        events = []
+        for review_id in (999, None, 0, True, "unavailable", {"private": "evidence"}):
+            events.append(AdminActivity.objects.create(
+                ACTOR_ID=self.explorer,
+                TARGET_USER_ID=self.explorer,
+                AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+                AACT_CONTEXT={
+                    "review_id": review_id,
+                    "business_id": self.business.pk,
+                    "moderation_notes": "private-evidence",
+                },
+            ))
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, {
+                "category": "explorer",
+                "module": "reviews",
+                "action": "review_deleted_by_author",
+            })
+        self.assertEqual(len(queries), 3)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 6)
+        rows = {
+            event["source_id"]: event
+            for event in response.data["data"]["items"]
+        }
+        valid = rows[str(events[0].pk)]
+        self.assertEqual(valid["target_type"], "review")
+        self.assertEqual(valid["target_id"], "999")
+        self.assertEqual(valid["module"], "reviews")
+        self.assertEqual(valid["current_actor"]["role"], "merchant")
+        self.assertIsNone(valid["actor_role_snapshot"])
+        self.assertFalse(valid["is_administrative"])
+        for source in events[1:]:
+            self.assertIsNone(rows[str(source.pk)]["target_id"])
+            self.assertIsNone(rows[str(source.pk)]["target_type"])
+        self.assertNotIn("private-evidence", repr(response.data))
+        identity = f"admin_activity:{events[0].pk}:review_deleted_by_author"
+        detail = self.client.get(self.detail_url(identity))
+        self.assertEqual(detail.data["data"]["id"], identity)
+        self.assertEqual(detail.data["data"]["target_id"], "999")
+        self.assertEqual(detail.data["data"]["occurred_at"], valid["occurred_at"])
+        self.assertIsNone(detail.data["data"]["target_label"])
+        AdminActivity.objects.filter(pk=events[0].pk).update(
+            AACT_TARGET_TYPE="review",
+            AACT_TARGET_ID="1001",
+            AACT_TARGET_LABEL="Retained label",
+        )
+        detail = self.client.get(self.detail_url(identity))
+        self.assertEqual(detail.data["data"]["target_id"], "1001")
+        self.assertEqual(detail.data["data"]["target_label"], "Retained label")
+
     def test_current_identity_never_overwrites_snapshots_or_source_records(self):
         User.objects.filter(pk=self.admin.pk).update(
             USER_FNAME="Renamed",

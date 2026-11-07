@@ -293,7 +293,9 @@ class UnifiedExplorerActivityTests(TestCase):
         self.assertEqual(deleted[0]["occurred_at"], self.now)
         self.assertFalse(deleted[0]["is_administrative"])
         self.assertIsNone(deleted[0]["actor_role_snapshot"])
-        self.assertIsNone(deleted[0]["target_id"])
+        self.assertEqual(deleted[0]["module"], "reviews")
+        self.assertEqual(deleted[0]["target_type"], "review")
+        self.assertEqual(deleted[0]["target_id"], "999")
         self.assertNotIn("private-", repr(rows))
 
     def test_ordering_and_database_pagination_preserve_merchant_admin_and_explorer_occurrences(self):

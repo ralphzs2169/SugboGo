@@ -10,7 +10,14 @@ import {
 import ActivityDate from "../components/ActivityDate";
 import ActivityOutcome from "../components/ActivityOutcome";
 import ActivityActorAvatar from "../components/ActivityActorAvatar";
-import { activityActor, activityLabel, activityTarget } from "../utils/activityLogPresentation";
+import {
+  activityActionLabel,
+  activityActor,
+  activityEntityLabel,
+  activityLabel,
+  activityTarget,
+  activityTargetContext,
+} from "../utils/activityLogPresentation";
 
 const column = createColumnHelper();
 const CATEGORY_ICONS = {
@@ -124,12 +131,12 @@ export default function activityLogColumns(onView) {
       header: "Action",
       size: 250,
       meta: { skeleton: "longText" },
-      cell: ({ getValue, row }) => {
+      cell: ({ row }) => {
         const Icon = CATEGORY_ICONS[row.original.category] ?? Activity;
         return (
           <div className="flex min-w-0 items-center gap-2">
             <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-text-secondary" />
-            <span className="text-sm font-medium leading-5 text-text-primary">{activityLabel(getValue())}</span>
+            <span className="text-sm font-medium leading-5 text-text-primary">{activityActionLabel(row.original)}</span>
           </div>
         );
       },
@@ -139,16 +146,23 @@ export default function activityLogColumns(onView) {
       header: "Target",
       size: 210,
       meta: { skeleton: "longText" },
-      cell: ({ row }) => (
-        <div className="min-w-0">
-          <p className="line-clamp-2 break-words text-sm font-medium leading-5 text-text-primary">{activityTarget(row.original)}</p>
-          {row.original.target_label && row.original.target_id != null && (
-            <p className="mt-0.5 truncate text-xs text-text-secondary">
-              {activityLabel(row.original.target_type)} #{row.original.target_id}
-            </p>
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const event = row.original;
+        const context = activityTargetContext(event);
+        return (
+          <div className="min-w-0">
+            <p className="line-clamp-2 break-words text-sm font-medium leading-5 text-text-primary">{activityTarget(event)}</p>
+            {event.target_label && event.target_id != null && (
+              <p className="mt-0.5 truncate text-xs text-text-secondary">
+                {activityEntityLabel(event.target_type)} #{event.target_id}
+              </p>
+            )}
+            {context && (
+              <p className="mt-0.5 break-words text-xs text-text-secondary">{context}</p>
+            )}
+          </div>
+        );
+      },
     }),
     column.accessor("outcome", {
       header: "Outcome",

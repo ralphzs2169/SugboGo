@@ -21,13 +21,55 @@ export function activityActor(event) {
     (event.actor_id != null ? `User #${event.actor_id}` : "Not recorded");
 }
 
+/** Name affected entities independently of the similarly named management modules. */
+export function activityEntityLabel(value) {
+  if (typeof value !== "string" || !value.trim()) return "Not recorded";
+  return value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " ");
+}
+
+/** Distinguish stored resubmission receipts without changing their occurrence or filter identity. */
+export function activityActionLabel(event) {
+  if (
+    event.source_type === "merchant_application_submission" &&
+    event.occurrence === "merchant_application_submitted" &&
+    Number.isInteger(event.provenance?.submission_number) &&
+    event.provenance.submission_number > 1
+  ) {
+    return "Merchant application resubmitted";
+  }
+  return activityLabel(event.occurrence);
+}
+
 /** Prefer a retained label while keeping the actual affected entity identifiable. */
 export function activityTarget(event) {
   if (event.target_label) return event.target_label;
   if (event.target_type && event.target_id != null) {
-    return `${activityLabel(event.target_type)} #${event.target_id}`;
+    return `${activityEntityLabel(event.target_type)} #${event.target_id}`;
   }
   return "Not recorded";
+}
+
+/** Show existing safe source references without resolving current business or specialty names. */
+export function activityTargetContext(event) {
+  const provenance = event.provenance;
+  if (event.source_type === "business_vouch") {
+    const references = [];
+    if (Number.isInteger(provenance?.business_id) && provenance.business_id > 0) {
+      references.push(`Business #${provenance.business_id}`);
+    }
+    if (Number.isInteger(provenance?.specialty_tag_id) && provenance.specialty_tag_id > 0) {
+      references.push(`Specialty tag #${provenance.specialty_tag_id}`);
+    }
+    return references.join(" · ");
+  }
+  if (
+    event.source_type === "merchant_application_submission" &&
+    Number.isInteger(provenance?.submission_number) &&
+    provenance.submission_number > 0
+  ) {
+    return `Submission #${provenance.submission_number}`;
+  }
+  return "";
 }
 
 /** Retain the original timestamp while displaying calendar and clock values in Philippine time. */

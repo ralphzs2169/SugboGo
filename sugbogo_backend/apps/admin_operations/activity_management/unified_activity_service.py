@@ -200,6 +200,11 @@ class UnifiedActivityService:
     def _admin_activities(cls):
         """Preserve stored snapshots and Task 1's explicit and legacy classification rules."""
         action_modules = AdminActivity.administrative_action_modules()
+        # The author-deletion writer retains this identifier before removing the review row.
+        legacy_author_target = Q(
+            AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+            AACT_CONTEXT__review_id__regex=r"^[1-9][0-9]{0,9}$",
+        )
         return cls._project(
             AdminActivity.objects.all(),
             "admin_activity",
@@ -209,6 +214,10 @@ class UnifiedActivityService:
             module=Coalesce(
                 "AACT_MODULE",
                 Case(
+                    When(
+                        AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+                        then=Value("reviews"),
+                    ),
                     *[
                         When(
                             AACT_ACTION=action,
@@ -225,8 +234,28 @@ class UnifiedActivityService:
             actor_display_snapshot=F("AACT_ACTOR_NAME"),
             actor_role_snapshot=F("AACT_ACTOR_ROLE"),
             # TARGET_USER_ID can be a related author or owner rather than the affected entity.
-            target_type=F("AACT_TARGET_TYPE"),
-            target_id=F("AACT_TARGET_ID"),
+            target_type=Coalesce(
+                "AACT_TARGET_TYPE",
+                Case(
+                    When(
+                        legacy_author_target,
+                        then=Value("review"),
+                    ),
+                    output_field=CharField(),
+                ),
+                output_field=CharField(),
+            ),
+            target_id=Coalesce(
+                "AACT_TARGET_ID",
+                Case(
+                    When(
+                        legacy_author_target,
+                        then=KeyTextTransform("review_id", "AACT_CONTEXT"),
+                    ),
+                    output_field=CharField(),
+                ),
+                output_field=CharField(),
+            ),
             target_label=F("AACT_TARGET_LABEL"),
             outcome=F("AACT_OUTCOME"),
             new_state=F("AACT_NEW_STATE"),

@@ -640,3 +640,137 @@ test("unresolved and null actors use neutral fallbacks without repetitive or inv
   assert.match(dialog().textContent, /Actor identifier93/);
   assert.match(dialog().textContent, /Historical nameNot recorded/);
 });
+
+test("entity descriptions are separate from module names and use only stored context", () => {
+  assert.equal(presentation.activityLabel("business"), "Business management");
+  for (const [target_type, target_id, expected] of [
+    ["business", "15", "Business #15"],
+    ["user", "36", "User #36"],
+    ["merchant_application", "149", "Merchant application #149"],
+    ["review", "129", "Review #129"],
+  ]) {
+    assert.equal(presentation.activityTarget({ target_type, target_id }), expected);
+  }
+  assert.equal(presentation.activityTarget({
+    target_type: "business",
+    target_id: "15",
+    target_label: "Recorded business label",
+  }), "Recorded business label");
+  assert.equal(presentation.activityTarget({ target_type: null, target_id: null }), "Not recorded");
+  const receipt = {
+    source_type: "merchant_application_submission",
+    occurrence: "merchant_application_submitted",
+  };
+  assert.equal(presentation.activityActionLabel(receipt), "Merchant application submitted");
+  assert.equal(presentation.activityTargetContext(receipt), "");
+  assert.equal(presentation.activityActionLabel({
+    ...receipt,
+    provenance: { submission_number: "2" },
+  }), "Merchant application submitted");
+  assert.equal(presentation.activityTargetContext({
+    source_type: "business_vouch",
+    provenance: { business_id: null, specialty_tag_id: null },
+  }), "");
+});
+
+test("table and drawer clarify cross-role activity, resubmissions, and affected records", async () => {
+  const common = {
+    ...activity,
+    target_label: null,
+    outcome: null,
+    new_state: null,
+    actor_role_snapshot: null,
+    is_administrative: false,
+  };
+  const events = [
+    {
+      ...common,
+      id: "business_pocket:1:business_saved",
+      source_type: "business_pocket",
+      source_id: "1",
+      occurrence: "business_saved",
+      category: "explorer",
+      module: "pocket",
+      target_type: "business",
+      target_id: "15",
+      current_actor: { name: "Current Merchant", role: "merchant", avatar_url: null, avatar_key: null },
+    },
+    {
+      ...common,
+      id: "login_event:2:login_succeeded",
+      source_type: "login_event",
+      source_id: "2",
+      occurrence: "login_succeeded",
+      category: "authentication",
+      module: "authentication",
+      target_type: "user",
+      target_id: "36",
+    },
+    ...[1, 2].map((number) => ({
+      ...common,
+      id: `merchant_application_submission:${500 + number}:merchant_application_submitted`,
+      source_type: "merchant_application_submission",
+      source_id: String(500 + number),
+      occurrence: "merchant_application_submitted",
+      category: "merchant",
+      module: "merchant_application",
+      target_type: "merchant_application",
+      target_id: "149",
+      current_actor: { name: "Current Explorer", role: "explorer", avatar_url: null, avatar_key: null },
+      provenance: { model: "merchant_application.merchantapplicationsubmission", submission_number: number },
+    })),
+    {
+      ...common,
+      id: "business_vouch:220:business_vouch_submitted",
+      source_type: "business_vouch",
+      source_id: "220",
+      occurrence: "business_vouch_submitted",
+      category: "explorer",
+      module: "business",
+      target_type: "business_vouch",
+      target_id: "220",
+      provenance: { model: "business.businessvouch", business_id: 15, specialty_tag_id: 12 },
+    },
+    {
+      ...common,
+      id: "admin_activity:3:review_deleted_by_author",
+      source_type: "admin_activity",
+      source_id: "3",
+      occurrence: "review_deleted_by_author",
+      category: "explorer",
+      module: "reviews",
+      target_type: "review",
+      target_id: "129",
+    },
+  ];
+  transport = async (url, options) => url === "/admin/activity-logs/"
+    ? pageData(options.params, events)
+    : {
+      ...events.find((event) => url.includes(encodeURIComponent(event.id))),
+      previous_state: null,
+      reason: null,
+      context: null,
+    };
+  await render();
+  await until(() => container.querySelectorAll("tbody tr").length === 6);
+  assert.match(container.textContent, /Categories describe the activity/);
+  const rows = [...container.querySelectorAll("tbody tr")].map((row) => row.querySelectorAll("td"));
+  assert.equal(rows[0][5].textContent, "Business #15");
+  assert.equal(rows[0][2].textContent, "Merchant");
+  assert.equal(rows[1][5].textContent, "User #36");
+  assert.equal(rows[2][5].textContent, "Merchant application #149Submission #1");
+  assert.equal(rows[2][4].textContent, "Merchant application submitted");
+  assert.equal(rows[3][5].textContent, "Merchant application #149Submission #2");
+  assert.equal(rows[3][4].textContent, "Merchant application resubmitted");
+  assert.equal(rows[3][2].textContent, "Explorer");
+  assert.equal(rows[4][5].textContent, "Business vouch #220Business #15 · Specialty tag #12");
+  assert.equal(rows[5][3].textContent, "Reviews");
+  assert.equal(rows[5][5].textContent, "Review #129");
+  assert.doesNotMatch(container.querySelector("tbody").textContent, /Business management #|User management #|Merchant applications #/);
+  await click(`View details for ${events[3].id}`);
+  await until(() => dialog()?.textContent.includes("Merchant application resubmitted"));
+  assert.equal(detailReads()[0].url, `/admin/activity-logs/${encodeURIComponent(events[3].id)}/`);
+  assert.match(dialog().textContent, /Target typeMerchant application/);
+  assert.match(dialog().textContent, /Target identifier149/);
+  assert.match(dialog().textContent, /Submission number2/);
+});
