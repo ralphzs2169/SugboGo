@@ -1,0 +1,860 @@
+from datetime import UTC, datetime, timedelta
+
+from django.contrib.gis.geos import Point
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from rest_framework.test import APITestCase
+
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
+from apps.authentication.models import LoginEvent
+from apps.business.models import Business, BusinessVouch, Category, Cluster, Location, SpecialtyTag
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationFeedback,
+    MerchantApplicationReview,
+    MerchantApplicationSubmission,
+)
+from apps.merchant_operations.business_profile.models import BusinessNameChangeRequest
+from apps.reviews.models import Review
+from apps.users.models import User
+from core.tests.assertions import APIResponseAssertionsMixin
+
+from .models import AdminActivity
+from .unified_activity_service import UnifiedActivityService
+
+
+class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        AnalyticsPolicyChange.objects.all().delete()
+        cls.now = timezone.now().replace(microsecond=0)
+        cls.users = {}
+        for role in User.UserRole.values:
+            cls.users[role] = User.objects.create(
+                USER_EMAIL=f"activity-api-{role}@example.com",
+                USER_FNAME="Current",
+                USER_LNAME=role,
+                USER_ROLE=role,
+                USER_STATUS=User.UserStatus.ACTIVE,
+                password="!",
+            )
+        cls.admin = cls.users[User.UserRole.ADMIN]
+        cls.merchant = cls.users[User.UserRole.MERCHANT]
+        cls.explorer = cls.users[User.UserRole.EXPLORER]
+        cls.activity = AdminActivity.objects.create(
+            AACT_ID=42,
+            ACTOR_ID=cls.admin,
+            AACT_ACTION=AdminActivity.Action.USER_SUSPENDED,
+            AACT_MODULE=AdminActivity.Module.USER,
+            AACT_IS_ADMINISTRATIVE=True,
+            AACT_ACTOR_NAME="Recorded Administrator",
+            AACT_ACTOR_ROLE=User.UserRole.SUPER_ADMIN,
+            AACT_TARGET_TYPE="user",
+            AACT_TARGET_ID=str(cls.merchant.pk),
+            AACT_TARGET_LABEL="Recorded Target",
+            AACT_OUTCOME=AdminActivity.Outcome.SUCCEEDED,
+            AACT_REASON="Recorded decision reason.",
+            AACT_PREVIOUS_STATE={"status": "active", "token": "private-secret"},
+            AACT_NEW_STATE={
+                "status": "suspended",
+                "password": "private-secret",
+                "name": {"private_document": "private-secret"},
+            },
+            AACT_CONTEXT={
+                "business_id": 73,
+                "request_id": {"token": "private-secret"},
+                "report_ids": [1, {"document": "private-secret"}],
+                "admin_notes": "private-moderation-evidence",
+                "candidate_key": "private-duplicate-contact",
+                "device_id": "private-device",
+                "reason": {"payload": "private-secret"},
+            },
+        )
+        AdminActivity.objects.filter(pk=42).update(AACT_CREATED_AT=cls.now)
+        cls.policy = AnalyticsPolicyChange.objects.create(
+            APCH_ID=42,
+            APCH_VERSION=2,
+            APCH_ACTOR=cls.admin,
+            APCH_ACTOR_ID_SNAPSHOT=cls.admin.pk,
+            APCH_REASON="Recorded policy reason.",
+            APCH_BEFORE={"peer_min_businesses": 5, "private": "private-secret"},
+            APCH_AFTER={"peer_min_businesses": 6, "private": "private-secret"},
+        )
+        AnalyticsPolicyChange.objects.filter(pk=42).update(APCH_CREATED_AT=cls.now)
+        application = MerchantApplication.objects.create(USER_ID=cls.merchant)
+        cls.submission = MerchantApplicationSubmission.objects.create(
+            MASUB_ID=42,
+            MAPP_ID=application,
+            MASUB_SUBMISSION_NUMBER=1,
+            MASUB_SUBMITTED_AT=cls.now,
+            MASUB_DUPLICATE_EVIDENCE=[{"contact": "private-contact"}],
+        )
+        cls.login = LoginEvent.objects.create(
+            LEVT_ID=42,
+            USER=cls.admin,
+            LEVT_METHOD=LoginEvent.Method.ADMIN,
+            LEVT_OUTCOME=LoginEvent.Outcome.SUCCESS,
+            LEVT_CREATED_AT=cls.now,
+            LEVT_IP_ADDRESS="192.0.2.55",
+            LEVT_PLATFORM="private-platform",
+            LEVT_CLIENT="private-client",
+        )
+        cluster = Cluster.objects.create(CLUS_NAME="API fixture cluster")
+        category = Category.objects.create(
+            CLUS_ID=cluster,
+            CTGRY_NAME="API fixture category",
+        )
+        location = Location.objects.create(
+            LOCT_POINT=Point(123.9, 10.3, srid=4326),
+            LOCT_ADDRESS="API fixture address",
+        )
+        cls.business = Business.objects.create(
+            USER_ID=cls.merchant,
+            CTGRY_ID=category,
+            LOCT_ID=location,
+            BUSN_NAME="Current business",
+            BUSN_CONTACT_NUMBER="09123456789",
+        )
+        cls.review = Review.objects.create(
+            REVW_ID=42,
+            USER_ID=cls.explorer,
+            BUSN_ID=cls.business,
+            REVW_TEXT="private-review-content",
+            REVW_MODERATION_NOTES="private-moderation-evidence",
+        )
+        Review.objects.filter(pk=42).update(REVW_CREATED_AT=cls.now)
+        tag = SpecialtyTag.objects.create(TAG_NAME="API fixture specialty")
+        cls.vouch = BusinessVouch.objects.create(
+            VOUCH_ID=42,
+            USER_ID=cls.explorer,
+            BUSN_ID=cls.business,
+            TAG_ID=tag,
+            VOUCH_REPUTATION_SNAPSHOT="0.50000",
+            VOUCH_WITHDRAWN_AT=cls.now,
+        )
+        BusinessVouch.objects.filter(pk=42).update(VOUCH_CREATED_AT=cls.now)
+        cls.change_request = BusinessNameChangeRequest.objects.create(
+            BNCR_ID=42,
+            USER_ID=cls.merchant,
+            BUSN_ID=cls.business,
+            BNCR_STATUS=BusinessNameChangeRequest.Status.WITHDRAWN,
+            BNCR_SUBMITTED_AT=cls.now,
+            BNCR_RESOLVED_AT=cls.now,
+            BNCR_PREVIOUS_BUSINESS_NAME="Original business name",
+            BNCR_PROPOSED_BUSINESS_NAME="Proposed business name",
+        )
+
+    def setUp(self):
+        self.url = reverse("unified-activity-list")
+        self.client.force_authenticate(self.admin)
+
+    def detail_url(
+        self,
+        event_id,
+    ):
+        return reverse(
+            "unified-activity-detail",
+            kwargs={"event_id": event_id},
+        )
+
+    def test_admin_and_super_admin_can_read_both_endpoints_but_cannot_write(self):
+        detail_url = self.detail_url("admin_activity:42:user_suspended")
+        for role in (User.UserRole.ADMIN, User.UserRole.SUPER_ADMIN):
+            self.client.force_authenticate(self.users[role])
+            self.assertSuccessResponse(
+                self.client.get(self.url),
+                message="Success.",
+            )
+            self.assertSuccessResponse(
+                self.client.get(detail_url),
+                message="Success.",
+            )
+        for url in (self.url, detail_url):
+            self.assertEqual(self.client.post(url, {}).status_code, 405)
+            self.assertEqual(self.client.patch(url, {}).status_code, 405)
+            self.assertEqual(self.client.delete(url).status_code, 405)
+        self.assertEqual(
+            self.client.get(reverse("get_activity_management_data")).status_code,
+            200,
+        )
+
+    def test_other_roles_anonymous_and_inactive_administrators_cannot_read_either_endpoint(self):
+        detail_url = self.detail_url("admin_activity:42:user_suspended")
+        for role in (User.UserRole.EXPLORER, User.UserRole.MERCHANT):
+            self.client.force_authenticate(self.users[role])
+            for url in (self.url, detail_url):
+                self.assertEqual(self.client.get(url).status_code, 403)
+        self.admin.USER_STATUS = User.UserStatus.DISABLED
+        self.client.force_authenticate(self.admin)
+        for url in (self.url, detail_url):
+            self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_authenticate(None)
+        for url in (self.url, detail_url):
+            self.assertIn(self.client.get(url).status_code, (401, 403))
+
+    def test_sql_pagination_and_composite_identities_match_existing_normalized_order(self):
+        normalized = list(UnifiedActivityService.list_activity())
+        expected_ids = [
+            UnifiedActivityService.event_identity(event)
+            for event in normalized
+        ]
+        self.assertEqual(len(expected_ids), 9)
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, {"page_size": 2})
+        self.assertEqual(len(queries), 3)
+        self.assertIn("UNION ALL", queries[1]["sql"])
+        self.assertIn("LIMIT 2", queries[1]["sql"])
+        self.assertEqual(response.data["data"]["pagination"], {
+            "page": 1,
+            "page_size": 2,
+            "total_items": 9,
+            "total_pages": 5,
+            "has_next": True,
+            "has_previous": False,
+        })
+        rows = response.data["data"]["items"]
+        for page in range(2, 6):
+            response = self.client.get(self.url, {"page_size": 2, "page": page})
+            rows.extend(response.data["data"]["items"])
+        self.assertEqual([row["id"] for row in rows], expected_ids)
+        self.assertEqual(len({row["id"] for row in rows}), 9)
+        for event, row in zip(normalized, rows):
+            self.assertEqual(
+                set(row),
+                set(UnifiedActivityService.COLUMNS) | {"id", "category", "current_actor"},
+            )
+            self.assertEqual(parse_datetime(row["occurred_at"]), event["occurred_at"])
+            for field in set(UnifiedActivityService.COLUMNS) - {"occurred_at", "new_state"}:
+                self.assertEqual(row[field], event[field])
+        self.assertFalse(response.data["data"]["pagination"]["has_next"])
+        self.assertTrue(response.data["data"]["pagination"]["has_previous"])
+        default = self.client.get(self.url)
+        self.assertEqual(default.data["data"]["pagination"]["page_size"], 10)
+        capped = self.client.get(self.url, {"page_size": 1000})
+        self.assertEqual(capped.data["data"]["pagination"]["page_size"], 100)
+        self.assertEqual(self.client.get(self.url, {"page": 99}).status_code, 404)
+
+    def test_categories_follow_recorded_classification_and_not_current_actor_role(self):
+        for category, expected in (
+            ("administrative", 2),
+            ("merchant", 3),
+            ("explorer", 3),
+            ("authentication", 1),
+            ("all", 9),
+        ):
+            response = self.client.get(self.url, {"category": category})
+            self.assertEqual(response.data["data"]["pagination"]["total_items"], expected)
+            if category != "all":
+                self.assertEqual(
+                    {row["category"] for row in response.data["data"]["items"]},
+                    {category},
+                )
+        AdminActivity.objects.create(
+            ACTOR_ID=self.merchant,
+            AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+        )
+        unknown = AdminActivity.objects.create(
+            ACTOR_ID=self.admin,
+            AACT_ACTION="unknown_legacy_action",
+        )
+        response = self.client.get(self.url, {"category": "explorer"})
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 4)
+        unknown_detail = self.client.get(self.detail_url(
+            f"admin_activity:{unknown.pk}:unknown_legacy_action",
+        ))
+        self.assertIsNone(unknown_detail.data["data"]["category"])
+        self.assertIsNone(unknown_detail.data["data"]["is_administrative"])
+
+    def test_module_action_and_actor_filters_combine_before_sql_pagination(self):
+        params = {
+            "category": "merchant",
+            "module": "business",
+            "action": "business_name_change_request_submitted",
+            "actor_id": self.merchant.pk,
+            "page_size": 1,
+        }
+        response = self.client.get(self.url, params)
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 1)
+        self.assertEqual(
+            response.data["data"]["items"][0]["id"],
+            "business_name_change_request:42:business_name_change_request_submitted",
+        )
+        params["actor_id"] = self.explorer.pk
+        response = self.client.get(self.url, params)
+        self.assertEqual(response.data["data"]["items"], [])
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 0)
+        response = self.client.get(self.url, {
+            "category": "authentication",
+            "module": "authentication",
+            "action": "login_succeeded",
+            "actor_id": self.admin.pk,
+        })
+        self.assertEqual(len(response.data["data"]["items"]), 1)
+
+    def test_date_filters_use_inclusive_manila_days_and_timezone_aware_timestamps(self):
+        start = datetime(2026, 11, 5, 16, tzinfo=UTC)
+        end = start + timedelta(days=1)
+        events = []
+        for timestamp in (
+            start - timedelta(microseconds=1),
+            start,
+            end - timedelta(microseconds=1),
+            end,
+        ):
+            event = AdminActivity.objects.create(
+                ACTOR_ID=self.admin,
+                AACT_ACTION=AdminActivity.Action.USER_REACTIVATED,
+            )
+            AdminActivity.objects.filter(pk=event.pk).update(AACT_CREATED_AT=timestamp)
+            events.append(event)
+        params = {
+            "start_date": "2026-11-06",
+            "end_date": "2026-11-06",
+            "action": "user_reactivated",
+        }
+        response = self.client.get(self.url, params)
+        self.assertEqual(
+            {row["source_id"] for row in response.data["data"]["items"]},
+            {str(events[1].pk), str(events[2].pk)},
+        )
+        del params["end_date"]
+        response = self.client.get(self.url, params)
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 3)
+        del params["start_date"]
+        params["end_date"] = "2026-11-06"
+        response = self.client.get(self.url, params)
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 3)
+
+    def test_invalid_filters_use_standard_validation_errors(self):
+        for params, field in (
+            ({"category": "invalid"}, "category"),
+            ({"module": "invalid"}, "module"),
+            ({"action": "invalid"}, "action"),
+            ({"actor_id": "not-an-id"}, "actor_id"),
+            ({"actor_id": 0}, "actor_id"),
+            ({"start_date": "2026-02-30"}, "start_date"),
+            ({"end_date": "2026-11-06T00:00:00Z"}, "end_date"),
+            ({"start_date": "2026-11-07", "end_date": "2026-11-06"}, "end_date"),
+            ({"end_date": "9999-12-31"}, "end_date"),
+            ({"search": "ignored"}, "search"),
+        ):
+            with self.subTest(params=params):
+                self.assertValidationError(
+                    self.client.get(self.url, params),
+                    field,
+                )
+
+    def test_admin_and_policy_details_return_only_safe_historical_values(self):
+        response = self.client.get(self.detail_url("admin_activity:42:user_suspended"))
+        data = response.data["data"]
+        self.assertEqual(data["actor_display_snapshot"], "Recorded Administrator")
+        self.assertEqual(data["actor_role_snapshot"], User.UserRole.SUPER_ADMIN)
+        self.assertEqual(data["target_label"], "Recorded Target")
+        self.assertEqual(data["reason"], "Recorded decision reason.")
+        self.assertEqual(data["previous_state"], {"status": "active"})
+        self.assertEqual(data["new_state"], {"status": "suspended"})
+        self.assertEqual(data["context"], {"business_id": 73})
+        response = self.client.get(self.detail_url(
+            "analytics_policy_change:42:analytics_policy_revision",
+        ))
+        self.assertEqual(response.data["data"]["previous_state"], {"peer_min_businesses": 5})
+        self.assertEqual(response.data["data"]["new_state"], {"peer_min_businesses": 6})
+        self.assertEqual(response.data["data"]["reason"], "Recorded policy reason.")
+        self.assertIsNone(response.data["data"]["actor_role_snapshot"])
+        AdminActivity.objects.filter(pk=42).update(AACT_REASON=None)
+        response = self.client.get(self.detail_url("admin_activity:42:user_suspended"))
+        self.assertIsNone(response.data["data"]["reason"])
+        AdminActivity.objects.filter(pk=42).update(AACT_CONTEXT={"reason": "Legacy suspension reason."})
+        response = self.client.get(self.detail_url("admin_activity:42:user_suspended"))
+        self.assertEqual(response.data["data"]["reason"], "Legacy suspension reason.")
+
+    def test_missing_snapshots_and_sensitive_source_data_are_never_fabricated_or_exposed(self):
+        response = self.client.get(self.url, {"page_size": 100})
+        responses = [response]
+        for event_id in (
+            "login_event:42:login_succeeded",
+            "review:42:review_submitted",
+            "merchant_application_submission:42:merchant_application_submitted",
+        ):
+            detail = self.client.get(self.detail_url(event_id))
+            responses.append(detail)
+            data = detail.data["data"]
+            for field in (
+                "actor_display_snapshot",
+                "actor_role_snapshot",
+                "target_label",
+                "previous_state",
+                "new_state",
+                "reason",
+                "context",
+            ):
+                self.assertIsNone(data[field])
+            self.assertFalse(data["is_administrative"])
+        for response in responses:
+            payload = repr(response.data)
+            self.assertNotIn("private-", payload)
+            self.assertNotIn("192.0.2.55", payload)
+            self.assertNotIn(self.admin.USER_EMAIL, payload)
+
+    def test_distinct_occurrences_are_individually_addressable(self):
+        identities = []
+        for occurrence in ("business_vouch_submitted", "business_vouch_withdrawn"):
+            identity = f"business_vouch:42:{occurrence}"
+            response = self.client.get(self.detail_url(identity))
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["data"]["id"], identity)
+            self.assertEqual(response.data["data"]["source_id"], "42")
+            self.assertEqual(response.data["data"]["occurrence"], occurrence)
+            self.assertEqual(response.data["data"]["provenance"]["business_id"], self.business.pk)
+            identities.append(response.data["data"]["id"])
+        self.assertEqual(len(set(identities)), 2)
+
+    def test_recorded_admin_decision_suppresses_its_domain_resolution_in_list_and_detail(self):
+        BusinessNameChangeRequest.objects.filter(pk=42).update(
+            BNCR_STATUS=BusinessNameChangeRequest.Status.APPROVED,
+            REVIEWER_ID=self.admin,
+        )
+        AdminActivity.objects.create(
+            ACTOR_ID=self.admin,
+            AACT_ACTION=AdminActivity.Action.BUSINESS_NAME_CHANGE_APPROVED,
+            AACT_CONTEXT={"request_type": "business_name_change", "request_id": 42},
+        )
+        response = self.client.get(self.url, {"action": "business_name_change_approved"})
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 1)
+        item = response.data["data"]["items"][0]
+        self.assertEqual(item["source_type"], "admin_activity")
+        self.assertEqual(self.client.get(self.detail_url(item["id"])).status_code, 200)
+        self.assertEqual(self.client.get(self.detail_url(
+            "business_name_change_request:42:business_name_change_approved",
+        )).status_code, 404)
+        self.assertEqual(self.client.get(self.detail_url(
+            "business_name_change_request:42:business_name_change_request_submitted",
+        )).status_code, 200)
+
+    def test_missing_deleted_unattributed_and_expired_sources_return_standard_not_found(self):
+        for identity in (
+            "invalid",
+            "unknown_source:42:login_succeeded",
+            "login_event:999999:login_succeeded",
+            "login_event:42:login_failed",
+        ):
+            response = self.client.get(self.detail_url(identity))
+            self.assertEqual(response.status_code, 404)
+            self.assertFalse(response.data["success"])
+            self.assertEqual(response.data["code"], "NOT_FOUND")
+        LoginEvent.objects.filter(pk=42).update(USER=None)
+        identity = "login_event:42:login_succeeded"
+        self.assertEqual(self.client.get(self.detail_url(identity)).status_code, 404)
+        LoginEvent.objects.filter(pk=42).update(
+            USER=self.admin,
+            LEVT_CREATED_AT=self.now - timedelta(days=1000),
+        )
+        self.assertEqual(self.client.get(self.detail_url(identity)).status_code, 404)
+        self.assertTrue(LoginEvent.objects.filter(pk=42).exists())
+        LoginEvent.objects.filter(pk=42).delete()
+        self.assertEqual(self.client.get(self.detail_url(identity)).status_code, 404)
+
+    def test_vouch_detail_resolves_current_names_once_without_enriching_the_list(self):
+        Business.objects.filter(pk=self.business.pk).update(BUSN_NAME="Current business name")
+        SpecialtyTag.objects.filter(pk=self.vouch.TAG_ID_id).update(TAG_NAME="Current specialty name")
+        identity = "business_vouch:42:business_vouch_submitted"
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.detail_url(identity))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(queries), 3)
+        event = response.data["data"]
+        self.assertEqual(event["id"], identity)
+        self.assertEqual(event["target_id"], "42")
+        self.assertIsNone(event["target_label"])
+        self.assertEqual(event["current_related_records"], {
+            "business": {"id": self.business.pk, "name": "Current business name"},
+            "specialty_tag": {"id": self.vouch.TAG_ID_id, "name": "Current specialty name"},
+        })
+        listing = self.client.get(self.url, {"action": "business_vouch_submitted"})
+        self.assertNotIn("current_related_records", listing.data["data"]["items"][0])
+        missing = UnifiedActivityService.current_vouch_records({
+            "source_type": "business_vouch",
+            "source_id": "999999",
+            "provenance": {"business_id": self.business.pk, "specialty_tag_id": self.vouch.TAG_ID_id},
+        })
+        self.assertEqual(missing["business"], {"id": self.business.pk, "name": None})
+        self.assertEqual(missing["specialty_tag"], {"id": self.vouch.TAG_ID_id, "name": None})
+        with self.assertNumQueries(0):
+            self.assertIsNone(UnifiedActivityService.current_vouch_records({"source_type": "review"}))
+
+    def test_current_actors_are_batched_once_and_only_safe_profile_fields_are_exposed(self):
+        avatar_url = "https://res.cloudinary.com/example/image/upload/profile.jpg"
+        User.objects.filter(pk=self.admin.pk).update(
+            USER_PROFILE_PICTURE=avatar_url,
+            USER_AVATAR_KEY=User.AvatarKey.EXPLORER_AVATAR_3,
+        )
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, {"page_size": 100})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(queries), 3)
+        user_table = connection.ops.quote_name(User._meta.db_table)
+        user_reads = [
+            query["sql"]
+            for query in queries
+            if (
+                f"FROM {user_table}" in query["sql"]
+                and "UNION ALL" not in query["sql"]
+            )
+        ]
+        self.assertEqual(len(user_reads), 1)
+        for field in (
+            "USER_PASSWORD",
+            "USER_EMAIL",
+            "USER_GENDER",
+            "USER_PROFILE_PICTURE_PUBLIC_ID",
+            "EMAIL_VERIFIED",
+        ):
+            self.assertNotIn(field, user_reads[0])
+        rows = response.data["data"]["items"]
+        self.assertEqual(len(rows), 9)
+        admin_rows = [
+            row
+            for row in rows
+            if row["actor_id"] == self.admin.pk
+        ]
+        self.assertEqual(len(admin_rows), 3)
+        for row in admin_rows:
+            self.assertEqual(row["current_actor"], {
+                "name": self.admin.full_name,
+                "role": User.UserRole.ADMIN,
+                "avatar_url": avatar_url,
+                "avatar_key": User.AvatarKey.EXPLORER_AVATAR_3,
+            })
+        for row in rows:
+            self.assertEqual(
+                set(row["current_actor"]),
+                {"name", "role", "avatar_url", "avatar_key"},
+            )
+
+    def test_application_decisions_filter_paginate_and_resolve_safe_details(self):
+        start = datetime(2026, 11, 5, 16, tzinfo=UTC)
+        reviews = []
+        for decision, timestamp in (
+            (MerchantApplicationReview.Decision.REJECTED, start),
+            (MerchantApplicationReview.Decision.APPROVED, start + timedelta(hours=23)),
+            (MerchantApplicationReview.Decision.REJECTED, start + timedelta(days=1)),
+        ):
+            reviews.append(MerchantApplicationReview.objects.create(
+                MAPP_ID_id=self.submission.MAPP_ID_id,
+                USER_ID=self.admin,
+                MAREV_DECISION=decision,
+                MAREV_REVIEWED_AT=timestamp,
+                MAREV_SECTION_FINGERPRINTS={"documents": "private-fingerprint"},
+                MAREV_DUPLICATE_EXPLANATION="private-duplicate-explanation",
+            ))
+        MerchantApplicationFeedback.objects.create(
+            MAREV_ID=reviews[0],
+            MAPF_SECTION=MerchantApplicationFeedback.Section.DOCUMENTS,
+            MAPF_MESSAGE="private-verification-feedback",
+        )
+        params = {
+            "category": "administrative",
+            "module": "merchant_application",
+            "actor_id": self.admin.pk,
+            "start_date": "2026-11-06",
+            "end_date": "2026-11-06",
+            "page_size": 1,
+        }
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, params)
+        self.assertSuccessResponse(response, message="Success.")
+        self.assertEqual(len(queries), 3)
+        self.assertIn("UNION ALL", queries[1]["sql"])
+        self.assertIn("LIMIT 1", queries[1]["sql"])
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 2)
+        self.assertEqual(response.data["data"]["pagination"]["total_pages"], 2)
+        rows = list(response.data["data"]["items"])
+        params["page"] = 2
+        rows.extend(self.client.get(self.url, params).data["data"]["items"])
+        self.assertEqual(
+            [row["source_id"] for row in rows],
+            [str(reviews[1].pk), str(reviews[0].pk)],
+        )
+        for row, review in zip(rows, reversed(reviews[:2])):
+            with self.subTest(decision=review.MAREV_DECISION):
+                self.assertEqual(row["category"], "administrative")
+                self.assertEqual(row["actor_id"], self.admin.pk)
+                self.assertEqual(row["current_actor"]["name"], self.admin.full_name)
+                self.assertEqual(row["target_type"], "merchant_application")
+                self.assertEqual(row["target_id"], str(self.submission.MAPP_ID_id))
+                self.assertEqual(parse_datetime(row["occurred_at"]), review.MAREV_REVIEWED_AT)
+                self.assertEqual(row["id"], (
+                    f"merchant_application_review:{review.pk}:"
+                    f"merchant_application_{review.MAREV_DECISION}"
+                ))
+                detail = self.client.get(self.detail_url(row["id"]))
+                self.assertSuccessResponse(detail, message="Success.")
+                self.assertEqual(detail.data["data"]["id"], row["id"])
+                self.assertEqual(detail.data["data"]["new_state"], {
+                    "status": review.MAREV_DECISION,
+                })
+                for field in (
+                    "previous_state",
+                    "reason",
+                    "context",
+                    "actor_display_snapshot",
+                    "actor_role_snapshot",
+                    "target_label",
+                    "outcome",
+                ):
+                    self.assertIsNone(detail.data["data"][field])
+                self.assertNotIn("private-", repr(detail.data))
+                filtered = self.client.get(self.url, {
+                    **params,
+                    "page": 1,
+                    "action": row["occurrence"],
+                })
+                self.assertEqual(filtered.data["data"]["pagination"]["total_items"], 1)
+                self.assertEqual(filtered.data["data"]["items"][0]["id"], row["id"])
+        for overrides in (
+            {"category": "merchant"},
+            {"actor_id": self.merchant.pk},
+        ):
+            response = self.client.get(self.url, {
+                **params,
+                **overrides,
+                "page": 1,
+                "action": "merchant_application_approved",
+            })
+            self.assertEqual(response.data["data"]["pagination"]["total_items"], 0)
+
+    def test_application_decision_deduplication_preserves_other_reviews_and_submissions(self):
+        before = self.client.get(self.url, {
+            "category": "merchant",
+            "module": "merchant_application",
+        }).data["data"]["items"]
+        second_submission = MerchantApplicationSubmission.objects.create(
+            MAPP_ID_id=self.submission.MAPP_ID_id,
+            MASUB_SUBMISSION_NUMBER=2,
+            MASUB_SUBMITTED_AT=self.now + timedelta(hours=1),
+        )
+        reviews = []
+        for submission in (self.submission, second_submission):
+            reviews.append(MerchantApplicationReview.objects.create(
+                MAPP_ID_id=submission.MAPP_ID_id,
+                MASUB_ID=submission,
+                USER_ID=self.admin,
+                MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+                MAREV_REVIEWED_AT=submission.MASUB_SUBMITTED_AT + timedelta(minutes=30),
+            ))
+        recorded = AdminActivity.objects.create(
+            ACTOR_ID=self.admin,
+            AACT_ACTION="merchant_application_rejected",
+            AACT_SOURCE_TYPE="merchant_application_review",
+            AACT_SOURCE_ID=str(reviews[0].pk),
+        )
+        response = self.client.get(self.url, {
+            "category": "administrative",
+            "module": "merchant_application",
+            "action": "merchant_application_rejected",
+        })
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 2)
+        identities = {
+            row["id"]
+            for row in response.data["data"]["items"]
+        }
+        self.assertEqual(identities, {
+            f"admin_activity:{recorded.pk}:merchant_application_rejected",
+            f"merchant_application_review:{reviews[1].pk}:merchant_application_rejected",
+        })
+        for identity in identities:
+            self.assertEqual(self.client.get(self.detail_url(identity)).status_code, 200)
+        self.assertEqual(self.client.get(self.detail_url(
+            f"merchant_application_review:{reviews[0].pk}:merchant_application_rejected",
+        )).status_code, 404)
+        merchant_rows = self.client.get(self.url, {
+            "category": "merchant",
+            "module": "merchant_application",
+        }).data["data"]["items"]
+        self.assertEqual(len(merchant_rows), 2)
+        self.assertEqual(merchant_rows[1], before[0])
+        self.assertEqual(merchant_rows[0]["source_id"], str(second_submission.pk))
+        self.assertEqual(merchant_rows[0]["provenance"]["submission_number"], 2)
+        detail = self.client.get(self.detail_url(
+            f"merchant_application_review:{reviews[1].pk}:merchant_application_rejected",
+        )).data["data"]
+        self.assertEqual(detail["provenance"], {
+            "model": "merchant_application.merchantapplicationreview",
+            "submission_id": second_submission.pk,
+            "submission_number": 2,
+        })
+
+    def test_resubmission_receipts_keep_separate_identity_time_and_merchant_category_for_explorers(self):
+        User.objects.filter(pk=self.merchant.pk).update(USER_ROLE=User.UserRole.EXPLORER)
+        receipts = [self.submission]
+        for number in (2, 3):
+            receipts.append(MerchantApplicationSubmission.objects.create(
+                MASUB_ID=7100 + number,
+                MAPP_ID=self.submission.MAPP_ID,
+                MASUB_SUBMISSION_NUMBER=number,
+                MASUB_SUBMITTED_AT=self.now + timedelta(hours=number),
+            ))
+        identities = []
+        timestamps = []
+        for page, receipt in enumerate(reversed(receipts), start=1):
+            response = self.client.get(self.url, {
+                "category": "merchant",
+                "action": "merchant_application_submitted",
+                "actor_id": self.merchant.pk,
+                "page": page,
+                "page_size": 1,
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["data"]["pagination"]["total_items"], 3)
+            event = response.data["data"]["items"][0]
+            identity = f"merchant_application_submission:{receipt.pk}:merchant_application_submitted"
+            self.assertEqual(event["id"], identity)
+            self.assertEqual(event["target_id"], str(self.submission.MAPP_ID_id))
+            self.assertEqual(event["provenance"]["submission_number"], receipt.MASUB_SUBMISSION_NUMBER)
+            self.assertEqual(parse_datetime(event["occurred_at"]), receipt.MASUB_SUBMITTED_AT)
+            self.assertEqual(event["category"], "merchant")
+            self.assertEqual(event["current_actor"]["role"], "explorer")
+            self.assertIsNone(event["actor_role_snapshot"])
+            self.assertIsNone(event["outcome"])
+            self.assertIsNone(event["new_state"])
+            detail = self.client.get(self.detail_url(identity))
+            self.assertEqual(detail.data["data"]["id"], identity)
+            self.assertEqual(detail.data["data"]["provenance"], event["provenance"])
+            identities.append(event["id"])
+            timestamps.append(event["occurred_at"])
+        self.assertEqual(len(set(identities)), 3)
+        self.assertEqual(len(set(timestamps)), 3)
+
+    def test_author_deletion_uses_only_retained_review_ids_and_preserves_explicit_targets(self):
+        User.objects.filter(pk=self.explorer.pk).update(USER_ROLE=User.UserRole.MERCHANT)
+        events = []
+        for review_id in (999, None, 0, True, "unavailable", {"private": "evidence"}):
+            events.append(AdminActivity.objects.create(
+                ACTOR_ID=self.explorer,
+                TARGET_USER_ID=self.explorer,
+                AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
+                AACT_CONTEXT={
+                    "review_id": review_id,
+                    "business_id": self.business.pk,
+                    "moderation_notes": "private-evidence",
+                },
+            ))
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, {
+                "category": "explorer",
+                "module": "reviews",
+                "action": "review_deleted_by_author",
+            })
+        self.assertEqual(len(queries), 3)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 6)
+        rows = {
+            event["source_id"]: event
+            for event in response.data["data"]["items"]
+        }
+        valid = rows[str(events[0].pk)]
+        self.assertEqual(valid["target_type"], "review")
+        self.assertEqual(valid["target_id"], "999")
+        self.assertEqual(valid["module"], "reviews")
+        self.assertEqual(valid["current_actor"]["role"], "merchant")
+        self.assertIsNone(valid["actor_role_snapshot"])
+        self.assertFalse(valid["is_administrative"])
+        for source in events[1:]:
+            self.assertIsNone(rows[str(source.pk)]["target_id"])
+            self.assertIsNone(rows[str(source.pk)]["target_type"])
+        self.assertNotIn("private-evidence", repr(response.data))
+        identity = f"admin_activity:{events[0].pk}:review_deleted_by_author"
+        detail = self.client.get(self.detail_url(identity))
+        self.assertEqual(detail.data["data"]["id"], identity)
+        self.assertEqual(detail.data["data"]["target_id"], "999")
+        self.assertEqual(detail.data["data"]["occurred_at"], valid["occurred_at"])
+        self.assertIsNone(detail.data["data"]["target_label"])
+        AdminActivity.objects.filter(pk=events[0].pk).update(
+            AACT_TARGET_TYPE="review",
+            AACT_TARGET_ID="1001",
+            AACT_TARGET_LABEL="Retained label",
+        )
+        detail = self.client.get(self.detail_url(identity))
+        self.assertEqual(detail.data["data"]["target_id"], "1001")
+        self.assertEqual(detail.data["data"]["target_label"], "Retained label")
+
+    def test_current_identity_never_overwrites_snapshots_or_source_records(self):
+        User.objects.filter(pk=self.admin.pk).update(
+            USER_FNAME="Renamed",
+            USER_LNAME="Administrator",
+        )
+        identity = "admin_activity:42:user_suspended"
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.detail_url(identity))
+        self.assertEqual(len(queries), 3)
+        data = response.data["data"]
+        self.assertEqual(data["id"], identity)
+        self.assertEqual(data["actor_id"], self.admin.pk)
+        self.assertEqual(data["actor_display_snapshot"], "Recorded Administrator")
+        self.assertEqual(data["actor_role_snapshot"], User.UserRole.SUPER_ADMIN)
+        self.assertEqual(data["current_actor"]["name"], "Renamed Administrator")
+        self.assertEqual(data["current_actor"]["role"], User.UserRole.ADMIN)
+        self.assertIsNone(data["current_actor"]["avatar_url"])
+        self.assertIsNone(data["current_actor"]["avatar_key"])
+        self.activity.refresh_from_db()
+        self.assertEqual(self.activity.AACT_ACTOR_NAME, "Recorded Administrator")
+        self.assertEqual(self.activity.AACT_ACTOR_ROLE, User.UserRole.SUPER_ADMIN)
+        login = self.client.get(self.detail_url("login_event:42:login_succeeded"))
+        self.assertIsNone(login.data["data"]["actor_display_snapshot"])
+        self.assertIsNone(login.data["data"]["actor_role_snapshot"])
+        self.assertEqual(login.data["data"]["current_actor"]["role"], User.UserRole.ADMIN)
+
+    def test_resolution_is_limited_to_the_returned_page_and_skips_empty_results(self):
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, {"page_size": 1})
+        self.assertEqual(len(queries), 3)
+        self.assertEqual(len(response.data["data"]["items"]), 1)
+        self.assertEqual(response.data["data"]["items"][0]["actor_id"], self.admin.pk)
+        self.assertIn(f"IN ({self.admin.pk})", queries[-1]["sql"])
+        with self.assertNumQueries(0):
+            self.assertEqual(UnifiedActivityService.resolve_current_actors([]), {})
+            self.assertEqual(
+                UnifiedActivityService.resolve_current_actors([{"actor_id": None}]),
+                {},
+            )
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, {"actor_id": 999999})
+        self.assertEqual(response.data["data"]["items"], [])
+        self.assertEqual(len(queries), 1)
+
+    def test_deleted_and_null_actors_keep_original_identity_without_fabricated_profiles(self):
+        deleted = User.objects.create(
+            USER_EMAIL="deleted-activity-actor@example.com",
+            USER_FNAME="Deleted",
+            USER_LNAME="Actor",
+            USER_ROLE=User.UserRole.EXPLORER,
+            password="!",
+        )
+        original_id = deleted.pk
+        revision = AnalyticsPolicyChange.objects.create(
+            APCH_VERSION=99,
+            APCH_ACTOR=deleted,
+            APCH_ACTOR_ID_SNAPSHOT=original_id,
+            APCH_REASON="Retained decision reason.",
+            APCH_BEFORE={"peer_min_businesses": 5},
+            APCH_AFTER={"peer_min_businesses": 6},
+        )
+        deleted.delete()
+        identity = f"analytics_policy_change:{revision.pk}:analytics_policy_revision"
+        response = self.client.get(self.detail_url(identity))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["actor_id"], original_id)
+        self.assertIsNone(response.data["data"]["current_actor"])
+        self.assertIsNone(response.data["data"]["actor_display_snapshot"])
+        self.assertIsNone(response.data["data"]["actor_role_snapshot"])
+        AnalyticsPolicyChange.objects.filter(pk=revision.pk).update(
+            APCH_ACTOR_ID_SNAPSHOT=None,
+        )
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.detail_url(identity))
+        self.assertEqual(len(queries), 2)
+        self.assertIsNone(response.data["data"]["actor_id"])
+        self.assertIsNone(response.data["data"]["current_actor"])
