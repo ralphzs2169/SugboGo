@@ -20,6 +20,7 @@ function DataTable({
   // Data
   data,
   columns,
+  getRowId,
 
   // Loading state
   isLoading = false,
@@ -99,6 +100,7 @@ function DataTable({
   const table = useReactTable({
     data,
     columns,
+    getRowId,
     meta: { fixedUtilityColumns },
 
     state: {

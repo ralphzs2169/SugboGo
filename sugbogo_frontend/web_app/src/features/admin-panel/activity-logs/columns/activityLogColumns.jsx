@@ -173,19 +173,18 @@ export default function activityLogColumns(onView) {
     column.display({
       id: "actions",
       header: "Actions",
-      size: 176,
-      meta: { skeleton: "actions" },
+      size: 90,
+      meta: { skeleton: "actions", align: "left" },
       cell: ({ row }) => (
         <Button
-          variant="secondary"
-          size="sm"
+          variant="action"
+          size="md"
           icon={Eye}
-          className="h-8 cursor-pointer whitespace-nowrap focus-visible:outline-2 focus-visible:outline-info [&>svg]:h-3.5 [&>svg]:w-3.5"
+          iconOnly
+          title="View Details"
           aria-label={`View details for ${row.original.id}`}
           onClick={() => onView(row.original.id)}
-        >
-          View Details
-        </Button>
+        />
       ),
     }),
   ];

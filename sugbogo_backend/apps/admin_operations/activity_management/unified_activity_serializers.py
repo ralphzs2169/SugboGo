@@ -211,12 +211,39 @@ class UnifiedActivitySerializer(serializers.Serializer):
         )
 
 
+class CurrentActivityRelatedRecordSerializer(serializers.Serializer):
+    """Expose a current related name alongside its original projected identifier."""
+
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+    )
+
+
+class CurrentVouchRecordsSerializer(serializers.Serializer):
+    """Restrict vouch enrichment to public business and specialty identities."""
+
+    business = CurrentActivityRelatedRecordSerializer(
+        read_only=True,
+        allow_null=True,
+    )
+    specialty_tag = CurrentActivityRelatedRecordSerializer(
+        read_only=True,
+        allow_null=True,
+    )
+
+
 class UnifiedActivityDetailSerializer(UnifiedActivitySerializer):
     """Add available decision details while omitting private evidence and unrestricted legacy context."""
 
     previous_state = serializers.SerializerMethodField()
     reason = serializers.SerializerMethodField()
     context = serializers.SerializerMethodField()
+    current_related_records = CurrentVouchRecordsSerializer(
+        read_only=True,
+        allow_null=True,
+    )
 
     def get_previous_state(
         self,

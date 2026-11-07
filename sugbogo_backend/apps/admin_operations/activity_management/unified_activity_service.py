@@ -807,6 +807,44 @@ class UnifiedActivityService:
         )
 
     @classmethod
+    def current_vouch_records(
+        cls,
+        event,
+    ):
+        """Resolve only current vouch-related names while keeping projected record IDs authoritative."""
+        if event["source_type"] != "business_vouch":
+            return None
+        provenance = event["provenance"]
+        business_id = provenance.get("business_id")
+        specialty_id = provenance.get("specialty_tag_id")
+        if (
+            business_id is None
+            and specialty_id is None
+        ):
+            return None
+        current = BusinessVouch.objects.filter(pk=event["source_id"]).values(
+            "BUSN_ID_id",
+            "BUSN_ID__BUSN_NAME",
+            "TAG_ID_id",
+            "TAG_ID__TAG_NAME",
+        ).first()
+        if current is None:
+            current = {}
+        records = {}
+        for label, identifier, id_field, name_field in (
+            ("business", business_id, "BUSN_ID_id", "BUSN_ID__BUSN_NAME"),
+            ("specialty_tag", specialty_id, "TAG_ID_id", "TAG_ID__TAG_NAME"),
+        ):
+            if identifier is None:
+                records[label] = None
+                continue
+            name = None
+            if current.get(id_field) == identifier:
+                name = current.get(name_field)
+            records[label] = {"id": identifier, "name": name}
+        return records
+
+    @classmethod
     def get_activity(
         cls,
         event_id,
@@ -865,4 +903,5 @@ class UnifiedActivityService:
                 raise NotFound("Activity not found.")
             event["previous_state"] = details["APCH_BEFORE"]
             event["reason"] = details["APCH_REASON"]
+        event["current_related_records"] = cls.current_vouch_records(event)
         return event

@@ -452,6 +452,34 @@ class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
         LoginEvent.objects.filter(pk=42).delete()
         self.assertEqual(self.client.get(self.detail_url(identity)).status_code, 404)
 
+    def test_vouch_detail_resolves_current_names_once_without_enriching_the_list(self):
+        Business.objects.filter(pk=self.business.pk).update(BUSN_NAME="Current business name")
+        SpecialtyTag.objects.filter(pk=self.vouch.TAG_ID_id).update(TAG_NAME="Current specialty name")
+        identity = "business_vouch:42:business_vouch_submitted"
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.detail_url(identity))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(queries), 3)
+        event = response.data["data"]
+        self.assertEqual(event["id"], identity)
+        self.assertEqual(event["target_id"], "42")
+        self.assertIsNone(event["target_label"])
+        self.assertEqual(event["current_related_records"], {
+            "business": {"id": self.business.pk, "name": "Current business name"},
+            "specialty_tag": {"id": self.vouch.TAG_ID_id, "name": "Current specialty name"},
+        })
+        listing = self.client.get(self.url, {"action": "business_vouch_submitted"})
+        self.assertNotIn("current_related_records", listing.data["data"]["items"][0])
+        missing = UnifiedActivityService.current_vouch_records({
+            "source_type": "business_vouch",
+            "source_id": "999999",
+            "provenance": {"business_id": self.business.pk, "specialty_tag_id": self.vouch.TAG_ID_id},
+        })
+        self.assertEqual(missing["business"], {"id": self.business.pk, "name": None})
+        self.assertEqual(missing["specialty_tag"], {"id": self.vouch.TAG_ID_id, "name": None})
+        with self.assertNumQueries(0):
+            self.assertIsNone(UnifiedActivityService.current_vouch_records({"source_type": "review"}))
+
     def test_current_actors_are_batched_once_and_only_safe_profile_fields_are_exposed(self):
         avatar_url = "https://res.cloudinary.com/example/image/upload/profile.jpg"
         User.objects.filter(pk=self.admin.pk).update(

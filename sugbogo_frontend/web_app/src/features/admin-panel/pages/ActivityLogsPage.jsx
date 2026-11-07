@@ -48,99 +48,102 @@ export default function ActivityLogsPage() {
       <p className="mb-6 text-sm text-text-secondary">
         View and track significant actions across SugboGo.
       </p>
-      <div className="mb-4 overflow-x-auto pb-1 [&_[role=tab][aria-selected=true]]:text-primary [&_[role=tab][aria-selected=true]>span:first-child]:bg-primary/10 [&_[role=tab][aria-selected=true]>span:first-child]:shadow-none">
-        <TableTabs
-          tabs={ACTIVITY_CATEGORIES}
-          activeTab={state.category}
-          onTabChange={(category) => table.changeFilters({ category })}
-          tabListId="activity-categories"
-          ariaLabel="Activity categories"
-        />
-      </div>
-      <p className="mb-4 text-xs text-text-secondary">
-        Categories describe the activity. An Explorer can submit a merchant application,
-        and a Merchant can review or save a business.
-      </p>
-      <section
-        role="tabpanel"
-        id={`activity-categories-panel-${state.category}`}
-        aria-labelledby={`activity-categories-${state.category}`}
-        className="min-w-0 rounded-2xl border border-stroke bg-background p-3 sm:p-4"
-      >
-        <DataTable
-          data={list.data?.items ?? []}
-          columns={columns}
-          isLoading={list.isLoading}
-          isFetching={list.isFetching}
-          error={list.error}
-          onRetry={() => list.refetch()}
-          state={{ sorting: [] }}
-          pagination={pagination}
-          pageCount={metadata?.total_pages ?? 0}
-          totalItems={metadata?.total_items ?? 0}
-          onPaginationChange={table.changePagination}
-          hasActiveFilters={table.hasActiveFilters}
-          onResetFilters={table.resetFilters}
-          config={{
-            tableLabel: "Activity logs",
-            tableMinWidth: 1560,
-            compact: true,
-            fitContent: true,
-            fixedUtilityColumns: true,
-            showSearch: false,
-            scrollbarClassName: "themed-scrollbar",
-            emptyState: {
-              title: "No activity records available",
-              description: "Recorded activities across SugboGo will appear here.",
-              icon: <Activity aria-hidden="true" className="h-10 w-10 text-text-secondary" />,
-            },
-            noResultsState: {
-              title: "No activities match your filters",
-              description: (
-                <span>
-                  Try another selection or date range.{" "}
-                  <button
-                    type="button"
-                    onClick={table.resetFilters}
-                    className="rounded font-medium text-primary underline focus-visible:outline-2 focus-visible:outline-info"
-                  >
-                    Clear activity filters
-                  </button>
-                </span>
+      <section aria-label="Activity logs directory" className="min-w-0 rounded-2xl border border-stroke bg-background p-3 sm:p-4">
+        <div className="mb-6 overflow-x-auto pb-1">
+          <TableTabs
+            tabs={ACTIVITY_CATEGORIES}
+            activeTab={state.category}
+            onTabChange={(category) => table.changeFilters({ category })}
+            tabListId="activity-categories"
+            ariaLabel="Activity categories"
+          />
+        </div>
+        <p className="mb-4 text-xs text-text-secondary">
+          Categories describe the activity. An Explorer can submit a merchant application,
+          and a Merchant can review or save a business.
+        </p>
+        <div
+          role="tabpanel"
+          id={`activity-categories-panel-${state.category}`}
+          aria-labelledby={`activity-categories-${state.category}`}
+          className="min-w-0"
+        >
+          <DataTable
+            data={list.data?.items ?? []}
+            columns={columns}
+            getRowId={(activity) => activity.id}
+            isLoading={list.isLoading}
+            isFetching={list.isFetching}
+            error={list.error}
+            onRetry={() => list.refetch()}
+            state={{ sorting: [] }}
+            pagination={pagination}
+            pageCount={metadata?.total_pages ?? 0}
+            totalItems={metadata?.total_items ?? 0}
+            onPaginationChange={table.changePagination}
+            hasActiveFilters={table.hasActiveFilters}
+            onResetFilters={table.resetFilters}
+            config={{
+              tableLabel: "Activity logs",
+              tableMinWidth: 1560,
+              compact: true,
+              fitContent: true,
+              fixedUtilityColumns: true,
+              showSearch: false,
+              scrollbarClassName: "themed-scrollbar",
+              emptyState: {
+                title: "No activity records available",
+                description: "Recorded activities across SugboGo will appear here.",
+                icon: <Activity aria-hidden="true" className="h-10 w-10 text-text-secondary" />,
+              },
+              noResultsState: {
+                title: "No activities match your filters",
+                description: (
+                  <span>
+                    Try another selection or date range.{" "}
+                    <button
+                      type="button"
+                      onClick={table.resetFilters}
+                      className="rounded font-medium text-primary underline focus-visible:outline-2 focus-visible:outline-info"
+                    >
+                      Clear activity filters
+                    </button>
+                  </span>
+                ),
+              },
+              errorState: {
+                title: "Unable to load activity logs",
+                message: "The activity records could not be loaded. Your filters and page are preserved.",
+              },
+            }}
+            slots={{
+              renderFilters: () => (
+                <ActivityLogFilters filters={state} onChange={table.changeFilters} />
               ),
-            },
-            errorState: {
-              title: "Unable to load activity logs",
-              message: "The activity records could not be loaded. Your filters and page are preserved.",
-            },
-          }}
-          slots={{
-            renderFilters: () => (
-              <ActivityLogFilters filters={state} onChange={table.changeFilters} />
-            ),
-            renderHeaderActions: () => (
-              <div className="flex flex-wrap items-center gap-2">
-                {list.error?.response?.status === 404 && state.page > 1 && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => table.changePagination({
-                      pageIndex: 0,
-                      pageSize: state.page_size,
-                    })}
-                  >
-                    Return to first page
-                  </Button>
-                )}
-                <RowsPerPageMenu
-                  ariaLabel="Activities per page"
-                  value={state.page_size}
-                  onChange={(pageSize) => table.changePagination({ pageIndex: 0, pageSize })}
-                />
-              </div>
-            ),
-          }}
-        />
+              renderHeaderActions: () => (
+                <div className="flex flex-wrap items-center gap-2">
+                  {list.error?.response?.status === 404 && state.page > 1 && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => table.changePagination({
+                        pageIndex: 0,
+                        pageSize: state.page_size,
+                      })}
+                    >
+                      Return to first page
+                    </Button>
+                  )}
+                  <RowsPerPageMenu
+                    ariaLabel="Activities per page"
+                    value={state.page_size}
+                    onChange={(pageSize) => table.changePagination({ pageIndex: 0, pageSize })}
+                  />
+                </div>
+              ),
+            }}
+          />
+        </div>
       </section>
       {state.event_id && (
         <ActivityLogDrawer

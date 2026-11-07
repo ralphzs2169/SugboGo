@@ -276,14 +276,27 @@ test("refined cells reuse role badges, compact rows, neutral identity fallbacks,
   assert.ok(cells[3].querySelector(".whitespace-nowrap"));
   assert.ok(cells[4].querySelector('svg[aria-hidden="true"]'));
   const action = button(`View details for ${activity.id}`);
-  assert.ok(action.classList.contains("whitespace-nowrap"));
+  assert.ok(action.classList.contains("h-10"));
+  assert.ok(action.classList.contains("w-10"));
   assert.ok(action.classList.contains("cursor-pointer"));
-  assert.equal(action.textContent.trim(), "View Details");
+  assert.equal(action.textContent.trim(), "");
+  assert.equal(action.title, "View Details");
+  assert.ok(action.querySelector("svg"));
+  assert.ok(action.classList.contains("bg-transparent"));
+  assert.ok(cells[7].classList.contains("text-left"));
+  assert.ok(container.querySelector("th:last-child").classList.contains("text-left"));
   const utilityColumn = container.querySelector("colgroup col:last-child");
-  assert.equal(utilityColumn.style.width, "176px");
+  assert.equal(utilityColumn.style.width, "90px");
   assert.equal(container.querySelector("table").style.minWidth, "1560px");
   const tabStrip = container.querySelector('[role="tablist"]').parentElement;
-  assert.ok(tabStrip.className.includes(":text-primary"));
+  const tableCard = container.querySelector('[aria-label="Activity logs directory"]');
+  assert.ok(tableCard.contains(tabStrip));
+  assert.ok(tableCard.contains(container.querySelector("table")));
+  assert.equal(tabStrip.className.includes(":text-primary"), false);
+  const activeTab = container.querySelector('[role="tab"][aria-selected="true"]');
+  assert.ok(activeTab.classList.contains("text-text-primary"));
+  assert.ok(activeTab.querySelector("span").classList.contains("bg-background"));
+  assert.ok(activeTab.querySelector("span").classList.contains("shadow-sm"));
   assert.equal(container.querySelector('[role="tab"][aria-selected="true"]').textContent, "All Activity");
 });
 
@@ -360,6 +373,27 @@ test("pagination uses backend totals and sends page changes without client slici
   assert.equal(locationParams().get("page_size"), "100");
 });
 
+test("refresh keeps row identity and focused details action attached to the same event", async () => {
+  await render();
+  await until(() => button(`View details for ${activity.id}`));
+  const detailsButton = button(`View details for ${activity.id}`);
+  const originalRow = detailsButton.closest("tr");
+  detailsButton.focus();
+  const newer = {
+    ...activity,
+    id: "admin_activity:43:user_suspended",
+    source_id: "43",
+  };
+  await act(async () => client.setQueryData(
+    queries.activityLogKeys.list(listReads().at(-1).params),
+    pageData({}, [newer, activity]),
+  ));
+  await until(() => container.querySelectorAll("tbody tr").length === 2);
+  assert.ok(button(`View details for ${activity.id}`).closest("tr") === originalRow);
+  assert.ok(document.activeElement === detailsButton);
+  assert.equal(document.activeElement.getAttribute("aria-label"), `View details for ${activity.id}`);
+});
+
 test("detail uses encoded stable identity and displays only supported labeled information", async () => {
   await render("/admin-panel/activity-logs?page=2&category=administrative");
   await until(() => button(`View details for ${activity.id}`));
@@ -372,7 +406,7 @@ test("detail uses encoded stable identity and displays only supported labeled in
   assert.equal(locationParams().get("page"), "2");
   assert.match(dialog().textContent, /Previous state/);
   assert.match(dialog().textContent, /Resulting state/);
-  assert.match(dialog().textContent, /Historical roleSuper admin/);
+  assert.match(dialog().textContent, /Historical roleSuper Admin/);
   assert.match(dialog().textContent, /Business ID73/);
   assert.doesNotMatch(dialog().textContent, /private-|raw_provider_payload|device_id|password/);
   await click("Close modal", dialog());
@@ -412,9 +446,8 @@ test("missing historical fields stay unavailable without invented outcomes or st
   assert.equal(cells[6].textContent, "—");
   assert.equal(cells[6].querySelector("span").getAttribute("aria-label"), "Outcome not recorded");
   await click(`View details for ${login.id}`);
-  await until(() => dialog()?.textContent.includes("No change details"));
-  assert.match(dialog().textContent, /Historical roleNot recorded/);
-  assert.match(dialog().textContent, /Recorded outcomeNot recorded/);
+  await until(() => dialog()?.querySelector('[aria-label="Actor Information"]'));
+  assert.doesNotMatch(dialog().textContent, /No change details|No technical outcome|Historical name and role were not recorded/);
   assert.doesNotMatch(dialog().textContent, /Previous state|Resulting state/);
 });
 
@@ -545,11 +578,11 @@ test("current name, role, and uploaded avatar stay explicitly current for an old
   assert.doesNotMatch(container.querySelector("tbody").textContent, /Current name|Current role/);
   assert.doesNotMatch(cells[2].textContent, /Explorer/);
   await click(`View details for ${review.id}`);
-  await until(() => dialog()?.textContent.includes("Current account nameCurrent Merchant"));
+  await until(() => dialog()?.querySelector('[aria-label="Actor Information"]')?.textContent.includes("Current Merchant"));
   const actor = dialog().querySelector('[aria-label="Actor Information"]');
-  assert.match(actor.textContent, /Historical nameNot recorded/);
-  assert.match(actor.textContent, /Historical roleNot recorded/);
-  assert.match(actor.textContent, /Current account roleMerchant/);
+  assert.ok(actor.querySelector('[data-tooltip-content*="current account name"]'));
+  assert.ok(actor.querySelector('[data-tooltip-content*="current account role"]'));
+  assert.doesNotMatch(actor.textContent, /Historical name and role were not recorded/);
   assert.equal(actor.querySelector("img").src, review.current_actor.avatar_url);
 });
 
@@ -578,7 +611,7 @@ test("recorded snapshots win over changed current identity while the drawer show
   await until(() => dialog()?.textContent.includes("Current account nameRenamed Account"));
   const actor = dialog().querySelector('[aria-label="Actor Information"]');
   assert.match(actor.textContent, /Historical nameRecorded Administrator/);
-  assert.match(actor.textContent, /Historical roleSuper admin/);
+  assert.match(actor.textContent, /Historical roleSuper Admin/);
   assert.match(actor.textContent, /Current account roleMerchant/);
 });
 
@@ -600,7 +633,7 @@ test("identical historical and current identities are labeled together without d
   await click(`View details for ${event.id}`);
   await until(() => dialog()?.textContent.includes("Name (historical and current)"));
   const actor = dialog().querySelector('[aria-label="Actor Information"]');
-  assert.match(actor.textContent, /Role \(historical and current\)Super admin/);
+  assert.match(actor.textContent, /Role \(historical and current\)Super Admin/);
   assert.doesNotMatch(actor.textContent, /Current account name|Current account role/);
   assert.equal(actor.textContent.match(/Recorded Administrator/g).length, 1);
   assert.equal(container.querySelector("tbody img"), null);
@@ -637,8 +670,8 @@ test("unresolved and null actors use neutral fallbacks without repetitive or inv
   assert.doesNotMatch(container.querySelector("tbody").textContent, /Name not recorded|Current role/);
   await click(`View details for ${unavailable.id}`);
   await until(() => dialog()?.textContent.includes("Current accountUnavailable"));
-  assert.match(dialog().textContent, /Actor identifier93/);
-  assert.match(dialog().textContent, /Historical nameNot recorded/);
+  assert.match(dialog().textContent, /User #93/);
+  assert.doesNotMatch(dialog().textContent, /Historical name and role were not recorded/);
 });
 
 test("entity descriptions are separate from module names and use only stored context", () => {
@@ -770,7 +803,101 @@ test("table and drawer clarify cross-role activity, resubmissions, and affected 
   await click(`View details for ${events[3].id}`);
   await until(() => dialog()?.textContent.includes("Merchant application resubmitted"));
   assert.equal(detailReads()[0].url, `/admin/activity-logs/${encodeURIComponent(events[3].id)}/`);
-  assert.match(dialog().textContent, /Target typeMerchant application/);
-  assert.match(dialog().textContent, /Target identifier149/);
+  assert.match(dialog().querySelector('[aria-label="Affected Record"]').textContent, /Merchant application #149/);
   assert.match(dialog().textContent, /Submission number2/);
+});
+
+test("details retain the activity summary and affected record without technical source references", async () => {
+  const event = {
+    ...activity,
+    id: "review:129:review_submitted",
+    source_type: "review",
+    source_id: "129",
+    occurrence: "review_submitted",
+    category: "explorer",
+    module: "reviews",
+    actor_id: 93,
+    actor_display_snapshot: null,
+    actor_role_snapshot: null,
+    current_actor: { name: "Current Reviewer", role: "explorer", avatar_url: null, avatar_key: null },
+    target_type: "review",
+    target_id: "129",
+    target_label: null,
+    outcome: null,
+    previous_state: null,
+    new_state: null,
+    reason: null,
+    context: null,
+    provenance: { model: "reviews.review", business_id: 11 },
+  };
+  transport = async (url, options) => url === "/admin/activity-logs/"
+    ? pageData(options.params, [event])
+    : event;
+  await render();
+  await until(() => button(`View details for ${event.id}`));
+  await click(`View details for ${event.id}`);
+  await until(() => dialog()?.textContent.includes("Current Reviewer"));
+  const summary = dialog().querySelector('[aria-label="General Information"]');
+  assert.equal(summary.querySelector("h3").textContent, "Review submitted");
+  assert.equal(summary.querySelector("time").dateTime, event.occurred_at);
+  assert.doesNotMatch(summary.textContent, /No technical outcome recorded/);
+  const actor = dialog().querySelector('[aria-label="Actor Information"]');
+  assert.match(actor.textContent, /Current ReviewerUser #93/);
+  assert.ok(actor.querySelector('[aria-label*="current account role"]'));
+  assert.equal((actor.textContent.match(/Historical name and role were not recorded/g) || []).length, 0);
+  assert.doesNotMatch(actor.textContent, /Not recorded/);
+  const record = dialog().querySelector('[aria-label="Affected Record"]');
+  assert.match(record.textContent, /Review #129/);
+  assert.match(record.textContent, /Business ID11/);
+  assert.doesNotMatch(record.textContent, /Target label|Not recorded/);
+  assert.equal(dialog().querySelector('[aria-label="Change Information"]'), null);
+  assert.equal(dialog().querySelector("details"), null);
+  assert.doesNotMatch(dialog().textContent, /Technical Details|Event identity|Source type|Source identifier|Source model|reviews\.review/);
+});
+
+test("vouch details show current related names, retain IDs, and avoid duplicated technical references", async () => {
+  const event = {
+    ...activity,
+    id: "business_vouch:220:business_vouch_submitted",
+    source_type: "business_vouch",
+    source_id: "220",
+    target_type: "business_vouch",
+    target_id: "220",
+    target_label: null,
+    occurrence: "business_vouch_submitted",
+    category: "explorer",
+    module: "business",
+    outcome: null,
+    previous_state: null,
+    new_state: null,
+    reason: null,
+    context: null,
+    provenance: { model: "business.businessvouch", business_id: 11, specialty_tag_id: 12 },
+    current_related_records: {
+      business: { id: 11, name: "Current business" },
+      specialty_tag: { id: 12, name: "Current specialty" },
+    },
+  };
+  transport = async (url, options) => url === "/admin/activity-logs/"
+    ? pageData(options.params, [event])
+    : event;
+  await render();
+  await until(() => button(`View details for ${event.id}`));
+  await click(`View details for ${event.id}`);
+  await until(() => dialog()?.textContent.includes("Current specialty"));
+  const record = dialog().querySelector('[aria-label="Affected Record"]');
+  assert.match(record.textContent, /Business vouch #220/);
+  assert.match(record.textContent, /BusinessCurrent business#11 · Current name/);
+  assert.match(record.textContent, /Specialty tagCurrent specialty#12 · Current name/);
+  assert.equal(dialog().querySelector('[aria-label="Change Information"]'), null);
+  assert.equal(dialog().querySelector("details"), null);
+  assert.doesNotMatch(dialog().textContent, /Technical Details|Source model/);
+  await act(async () => client.setQueryData(queries.activityLogKeys.detail(event.id), {
+    ...event,
+    current_related_records: { business: { id: 11, name: null }, specialty_tag: { id: 12, name: null } },
+  }));
+  await until(() => record.textContent.includes("Business ID11"));
+  assert.match(record.textContent, /Business ID11/);
+  assert.match(record.textContent, /Specialty tag ID12/);
+  assert.doesNotMatch(record.textContent, /Current business|Current specialty/);
 });
