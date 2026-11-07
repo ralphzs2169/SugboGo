@@ -40,6 +40,10 @@ urlpatterns = [
     path("api/merchant/review-disputes/", include("apps.review_disputes.urls")),
 
     # Admin Operations
+    path(
+        'api/admin/search/',
+        include('apps.admin_operations.global_search.urls'),
+    ),
     path('api/admin/dashboard/', include('apps.admin_operations.dashboard.urls')),
     path('api/admin/businesses/', include('apps.admin_operations.business_management.urls')),
     path('api/admin/users/', include('apps.admin_operations.user_management.urls')),

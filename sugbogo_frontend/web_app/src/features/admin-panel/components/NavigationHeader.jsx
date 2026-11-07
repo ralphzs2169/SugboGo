@@ -1,6 +1,7 @@
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 
 import ThemeToggle from "@/shared/components/ThemeToggle";
+import GlobalSearch from "../global-search/components/GlobalSearch";
 
 /**
  * Provides global administrative utilities that remain available
@@ -22,19 +23,7 @@ export default function NavigationHeader({ onMenuClick }) {
         </button>
 
         {/* Global search */}
-        <div className="relative hidden w-98 md:block">
-          <Search
-            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary"
-            aria-hidden="true"
-          />
-
-          <input
-            type="search"
-            placeholder="Search..."
-            aria-label="Search administration"
-            className="w-full rounded-lg border border-stroke bg-surface-muted py-2 pl-9 pr-4 text-sm text-text-primary outline-none transition-colors placeholder:text-text-secondary focus:border-stroke-active focus:ring-2 focus:ring-stroke-active/20"
-          />
-        </div>
+        <GlobalSearch />
       </div>
 
       {/* Right-side global utilities */}
