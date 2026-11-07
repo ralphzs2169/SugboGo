@@ -15,9 +15,9 @@ export function activityLabel(value) {
     value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " ");
 }
 
-/** Identify an actor from its stored display snapshot or stable user reference only. */
+/** Prefer recorded identity, then separately resolved current name, then the original identifier. */
 export function activityActor(event) {
-  return event.actor_display_snapshot ||
+  return event.actor_display_snapshot || event.current_actor?.name ||
     (event.actor_id != null ? `User #${event.actor_id}` : "Not recorded");
 }
 

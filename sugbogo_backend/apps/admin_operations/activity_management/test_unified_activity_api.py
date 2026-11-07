@@ -199,9 +199,9 @@ class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
         self.assertEqual(len(expected_ids), 9)
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(self.url, {"page_size": 2})
-        self.assertEqual(len(queries), 2)
-        self.assertIn("UNION ALL", queries[-1]["sql"])
-        self.assertIn("LIMIT 2", queries[-1]["sql"])
+        self.assertEqual(len(queries), 3)
+        self.assertIn("UNION ALL", queries[1]["sql"])
+        self.assertIn("LIMIT 2", queries[1]["sql"])
         self.assertEqual(response.data["data"]["pagination"], {
             "page": 1,
             "page_size": 2,
@@ -219,7 +219,7 @@ class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
         for event, row in zip(normalized, rows):
             self.assertEqual(
                 set(row),
-                set(UnifiedActivityService.COLUMNS) | {"id", "category"},
+                set(UnifiedActivityService.COLUMNS) | {"id", "category", "current_actor"},
             )
             self.assertEqual(parse_datetime(row["occurred_at"]), event["occurred_at"])
             for field in set(UnifiedActivityService.COLUMNS) - {"occurred_at", "new_state"}:
@@ -451,3 +451,130 @@ class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
         self.assertTrue(LoginEvent.objects.filter(pk=42).exists())
         LoginEvent.objects.filter(pk=42).delete()
         self.assertEqual(self.client.get(self.detail_url(identity)).status_code, 404)
+
+    def test_current_actors_are_batched_once_and_only_safe_profile_fields_are_exposed(self):
+        avatar_url = "https://res.cloudinary.com/example/image/upload/profile.jpg"
+        User.objects.filter(pk=self.admin.pk).update(
+            USER_PROFILE_PICTURE=avatar_url,
+            USER_AVATAR_KEY=User.AvatarKey.EXPLORER_AVATAR_3,
+        )
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, {"page_size": 100})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(queries), 3)
+        user_table = connection.ops.quote_name(User._meta.db_table)
+        user_reads = [
+            query["sql"]
+            for query in queries
+            if (
+                f"FROM {user_table}" in query["sql"]
+                and "UNION ALL" not in query["sql"]
+            )
+        ]
+        self.assertEqual(len(user_reads), 1)
+        for field in (
+            "USER_PASSWORD",
+            "USER_EMAIL",
+            "USER_GENDER",
+            "USER_PROFILE_PICTURE_PUBLIC_ID",
+            "EMAIL_VERIFIED",
+        ):
+            self.assertNotIn(field, user_reads[0])
+        rows = response.data["data"]["items"]
+        self.assertEqual(len(rows), 9)
+        admin_rows = [
+            row
+            for row in rows
+            if row["actor_id"] == self.admin.pk
+        ]
+        self.assertEqual(len(admin_rows), 3)
+        for row in admin_rows:
+            self.assertEqual(row["current_actor"], {
+                "name": self.admin.full_name,
+                "role": User.UserRole.ADMIN,
+                "avatar_url": avatar_url,
+                "avatar_key": User.AvatarKey.EXPLORER_AVATAR_3,
+            })
+        for row in rows:
+            self.assertEqual(
+                set(row["current_actor"]),
+                {"name", "role", "avatar_url", "avatar_key"},
+            )
+
+    def test_current_identity_never_overwrites_snapshots_or_source_records(self):
+        User.objects.filter(pk=self.admin.pk).update(
+            USER_FNAME="Renamed",
+            USER_LNAME="Administrator",
+        )
+        identity = "admin_activity:42:user_suspended"
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.detail_url(identity))
+        self.assertEqual(len(queries), 3)
+        data = response.data["data"]
+        self.assertEqual(data["id"], identity)
+        self.assertEqual(data["actor_id"], self.admin.pk)
+        self.assertEqual(data["actor_display_snapshot"], "Recorded Administrator")
+        self.assertEqual(data["actor_role_snapshot"], User.UserRole.SUPER_ADMIN)
+        self.assertEqual(data["current_actor"]["name"], "Renamed Administrator")
+        self.assertEqual(data["current_actor"]["role"], User.UserRole.ADMIN)
+        self.assertIsNone(data["current_actor"]["avatar_url"])
+        self.assertIsNone(data["current_actor"]["avatar_key"])
+        self.activity.refresh_from_db()
+        self.assertEqual(self.activity.AACT_ACTOR_NAME, "Recorded Administrator")
+        self.assertEqual(self.activity.AACT_ACTOR_ROLE, User.UserRole.SUPER_ADMIN)
+        login = self.client.get(self.detail_url("login_event:42:login_succeeded"))
+        self.assertIsNone(login.data["data"]["actor_display_snapshot"])
+        self.assertIsNone(login.data["data"]["actor_role_snapshot"])
+        self.assertEqual(login.data["data"]["current_actor"]["role"], User.UserRole.ADMIN)
+
+    def test_resolution_is_limited_to_the_returned_page_and_skips_empty_results(self):
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, {"page_size": 1})
+        self.assertEqual(len(queries), 3)
+        self.assertEqual(len(response.data["data"]["items"]), 1)
+        self.assertEqual(response.data["data"]["items"][0]["actor_id"], self.admin.pk)
+        self.assertIn(f"IN ({self.admin.pk})", queries[-1]["sql"])
+        with self.assertNumQueries(0):
+            self.assertEqual(UnifiedActivityService.resolve_current_actors([]), {})
+            self.assertEqual(
+                UnifiedActivityService.resolve_current_actors([{"actor_id": None}]),
+                {},
+            )
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, {"actor_id": 999999})
+        self.assertEqual(response.data["data"]["items"], [])
+        self.assertEqual(len(queries), 1)
+
+    def test_deleted_and_null_actors_keep_original_identity_without_fabricated_profiles(self):
+        deleted = User.objects.create(
+            USER_EMAIL="deleted-activity-actor@example.com",
+            USER_FNAME="Deleted",
+            USER_LNAME="Actor",
+            USER_ROLE=User.UserRole.EXPLORER,
+            password="!",
+        )
+        original_id = deleted.pk
+        revision = AnalyticsPolicyChange.objects.create(
+            APCH_VERSION=99,
+            APCH_ACTOR=deleted,
+            APCH_ACTOR_ID_SNAPSHOT=original_id,
+            APCH_REASON="Retained decision reason.",
+            APCH_BEFORE={"peer_min_businesses": 5},
+            APCH_AFTER={"peer_min_businesses": 6},
+        )
+        deleted.delete()
+        identity = f"analytics_policy_change:{revision.pk}:analytics_policy_revision"
+        response = self.client.get(self.detail_url(identity))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["actor_id"], original_id)
+        self.assertIsNone(response.data["data"]["current_actor"])
+        self.assertIsNone(response.data["data"]["actor_display_snapshot"])
+        self.assertIsNone(response.data["data"]["actor_role_snapshot"])
+        AnalyticsPolicyChange.objects.filter(pk=revision.pk).update(
+            APCH_ACTOR_ID_SNAPSHOT=None,
+        )
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.detail_url(identity))
+        self.assertEqual(len(queries), 2)
+        self.assertIsNone(response.data["data"]["actor_id"])
+        self.assertIsNone(response.data["data"]["current_actor"])

@@ -10,12 +10,16 @@ const OUTCOMES = {
 };
 
 /** Show only the technical outcome actually recorded by the source. */
-export default function ActivityOutcome({ value }) {
-  if (!value) return <span className="text-sm text-text-secondary">Not recorded</span>;
+export default function ActivityOutcome({ value, emptyLabel = "Not recorded" }) {
+  if (!value) {
+    return <span aria-label="Outcome not recorded" className="text-sm text-text-secondary">{emptyLabel}</span>;
+  }
   const outcome = OUTCOMES[value];
   return (
-    <StatusBadge variant={outcome?.variant ?? "neutral"}>
-      {outcome?.label ?? activityLabel(value)}
-    </StatusBadge>
+    <span className="inline-flex whitespace-nowrap">
+      <StatusBadge variant={outcome?.variant ?? "neutral"}>
+        {outcome?.label ?? activityLabel(value)}
+      </StatusBadge>
+    </span>
   );
 }

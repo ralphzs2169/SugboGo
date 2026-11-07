@@ -46,6 +46,9 @@ class UnifiedActivityListView(APIView):
         serializer = UnifiedActivitySerializer(
             page,
             many=True,
+            context={
+                "current_actors": UnifiedActivityService.resolve_current_actors(page),
+            },
         )
         return paginator.get_paginated_response(serializer.data)
 
@@ -62,5 +65,10 @@ class UnifiedActivityDetailView(APIView):
     ):
         """Return normalized facts and explicitly allowlisted historical detail."""
         activity = UnifiedActivityService.get_activity(event_id)
-        serializer = UnifiedActivityDetailSerializer(activity)
+        serializer = UnifiedActivityDetailSerializer(
+            activity,
+            context={
+                "current_actors": UnifiedActivityService.resolve_current_actors([activity]),
+            },
+        )
         return success_response(data=serializer.data)

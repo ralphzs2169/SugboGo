@@ -28,6 +28,8 @@ let notifications;
 const originalToastError = toast.error;
 const originalToastDismiss = toast.dismiss;
 const originalFormData = globalThis.FormData;
+const originalEvent = globalThis.Event;
+const originalCustomEvent = globalThis.CustomEvent;
 
 const activity = {
   id: "admin_activity:42:user_suspended",
@@ -40,6 +42,7 @@ const activity = {
   actor_id: 7,
   actor_display_snapshot: "Recorded Administrator",
   actor_role_snapshot: "super_admin",
+  current_actor: null,
   target_type: "user",
   target_id: "73",
   target_label: "Recorded Target",
@@ -87,6 +90,9 @@ before(async () => {
     HTMLElement: dom.window.HTMLElement,
     Element: dom.window.Element,
     Node: dom.window.Node,
+    Event: dom.window.Event,
+    CustomEvent: dom.window.CustomEvent,
+    MutationObserver: dom.window.MutationObserver,
     FormData: dom.window.FormData,
     requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window),
     cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window),
@@ -149,10 +155,12 @@ after(async () => {
   toast.error = originalToastError;
   toast.dismiss = originalToastDismiss;
   globalThis.FormData = originalFormData;
+  globalThis.Event = originalEvent;
+  globalThis.CustomEvent = originalCustomEvent;
   await server.close();
   dom.window.close();
   for (const key of [
-    "window", "document", "HTMLElement", "Element", "Node",
+    "window", "document", "HTMLElement", "Element", "Node", "MutationObserver",
     "requestAnimationFrame", "cancelAnimationFrame",
     "IS_REACT_ACT_ENVIRONMENT", "__activityGet",
   ]) delete globalThis[key];
@@ -251,6 +259,32 @@ test("page consumes the normalized list and existing table/pagination components
   assert.equal(listReads()[0].params.category, "all");
   assert.equal(listReads()[0].params.page_size, 10);
   assert.ok(listReads()[0].signal instanceof AbortSignal);
+});
+
+test("refined cells reuse role badges, compact rows, neutral identity fallbacks, and single-line actions", async () => {
+  await render();
+  await until(() => container.textContent.includes("Recorded Administrator"));
+  const row = container.querySelector("tbody tr");
+  const cells = row.querySelectorAll("td");
+  assert.ok(row.classList.contains("h-12"));
+  assert.match(cells[1].textContent, /Recorded Administrator#7/);
+  assert.equal(cells[1].querySelector("img"), null);
+  assert.ok(cells[1].querySelector('[aria-hidden="true"] svg'));
+  assert.equal(cells[2].textContent, "Super Admin");
+  assert.ok(cells[2].querySelector(".bg-purple-600\\/10"));
+  assert.equal(cells[3].textContent, "User management");
+  assert.ok(cells[3].querySelector(".whitespace-nowrap"));
+  assert.ok(cells[4].querySelector('svg[aria-hidden="true"]'));
+  const action = button(`View details for ${activity.id}`);
+  assert.ok(action.classList.contains("whitespace-nowrap"));
+  assert.ok(action.classList.contains("cursor-pointer"));
+  assert.equal(action.textContent.trim(), "View Details");
+  const utilityColumn = container.querySelector("colgroup col:last-child");
+  assert.equal(utilityColumn.style.width, "176px");
+  assert.equal(container.querySelector("table").style.minWidth, "1560px");
+  const tabStrip = container.querySelector('[role="tablist"]').parentElement;
+  assert.ok(tabStrip.className.includes(":text-primary"));
+  assert.equal(container.querySelector('[role="tab"][aria-selected="true"]').textContent, "All Activity");
 });
 
 test("all categories and combined URL filters reach the API and reset page on changes", async () => {
@@ -372,6 +406,11 @@ test("missing historical fields stay unavailable without invented outcomes or st
   await render();
   await until(() => container.textContent.includes("User #7"));
   assert.doesNotMatch(container.querySelector("tbody").textContent, /Super admin|Completed|Success/);
+  const cells = container.querySelectorAll("tbody tr:first-child td");
+  assert.equal(cells[2].textContent, "—");
+  assert.equal(cells[2].querySelector("span").getAttribute("aria-label"), "Role not recorded");
+  assert.equal(cells[6].textContent, "—");
+  assert.equal(cells[6].querySelector("span").getAttribute("aria-label"), "Outcome not recorded");
   await click(`View details for ${login.id}`);
   await until(() => dialog()?.textContent.includes("No change details"));
   assert.match(dialog().textContent, /Historical roleNot recorded/);
@@ -466,4 +505,138 @@ test("navigation and the existing role guard restrict the page to Admin and Supe
   await render("/admin-panel/activity-logs", true);
   await until(() => container.textContent.includes("Login destination"));
   assert.equal(listReads().length, 0);
+});
+
+test("current name, role, and uploaded avatar stay explicitly current for an older Explorer activity", async () => {
+  const review = {
+    ...activity,
+    id: "review:42:review_submitted",
+    source_type: "review",
+    occurrence: "review_submitted",
+    module: "reviews",
+    category: "explorer",
+    actor_display_snapshot: null,
+    actor_role_snapshot: null,
+    current_actor: {
+      name: "Current Merchant",
+      role: "merchant",
+      avatar_url: "https://example.com/current-avatar.jpg",
+      avatar_key: null,
+    },
+  };
+  transport = async (url, options) => url === "/admin/activity-logs/"
+    ? pageData(options.params, [review])
+    : { ...review, previous_state: null, reason: null, context: null };
+  await render();
+  await until(() => container.querySelector("tbody")?.textContent.includes("Current Merchant"));
+  const cells = container.querySelectorAll("tbody tr td");
+  assert.equal(cells[1].textContent, "Current Merchant#7");
+  const nameHint = cells[1].querySelector('[data-tooltip-content*="current account name"]');
+  assert.ok(nameHint);
+  assert.equal(nameHint.tabIndex, 0);
+  assert.match(nameHint.getAttribute("aria-label"), /No historical name was recorded/);
+  assert.equal(cells[1].querySelector("img").src, review.current_actor.avatar_url);
+  assert.ok(cells[1].querySelector('[aria-label="Current account avatar"]'));
+  assert.equal(cells[2].textContent, "Merchant");
+  const roleHint = cells[2].querySelector('[data-tooltip-content*="current account role"]');
+  assert.ok(roleHint);
+  assert.equal(roleHint.tabIndex, 0);
+  assert.match(roleHint.getAttribute("aria-label"), /No historical role was recorded/);
+  assert.doesNotMatch(container.querySelector("tbody").textContent, /Current name|Current role/);
+  assert.doesNotMatch(cells[2].textContent, /Explorer/);
+  await click(`View details for ${review.id}`);
+  await until(() => dialog()?.textContent.includes("Current account nameCurrent Merchant"));
+  const actor = dialog().querySelector('[aria-label="Actor Information"]');
+  assert.match(actor.textContent, /Historical nameNot recorded/);
+  assert.match(actor.textContent, /Historical roleNot recorded/);
+  assert.match(actor.textContent, /Current account roleMerchant/);
+  assert.equal(actor.querySelector("img").src, review.current_actor.avatar_url);
+});
+
+test("recorded snapshots win over changed current identity while the drawer shows both", async () => {
+  const event = {
+    ...detailData(),
+    current_actor: {
+      name: "Renamed Account",
+      role: "merchant",
+      avatar_url: null,
+      avatar_key: "explorer_avatar_2",
+    },
+  };
+  transport = async (url, options) => url === "/admin/activity-logs/"
+    ? pageData(options.params, [event])
+    : event;
+  await render();
+  await until(() => container.textContent.includes("Recorded Administrator"));
+  const cells = container.querySelectorAll("tbody tr td");
+  assert.match(cells[1].textContent, /Recorded Administrator#7/);
+  assert.doesNotMatch(cells[1].textContent, /Renamed Account|Current name/);
+  assert.match(cells[1].querySelector("img").src, /explorer-avatar-2\.webp/);
+  assert.equal(cells[2].textContent, "Super Admin");
+  assert.equal(cells[2].querySelector("[data-tooltip-content]"), null);
+  await click(`View details for ${event.id}`);
+  await until(() => dialog()?.textContent.includes("Current account nameRenamed Account"));
+  const actor = dialog().querySelector('[aria-label="Actor Information"]');
+  assert.match(actor.textContent, /Historical nameRecorded Administrator/);
+  assert.match(actor.textContent, /Historical roleSuper admin/);
+  assert.match(actor.textContent, /Current account roleMerchant/);
+});
+
+test("identical historical and current identities are labeled together without duplicate fields", async () => {
+  const event = {
+    ...detailData(),
+    current_actor: {
+      name: activity.actor_display_snapshot,
+      role: activity.actor_role_snapshot,
+      avatar_url: null,
+      avatar_key: null,
+    },
+  };
+  transport = async (url, options) => url === "/admin/activity-logs/"
+    ? pageData(options.params, [event])
+    : event;
+  await render();
+  await until(() => button(`View details for ${event.id}`));
+  await click(`View details for ${event.id}`);
+  await until(() => dialog()?.textContent.includes("Name (historical and current)"));
+  const actor = dialog().querySelector('[aria-label="Actor Information"]');
+  assert.match(actor.textContent, /Role \(historical and current\)Super admin/);
+  assert.doesNotMatch(actor.textContent, /Current account name|Current account role/);
+  assert.equal(actor.textContent.match(/Recorded Administrator/g).length, 1);
+  assert.equal(container.querySelector("tbody img"), null);
+});
+
+test("unresolved and null actors use neutral fallbacks without repetitive or invented identity", async () => {
+  const unavailable = {
+    ...activity,
+    id: "analytics_policy_change:43:analytics_policy_revision",
+    source_type: "analytics_policy_change",
+    source_id: "43",
+    occurrence: "analytics_policy_revision",
+    actor_id: 93,
+    actor_display_snapshot: null,
+    actor_role_snapshot: null,
+    current_actor: null,
+  };
+  const anonymous = {
+    ...unavailable,
+    id: "analytics_policy_change:44:analytics_policy_revision",
+    source_id: "44",
+    actor_id: null,
+  };
+  transport = async (url, options) => url === "/admin/activity-logs/"
+    ? pageData(options.params, [unavailable, anonymous])
+    : { ...unavailable, previous_state: null, reason: null, context: null };
+  await render();
+  await until(() => container.textContent.includes("User #93"));
+  const rows = container.querySelectorAll("tbody tr");
+  assert.equal(rows[0].querySelectorAll("td")[1].textContent, "User #93");
+  assert.equal(rows[1].querySelectorAll("td")[1].textContent, "Not recorded");
+  assert.equal(rows[0].querySelectorAll("td")[2].textContent, "—");
+  assert.equal(container.querySelector("tbody img"), null);
+  assert.doesNotMatch(container.querySelector("tbody").textContent, /Name not recorded|Current role/);
+  await click(`View details for ${unavailable.id}`);
+  await until(() => dialog()?.textContent.includes("Current accountUnavailable"));
+  assert.match(dialog().textContent, /Actor identifier93/);
+  assert.match(dialog().textContent, /Historical nameNot recorded/);
 });

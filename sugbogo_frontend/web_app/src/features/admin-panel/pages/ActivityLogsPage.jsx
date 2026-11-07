@@ -48,7 +48,7 @@ export default function ActivityLogsPage() {
       <p className="mb-6 text-sm text-text-secondary">
         View and track significant actions across SugboGo.
       </p>
-      <div className="mb-4 overflow-x-auto pb-1">
+      <div className="mb-4 overflow-x-auto pb-1 [&_[role=tab][aria-selected=true]]:text-primary [&_[role=tab][aria-selected=true]>span:first-child]:bg-primary/10 [&_[role=tab][aria-selected=true]>span:first-child]:shadow-none">
         <TableTabs
           tabs={ACTIVITY_CATEGORIES}
           activeTab={state.category}
@@ -61,7 +61,7 @@ export default function ActivityLogsPage() {
         role="tabpanel"
         id={`activity-categories-panel-${state.category}`}
         aria-labelledby={`activity-categories-${state.category}`}
-        className="min-w-0"
+        className="min-w-0 rounded-2xl border border-stroke bg-background p-3 sm:p-4"
       >
         <DataTable
           data={list.data?.items ?? []}
@@ -79,7 +79,10 @@ export default function ActivityLogsPage() {
           onResetFilters={table.resetFilters}
           config={{
             tableLabel: "Activity logs",
-            tableMinWidth: 1515,
+            tableMinWidth: 1560,
+            compact: true,
+            fitContent: true,
+            fixedUtilityColumns: true,
             showSearch: false,
             scrollbarClassName: "themed-scrollbar",
             emptyState: {

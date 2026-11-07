@@ -116,7 +116,7 @@ function ActorForm({ actorId, onApply, onClose }) {
 export default function ActivityLogFilters({ filters, onChange }) {
   const hasDates = Boolean(filters.start_date || filters.end_date);
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 [&>div]:max-w-full [&>div>span]:min-h-9 [&>div>span]:max-w-full [&_button[aria-haspopup]]:h-9 [&_button[aria-haspopup]]:max-w-full [&_button[aria-haspopup]]:whitespace-nowrap [&_button[aria-haspopup]>span]:min-w-0 [&_button[aria-haspopup]>span]:truncate [&_button[aria-haspopup]>svg]:shrink-0 [&_[role=dialog]]:w-80 [&_[role=dialog]]:max-w-[calc(100vw-2rem)]">
       <FilterMenu
         ariaLabel="Filter activities"
         filters={[
@@ -146,7 +146,7 @@ export default function ActivityLogFilters({ filters, onChange }) {
         ]}
         icon={User}
         ariaLabel="Filter by administrator or user"
-        triggerLabel={filters.actor_id ? `User #${filters.actor_id}` : "Administrator / user"}
+        triggerLabel={filters.actor_id ? `User #${filters.actor_id}` : "User ID"}
         onChange={() => onChange({ actor_id: "" })}
         customContent={(onClose) => (
           <ActorForm actorId={filters.actor_id} onApply={onChange} onClose={onClose} />
@@ -162,7 +162,7 @@ export default function ActivityLogFilters({ filters, onChange }) {
         ariaLabel="Filter activity dates"
         triggerLabel={hasDates
           ? `${filters.start_date || "Any"} – ${filters.end_date || "Any"}`
-          : "Activity date"}
+          : "Date range"}
         onChange={() => onChange({ start_date: "", end_date: "" })}
         customContent={(onClose) => (
           <DateRangeForm filters={filters} onApply={onChange} onClose={onClose} />

@@ -35,6 +35,7 @@ from apps.merchant_operations.business_profile.models import (
 )
 from apps.review_disputes.models import MerchantReviewDispute
 from apps.reviews.models import Review, ReviewLike
+from apps.users.models import User
 
 
 class UnifiedActivityService:
@@ -58,6 +59,32 @@ class UnifiedActivityService:
         "is_administrative",
         "provenance",
     )
+
+    @staticmethod
+    def resolve_current_actors(events):
+        """Load only current public identity fields for the distinct actors in the supplied page."""
+        actor_ids = {
+            event["actor_id"]
+            for event in events
+            if (
+                event["actor_id"] is not None
+                and event["actor_id"] > 0
+            )
+        }
+        if not actor_ids:
+            return {}
+        return (
+            User.objects
+            .only(
+                "USER_ID",
+                "USER_FNAME",
+                "USER_LNAME",
+                "USER_ROLE",
+                "USER_PROFILE_PICTURE",
+                "USER_AVATAR_KEY",
+            )
+            .in_bulk(actor_ids)
+        )
 
     MERCHANT_SOURCES = (
         "merchant_application_submission",

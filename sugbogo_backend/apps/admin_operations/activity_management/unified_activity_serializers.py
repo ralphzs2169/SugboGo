@@ -8,6 +8,7 @@ from rest_framework import serializers
 from apps.admin_operations.system_configuration.analytics_policy_definitions import (
     POLICY_FIELDS,
 )
+from apps.users.models import User
 
 from .services import AdminActivityService
 from .unified_activity_service import UnifiedActivityService
@@ -125,8 +126,36 @@ def safe_state(
     return result
 
 
+class CurrentActivityActorSerializer(serializers.ModelSerializer):
+    """Expose minimal current account identity separately from recorded activity snapshots."""
+
+    name = serializers.CharField(
+        source="full_name",
+        read_only=True,
+    )
+    role = serializers.CharField(
+        source="USER_ROLE",
+        read_only=True,
+    )
+    avatar_url = serializers.ReadOnlyField()
+    avatar_key = serializers.CharField(
+        source="USER_AVATAR_KEY",
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = User
+        fields = (
+            "name",
+            "role",
+            "avatar_url",
+            "avatar_key",
+        )
+
+
 class UnifiedActivitySerializer(serializers.Serializer):
-    """Expose normalized facts and safe provenance without hydrating current account profiles."""
+    """Expose normalized facts with safe provenance and separately resolved current actor identity."""
 
     id = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
@@ -138,6 +167,7 @@ class UnifiedActivitySerializer(serializers.Serializer):
     actor_id = serializers.IntegerField(allow_null=True)
     actor_display_snapshot = serializers.CharField(allow_null=True)
     actor_role_snapshot = serializers.CharField(allow_null=True)
+    current_actor = serializers.SerializerMethodField()
     target_type = serializers.CharField(allow_null=True)
     target_id = serializers.CharField(allow_null=True)
     target_label = serializers.CharField(allow_null=True)
@@ -145,6 +175,16 @@ class UnifiedActivitySerializer(serializers.Serializer):
     new_state = serializers.SerializerMethodField()
     is_administrative = serializers.BooleanField(allow_null=True)
     provenance = serializers.JSONField()
+
+    def get_current_actor(
+        self,
+        obj,
+    ):
+        """Serialize an already batched user lookup without issuing per-event database queries."""
+        actor = self.context.get("current_actors", {}).get(obj["actor_id"])
+        if actor is None:
+            return None
+        return CurrentActivityActorSerializer(actor).data
 
     def get_id(
         self,

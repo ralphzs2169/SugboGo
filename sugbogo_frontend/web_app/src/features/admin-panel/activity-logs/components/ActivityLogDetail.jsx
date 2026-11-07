@@ -4,12 +4,12 @@ import {
   STATE_LABELS,
 } from "../constants/activityLogOptions";
 import {
-  activityActor,
   activityDetailEntries,
   activityLabel,
 } from "../utils/activityLogPresentation";
 import ActivityDate from "./ActivityDate";
 import ActivityOutcome from "./ActivityOutcome";
+import ActivityActorAvatar from "./ActivityActorAvatar";
 
 function DetailSection({ title, children }) {
   return (
@@ -39,6 +39,33 @@ export default function ActivityLogDetail({ activity }) {
   const resulting = activityDetailEntries(activity.new_state, STATE_LABELS);
   const context = activityDetailEntries(activity.context, CONTEXT_LABELS);
   const provenance = activityDetailEntries(activity.provenance, PROVENANCE_LABELS);
+  const currentActor = activity.current_actor;
+  const actorEntries = [["Actor identifier", activity.actor_id]];
+  if (
+    activity.actor_display_snapshot &&
+    activity.actor_display_snapshot === currentActor?.name
+  ) {
+    actorEntries.push(["Name (historical and current)", activity.actor_display_snapshot]);
+  } else {
+    actorEntries.push(["Historical name", activity.actor_display_snapshot]);
+    if (currentActor) {
+      actorEntries.push(["Current account name", currentActor.name || null]);
+    }
+  }
+  if (
+    activity.actor_role_snapshot &&
+    activity.actor_role_snapshot === currentActor?.role
+  ) {
+    actorEntries.push(["Role (historical and current)", activityLabel(activity.actor_role_snapshot)]);
+  } else {
+    actorEntries.push(["Historical role", activityLabel(activity.actor_role_snapshot)]);
+    if (currentActor) {
+      actorEntries.push(["Current account role", activityLabel(currentActor.role)]);
+    }
+  }
+  if (!currentActor && activity.actor_id != null) {
+    actorEntries.push(["Current account", "Unavailable"]);
+  }
 
   return (
     <div className="space-y-5">
@@ -52,11 +79,13 @@ export default function ActivityLogDetail({ activity }) {
         ]} />
       </DetailSection>
       <DetailSection title="Actor Information">
-        <Fields entries={[
-          ["Recorded identity", activityActor(activity)],
-          ["Historical role", activityLabel(activity.actor_role_snapshot)],
-          ["Actor identifier", activity.actor_id],
-        ]} />
+        {(currentActor?.avatar_url || currentActor?.avatar_key) && (
+          <div className="mb-4 flex items-center gap-3">
+            <ActivityActorAvatar actor={currentActor} size="lg" />
+            <p className="text-xs text-text-secondary">Current account avatar</p>
+          </div>
+        )}
+        <Fields entries={actorEntries} />
       </DetailSection>
       <DetailSection title="Affected Record">
         <Fields entries={[
