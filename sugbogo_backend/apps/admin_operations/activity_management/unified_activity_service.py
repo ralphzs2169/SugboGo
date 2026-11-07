@@ -27,7 +27,10 @@ from apps.admin_operations.system_configuration.models import AnalyticsPolicyCha
 from apps.authentication.models import LoginEvent
 from apps.authentication.services.login_history_service import LoginHistoryService
 from apps.business.models import BusinessPocket, BusinessVouch
-from apps.merchant_application.models import MerchantApplicationSubmission
+from apps.merchant_application.models import (
+    MerchantApplicationReview,
+    MerchantApplicationSubmission,
+)
 from apps.merchant_operations.business_profile.models import (
     BusinessClassificationChangeRequest,
     BusinessLocationChangeRequest,
@@ -102,6 +105,7 @@ class UnifiedActivityService:
     SOURCE_TYPES = (
         "admin_activity",
         "analytics_policy_change",
+        "merchant_application_review",
         "login_event",
         *MERCHANT_SOURCES,
         *EXPLORER_SOURCES,
@@ -114,8 +118,13 @@ class UnifiedActivityService:
         "community",
         "authentication",
     )
+    APPLICATION_DECISION_ACTIONS = {
+        "merchant_application_approved": MerchantApplicationReview.Decision.APPROVED,
+        "merchant_application_rejected": MerchantApplicationReview.Decision.REJECTED,
+    }
     ACTIONS = (
         *AdminActivity.Action.values,
+        *APPLICATION_DECISION_ACTIONS,
         "analytics_policy_revision",
         "merchant_application_submitted",
         *[
@@ -200,6 +209,10 @@ class UnifiedActivityService:
     def _admin_activities(cls):
         """Preserve stored snapshots and Task 1's explicit and legacy classification rules."""
         action_modules = AdminActivity.administrative_action_modules()
+        action_modules.update({
+            action: AdminActivity.Module.MERCHANT_APPLICATION
+            for action in cls.APPLICATION_DECISION_ACTIONS
+        })
         # The author-deletion writer retains this identifier before removing the review row.
         legacy_author_target = Q(
             AACT_ACTION=AdminActivity.Action.REVIEW_DELETED_BY_AUTHOR,
@@ -327,6 +340,47 @@ class UnifiedActivityService:
             ),
         )
 
+    @classmethod
+    def _application_reviews(cls):
+        """Read each retained application decision using its original reviewer and decision time."""
+        return cls._project(
+            MerchantApplicationReview.objects
+            .filter(MAREV_DECISION__in=tuple(cls.APPLICATION_DECISION_ACTIONS.values()))
+            .filter(
+                ~cls._recorded_resolution(
+                    "MAREV_ID",
+                    "MAREV_DECISION",
+                    cls.APPLICATION_DECISION_ACTIONS,
+                    "review_id",
+                    source_type="merchant_application_review",
+                ),
+            ),
+            "merchant_application_review",
+            "MAREV_ID",
+            "MAREV_REVIEWED_AT",
+            occurrence=Case(
+                *[
+                    When(
+                        MAREV_DECISION=decision,
+                        then=Value(action),
+                    )
+                    for action, decision in cls.APPLICATION_DECISION_ACTIONS.items()
+                ],
+                output_field=CharField(),
+            ),
+            module=Value(AdminActivity.Module.MERCHANT_APPLICATION, output_field=CharField()),
+            actor_id=Cast("USER_ID_id", output_field=BigIntegerField()),
+            target_type=Value("merchant_application", output_field=CharField()),
+            target_id=Cast("MAPP_ID_id", output_field=CharField()),
+            new_state=JSONObject(status=F("MAREV_DECISION")),
+            is_administrative=Value(True, output_field=BooleanField()),
+            provenance=JSONObject(
+                model=Value(MerchantApplicationReview._meta.label_lower),
+                submission_id=F("MASUB_ID_id"),
+                submission_number=F("MASUB_ID__MASUB_SUBMISSION_NUMBER"),
+            ),
+        )
+
     @staticmethod
     def _recorded_resolution(
         id_field,
@@ -334,6 +388,7 @@ class UnifiedActivityService:
         action_statuses,
         context_id_key,
         request_type=None,
+        source_type=None,
     ):
         """Prefer an existing decision audit entry over a second occurrence from its domain receipt."""
         activities = AdminActivity.objects.filter(
@@ -342,6 +397,14 @@ class UnifiedActivityService:
         if request_type is not None:
             activities = activities.filter(
                 AACT_CONTEXT__request_type=request_type,
+            )
+        identity = Q(
+            recorded_target_id=Cast(OuterRef(id_field), output_field=CharField()),
+        )
+        if source_type is not None:
+            identity |= Q(
+                AACT_SOURCE_TYPE=source_type,
+                AACT_SOURCE_ID=Cast(OuterRef(id_field), output_field=CharField()),
             )
         return Exists(
             activities
@@ -359,7 +422,7 @@ class UnifiedActivityService:
                 ),
             )
             .filter(
-                recorded_target_id=Cast(OuterRef(id_field), output_field=CharField()),
+                identity,
                 recorded_status=OuterRef(status_field),
             ),
         )
@@ -701,6 +764,7 @@ class UnifiedActivityService:
             cls._admin_activities(),
             cls._policy_changes(),
             cls._application_submissions(),
+            cls._application_reviews(),
             *cls._change_requests(
                 BusinessNameChangeRequest,
                 "BNCR",

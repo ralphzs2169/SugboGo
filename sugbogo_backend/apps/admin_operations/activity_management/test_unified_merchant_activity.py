@@ -15,6 +15,7 @@ from apps.admin_operations.system_configuration.models import AnalyticsPolicyCha
 from apps.business.models import Business, Category, Cluster, Location
 from apps.merchant_application.models import (
     MerchantApplication,
+    MerchantApplicationReview,
     MerchantApplicationSubmission,
 )
 from apps.merchant_operations.business_profile.models import (
@@ -451,4 +452,145 @@ class UnifiedMerchantActivityTests(TestCase):
                 if row["source_type"] != "review"
             },
             {"42"},
+        )
+
+
+class UnifiedApplicationDecisionTests(TestCase):
+    """Cover application review identities without invoking application workflows."""
+
+    @classmethod
+    def setUpTestData(cls):
+        """Create repeated decisions whose application no longer has its historical status."""
+        cls.now = timezone.now().replace(microsecond=0)
+        cls.applicant = User.objects.create(
+            USER_EMAIL="decision-applicant@example.com",
+            USER_ROLE=User.UserRole.EXPLORER,
+            password="!",
+        )
+        cls.reviewer = User.objects.create(
+            USER_EMAIL="decision-reviewer@example.com",
+            USER_ROLE=User.UserRole.ADMIN,
+            USER_STATUS=User.UserStatus.ACTIVE,
+            password="!",
+        )
+        cls.application = MerchantApplication.objects.create(
+            USER_ID=cls.applicant,
+            MAPP_STATUS=MerchantApplication.ApplicationStatus.DRAFT,
+        )
+        cls.reviews = []
+        for offset, decision in enumerate((
+            MerchantApplicationReview.Decision.REJECTED,
+            MerchantApplicationReview.Decision.REJECTED,
+            MerchantApplicationReview.Decision.APPROVED,
+        )):
+            cls.reviews.append(MerchantApplicationReview.objects.create(
+                MAPP_ID=cls.application,
+                USER_ID=cls.reviewer,
+                MAREV_DECISION=decision,
+                MAREV_REVIEWED_AT=cls.now - timedelta(hours=3 - offset),
+                MAREV_SECTION_FINGERPRINTS={"documents": "private-fingerprint"},
+                MAREV_DUPLICATE_EXPLANATION="private-duplicate-explanation",
+            ))
+
+    @staticmethod
+    def decision_rows():
+        """Select the new source through the same SQL union used by consumers."""
+        return list(UnifiedActivityService.list_activity(
+            source_type="merchant_application_review",
+        ))
+
+    def test_decisions_preserve_reviewer_target_time_and_separate_review_identities(self):
+        with CaptureQueriesContext(connection) as queries:
+            rows = self.decision_rows()
+
+        self.assertEqual(len(queries), 1)
+        self.assertIn("UNION ALL", queries[0]["sql"])
+        self.assertEqual(
+            [row["source_id"] for row in rows],
+            [str(review.pk) for review in reversed(self.reviews)],
+        )
+        for row, review in zip(rows, reversed(self.reviews)):
+            with self.subTest(review_id=review.pk):
+                self.assertEqual(UnifiedActivityService.category_for(row), "administrative")
+                self.assertEqual(row["module"], "merchant_application")
+                self.assertEqual(row["actor_id"], self.reviewer.pk)
+                self.assertEqual(row["target_type"], "merchant_application")
+                self.assertEqual(row["target_id"], str(self.application.pk))
+                self.assertEqual(row["occurred_at"], review.MAREV_REVIEWED_AT)
+                self.assertEqual(row["occurrence"], f"merchant_application_{review.MAREV_DECISION}")
+                self.assertEqual(row["new_state"], {"status": review.MAREV_DECISION})
+                self.assertEqual(row["provenance"], {
+                    "model": "merchant_application.merchantapplicationreview",
+                    "submission_id": None,
+                    "submission_number": None,
+                })
+                for field in (
+                    "actor_display_snapshot",
+                    "actor_role_snapshot",
+                    "target_label",
+                    "outcome",
+                ):
+                    self.assertIsNone(row[field])
+        self.assertEqual(len({
+            UnifiedActivityService.event_identity(row)
+            for row in rows
+        }), 3)
+        self.assertNotIn("private-", repr(rows))
+
+    def test_only_matching_review_decisions_are_suppressed_by_context_or_source_identity(self):
+        first = self.reviews[0]
+        second = self.reviews[1]
+        approval = self.reviews[2]
+        # An application reference or another decision on the same review is insufficient.
+        for action, context in (
+            ("merchant_application_approved", {"application_id": self.application.pk}),
+            ("merchant_application_rejected", {"review_id": approval.pk}),
+            ("user_suspended", {"review_id": first.pk}),
+        ):
+            AdminActivity.objects.create(
+                ACTOR_ID=self.reviewer,
+                AACT_ACTION=action,
+                AACT_CONTEXT=context,
+            )
+        self.assertEqual(len(self.decision_rows()), 3)
+
+        recorded = AdminActivity.objects.create(
+            ACTOR_ID=self.reviewer,
+            AACT_ACTION="merchant_application_rejected",
+            AACT_CONTEXT={
+                "application_id": self.application.pk,
+                "review_id": first.pk,
+            },
+        )
+        AdminActivity.objects.create(
+            ACTOR_ID=self.reviewer,
+            AACT_ACTION="merchant_application_rejected",
+            AACT_SOURCE_TYPE="merchant_application_review",
+            AACT_SOURCE_ID=str(second.pk),
+        )
+        rows = self.decision_rows()
+        self.assertEqual([row["source_id"] for row in rows], [str(approval.pk)])
+        retained = UnifiedActivityService.get_activity(
+            f"admin_activity:{recorded.pk}:merchant_application_rejected",
+        )
+        self.assertEqual(UnifiedActivityService.category_for(retained), "administrative")
+        self.assertEqual(retained["module"], "merchant_application")
+
+    def test_tied_decisions_keep_deterministic_order_across_sql_pages(self):
+        MerchantApplicationReview.objects.update(MAREV_REVIEWED_AT=self.now)
+        queryset = UnifiedActivityService.list_activity(
+            category="administrative",
+            module="merchant_application",
+            actor_id=self.reviewer.pk,
+        )
+        paginator = Paginator(queryset, 1)
+        rows = [
+            row
+            for page in paginator.page_range
+            for row in paginator.page(page).object_list
+        ]
+        self.assertEqual(paginator.count, 3)
+        self.assertEqual(
+            [row["source_id"] for row in rows],
+            sorted(str(review.pk) for review in self.reviews),
         )

@@ -11,7 +11,12 @@ from rest_framework.test import APITestCase
 from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
 from apps.authentication.models import LoginEvent
 from apps.business.models import Business, BusinessVouch, Category, Cluster, Location, SpecialtyTag
-from apps.merchant_application.models import MerchantApplication, MerchantApplicationSubmission
+from apps.merchant_application.models import (
+    MerchantApplication,
+    MerchantApplicationFeedback,
+    MerchantApplicationReview,
+    MerchantApplicationSubmission,
+)
 from apps.merchant_operations.business_profile.models import BusinessNameChangeRequest
 from apps.reviews.models import Review
 from apps.users.models import User
@@ -528,6 +533,159 @@ class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
                 set(row["current_actor"]),
                 {"name", "role", "avatar_url", "avatar_key"},
             )
+
+    def test_application_decisions_filter_paginate_and_resolve_safe_details(self):
+        start = datetime(2026, 11, 5, 16, tzinfo=UTC)
+        reviews = []
+        for decision, timestamp in (
+            (MerchantApplicationReview.Decision.REJECTED, start),
+            (MerchantApplicationReview.Decision.APPROVED, start + timedelta(hours=23)),
+            (MerchantApplicationReview.Decision.REJECTED, start + timedelta(days=1)),
+        ):
+            reviews.append(MerchantApplicationReview.objects.create(
+                MAPP_ID_id=self.submission.MAPP_ID_id,
+                USER_ID=self.admin,
+                MAREV_DECISION=decision,
+                MAREV_REVIEWED_AT=timestamp,
+                MAREV_SECTION_FINGERPRINTS={"documents": "private-fingerprint"},
+                MAREV_DUPLICATE_EXPLANATION="private-duplicate-explanation",
+            ))
+        MerchantApplicationFeedback.objects.create(
+            MAREV_ID=reviews[0],
+            MAPF_SECTION=MerchantApplicationFeedback.Section.DOCUMENTS,
+            MAPF_MESSAGE="private-verification-feedback",
+        )
+        params = {
+            "category": "administrative",
+            "module": "merchant_application",
+            "actor_id": self.admin.pk,
+            "start_date": "2026-11-06",
+            "end_date": "2026-11-06",
+            "page_size": 1,
+        }
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url, params)
+        self.assertSuccessResponse(response, message="Success.")
+        self.assertEqual(len(queries), 3)
+        self.assertIn("UNION ALL", queries[1]["sql"])
+        self.assertIn("LIMIT 1", queries[1]["sql"])
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 2)
+        self.assertEqual(response.data["data"]["pagination"]["total_pages"], 2)
+        rows = list(response.data["data"]["items"])
+        params["page"] = 2
+        rows.extend(self.client.get(self.url, params).data["data"]["items"])
+        self.assertEqual(
+            [row["source_id"] for row in rows],
+            [str(reviews[1].pk), str(reviews[0].pk)],
+        )
+        for row, review in zip(rows, reversed(reviews[:2])):
+            with self.subTest(decision=review.MAREV_DECISION):
+                self.assertEqual(row["category"], "administrative")
+                self.assertEqual(row["actor_id"], self.admin.pk)
+                self.assertEqual(row["current_actor"]["name"], self.admin.full_name)
+                self.assertEqual(row["target_type"], "merchant_application")
+                self.assertEqual(row["target_id"], str(self.submission.MAPP_ID_id))
+                self.assertEqual(parse_datetime(row["occurred_at"]), review.MAREV_REVIEWED_AT)
+                self.assertEqual(row["id"], (
+                    f"merchant_application_review:{review.pk}:"
+                    f"merchant_application_{review.MAREV_DECISION}"
+                ))
+                detail = self.client.get(self.detail_url(row["id"]))
+                self.assertSuccessResponse(detail, message="Success.")
+                self.assertEqual(detail.data["data"]["id"], row["id"])
+                self.assertEqual(detail.data["data"]["new_state"], {
+                    "status": review.MAREV_DECISION,
+                })
+                for field in (
+                    "previous_state",
+                    "reason",
+                    "context",
+                    "actor_display_snapshot",
+                    "actor_role_snapshot",
+                    "target_label",
+                    "outcome",
+                ):
+                    self.assertIsNone(detail.data["data"][field])
+                self.assertNotIn("private-", repr(detail.data))
+                filtered = self.client.get(self.url, {
+                    **params,
+                    "page": 1,
+                    "action": row["occurrence"],
+                })
+                self.assertEqual(filtered.data["data"]["pagination"]["total_items"], 1)
+                self.assertEqual(filtered.data["data"]["items"][0]["id"], row["id"])
+        for overrides in (
+            {"category": "merchant"},
+            {"actor_id": self.merchant.pk},
+        ):
+            response = self.client.get(self.url, {
+                **params,
+                **overrides,
+                "page": 1,
+                "action": "merchant_application_approved",
+            })
+            self.assertEqual(response.data["data"]["pagination"]["total_items"], 0)
+
+    def test_application_decision_deduplication_preserves_other_reviews_and_submissions(self):
+        before = self.client.get(self.url, {
+            "category": "merchant",
+            "module": "merchant_application",
+        }).data["data"]["items"]
+        second_submission = MerchantApplicationSubmission.objects.create(
+            MAPP_ID_id=self.submission.MAPP_ID_id,
+            MASUB_SUBMISSION_NUMBER=2,
+            MASUB_SUBMITTED_AT=self.now + timedelta(hours=1),
+        )
+        reviews = []
+        for submission in (self.submission, second_submission):
+            reviews.append(MerchantApplicationReview.objects.create(
+                MAPP_ID_id=submission.MAPP_ID_id,
+                MASUB_ID=submission,
+                USER_ID=self.admin,
+                MAREV_DECISION=MerchantApplicationReview.Decision.REJECTED,
+                MAREV_REVIEWED_AT=submission.MASUB_SUBMITTED_AT + timedelta(minutes=30),
+            ))
+        recorded = AdminActivity.objects.create(
+            ACTOR_ID=self.admin,
+            AACT_ACTION="merchant_application_rejected",
+            AACT_SOURCE_TYPE="merchant_application_review",
+            AACT_SOURCE_ID=str(reviews[0].pk),
+        )
+        response = self.client.get(self.url, {
+            "category": "administrative",
+            "module": "merchant_application",
+            "action": "merchant_application_rejected",
+        })
+        self.assertEqual(response.data["data"]["pagination"]["total_items"], 2)
+        identities = {
+            row["id"]
+            for row in response.data["data"]["items"]
+        }
+        self.assertEqual(identities, {
+            f"admin_activity:{recorded.pk}:merchant_application_rejected",
+            f"merchant_application_review:{reviews[1].pk}:merchant_application_rejected",
+        })
+        for identity in identities:
+            self.assertEqual(self.client.get(self.detail_url(identity)).status_code, 200)
+        self.assertEqual(self.client.get(self.detail_url(
+            f"merchant_application_review:{reviews[0].pk}:merchant_application_rejected",
+        )).status_code, 404)
+        merchant_rows = self.client.get(self.url, {
+            "category": "merchant",
+            "module": "merchant_application",
+        }).data["data"]["items"]
+        self.assertEqual(len(merchant_rows), 2)
+        self.assertEqual(merchant_rows[1], before[0])
+        self.assertEqual(merchant_rows[0]["source_id"], str(second_submission.pk))
+        self.assertEqual(merchant_rows[0]["provenance"]["submission_number"], 2)
+        detail = self.client.get(self.detail_url(
+            f"merchant_application_review:{reviews[1].pk}:merchant_application_rejected",
+        )).data["data"]
+        self.assertEqual(detail["provenance"], {
+            "model": "merchant_application.merchantapplicationreview",
+            "submission_id": second_submission.pk,
+            "submission_number": 2,
+        })
 
     def test_resubmission_receipts_keep_separate_identity_time_and_merchant_category_for_explorers(self):
         User.objects.filter(pk=self.merchant.pk).update(USER_ROLE=User.UserRole.EXPLORER)
