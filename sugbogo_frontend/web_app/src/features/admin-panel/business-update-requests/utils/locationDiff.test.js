@@ -7,6 +7,24 @@ import {
   locationBaselineMatches,
 } from "./locationDiff.js";
 
+test("arrival designation and directions are visible review differences", () => {
+  const previous = {
+    id: 1,
+    name: "Reference",
+    latitude: 10.3,
+    longitude: 123.9,
+  };
+  const proposed = {
+    ...previous,
+    is_arrival_point: true,
+    access_directions: "Enter the lane.",
+  };
+  const diff = getLandmarkDiff([previous], [proposed]);
+  assert.equal(diff.added.length, 1);
+  assert.equal(diff.removed.length, 1);
+  assert.equal(diff.added[0].access_directions, "Enter the lane.");
+});
+
 const location = {
   id: 4,
   latitude: 10.3157,

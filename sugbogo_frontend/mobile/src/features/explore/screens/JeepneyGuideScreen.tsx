@@ -239,6 +239,9 @@ export default function JeepneyGuideScreen({ businessId }: Props) {
         routeVariantId: String(journey.route_variant_id),
         boardingTransitPointId: String(journey.boarding_transit_point.id),
         alightingTransitPointId: String(journey.alighting_transit_point.id),
+        ...(journey.arrival_landmark
+          ? { arrivalLandmarkId: String(journey.arrival_landmark.id) }
+          : {}),
       },
     });
   };

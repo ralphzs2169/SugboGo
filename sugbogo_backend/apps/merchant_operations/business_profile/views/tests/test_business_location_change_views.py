@@ -207,6 +207,49 @@ class BusinessLocationChangeViewTests(TestCase):
         self.assertEqual(self.old_location.LOCT_ADDRESS, "Gorordo Avenue, Cebu City")
         self.assertTrue(BusinessLandmark.objects.filter(pk=self.old_landmark.pk).exists())
 
+    def test_arrival_proposal_is_not_live_until_admin_approval(self):
+        """Retain arrival intent and instructions through frozen review snapshots."""
+        payload = self._payload()
+        payload["proposed_landmarks"][0].update(
+            is_arrival_point=True, access_directions="Follow the lane to our green gate.",
+        )
+        response = self._submit(payload)
+        self.assertEqual(response.status_code, 201, response.data)
+        proposed = response.data["data"]["proposed"]["landmarks"][0]
+        self.assertTrue(proposed["is_arrival_point"])
+        self.assertFalse(BusinessLandmark.objects.filter(BLMK_IS_ARRIVAL_POINT=True).exists())
+        result = self._approve(response.data["data"]["id"])
+        self.assertEqual(result.status_code, 200, result.data)
+        self.business.refresh_from_db()
+        landmark = self.business.LOCT_ID.landmarks.get(BLMK_IS_ARRIVAL_POINT=True)
+        self.assertEqual(landmark.BLMK_ACCESS_DIRECTIONS, proposed["access_directions"])
+
+    def test_arrival_proposal_requires_specific_directions(self):
+        """Do not accept arrival points without a landmark-to-entrance description."""
+        payload = self._payload()
+        payload["proposed_landmarks"][0].update(is_arrival_point=True, access_directions="  ")
+        self.assertEqual(self._submit(payload).status_code, 400)
+        self.assertFalse(BusinessLocationChangeRequest.objects.exists())
+
+    def test_arrival_proposal_allows_only_one_point(self):
+        """Reject ambiguous multiple arrival points before storing a request."""
+        payload = self._payload()
+        point = {**payload["proposed_landmarks"][0], "is_arrival_point": True,
+                 "access_directions": "Follow the lane to the entrance."}
+        payload["proposed_landmarks"] = [point, {**point, "name": "Another point"}]
+        self.assertEqual(self._submit(payload).status_code, 400)
+
+    def test_rejected_arrival_proposal_never_enables_matching(self):
+        """Keep rejected arrival proposals out of the live landmark collection."""
+        payload = self._payload()
+        payload["proposed_landmarks"][0].update(
+            is_arrival_point=True, access_directions="Follow the lane.",
+        )
+        response = self._submit(payload)
+        request_id = response.data["data"]["id"]
+        BusinessLocationChangeService.reject(request_id, self.admin, "Verify the entrance first.")
+        self.assertFalse(BusinessLandmark.objects.filter(BLMK_IS_ARRIVAL_POINT=True).exists())
+
     def test_decision_notifications_reach_only_request_submitter(self):
         from apps.notifications.models import Notification
 

@@ -6,7 +6,7 @@ from django.db import connection
 from django.test import TestCase
 from rest_framework.exceptions import NotFound
 
-from apps.business.models import Business, Category, Cluster, Location
+from apps.business.models import Business, BusinessLandmark, Category, Cluster, Location
 from apps.transit.constants import (
     DIRECT_ROUTE_RESULT_LIMIT,
     DIRECT_ROUTE_SEARCH_RADIUS_METERS,
@@ -177,6 +177,93 @@ class DirectJourneyServiceTests(TestCase):
                 *route_option["alternative_journeys"],
             ]
         ]
+
+    def _arrival_fixture(self, enabled=True):
+        """Create a road route more than 500 metres from its destination."""
+        self._set_destination(123.8980, 10.3120)
+        boarding = self._create_point("Road boarding", 123.8800, 10.3000)
+        alighting = self._create_point("Road alighting", 123.8980, 10.3000)
+        variant = self._create_variant([boarding, alighting])
+        landmark = BusinessLandmark.objects.create(
+            LOCT_ID=self.location, BLMK_NAME="Arrival reference", BLMK_ADDRESS="Roadside",
+            BLMK_POINT=Point(123.8980, 10.3002, srid=4326), BLMK_SOURCE="custom",
+            BLMK_IS_ARRIVAL_POINT=enabled,
+            BLMK_ACCESS_DIRECTIONS="From the reference, follow the lane to the green gate.",
+        )
+        return boarding, alighting, variant, landmark
+
+    def test_arrival_fallback_keeps_distance_to_actual_business(self):
+        """Find a remote destination only through its explicit arrival point."""
+        _, _, _, landmark = self._arrival_fixture()
+        journey = self._journeys(self._search(123.8800, 10.3000))[0]
+        self.assertEqual(journey["arrival_landmark"]["id"], landmark.pk)
+        self.assertGreater(journey["alighting_to_business_distance_meters"], 1000)
+        self.assertIn("green gate", journey["arrival_landmark"]["access_directions"])
+
+    def test_ordinary_landmark_does_not_enable_fallback(self):
+        """Keep unselected nearby landmarks out of arrival matching."""
+        self._arrival_fixture(enabled=False)
+        self.assertEqual(self._search(123.8800, 10.3000)["route_options"], [])
+
+    def test_normal_direct_results_take_priority_over_arrival_fallback(self):
+        """Do not replace an existing direct journey with arrival-based results."""
+        self._arrival_fixture()
+        self._set_destination(123.8980, 10.3000)
+        journeys = self._journeys(self._search(123.8800, 10.3000))
+        self.assertTrue(journeys)
+        self.assertTrue(all("arrival_landmark" not in journey for journey in journeys))
+
+    def test_arrival_fallback_still_requires_forward_shared_variant(self):
+        """Do not infer a reverse ride simply because an arrival reference exists."""
+        self._arrival_fixture()
+        self.assertEqual(self._search(123.8980, 10.3000)["route_options"], [])
+
+    def test_map_rechecks_selected_arrival_reference(self):
+        """Reject removed, foreign, or distant arrival references at map time."""
+        from apps.transit.services.direct_journey_map_service import DirectJourneyMapService
+        from rest_framework.exceptions import ValidationError
+        boarding, alighting, variant, landmark = self._arrival_fixture()
+        params = dict(business_id=self.business.pk, route_variant_id=variant.pk,
+                      boarding_transit_point_id=boarding.pk, alighting_transit_point_id=alighting.pk,
+                      arrival_landmark_id=landmark.pk)
+        result = DirectJourneyMapService.get_map_guidance(**params)["journey"]
+        self.assertEqual(result["arrival_landmark"]["id"], landmark.pk)
+        self.assertEqual(result["business_location"]["latitude"], 10.3120)
+        landmark.BLMK_POINT = Point(123.92, 10.32, srid=4326)
+        landmark.save()
+        with self.assertRaises(ValidationError):
+            DirectJourneyMapService.get_map_guidance(**params)
+        landmark.BLMK_IS_ARRIVAL_POINT = False
+        landmark.save()
+        with self.assertRaises(ValidationError):
+            DirectJourneyMapService.get_map_guidance(**params)
+
+    def test_arrival_search_and_map_api_round_trip(self):
+        """Preserve approved arrival instructions across the authenticated public APIs."""
+        from rest_framework.test import APIClient
+        boarding, alighting, variant, landmark = self._arrival_fixture()
+        client = APIClient()
+        client.force_authenticate(self.owner)
+        url = f"/api/explorer/explore/businesses/{self.business.pk}/direct-journeys/"
+        response = client.get(url, {"latitude": 10.3000, "longitude": 123.8800})
+        self.assertEqual(response.status_code, 200, response.data)
+        selected = response.data["data"]["route_options"][0]["recommended_journey"]
+        self.assertEqual(selected["arrival_landmark"]["id"], landmark.pk)
+        params = {"route_variant_id": variant.pk, "boarding_transit_point_id": boarding.pk,
+                  "alighting_transit_point_id": alighting.pk, "arrival_landmark_id": landmark.pk}
+        response = client.get(url + "map/", params)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["data"]["journey"]["arrival_landmark"], selected["arrival_landmark"])
+        foreign_location = Location.objects.create(
+            LOCT_POINT=Point(123.8980, 10.3120, srid=4326), LOCT_ADDRESS="Another location",
+        )
+        foreign = BusinessLandmark.objects.create(
+            LOCT_ID=foreign_location, BLMK_NAME="Foreign reference", BLMK_ADDRESS="Roadside",
+            BLMK_POINT=landmark.BLMK_POINT, BLMK_SOURCE="custom",
+            BLMK_IS_ARRIVAL_POINT=True, BLMK_ACCESS_DIRECTIONS="Unrelated directions.",
+        )
+        params["arrival_landmark_id"] = foreign.pk
+        self.assertEqual(client.get(url + "map/", params).status_code, 400)
 
     def test_points_inside_meter_radius_are_eligible_on_both_ends(self):
         """Include boarding and alighting infrastructure inside 500 meters."""

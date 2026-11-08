@@ -374,6 +374,12 @@ export default function LocationChangeReviewSections({
                       {landmark.name}
                     </AppText>
 
+                    {landmark.is_arrival_point && (
+                      <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+                        Arrival landmark - directions to entrance:{" "}
+                        {landmark.access_directions}
+                      </AppText>
+                    )}
                     {landmark.address ? (
                       <AppText className="mt-0.5 text-xs text-text-secondary">
                         {landmark.address}
@@ -418,6 +424,12 @@ export default function LocationChangeReviewSections({
                       {landmark.name}
                     </AppText>
 
+                    {landmark.is_arrival_point && (
+                      <AppText className="mt-1 text-sm leading-5 text-text-secondary">
+                        Arrival landmark - directions to entrance:{" "}
+                        {landmark.access_directions}
+                      </AppText>
+                    )}
                     {landmark.address ? (
                       <AppText className="mt-0.5 text-xs text-text-secondary">
                         {landmark.address}

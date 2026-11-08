@@ -4,15 +4,14 @@ import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 import { getDirectJourneyMap } from "../api/directJourney.service";
 
-export const DIRECT_JOURNEY_MAP_QUERY_KEY = [
-  "direct-journey-map",
-] as const;
+export const DIRECT_JOURNEY_MAP_QUERY_KEY = ["direct-journey-map"] as const;
 
 export function directJourneyMapQueryKey(
   businessId: number,
   routeVariantId: number,
   boardingTransitPointId: number,
   alightingTransitPointId: number,
+  arrivalLandmarkId?: number,
 ) {
   return [
     ...DIRECT_JOURNEY_MAP_QUERY_KEY,
@@ -20,6 +19,7 @@ export function directJourneyMapQueryKey(
     routeVariantId,
     boardingTransitPointId,
     alightingTransitPointId,
+    ...(arrivalLandmarkId ? [arrivalLandmarkId] : []),
   ] as const;
 }
 
@@ -29,6 +29,7 @@ export default function useDirectJourneyMap(
   routeVariantId: number,
   boardingTransitPointId: number,
   alightingTransitPointId: number,
+  arrivalLandmarkId?: number,
 ) {
   const hasValidIdentifiers =
     businessId > 0 &&
@@ -42,6 +43,7 @@ export default function useDirectJourneyMap(
       routeVariantId,
       boardingTransitPointId,
       alightingTransitPointId,
+      arrivalLandmarkId,
     ),
     queryFn: async () => {
       if (!hasValidIdentifiers) {
@@ -53,6 +55,7 @@ export default function useDirectJourneyMap(
         routeVariantId,
         boardingTransitPointId,
         alightingTransitPointId,
+        ...(arrivalLandmarkId ? [arrivalLandmarkId] : []),
       );
 
       return throwOnApiError(response);

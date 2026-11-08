@@ -32,6 +32,8 @@ class BusinessLandmark(models.Model):
     BLMK_NAME = models.CharField(max_length=150)
     BLMK_ADDRESS = models.CharField(max_length=255)
     BLMK_POINT = gis_models.PointField(srid=4326)
+    BLMK_IS_ARRIVAL_POINT = models.BooleanField(default=False)
+    BLMK_ACCESS_DIRECTIONS = models.CharField(max_length=1000, blank=True, default="")
     BLMK_SOURCE = models.CharField(
         max_length=10,
         choices=LandmarkSource.choices,
@@ -53,6 +55,18 @@ class BusinessLandmark(models.Model):
 
     class Meta:
         db_table = "BUSINESS_LANDMARK"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["LOCT_ID"],
+                condition=models.Q(BLMK_IS_ARRIVAL_POINT=True),
+                name="unique_location_arrival_landmark",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(BLMK_IS_ARRIVAL_POINT=False)
+                | ~models.Q(BLMK_ACCESS_DIRECTIONS=""),
+                name="arrival_landmark_requires_directions",
+            ),
+        ]
 
     def __str__(self):
         return self.BLMK_NAME

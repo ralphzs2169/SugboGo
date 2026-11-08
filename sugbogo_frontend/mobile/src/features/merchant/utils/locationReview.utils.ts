@@ -25,6 +25,8 @@ function landmarkSignature(
     landmark.latitude,
     landmark.longitude,
     landmark.source,
+    landmark.is_arrival_point ?? false,
+    landmark.access_directions?.trim() || "",
     "place_id" in landmark ? landmark.place_id : (landmark.placeId ?? null),
   ]);
 }

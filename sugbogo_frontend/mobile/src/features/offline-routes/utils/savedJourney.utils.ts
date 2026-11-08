@@ -45,6 +45,14 @@ export const savedJourneySchema = z.object({
         selected_segment_geometry: geometry,
       }),
       business_location: coordinate,
+      arrival_landmark: coordinate
+        .extend({
+          id,
+          name,
+          access_directions: z.string().trim().min(1).max(1000),
+        })
+        .nullable()
+        .optional(),
       landmark_context: z
         .object({
           id,

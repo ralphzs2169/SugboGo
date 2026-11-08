@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import ArrivalLandmarkGuidance from "../ArrivalLandmarkGuidance";
 import AppText from "@/shared/components/AppText";
 
 import type {
@@ -156,6 +157,7 @@ export default function JourneyOptionCard({
             isLast
           />
 
+          <ArrivalLandmarkGuidance landmark={journey.arrival_landmark} />
           {/* Map action */}
           <View className="mt-5 items-end">
             <Pressable

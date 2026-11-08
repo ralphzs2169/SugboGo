@@ -46,6 +46,12 @@ export default function LocationLandmarkDiff({ previous, proposed, status }) {
                       aria-hidden="true"
                     />
                     <div className="min-w-0">
+                      {landmark.is_arrival_point && (
+                        <p className="mb-1 whitespace-pre-wrap text-sm text-text-primary">
+                          Arrival landmark - directions to entrance:{" "}
+                          {landmark.access_directions}
+                        </p>
+                      )}
                       <p className="break-words text-sm font-medium leading-5 text-text-primary">
                         {landmark.name}
                       </p>

@@ -35,6 +35,8 @@ export function liveLandmarkSelection(
     longitude: landmark.longitude,
     source: landmark.source,
     placeId: landmark.place_id ?? undefined,
+    is_arrival_point: landmark.is_arrival_point ?? false,
+    access_directions: landmark.access_directions ?? "",
   }));
 }
 
@@ -91,6 +93,10 @@ export function buildLocationChangePayload(
       longitude: landmark.longitude,
       source: landmark.source,
       place_id: landmark.placeId || null,
+      is_arrival_point: landmark.is_arrival_point ?? false,
+      access_directions: landmark.is_arrival_point
+        ? landmark.access_directions?.trim() || ""
+        : "",
     })),
   };
 }
@@ -102,6 +108,8 @@ function landmarkSignature(landmark: {
   longitude: number;
   source: string;
   place_id: string | null;
+  is_arrival_point?: boolean;
+  access_directions?: string;
 }) {
   return JSON.stringify([
     landmark.name.trim(),
@@ -110,6 +118,8 @@ function landmarkSignature(landmark: {
     landmark.latitude,
     landmark.source,
     landmark.place_id,
+    landmark.is_arrival_point ?? false,
+    landmark.access_directions?.trim() || "",
   ]);
 }
 

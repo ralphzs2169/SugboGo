@@ -19,6 +19,10 @@ export type DirectJourneyLandmarkContext = {
   distance_from_alighting_meters: number;
 };
 
+export type ArrivalLandmark = DirectJourneyTransitPoint & {
+  access_directions: string;
+};
+
 export type DirectJourney = {
   journey_type: "direct";
   jeepney_route_code: string;
@@ -33,6 +37,7 @@ export type DirectJourney = {
   alighting_to_business_distance_meters: number;
   total_access_egress_distance_meters: number;
   approximate_ride_distance_meters: number;
+  arrival_landmark?: ArrivalLandmark | null;
   landmark_context: DirectJourneyLandmarkContext | null;
 };
 
@@ -71,6 +76,7 @@ export type DirectJourneyMapGuidance = {
     selected_segment_geometry: DirectJourneyMapCoordinate[];
   };
   business_location: DirectJourneyMapCoordinate;
+  arrival_landmark?: ArrivalLandmark | null;
   landmark_context: DirectJourneyLandmarkContext | null;
 };
 
