@@ -14,6 +14,7 @@ import type { MyReviewPage, MyReview } from "../../types/myReview.types";
 import ProfileActivitySummary from "../ProfileActivitySummary";
 
 let mockFocused = true;
+let mockCustomCount = 2;
 jest.mock("expo-router", () => ({ useIsFocused: () => mockFocused }));
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("../../api/myReviews.service", () => ({ getMyReviews: jest.fn() }));
@@ -21,7 +22,8 @@ jest.mock("@/features/pockets/hooks/usePocketCollections", () => ({
   __esModule: true,
   default: () => ({
     hasData: true,
-    totalCount: 2,
+    totalCount: mockCustomCount + 1,
+    customCount: mockCustomCount,
     isLoading: false,
     error: null,
   }),
@@ -53,6 +55,7 @@ describe("Profile summary review focus lifecycle", () => {
     jest.useFakeTimers();
     jest.clearAllMocks();
     mockFocused = true;
+    mockCustomCount = 2;
     focusManager.setFocused(true);
     onlineManager.setOnline(true);
     useAuthStore.setState({
@@ -82,6 +85,19 @@ describe("Profile summary review focus lifecycle", () => {
       </QueryClientProvider>
     );
   }
+
+  it.each([0, 1, 2])(
+    "shows %i custom Pockets without counting Favorites",
+    async (count) => {
+      mockCustomCount = count;
+      const screen = await render(<Summary />);
+      expect(screen.getByLabelText(`Custom Pockets: ${count}`)).toBeTruthy();
+      expect(
+        screen.queryByLabelText(`Custom Pockets: ${count + 1}`),
+      ).toBeNull();
+      await waitFor(() => expect(screen.getByLabelText("Reviews: 3")).toBeTruthy());
+    },
+  );
 
   it("polls held reviews while focused, pauses polling/recovery on blur, and resumes on return", async () => {
     const screen = await render(<Summary />);

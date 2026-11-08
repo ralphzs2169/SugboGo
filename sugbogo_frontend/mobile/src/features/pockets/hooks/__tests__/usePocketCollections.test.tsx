@@ -113,6 +113,30 @@ describe("usePocketCollections", () => {
     );
   }
 
+  it.each([
+    { ids: [20], total: 1, expected: 0 },
+    { ids: [20, 10], total: 2, expected: 1 },
+    { ids: [20, 10], total: 25, expected: 24 },
+    { ids: [], total: 0, expected: 0 },
+    { ids: [10], total: 1, expected: 1 },
+  ])(
+    "counts custom collections independently of loaded pages %#",
+    async ({ ids, total, expected }) => {
+      jest
+        .mocked(getPocketCollections)
+        .mockResolvedValue(page(ids, 1, total > ids.length, total));
+      const { result } = await renderHook(() => usePocketCollections(), {
+        wrapper: Wrapper,
+      });
+      await waitFor(() => expect(result.current.hasData).toBe(true));
+      expect(result.current.customCount).toBe(expected);
+      expect(result.current.totalCount).toBe(total);
+      expect(
+        result.current.collections.map((collection) => collection.id),
+      ).toEqual(ids);
+    },
+  );
+
   it("separates collection queries by user beneath the Pocket prefix", () => {
     expect(pocketCollectionsQueryKey(1)).toEqual(["pockets", 1, "collections"]);
     expect(pocketCollectionsQueryKey(2)).not.toEqual(
@@ -146,6 +170,7 @@ describe("usePocketCollections", () => {
       expect(result.current.isAuthLoading).toBe(state.isLoading);
       expect(result.current.collections).toEqual([]);
       expect(result.current.totalCount).toBe(0);
+      expect(result.current.customCount).toBe(0);
       expect(result.current.hasData).toBe(false);
     },
   );
@@ -199,6 +224,7 @@ describe("usePocketCollections", () => {
       20, 10,
     ]);
     expect(result.current.totalCount).toBe(3);
+    expect(result.current.customCount).toBe(2);
     expect(result.current.hasNextPage).toBe(true);
 
     await act(async () => {
@@ -215,6 +241,7 @@ describe("usePocketCollections", () => {
     expect(
       result.current.collections.map((collection) => collection.id),
     ).toEqual([20, 10, 5]);
+    expect(result.current.customCount).toBe(2);
     expect(getPocketCollections).toHaveBeenNthCalledWith(2, 2);
     expect(result.current.hasNextPage).toBe(false);
     await act(async () => {
