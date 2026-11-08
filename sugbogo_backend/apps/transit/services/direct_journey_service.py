@@ -2,7 +2,7 @@ from django.contrib.gis.geos import Point
 from django.db import connection
 from rest_framework.exceptions import NotFound
 
-from apps.business.models import Business
+from apps.business.models import Business, BusinessLandmark
 from apps.transit.constants import (
     DIRECT_ROUTE_RESULT_LIMIT,
     DIRECT_ROUTE_SEARCH_RADIUS_METERS,
@@ -56,12 +56,38 @@ class DirectJourneyService:
         )
 
     @staticmethod
+    def _get_arrival_landmark(location_id, landmark_id=None):
+        """Read only an explicitly reviewed live arrival point with entrance instructions."""
+        queryset = BusinessLandmark.objects.filter(
+            LOCT_ID_id=location_id,
+            BLMK_IS_ARRIVAL_POINT=True,
+        ).exclude(BLMK_ACCESS_DIRECTIONS="")
+        if landmark_id is not None:
+            queryset = queryset.filter(BLMK_ID=landmark_id)
+        return queryset.order_by("BLMK_ID").first()
+
+    @staticmethod
+    def _serialize_arrival_landmark(landmark):
+        """Preserve the approved arrival point and its specific merchant directions."""
+        return {
+            "id": landmark.BLMK_ID,
+            "name": landmark.BLMK_NAME,
+            "latitude": landmark.BLMK_POINT.y,
+            "longitude": landmark.BLMK_POINT.x,
+            "access_directions": landmark.BLMK_ACCESS_DIRECTIONS,
+        }
+
+    @staticmethod
     def _execute_search_query(
         explorer_point,
         destination_point,
+        arrival_point=None,
     ):
         """Run the meter-correct PostGIS direct-journey search."""
 
+        search_point = (
+            arrival_point if arrival_point is not None else destination_point
+        )
         query = """
             WITH inputs AS (
                 SELECT
@@ -72,7 +98,8 @@ class DirectJourneyService:
                     ST_SetSRID(
                         ST_MakePoint(%s, %s),
                         4326
-                    ) AS destination_point
+                    ) AS destination_point,
+                    ST_SetSRID(ST_MakePoint(%s, %s), 4326) AS search_point
             ),
             boarding_candidates AS (
                 SELECT
@@ -117,12 +144,12 @@ class DirectJourneyService:
                     ON transit_point."TRPT_ID" = route_point."TRPT_ID"
                 CROSS JOIN inputs
                 WHERE transit_point."TRPT_POINT" && ST_Buffer(
-                    inputs.destination_point::geography,
+                    inputs.search_point::geography,
                     %s
                 )::geometry
                 AND ST_DWithin(
                     transit_point."TRPT_POINT"::geography,
-                    inputs.destination_point::geography,
+                    inputs.search_point::geography,
                     %s
                 )
             ),
@@ -254,6 +281,8 @@ class DirectJourneyService:
             explorer_point.y,
             destination_point.x,
             destination_point.y,
+            search_point.x,
+            search_point.y,
             DIRECT_ROUTE_SEARCH_RADIUS_METERS,
             DIRECT_ROUTE_SEARCH_RADIUS_METERS,
             DIRECT_ROUTE_SEARCH_RADIUS_METERS,
@@ -485,6 +514,20 @@ class DirectJourneyService:
             explorer_point,
             destination_point,
         )
+        arrival_landmark = None
+        if not any(row["route_variant_id"] is not None for row in rows):
+            landmark = DirectJourneyService._get_arrival_landmark(
+                destination_location_id,
+            )
+            if landmark is not None:
+                rows = DirectJourneyService._execute_search_query(
+                    explorer_point,
+                    destination_point,
+                    landmark.BLMK_POINT,
+                )
+                arrival_landmark = DirectJourneyService._serialize_arrival_landmark(
+                    landmark,
+                )
         metadata = rows[0]
         ranked_journeys = [
             DirectJourneyService._serialize_journey(
@@ -493,6 +536,10 @@ class DirectJourneyService:
             for row in rows
             if row["route_variant_id"] is not None
         ]
+
+        if arrival_landmark is not None:
+            for journey in ranked_journeys:
+                journey["arrival_landmark"] = arrival_landmark
 
         route_options = DirectJourneyService._group_ranked_journeys(
             ranked_journeys,

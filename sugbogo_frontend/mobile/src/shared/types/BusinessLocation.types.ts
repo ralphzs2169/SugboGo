@@ -38,4 +38,6 @@ export type BusinessLandmark = {
   source: "google" | "custom";
   placeId?: string;
   isSelected?: boolean;
+  is_arrival_point?: boolean;
+  access_directions?: string;
 };

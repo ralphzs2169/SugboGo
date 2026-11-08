@@ -12,6 +12,11 @@ jest.mock("../../api/directJourney.service", () => ({
 }));
 
 describe("useDirectJourneyMap", () => {
+  it("separates ordinary and arrival-based map cache entries", () => {
+    expect(directJourneyMapQueryKey(21, 8, 2, 4, 12)).not.toEqual(
+      directJourneyMapQueryKey(21, 8, 2, 4),
+    );
+  });
   it("waits for valid IDs and includes the selected journey in its key", async () => {
     (getDirectJourneyMap as jest.Mock).mockResolvedValue({
       success: true,
@@ -42,16 +47,12 @@ describe("useDirectJourneyMap", () => {
     const { result, rerender } = await renderHook<
       ReturnType<typeof useDirectJourneyMap>,
       { routeVariantId: number }
-    >(
-      ({ routeVariantId }) =>
-        useDirectJourneyMap(21, routeVariantId, 2, 4),
-      {
-        initialProps: {
-          routeVariantId: 0,
-        },
-        wrapper: Wrapper,
+    >(({ routeVariantId }) => useDirectJourneyMap(21, routeVariantId, 2, 4), {
+      initialProps: {
+        routeVariantId: 0,
       },
-    );
+      wrapper: Wrapper,
+    });
 
     expect(getDirectJourneyMap).not.toHaveBeenCalled();
 
@@ -60,9 +61,7 @@ describe("useDirectJourneyMap", () => {
 
     expect(getDirectJourneyMap).toHaveBeenCalledWith(21, 8, 2, 4);
     expect(
-      queryClient.getQueryData(
-        directJourneyMapQueryKey(21, 8, 2, 4),
-      ),
+      queryClient.getQueryData(directJourneyMapQueryKey(21, 8, 2, 4)),
     ).toEqual({
       journey: {
         jeepney_route_code: "14D",

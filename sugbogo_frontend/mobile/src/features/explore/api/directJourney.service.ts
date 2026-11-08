@@ -30,6 +30,7 @@ export async function getDirectJourneyMap(
   routeVariantId: number,
   boardingTransitPointId: number,
   alightingTransitPointId: number,
+  arrivalLandmarkId?: number,
 ): Promise<ApiResponse<DirectJourneyMapResult>> {
   return request(
     apiClient.get(
@@ -39,6 +40,9 @@ export async function getDirectJourneyMap(
           route_variant_id: routeVariantId,
           boarding_transit_point_id: boardingTransitPointId,
           alighting_transit_point_id: alightingTransitPointId,
+          ...(arrivalLandmarkId
+            ? { arrival_landmark_id: arrivalLandmarkId }
+            : {}),
         },
       },
     ),

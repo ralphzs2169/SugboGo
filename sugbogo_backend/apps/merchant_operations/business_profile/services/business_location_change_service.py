@@ -92,6 +92,8 @@ class BusinessLocationChangeService:
                 landmark.BLLS_POINT.y,
                 landmark.BLLS_SOURCE,
                 landmark.BLLS_PLACE_ID,
+                landmark.BLLS_IS_ARRIVAL_POINT,
+                landmark.BLLS_ACCESS_DIRECTIONS,
             )
         return (
             landmark.BLMK_NAME,
@@ -100,6 +102,8 @@ class BusinessLocationChangeService:
             landmark.BLMK_POINT.y,
             landmark.BLMK_SOURCE,
             landmark.BLMK_PLACE_ID,
+            landmark.BLMK_IS_ARRIVAL_POINT,
+            landmark.BLMK_ACCESS_DIRECTIONS,
         )
 
     @staticmethod
@@ -112,6 +116,8 @@ class BusinessLocationChangeService:
             landmark["latitude"],
             landmark["source"],
             landmark.get("place_id"),
+            landmark.get("is_arrival_point", False),
+            landmark.get("access_directions", ""),
         )
 
     @staticmethod
@@ -203,6 +209,8 @@ class BusinessLocationChangeService:
                 BLLS_POINT=landmark.BLMK_POINT,
                 BLLS_SOURCE=landmark.BLMK_SOURCE,
                 BLLS_PLACE_ID=landmark.BLMK_PLACE_ID,
+                BLLS_IS_ARRIVAL_POINT=landmark.BLMK_IS_ARRIVAL_POINT,
+                BLLS_ACCESS_DIRECTIONS=landmark.BLMK_ACCESS_DIRECTIONS,
             )
         for landmark in proposed_landmarks:
             BusinessLocationLandmarkSnapshot.objects.create(
@@ -217,6 +225,8 @@ class BusinessLocationChangeService:
                 ),
                 BLLS_SOURCE=landmark["source"],
                 BLLS_PLACE_ID=landmark.get("place_id"),
+                BLLS_IS_ARRIVAL_POINT=landmark["is_arrival_point"],
+                BLLS_ACCESS_DIRECTIONS=landmark["access_directions"],
             )
 
     @staticmethod
@@ -442,6 +452,8 @@ class BusinessLocationChangeService:
                 "longitude": snapshot.BLLS_POINT.x,
                 "source": snapshot.BLLS_SOURCE,
                 "place_id": snapshot.BLLS_PLACE_ID,
+                "is_arrival_point": snapshot.BLLS_IS_ARRIVAL_POINT,
+                "access_directions": snapshot.BLLS_ACCESS_DIRECTIONS,
             }
             for snapshot in snapshots
             if snapshot.BLLS_SIDE == BusinessLocationLandmarkSnapshot.Side.PROPOSED
@@ -551,6 +563,8 @@ class BusinessLocationChangeService:
                 ),
                 BLMK_SOURCE=landmark["source"],
                 BLMK_PLACE_ID=landmark.get("place_id"),
+                BLMK_IS_ARRIVAL_POINT=landmark["is_arrival_point"],
+                BLMK_ACCESS_DIRECTIONS=landmark["access_directions"],
             )
 
         business.LOCT_ID = new_location

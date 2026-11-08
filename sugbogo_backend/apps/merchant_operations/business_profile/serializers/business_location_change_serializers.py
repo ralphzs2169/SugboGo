@@ -66,6 +66,10 @@ class BusinessLocationLandmarkProposalSerializer(LocationCoordinateSerializer):
     """Validate one Registration-compatible selected landmark."""
 
     name = serializers.CharField(max_length=150, trim_whitespace=True)
+    is_arrival_point = serializers.BooleanField(default=False)
+    access_directions = serializers.CharField(
+        max_length=1000, allow_blank=True, default="", trim_whitespace=True,
+    )
     address = serializers.CharField(
         max_length=255,
         required=False,
@@ -90,6 +94,12 @@ class BusinessLocationLandmarkProposalSerializer(LocationCoordinateSerializer):
 
     ):
         """Preserve Registration's Google landmark address requirement."""
+        if attrs["is_arrival_point"] and not attrs["access_directions"]:
+            raise serializers.ValidationError({
+                "access_directions": "Describe how to reach your entrance from this arrival landmark.",
+            })
+        if not attrs["is_arrival_point"]:
+            attrs["access_directions"] = ""
         if (
             attrs["source"] == BusinessLandmark.LandmarkSource.GOOGLE
             and not attrs.get("address")
@@ -112,6 +122,12 @@ class BusinessLocationChangeCreateSerializer(serializers.Serializer):
             "max_length": "You can only add up to 5 landmarks.",
         },
     )
+
+    def validate_proposed_landmarks(self, landmarks):
+        """Allow only one explicit arrival landmark per business location."""
+        if sum(item["is_arrival_point"] for item in landmarks) > 1:
+            raise serializers.ValidationError("Choose only one arrival landmark.")
+        return landmarks
 
 
 class BusinessLocationChangeRejectSerializer(serializers.Serializer):
@@ -205,6 +221,8 @@ class MerchantBusinessLocationChangeSerializer(serializers.ModelSerializer):
                 "longitude": snapshot.BLLS_POINT.x,
                 "source": snapshot.BLLS_SOURCE,
                 "place_id": snapshot.BLLS_PLACE_ID,
+                "is_arrival_point": snapshot.BLLS_IS_ARRIVAL_POINT,
+                "access_directions": snapshot.BLLS_ACCESS_DIRECTIONS,
             }
             for snapshot in obj.landmark_snapshots.all()
             if snapshot.BLLS_SIDE == side
@@ -299,6 +317,8 @@ class AdminBusinessLocationChangeSerializer(MerchantBusinessLocationChangeSerial
                     "longitude": landmark.BLMK_POINT.x,
                     "source": landmark.BLMK_SOURCE,
                     "place_id": landmark.BLMK_PLACE_ID,
+                    "is_arrival_point": landmark.BLMK_IS_ARRIVAL_POINT,
+                    "access_directions": landmark.BLMK_ACCESS_DIRECTIONS,
                 }
                 for landmark in location.landmarks.all()
             ],

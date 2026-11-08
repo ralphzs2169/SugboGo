@@ -4,6 +4,7 @@ import { Pressable, View } from "react-native";
 import { useRef, useState, type ReactNode } from "react";
 
 import { theme } from "@/constants/theme";
+import ArrivalLandmarkGuidance from "../../ArrivalLandmarkGuidance";
 import AppText from "@/shared/components/AppText";
 import DottedTimelineConnector from "@/shared/components/DottedTimelineConnector";
 import { shadows } from "@/shared/styles/shadows";
@@ -17,6 +18,8 @@ type Props = {
   destinationDistance: string;
   landmarkName?: string | null;
   accessDirections?: string | null;
+  arrivalLandmark?:
+    import("../../../../types/directJourney.types").ArrivalLandmark | null;
   headerAction?: ReactNode;
 };
 
@@ -39,6 +42,7 @@ export default function JeepneyStopGuidanceCard({
   destinationDistance,
   landmarkName,
   accessDirections,
+  arrivalLandmark,
   headerAction,
 }: Props) {
   const directionsSheet = useRef<BottomSheetModal>(null);
@@ -183,6 +187,7 @@ export default function JeepneyStopGuidanceCard({
           </View>
         </View>
       </View>
+      <ArrivalLandmarkGuidance landmark={arrivalLandmark} />
       {/* Merchant context is separate from calculated stops and opens outside the footer. */}
       {directions && (
         <Pressable

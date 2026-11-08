@@ -41,6 +41,37 @@ const business = {
 } as MerchantBusinessProfileResponse;
 
 describe("Location change proposal adapters", () => {
+  it("treats arrival designation and directions as reviewed changes", () => {
+    const location = liveLocationProposal(business.location);
+    const landmarks = liveLandmarkSelection(business.location);
+    landmarks[0] = {
+      ...landmarks[0],
+      is_arrival_point: true,
+      access_directions: " Enter the green gate. ",
+    };
+    const payload = buildLocationChangePayload(location, landmarks);
+    expect(payload.proposed_landmarks[0]).toMatchObject({
+      is_arrival_point: true,
+      access_directions: "Enter the green gate.",
+    });
+    expect(locationProposalChanged(business, payload)).toBe(true);
+    const current = {
+      ...business,
+      location: {
+        ...business.location,
+        landmarks: business.location.landmarks.map((landmark, index) =>
+          index === 0
+            ? {
+                ...landmark,
+                is_arrival_point: true,
+                access_directions: "Enter the green gate.",
+              }
+            : landmark,
+        ),
+      },
+    };
+    expect(locationProposalChanged(current, payload)).toBe(false);
+  });
   it("prefills the flat live address and complete owner landmark values", () => {
     const location = liveLocationProposal(business.location);
     const landmarks = liveLandmarkSelection(business.location);

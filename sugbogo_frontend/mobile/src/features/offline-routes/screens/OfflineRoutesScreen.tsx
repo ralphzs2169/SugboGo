@@ -15,6 +15,7 @@ import {
   isAuthSessionGenerationCurrent,
 } from "@/shared/api/authSessionGeneration.service";
 import JourneyStep from "@/features/explore/components/getting-there/jeepney-guidance/JourneyStep";
+import ArrivalLandmarkGuidance from "@/features/explore/components/getting-there/ArrivalLandmarkGuidance";
 import MerchantAccessDirections from "@/features/explore/components/getting-there/MerchantAccessDirections";
 import InfoBanner from "@/shared/components/InfoBanner";
 import { formatJourneyDistance } from "@/features/explore/utils/directJourney.utils";
@@ -240,6 +241,9 @@ export default function OfflineRoutesScreen({
                 starting point.
               </AppText>
             </View>
+            <ArrivalLandmarkGuidance
+              landmark={snapshot.journey.arrival_landmark}
+            />
             <MerchantAccessDirections
               directions={snapshot.business.access_directions}
               presentation="inline"

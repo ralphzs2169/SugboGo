@@ -19,6 +19,7 @@ import UpdateRequestSidebar from "./UpdateRequestSidebar";
 const LOCATION_REVIEW_CHECKLIST = [
   "Does the requested map pin correspond to the business's actual physical location?",
   "Does the submitted address match the proposed map position?",
+  "If an arrival landmark is proposed, verify the roadside access and directions from that landmark to the entrance before approving.",
   "Are the requested landmark changes accurate and helpful for navigation?",
   "Is the requested location within SugboGo's supported Cebu City service area?",
 ];

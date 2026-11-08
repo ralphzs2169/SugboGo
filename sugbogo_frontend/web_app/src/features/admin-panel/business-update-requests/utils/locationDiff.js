@@ -23,6 +23,8 @@ function landmarkValues(landmark) {
     Number(landmark.longitude),
     landmark.source ?? null,
     landmark.place_id ?? null,
+    landmark.is_arrival_point ?? false,
+    landmark.access_directions ?? "",
   ];
 }
 
