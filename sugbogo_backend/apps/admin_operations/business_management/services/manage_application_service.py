@@ -486,6 +486,8 @@ class ApplicationService:
                     BLMK_POINT=landmark.MLMK_POINT,
                     BLMK_SOURCE=landmark.MLMK_SOURCE,
                     BLMK_PLACE_ID=landmark.MLMK_PLACE_ID,
+                    BLMK_IS_ARRIVAL_POINT=landmark.MLMK_IS_ARRIVAL_POINT,
+                    BLMK_ACCESS_DIRECTIONS=landmark.MLMK_ACCESS_DIRECTIONS,
                     LOCT_ID=location,
                 )
                 for landmark in application_landmarks

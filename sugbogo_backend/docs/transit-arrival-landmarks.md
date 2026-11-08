@@ -14,6 +14,15 @@ neither establishes a pedestrian route or live service availability.
 
 ## Merchant and Admin workflow
 
+During initial merchant registration, Step 2 now also lets the merchant choose
+one optional arrival landmark from their selected landmarks and enter directions
+to the entrance. These details save with the draft and reappear when it is
+resumed. Merchant review and Admin application review show the chosen landmark
+and notes. The original application approval publishes them with the business;
+there is no separate location-change request for this initial selection.
+
+For later changes to an approved business:
+
 1. Open the existing location and landmarks change request.
 2. Add/select landmarks as usual, then designate at most one arrival landmark.
 3. Enter directions from that specific landmark to the entrance.
@@ -28,8 +37,8 @@ through the same review process. Existing change-request cooldown, ownership,
 permissions, service-area validation, and stale-baseline checks still apply.
 
 Existing landmarks default to `is_arrival_point=false`; none is automatically
-certified as an arrival point. Registration does not opt landmarks in. Initial
-arrival designation is a post-approval location request, allowing an explicit review.
+certified as an arrival point. Registration requires an explicit selection and
+directions; pending or rejected applications never publish an arrival reference.
 
 ## API and saved guidance
 
@@ -50,8 +59,8 @@ arrival designation is a post-approval location request, allowing an explicit re
 
 ## Rollout
 
-Two additive Django migrations are included: business `0035` and business_profile
-`0005`. Apply both with the normal reviewed deployment migration process before
+Three additive Django migrations are included: business `0035`, business_profile
+`0005`, and merchant_application `0020`. Apply them with the normal reviewed deployment migration process before
 serving the updated backend. Do not migrate the application database just to run
 the tests. The Django test runner applies migrations only to its test database.
 
@@ -60,6 +69,12 @@ codes, passenger screens, and the direct-first search policy remain in place.
 
 ## Acceptance checks
 
+- Registration Step 2: select one arrival landmark, enter entrance directions,
+  save, leave, and resume. The same landmark and notes must return.
+- Registration: selecting an arrival landmark with blank directions blocks
+  Continue; leaving every landmark unselected remains valid.
+- Initial approval: Admin sees the arrival details in application review, and
+  approval publishes them with the business. No second request is needed.
 - Existing direct destination: same ranked journeys, no arrival fallback.
 - Remote business: ordinary landmark alone cannot enable matching.
 - Pending, rejected, withdrawn, or foreign proposal: cannot enable matching.
@@ -74,6 +89,22 @@ codes, passenger screens, and the direct-first search policy remain in place.
 
 Automated checks supplement these acceptance checks; they do not certify actual
 roadside access or replace a merchant/Admin review of real transit data.
+
+## Registration extension verification on 9 November 2026
+
+- 20 focused backend tests passed for location saving, API validation,
+  review fingerprint compatibility, and initial approval publishing arrival data.
+- The wider backend run passed 51 of 53 tests. The two latest-submission Admin
+  tests fail with `StaleApplicationSubmission` on unchanged branch code as well;
+  this extension does not change submission concurrency rules.
+- 51 mobile tests passed across nine suites, including registration save/resume,
+  arrival validation, note-only change detection, and the existing arrival editor.
+- Admin web production build passed with existing dependency eval and bundle-size
+  warnings. Native emulator/device layout remains a manual check.
+- TypeScript comparison found 30 diagnostics in both unchanged source and the
+  extension, with no additional diagnostics.
+- Migration `merchant_application.0020` was generated and exercised in the test
+  database. The application database was not migrated.
 
 ## Verification on 7 November 2026
 

@@ -4,6 +4,7 @@ from apps.merchant_application.models import (
     MerchantApplicationLocation,
 )
 from apps.merchant_application.services.location_service import LocationService
+from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
 from apps.merchant_application.tests.test_services import (
     MerchantApplicationServiceMixin,
 )
@@ -250,3 +251,37 @@ class LocationServiceTests(MerchantApplicationServiceMixin, TestCase):
                 MAPP_ID=application,
             ).exists(),
         )
+
+    def test_arrival_notes_changes_update_review_fingerprint(self):
+        application, _ = self._create_identity()
+        payload = self._location_payload()
+        payload["landmarks"][0].update(MLMK_IS_ARRIVAL_POINT=True, MLMK_ACCESS_DIRECTIONS="Enter the green gate.")
+        location = LocationService.save_location(application, payload)
+        original = get_section_fingerprints(application.pk)
+        landmark = location.landmarks.get(MLMK_IS_ARRIVAL_POINT=True)
+        landmark.MLMK_ACCESS_DIRECTIONS = "Enter the blue gate."
+        landmark.save()
+        changed = get_section_fingerprints(application.pk)
+        self.assertNotEqual(original["location"], changed["location"])
+        self.assertEqual(original["identity"], changed["identity"])
+
+    def test_arrival_validation_preserves_existing_landmarks_on_invalid_save(self):
+        application, _ = self._create_identity()
+        location = LocationService.save_location(application, self._location_payload())
+        ids = set(location.landmarks.values_list("pk", flat=True))
+        payload = self._location_payload()
+        payload["landmarks"][0].update(MLMK_IS_ARRIVAL_POINT=True, MLMK_ACCESS_DIRECTIONS=" ")
+        with self.assertRaises(ValidationError):
+            LocationService.save_location(application, payload)
+        self.assertEqual(ids, set(location.landmarks.values_list("pk", flat=True)))
+
+    def test_ordinary_landmarks_keep_existing_review_fingerprints(self):
+        from importlib import import_module
+        from django.apps import apps
+
+        application, _ = self._create_identity()
+        LocationService.save_location(application, self._location_payload())
+        legacy = import_module(
+            "apps.merchant_application.migrations.0017_baseline_existing_rejections",
+        ).get_section_fingerprints(application.pk, registry=apps)
+        self.assertEqual(get_section_fingerprints(application.pk), legacy)

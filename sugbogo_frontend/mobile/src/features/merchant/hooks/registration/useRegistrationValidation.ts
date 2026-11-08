@@ -51,6 +51,7 @@ export default function useRegistrationValidation({
         "streetAddress",
         "latitude",
         "longitude",
+        "landmarks",
       ]);
 
       if (!isValid) {
@@ -58,7 +59,7 @@ export default function useRegistrationValidation({
           type: "error",
           text1: "Incomplete business location",
           text2:
-            "Please select your business location and complete the address.",
+            "Review your location, address, and any selected arrival landmark directions.",
         });
       }
 

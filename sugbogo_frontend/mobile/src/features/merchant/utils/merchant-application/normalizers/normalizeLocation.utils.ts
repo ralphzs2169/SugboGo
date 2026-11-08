@@ -21,6 +21,8 @@ export type NormalizedLocation = {
     longitude: number;
     source: "google" | "custom";
     placeId: string | null;
+    is_arrival_point?: boolean;
+    access_directions?: string;
   }[];
 };
 
@@ -47,6 +49,10 @@ export function normalizeLocation(
       longitude: landmark.longitude,
       source: landmark.source,
       placeId: normalizeOptionalText(landmark.placeId),
+      is_arrival_point: Boolean(landmark.is_arrival_point),
+      access_directions: landmark.is_arrival_point
+        ? (landmark.access_directions ?? "").trim()
+        : "",
     })),
   };
 }

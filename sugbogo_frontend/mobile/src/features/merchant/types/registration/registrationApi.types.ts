@@ -39,6 +39,8 @@ export interface ApplicationLandmarkPayload {
   longitude: number;
   source: "google" | "custom";
   place_id?: string | null;
+  is_arrival_point?: boolean;
+  access_directions?: string;
 }
 
 export interface ApplicationLocationPayload {
@@ -60,6 +62,8 @@ export interface ApplicationLandmarkResponse {
   longitude: number | null;
   source: "google" | "custom";
   place_id: string | null;
+  is_arrival_point?: boolean;
+  access_directions?: string;
 }
 
 export interface ApplicationLocationResponse {

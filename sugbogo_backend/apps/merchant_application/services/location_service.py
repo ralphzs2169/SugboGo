@@ -57,6 +57,23 @@ class LocationService:
         )
 
         landmarks_data = validated_data.pop("landmarks", None)
+        if landmarks_data is not None:
+            arrival_count = sum(
+                bool(item.get("MLMK_IS_ARRIVAL_POINT")) for item in landmarks_data
+            )
+            if arrival_count > 1:
+                raise ValidationError({
+                    "landmarks": "Choose only one arrival landmark.",
+                })
+            for item in landmarks_data:
+                directions = item.get("MLMK_ACCESS_DIRECTIONS", "").strip()
+                if item.get("MLMK_IS_ARRIVAL_POINT") and not directions:
+                    raise ValidationError({
+                        "landmarks": "Enter directions from the arrival landmark to your entrance.",
+                    })
+                item["MLMK_ACCESS_DIRECTIONS"] = (
+                    directions if item.get("MLMK_IS_ARRIVAL_POINT") else ""
+                )
         latitude = validated_data.pop("latitude", None)
         longitude = validated_data.pop("longitude", None)
 

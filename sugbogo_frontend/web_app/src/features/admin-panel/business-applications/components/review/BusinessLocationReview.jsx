@@ -133,6 +133,12 @@ export default function BusinessLocationReview({
                         <p className="text-sm font-medium text-text-primary">
                           {landmark.name}
                         </p>
+                        {landmark.is_arrival_point && (
+                          <div className="mt-2 text-sm text-text-secondary">
+                            <p className="font-medium text-text-primary">Arrival landmark</p>
+                            <p className="whitespace-pre-wrap">{landmark.access_directions}</p>
+                          </div>
+                        )}
 
                         {landmark.source === "custom" && (
                           <p className="mt-1 text-xs text-text-secondary">

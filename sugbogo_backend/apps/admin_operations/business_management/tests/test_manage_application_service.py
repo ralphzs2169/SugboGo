@@ -1494,6 +1494,12 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
             submission_number=1,
         )
 
+        arrival = application.location.landmarks.first()
+        arrival.MLMK_IS_ARRIVAL_POINT = True
+        arrival.MLMK_ACCESS_DIRECTIONS = "Enter the green gate beside the bakery."
+        arrival.save()
+        self.assertIsNone(application.BUSN_ID)
+
         application_landmarks = list(
             application.location.landmarks.all()
         )
@@ -1525,6 +1531,8 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
                 landmark.MLMK_POINT,
                 landmark.MLMK_SOURCE,
                 landmark.MLMK_PLACE_ID,
+                landmark.MLMK_IS_ARRIVAL_POINT,
+                landmark.MLMK_ACCESS_DIRECTIONS,
             )
             for landmark in application_landmarks
         }
@@ -1536,6 +1544,8 @@ class ApplicationServiceTests(MerchantApplicationServiceMixin, TestCase):
                 landmark.BLMK_POINT,
                 landmark.BLMK_SOURCE,
                 landmark.BLMK_PLACE_ID,
+                landmark.BLMK_IS_ARRIVAL_POINT,
+                landmark.BLMK_ACCESS_DIRECTIONS,
             )
             for landmark in business_landmarks
         }
