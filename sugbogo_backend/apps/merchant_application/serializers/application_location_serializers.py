@@ -48,7 +48,28 @@ class ApplicationLandmarkSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
 
+    is_arrival_point = serializers.BooleanField(
+        source="MLMK_IS_ARRIVAL_POINT",
+        default=False,
+    )
+    access_directions = serializers.CharField(
+        source="MLMK_ACCESS_DIRECTIONS",
+        max_length=1000,
+        allow_blank=True,
+        default="",
+    )
+
     def validate(self, attrs):
+        """Require entrance directions for an explicitly selected arrival landmark."""
+        if attrs.get("MLMK_IS_ARRIVAL_POINT") and not attrs.get(
+            "MLMK_ACCESS_DIRECTIONS", "",
+        ).strip():
+            raise serializers.ValidationError({
+                "access_directions": "Enter directions from the arrival landmark to your entrance.",
+            })
+        if not attrs.get("MLMK_IS_ARRIVAL_POINT"):
+            attrs["MLMK_ACCESS_DIRECTIONS"] = ""
+
         source = attrs.get("MLMK_SOURCE")
         address = attrs.get("MLMK_ADDRESS")
 
@@ -69,6 +90,8 @@ class ApplicationLandmarkSerializer(serializers.ModelSerializer):
             "longitude",
             "source",
             "place_id",
+            "is_arrival_point",
+            "access_directions",
         )
 
 
@@ -130,6 +153,15 @@ class ApplicationLocationSerializer(serializers.ModelSerializer):
         },
     )
 
+    def validate_landmarks(self, landmarks):
+        """Allow at most one arrival landmark per application location."""
+        arrival_count = sum(
+            bool(item.get("MLMK_IS_ARRIVAL_POINT")) for item in landmarks
+        )
+        if arrival_count > 1:
+            raise serializers.ValidationError("Choose only one arrival landmark.")
+        return landmarks
+
     class Meta:
         model = MerchantApplicationLocation
         fields = (
@@ -154,6 +186,14 @@ class ApplicationLandmarkReadSerializer(serializers.ModelSerializer):
     longitude = serializers.SerializerMethodField()
     source = serializers.CharField(source="MLMK_SOURCE", read_only=True)
     place_id = serializers.CharField(source="MLMK_PLACE_ID", read_only=True)
+    is_arrival_point = serializers.BooleanField(
+        source="MLMK_IS_ARRIVAL_POINT",
+        read_only=True,
+    )
+    access_directions = serializers.CharField(
+        source="MLMK_ACCESS_DIRECTIONS",
+        read_only=True,
+    )
     
     class Meta:
         model = MerchantApplicationLandmark
@@ -165,6 +205,8 @@ class ApplicationLandmarkReadSerializer(serializers.ModelSerializer):
             "longitude",
             "source",
             "place_id",
+            "is_arrival_point",
+            "access_directions",
         )
 
     def get_latitude(self, obj):

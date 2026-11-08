@@ -31,6 +31,10 @@ export function buildLocationPayload(
       longitude: landmark.longitude,
       source: landmark.source,
       place_id: landmark.placeId,
+      is_arrival_point: Boolean(landmark.is_arrival_point),
+      access_directions: landmark.is_arrival_point
+        ? (landmark.access_directions ?? "").trim()
+        : "",
     })),
   };
 }

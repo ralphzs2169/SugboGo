@@ -112,9 +112,24 @@ export const merchantRegistrationSchema = z.object({
         longitude: z.number(),
         source: z.enum(["google", "custom"]),
         placeId: z.string().optional(),
+        is_arrival_point: z.boolean().optional(),
+        access_directions: z.string().max(1000).optional(),
       }),
     )
-    .max(5, "You can only add up to 5 landmarks."),
+    .max(5, "You can only add up to 5 landmarks.")
+    .refine(
+      (landmarks) =>
+        landmarks.filter((item) => item.is_arrival_point).length <= 1,
+      "Choose only one arrival landmark.",
+    )
+    .refine(
+      (landmarks) =>
+        landmarks.every(
+          (item) =>
+            !item.is_arrival_point || Boolean(item.access_directions?.trim()),
+        ),
+      "Enter directions from the arrival landmark to your entrance.",
+    ),
 
   latitude: z
     .number()

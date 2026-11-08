@@ -292,6 +292,10 @@ class MerchantApplicationLandmark(models.Model):
         max_length=10, choices=LandmarkSource.choices
     )
     MLMK_PLACE_ID = models.CharField(max_length=255, blank=True, null=True)
+    MLMK_IS_ARRIVAL_POINT = models.BooleanField(default=False)
+    MLMK_ACCESS_DIRECTIONS = models.CharField(
+        max_length=1000, blank=True, default="",
+    )
     MLMK_CREATED_AT = models.DateTimeField(auto_now_add=True)
     MLMK_UPDATED_AT = models.DateTimeField(auto_now=True)
 
@@ -302,6 +306,20 @@ class MerchantApplicationLandmark(models.Model):
 
     class Meta:
         db_table = 'MERCHANT_APPLICATION_LANDMARK'
+        constraints = [
+            models.UniqueConstraint(
+                fields=["MLOC_ID"],
+                condition=models.Q(MLMK_IS_ARRIVAL_POINT=True),
+                name="unique_application_arrival_landmark",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(MLMK_IS_ARRIVAL_POINT=False)
+                    | ~models.Q(MLMK_ACCESS_DIRECTIONS="")
+                ),
+                name="application_arrival_requires_notes",
+            ),
+        ]
 
     def __str__(self):
         return self.MLMK_NAME
