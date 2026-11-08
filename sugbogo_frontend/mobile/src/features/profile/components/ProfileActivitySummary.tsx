@@ -23,9 +23,9 @@ export default function ProfileActivitySummary({
   const hasError = Boolean(pockets.error || reviews.error || vouches.error);
   const metrics = [
     {
-      label: "Pockets",
+      label: "Custom Pockets",
       icon: "bookmark-outline" as const,
-      value: pockets.hasData ? pockets.totalCount : null,
+      value: pockets.hasData ? pockets.customCount : null,
       loading: pockets.isLoading || pockets.isAuthLoading,
     },
     {

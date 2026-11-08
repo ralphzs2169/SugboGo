@@ -47,11 +47,17 @@ export default function usePocketCollections() {
     );
   }, [isEnabled, query.data]);
 
+  const firstPage = isEnabled ? query.data?.pages[0] : undefined;
+  const totalCount = firstPage?.pagination.total_items ?? 0;
+  // The API orders the unique default collection first, so page one includes
+  // every default even when custom collections extend beyond loaded pages.
+  const defaultCount =
+    firstPage?.items.filter((collection) => collection.is_default).length ?? 0;
+
   return {
     collections,
-    totalCount: isEnabled
-      ? (query.data?.pages[0]?.pagination.total_items ?? 0)
-      : 0,
+    totalCount,
+    customCount: Math.max(0, totalCount - defaultCount),
     hasData: isEnabled && query.data !== undefined,
     userId,
     isEnabled,
