@@ -9,16 +9,6 @@ export default function NotificationList({ query, count, actions, unreadOnly = f
   const items = query.data?.items ?? [];
   return (
     <>
-      {actions.error && (
-        <DataErrorState
-          compact
-          title="Unable to mark notifications as read"
-          message="Your read action was not saved. Please try again."
-          onRetry={actions.retry}
-          retryLabel="Retry"
-          retrying={actions.busy}
-        />
-      )}
       {query.error && (
         <DataErrorState
           compact

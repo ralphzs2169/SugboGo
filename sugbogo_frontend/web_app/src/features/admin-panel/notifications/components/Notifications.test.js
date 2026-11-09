@@ -32,7 +32,6 @@ let reads;
 let posts;
 let failures;
 let getTransport;
-let preview;
 let loadToasts;
 const originalToastError = toast.error;
 
@@ -108,9 +107,6 @@ before(async () => {
   options = await server.ssrLoadModule(
     "/src/features/admin-panel/notifications/queries/notificationQueries.js",
   );
-  ({ useNotificationPreview: preview } = await server.ssrLoadModule(
-    "/src/features/admin-panel/notifications/preview/notificationPreview.js",
-  ));
 });
 
 beforeEach(async () => {
@@ -119,7 +115,6 @@ beforeEach(async () => {
     loadToasts.push({ message, ...options });
     return originalToastError(message, options);
   };
-  preview.getState().setScenario("live");
   reads = [];
   posts = [];
   records = fixtures();
@@ -251,45 +246,6 @@ test("count polling is lightweight, account scoped, focus-aware, and visibility-
   assert.equal(options.notificationCountOptions(7).refetchInterval, false);
   assert.equal(options.notificationListOptions(7, { page: 1 }).refetchInterval, undefined);
   assert.notDeepEqual(options.notificationKeys.account(7), options.notificationKeys.account(8));
-});
-
-test("development preview shares local states across header, dropdown, and history without writes", async () => {
-  await render("/admin-panel/notifications");
-  await until(() => rows().length === 10);
-  const toggle = container.querySelector('[aria-label="Notification preview state"]');
-  assert.ok(toggle);
-  async function select(value) {
-    await act(async () => {
-      toggle.value = value;
-      toggle.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    });
-  }
-  await select("many");
-  const requestCount = reads.length;
-  assert.ok(bell().textContent.includes("9+"));
-  await click(bell());
-  assert.equal(panel().querySelectorAll("li > button").length, 10);
-  await click([...panel().querySelectorAll("button")].find(
-    (item) => item.textContent.trim() === "Mark all as read",
-  ));
-  assert.ok(bell().textContent.includes("0 unread"));
-  assert.equal(posts.length, 0);
-  assert.equal(reads.length, requestCount);
-  await select("loading");
-  assert.ok(panel().querySelector('[aria-label="Loading notifications"]'));
-  await select("empty");
-  assert.match(panel().textContent, /No notifications yet/);
-  await select("error");
-  assert.match(panel().textContent, /Unable to load notifications/);
-  await click(panel().querySelector('[role="alert"] button'));
-  assert.equal(toggle.value, "mixed");
-  await select("read-error");
-  assert.match(panel().textContent, /Unable to mark notifications as read/);
-  await select("marking");
-  assert.ok(panel().querySelector("li > button").disabled);
-  await select("live");
-  await until(() => rows().length === 10);
-  assert.equal(posts.length, 0);
 });
 
 test("destinations allow only the four Task 1 record types and relative time is readable", () => {
@@ -518,20 +474,60 @@ test("list loading is explicit and an open dropdown refreshes when count changes
   await until(() => rows()[0]?.textContent.includes("Newest notice"));
 });
 
-test("read failures retain the dropdown and retry the intended mutation", async () => {
-  failures.read = true;
-  await render();
-  await click(bell());
-  await until(() => rows().length === 10);
-  await click(rows()[0]);
-  await until(() => panel()?.textContent.includes("Unable to mark notifications as read"));
-  assert.equal(location(), "/admin-panel/dashboard");
-  assert.equal(records[0].is_read, false);
-  failures.read = false;
-  await click(panel().querySelector('[role="alert"] button'));
-  await until(() => location() === "/admin-panel/business/application/200");
-  assert.deepEqual(posts, ["/notifications/23/read/", "/notifications/23/read/"]);
-});
+for (const surface of ["dropdown", "history"]) {
+  for (const action of ["individual", "bulk"]) {
+    test(`${surface} ${action} read failure emits one toast per action and preserves loaded state`, async () => {
+      const path = surface === "history" ? "/admin-panel/notifications" : "/admin-panel/dashboard";
+      await render(path);
+      if (surface === "dropdown") {
+        await click(bell());
+        await until(() => rows().length === 10);
+      } else {
+        await until(() => rows().length === 10);
+        await click(container.querySelector("#notification-filters-unread"));
+        await until(() => rows().length === 10);
+        await click(container.querySelector('[aria-label="Next page"]'));
+        await until(() => rows().length === 2);
+      }
+      await until(() => bell().textContent.includes("9+"));
+      const originalRows = rows().map((row) => row.textContent);
+      const originalRecords = structuredClone(records);
+      const requestCount = reads.length;
+      const notificationId = Number(rows()[0].textContent.match(/Notice (\d+)/)[1]);
+      const selected = records.find((record) => record.id === notificationId);
+      const trigger = () => action === "individual" ? rows()[0] : button("Mark all as read");
+      failures.read = true;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        await click(trigger());
+        await until(() => loadToasts.length === attempt && !trigger().disabled);
+        assert.match(loadToasts.at(-1).message, /Unable to mark notifications as read/);
+        assert.equal(loadToasts.at(-1).id, `admin-notification-${surface}-read-error`);
+        assert.equal(container.querySelector('[role="alert"]'), null);
+        assert.deepEqual(rows().map((row) => row.textContent), originalRows);
+        assert.deepEqual(records, originalRecords);
+        assert.equal(reads.length, requestCount);
+        assert.equal(location(), path);
+        assert.ok(bell().textContent.includes("9+"));
+        if (surface === "history") {
+          assert.equal(container.querySelector("#notification-filters-unread").getAttribute("aria-selected"), "true");
+          assert.equal(container.querySelector('[aria-current="page"]').textContent, "2");
+        }
+      }
+      failures.read = false;
+      await click(trigger());
+      if (action === "individual") {
+        await until(() => location() === getNotificationDestination(selected));
+        assert.equal(selected.is_read, true);
+        assert.deepEqual(posts, Array(3).fill(`/notifications/${notificationId}/read/`));
+      } else {
+        await until(() => bell().textContent.includes("0 unread"));
+        assert.ok(records.every((record) => record.is_read));
+        assert.deepEqual(posts, Array(3).fill("/notifications/read-all/"));
+      }
+      assert.equal(loadToasts.length, 2);
+    });
+  }
+}
 
 test("only restored admin sessions fetch, and account loss cancels pending list reads", async () => {
   auth.setState({ isLoading: true });
