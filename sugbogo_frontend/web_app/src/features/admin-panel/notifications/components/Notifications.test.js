@@ -3,6 +3,7 @@ import { after, afterEach, before, beforeEach, test } from "node:test";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import React, { act } from "react";
+import toast from "react-hot-toast";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { createServer } from "vite";
@@ -31,6 +32,9 @@ let reads;
 let posts;
 let failures;
 let getTransport;
+let preview;
+let loadToasts;
+const originalToastError = toast.error;
 
 function fixtures() {
   return Array.from({ length: 23 }, (_, index) => ({
@@ -104,9 +108,18 @@ before(async () => {
   options = await server.ssrLoadModule(
     "/src/features/admin-panel/notifications/queries/notificationQueries.js",
   );
+  ({ useNotificationPreview: preview } = await server.ssrLoadModule(
+    "/src/features/admin-panel/notifications/preview/notificationPreview.js",
+  ));
 });
 
 beforeEach(async () => {
+  loadToasts = [];
+  toast.error = (message, options) => {
+    loadToasts.push({ message, ...options });
+    return originalToastError(message, options);
+  };
+  preview.getState().setScenario("live");
   reads = [];
   posts = [];
   records = fixtures();
@@ -156,6 +169,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  toast.error = originalToastError;
   await act(async () => root.unmount());
   client.clear();
   container.remove();
@@ -237,6 +251,45 @@ test("count polling is lightweight, account scoped, focus-aware, and visibility-
   assert.equal(options.notificationCountOptions(7).refetchInterval, false);
   assert.equal(options.notificationListOptions(7, { page: 1 }).refetchInterval, undefined);
   assert.notDeepEqual(options.notificationKeys.account(7), options.notificationKeys.account(8));
+});
+
+test("development preview shares local states across header, dropdown, and history without writes", async () => {
+  await render("/admin-panel/notifications");
+  await until(() => rows().length === 10);
+  const toggle = container.querySelector('[aria-label="Notification preview state"]');
+  assert.ok(toggle);
+  async function select(value) {
+    await act(async () => {
+      toggle.value = value;
+      toggle.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+  }
+  await select("many");
+  const requestCount = reads.length;
+  assert.ok(bell().textContent.includes("9+"));
+  await click(bell());
+  assert.equal(panel().querySelectorAll("li > button").length, 10);
+  await click([...panel().querySelectorAll("button")].find(
+    (item) => item.textContent.trim() === "Mark all as read",
+  ));
+  assert.ok(bell().textContent.includes("0 unread"));
+  assert.equal(posts.length, 0);
+  assert.equal(reads.length, requestCount);
+  await select("loading");
+  assert.ok(panel().querySelector('[aria-label="Loading notifications"]'));
+  await select("empty");
+  assert.match(panel().textContent, /No notifications yet/);
+  await select("error");
+  assert.match(panel().textContent, /Unable to load notifications/);
+  await click(panel().querySelector('[role="alert"] button'));
+  assert.equal(toggle.value, "mixed");
+  await select("read-error");
+  assert.match(panel().textContent, /Unable to mark notifications as read/);
+  await select("marking");
+  assert.ok(panel().querySelector("li > button").disabled);
+  await select("live");
+  await until(() => rows().length === 10);
+  assert.equal(posts.length, 0);
 });
 
 test("destinations allow only the four Task 1 record types and relative time is readable", () => {
@@ -391,23 +444,61 @@ test("dropdown bulk read recovers an exhausted Unread history page", async () =>
   assert.equal(location(), "/admin-panel/notifications");
 });
 
-test("loading, empty history, and query errors remain visible and retry only the failed section", async () => {
+test("combined load failures show one error and one toast identity and retry both requests", async () => {
   failures.count = true;
   failures.list = true;
   await render("/admin-panel/notifications");
   await until(() => container.textContent.includes("Unable to load notifications"));
-  assert.match(container.textContent, /Unread count unavailable/);
+  assert.equal(container.querySelectorAll('[role="alert"]').length, 1);
+  assert.deepEqual([...new Set(loadToasts.map((item) => item.id))], ["admin-notification-load-error"]);
+  await click(bell());
+  await until(() => panel()?.textContent.includes("Unable to load notifications"));
+  assert.equal(panel().querySelectorAll('[role="alert"]').length, 1);
+  assert.deepEqual([...new Set(loadToasts.map((item) => item.id))], ["admin-notification-load-error"]);
+  await press(bell(), "Escape");
   const countReads = reads.filter((item) => item.url.endsWith("unread-count/")).length;
   records = [];
   failures.list = false;
   const listError = [...container.querySelectorAll('[role="alert"]')].find((item) => item.textContent.includes("Unable to load notifications"));
   await click(listError.querySelector("button"));
   await until(() => container.textContent.includes("No notifications yet"));
-  assert.equal(reads.filter((item) => item.url.endsWith("unread-count/")).length, countReads);
+  assert.equal(reads.filter((item) => item.url.endsWith("unread-count/")).length, countReads + 1);
   failures.count = false;
   await click(container.querySelector('[role="alert"] button'));
   await until(() => container.textContent.includes("0 unread"));
   assert.equal(container.querySelector('[role="alert"]'), null);
+});
+
+test("count-only failure stays inline and retry leaves working history alone", async () => {
+  failures.count = true;
+  await render("/admin-panel/notifications");
+  await until(() => rows().length === 10 && container.querySelector('[role="alert"]'));
+  const error = container.querySelector('[role="alert"]');
+  assert.match(error.textContent, /Unread count unavailable/);
+  assert.equal(error.querySelector("h3"), null);
+  const historyReads = listReads().length;
+  failures.count = false;
+  await click(error.querySelector("button"));
+  await until(() => container.querySelector('[role="alert"]') === null);
+  assert.equal(listReads().length, historyReads);
+});
+
+test("failed refresh retains notification rows and count with compact recovery", async () => {
+  await render("/admin-panel/notifications");
+  await until(() => rows().length === 10 && bell().textContent.includes("9+"));
+  failures.list = true;
+  failures.count = true;
+  await act(async () => client.invalidateQueries({ queryKey: options.notificationKeys.account(7) }));
+  await until(() => container.textContent.includes("Refresh failed"));
+  assert.equal(rows().length, 10);
+  assert.match(container.textContent, /Showing previously loaded data/);
+  assert.ok(bell().textContent.includes("9+"));
+  assert.deepEqual([...new Set(loadToasts.map((item) => item.id))], ["admin-notification-load-error"]);
+  const countRequests = reads.filter((item) => item.url.endsWith("unread-count/")).length;
+  failures.list = false;
+  await click(container.querySelector('[aria-label="Notifications"][role="alert"] button'));
+  await until(() => !container.querySelector('[aria-label="Notifications"][role="alert"]'));
+  assert.equal(reads.filter((item) => item.url.endsWith("unread-count/")).length, countRequests);
 });
 
 test("list loading is explicit and an open dropdown refreshes when count changes", async () => {

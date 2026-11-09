@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import Button from "@/shared/components/Button";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import useNotificationLoadError from "../notifications/hooks/useNotificationLoadError";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import PageHeader from "../components/PageHeader";
 import TableTabs from "../components/data-table/TableTabs";
@@ -49,14 +49,7 @@ function NotificationHistory() {
     }
   }, [filter, page, unreadCount]);
 
-  useApiErrorNotification(query.error, {
-    toastId: "admin-notification-history-load-error",
-    fallbackMessage: "Unable to load notification history. Please try again.",
-  });
-  useApiErrorNotification(count.error, {
-    toastId: "admin-notification-count-load-error",
-    fallbackMessage: "Unable to load the unread notification count. Please try again.",
-  });
+  useNotificationLoadError({ history: query, count });
 
   return (
     <div className="min-w-0">
@@ -78,7 +71,9 @@ function NotificationHistory() {
           </Button>
         )}
       />
-      <div className="mb-4"><NotificationUnreadCount query={count} /></div>
+      <div className="mb-4">
+        <NotificationUnreadCount query={count} suppressed={Boolean(query.error && count.error && !count.data)} />
+      </div>
       <section aria-label="Notification history" className="min-w-0 rounded-2xl border border-stroke bg-background p-3 sm:p-4">
         <div className="mb-4">
           <TableTabs
@@ -97,7 +92,7 @@ function NotificationHistory() {
           id={`notification-filters-panel-${filter}`}
           aria-labelledby={`notification-filters-${filter}`}
         >
-          <NotificationList query={query} actions={actions} unreadOnly={filter === "unread"} />
+          <NotificationList query={query} count={count} actions={actions} unreadOnly={filter === "unread"} />
           {pagination && (
             <TablePagination
               pageIndex={pagination.page - 1}

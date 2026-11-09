@@ -9,6 +9,7 @@ import { notificationKeys } from "../queries/notificationQueries";
 import { markAllNotificationsRead, markNotificationRead } from "../services/notificationService";
 import { getNotificationDestination } from "../utils/notificationDestination";
 import { useNotificationSession } from "./useNotifications";
+import { PREVIEW_READ_ERROR, useNotificationPreview } from "../preview/notificationPreview";
 
 /** Coordinate read mutations and trusted navigation within the originating session. */
 export default function useNotificationActions({ onRead, onNavigate, surface }) {
@@ -16,6 +17,8 @@ export default function useNotificationActions({ onRead, onNavigate, surface }) 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const busyRef = useRef(false);
+  const preview = useNotificationPreview();
+  const previewing = import.meta.env.DEV && preview.scenario !== "live";
 
   function isCurrent(generation) {
     const state = useAuthStore.getState();
@@ -47,6 +50,13 @@ export default function useNotificationActions({ onRead, onNavigate, surface }) 
   });
 
   async function selectNotification(notification) {
+    if (previewing) {
+      if (!enabled || preview.scenario === "marking") return;
+      if (preview.scenario === "read-error") return;
+      preview.markRead(notification.id);
+      onRead?.();
+      return;
+    }
     if (!enabled || busyRef.current) return;
     busyRef.current = true;
     const generation = getSessionGeneration();
@@ -67,6 +77,12 @@ export default function useNotificationActions({ onRead, onNavigate, surface }) 
   }
 
   async function markAllRead() {
+    if (previewing) {
+      if (!enabled || ["marking", "read-error"].includes(preview.scenario)) return;
+      preview.markRead();
+      onRead?.();
+      return;
+    }
     if (!enabled || busyRef.current) return;
     busyRef.current = true;
     read.reset();
@@ -83,10 +99,13 @@ export default function useNotificationActions({ onRead, onNavigate, surface }) 
   return {
     selectNotification,
     markAllRead,
-    busy: read.isPending || readAll.isPending,
-    isMarkingAll: readAll.isPending,
-    error,
+    busy: previewing ? preview.scenario === "marking" : read.isPending || readAll.isPending,
+    isMarkingAll: previewing ? preview.scenario === "marking" : readAll.isPending,
+    error: previewing
+      ? preview.scenario === "read-error" ? PREVIEW_READ_ERROR : null
+      : error,
     retry: () => {
+      if (previewing) return preview.setScenario("mixed");
       if (read.isError) return selectNotification(read.variables.notification);
       return markAllRead();
     },

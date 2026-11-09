@@ -3,7 +3,7 @@ import { Bell } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import Button from "@/shared/components/Button";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import useNotificationLoadError from "../hooks/useNotificationLoadError";
 import useNotificationActions from "../hooks/useNotificationActions";
 import {
   useNotificationSession,
@@ -17,20 +17,29 @@ const RECENT_PARAMS = { page: 1, page_size: 10 };
 
 /** Fetch recent items only while open and reconcile them when the badge changes. */
 function RecentNotifications({ count, actions }) {
+  const location = useLocation();
   const query = useNotifications(RECENT_PARAMS);
-  const previousCount = useRef(count);
+  const unreadCount = count.data?.unread_count;
+  const previousCount = useRef(unreadCount);
   const { refetch } = query;
   useEffect(() => {
-    if (count !== undefined && previousCount.current !== count) {
+    if (unreadCount !== undefined && previousCount.current !== unreadCount) {
       void refetch();
     }
-    previousCount.current = count;
-  }, [count, refetch]);
-  useApiErrorNotification(query.error, {
-    toastId: "admin-notification-dropdown-load-error",
-    fallbackMessage: "Unable to load recent notifications. Please try again.",
-  });
-  return <NotificationList query={query} actions={actions} />;
+    previousCount.current = unreadCount;
+  }, [unreadCount, refetch]);
+  useNotificationLoadError(
+    { recent: query, count },
+    location.pathname !== "/admin-panel/notifications",
+  );
+  return (
+    <>
+      <div className="px-4 pt-3">
+        <NotificationUnreadCount query={count} suppressed={Boolean(query.error && count.error && !count.data)} />
+      </div>
+      <NotificationList query={query} count={count} actions={actions} />
+    </>
+  );
 }
 
 /** Provide a bell-anchored disclosure with native keyboard controls and bounded content. */
@@ -134,10 +143,9 @@ function NotificationBellContent({ count }) {
                 Mark all as read
               </Button>
             </div>
-            <NotificationUnreadCount query={count} />
           </div>
           <div className="themed-scrollbar max-h-96 overflow-y-auto overscroll-contain">
-            <RecentNotifications count={unreadCount} actions={actions} />
+            <RecentNotifications count={count} actions={actions} />
           </div>
           <Link
             to="/admin-panel/notifications"

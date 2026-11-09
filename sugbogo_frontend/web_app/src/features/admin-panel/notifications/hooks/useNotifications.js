@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuthStore } from "@/features/auth/storage/auth.store";
+import { previewQuery, useNotificationPreview } from "../preview/notificationPreview";
 import {
   notificationCountOptions,
   notificationListOptions,
@@ -19,17 +20,23 @@ export function useNotificationSession() {
 /** Read a page only while its surface and administrative session are active. */
 export function useNotifications(params, { enabled = true } = {}) {
   const session = useNotificationSession();
-  return useQuery({
+  const preview = useNotificationPreview();
+  const previewing = import.meta.env.DEV && preview.scenario !== "live";
+  const query = useQuery({
     ...notificationListOptions(session.userId, params),
-    enabled: session.enabled && enabled,
+    enabled: session.enabled && enabled && !previewing,
   });
+  return previewing ? previewQuery(preview, params) : query;
 }
 
 /** Share count data between the header poller and the history page. */
 export function useNotificationUnreadCount(options) {
   const session = useNotificationSession();
-  return useQuery({
+  const preview = useNotificationPreview();
+  const previewing = import.meta.env.DEV && preview.scenario !== "live";
+  const query = useQuery({
     ...notificationCountOptions(session.userId, options),
-    enabled: session.enabled,
+    enabled: session.enabled && !previewing,
   });
+  return previewing ? previewQuery(preview) : query;
 }

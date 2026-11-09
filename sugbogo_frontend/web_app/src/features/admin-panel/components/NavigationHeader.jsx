@@ -3,6 +3,7 @@ import { Menu } from "lucide-react";
 import ThemeToggle from "@/shared/components/ThemeToggle";
 import GlobalSearch from "../global-search/components/GlobalSearch";
 import NotificationBell from "../notifications/components/NotificationBell";
+import NotificationPreviewToggle from "../notifications/preview/NotificationPreviewToggle";
 
 /**
  * Provides global administrative utilities that remain available
@@ -33,6 +34,7 @@ export default function NavigationHeader({ onMenuClick }) {
         <ThemeToggle />
 
         {/* Notifications */}
+        {import.meta.env.DEV && <NotificationPreviewToggle />}
         <NotificationBell />
       </div>
     </header>

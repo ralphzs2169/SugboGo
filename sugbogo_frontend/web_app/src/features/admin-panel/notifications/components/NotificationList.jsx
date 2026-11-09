@@ -5,7 +5,7 @@ import TableEmptyState from "../../components/data-table/TableEmptyState";
 import NotificationRow from "./NotificationRow";
 
 /** Share notification loading, persistent recovery, and row presentation across surfaces. */
-export default function NotificationList({ query, actions, unreadOnly = false }) {
+export default function NotificationList({ query, count, actions, unreadOnly = false }) {
   const items = query.data?.items ?? [];
   return (
     <>
@@ -24,11 +24,14 @@ export default function NotificationList({ query, actions, unreadOnly = false })
           compact
           title="Unable to load notifications"
           message="Notifications could not be loaded. Please try again."
-          retainedData={items.length > 0}
+          retainedData={query.data != null}
           refreshLabel="Notifications"
-          onRetry={() => query.refetch()}
+          onRetry={() => {
+            void query.refetch();
+            if (count?.error && !count.data) void count.refetch();
+          }}
           retryLabel="Retry"
-          retrying={query.isFetching}
+          retrying={query.isFetching || Boolean(count?.error && !count.data && count.isFetching)}
         />
       )}
       {query.isPending && (
