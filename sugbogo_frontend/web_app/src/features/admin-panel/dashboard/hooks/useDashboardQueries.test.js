@@ -1488,7 +1488,15 @@ test("resolved report decisions stay readable without pending-only links while p
   );
 });
 
-test("sidebar and Dashboard share one authoritative summary request and refresh the badge after a decision", async () => {
+test("sidebar and Dashboard share one summary request, one polling subscriber and refresh all badges after a decision", async () => {
+  transport = async (url) => ({
+    data: {
+      data: {
+        ...dashboardFixture(url),
+        ...(url === "/admin/dashboard/" ? { moderation_actionable_reviews: 37 } : {}),
+      },
+    },
+  });
   await render(React.createElement(React.Fragment, null,
     React.createElement(SidebarMenu, { isCollapsed: false, showLabels: true }),
     React.createElement(Page),
@@ -1497,10 +1505,34 @@ test("sidebar and Dashboard share one authoritative summary request and refresh 
   assert.equal(reads.filter(({ url }) => url === "/admin/dashboard/").length, 1);
   assert.equal(reads.filter(({ url }) => url.includes("statistics")).length, 0);
   const sidebarApplication = () => container.querySelector('nav a[href="/admin-panel/businesses/applications"]');
+  const sidebarUpdates = () => container.querySelector('nav a[href="/admin-panel/businesses/update-requests"]');
+  const sidebarModeration = () => container.querySelector('nav a[href="/admin-panel/moderation-integrity"]');
   assert.match(sidebarApplication().textContent, /17/);
+  assert.match(sidebarUpdates().textContent, /19/);
+  assert.match(sidebarModeration().textContent, /37/);
+  assert.equal(container.querySelectorAll("nav span.font-bold").length, 3);
+  const summaryQuery = client.getQueryCache().find({
+    queryKey: keys.summary,
+    exact: true,
+  });
+  assert.equal(summaryQuery.getObserversCount(), 2);
+  assert.deepEqual(
+    summaryQuery.observers.map((observer) => observer.options.refetchInterval),
+    [60_000, false],
+  );
+  for (const observer of summaryQuery.observers) {
+    assert.equal(observer.options.refetchIntervalInBackground, false);
+    assert.equal(observer.options.staleTime, 30_000);
+    assert.equal(observer.options.refetchOnWindowFocus, true);
+    assert.equal(observer.options.refetchOnReconnect, true);
+  }
   transport = async (url) => {
     const data = dashboardFixture(url);
-    if (url === "/admin/dashboard/") data.applications.pending_review = 11;
+    if (url === "/admin/dashboard/") {
+      data.applications.pending_review = 11;
+      data.change_requests.pending_total = 7;
+      data.moderation_actionable_reviews = 9;
+    }
     return { data: { data } };
   };
   await render(React.createElement(React.Fragment, null,
@@ -1509,7 +1541,59 @@ test("sidebar and Dashboard share one authoritative summary request and refresh 
   ));
   await act(async () => mutationResult.rejectApplication(12, { reason: "Reason" }));
   await until(() => sidebarApplication().textContent.includes("11"));
+  assert.match(sidebarUpdates().textContent, /7/);
+  assert.match(sidebarModeration().textContent, /9/);
   assert.equal(reads.filter(({ url }) => url === "/admin/dashboard/").length, 2);
+});
+
+test("sidebar badges preserve zero hiding, unavailable values and 99+ in both layouts", async () => {
+  const cases = [
+    { count: 0, expected: null },
+    { count: undefined, expected: null },
+    { count: null, expected: null },
+    { count: 120, expected: "99+" },
+  ];
+  for (const isCollapsed of [false, true]) {
+    for (const { count, expected } of cases) {
+      await act(async () => {
+        client.setQueryData(keys.summary, {
+          applications: { pending_review: count },
+          change_requests: { pending_total: count },
+          moderation_actionable_reviews: count,
+        });
+      });
+      await render(React.createElement(SidebarMenu, { isCollapsed }));
+      for (const path of [
+        "/admin-panel/businesses/applications",
+        "/admin-panel/businesses/update-requests",
+        "/admin-panel/moderation-integrity",
+      ]) {
+        const link = container.querySelector(`nav a[href="${path}"]`);
+        const badge = link.querySelector("span.font-bold");
+        assert.equal(badge?.textContent ?? null, expected);
+        if (badge) {
+          assert.equal(badge.classList.contains("absolute"), isCollapsed);
+          assert.equal(badge.classList.contains("ml-auto"), !isCollapsed);
+        }
+        assert.equal(link.classList.contains("w-10"), isCollapsed);
+      }
+      assert.equal(reads.length, 0);
+    }
+  }
+});
+
+test("sidebar summary loading and failure do not manufacture zero badges", async () => {
+  let rejectSummary;
+  transport = () => new Promise((resolve, reject) => {
+    rejectSummary = reject;
+  });
+  await render(React.createElement(SidebarMenu));
+  assert.equal(container.querySelectorAll("nav span.font-bold").length, 0);
+  await act(async () => rejectSummary(new Error("Summary unavailable")));
+  await until(() => client.getQueryState(keys.summary)?.status === "error");
+  assert.equal(client.getQueryData(keys.summary), undefined);
+  assert.equal(container.querySelectorAll("nav span.font-bold").length, 0);
+  assert.deepEqual(reads.map(({ url }) => url), ["/admin/dashboard/"]);
 });
 
 test("failed user status mutations do not invalidate Dashboard counts", async () => {

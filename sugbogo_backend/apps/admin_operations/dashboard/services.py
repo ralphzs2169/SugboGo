@@ -1,6 +1,6 @@
 """Lightweight persisted operational counts for the Admin Dashboard."""
 
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.utils import timezone
 
 from apps.business.models import Business
@@ -60,9 +60,7 @@ class DashboardSummaryService:
         )
 
         change_requests = DashboardSummaryService.get_pending_business_updates()
-        reviews_under_review = Review.objects.filter(
-            REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW,
-        ).count()
+        reviews = DashboardSummaryService.get_review_counts()
         reported_review_cases = (
             ReviewReport.objects
             .filter(
@@ -87,12 +85,65 @@ class DashboardSummaryService:
                 "aging": aging,
             },
             "change_requests": change_requests,
-            "reviews_under_review": reviews_under_review,
+            "reviews_under_review": reviews["reviews_under_review"],
+            "moderation_actionable_reviews": reviews["moderation_actionable_reviews"],
             "reported_review_cases": reported_review_cases,
             "pending_disputes": pending_disputes,
             "active_businesses": businesses["active"],
             "business_status": businesses,
         }
+
+    @staticmethod
+    def get_review_counts():
+        """Count held inventory and unique reviews with at least one manual decision pending."""
+        pending_reports = ReviewReport.objects.filter(
+            REVW_ID_id=OuterRef("pk"),
+            RREP_STATUS=ReviewReport.ReportStatus.PENDING,
+        )
+        pending_disputes = MerchantReviewDispute.objects.filter(
+            REVW_ID_id=OuterRef("pk"),
+            MRDSP_STATUS=MerchantReviewDispute.DisputeStatus.PENDING,
+        )
+        manual_moderation = (
+            Q(REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW)
+            & (
+                Q(REVW_MODERATION_DATA__outcome="flagged")
+                | Q(
+                    REVW_MODERATION_DATA__outcome="provider_failure",
+                    REVW_MODERATION_DATA__retry_exhausted=True,
+                )
+            )
+        )
+        actionable_reports = Q(
+            REVW_STATUS__in=[
+                Review.ReviewStatus.PUBLISHED,
+                Review.ReviewStatus.REJECTED,
+            ],
+            has_pending_reports=True,
+        )
+
+        # EXISTS keeps one row per review even when its workflows overlap.
+        return (
+            Review.objects
+            .alias(
+                has_pending_reports=Exists(pending_reports),
+                has_pending_dispute=Exists(pending_disputes),
+            )
+            .aggregate(
+                reviews_under_review=Count(
+                    "REVW_ID",
+                    filter=Q(REVW_STATUS=Review.ReviewStatus.UNDER_REVIEW),
+                ),
+                moderation_actionable_reviews=Count(
+                    "REVW_ID",
+                    filter=(
+                        manual_moderation
+                        | actionable_reports
+                        | Q(has_pending_dispute=True)
+                    ),
+                ),
+            )
+        )
 
     @staticmethod
     def get_pending_business_updates():

@@ -50,6 +50,7 @@ class DashboardSummarySerializer(serializers.Serializer):
     applications = DashboardApplicationsSerializer(read_only=True)
     change_requests = DashboardChangeRequestsSerializer(read_only=True)
     reviews_under_review = serializers.IntegerField(read_only=True)
+    moderation_actionable_reviews = serializers.IntegerField(read_only=True)
     reported_review_cases = serializers.IntegerField(read_only=True)
     pending_disputes = serializers.IntegerField(read_only=True)
     active_businesses = serializers.IntegerField(read_only=True)

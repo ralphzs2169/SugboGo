@@ -9,9 +9,14 @@ function useDashboardResource(resource, enabled) {
   });
 }
 
-/** Expose the operational summary's native query state and targeted recovery. */
-export function useDashboardSummary({ enabled = true } = {}) {
-  return useDashboardResource("summary", enabled);
+/** Share the operational summary with optional foreground polling for the sidebar. */
+export function useDashboardSummary({ enabled = true, poll = false } = {}) {
+  return useQuery({
+    ...dashboardQueryOptions.summary(),
+    enabled,
+    refetchInterval: poll ? 60_000 : false,
+    refetchIntervalInBackground: false,
+  });
 }
 
 /** Keep recent administrative decisions independently loadable and retryable. */

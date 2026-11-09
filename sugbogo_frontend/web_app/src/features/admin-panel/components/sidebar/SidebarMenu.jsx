@@ -29,9 +29,18 @@ export default function SidebarMenu({ onClose, isCollapsed, showLabels }) {
 
   const [expandedGroups, setExpandedGroups] = useState(new Set());
 
-  const applicationSummary = useDashboardSummary({
+  const summary = useDashboardSummary({
     enabled: ["admin", "super_admin"].includes(user?.role),
+    poll: true,
   });
+  const badgeCounts = {
+    "/admin-panel/businesses/applications":
+      summary.data?.applications?.pending_review,
+    "/admin-panel/businesses/update-requests":
+      summary.data?.change_requests?.pending_total,
+    "/admin-panel/moderation-integrity":
+      summary.data?.moderation_actionable_reviews,
+  };
 
   // Close any flyout when switching into collapsed mode.
   if (previousCollapsed !== isCollapsed) {
@@ -122,11 +131,7 @@ export default function SidebarMenu({ onClose, isCollapsed, showLabels }) {
               <SidebarLink
                 key={item.to}
                 {...item}
-                badge={
-                  item.to === "/admin-panel/businesses/applications"
-                    ? applicationSummary.data?.applications?.pending_review
-                    : undefined
-                }
+                badge={badgeCounts[item.to]}
                 onClick={onClose}
                 isCollapsed={isCollapsed}
                 showLabels={showLabels}
