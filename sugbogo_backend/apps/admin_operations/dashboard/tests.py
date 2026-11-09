@@ -18,7 +18,14 @@ from apps.admin_operations.dashboard.services import DashboardSummaryService
 from apps.admin_operations.moderation.services.reported_review_service import (
     ReportedReviewService,
 )
-from apps.business.models import Business, Category, Cluster, Location
+from apps.business.models import (
+    Business,
+    BusinessVouch,
+    Category,
+    Cluster,
+    Location,
+    SpecialtyTag,
+)
 from apps.merchant_application.models import MerchantApplication
 from apps.merchant_application.utils.application_queue import (
     count_business_days,
@@ -139,6 +146,20 @@ class DashboardFixtures:
             RREP_STATUS=status,
         )
 
+    def create_dispute(
+        self,
+        review,
+        status=MerchantReviewDispute.DisputeStatus.PENDING,
+    ):
+        return MerchantReviewDispute.objects.create(
+            BUSN_ID=review.BUSN_ID,
+            USER_ID=review.BUSN_ID.USER_ID,
+            REVW_ID=review,
+            MRDSP_STATUS=status,
+            MRDSP_REASON=MerchantReviewDispute.DisputeReason.OTHER,
+            MRDSP_DESCRIPTION="Please investigate this review.",
+        )
+
 
 @override_settings(TIME_ZONE="UTC")
 class DashboardSummaryServiceTests(DashboardFixtures, TestCase):
@@ -236,6 +257,162 @@ class DashboardSummaryServiceTests(DashboardFixtures, TestCase):
         result = DashboardSummaryService.get_summary()
 
         self.assertEqual(result["reviews_under_review"], 3)
+        self.assertEqual(result["moderation_actionable_reviews"], 0)
+
+    def test_actionable_reviews_include_flagged_and_exhausted_manual_cases(self):
+        business = self.create_business()
+        for metadata in (
+            {"outcome": "flagged"},
+            {"outcome": "provider_failure", "retry_exhausted": True},
+        ):
+            self.create_review(
+                business,
+                status=Review.ReviewStatus.UNDER_REVIEW,
+                REVW_MODERATION_DATA=metadata,
+            )
+
+        result = DashboardSummaryService.get_summary()
+
+        self.assertEqual(result["moderation_actionable_reviews"], 2)
+        self.assertEqual(result["reviews_under_review"], 2)
+
+    def test_actionable_reviews_exclude_automatic_checks_and_advisory_signals(self):
+        business = self.create_business()
+        for metadata in (
+            {},
+            {"outcome": "pending_initial"},
+            {"outcome": "provider_failure"},
+            {
+                "outcome": "provider_failure",
+                "retry_exhausted": False,
+                "retryable": True,
+                "retry_next_attempt_at": (self.NOW + timedelta(minutes=5)).isoformat(),
+            },
+            {"outcome": "safe", "retry_exhausted": True},
+        ):
+            review = self.create_review(
+                business,
+                status=Review.ReviewStatus.UNDER_REVIEW,
+                REVW_MODERATION_DATA=metadata,
+            )
+            self.create_report(review)
+
+        for status in (
+            Review.ReviewStatus.PUBLISHED,
+            Review.ReviewStatus.REJECTED,
+            Review.ReviewStatus.FLAGGED,
+        ):
+            self.create_review(
+                business,
+                status=status,
+                REVW_MODERATION_DATA={"outcome": "flagged"},
+            )
+        self.create_review(
+            business,
+            REVW_RELIABILITY_REASONS=[Review.ReliabilityReason.DUPLICATE_CONTENT],
+        )
+        tag = SpecialtyTag.objects.create(TAG_NAME="Dashboard specialty")
+        BusinessVouch.objects.create(
+            BUSN_ID=business,
+            USER_ID=self.create_user(),
+            TAG_ID=tag,
+            VOUCH_REPUTATION_SNAPSHOT="0.50000",
+            VOUCH_FLAG_SUSPICIOUS=True,
+        )
+
+        result = DashboardSummaryService.get_summary()
+
+        self.assertEqual(result["moderation_actionable_reviews"], 0)
+        self.assertEqual(result["reviews_under_review"], 5)
+        self.assertEqual(result["reported_review_cases"], 5)
+
+    def test_actionable_reports_require_published_or_rejected_review_status(self):
+        business = self.create_business()
+        for status in Review.ReviewStatus.values:
+            review = self.create_review(
+                business,
+                status=status,
+            )
+            for _ in range(3):
+                self.create_report(review)
+
+        result = DashboardSummaryService.get_summary()
+
+        self.assertEqual(result["moderation_actionable_reviews"], 2)
+        self.assertEqual(result["reported_review_cases"], 4)
+
+    def test_actionable_reviews_deduplicate_manual_reports_and_disputes(self):
+        business = self.create_business()
+        review = self.create_review(
+            business,
+            status=Review.ReviewStatus.UNDER_REVIEW,
+            REVW_MODERATION_DATA={"outcome": "flagged"},
+        )
+        for _ in range(3):
+            self.create_report(review)
+        self.create_dispute(review)
+
+        result = DashboardSummaryService.get_summary()
+
+        self.assertEqual(result["moderation_actionable_reviews"], 1)
+        self.assertEqual(result["reviews_under_review"], 1)
+        self.assertEqual(result["reported_review_cases"], 1)
+        self.assertEqual(result["pending_disputes"], 1)
+
+    def test_actionable_reviews_remain_until_reports_and_disputes_are_resolved(self):
+        business = self.create_business()
+        for workflows in (
+            ("reports", "dispute"),
+            ("dispute", "reports"),
+        ):
+            with self.subTest(workflows=workflows):
+                review = self.create_review(business)
+                self.create_report(review)
+                self.create_report(review)
+                dispute = self.create_dispute(review)
+
+                result = DashboardSummaryService.get_summary()
+                self.assertEqual(result["moderation_actionable_reviews"], 1)
+                for workflow in workflows:
+                    if workflow == "reports":
+                        ReviewReport.objects.filter(REVW_ID=review).update(
+                            RREP_STATUS=ReviewReport.ReportStatus.REJECTED,
+                        )
+                    else:
+                        dispute.MRDSP_STATUS = (
+                            MerchantReviewDispute.DisputeStatus.DISMISSED
+                        )
+                        dispute.save(update_fields=["MRDSP_STATUS"])
+
+                    result = DashboardSummaryService.get_summary()
+                    if workflow == workflows[0]:
+                        self.assertEqual(result["moderation_actionable_reviews"], 1)
+                    else:
+                        self.assertEqual(result["moderation_actionable_reviews"], 0)
+
+    def test_actionable_manual_case_remains_when_reports_still_require_decision(self):
+        business = self.create_business()
+        review = self.create_review(
+            business,
+            status=Review.ReviewStatus.UNDER_REVIEW,
+            REVW_MODERATION_DATA={"outcome": "flagged"},
+        )
+        report = self.create_report(review)
+
+        result = DashboardSummaryService.get_summary()
+        self.assertEqual(result["moderation_actionable_reviews"], 1)
+        review.REVW_STATUS = Review.ReviewStatus.PUBLISHED
+        review.save(update_fields=["REVW_STATUS"])
+
+        result = DashboardSummaryService.get_summary()
+        self.assertEqual(result["reviews_under_review"], 0)
+        self.assertEqual(result["moderation_actionable_reviews"], 1)
+
+        report.RREP_STATUS = ReviewReport.ReportStatus.REJECTED
+        report.save(update_fields=["RREP_STATUS"])
+
+        result = DashboardSummaryService.get_summary()
+        self.assertEqual(result["moderation_actionable_reviews"], 0)
 
     def test_reported_cases_group_pending_reports_without_threshold(self):
         business = self.create_business()
@@ -258,6 +435,7 @@ class DashboardSummaryServiceTests(DashboardFixtures, TestCase):
         result = DashboardSummaryService.get_summary()
 
         self.assertEqual(result["reported_review_cases"], 2)
+        self.assertEqual(result["moderation_actionable_reviews"], 2)
         self.assertEqual(
             result["reported_review_cases"],
             ReportedReviewService.list_reviews({}).count(),
@@ -292,6 +470,7 @@ class DashboardSummaryServiceTests(DashboardFixtures, TestCase):
         result = DashboardSummaryService.get_summary()
 
         self.assertEqual(result["pending_disputes"], 1)
+        self.assertEqual(result["moderation_actionable_reviews"], 1)
 
     def test_active_businesses_ignore_owner_status_role_and_verification(self):
         for owner_status in User.UserStatus.values:
@@ -472,8 +651,19 @@ class DashboardSummaryServiceTests(DashboardFixtures, TestCase):
             )
 
     def test_summary_uses_eight_database_aggregation_queries(self):
+        business = self.create_business()
+        review = self.create_review(
+            business,
+            status=Review.ReviewStatus.UNDER_REVIEW,
+            REVW_MODERATION_DATA={"outcome": "flagged"},
+        )
+        self.create_report(review)
+        self.create_dispute(review)
+
         with self.assertNumQueries(8):
-            DashboardSummaryService.get_summary()
+            result = DashboardSummaryService.get_summary()
+
+        self.assertEqual(result["moderation_actionable_reviews"], 1)
 
     def test_query_failure_is_not_replaced_with_zero(self):
         with patch.object(
@@ -530,6 +720,7 @@ class DashboardSummaryViewTests(
                             },
                         },
                         "reviews_under_review": 0,
+                        "moderation_actionable_reviews": 0,
                         "reported_review_cases": 0,
                         "pending_disputes": 0,
                         "active_businesses": 0,
@@ -547,6 +738,7 @@ class DashboardSummaryViewTests(
         review = self.create_review(
             business,
             status=Review.ReviewStatus.UNDER_REVIEW,
+            REVW_MODERATION_DATA={"outcome": "flagged"},
         )
         self.create_report(review)
         self.create_application(submitted_at=self.NOW)
@@ -561,6 +753,8 @@ class DashboardSummaryViewTests(
         self.assertEqual(data["applications"]["pending_review"], 1)
         self.assertEqual(data["applications"]["aging"]["on_time"], 1)
         self.assertEqual(data["reviews_under_review"], 1)
+        self.assertEqual(data["moderation_actionable_reviews"], 1)
+        self.assertIsInstance(data["moderation_actionable_reviews"], int)
         self.assertEqual(data["reported_review_cases"], 1)
         self.assertEqual(data["active_businesses"], 1)
         self.assertEqual(
