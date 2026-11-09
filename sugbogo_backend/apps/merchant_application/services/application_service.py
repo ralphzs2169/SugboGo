@@ -12,6 +12,7 @@ from apps.merchant_application.models import (
     MerchantApplicationSubmission,
 )
 from apps.users.models import User
+from apps.notifications.services.admin_notification_service import AdminNotificationService
 from apps.merchant_application.utils.section_fingerprints import get_section_fingerprints
 from apps.merchant_application.services.duplicate_detection_service import (
     DuplicateDetectionService,
@@ -344,12 +345,13 @@ class ApplicationService:
             ]
         )
 
-        MerchantApplicationSubmission.objects.create(
+        submission = MerchantApplicationSubmission.objects.create(
             MAPP_ID=application,
             MASUB_SUBMISSION_NUMBER=submission_number,
             MASUB_SUBMITTED_AT=submitted_at,
             MASUB_DUPLICATE_EVIDENCE=DuplicateDetectionService.find_candidates(application),
         )
+        AdminNotificationService.merchant_application_submitted(submission)
 
         return application
     

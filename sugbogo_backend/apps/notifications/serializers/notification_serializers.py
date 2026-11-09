@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.notifications.models import Notification
+from apps.notifications.services.admin_notification_service import AdminNotificationService
 from apps.notifications.services.notification_service import NotificationService
 
 
@@ -35,6 +36,16 @@ class NotificationResponseSerializer(serializers.ModelSerializer):
         ):
             data["target_type"] = ""
             data["target_id"] = None
+        if instance.NOTF_TARGET_TYPE in AdminNotificationService.TARGET_TYPES:
+            available = NotificationService.has_admin_target_recipient(instance)
+            if (
+                available
+                and instance.NOTF_TARGET_TYPE == "admin_review_dispute"
+            ):
+                available = NotificationService.has_admin_review_dispute_target(instance)
+            if not available:
+                data["target_type"] = ""
+                data["target_id"] = None
         return data
 
     def get_is_read(self, obj):
