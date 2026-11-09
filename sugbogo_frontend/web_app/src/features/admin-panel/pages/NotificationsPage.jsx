@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import Button from "@/shared/components/Button";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
@@ -16,6 +16,7 @@ import {
 } from "../notifications/hooks/useNotifications";
 
 const FILTERS = [{ id: "all", label: "All" }, { id: "unread", label: "Unread" }];
+const PAGE_SIZE = 10;
 
 /** Present paginated recipient history using the existing Admin page and table controls. */
 function NotificationHistory() {
@@ -24,7 +25,7 @@ function NotificationHistory() {
   const count = useNotificationUnreadCount();
   const query = useNotifications({
     page,
-    page_size: 10,
+    page_size: PAGE_SIZE,
     ...(filter === "unread" ? { is_read: false } : {}),
   });
   const actions = useNotificationActions({
@@ -34,6 +35,19 @@ function NotificationHistory() {
     },
   });
   const pagination = query.data?.pagination;
+  const unreadCount = count.data?.unread_count;
+
+  // Header read actions can exhaust the current page without using history's onRead.
+  useEffect(() => {
+    if (
+      filter === "unread" &&
+      page > 1 &&
+      unreadCount !== undefined &&
+      unreadCount <= (page - 1) * PAGE_SIZE
+    ) {
+      setPage(1);
+    }
+  }, [filter, page, unreadCount]);
 
   useApiErrorNotification(query.error, {
     toastId: "admin-notification-history-load-error",

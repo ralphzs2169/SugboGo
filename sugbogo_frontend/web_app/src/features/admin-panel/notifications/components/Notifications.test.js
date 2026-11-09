@@ -351,6 +351,46 @@ test("bulk read reconciles count and rows without navigating or resolving a case
   assert.equal(bell().querySelector('[aria-hidden="true"].absolute'), null);
 });
 
+test("dropdown bulk read recovers an exhausted Unread history page", async () => {
+  const original = getTransport;
+  getTransport = async (url, request) => {
+    const data = await original(url, request);
+    if (
+      url === "/notifications/" &&
+      request.params.page > Math.max(1, data.pagination.total_pages)
+    ) {
+      throw Object.assign(new Error("Invalid page."), { response: { status: 404 } });
+    }
+    return data;
+  };
+  await render("/admin-panel/notifications");
+  await until(() => rows().length === 10);
+  await click(container.querySelector("#notification-filters-unread"));
+  await until(() => listReads().at(-1).params.is_read === false);
+  await until(() => rows().length === 10);
+  await click(container.querySelector('[aria-label="Next page"]'));
+  await until(() => rows().length === 2);
+  await click(bell());
+  await until(() => panel()?.querySelectorAll("li > button").length === 10);
+  await click([...panel().querySelectorAll("button")].find(
+    (item) => item.textContent.trim() === "Mark all as read",
+  ));
+  const history = container.querySelector('[aria-label="Notification history"]');
+  await until(() => history.textContent.includes("No unread notifications"));
+  const unreadHistory = client.getQueryData(options.notificationKeys.list(7, {
+    page: 1,
+    page_size: 10,
+    is_read: false,
+  }));
+  assert.equal(unreadHistory.pagination.page, 1);
+  assert.equal(unreadHistory.pagination.total_items, 0);
+  assert.match(history.textContent, /No unread notifications/);
+  assert.doesNotMatch(history.textContent, /Unable to load notifications/);
+  assert.ok(bell().textContent.includes("0 unread"));
+  assert.deepEqual(posts, ["/notifications/read-all/"]);
+  assert.equal(location(), "/admin-panel/notifications");
+});
+
 test("loading, empty history, and query errors remain visible and retry only the failed section", async () => {
   failures.count = true;
   failures.list = true;
