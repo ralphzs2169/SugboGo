@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from apps.reviews.models import Review
+from apps.notifications.services.admin_notification_service import AdminNotificationService
 from apps.reviews.services.review_moderation_service import ReviewModerationService
 from apps.reviews.services.review_service import ReviewService
 
@@ -314,8 +315,10 @@ class ReviewModerationRetryService:
                 ReviewService.publish_under_review(current.REVW_ID)
                 return "published"
             if moderation["outcome"] == "flagged":
+                AdminNotificationService.review_moderation_required(current)
                 return "flagged"
             if moderation["retry_exhausted"]:
+                AdminNotificationService.review_moderation_required(current)
                 return "exhausted"
             return "provider_failure"
 

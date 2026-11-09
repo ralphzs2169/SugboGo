@@ -5,6 +5,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.notifications.models import Notification
 from apps.review_disputes.models import MerchantReviewDispute
+from apps.users.models import User
 from apps.notifications.services.notification_realtime_service import (
     NotificationRealtimeService,
 )
@@ -77,6 +78,21 @@ class NotificationService:
                     USER_ID_id=OuterRef("USER_ID_id"),
                 ),
             ),
+            _admin_target_recipient=Exists(
+                User.objects.filter(
+                    pk=OuterRef("USER_ID_id"),
+                    USER_STATUS=User.UserStatus.ACTIVE,
+                    USER_ROLE__in=(
+                        User.UserRole.ADMIN,
+                        User.UserRole.SUPER_ADMIN,
+                    ),
+                ),
+            ),
+            _admin_review_dispute_target_exists=Exists(
+                MerchantReviewDispute.objects.filter(
+                    pk=OuterRef("NOTF_TARGET_ID"),
+                ),
+            ),
         )
         if is_read is not None:
             queryset = queryset.filter(NOTF_READ_AT__isnull=not is_read)
@@ -91,6 +107,31 @@ class NotificationService:
         return MerchantReviewDispute.objects.filter(
             pk=notification.NOTF_TARGET_ID,
             USER_ID_id=notification.USER_ID_id,
+        ).exists()
+
+    @staticmethod
+    def has_admin_target_recipient(notification: Notification) -> bool:
+        """Check current recipient eligibility without relaxing merchant ownership rules."""
+        available = getattr(notification, "_admin_target_recipient", None)
+        if available is not None:
+            return available
+        return User.objects.filter(
+            pk=notification.USER_ID_id,
+            USER_STATUS=User.UserStatus.ACTIVE,
+            USER_ROLE__in=(
+                User.UserRole.ADMIN,
+                User.UserRole.SUPER_ADMIN,
+            ),
+        ).exists()
+
+    @staticmethod
+    def has_admin_review_dispute_target(notification: Notification) -> bool:
+        """Check an admin dispute destination without requiring merchant ownership."""
+        available = getattr(notification, "_admin_review_dispute_target_exists", None)
+        if available is not None:
+            return available
+        return MerchantReviewDispute.objects.filter(
+            pk=notification.NOTF_TARGET_ID,
         ).exists()
 
     @staticmethod

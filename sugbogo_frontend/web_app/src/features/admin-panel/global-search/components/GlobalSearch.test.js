@@ -87,6 +87,9 @@ beforeEach(async () => {
   reads = [];
   transport = async (params) => fixture(params.search);
   globalThis.__globalSearchGet = async (url, options) => {
+    if (url === "/notifications/unread-count/") {
+      return { data: { data: { unread_count: 0 } } };
+    }
     reads.push({ url, ...options });
     return { data: { data: await transport(options.params, options.signal) } };
   };

@@ -5,6 +5,7 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.business.models import Business
+from apps.notifications.services.admin_notification_service import AdminNotificationService
 from apps.review_disputes.models import (
     MerchantReviewDispute,
     MerchantReviewDisputeEvidence,
@@ -193,6 +194,8 @@ class ReviewDisputeService:
             dispute,
             user,
         )
+
+        AdminNotificationService.review_dispute_filed(dispute)
 
         return dispute
 

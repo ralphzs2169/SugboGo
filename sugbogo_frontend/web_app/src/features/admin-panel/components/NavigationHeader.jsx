@@ -1,7 +1,8 @@
-import { Bell, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 
 import ThemeToggle from "@/shared/components/ThemeToggle";
 import GlobalSearch from "../global-search/components/GlobalSearch";
+import NotificationBell from "../notifications/components/NotificationBell";
 
 /**
  * Provides global administrative utilities that remain available
@@ -32,13 +33,7 @@ export default function NavigationHeader({ onMenuClick }) {
         <ThemeToggle />
 
         {/* Notifications */}
-        <button
-          type="button"
-          className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-interaction-hover hover:text-text-primary"
-          aria-label="Notifications"
-        >
-          <Bell className="h-5 w-5 stroke-[1.75]" />
-        </button>
+        <NotificationBell />
       </div>
     </header>
   );
