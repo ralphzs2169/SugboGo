@@ -47,6 +47,8 @@ export function mapApplicationToForm(
       longitude: landmark.longitude ?? 0,
       source: landmark.source,
       placeId: landmark.place_id ?? undefined,
+      is_arrival_point: landmark.is_arrival_point ?? false,
+      access_directions: landmark.access_directions ?? "",
     }));
   }
 

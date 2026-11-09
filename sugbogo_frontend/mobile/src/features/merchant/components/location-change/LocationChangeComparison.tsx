@@ -10,6 +10,8 @@ import type { LocationChangeLocation } from "../../types/locationChange.types";
 type DisplayLandmark = {
   name: string;
   address: string;
+  is_arrival_point?: boolean;
+  access_directions?: string;
 };
 
 type LocationChangeComparisonProps = {
@@ -129,6 +131,20 @@ export default function LocationChangeComparison({
           color={theme.extends.colors.text.secondary}
         />
       </Pressable>
+
+      {/* Arrival instructions remain visible in submitted snapshots. */}
+      {landmarks
+        .filter((landmark) => landmark.is_arrival_point)
+        .map((landmark) => (
+          <View key={landmark.name} className="mt-3">
+            <AppText weight="semibold" className="text-sm text-text-primary">
+              Arrival landmark: {landmark.name}
+            </AppText>
+            <AppText className="mt-1 text-sm text-text-secondary">
+              {landmark.access_directions}
+            </AppText>
+          </View>
+        ))}
 
       {/* Technical coordinates */}
       <Pressable

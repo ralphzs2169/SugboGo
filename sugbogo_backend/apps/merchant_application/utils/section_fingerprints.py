@@ -52,7 +52,13 @@ def get_section_fingerprints(application_id, *, registry=apps, using="default"):
         "MLOC_ID__MAPP_ID_id": application_id,
     }, (
         "MLMK_NAME", "MLMK_ADDRESS", "MLMK_POINT", "MLMK_SOURCE", "MLMK_PLACE_ID",
+        "MLMK_IS_ARRIVAL_POINT", "MLMK_ACCESS_DIRECTIONS",
     ))
+    # Preserve fingerprints of applications saved before arrival guidance existed.
+    for landmark in landmarks:
+        if not landmark["MLMK_IS_ARRIVAL_POINT"] and not landmark["MLMK_ACCESS_DIRECTIONS"]:
+            landmark.pop("MLMK_IS_ARRIVAL_POINT")
+            landmark.pop("MLMK_ACCESS_DIRECTIONS")
     hours = records("MerchantApplicationOperatingHours", filters, (
         "MHRS_DAY", "MHRS_IS_OPEN", "MHRS_IS_24_HOURS", "MHRS_OPEN_TIME", "MHRS_CLOSE_TIME",
     ))

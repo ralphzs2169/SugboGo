@@ -10,6 +10,8 @@ type SummaryLandmark = Pick<
   LocationChangeLandmark,
   "name" | "address" | "latitude" | "longitude" | "source"
 > & {
+  is_arrival_point?: boolean;
+  access_directions?: string;
   placeId?: string;
   place_id?: string | null;
 };
@@ -22,6 +24,8 @@ function signature(landmark: SummaryLandmark) {
     landmark.longitude,
     landmark.source,
     landmark.placeId ?? landmark.place_id ?? null,
+    landmark.is_arrival_point ?? false,
+    landmark.access_directions?.trim() || "",
   ]);
 }
 

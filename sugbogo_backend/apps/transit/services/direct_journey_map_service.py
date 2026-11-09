@@ -3,6 +3,7 @@ from django.db import connection
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.transit.models import JeepneyRouteVariant, RouteTransitPoint
+from apps.transit.constants import DIRECT_ROUTE_SEARCH_RADIUS_METERS
 from apps.transit.services.direct_journey_service import DirectJourneyService
 
 
@@ -245,6 +246,7 @@ class DirectJourneyMapService:
         route_variant_id,
         boarding_transit_point_id,
         alighting_transit_point_id,
+        arrival_landmark_id=None,
     ):
         """Return authoritative geometry and context for a selected journey."""
 
@@ -265,6 +267,30 @@ class DirectJourneyMapService:
             boarding_transit_point_id,
             alighting_transit_point_id,
         )
+        arrival_landmark = None
+        if arrival_landmark_id is not None:
+            landmark = DirectJourneyService._get_arrival_landmark(
+                business_location_id, arrival_landmark_id,
+            )
+            if landmark is None:
+                raise ValidationError({
+                    "arrival_landmark_id": "This arrival landmark is no longer available.",
+                })
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT ST_DWithin(%s::geography, %s::geography, %s)",
+                    [
+                        landmark.BLMK_POINT.ewkt,
+                        alighting_route_point.TRPT_ID.TRPT_POINT.ewkt,
+                        DIRECT_ROUTE_SEARCH_RADIUS_METERS,
+                    ],
+                )
+                nearby = cursor.fetchone()[0]
+            if not nearby:
+                raise ValidationError({
+                    "arrival_landmark_id": "The selected stop is too far from this arrival landmark.",
+                })
+            arrival_landmark = DirectJourneyService._serialize_arrival_landmark(landmark)
         (
             selected_segment,
             ride_distance_meters,
@@ -321,6 +347,7 @@ class DirectJourneyMapService:
                     "latitude": business_point.y,
                     "longitude": business_point.x,
                 },
+                "arrival_landmark": arrival_landmark,
                 "landmark_context": landmark_contexts.get(
                     alighting_transit_point_id,
                 ),

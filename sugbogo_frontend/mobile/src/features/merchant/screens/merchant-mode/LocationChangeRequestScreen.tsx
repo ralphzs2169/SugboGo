@@ -10,6 +10,7 @@ import AppText from "@/shared/components/AppText";
 import { theme } from "@/constants/theme";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
+import ArrivalLandmarkEditor from "../../components/location-change/ArrivalLandmarkEditor";
 import FormInput from "@/shared/components/form/FormInput";
 import MerchantChangeRequestSkeleton from "../../components/change-requests/MerchantChangeRequestSkeleton";
 import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
@@ -193,6 +194,15 @@ export default function LocationChangeRequestScreen() {
       errors.landmarks = "Select up to 5 landmarks.";
     }
 
+    if (
+      landmarks.some(
+        (landmark) =>
+          landmark.is_arrival_point && !landmark.access_directions?.trim(),
+      )
+    ) {
+      errors.landmarks =
+        "Add directions from the arrival landmark to your entrance.";
+    }
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -600,6 +610,11 @@ export default function LocationChangeRequestScreen() {
                   "/(merchant)/location-change/landmarks-picker" as Href,
                 )
               }
+            />
+            <ArrivalLandmarkEditor
+              landmarks={landmarks}
+              onChange={setLandmarks}
+              disabled={submitRequest.isPending || isSubmittingRequest}
             />
             {fieldErrors.landmarks ? (
               <AppText className="mt-2 px-6 text-xs text-text-error">

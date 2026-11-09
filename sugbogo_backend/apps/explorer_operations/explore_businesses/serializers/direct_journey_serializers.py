@@ -36,6 +36,12 @@ class JourneyLandmarkContextSerializer(serializers.Serializer):
     distance_from_alighting_meters = serializers.FloatField()
 
 
+class ArrivalLandmarkSerializer(JourneyTransitPointSerializer):
+    """Expose the reviewed arrival point and directions to the entrance."""
+
+    access_directions = serializers.CharField()
+
+
 class DirectJourneySerializer(serializers.Serializer):
     """Serialize one ranked zero-transfer jeepney journey."""
 
@@ -56,6 +62,7 @@ class DirectJourneySerializer(serializers.Serializer):
     alighting_to_business_distance_meters = serializers.FloatField()
     total_access_egress_distance_meters = serializers.FloatField()
     approximate_ride_distance_meters = serializers.FloatField()
+    arrival_landmark = ArrivalLandmarkSerializer(required=False, allow_null=True)
     landmark_context = JourneyLandmarkContextSerializer(
         allow_null=True,
     )
@@ -89,6 +96,8 @@ class DirectJourneySearchResultSerializer(serializers.Serializer):
 
 class DirectJourneyMapQuerySerializer(serializers.Serializer):
     """Validate the selected direct journey used for map guidance."""
+
+    arrival_landmark_id = serializers.IntegerField(min_value=1, required=False)
 
     route_variant_id = serializers.IntegerField(
         min_value=1,
@@ -150,6 +159,7 @@ class DirectJourneyMapSerializer(serializers.Serializer):
     alighting_transit_point = JourneyMapTransitPointSerializer()
     ride = JourneyMapRideSerializer()
     business_location = JourneyMapBusinessLocationSerializer()
+    arrival_landmark = ArrivalLandmarkSerializer(required=False, allow_null=True)
     landmark_context = JourneyLandmarkContextSerializer(
         allow_null=True,
     )

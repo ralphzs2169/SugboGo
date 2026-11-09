@@ -270,6 +270,8 @@ class BusinessLocationLandmarkSnapshot(models.Model):
     BLLS_NAME = models.CharField(max_length=150)
     BLLS_ADDRESS = models.CharField(max_length=255)
     BLLS_POINT = gis_models.PointField(srid=4326)
+    BLLS_IS_ARRIVAL_POINT = models.BooleanField(default=False)
+    BLLS_ACCESS_DIRECTIONS = models.CharField(max_length=1000, blank=True, default="")
     BLLS_SOURCE = models.CharField(max_length=10)
     BLLS_PLACE_ID = models.CharField(max_length=255, blank=True, null=True)
 

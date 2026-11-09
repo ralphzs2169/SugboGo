@@ -6,6 +6,35 @@ import {
 import { snapshot } from "./savedJourney.fixture";
 
 describe("saved journey validation", () => {
+  it("preserves arrival instructions while keeping old snapshots readable", () => {
+    const landmark = {
+      id: 12,
+      name: "Roadside reference",
+      latitude: 10.3,
+      longitude: 123.9,
+      access_directions: "Follow the lane to the green gate.",
+    };
+    const saved = {
+      ...snapshot,
+      journey: { ...snapshot.journey, arrival_landmark: landmark },
+    };
+    expect(
+      parseSavedJourney(JSON.stringify(saved))?.journey.arrival_landmark,
+    ).toEqual(landmark);
+    expect(parseSavedJourney(JSON.stringify(snapshot))).not.toBeNull();
+    expect(savedJourneyKey(saved)).toBe(savedJourneyKey(snapshot));
+    expect(
+      parseSavedJourney(
+        JSON.stringify({
+          ...saved,
+          journey: {
+            ...saved.journey,
+            arrival_landmark: { ...landmark, access_directions: "" },
+          },
+        }),
+      ),
+    ).toBeNull();
+  });
   it("preserves optional merchant context without changing the snapshot version or identity", () => {
     const saved = {
       ...snapshot,

@@ -239,6 +239,8 @@ class MerchantBusinessLandmarkSerializer(serializers.ModelSerializer):
     longitude = serializers.SerializerMethodField()
     source = serializers.CharField(source="BLMK_SOURCE")
     place_id = serializers.CharField(source="BLMK_PLACE_ID")
+    is_arrival_point = serializers.BooleanField(source="BLMK_IS_ARRIVAL_POINT")
+    access_directions = serializers.CharField(source="BLMK_ACCESS_DIRECTIONS")
 
     class Meta:
         model = BusinessLandmark
@@ -250,6 +252,8 @@ class MerchantBusinessLandmarkSerializer(serializers.ModelSerializer):
             "longitude",
             "source",
             "place_id",
+            "is_arrival_point",
+            "access_directions",
         )
 
     def get_latitude(self, obj):

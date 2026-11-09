@@ -171,6 +171,7 @@ export default function JeepneyRouteMap({
           testID="alighting-to-business-connector"
           coordinates={[
             journey.alighting_transit_point,
+            ...(journey.arrival_landmark ? [journey.arrival_landmark] : []),
             journey.business_location,
           ]}
           strokeColor={PROXIMITY_CONNECTOR_COLOR}
@@ -238,6 +239,24 @@ export default function JeepneyRouteMap({
             labelColor={BOARDING_MARKER_COLOR}
           />
         </Marker>
+
+        {/* Reviewed arrival reference with an approximate connection only. */}
+        {journey.arrival_landmark && (
+          <Marker
+            testID="arrival-landmark-marker"
+            coordinate={journey.arrival_landmark}
+            anchor={{ x: 0.5, y: 1 }}
+            onPress={() => void focusMarker(journey.arrival_landmark!)}
+          >
+            <View collapsable={false}>
+              <MapMarker variant="alighting" />
+            </View>
+            <MapMarkerCallout
+              label="Arrival landmark"
+              title={journey.arrival_landmark.name}
+            />
+          </Marker>
+        )}
 
         {/* Alighting point */}
         <Marker

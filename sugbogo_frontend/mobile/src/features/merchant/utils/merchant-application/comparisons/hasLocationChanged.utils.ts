@@ -24,7 +24,9 @@ function areLandmarksEqual(
       landmark.latitude === other.latitude &&
       landmark.longitude === other.longitude &&
       landmark.source === other.source &&
-      landmark.placeId === other.placeId
+      landmark.placeId === other.placeId &&
+      Boolean(landmark.is_arrival_point) === Boolean(other.is_arrival_point) &&
+      (landmark.access_directions ?? "") === (other.access_directions ?? "")
     );
   });
 }

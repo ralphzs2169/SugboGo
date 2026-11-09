@@ -152,6 +152,11 @@ export default function ReviewLandmarksScreen({
                       >
                         {landmark.address || "Custom landmark"}
                       </AppText>
+                      {landmark.is_arrival_point && (
+                        <AppText className="mt-1 text-xs leading-4 text-text-secondary">
+                          Arrival landmark: {landmark.access_directions}
+                        </AppText>
+                      )}
                     </View>
                   </View>
                 ))}

@@ -27,6 +27,7 @@ type Props = {
   routeVariantId: number;
   boardingTransitPointId: number;
   alightingTransitPointId: number;
+  arrivalLandmarkId?: number;
 };
 
 /**
@@ -40,6 +41,7 @@ export default function JeepneyRouteMapScreen({
   routeVariantId,
   boardingTransitPointId,
   alightingTransitPointId,
+  arrivalLandmarkId,
 }: Props) {
   const insets = useSafeAreaInsets();
   const userLocation = useUserLocation();
@@ -57,6 +59,7 @@ export default function JeepneyRouteMapScreen({
     routeVariantId,
     boardingTransitPointId,
     alightingTransitPointId,
+    ...(arrivalLandmarkId === undefined ? [] : [arrivalLandmarkId]),
   );
 
   useQueryErrorNotification({
@@ -182,6 +185,7 @@ export default function JeepneyRouteMapScreen({
         alightingPointName={journey.alighting_transit_point.name}
         destinationDistance={formatJourneyDistance(destinationDistanceMeters)}
         landmarkName={journey.landmark_context?.name}
+        arrivalLandmark={journey.arrival_landmark}
         accessDirections={businessQuery.business?.access_directions}
         headerAction={
           <SaveOfflineJourneyButton

@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import ArrivalLandmarkGuidance from "../ArrivalLandmarkGuidance";
 import AppText from "@/shared/components/AppText";
 
 import type { DirectJourney } from "../../../types/directJourney.types";
@@ -137,6 +138,7 @@ export default function AlternativeJourneyCard({
         </View>
       </View>
 
+      <ArrivalLandmarkGuidance landmark={journey.arrival_landmark} />
       {/* Map action */}
       <View className="mt-3 items-end">
         <Pressable

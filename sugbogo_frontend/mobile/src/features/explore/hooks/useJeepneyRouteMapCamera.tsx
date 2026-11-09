@@ -37,6 +37,7 @@ function getJourneyFitCoordinates(
     journey.boarding_transit_point,
     ...journey.ride.selected_segment_geometry,
     journey.alighting_transit_point,
+    ...(journey.arrival_landmark ? [journey.arrival_landmark] : []),
     journey.business_location,
   ];
 }
@@ -65,6 +66,7 @@ export default function useJeepneyRouteMapCamera({
     journey.route_variant.id,
     journey.boarding_transit_point.id,
     journey.alighting_transit_point.id,
+    journey.arrival_landmark?.id ?? "direct",
     originLocation.latitude.toFixed(5),
     originLocation.longitude.toFixed(5),
   ].join("-");

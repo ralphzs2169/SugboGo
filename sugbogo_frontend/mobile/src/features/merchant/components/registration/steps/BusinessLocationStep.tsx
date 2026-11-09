@@ -6,6 +6,7 @@ import { Text, View } from "react-native";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import RHFFormInput from "@/shared/components/form/RHFFormInput";
+import ArrivalLandmarkEditor from "../../location-change/ArrivalLandmarkEditor";
 import LandmarksSection from "../landmark/LandmarksSection";
 import AddressLoadFailedState from "../location/AddressFailedLoadState";
 import LocationPickerMap from "../location/LocationPickerMap";
@@ -60,6 +61,10 @@ export default function BusinessLocationStep({
 
   const selectedLandmarks = useMerchantRegistrationStore(
     (state) => state.selectedLandmarks,
+  );
+
+  const setSelectedLandmarks = useMerchantRegistrationStore(
+    (state) => state.setSelectedLandmarks,
   );
 
   const addressLoadFailed = useMerchantRegistrationStore(
@@ -289,6 +294,25 @@ export default function BusinessLocationStep({
       </RegistrationSection>
 
       <LandmarksSection />
+      <View {...registerErrorScrollTarget("landmarks")}>
+        <ArrivalLandmarkEditor
+          landmarks={selectedLandmarks}
+          disabled={Boolean(disabled)}
+          onChange={(landmarks) => {
+            setSelectedLandmarks(landmarks);
+            setValue("landmarks", landmarks, {
+              shouldDirty: true,
+              shouldValidate: false,
+            });
+            clearErrors("landmarks");
+          }}
+        />
+        {errors.landmarks?.message && (
+          <Text className="mt-1 text-xs font-medium text-text-error">
+            {errors.landmarks.message}
+          </Text>
+        )}
+      </View>
     </>
   );
 }

@@ -25,6 +25,12 @@ export default function LocationStateCard({ title, snapshot }) {
               key={`${landmark.id ?? landmark.place_id ?? landmark.name}-${index}`}
             >
               {landmark.name}
+              {landmark.is_arrival_point && (
+                <p className="mt-1 whitespace-pre-wrap text-sm text-text-secondary">
+                  Arrival landmark - directions to entrance:{" "}
+                  {landmark.access_directions}
+                </p>
+              )}
               {landmark.address && (
                 <span className="block text-xs text-text-secondary">
                   {landmark.address}

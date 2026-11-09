@@ -9,11 +9,13 @@ export default function JeepneyRouteMapRoute() {
     routeVariantId,
     boardingTransitPointId,
     alightingTransitPointId,
+    arrivalLandmarkId,
   } = useLocalSearchParams<{
     businessId: string;
     routeVariantId: string;
     boardingTransitPointId: string;
     alightingTransitPointId: string;
+    arrivalLandmarkId?: string;
   }>();
 
   return (
@@ -22,6 +24,9 @@ export default function JeepneyRouteMapRoute() {
       routeVariantId={Number(routeVariantId)}
       boardingTransitPointId={Number(boardingTransitPointId)}
       alightingTransitPointId={Number(alightingTransitPointId)}
+      arrivalLandmarkId={
+        arrivalLandmarkId === undefined ? undefined : Number(arrivalLandmarkId)
+      }
     />
   );
 }
