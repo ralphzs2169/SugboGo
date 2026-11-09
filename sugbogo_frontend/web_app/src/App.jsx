@@ -10,6 +10,7 @@ import Dashboard from "@/features/admin-panel/pages/Dashboard";
 import Businesses from "@/features/admin-panel/pages/BusinessesPage";
 import AllReviewsPage from "@/features/admin-panel/pages/AllReviewsPage";
 import ActivityLogsPage from "@/features/admin-panel/pages/ActivityLogsPage";
+import NotificationsPage from "@/features/admin-panel/pages/NotificationsPage";
 import Users from "@/features/admin-panel/pages/Users";
 import UserDetailPage from "@/features/admin-panel/pages/UserDetailPage";
 import ExplorerActivities from "@/features/admin-panel/pages/ExplorerActivities";
@@ -95,6 +96,7 @@ function App() {
             <Route path="businesses" element={<Businesses />} />
             <Route path="reviews" element={<AllReviewsPage />} />
             <Route path="activity-logs" element={<ActivityLogsPage />} />
+            <Route path="notifications" element={<NotificationsPage />} />
             <Route
               path="businesses/update-requests"
               element={<UpdateRequestsPage />}
