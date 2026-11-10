@@ -13,10 +13,6 @@ from apps.authentication.services.password_reset_service import PasswordResetSer
 
 
 
-if not settings.RESEND_API_KEY:
-    raise ValueError("RESEND_API_KEY is not configured.")
-
-resend.api_key = settings.RESEND_API_KEY
 logger = logging.getLogger(__name__)
 
 
@@ -94,6 +90,13 @@ class EmailService:
             params["text"] = text
 
         try:
+            if (
+                not settings.RESEND_API_KEY
+                or not settings.RESEND_API_KEY.strip()
+            ):
+                raise ValueError("RESEND_API_KEY is not configured.")
+
+            resend.api_key = settings.RESEND_API_KEY
             return resend.Emails.send(params)
 
         except Exception:
