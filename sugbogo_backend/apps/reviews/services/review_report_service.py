@@ -3,6 +3,7 @@ from django.db import IntegrityError, models, transaction
 from rest_framework.exceptions import APIException, NotFound, ValidationError
 
 from apps.reviews.models import Review, ReviewReport
+from apps.notifications.services.admin_notification_service import AdminNotificationService
 from apps.users.models import User
 
 
@@ -103,5 +104,6 @@ class ReviewReportService:
         )
 
         ReviewReportService.recompute_report_flag(review)
+        AdminNotificationService.review_report_received(report)
 
         return report

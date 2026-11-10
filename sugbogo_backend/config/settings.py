@@ -13,9 +13,12 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 
 import os
+import re
 from datetime import timedelta
+from ipaddress import IPv6Address
 from math import isfinite
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import cloudinary
 from celery.schedules import crontab
@@ -28,6 +31,84 @@ from config.paymongo import load_paymongo_configuration
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
+
+
+def _environment_bool(
+    name,
+    default,
+):
+    """Parse explicit boolean configuration without silently accepting typos."""
+    value = os.getenv(name, str(default)).strip().lower()
+    if value not in {"true", "false"}:
+        raise ImproperlyConfigured(f"{name} must be True or False.")
+    return value == "true"
+
+
+def _environment_list(
+    name,
+    default="",
+):
+    """Parse comma-separated values while ignoring surrounding whitespace."""
+    return [
+        value.strip()
+        for value in os.getenv(name, default).split(",")
+        if value.strip()
+    ]
+
+
+def _is_explicit_hostname(host):
+    """Accept exact DNS names, IPv4 addresses and bracketed IPv6 addresses."""
+    if host.startswith("[") and host.endswith("]"):
+        try:
+            IPv6Address(host[1:-1])
+        except ValueError:
+            return False
+        return True
+    return bool(
+        re.fullmatch(
+            r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+            r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?",
+            host,
+        ),
+    )
+
+
+def _environment_origins(
+    name,
+    default="",
+):
+    """Require exact HTTP origins locally and exact HTTPS origins in production."""
+    origins = _environment_list(name, default)
+    for origin in origins:
+        try:
+            parsed = urlsplit(origin)
+            hostname = parsed.hostname or ""
+            if ":" in hostname:
+                hostname = f"[{hostname}]"
+            valid = (
+                parsed.scheme in {"http", "https"}
+                and _is_explicit_hostname(hostname)
+                and not parsed.username
+                and not parsed.password
+                and not parsed.path
+                and not parsed.query
+                and not parsed.fragment
+                and "*" not in origin
+                and not any(character in origin for character in "?#\\")
+                and not origin.endswith(":")
+                and not any(character.isspace() for character in origin)
+                and (DEBUG or parsed.scheme == "https")
+            )
+            parsed.port
+        except ValueError:
+            valid = False
+        if not valid:
+            raise ImproperlyConfigured(
+                f"{name} must contain exact origins (scheme://hostname[:port]), "
+                "using HTTPS in production, without paths or wildcards.",
+            )
+    return origins
+
 
 # Enforcement-off preserves previews; demo grants count only under explicit mock mode.
 _merchant_plus_enforced = os.getenv("MERCHANT_PLUS_ENFORCED", "False").strip().lower()
@@ -52,14 +133,71 @@ if os.name == 'nt':
     GDAL_LIBRARY_PATH = os.environ.get("GDAL_LIBRARY_PATH")
     GEOS_LIBRARY_PATH = os.environ.get("GEOS_LIBRARY_PATH")
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
+# Only an explicit DEBUG=True enables development behavior.
+DEBUG = _environment_bool("DEBUG", False)
 SECRET_KEY = os.environ.get("SECRET_KEY")
+if not DEBUG:
+    if (
+        not SECRET_KEY
+        or len(SECRET_KEY) < 50
+        or len(set(SECRET_KEY)) < 5
+        or SECRET_KEY.startswith("django-insecure-")
+        or any(character.isspace() for character in SECRET_KEY)
+    ):
+        raise ImproperlyConfigured(
+            "SECRET_KEY must be a randomly generated production secret with at "
+            "least 50 characters and 5 distinct characters, without whitespace "
+            "or the django-insecure- prefix.",
+        )
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DEBUG") == "True"
+# Keep existing LAN/device testing available only in explicit development mode.
+if DEBUG:
+    ALLOWED_HOSTS = _environment_list("ALLOWED_HOSTS", "*")
+else:
+    ALLOWED_HOSTS = _environment_list("ALLOWED_HOSTS")
+    if (
+        not ALLOWED_HOSTS
+        or any(
+            not _is_explicit_hostname(host)
+            for host in ALLOWED_HOSTS
+        )
+    ):
+        raise ImproperlyConfigured(
+            "ALLOWED_HOSTS must contain explicit production hostnames without "
+            "schemes, ports, paths or wildcards.",
+        )
+
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_TRUSTED_ORIGINS = _environment_origins("CSRF_TRUSTED_ORIGINS")
+SECURE_SSL_REDIRECT = _environment_bool("SECURE_SSL_REDIRECT", not DEBUG)
+
+# Trust no forwarded protocol header until the proxy's sanitization is verified.
+SECURE_PROXY_SSL_HEADER = None
+_proxy_ssl_header = os.getenv("SECURE_PROXY_SSL_HEADER", "").strip()
+if _proxy_ssl_header:
+    _proxy_ssl_header = [
+        value.strip()
+        for value in _proxy_ssl_header.split(",")
+    ]
+    if (
+        len(_proxy_ssl_header) != 2
+        or not re.fullmatch(r"HTTP_[A-Z0-9_]+", _proxy_ssl_header[0])
+        or not re.fullmatch(r"[A-Za-z0-9_-]+", _proxy_ssl_header[1])
+    ):
+        raise ImproperlyConfigured(
+            "SECURE_PROXY_SSL_HEADER must contain a request.META header name "
+            "and its secure value, separated by one comma.",
+        )
+    SECURE_PROXY_SSL_HEADER = tuple(_proxy_ssl_header)
+
+# Enable HSTS only after HTTPS and proxy behavior have been verified.
+try:
+    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))
+except ValueError:
+    raise ImproperlyConfigured("SECURE_HSTS_SECONDS must be a nonnegative integer.") from None
+if SECURE_HSTS_SECONDS < 0:
+    raise ImproperlyConfigured("SECURE_HSTS_SECONDS must be a nonnegative integer.")
 
 # Phase 3 snapshots are manual and unvalidated; expose only by explicit opt-in.
 EXPERIMENTAL_BUSINESS_RATINGS_ENABLED = (
@@ -78,9 +216,6 @@ if (
     or len(BUSINESS_RATING_DEFAULT_SCORING_VERSION) > 100
 ):
     raise ImproperlyConfigured("Provide a valid BUSINESS_RATING_DEFAULT_SCORING_VERSION.")
-
-ALLOWED_HOSTS = ["*"]
-
 
 AUTH_USER_MODEL = "users.User"
 
@@ -282,6 +417,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -289,13 +425,17 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'apps.shared.analytics.policy.AnalyticsPolicyMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = _environment_origins(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:5173",
+    )
+else:
+    CORS_ALLOWED_ORIGINS = _environment_origins("CORS_ALLOWED_ORIGINS")
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Let authenticated web downloads use the server's safe attachment filename.
 CORS_EXPOSE_HEADERS = ["Content-Disposition"]
@@ -412,15 +552,41 @@ MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD = float(
 
 DATABASES = {
     "default": {
-        "ENGINE": os.environ.get("DB_ENGINE", "django.db.backends.postgresql"),
+        "ENGINE": os.environ.get(
+            "DB_ENGINE",
+            "django.contrib.gis.db.backends.postgis",
+        ),
         "NAME": os.environ.get("DB_NAME", ""),
         "USER": os.environ.get("DB_USER", ""),
         "PASSWORD": os.environ.get("DB_PASSWORD", ""),
         "HOST": os.environ.get("DB_HOST", ""),
         "PORT": os.environ.get("DB_PORT", "5432"),
-        # "OPTIONS": { "sslmode": "require"},
     }
 }
+
+if (
+    not DEBUG
+    and DATABASES["default"]["ENGINE"] != "django.contrib.gis.db.backends.postgis"
+):
+    raise ImproperlyConfigured("DB_ENGINE must use the PostGIS backend in production.")
+
+# Leave local libpq behavior unchanged unless TLS options are explicitly supplied.
+_db_sslmode = os.getenv("DB_SSLMODE", "").strip()
+if _db_sslmode:
+    if _db_sslmode not in {
+        "disable",
+        "allow",
+        "prefer",
+        "require",
+        "verify-ca",
+        "verify-full",
+    }:
+        raise ImproperlyConfigured("DB_SSLMODE must be a supported libpq SSL mode.")
+    DATABASES["default"].setdefault("OPTIONS", {})["sslmode"] = _db_sslmode
+
+_db_sslrootcert = os.getenv("DB_SSLROOTCERT", "").strip()
+if _db_sslrootcert:
+    DATABASES["default"].setdefault("OPTIONS", {})["sslrootcert"] = _db_sslrootcert
 
 
 # Password validation
@@ -474,6 +640,25 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TASK_IGNORE_RESULT = True
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
+
+# Bare local workers retain Celery's default unless explicitly configured.
+if "CELERY_WORKER_CONCURRENCY" in os.environ:
+    try:
+        CELERY_WORKER_CONCURRENCY = int(os.environ["CELERY_WORKER_CONCURRENCY"])
+    except ValueError:
+        raise ImproperlyConfigured(
+            "CELERY_WORKER_CONCURRENCY must be a positive integer.",
+        ) from None
+    if CELERY_WORKER_CONCURRENCY < 1:
+        raise ImproperlyConfigured("CELERY_WORKER_CONCURRENCY must be a positive integer.")
+
+CELERY_BEAT_SCHEDULE_FILENAME = os.getenv(
+    "CELERY_BEAT_SCHEDULE_FILENAME",
+    "celerybeat-schedule",
+).strip()
+if not CELERY_BEAT_SCHEDULE_FILENAME:
+    raise ImproperlyConfigured("CELERY_BEAT_SCHEDULE_FILENAME must be nonempty.")
+
 CELERY_BEAT_SCHEDULE = {
     "recover-gemini-sentiment-shadow": {
         "task": "apps.reviews.tasks.recover_gemini_sentiment_shadow",

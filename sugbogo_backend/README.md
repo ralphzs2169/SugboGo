@@ -64,9 +64,13 @@ sugbogo_backend/
 
 Install the following before setting up the project:
 
-- Python 3.11 or later
+- Python 3.12 (the Linux image pins Python 3.12.16; Django 6 requires >=3.12)
 - PostgreSQL
 - Git
+
+For the portable Linux container build and production Daphne startup, see
+[Linux build and ASGI startup](docs/linux-build.md). The development commands
+below do not replace the container's production startup command.
 
 ## 1). Clone the Repository
 

@@ -40,12 +40,20 @@ urlpatterns = [
     path("api/merchant/review-disputes/", include("apps.review_disputes.urls")),
 
     # Admin Operations
+    path(
+        'api/admin/search/',
+        include('apps.admin_operations.global_search.urls'),
+    ),
     path('api/admin/dashboard/', include('apps.admin_operations.dashboard.urls')),
     path('api/admin/businesses/', include('apps.admin_operations.business_management.urls')),
     path('api/admin/users/', include('apps.admin_operations.user_management.urls')),
     path('api/admin/landmarks/', include('apps.admin_operations.landmark_management.urls')),
     path('api/admin/taxonomy/', include('apps.admin_operations.taxonomy_management.urls')),
     path('api/admin/explorer-activities/', include('apps.admin_operations.activity_management.urls')),
+    path(
+        'api/admin/activity-logs/',
+        include('apps.admin_operations.activity_management.unified_activity_urls'),
+    ),
 
     path('api/admin/roles-permissions/', include('apps.admin_operations.role_management.urls')),
     path('api/admin/suspicious-activities/', include('apps.admin_operations.suspicious_activity.urls')),

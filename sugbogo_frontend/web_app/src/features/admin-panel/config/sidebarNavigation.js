@@ -1,11 +1,13 @@
 import {
   FiBarChart2,
-  FiSettings,
   FiShield,
   FiUsers,
   FiCompass,
   FiMapPin,
-  FiFileText,
+  FiCheckSquare,
+  FiEdit,
+  FiMessageSquare,
+  FiTrendingUp,
   FiLayers,
   FiActivity,
 } from "react-icons/fi";
@@ -17,95 +19,6 @@ import { MdStorefront } from "react-icons/md";
  * Organized into sections to improve discoverability and
  * scalability as the admin panel grows.
  */
-// const navigation = [
-//   {
-//     section: "Management",
-//     items: [
-//       {
-//         type: "group",
-//         label: "Businesses",
-//         Icon: FiBriefcase,
-//         roles: ["admin", "super_admin"],
-//         children: [
-//           {
-//             to: "/admin-panel/businesses/listings",
-//             label: "Listings",
-//           },
-//           {
-//             to: "/admin-panel/businesses/applications",
-//             label: "Applications",
-//           },
-//         ],
-//       },
-//       {
-//         type: "group",
-//         label: "Clusters & Tags",
-//         Icon: FiTag,
-//         roles: ["admin", "super_admin"],
-//         children: [
-//           {
-//             to: "/admin-panel/cluster-category",
-//             label: "Clusters & Categories",
-//           },
-//           {
-//             to: "/admin-panel/specialty-tags",
-//             label: "Specialty Tags",
-//           },
-//         ],
-//       },
-//       {
-//         type: "group",
-//         label: "Users",
-//         Icon: FiUsers,
-//         roles: ["admin", "super_admin"],
-//         children: [
-//           {
-//             to: "/admin-panel/users/all",
-//             label: "All Users",
-//           },
-//           {
-//             to: "/admin-panel/users/roles-permissions",
-//             label: "Roles & Permissions",
-//           },
-//         ],
-//       },
-//       {
-//         type: "link",
-//         to: "/admin-panel/explorer-activity",
-//         label: "Explorer Activity",
-//         Icon: FiUser,
-//         roles: ["admin", "super_admin"],
-//       },
-//     ],
-//   },
-
-//   {
-//     section: "Insights",
-//     items: [
-//       {
-//         type: "link",
-//         to: "/admin-panel/analytics",
-//         label: "Analytics",
-//         Icon: FiBarChart2,
-//         roles: ["super_admin"],
-//       },
-//     ],
-//   },
-
-//   {
-//     section: "System",
-//     items: [
-//       {
-//         type: "link",
-//         to: "/admin-panel/settings",
-//         label: "Settings",
-//         Icon: FiSettings,
-//         roles: ["super_admin"],
-//       },
-//     ],
-//   },
-// ];
-
 const navigation = [
   {
     section: "Management",
@@ -125,7 +38,7 @@ const navigation = [
         type: "link",
         to: "/admin-panel/businesses/applications",
         label: "Merchant Applications",
-        Icon: FiFileText,
+        Icon: FiCheckSquare,
         roles: ["admin", "super_admin"],
         activePaths: [
           "/admin-panel/businesses/applications",
@@ -136,7 +49,7 @@ const navigation = [
         type: "link",
         to: "/admin-panel/businesses/update-requests",
         label: "Update Requests",
-        Icon: FiFileText,
+        Icon: FiEdit,
         roles: ["admin", "super_admin"],
         activePaths: [
           "/admin-panel/businesses/update-requests",
@@ -152,6 +65,23 @@ const navigation = [
       },
       {
         type: "link",
+        to: "/admin-panel/users/all",
+        label: "All Users",
+        Icon: FiUsers,
+        roles: ["admin", "super_admin"],
+        activePaths: [
+          "/admin-panel/users/all",
+          "/admin-panel/users/[userId]",
+        ],
+      },
+    ],
+  },
+
+  {
+    section: "Discovery",
+    items: [
+      {
+        type: "link",
         to: "/admin-panel/explore-configuration",
         label: "Explore Configuration",
         Icon: FiCompass,
@@ -165,37 +95,19 @@ const navigation = [
         roles: ["admin", "super_admin"],
         activePaths: ["/admin-panel/transit-network"],
       },
-      {
-        type: "link",
-        to: "/admin-panel/users/all",
-        label: "All Users",
-        Icon: FiUsers,
-        roles: ["admin", "super_admin"],
-        activePaths: [
-          "/admin-panel/users/all",
-          "/admin-panel/users/[userId]",
-        ],
-      },
-      {
-        type: "link",
-        to: "/admin-panel/explorer-activity",
-        label: "Explorer Activity",
-        Icon: FiActivity,
-        roles: ["admin", "super_admin"],
-      },
-      {
-        type: "link",
-        to: "/admin-panel/reviews",
-        label: "All Reviews",
-        Icon: FiFileText,
-        roles: ["admin", "super_admin"],
-      },
     ],
   },
 
   {
     section: "Trust & Safety",
     items: [
+      {
+        type: "link",
+        to: "/admin-panel/reviews",
+        label: "All Reviews",
+        Icon: FiMessageSquare,
+        roles: ["admin", "super_admin"],
+      },
       {
         type: "link",
         to: "/admin-panel/moderation-integrity",
@@ -224,7 +136,7 @@ const navigation = [
         type: "link",
         to: "/admin-panel/analytics/discovery-scores",
         label: "Discovery Scores",
-        Icon: FiBarChart2,
+        Icon: FiTrendingUp,
         roles: ["admin", "super_admin"],
       },
     ],
@@ -235,10 +147,10 @@ const navigation = [
     items: [
       {
         type: "link",
-        to: "/admin-panel/settings",
-        label: "Settings",
-        Icon: FiSettings,
-        roles: ["super_admin"],
+        to: "/admin-panel/activity-logs",
+        label: "Activity Logs",
+        Icon: FiActivity,
+        roles: ["admin", "super_admin"],
       },
     ],
   },

@@ -22,6 +22,7 @@ from apps.merchant_application.tests.test_services import (
     MerchantApplicationServiceMixin,
 )
 from apps.notifications.models import Notification
+from apps.notifications.services.admin_notification_service import AdminNotificationService
 from apps.notifications.services.notification_realtime_service import (
     NotificationRealtimeService,
 )
@@ -88,7 +89,7 @@ class MerchantApplicationNotificationTests(
         self.assertTrue(Business.objects.filter(pk=result.BUSN_ID_id).exists())
         self.assertEqual(self.user.USER_ROLE, User.UserRole.MERCHANT)
         self.assertEqual(review.MASUB_ID_id, submission.pk)
-        self.assertEqual(Notification.objects.count(), 1)
+        self.assertEqual(Notification.objects.filter(USER_ID=self.user).count(), 1)
         self.assertEqual(notification.USER_ID_id, self.user.pk)
         self.assertEqual(
             notification.NOTF_TYPE,
@@ -122,7 +123,11 @@ class MerchantApplicationNotificationTests(
                     self.admin,
                 )
                 publish.assert_not_called()
-            publish.assert_called_once_with(self.user.pk)
+            notification = Notification.objects.get(USER_ID=self.user)
+            publish.assert_called_once_with(
+                self.user.pk,
+                notification_id=notification.pk,
+            )
 
         result.refresh_from_db()
         review = MerchantApplicationReview.objects.get(MAPP_ID=application)
@@ -134,7 +139,7 @@ class MerchantApplicationNotificationTests(
         )
         self.assertEqual(review.MASUB_ID_id, submission.pk)
         self.assertEqual(review.feedback.count(), 1)
-        self.assertEqual(Notification.objects.count(), 1)
+        self.assertEqual(Notification.objects.filter(USER_ID=self.user).count(), 1)
         self.assertEqual(notification.USER_ID_id, self.user.pk)
         self.assertEqual(
             review.feedback.get().MAPF_MESSAGE,
@@ -212,9 +217,22 @@ class MerchantApplicationNotificationTests(
             application.MAPP_ID,
             self._feedback(),
             self.admin,
+            expected_submission_id=second_submission.pk,
         )
 
         self.assertNotEqual(first_submission.pk, second_submission.pk)
+        self.assertSetEqual(
+            set(
+                Notification.objects.filter(USER_ID=self.admin).values_list(
+                    "NOTF_DEDUP_KEY",
+                    flat=True,
+                ),
+            ),
+            {
+                f"admin:merchant-application-submission:{first_submission.pk}:submitted",
+                f"admin:merchant-application-submission:{second_submission.pk}:submitted",
+            },
+        )
         self.assertEqual(Notification.objects.filter(USER_ID=self.user).count(), 2)
         self.assertSetEqual(
             set(
@@ -287,3 +305,55 @@ class MerchantApplicationNotificationTests(
             MerchantApplicationReview.objects.filter(MAPP_ID=application).exists(),
         )
         self.assertFalse(Notification.objects.filter(USER_ID=self.user).exists())
+
+    def test_submission_notifies_admins_once_with_application_target(self):
+        """Use a submission identity while independently addressing both admin roles."""
+        super_admin = User.objects.create_user(
+            email="submission-super-admin@example.com",
+            password=None,
+            USER_FNAME="Super",
+            USER_LNAME="Admin",
+            USER_ROLE=User.UserRole.SUPER_ADMIN,
+            USER_STATUS=User.UserStatus.ACTIVE,
+        )
+        with patch.object(NotificationRealtimeService, "publish") as publish:
+            with self.captureOnCommitCallbacks(execute=True):
+                application = self._submit_complete_application()
+                submission = self._latest_submission(application)
+                AdminNotificationService.merchant_application_submitted(submission)
+                publish.assert_not_called()
+            self.assertEqual(publish.call_count, 2)
+        notifications = Notification.objects.all()
+        self.assertEqual(notifications.count(), 2)
+        self.assertSetEqual(
+            set(notifications.values_list("USER_ID_id", flat=True)),
+            {self.admin.pk, super_admin.pk},
+        )
+        for notification in notifications:
+            self.assertEqual(notification.NOTF_TYPE, "admin_merchant_application_submitted")
+            self.assertEqual(notification.NOTF_TARGET_TYPE, "admin_merchant_application")
+            self.assertEqual(notification.NOTF_TARGET_ID, application.pk)
+            self.assertEqual(
+                notification.NOTF_DEDUP_KEY,
+                f"admin:merchant-application-submission:{submission.pk}:submitted",
+            )
+
+    def test_submission_rollback_discards_admin_notices_and_publication(self):
+        """Roll back the application submission and recipient notices together."""
+        application = self._build_complete_application()
+        with patch.object(NotificationRealtimeService, "publish") as publish:
+            with self.captureOnCommitCallbacks(execute=True):
+                with self.assertRaises(RuntimeError):
+                    with transaction.atomic():
+                        MerchantApplicationService.submit_application(application)
+                        raise RuntimeError("Submission rolled back")
+            publish.assert_not_called()
+        application.refresh_from_db()
+        self.assertEqual(
+            application.MAPP_STATUS,
+            MerchantApplication.ApplicationStatus.DRAFT,
+        )
+        self.assertFalse(
+            MerchantApplicationSubmission.objects.filter(MAPP_ID=application).exists(),
+        )
+        self.assertFalse(Notification.objects.exists())

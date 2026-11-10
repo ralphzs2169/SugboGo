@@ -49,7 +49,7 @@ export default function AdminPanelLayout() {
             "--admin-sidebar-width": sidebarWidth,
           }}
         >
-          <section className="sticky top-0 z-20 border-b border-stroke bg-background">
+          <section className="sticky top-0 z-40 border-b border-stroke bg-background">
             <NavigationHeader onMenuClick={() => setIsSidebarOpen(true)} />
           </section>
           <main className="overflow-x-clip p-6 sm:p-4 ">
