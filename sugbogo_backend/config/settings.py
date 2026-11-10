@@ -552,15 +552,41 @@ MERCHANT_DUPLICATE_NAME_SIMILARITY_THRESHOLD = float(
 
 DATABASES = {
     "default": {
-        "ENGINE": os.environ.get("DB_ENGINE", "django.db.backends.postgresql"),
+        "ENGINE": os.environ.get(
+            "DB_ENGINE",
+            "django.contrib.gis.db.backends.postgis",
+        ),
         "NAME": os.environ.get("DB_NAME", ""),
         "USER": os.environ.get("DB_USER", ""),
         "PASSWORD": os.environ.get("DB_PASSWORD", ""),
         "HOST": os.environ.get("DB_HOST", ""),
         "PORT": os.environ.get("DB_PORT", "5432"),
-        # "OPTIONS": { "sslmode": "require"},
     }
 }
+
+if (
+    not DEBUG
+    and DATABASES["default"]["ENGINE"] != "django.contrib.gis.db.backends.postgis"
+):
+    raise ImproperlyConfigured("DB_ENGINE must use the PostGIS backend in production.")
+
+# Leave local libpq behavior unchanged unless TLS options are explicitly supplied.
+_db_sslmode = os.getenv("DB_SSLMODE", "").strip()
+if _db_sslmode:
+    if _db_sslmode not in {
+        "disable",
+        "allow",
+        "prefer",
+        "require",
+        "verify-ca",
+        "verify-full",
+    }:
+        raise ImproperlyConfigured("DB_SSLMODE must be a supported libpq SSL mode.")
+    DATABASES["default"].setdefault("OPTIONS", {})["sslmode"] = _db_sslmode
+
+_db_sslrootcert = os.getenv("DB_SSLROOTCERT", "").strip()
+if _db_sslrootcert:
+    DATABASES["default"].setdefault("OPTIONS", {})["sslrootcert"] = _db_sslrootcert
 
 
 # Password validation
@@ -614,6 +640,25 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TASK_IGNORE_RESULT = True
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
+
+# Bare local workers retain Celery's default unless explicitly configured.
+if "CELERY_WORKER_CONCURRENCY" in os.environ:
+    try:
+        CELERY_WORKER_CONCURRENCY = int(os.environ["CELERY_WORKER_CONCURRENCY"])
+    except ValueError:
+        raise ImproperlyConfigured(
+            "CELERY_WORKER_CONCURRENCY must be a positive integer.",
+        ) from None
+    if CELERY_WORKER_CONCURRENCY < 1:
+        raise ImproperlyConfigured("CELERY_WORKER_CONCURRENCY must be a positive integer.")
+
+CELERY_BEAT_SCHEDULE_FILENAME = os.getenv(
+    "CELERY_BEAT_SCHEDULE_FILENAME",
+    "celerybeat-schedule",
+).strip()
+if not CELERY_BEAT_SCHEDULE_FILENAME:
+    raise ImproperlyConfigured("CELERY_BEAT_SCHEDULE_FILENAME must be nonempty.")
+
 CELERY_BEAT_SCHEDULE = {
     "recover-gemini-sentiment-shadow": {
         "task": "apps.reviews.tasks.recover_gemini_sentiment_shadow",

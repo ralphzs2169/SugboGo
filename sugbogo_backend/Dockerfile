@@ -41,7 +41,9 @@ RUN apt-get update \
         libproj25 \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PATH="/opt/venv/bin:$PATH" \
+    CELERY_WORKER_CONCURRENCY=1 \
+    CELERY_BEAT_SCHEDULE_FILENAME=/var/lib/sugbogo/celerybeat-schedule
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
@@ -65,7 +67,9 @@ print("GIS and CPU ML imports OK")
 PY
 
 RUN groupadd --system sugbogo \
-    && useradd --system --gid sugbogo --home-dir /app sugbogo
+    && useradd --system --gid sugbogo --home-dir /app sugbogo \
+    && mkdir --parents /var/lib/sugbogo \
+    && chown sugbogo:sugbogo /var/lib/sugbogo
 
 USER sugbogo
 EXPOSE 8000

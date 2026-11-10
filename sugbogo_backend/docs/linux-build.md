@@ -115,8 +115,10 @@ replacing the API process. `EXPOSE 8000` is documentation; it does not override 
 hosting provider's `PORT` or publish ports automatically. Hosts without Docker
 can use the same launcher after reproducing these dependencies.
 
-Release migrations must be a separate, controlled operation. Worker and Beat
-startup will be handled separately. No services are started by the image build.
+Release migrations must be a separate, controlled operation. Independent worker
+and Beat startup, state storage and database configuration are documented in
+[Database and background services](cloud-services.md). No services are started
+by the image build.
 
 ## Checks and deployment prerequisites
 
