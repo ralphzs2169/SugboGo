@@ -1,0 +1,60 @@
+{
+  "format_version": 1,
+  "tagalog_model_id": "dost-asti/RoBERTa-tl-sentiment-analysis",
+  "tagalog_revision": "3355ad5a830178573c59684adf149d6544f3d86f",
+  "provenance": {
+    "fasttext": "Existing local lid.176.bin SHA-256 baseline; official source HEAD size matched. Upstream SHA-256 was not supplied by the source page.",
+    "tagalog": "All seven local inference files matched the pinned Hugging Face revision: LFS SHA-256 for weights and Git blob IDs for configuration/tokenizer files.",
+    "tagalog_license": "Not declared in the pinned model card or repository metadata; permission requires clarification before hosted redistribution."
+  },
+  "artifacts": [
+    {
+      "variable": "FASTTEXT_LID_MODEL_PATH",
+      "relative_path": null,
+      "size_bytes": 131266198,
+      "sha256": "7e69ec5451bc261cc7844e49e4792a85d7f09c06789ec800fc4a44aec362764e"
+    },
+    {
+      "variable": "TAGALOG_SENTIMENT_MODEL_PATH",
+      "relative_path": "config.json",
+      "size_bytes": 908,
+      "sha256": "93090e462d44aaf04991d48fbd09d4110bf14d3df63b49a7ff594d8687c8a8df"
+    },
+    {
+      "variable": "TAGALOG_SENTIMENT_MODEL_PATH",
+      "relative_path": "merges.txt",
+      "size_bytes": 268842,
+      "sha256": "3a0a166b782b8265f85943f06aae1c0113b79e0ab68900e3f2ed5cd62d4424b1"
+    },
+    {
+      "variable": "TAGALOG_SENTIMENT_MODEL_PATH",
+      "relative_path": "pytorch_model.bin",
+      "size_bytes": 436403569,
+      "sha256": "1dca8641072d9882303cdce3c8feef8cabd1cb663ef3acca0e988e81e5f6b13e"
+    },
+    {
+      "variable": "TAGALOG_SENTIMENT_MODEL_PATH",
+      "relative_path": "special_tokens_map.json",
+      "size_bytes": 957,
+      "sha256": "8293ae960b0a0852d4d3813118030a1149a3ed9fe37bc2e1e7b3c2e62eb2d4b7"
+    },
+    {
+      "variable": "TAGALOG_SENTIMENT_MODEL_PATH",
+      "relative_path": "tokenizer.json",
+      "size_bytes": 1246869,
+      "sha256": "7fa70510d774e8c67b5a7b906528a328d1b6624e7787ab8ec88abcbbabde5eed"
+    },
+    {
+      "variable": "TAGALOG_SENTIMENT_MODEL_PATH",
+      "relative_path": "tokenizer_config.json",
+      "size_bytes": 1365,
+      "sha256": "a2fcbf888d8594d1966116c2ef6d19ac0b4dadc122269458cd2bf6db217a6633"
+    },
+    {
+      "variable": "TAGALOG_SENTIMENT_MODEL_PATH",
+      "relative_path": "vocab.json",
+      "size_bytes": 468698,
+      "sha256": "8b10c951e63c389ed2306817d5ebfd39c40da23302be40b16d6eaf68c42f4068"
+    }
+  ]
+}

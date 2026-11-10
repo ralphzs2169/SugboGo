@@ -1,0 +1,7 @@
+# Linux fastText wheel build tools. These do not change requirements.txt.
+pip==26.3
+setuptools==78.1.0
+wheel==0.48.0
+packaging==26.2
+pybind11==3.1.0
+numpy==2.5.3
