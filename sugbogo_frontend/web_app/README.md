@@ -65,7 +65,7 @@ web_app/
 
 Before setting up the project, ensure the following are installed:
 
-- Node.js 20 or later
+- Node.js 22.13.0 or later within Node 22 for Cloudflare Pages (Node 24 is also supported by the locked dependencies)
 - npm
 
 ## 1.) Navigate to the Web Application
@@ -79,7 +79,7 @@ cd sugbogo_frontend/web_app
 Install the project dependencies:
 
 ```bash
-npm install
+npm ci
 ```
 
 ## 2.) Configure Environment Variables
@@ -107,6 +107,16 @@ VITE_API_URL=http://localhost:8000/api
 > **Note**
 >
 > Ensure the backend server is running before starting the web application.
+
+For browser Google Maps features, also set `VITE_GOOGLE_MAPS_API_KEY` and
+`VITE_GOOGLE_MAP_ID` from `.env.example`. Restrict the browser key to the intended
+website origins and APIs. All `VITE_*` values are public in the compiled app;
+never use server secrets here. Restart Vite after changing local settings.
+
+For deployment, set `VITE_API_URL` to the actual Railway HTTPS API URL including
+`/api`, then rebuild. The localhost value above is for local development only.
+See [Cloudflare deployment readiness](docs/cloudflare-deployment-readiness.md)
+for the Phase 1 findings and proposed hosting settings.
 
 ## 3.) Start the Development Server
 
