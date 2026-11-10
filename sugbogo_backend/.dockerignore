@@ -1,0 +1,28 @@
+# Allow only build inputs and application source into the Docker context.
+**
+!Dockerfile
+!.dockerignore
+!requirements-build.txt
+!requirements-linux.lock
+!manage.py
+!apps/
+!apps/**
+!config/
+!config/**
+!core/
+!core/**
+!scripts/
+!scripts/start_api.py
+
+# Apply these after the source allowlist, including nested files.
+**/.env*
+**/__pycache__/
+**/*.py[cod]
+**/*.log
+**/*.pem
+**/*.key
+**/*.bin
+**/*.safetensors
+**/pytorch_model.*
+**/media/
+**/staticfiles/
