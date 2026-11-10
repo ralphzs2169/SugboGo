@@ -60,6 +60,11 @@ def _load_model(name):
 
 
 def _get_model(name):
+    """Load legacy artifacts only in an explicitly enabled historical environment."""
+    from django.conf import settings
+
+    if settings.GEMINI_SENTIMENT_ALL_BUSINESSES:
+        raise RuntimeError("Legacy sentiment is disabled under global Gemini authority.")
     with _load_lock:
         if name not in _models:
             _models[name] = _load_model(name)
@@ -120,6 +125,11 @@ def score_with_tagalog_model(text: str) -> tuple[float, str]:
 
 
 def route_sentiment(text: str) -> tuple[float, str, str]:
+    """Route legacy evaluation only when global Gemini authority is disabled."""
+    from django.conf import settings
+
+    if settings.GEMINI_SENTIMENT_ALL_BUSINESSES:
+        raise RuntimeError("Legacy sentiment is disabled under global Gemini authority.")
     text = _text(text)
     language, confidence = detect_language(text)
     if language == "en" and confidence >= ENGLISH_CONFIDENCE_THRESHOLD:

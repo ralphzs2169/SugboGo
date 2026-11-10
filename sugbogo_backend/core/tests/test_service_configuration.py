@@ -34,6 +34,14 @@ SETTINGS_FILE = Path(__file__).resolve().parents[2] / "config" / "settings.py"
 class ServiceConfigurationTests(SimpleTestCase):
     """Exercise the existing settings file with isolated configuration fixtures."""
 
+    def test_production_requires_global_sentiment_authority(self):
+        """Prevent a production flag change from restoring restricted-model inference."""
+        self.assertTrue(self.load_settings()["GEMINI_SENTIMENT_ALL_BUSINESSES"])
+        for value in ("False", "invalid"):
+            with self.subTest(value=value):
+                with self.assertRaises(ImproperlyConfigured):
+                    self.load_settings({"GEMINI_SENTIMENT_ALL_BUSINESSES": value})
+
     def load_settings(
         self,
         overrides=None,

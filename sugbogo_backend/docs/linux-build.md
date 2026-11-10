@@ -1,5 +1,11 @@
 # Linux build and ASGI startup
 
+For this release, follow [global Gemini authority](global-gemini-sentiment.md).
+The image retains historical ML dependencies, but production does not require
+model artifacts or model mounts and cannot use the local sentiment pipeline
+under global authority. The local-model provisioning discussion below is
+historical, not a production release gate.
+
 ## Scope and runtime
 
 Run all commands from `sugbogo_backend`, the Docker build context. The image's

@@ -1,5 +1,10 @@
 # Gemini sentiment cutover
 
+Production now uses [global Gemini authority](global-gemini-sentiment.md).
+The pilot allowlist and legacy rollback instructions below apply only when
+global authority is explicitly disabled in a historical development environment.
+Use the global runbook for production preparation, activation and pause.
+
 This branch adds an explicit, reversible authority switch per business. It does not activate Gemini through a migration or environment change alone. Existing businesses stay on legacy sentiment with optional shadow observations until an operator activates a prepared cohort.
 
 ## Behavior

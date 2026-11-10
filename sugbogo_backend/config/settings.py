@@ -263,7 +263,14 @@ GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "60"))
 if not 1 <= GEMINI_TIMEOUT_SECONDS <= 300:
     raise ImproperlyConfigured("GEMINI_TIMEOUT_SECONDS must be between 1 and 300 seconds.")
 
-# Activation is explicit and persisted per business; disabling pauses inference only.
+# Global authority forbids legacy inference, including while Gemini is paused.
+_all_businesses = os.getenv("GEMINI_SENTIMENT_ALL_BUSINESSES", "True").strip().lower()
+if _all_businesses not in ("true", "false"):
+    raise ImproperlyConfigured("GEMINI_SENTIMENT_ALL_BUSINESSES must be True or False.")
+GEMINI_SENTIMENT_ALL_BUSINESSES = _all_businesses == "true"
+if not DEBUG and not GEMINI_SENTIMENT_ALL_BUSINESSES:
+    raise ImproperlyConfigured("Production requires GEMINI_SENTIMENT_ALL_BUSINESSES=True; pause cutover processing to stop inference.")
+# Activation is persisted per business; disabling pauses inference only.
 _cutover_enabled = os.getenv("GEMINI_SENTIMENT_CUTOVER_ENABLED", "False").strip().lower()
 if _cutover_enabled not in ("true", "false"):
     raise ImproperlyConfigured("GEMINI_SENTIMENT_CUTOVER_ENABLED must be True or False.")

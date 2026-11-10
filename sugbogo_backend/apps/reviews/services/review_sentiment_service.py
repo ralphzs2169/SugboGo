@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 
@@ -42,7 +43,7 @@ class ReviewSentimentService:
 
         business_id = source["BUSN_ID_id"]
         from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
-        if GeminiSentimentCutoverService.active_policy(business_id) is not None:
+        if settings.GEMINI_SENTIMENT_ALL_BUSINESSES or GeminiSentimentCutoverService.active_policy(business_id) is not None:
             from apps.reviews.services.gemini_sentiment_shadow_service import GeminiSentimentShadowService
             GeminiSentimentShadowService.request(review_id)
             return "gemini_queued"
@@ -68,7 +69,7 @@ class ReviewSentimentService:
                 if review.REVW_TEXT != source_text:
                     return "stale"
                 # An activation may have committed during legacy inference.
-                if GeminiSentimentCutoverService.active_policy(business_id) is not None:
+                if settings.GEMINI_SENTIMENT_ALL_BUSINESSES or GeminiSentimentCutoverService.active_policy(business_id) is not None:
                     return "superseded"
                 if not (
                     review.REVW_SENTIMENT_SCORE is not None
