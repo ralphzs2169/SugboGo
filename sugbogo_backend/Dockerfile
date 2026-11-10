@@ -52,6 +52,7 @@ COPY config/ ./config/
 COPY core/ ./core/
 COPY manage.py ./
 COPY scripts/start_api.py ./scripts/start_api.py
+COPY scripts/verify_sentiment_models.py scripts/sentiment_models.json ./scripts/
 
 # Import libraries without reading application settings or requiring credentials.
 RUN python - <<'PY'

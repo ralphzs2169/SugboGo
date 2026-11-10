@@ -13,6 +13,8 @@
 !core/**
 !scripts/
 !scripts/start_api.py
+!scripts/verify_sentiment_models.py
+!scripts/sentiment_models.json
 
 # Apply these after the source allowlist, including nested files.
 **/.env*

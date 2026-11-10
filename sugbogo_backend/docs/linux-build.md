@@ -57,6 +57,9 @@ No model artifacts are downloaded. Sentiment still requires separately
 provisioned files referenced by `FASTTEXT_LID_MODEL_PATH` and
 `TAGALOG_SENTIMENT_MODEL_PATH`. Library imports are checked during the build;
 inference and model availability are separate acceptance gates.
+The reviewed bundle, read-only worker mount, offline verification command and
+external-service requirements are documented in
+[Sentiment models and integrations](models-and-integrations.md).
 
 To update the lock intentionally, use the selected Linux Python environment,
 install `g++`, create a disposable virtualenv, and run:
