@@ -24,14 +24,14 @@ TRANSIENT_RETRY_LIMIT = 3
 
 @shared_task(name="apps.reviews.tasks.process_gemini_sentiment_shadow", queue="gemini_sentiment_shadow", acks_late=True, reject_on_worker_lost=True)
 def process_gemini_sentiment_shadow(job_id):
-    """Process an isolated observation; durable recovery owns bounded retries."""
+    """Process a Gemini observation and promote ready authoritative cohorts."""
     from apps.reviews.services.gemini_sentiment_shadow_service import GeminiSentimentShadowService
     return GeminiSentimentShadowService.process(job_id)
 
 
 @shared_task(name="apps.reviews.tasks.recover_gemini_sentiment_shadow", queue="gemini_sentiment_shadow")
 def recover_gemini_sentiment_shadow():
-    """Recover existing due shadow jobs without backfilling historical reviews."""
+    """Recover due work and bounded historical demand under global authority."""
     from apps.reviews.services.gemini_sentiment_shadow_service import GeminiSentimentShadowService
     return GeminiSentimentShadowService.recover()
 

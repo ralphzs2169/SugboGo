@@ -10,6 +10,7 @@ def main():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
     os.environ["GEMINI_SENTIMENT_SHADOW_ENABLED"] = "False"
+    os.environ["GEMINI_SENTIMENT_ALL_BUSINESSES"] = "False"
     os.environ["GEMINI_SENTIMENT_CUTOVER_ENABLED"] = "False"
     os.environ["GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS"] = ""
     os.environ["CELERY_BROKER_URL"] = "memory://"
@@ -26,7 +27,13 @@ def main():
         "test",
         "apps.reviews.services.tests.test_gemini_sentiment_shadow",
         "apps.reviews.services.tests.test_gemini_sentiment_cutover",
+        "apps.reviews.services.tests.test_gemini_sentiment_global",
         "apps.reviews.services.tests.test_review_sentiment_service",
+        "apps.reviews.services.tests.test_review_sentiment_task",
+        "apps.reviews.services.tests.test_sentiment",
+        "apps.reviews.views.tests.test_sentiment_completion_views",
+        "core.tests.test_service_configuration",
+        "core.tests.test_production_settings",
         "apps.reviews.services.tests.test_business_rating_service",
         "apps.reviews.services.tests.test_business_rating_lifecycle",
         "apps.reviews.services.tests.test_business_review_summary_service",

@@ -1,11 +1,11 @@
-"""Explicitly switch one complete business between legacy and Gemini scoring."""
+"""Atomically project complete, versioned business cohorts into sentiment consumers."""
 
 import logging
 from types import SimpleNamespace
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Case, CharField, Exists, F, OuterRef, Q, Value, When
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -80,21 +80,31 @@ class GeminiSentimentCutoverService:
 
     @classmethod
     def recover_requests(cls, limit=50):
-        """Repair missed active lifecycle demand without backfilling shadow businesses."""
+        """Repair missing demand globally or within already activated pilot businesses."""
         from apps.reviews.services.gemini_sentiment_shadow_service import GeminiSentimentShadowService
 
-        jobs = Shadow.objects.filter(
-            REVW_ID_id=OuterRef("pk"),
-            RSSH_VERSION=OuterRef("BUSN_ID__sentiment_policy__BSPO_VERSION"),
-            RSSH_SOURCE_TEXT=OuterRef("REVW_TEXT"),
-        )
         projections = ReviewRatingResult.objects.filter(
             REVW_ID_id=OuterRef("pk"), RRSR_IS_VALID=True,
             RRSR_SOURCE_TEXT=OuterRef("REVW_TEXT"),
             RRSR_SCORING_VERSION=OuterRef("BUSN_ID__sentiment_policy__BSPO_VERSION"),
         )
-        ids = list(Review.objects.filter(
-            BUSN_ID__sentiment_policy__BSPO_MODE=Policy.Mode.GEMINI,
+        population = Review.objects.all()
+        if not settings.GEMINI_SENTIMENT_ALL_BUSINESSES:
+            population = population.filter(BUSN_ID__sentiment_policy__BSPO_MODE=Policy.Mode.GEMINI)
+        # Unactivated cohorts use the configured contract; activated cohorts stay pinned.
+        population = population.annotate(
+            demand_version=Case(
+                When(BUSN_ID__sentiment_policy__BSPO_MODE=Policy.Mode.GEMINI,
+                     then=F("BUSN_ID__sentiment_policy__BSPO_VERSION")),
+                default=Value(contract_version(settings.GEMINI_SENTIMENT_SHADOW_MODEL)),
+                output_field=CharField(),
+            ),
+        )
+        jobs = Shadow.objects.filter(
+            REVW_ID_id=OuterRef("pk"), RSSH_VERSION=OuterRef("demand_version"),
+            RSSH_SOURCE_TEXT=OuterRef("REVW_TEXT"),
+        )
+        ids = list(population.filter(
             REVW_STATUS=Review.ReviewStatus.PUBLISHED,
             REVW_TEXT__regex=r"\S",
         ).annotate(
@@ -102,7 +112,10 @@ class GeminiSentimentCutoverService:
             has_ready_job=Exists(jobs.filter(RSSH_STATE=Shadow.State.READY)),
             has_projection=Exists(projections),
         ).filter(
-            Q(has_job=False) | Q(has_ready_job=True, has_projection=False),
+            Q(has_job=False) | Q(
+                BUSN_ID__sentiment_policy__BSPO_MODE=Policy.Mode.GEMINI,
+                has_ready_job=True, has_projection=False,
+            ),
         ).order_by("pk").values_list("pk", flat=True)[:limit])
         for review_id in ids:
             GeminiSentimentShadowService.observe_after_commit(review_id)
@@ -203,9 +216,19 @@ class GeminiSentimentCutoverService:
     @transaction.atomic
     def promote(cls, job_id):
         """Publish a ready result only under current persisted business authority."""
-        hint = Shadow.objects.filter(pk=job_id).values("REVW_ID_id").first()
+        hint = Shadow.objects.filter(pk=job_id).values("REVW_ID_id", "REVW_ID__BUSN_ID_id").first()
         if hint is None:
             return "missing"
+        business_id = hint["REVW_ID__BUSN_ID_id"]
+        if (
+            settings.GEMINI_SENTIMENT_ALL_BUSINESSES
+            and settings.GEMINI_SENTIMENT_CUTOVER_ENABLED
+            and cls.active_policy(business_id) is None
+        ):
+            if cls.prepare(business_id)["not_ready"]:
+                return "preparing"
+            # Acquire cohort locks in the same order as explicit activation.
+            return cls.activate(business_id)
         review = Review.objects.select_for_update().filter(pk=hint["REVW_ID_id"]).first()
         if review is None:
             return "missing"
@@ -242,7 +265,7 @@ class GeminiSentimentCutoverService:
         """Atomically adopt a full compatible cohort without making provider calls."""
         if not settings.GEMINI_SENTIMENT_CUTOVER_ENABLED:
             raise ValidationError("Enable GEMINI_SENTIMENT_CUTOVER_ENABLED before activation.")
-        if business_id not in settings.GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS:
+        if not settings.GEMINI_SENTIMENT_ALL_BUSINESSES and business_id not in settings.GEMINI_SENTIMENT_SHADOW_BUSINESS_IDS:
             raise ValidationError("The business must be explicitly allowlisted for activation.")
         # Existing lifecycle paths acquire review locks before aggregate locks.
         list(Review.objects.select_for_update().filter(BUSN_ID_id=business_id).order_by("pk"))
@@ -290,6 +313,8 @@ class GeminiSentimentCutoverService:
     @transaction.atomic
     def rollback(cls, business_id):
         """Restore unchanged legacy inputs and requeue edited or new text for legacy analysis."""
+        if settings.GEMINI_SENTIMENT_ALL_BUSINESSES:
+            raise ValidationError("Global Gemini authority forbids legacy rollback; pause inference instead.")
         list(Review.objects.select_for_update().filter(BUSN_ID_id=business_id).order_by("pk"))
         business = Business.objects.select_for_update().filter(pk=business_id).first()
         if business is None:

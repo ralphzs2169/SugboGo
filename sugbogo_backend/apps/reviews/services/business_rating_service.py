@@ -3,6 +3,7 @@
 import math
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Avg, Count, F
 from django.utils import timezone
@@ -73,6 +74,8 @@ class BusinessRatingService:
             raise ValidationError("The sentiment result refers to stale review text.")
         from apps.reviews.services.gemini_sentiment_cutover_service import GeminiSentimentCutoverService
         policy = GeminiSentimentCutoverService.active_policy(review.BUSN_ID_id)
+        if settings.GEMINI_SENTIMENT_ALL_BUSINESSES and policy is None:
+            raise ValidationError("Prepare the complete Gemini cohort before recording authoritative rating inputs.")
         if policy and scoring_version != policy.BSPO_VERSION:
             raise ValidationError("The result does not match the business's active scoring contract.")
         result, _ = ReviewRatingResult.objects.update_or_create(

@@ -1,5 +1,10 @@
 # Sentiment models and external integrations
 
+Production uses [global Gemini authority](global-gemini-sentiment.md). Do not
+provision or mount the local models described below for this release. The local
+model sections document the historical pipeline; OpenAI continues to handle
+moderation and Gemini handles sentiment for all businesses.
+
 Run commands from `sugbogo_backend`. Use the existing Linux/amd64 image described
 in [Linux build](linux-build.md) and the independent services in
 [Cloud services](cloud-services.md). This guide provisions existing artifacts;
