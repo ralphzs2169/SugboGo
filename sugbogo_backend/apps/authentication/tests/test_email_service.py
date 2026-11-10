@@ -1,12 +1,18 @@
 from unittest.mock import patch
 
-from django.test import TestCase
+import resend
+from django.test import TestCase, override_settings
 from django.conf import settings
 
 from apps.authentication.services.email_service import EmailService
 from apps.users.models import User
 
 
+@patch(
+    "apps.authentication.services.email_service.resend.api_key",
+    None,
+)
+@override_settings(RESEND_API_KEY="fixture-only")
 class EmailServiceTests(TestCase):
     """Tests for EmailService."""
 
@@ -55,6 +61,11 @@ class EmailServiceTests(TestCase):
 
         mock_send.assert_called_once()
 
+        self.assertEqual(
+            resend.api_key,
+            settings.RESEND_API_KEY,
+        )
+
         params = mock_send.call_args.args[0]
 
         self.assertEqual(
@@ -81,6 +92,42 @@ class EmailServiceTests(TestCase):
             params["text"],
             text,
         )
+
+    @patch("apps.authentication.services.email_service.logger.exception")
+    @patch("apps.authentication.services.email_service.resend.Emails.send")
+    @patch("apps.authentication.services.email_service.render_to_string")
+    @patch(
+        "apps.authentication.services.email_service.resend.api_key",
+        "stale-fixture",
+    )
+    def test_send_email_without_credentials_logs_and_reraises(
+        self,
+        mock_render,
+        mock_send,
+        mock_logger,
+    ):
+        mock_render.return_value = "<html>Email</html>"
+
+        for api_key in (None, "", "   "):
+            with self.subTest(api_key=api_key):
+                mock_logger.reset_mock()
+
+                with override_settings(RESEND_API_KEY=api_key):
+                    with self.assertRaisesMessage(
+                        ValueError,
+                        "RESEND_API_KEY is not configured.",
+                    ):
+                        EmailService.send_email(
+                            subject="Subject",
+                            recipient="john@example.com",
+                            html_template_name="emails/test.html",
+                        )
+
+                mock_send.assert_not_called()
+                mock_logger.assert_called_once_with(
+                    "Failed to send email to %s",
+                    "john@example.com",
+                )
 
     @patch("apps.authentication.services.email_service.resend.Emails.send")
     @patch("apps.authentication.services.email_service.render_to_string")

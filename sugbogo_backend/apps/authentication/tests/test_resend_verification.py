@@ -1,5 +1,6 @@
 from unittest.mock import patch
 from django.core.cache import cache
+from django.test import override_settings
 
 from django.urls import reverse
 from rest_framework import status
@@ -128,6 +129,29 @@ class ResendVerificationViewTests(APIResponseAssertionsMixin, APITestCase):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
+
+    @override_settings(RESEND_API_KEY=None)
+    @patch("apps.authentication.services.email_service.logger.exception")
+    @patch("apps.authentication.services.email_service.resend.Emails.send")
+    def test_resend_verification_without_credentials_reports_delivery_failure(
+        self,
+        mock_send,
+        mock_logger,
+    ):
+        response = self.client.post(
+            self.url,
+            {"email": self.user.USER_EMAIL},
+            format="json",
+        )
+
+        self.assertErrorResponse(
+            response,
+            message="Unable to send verification email. Please try again later.",
+            code="EMAIL_SEND_FAILED",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+        mock_send.assert_not_called()
+        mock_logger.assert_called_once()
 
     @patch("apps.authentication.services.email_service.EmailService.send_verification_email")
     def test_resend_verification_is_rate_limited(self, mock_send):

@@ -1,10 +1,15 @@
 """Check deployment-facing provider contracts without SQL or live API requests."""
 
+import os
 from pathlib import Path
-import runpy
+import subprocess
+import sys
+from textwrap import dedent
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from django.conf import settings
+from django.core.management.utils import get_random_secret_key
 from django.test import SimpleTestCase, override_settings
 
 from apps.authentication.services.email_service import EmailService
@@ -31,17 +36,75 @@ class IntegrationReadinessTests(SimpleTestCase):
         self.assertFalse(configuration["GEMINI_SENTIMENT_SHADOW_ENABLED"])
         self.assertFalse(configuration["GEMINI_SENTIMENT_CUTOVER_ENABLED"])
 
-    @override_settings(RESEND_API_KEY=None)
-    def test_missing_resend_key_rejects_email_module_import(self):
-        """Document the existing import-time requirement without changing startup."""
-        path = (
-            Path(__file__).resolve().parents[2]
-            / "apps/authentication/services/email_service.py"
+    def test_missing_resend_key_allows_django_startup(self):
+        """Import URLs, run checks and load migrations without dotenv or credentials."""
+        environment = os.environ.copy()
+        environment.pop("RESEND_API_KEY", None)
+        environment.update(
+            {
+                "DJANGO_SETTINGS_MODULE": "config.settings",
+                "DEBUG": "False",
+                "SECRET_KEY": get_random_secret_key(),
+                "ALLOWED_HOSTS": "api.example.com",
+                "DB_ENGINE": "django.contrib.gis.db.backends.postgis",
+                "DB_HOST": "127.0.0.1",
+                "DB_NAME": "unused_startup_fixture",
+                "DB_USER": "",
+                "DB_PASSWORD": "",
+            },
         )
-        with self.assertRaisesRegex(ValueError, "RESEND_API_KEY"):
-            runpy.run_path(str(path))
 
-    @override_settings(DEFAULT_FROM_EMAIL="sender@example.com")
+        for name in ("GDAL_LIBRARY_PATH", "GEOS_LIBRARY_PATH"):
+            value = getattr(settings, name, None)
+            if value:
+                environment[name] = value
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                "-c",
+                dedent(
+                    """
+                    from unittest.mock import patch
+
+                    with (
+                        patch("dotenv.load_dotenv"),
+                        patch("resend.Emails.send") as send,
+                    ):
+                        import django
+                        django.setup()
+
+                        from django.conf import settings
+                        from django.core.management import call_command
+                        from django.db.migrations.loader import MigrationLoader
+                        import apps.authentication.urls
+
+                        assert settings.RESEND_API_KEY is None
+                        assert apps.authentication.urls.urlpatterns
+                        call_command("check")
+                        loader = MigrationLoader(None)
+                        assert loader.graph.leaf_nodes("authentication")
+                        send.assert_not_called()
+                    """,
+                ),
+            ],
+            cwd=Path(__file__).resolve().parents[2],
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            result.stdout + result.stderr,
+        )
+
+    @override_settings(
+        DEFAULT_FROM_EMAIL="sender@example.com",
+        RESEND_API_KEY="fixture-only",
+    )
     def test_email_uses_configured_sender_and_mocked_provider(self):
         """Keep sender configuration and existing transactional email transport."""
         with (
