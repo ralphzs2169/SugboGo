@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { NAVIGATION_REQUEST_EVENT } from "@/shared/hooks/useGuardedNavigate";
 
 const WARNING_MESSAGE =
   "You have unsaved Transit Network changes. Leave this page and discard them?";
@@ -17,6 +18,15 @@ export default function useUnsavedChangesGuard(isDirty) {
     function handleBeforeUnload(event) {
       event.preventDefault();
       event.returnValue = "";
+    }
+
+    function handleNavigationRequest(event) {
+      if (allowNavigationRef.current || event.defaultPrevented) {
+        return;
+      }
+
+      event.preventDefault();
+      setPendingDestination(event.detail.destination);
     }
 
     function handleDocumentClick(event) {
@@ -55,11 +65,13 @@ export default function useUnsavedChangesGuard(isDirty) {
     }
 
     window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener(NAVIGATION_REQUEST_EVENT, handleNavigationRequest);
     window.addEventListener("popstate", handlePopState);
     document.addEventListener("click", handleDocumentClick, true);
 
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener(NAVIGATION_REQUEST_EVENT, handleNavigationRequest);
       window.removeEventListener("popstate", handlePopState);
       document.removeEventListener("click", handleDocumentClick, true);
     };

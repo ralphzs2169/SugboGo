@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   ChevronRight,
   Clipboard,
@@ -18,6 +18,7 @@ import { useAuthStore } from "@/features/auth/storage/auth.store";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import StatusBadge from "@/shared/components/StatusBadge";
 import useGlobalSearch from "../hooks/useGlobalSearch";
+import useGuardedNavigate from "@/shared/hooks/useGuardedNavigate";
 import { getGlobalSearchDestination } from "../utils/globalSearchNavigation";
 import {
   GLOBAL_SEARCH_HEADINGS,
@@ -37,7 +38,7 @@ const RESULT_TYPES = {
 
 /** Provide a grouped search combobox with input-owned focus and bounded API reads. */
 function GlobalSearchField() {
-  const navigate = useNavigate();
+  const navigate = useGuardedNavigate();
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const listId = useId();

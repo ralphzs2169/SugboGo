@@ -21,6 +21,9 @@ const categories = [
 let dom;
 let server;
 let Header;
+let useUnsavedChangesGuard;
+let EditorConfirmationModal;
+let SidebarLink;
 let auth;
 let root;
 let container;
@@ -81,6 +84,15 @@ before(async () => {
   ({ useAuthStore: auth } = await server.ssrLoadModule(
     "/src/features/auth/storage/auth.store.js",
   ));
+  ({ default: useUnsavedChangesGuard } = await server.ssrLoadModule(
+    "/src/features/admin-panel/transit-network/hooks/useUnsavedChangesGuard.js",
+  ));
+  ({ default: EditorConfirmationModal } = await server.ssrLoadModule(
+    "/src/features/admin-panel/transit-network/components/route-variant-editor/EditorConfirmationModal.jsx",
+  ));
+  ({ default: SidebarLink } = await server.ssrLoadModule(
+    "/src/features/admin-panel/components/sidebar/SidebarLink.jsx",
+  ));
 });
 
 beforeEach(async () => {
@@ -134,17 +146,59 @@ function RouterProbe() {
   return React.createElement("output", { "data-location": true }, location.pathname + location.search);
 }
 
-async function render() {
+function TransitDraftWorkspace() {
+  const [draft, setDraft] = React.useState("");
+  const guard = useUnsavedChangesGuard(Boolean(draft));
+
+  return React.createElement(React.Fragment, null,
+    React.createElement("textarea", {
+      "aria-label": "Transit draft",
+      value: draft,
+      onChange: (event) => setDraft(event.target.value),
+    }),
+    React.createElement(EditorConfirmationModal, {
+      isOpen: guard.isLeaveConfirmationOpen,
+      title: "Discard Unsaved Changes?",
+      description: "Your current Transit Network edits have not been saved.",
+      warning: "Discarded changes cannot be recovered after leaving this page.",
+      confirmLabel: "Discard and Leave",
+      onCancel: guard.stayOnPage,
+      onConfirm: guard.discardAndLeave,
+    }),
+  );
+}
+
+function TransitNavigationFixture() {
+  const current = useLocation();
+
+  return React.createElement(React.Fragment, null,
+    React.createElement(SidebarLink, {
+      to: "/admin-panel/users/all",
+      label: "All Users",
+      Icon: () => null,
+    }),
+    current.pathname === "/admin-panel/transit-network"
+      ? React.createElement(TransitDraftWorkspace)
+      : null,
+  );
+}
+
+async function render({ withTransitWorkspace = false } = {}) {
   await act(async () => root.render(
     React.createElement(
       QueryClientProvider,
       { client },
       React.createElement(
         MemoryRouter,
-        { initialEntries: ["/admin-panel/dashboard"] },
+        {
+          initialEntries: [withTransitWorkspace
+            ? "/admin-panel/transit-network"
+            : "/admin-panel/dashboard"],
+        },
         React.createElement(React.Fragment, null,
           React.createElement(Header),
           React.createElement(RouterProbe),
+          withTransitWorkspace ? React.createElement(TransitNavigationFixture) : null,
         ),
       ),
     ),
@@ -180,6 +234,138 @@ async function press(key, target = input()) {
   await act(async () => target.dispatchEvent(event));
   return event;
 }
+
+async function editTransitDraft() {
+  const textarea = container.querySelector('[aria-label="Transit draft"]');
+
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      dom.window.HTMLTextAreaElement.prototype,
+      "value",
+    ).set.call(textarea, "Unsaved route geometry");
+    textarea.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  });
+}
+
+async function clickButton(label) {
+  const button = [...container.querySelectorAll("button")].find(
+    (item) => item.textContent === label,
+  );
+  assert.ok(button, `Missing ${label} button`);
+  await act(async () => button.click());
+}
+
+test("transit drafts survive canceled search navigation and confirmed searches keep the destination", async () => {
+  await render({ withTransitWorkspace: true });
+  await editTransitDraft();
+  await type("cebu");
+  await until(() => options().length === 8);
+  await act(async () => options()[0].click());
+
+  assert.equal(location(), "/admin-panel/transit-network");
+  assert.equal(container.querySelectorAll('[role="dialog"]').length, 1);
+  await clickButton("Keep Editing");
+  assert.equal(location(), "/admin-panel/transit-network");
+  assert.equal(container.querySelector('[role="dialog"]'), null);
+  assert.equal(
+    container.querySelector('[aria-label="Transit draft"]').value,
+    "Unsaved route geometry",
+  );
+
+  await act(async () => input().focus());
+  await until(() => options().length === 8);
+  await press("ArrowUp");
+  await press("Enter");
+  assert.equal(location(), "/admin-panel/transit-network");
+  assert.equal(container.querySelectorAll('[role="dialog"]').length, 1);
+  await clickButton("Discard and Leave");
+  assert.equal(location(), categories[7][3]);
+  assert.equal(container.querySelector('[role="dialog"]'), null);
+  assert.equal(container.querySelector('[aria-label="Transit draft"]'), null);
+
+  // Leaving removes the guard, so subsequent search navigation stays normal.
+  await type("cebu");
+  await until(() => options().length === 8);
+  await act(async () => options()[0].click());
+  assert.equal(location(), categories[0][3]);
+  assert.equal(container.querySelector('[role="dialog"]'), null);
+});
+
+test("sidebar links reuse the same transit confirmation and preserve canceled drafts", async () => {
+  await render({ withTransitWorkspace: true });
+  await editTransitDraft();
+  const link = container.querySelector('a[href="/admin-panel/users/all"]');
+  await act(async () => link.click());
+  assert.equal(location(), "/admin-panel/transit-network");
+  assert.equal(container.querySelectorAll('[role="dialog"]').length, 1);
+
+  await clickButton("Keep Editing");
+  assert.equal(
+    container.querySelector('[aria-label="Transit draft"]').value,
+    "Unsaved route geometry",
+  );
+  await act(async () => link.click());
+  await clickButton("Discard and Leave");
+  assert.equal(location(), "/admin-panel/users/all");
+  assert.equal(container.querySelector('[role="dialog"]'), null);
+});
+
+test("clean transit workspaces navigate through search and sidebar without confirmation", async () => {
+  await render({ withTransitWorkspace: true });
+  await type("cebu");
+  await until(() => options().length === 8);
+  await press("ArrowDown");
+  await press("Enter");
+  assert.equal(location(), categories[0][3]);
+  assert.equal(container.querySelector('[role="dialog"]'), null);
+
+  await act(async () => navigate("/admin-panel/transit-network"));
+  await act(async () => container.querySelector('a[href="/admin-panel/users/all"]').click());
+  assert.equal(location(), "/admin-panel/users/all");
+  assert.equal(container.querySelector('[role="dialog"]'), null);
+});
+
+test("transit refresh and history protection remain registered only while the draft is dirty", async () => {
+  await render({ withTransitWorkspace: true });
+  const cleanRefresh = new dom.window.Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(cleanRefresh);
+  assert.equal(cleanRefresh.defaultPrevented, false);
+
+  await editTransitDraft();
+  const dirtyRefresh = new dom.window.Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(dirtyRefresh);
+  assert.equal(dirtyRefresh.defaultPrevented, true);
+
+  const originalConfirm = window.confirm;
+  const originalForward = window.history.forward;
+  let confirmations = 0;
+  let reversals = 0;
+  window.confirm = () => {
+    confirmations += 1;
+    return false;
+  };
+  window.history.forward = () => {
+    reversals += 1;
+  };
+
+  try {
+    await act(async () => window.dispatchEvent(new dom.window.PopStateEvent("popstate")));
+    assert.equal(confirmations, 1);
+    assert.equal(reversals, 1);
+    assert.equal(container.querySelector('[role="dialog"]'), null);
+
+    await act(async () => container.querySelector('a[href="/admin-panel/users/all"]').click());
+    await clickButton("Discard and Leave");
+    const departedRefresh = new dom.window.Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(departedRefresh);
+    window.dispatchEvent(new dom.window.PopStateEvent("popstate"));
+    assert.equal(departedRefresh.defaultPrevented, false);
+    assert.equal(confirmations, 1);
+  } finally {
+    window.confirm = originalConfirm;
+    window.history.forward = originalForward;
+  }
+});
 
 test("debounces valid trimmed terms, avoids duplicates, and preserves the header shell", async () => {
   await render();
