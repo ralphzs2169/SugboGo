@@ -20,6 +20,13 @@ class OAuthLoginDenied(PermissionDenied):
     default_code = "oauth_login_denied"
 
 
+class OAuthLinkRequired(PermissionDenied):
+    """Require existing-account proof before accepting an unsafe Google link."""
+
+    default_detail = "Sign in with your existing account method to verify this account."
+    default_code = "oauth_link_required"
+
+
 class OAuthAccountService:
     """
     Handles account lookup and creation for OAuth providers.
@@ -65,6 +72,16 @@ class OAuthAccountService:
                 user = User.objects.select_for_update().get(pk=oauth_account.USER_id)
                 OAuthAccountService._validate_user_access(user)
 
+                if (
+                    oauth_user.provider == OAuthAccount.OAuthProvider.GOOGLE
+                    and oauth_user.email.casefold() != user.USER_EMAIL.casefold()
+                    and (
+                        not user.EMAIL_VERIFIED
+                        or user.USER_STATUS == User.UserStatus.PENDING
+                    )
+                ):
+                    raise OAuthLinkRequired()
+
                 oauth_account.OAUTH_LAST_LOGIN = timezone.now()
                 oauth_account.save(update_fields=["OAUTH_LAST_LOGIN"])
 
@@ -95,6 +112,16 @@ class OAuthAccountService:
             # status and account status if necessary. 
             if user:
                 OAuthAccountService._validate_user_access(user)
+                if oauth_user.provider == OAuthAccount.OAuthProvider.GOOGLE:
+                    if (
+                        not oauth_user.email_authoritative
+                        or OAuthAccount.objects.filter(
+                            USER=user,
+                            OAUTH_PROVIDER=OAuthAccount.OAuthProvider.GOOGLE,
+                        ).exists()
+                    ):
+                        raise OAuthLinkRequired()
+
                 if not user.EMAIL_VERIFIED:
                     user.EMAIL_VERIFIED = True
                     user.EMAIL_VERIFIED_AT = timezone.now()
@@ -131,9 +158,8 @@ class OAuthAccountService:
                 user.set_unusable_password()
                 user.save(update_fields=["password"])
 
-            # print("OAUTH USER:", model_to_dict(oauth_user))
             # Link the user to this OAuth provider.
-            # If the link already exists, update the provider ID if necessary.
+            # Google email fallback cannot replace an existing subject association.
             OAuthAccount.objects.update_or_create(
                 USER=user,
                 OAUTH_PROVIDER=oauth_user.provider,

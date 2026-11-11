@@ -23,6 +23,7 @@ class GoogleLoginViewTests(APIResponseAssertionsMixin, APITestCase):
             email="john@example.com",
             first_name="John",
             last_name="Doe",
+            email_authoritative=True,
         )
 
     @patch(

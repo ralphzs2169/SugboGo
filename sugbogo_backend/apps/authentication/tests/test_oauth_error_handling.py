@@ -135,13 +135,23 @@ class OAuthErrorHandlingTests(APITestCase):
                 self.assertEqual(response.status_code, 401)
                 self.assertEqual(response.data["code"], "INVALID_GOOGLE_TOKEN")
 
-    def _login_as(self, provider, user, linked):
+    def _login_as(
+        self,
+        provider,
+        user,
+        linked,
+        changed_email=True,
+    ):
         """Exercise account resolution after a provider verifies an identity."""
         cache.clear()
         oauth_user = OAuthUser(
             provider=provider,
             provider_id=f"{provider}-{user.pk}",
-            email=f"changed-{user.pk}@example.com" if linked else user.USER_EMAIL,
+            email=(
+                f"changed-{user.pk}@example.com"
+                if linked and changed_email
+                else user.USER_EMAIL
+            ),
             first_name="OAuth",
             last_name="User",
         )
@@ -228,7 +238,12 @@ class OAuthErrorHandlingTests(APITestCase):
                     USER_ROLE=User.UserRole.MERCHANT,
                     USER_STATUS=User.UserStatus.PENDING,
                 )
-                response = self._login_as(provider, user, linked=True)
+                response = self._login_as(
+                    provider,
+                    user,
+                    linked=True,
+                    changed_email=False,
+                )
                 self.assertEqual(response.status_code, 200, response.data)
                 self.assertIn("access", response.data["data"])
                 self.assertIn("refresh", response.data["data"])

@@ -2,8 +2,14 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 
 from .base import OAuthUser
+
+
+class GoogleOAuthConfigurationError(Exception):
+    """Reject Google login when its expected audience is not configured."""
 
 
 class GoogleOAuthService:
@@ -18,23 +24,64 @@ class GoogleOAuthService:
 
     @staticmethod
     def verify_id_token(token: str) -> OAuthUser:
-        """Verify the token and require the identity fields used for login."""
+        """Verify the audience and identity claims before resolving an account."""
+        audience = getattr(settings, "GOOGLE_OAUTH_CLIENT_ID", None)
+        if (
+            not isinstance(audience, str)
+            or not audience.strip()
+        ):
+            raise GoogleOAuthConfigurationError
+
         payload = id_token.verify_oauth2_token(
             token,
             requests.Request(),
-            settings.GOOGLE_OAUTH_CLIENT_ID,
+            audience=audience.strip(),
         )
+        if not isinstance(payload, dict):
+            raise ValueError("Google did not return a usable account identity.")
+
+        subject = payload.get("sub")
+        email = payload.get("email")
         if (
-            not isinstance(payload, dict)
-            or not payload.get("sub")
-            or not payload.get("email")
+            not isinstance(subject, str)
+            or not subject.strip()
+            or subject != subject.strip()
+            or len(subject) > 255
+            or not subject.isascii()
+            or not isinstance(email, str)
+            or email != email.strip()
+            or len(email) > 100
         ):
             raise ValueError("Google did not return a usable account identity.")
+        try:
+            validate_email(email)
+        except ValidationError as exc:
+            raise ValueError("Google did not return a usable account identity.") from exc
+
+        # Google's OpenID documentation also shows the literal string "true".
+        email_verified = payload.get("email_verified")
+        if not (
+            email_verified is True
+            or email_verified == "true"
+        ):
+            raise ValueError("Google did not return a verified email address.")
+
+        # Third-party email ownership may change after Google's initial verification.
+        hosted_domain = payload.get("hd")
+        email_authoritative = (
+            email.lower().endswith("@gmail.com")
+            or (
+                isinstance(hosted_domain, str)
+                and bool(hosted_domain.strip())
+            )
+        )
+
         return OAuthUser(
             provider="google",
-            provider_id=payload["sub"],
-            email=payload["email"],
+            provider_id=subject,
+            email=email,
             first_name=payload.get("given_name", ""),
             last_name=payload.get("family_name", ""),
             avatar_url=payload.get("picture", ""),
+            email_authoritative=email_authoritative,
         )
