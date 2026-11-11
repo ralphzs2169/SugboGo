@@ -37,11 +37,10 @@ export default function BusinessApplicationsPage() {
         breadcrumbs={[
           {
             label: "SugboGo Admin",
-            href: "/admin",
+            href: "/admin-panel/dashboard",
           },
           {
             label: "Management",
-            href: "/admin/businesses/applications",
           },
           {
             label: "Merchant Applications",

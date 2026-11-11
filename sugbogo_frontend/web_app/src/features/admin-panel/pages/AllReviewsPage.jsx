@@ -39,7 +39,7 @@ export default function AllReviewsPage() {
         title="All Reviews"
         breadcrumbs={[
           { label: "SugboGo Admin", href: "/admin-panel" },
-          { label: "Management" },
+          { label: "Trust & Safety" },
           { label: "All Reviews" },
         ]}
       />

@@ -15,11 +15,10 @@ export default function BusinessesPage() {
         breadcrumbs={[
           {
             label: "SugboGo Admin",
-            href: "/admin",
+            href: "/admin-panel/dashboard",
           },
           {
             label: "Management",
-            href: "/admin/businesses",
           },
           {
             label: "Businesses",

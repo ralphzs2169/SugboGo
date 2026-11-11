@@ -14,7 +14,7 @@ export default function TransitNetworkPage() {
       <PageHeader
         breadcrumbs={[
           { label: "SugboGo Admin", href: "/admin-panel/dashboard" },
-          { label: "Management", href: "/admin-panel/transit-network" },
+          { label: "Discovery" },
           { label: "Transit Network" },
         ]}
         title="Transit Network Management"

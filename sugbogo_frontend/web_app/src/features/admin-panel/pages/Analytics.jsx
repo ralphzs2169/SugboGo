@@ -79,6 +79,7 @@ function Analytics() {
             title="Analytics"
             breadcrumbs={[
               { label: "SugboGo Admin", href: "/admin-panel/dashboard" },
+              { label: "Insights" },
               { label: "Analytics" },
             ]}
           />
