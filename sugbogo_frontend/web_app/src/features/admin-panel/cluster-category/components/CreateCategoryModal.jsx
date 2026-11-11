@@ -1,8 +1,10 @@
 import { useState } from "react";
 import Modal from "@/shared/components/modals/Modal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 import CategoryForm from "./CategoryForm";
 import useCreateCategory from "../hooks/useCreateCategory";
-import useClusters from "../hooks/useClusters";
+import { useQuery } from "@tanstack/react-query";
+import { taxonomyReferenceOptions } from "../../taxonomy/queries/taxonomyQueries";
 import { validateCategory } from "../validation/categoryValidation";
 import { toast } from "react-hot-toast";
 
@@ -19,9 +21,23 @@ export default function CreateCategoryModal({ isOpen, onClose, onSuccess }) {
 
   const [errors, setErrors] = useState({});
 
-  const { submit, isSubmitting } = useCreateCategory();
+  const { submit } = useCreateCategory();
+  const { isSubmitting, runSubmission, close } = useModalSubmission(
+    isOpen,
+    undefined,
+    onClose,
+  );
 
-  const { clusters, isLoading: isLoadingClusters } = useClusters();
+  const clusterOptionsQuery = useQuery({
+    ...taxonomyReferenceOptions("clusters"),
+    enabled: isOpen,
+  });
+  const clusters = clusterOptionsQuery.data ?? [];
+  const isLoadingClusters = clusterOptionsQuery.isPending;
+  const referenceUnavailable = (
+    isLoadingClusters ||
+    Boolean(clusterOptionsQuery.error)
+  );
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -41,6 +57,9 @@ export default function CreateCategoryModal({ isOpen, onClose, onSuccess }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (referenceUnavailable) {
+      return;
+    }
 
     const validationErrors = validateCategory(values);
 
@@ -49,44 +68,55 @@ export default function CreateCategoryModal({ isOpen, onClose, onSuccess }) {
       return;
     }
 
-    try {
-      await submit(values);
+    return runSubmission(async (isCurrent) => {
+      try {
+        await submit(values);
 
-      onSuccess?.();
+        await onSuccess?.();
+        if (!isCurrent()) {
+          return;
+        }
 
-      onClose();
+        onClose();
 
-      setValues({
-        name: "",
-        description: "",
-        cluster_id: "",
-      });
+        setValues({
+          name: "",
+          description: "",
+          cluster_id: "",
+        });
 
-      setErrors({});
-    } catch (error) {
-      setErrors(error.response?.data?.errors ?? {});
+        setErrors({});
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        setErrors(error.response?.data?.errors ?? {});
 
-      if (error.response?.data?.message) {
-        toast.error(error.response.data.message);
+        if (error.response?.data?.message) {
+          toast.error(error.response.data.message);
+        }
       }
-    }
+    });
   }
 
   return (
     <Modal
       isOpen={isOpen}
+      dismissDisabled={isSubmitting}
       title="Create Category"
       description="Add a new category and assign it to a cluster."
-      onClose={onClose}
+      onClose={close}
     >
       <CategoryForm
         values={values}
         errors={errors}
         clusters={clusters}
         isLoadingClusters={isLoadingClusters}
+        clusterOptionsQuery={clusterOptionsQuery}
         onChange={handleChange}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
+        submitDisabled={referenceUnavailable}
         submitLabel="Create Category"
         onClearError={onClearError}
       />

@@ -12,6 +12,7 @@ export default function CategoryForm({
   errors,
   clusters,
   isLoadingClusters,
+  clusterOptionsQuery,
   onChange,
   onSubmit,
   isSubmitting,
@@ -65,6 +66,7 @@ export default function CategoryForm({
           isLoadingClusters ? "Loading clusters..." : "Select a cluster"
         }
         clusters={clusters}
+        optionsQuery={clusterOptionsQuery}
       />
 
       <div className="flex justify-end">
@@ -72,7 +74,11 @@ export default function CategoryForm({
           type="submit"
           loading={isSubmitting}
           disabled={submitDisabled}
-          disabledTooltip="Make a change before saving."
+          disabledTooltip={
+            clusterOptionsQuery?.isPending || clusterOptionsQuery?.error
+              ? "Load cluster options before saving."
+              : "Make a change before saving."
+          }
         >
           {submitLabel}
         </Button>

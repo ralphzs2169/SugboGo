@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import Modal from "@/shared/components/modals/Modal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 import { hasFormChanges } from "@/shared/utils/formUtils";
 
 import ClusterForm from "./ClusterForm";
@@ -34,7 +35,12 @@ export default function EditClusterModal({
 
   const [errors, setErrors] = useState({});
 
-  const { submit, isSubmitting } = useUpdateCluster();
+  const { submit } = useUpdateCluster();
+  const { isSubmitting, runSubmission, close } = useModalSubmission(
+    isOpen,
+    cluster?.id,
+    onClose,
+  );
 
   useEffect(() => {
     if (!cluster) return;
@@ -83,19 +89,27 @@ export default function EditClusterModal({
       return;
     }
 
-    try {
-      await submit(cluster.id, values);
+    return runSubmission(async (isCurrent) => {
+      try {
+        await submit(cluster.id, values);
 
-      onSuccess?.();
-      onClose();
-      setErrors({});
-    } catch (error) {
-      setErrors(error.response?.data?.errors ?? {});
+        await onSuccess?.();
+        if (!isCurrent()) {
+          return;
+        }
+        onClose();
+        setErrors({});
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        setErrors(error.response?.data?.errors ?? {});
 
-      if (error.response?.data?.message) {
-        toast.error(error.response.data.message);
+        if (error.response?.data?.message) {
+          toast.error(error.response.data.message);
+        }
       }
-    }
+    });
   }
 
   if (!cluster) {
@@ -105,9 +119,10 @@ export default function EditClusterModal({
   return (
     <Modal
       isOpen={isOpen}
+      dismissDisabled={isSubmitting}
       title="Edit Cluster"
       description="Update cluster information."
-      onClose={onClose}
+      onClose={close}
     >
       <ClusterForm
         values={values}

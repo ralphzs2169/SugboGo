@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { Check, ChevronDown } from "lucide-react";
 
 import { CLUSTER_ICONS } from "../constants/clusterIcons";
+import TaxonomyOptionFeedback from "../../taxonomy/components/TaxonomyOptionFeedback";
 
 const POPOVER_GAP = 8;
 const POPOVER_HEIGHT = 280;
@@ -26,6 +27,7 @@ export default function ClusterSelectInput({
   disabled = false,
   placeholder = "Select a cluster",
   clusters = [],
+  optionsQuery,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({
@@ -37,6 +39,12 @@ export default function ClusterSelectInput({
   const containerRef = useRef(null);
   const triggerRef = useRef(null);
   const popoverRef = useRef(null);
+  const interactionDisabled = (
+    disabled ||
+    Boolean(optionsQuery?.isPending) ||
+    Boolean(optionsQuery?.error)
+  );
+  const isPopoverOpen = isOpen && !interactionDisabled;
 
   const selectedCluster = clusters.find(
     (cluster) => String(cluster.id) === String(value),
@@ -89,16 +97,16 @@ export default function ClusterSelectInput({
 
   // Position the dropdown relative to the trigger when opened.
   useLayoutEffect(() => {
-    if (!isOpen) {
+    if (!isPopoverOpen) {
       return;
     }
 
     updatePosition();
-  }, [isOpen]);
+  }, [isPopoverOpen]);
 
   // Keep the dropdown aligned while the viewport changes.
   useEffect(() => {
-    if (!isOpen) {
+    if (!isPopoverOpen) {
       return undefined;
     }
 
@@ -127,31 +135,34 @@ export default function ClusterSelectInput({
       window.removeEventListener("scroll", handleViewportChange, true);
       document.removeEventListener("mousedown", handlePointerDown);
     };
-  }, [isOpen]);
+  }, [isPopoverOpen]);
 
   // Close the dropdown with Escape.
   useEffect(() => {
-    if (!isOpen) {
+    if (!isPopoverOpen) {
       return undefined;
     }
 
     function handleKeyDown(event) {
-      if (event.key !== "Escape") {
+      if (event.key !== "Escape" || event.defaultPrevented) {
         return;
       }
 
+      // Capture Escape before the parent modal's document-level bubble listener.
+      event.preventDefault();
+      event.stopPropagation();
       closePopover();
       triggerRef.current?.focus();
     }
 
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [isOpen]);
+  }, [isPopoverOpen]);
 
-  const popover = isOpen ? (
+  const popover = isPopoverOpen ? (
     <div
       ref={popoverRef}
       className="fixed z-[9999] overflow-hidden rounded-lg border border-stroke-strong bg-background shadow-xl"
@@ -240,14 +251,14 @@ export default function ClusterSelectInput({
         ref={triggerRef}
         id={id}
         type="button"
-        disabled={disabled}
+        disabled={interactionDisabled}
         onClick={() => setIsOpen((previous) => !previous)}
         aria-haspopup="listbox"
-        aria-expanded={isOpen}
+        aria-expanded={isPopoverOpen}
         aria-invalid={Boolean(error)}
         className={clsx(
           "flex w-full items-center gap-3 rounded-md border-2 bg-background px-4 py-3 text-left text-sm outline-none transition",
-          disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+          interactionDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
           error
             ? "border-danger focus:border-danger"
             : "border-stroke focus:border-stroke-active",
@@ -265,13 +276,17 @@ export default function ClusterSelectInput({
             selectedCluster ? "text-text-primary" : "text-text-secondary",
           )}
         >
-          {selectedCluster?.name ?? placeholder}
+          {selectedCluster?.name ?? (
+            optionsQuery?.error
+              ? "Cluster options unavailable"
+              : placeholder
+          )}
         </span>
 
         <ChevronDown
           className={clsx(
             "h-4 w-4 shrink-0 text-text-secondary transition-transform",
-            isOpen && "rotate-180",
+            isPopoverOpen && "rotate-180",
           )}
           strokeWidth={2}
         />
@@ -284,6 +299,15 @@ export default function ClusterSelectInput({
       )}
 
       {/* Dropdown portal */}
+      {optionsQuery && (
+        <div className="mt-2">
+          <TaxonomyOptionFeedback
+            query={optionsQuery}
+            resource="clusters"
+            label="Cluster"
+          />
+        </div>
+      )}
       {createPortal(popover, document.body)}
     </div>
   );

@@ -13,6 +13,10 @@ import {
 
 export const taxonomyQueryKeys = {
   resource: (resource) => ["admin", "taxonomy", resource],
+  references: (resource) => [
+    ...taxonomyQueryKeys.resource(resource),
+    "references",
+  ],
   list: (resource, params) => [
     ...taxonomyQueryKeys.resource(resource),
     "list",
@@ -42,6 +46,31 @@ export function taxonomyListOptions(resource, params) {
     queryKey: taxonomyQueryKeys.list(resource, params),
     queryFn: ({ signal }) => listFetchers[resource](params, { signal }),
     placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  };
+}
+
+/** Follow the same complete-page loading pattern as Analytics scope filters. */
+export function taxonomyReferenceOptions(resource) {
+  return {
+    queryKey: taxonomyQueryKeys.references(resource),
+    queryFn: async ({ signal }) => {
+      const items = [];
+      let page = 1;
+      let hasNext;
+
+      do {
+        const response = await listFetchers[resource](
+          { page, page_size: 100 },
+          { signal },
+        );
+        items.push(...response.items);
+        hasNext = response.pagination.has_next;
+        page += 1;
+      } while (hasNext);
+
+      return items;
+    },
     staleTime: 30_000,
   };
 }

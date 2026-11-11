@@ -24,6 +24,17 @@ let failures;
 let mutationError;
 let totalItems;
 let keys;
+let optionPageSize;
+let optionFailures;
+let optionGates;
+let BusinessTable;
+let DiscoveryScores;
+const optionForms = [
+  { file: "CreateCategoryModal", field: "name" },
+  { file: "EditCategoryModal", field: "name", editing: true },
+  { file: "CreateDiscoveryShortcutModal", field: "title" },
+  { file: "EditDiscoveryShortcutModal", field: "title", editing: true },
+];
 
 before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -47,6 +58,9 @@ before(async () => {
   });
   server = await createServer({
     appType: "custom",
+    ssr: {
+      noExternal: ["@googlemaps/markerclusterer", "@vis.gl/react-google-maps"],
+    },
     optimizeDeps: { noDiscovery: true, include: [] },
     server: { middlewareMode: true, hmr: false, ws: false },
     plugins: [{
@@ -69,6 +83,17 @@ before(async () => {
   ));
   ({ taxonomyQueryKeys: keys } = await server.ssrLoadModule(
     "/src/features/admin-panel/taxonomy/queries/taxonomyQueries.js",
+  ));
+  for (const form of optionForms) {
+    ({ default: form.Component } = await server.ssrLoadModule(
+      `/src/features/admin-panel/cluster-category/components/${form.file}.jsx`,
+    ));
+  }
+  ({ default: BusinessTable } = await server.ssrLoadModule(
+    "/src/features/admin-panel/businesses/components/BusinessManagementTable.jsx",
+  ));
+  ({ default: DiscoveryScores } = await server.ssrLoadModule(
+    "/src/features/admin-panel/pages/DiscoveryScoresPage.jsx",
   ));
 });
 
@@ -107,17 +132,35 @@ beforeEach(async () => {
   failures = new Set();
   mutationError = null;
   totalItems = null;
+  optionPageSize = null;
+  optionFailures = new Set();
+  optionGates = new Map();
   globalThis.__taxonomyTransport = async (method, url, payload = {}) => {
     if (method === "get") {
-      reads.push({ url, params: payload.params });
+      reads.push({ url, params: payload.params, signal: payload.signal });
       if (failures.has(url)) {
         throw new Error("Inventory temporarily unavailable");
       }
       if (url === "/admin/businesses/overview/") {
         return { data: { data: { business_status: { total: 12 } } } };
       }
+      if (url === "/admin/businesses/" || url === "/admin/analytics/discovery-scores/") {
+        const business = { id: 7, business_name: "Healthy business", status: "active", created_at: "2026-11-05T04:30:00Z" };
+        return { data: { data: {
+          items: url.includes("analytics") ? [{ business, refresh_status: "SUCCESS" }] : [business],
+          pagination: { total_items: 1, total_pages: 1 },
+          coverage: { computed: 1, fresh: 1, failed: 0, needs_attention: 0 },
+        } } };
+      }
       const resource = url.slice(API.length).split("/")[0];
       assert.ok(records[resource], `Unexpected endpoint: ${url}`);
+      const referenceKey = `${resource}:${payload.params?.page}`;
+      if (optionGates.has(referenceKey)) {
+        await optionGates.get(referenceKey).promise;
+      }
+      if (optionFailures.has(referenceKey)) {
+        throw { response: { data: { message: `${resource} options unavailable.` } } };
+      }
       if (url.endsWith("statistics/")) {
         const field = {
           clusters: "total_clusters",
@@ -134,11 +177,20 @@ beforeEach(async () => {
         items = items.filter((item) => item.cluster_id === Number(params.cluster_id));
       }
       const count = totalItems ?? items.length;
+      const completeReference = optionPageSize && payload.params?.page_size === 100;
+      const size = completeReference ? optionPageSize : params.page_size ?? 10;
+      const page = params.page ?? 1;
+      if (completeReference) {
+        items = items.slice((page - 1) * size, page * size);
+      }
       return { data: { data: {
         items,
         pagination: {
           total_items: count,
-          total_pages: Math.ceil(count / (params.page_size ?? 10)),
+          total_pages: Math.ceil(count / size),
+          page,
+          page_size: size,
+          has_next: page * size < count,
         },
       } } };
     }
@@ -461,3 +513,202 @@ test("taxonomy direct links select the matching tab without duplicating the work
     assert.equal(container.querySelectorAll('[role="tabpanel"]:not([hidden])').length, 1);
   }
 });
+
+function optionDeferred() {
+  let finish;
+  const promise = new Promise((done) => { finish = done; });
+  return { promise, resolve: finish };
+}
+
+async function waitForOptions(predicate) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) return;
+    await act(async () => new Promise((done) => setTimeout(done, 10)));
+  }
+  assert.fail("Taxonomy options did not reach the expected state");
+}
+
+function completeInventories(count = 251) {
+  optionPageSize = 100;
+  for (const [resource, prefix] of [
+    ["clusters", "Cluster"],
+    ["categories", "Category"],
+    ["specialty-tags", "Specialty"],
+  ]) {
+    records[resource] = Array.from({ length: count }, (_, index) => ({
+      id: index + 1,
+      name: `${prefix} ${index + 1}`,
+      icon: "tag",
+      cluster_id: 1,
+      color: "blue",
+    }));
+  }
+}
+
+async function mountOptionForm(form) {
+  const category = { id: 9, name: "Existing category", cluster_id: 251 };
+  const shortcut = {
+    id: 9, cluster: { id: 251 }, title: "Existing shortcut",
+    subtitle: "Existing subtitle", is_active: true,
+  };
+  await act(async () => root.render(
+    React.createElement(QueryClientProvider, { client },
+      React.createElement(form.Component, {
+        isOpen: true, category, shortcut, shortcuts: [], onClose: () => {},
+      }),
+    ),
+  ));
+}
+
+async function changeOptionField(field, value) {
+  const element = container.querySelector(`[name="${field}"]`);
+  const prototype = element.tagName === "TEXTAREA"
+    ? dom.window.HTMLTextAreaElement.prototype
+    : dom.window.HTMLInputElement.prototype;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(prototype, "value").set.call(element, value);
+    element.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  });
+}
+
+for (const form of optionForms) {
+  test(`${form.file}: complete cluster selector recovers a failed later page without losing the draft`, async () => {
+    completeInventories();
+    const pending = optionDeferred();
+    optionGates.set("clusters:2", pending);
+    optionFailures.add("clusters:2");
+    await mountOptionForm(form);
+    await waitForOptions(() => reads.some((read) => read.url === `${API}clusters/` && read.params.page === 2));
+    await changeOptionField(form.field, "Preserved draft");
+    assert.match(container.textContent, /Loading cluster options/);
+    assert.doesNotMatch(container.textContent, /No clusters available/);
+    assert.equal(container.querySelector('[aria-haspopup="listbox"]').disabled, true);
+    assert.equal(container.querySelector('button[type="submit"]').disabled, true);
+    await act(async () => container.querySelector("form").dispatchEvent(
+      new dom.window.Event("submit", { bubbles: true, cancelable: true }),
+    ));
+    assert.equal(writes.length, 0);
+    optionGates.delete("clusters:2");
+    await act(async () => pending.resolve());
+    await waitForOptions(() => button("Retry cluster options", container));
+    assert.match(container.textContent, /Unable to load cluster options/);
+    assert.doesNotMatch(container.textContent, /No clusters available/);
+    assert.equal(container.querySelector(`[name="${form.field}"]`).value, "Preserved draft");
+    assert.equal(container.querySelector('button[type="submit"]').disabled, true);
+    assert.equal(toast.error.mock.calls.at(-1).arguments[0], "clusters options unavailable.");
+    optionFailures.clear();
+    const previousReads = reads.length;
+    await click(button("Retry cluster options", container));
+    assert.deepEqual(reads.slice(previousReads).map((read) => [read.url, read.params.page]), [
+      [`${API}clusters/`, 1], [`${API}clusters/`, 2], [`${API}clusters/`, 3],
+    ]);
+    assert.ok(reads.slice(previousReads).every((read) => read.signal instanceof AbortSignal));
+    assert.equal(container.querySelector(`[name="${form.field}"]`).value, "Preserved draft");
+    const trigger = container.querySelector('[aria-haspopup="listbox"]');
+    assert.equal(trigger.disabled, false);
+    if (form.editing) assert.match(trigger.textContent, /Cluster 251/);
+    await click(trigger);
+    assert.equal(document.querySelectorAll('[role="option"]').length, 251);
+    await click(button("Cluster 251", document.body));
+    if (form.field === "title") await changeOptionField("subtitle", "Useful subtitle");
+    await act(async () => container.querySelector("form").dispatchEvent(
+      new dom.window.Event("submit", { bubbles: true, cancelable: true }),
+    ));
+    await waitForOptions(() => writes.length === 1);
+    assert.equal(String(writes[0].payload.cluster_id), "251");
+  });
+
+  test(`${form.file}: genuinely empty cluster options retain their empty state`, async () => {
+    optionPageSize = 100;
+    records.clusters = [];
+    await mountOptionForm(form);
+    await waitForOptions(() => !container.querySelector('[aria-haspopup="listbox"]').disabled);
+    await click(container.querySelector('[aria-haspopup="listbox"]'));
+    assert.match(document.body.textContent, /No clusters available/);
+    assert.equal(button("Retry cluster options", container), undefined);
+  });
+}
+
+for (const [name, getComponent, entry] of [
+  ["Business Management", () => BusinessTable, "/admin-panel/businesses"],
+  ["Discovery Scores", () => DiscoveryScores, "/admin-panel/analytics/discovery-scores"],
+]) {
+  test(`${name}: filter sources load every page and preserve selected filters across refresh failures`, async () => {
+    completeInventories();
+    await render(getComponent(), entry);
+    assert.match(container.querySelector("tbody").textContent, /Healthy business/);
+    for (const [resource, label, option] of [
+      ["clusters", "Cluster", "Cluster 251"],
+      ["categories", "Category", "Category 251"],
+      ["specialty-tags", "Specialty Tag", "Specialty 251"],
+    ]) {
+      assert.deepEqual(reads.filter((read) => read.url === `${API}${resource}/`).map((read) => read.params.page), [1, 2, 3]);
+      await click(button("Filter", container));
+      await click(button(`Choose ${label} filter`, container));
+      await click(button(option, container));
+      assert.ok(container.querySelector(`[aria-label="Remove ${label} filter"]`));
+    }
+    optionFailures.add("clusters:2");
+    await act(async () => client.invalidateQueries({ queryKey: keys.references("clusters"), exact: true }));
+    await waitForOptions(() => button("Retry cluster options", container));
+    assert.match(container.textContent, /Cluster: Cluster 251/);
+    assert.match(container.querySelector("tbody").textContent, /Healthy business/);
+    await click(button("Filter", container));
+    assert.equal(button("Choose Cluster filter", container).disabled, true);
+    assert.equal(button("Choose Category filter", container).disabled, false);
+    optionFailures.clear();
+    const previousReads = reads.length;
+    await click(button("Retry cluster options", container));
+    assert.deepEqual(reads.slice(previousReads).map((read) => [read.url, read.params.page]), [
+      [`${API}clusters/`, 1], [`${API}clusters/`, 2], [`${API}clusters/`, 3],
+    ]);
+    assert.equal(button("Choose Cluster filter", container).disabled, false);
+    assert.match(container.textContent, /Cluster: Cluster 251/);
+    assert.match(container.textContent, /Category: Category 251/);
+    assert.match(container.textContent, /Specialty Tag: Specialty 251/);
+  });
+
+  for (const [resource, label] of [
+    ["clusters", "Cluster"], ["categories", "Category"], ["specialty-tags", "Specialty Tag"],
+  ]) {
+    test(`${name}: initial ${resource} failure retries only that filter source`, async () => {
+      completeInventories(101);
+      optionFailures.add(`${resource}:2`);
+      await render(getComponent(), entry);
+      const retryLabel = `Retry ${label.toLowerCase()} options`;
+      assert.ok(button(retryLabel, container));
+      assert.match(container.querySelector("tbody").textContent, /Healthy business/);
+      await click(button("Filter", container));
+      assert.equal(button(`Choose ${label} filter`, container).disabled, true);
+      optionFailures.clear();
+      const previousReads = reads.length;
+      await click(button(retryLabel, container));
+      assert.deepEqual(reads.slice(previousReads).map((read) => read.url), [
+        `${API}${resource}/`, `${API}${resource}/`,
+      ]);
+      assert.equal(button(`Choose ${label} filter`, container).disabled, false);
+    });
+  }
+
+  test(`${name}: pending and empty filter sources are distinct`, async () => {
+    completeInventories(0);
+    const pending = optionDeferred();
+    optionGates.set("clusters:1", pending);
+    const Component = getComponent();
+    await act(async () => root.render(
+      React.createElement(QueryClientProvider, { client },
+        React.createElement(MemoryRouter, { initialEntries: [entry] }, React.createElement(Component)),
+      ),
+    ));
+    await waitForOptions(() => container.textContent.includes("Loading cluster options"));
+    await act(async () => button("Filter", container).click());
+    assert.equal(button("Choose Cluster filter", container).disabled, true);
+    optionGates.delete("clusters:1");
+    await act(async () => pending.resolve());
+    await settleQueries();
+    assert.equal(button("Choose Cluster filter", container).disabled, false);
+    await click(button("Choose Cluster filter", container));
+    assert.match(container.textContent, /No cluster options available/);
+    assert.equal(button("Retry cluster options", container), undefined);
+  });
+}
