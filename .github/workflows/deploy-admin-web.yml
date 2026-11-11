@@ -1,0 +1,66 @@
+name: Deploy Admin Web
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Admin Web to production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    concurrency:
+      group: sugbogo-admin-production
+      cancel-in-progress: false
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: sugbogo_frontend/web_app
+
+    env:
+      VITE_API_URL: https://sugbogo-api-production.up.railway.app/api
+      VITE_GOOGLE_MAPS_API_KEY: ${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
+      VITE_GOOGLE_MAP_ID: ${{ vars.VITE_GOOGLE_MAP_ID }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: sugbogo_frontend/web_app/package-lock.json
+
+      - name: Validate production Maps configuration
+        run: |
+          if [[ -z "${VITE_GOOGLE_MAPS_API_KEY//[[:space:]]/}" ]]; then
+            echo "::error::Set the VITE_GOOGLE_MAPS_API_KEY repository Actions variable."
+            exit 1
+          fi
+          if [[ -z "${VITE_GOOGLE_MAP_ID//[[:space:]]/}" ]]; then
+            echo "::error::Set the VITE_GOOGLE_MAP_ID repository Actions variable."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production assets
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: sugbogo_frontend/web_app
+          command: pages deploy dist --project-name=sugbogo-admin --branch=main
