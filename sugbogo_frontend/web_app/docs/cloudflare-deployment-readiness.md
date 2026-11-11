@@ -1,5 +1,71 @@
 # Admin Web: Cloudflare Pages deployment readiness
 
+## Manual GitHub Actions deployment
+
+The current deployment workflow is
+[`deploy-admin-web.yml`](../../../.github/workflows/deploy-admin-web.yml).
+It builds on a GitHub-hosted Ubuntu runner with Node 24, runs `npm ci` and
+`npm run build` in `sugbogo_frontend/web_app`, then uploads `dist` to the existing
+Cloudflare Pages Direct Upload project `sugbogo-admin` with `--branch=main`.
+The production API URL is fixed in the workflow to
+`https://sugbogo-api-production.up.railway.app/api`.
+
+### Required repository configuration
+
+In GitHub **Settings > Secrets and variables > Actions**, retain the existing
+repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token
+must have Cloudflare Pages Edit permission for the existing project's account.
+Confirm the existing Pages project's production branch is `main`.
+
+On the **Variables** tab, configure these repository variables before deploying:
+
+| Variable | Required value |
+| --- | --- |
+| `VITE_GOOGLE_MAPS_API_KEY` | The existing Google Maps browser API key. |
+| `VITE_GOOGLE_MAP_ID` | The existing JavaScript map ID used for production maps. |
+
+The workflow fails before installation if either Maps variable is blank. The
+shared Maps configuration only permits the demo map ID in development; production
+transit maps and advanced markers require real configuration. Enable the Maps
+JavaScript API and the APIs used by the app in Google Cloud, and allow
+`https://sugbogo-admin.pages.dev/*` in the browser key's website restrictions.
+Keep appropriate API restrictions. All `VITE_*` values are public in the compiled
+app. They are supplied during the GitHub build; changing Cloudflare dashboard
+variables alone does not change a Direct Upload bundle. Rebuild to apply changes.
+
+### Triggering and safely testing
+
+1. Review the workflow and validate it with `actionlint`. A build-only check can
+   run `npm ci` followed by `npm run build` in the app directory with the workflow's
+   three `VITE_*` environment variables. These commands do not upload anything;
+   production Maps values are needed to verify Maps behavior in the built app.
+   No local build or Wrangler installation is required for deployment.
+2. After the reviewed workflow is added to the repository's default branch,
+   open **Actions > Deploy Admin Web > Run workflow**. Selecting a non-`main`
+   branch skips the deployment job without building or uploading.
+3. When ready to replace production, select **main** and run the workflow.
+   **Every run on `main` deploys production; there is no dry-run input.** There
+   are no push, pull request, or scheduled triggers. Runs share a fixed production
+   concurrency group and do not cancel an active upload. Installation, build, or
+   upload failures fail the job and prevent subsequent steps from running.
+4. Verify the install, build, and upload logs, record the source commit and
+   Cloudflare deployment ID, then check
+   [the production site](https://sugbogo-admin.pages.dev). Check login, deep-link
+   refreshes, authenticated API calls, and Maps using the checks below. Retain the
+   previous working Cloudflare deployment for rollback. Backend/CORS and Railway
+   changes remain outside this workflow's scope.
+
+Only `contents: read` is granted to the GitHub token. Wrangler authenticates with
+the two Cloudflare secrets; GitHub Deployment records are not requested.
+No credentials or environment files are uploaded. This follows Cloudflare's
+[Wrangler Direct Upload workflow](https://developers.cloudflare.com/pages/how-to/use-direct-upload-with-continuous-integration/).
+
+## Historical Phase 1 readiness review
+
+The findings and proposed dashboard settings below describe the earlier review;
+the GitHub Actions procedure above is the current deployment path for the
+existing Direct Upload project.
+
 Reviewed 2026-11-10 for Ralph's Phase 1 assignment.
 
 ## Result
