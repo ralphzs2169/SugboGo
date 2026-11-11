@@ -34,6 +34,11 @@ export default function DiscoveryScoresPage() {
   const recompute = useRecomputeDiscoveryScores();
   const submitting = useRef(false);
   const isRecomputing = recompute.isPending;
+  const recomputeErrorCode = recompute.error?.response?.data?.code;
+  const canRefreshScores = [
+    "RECOMPUTATION_OUTCOME_UNKNOWN",
+    "RECOMPUTATION_IN_PROGRESS",
+  ].includes(recomputeErrorCode);
   const {
     globalFilter,
     setGlobalFilter,
@@ -277,6 +282,18 @@ export default function DiscoveryScoresPage() {
         {recompute.error && (
           <div role="alert" className="mb-4 rounded-lg border border-danger/25 bg-danger/10 p-3 text-sm text-text-primary">
             {recompute.error.response?.data?.message || recompute.error.message || "Recomputation failed. Please try again."}
+            {canRefreshScores && (
+              <div className="mt-3 space-y-2">
+                <p>Refreshing reads stored scores; it does not confirm whether this batch finished.</p>
+                <Button
+                  variant="secondary"
+                  loading={recompute.isRefreshing}
+                  onClick={recompute.refreshScores}
+                >
+                  Refresh score data
+                </Button>
+              </div>
+            )}
           </div>
         )}
         <div className="flex justify-end gap-3">
