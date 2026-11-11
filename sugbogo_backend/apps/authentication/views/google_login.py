@@ -8,7 +8,10 @@ from apps.authentication.serializers import (
     LoginResponseSerializer,
 )
 from apps.authentication.services.oauth.account import OAuthAccountService
-from apps.authentication.services.oauth.google import GoogleOAuthService
+from apps.authentication.services.oauth.google import (
+    GoogleOAuthConfigurationError,
+    GoogleOAuthService,
+)
 from apps.authentication.throttles import OAuthLoginThrottle
 from apps.authentication.utils.jwt import issue_tokens
 from apps.authentication.models import LoginEvent
@@ -28,7 +31,7 @@ def google_login_view(request):
         oauth_user = GoogleOAuthService.verify_id_token(
             serializer.validated_data["id_token"]
         )
-    except TransportError:
+    except (GoogleOAuthConfigurationError, TransportError):
         return error_response(
             message="Unable to verify Google token.",
             code="GOOGLE_SERVICE_UNAVAILABLE",

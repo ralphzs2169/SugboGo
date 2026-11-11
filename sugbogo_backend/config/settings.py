@@ -363,7 +363,7 @@ cloudinary.config(
     secure=True,
 )
 
-# Google OAuth Client ID
+# Expected ID-token audience; the current Android AuthSession flow uses its Android client ID.
 GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
 
 FACEBOOK_APP_ID = os.getenv("FACEBOOK_APP_ID")

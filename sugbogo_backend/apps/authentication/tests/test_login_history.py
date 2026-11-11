@@ -128,7 +128,14 @@ class LoginHistoryTests(APITestCase):
                 cache.clear()
                 self.user.USER_STATUS = User.UserStatus.ACTIVE
                 self.user.save(update_fields=["USER_STATUS"])
-                identity = OAuthUser(provider, f"{provider}-id", self.user.USER_EMAIL, "History", "Tester")
+                identity = OAuthUser(
+                    provider,
+                    f"{provider}-id",
+                    self.user.USER_EMAIL,
+                    "History",
+                    "Tester",
+                    email_authoritative=True,
+                )
                 with patch(f"apps.authentication.views.{target}", return_value=identity):
                     response = self.client.post(reverse(f"{provider}_login"), {field: "proof"}, format="json")
                 self.assertEqual(response.status_code, 200)

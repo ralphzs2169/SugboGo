@@ -167,7 +167,14 @@ class AccountLockoutTests(APITestCase):
         self.user.refresh_from_db()
         self.assertIsNone(self.user.USER_PASSWORD_LOCKED_UNTIL)
         self.lock()
-        identity = OAuthUser("google", "lock-google", self.user.USER_EMAIL, "Lockout", "Tester")
+        identity = OAuthUser(
+            "google",
+            "lock-google",
+            self.user.USER_EMAIL,
+            "Lockout",
+            "Tester",
+            email_authoritative=True,
+        )
         with patch("apps.authentication.views.google_login.GoogleOAuthService.verify_id_token", return_value=identity):
             response = self.client.post(reverse("google_login"), {"id_token": "proof"}, format="json")
         self.assertEqual(response.status_code, 200)
