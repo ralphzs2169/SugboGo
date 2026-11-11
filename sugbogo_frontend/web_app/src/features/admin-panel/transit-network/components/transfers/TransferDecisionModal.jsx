@@ -14,6 +14,7 @@ import { formatVariantLabel } from "../../utils/transitFormatters";
  */
 export default function TransferDecisionModal({
   transfer,
+  reviewDisabled = false,
   action,
   onClose,
   onSaved,
@@ -30,7 +31,7 @@ export default function TransferDecisionModal({
   );
 
   async function handleReview() {
-    if (!transfer || !action) {
+    if (!transfer || !action || reviewDisabled) {
       return;
     }
     return runSubmission(async (isCurrent) => {
@@ -71,6 +72,11 @@ export default function TransferDecisionModal({
           : "Ignored transfers remain recorded but will not participate in routing."
       }
     >
+      {reviewDisabled && (
+        <p role="alert" className="mb-3 text-sm text-text-secondary">
+          This record changed or could not be verified. Close this confirmation and review the current selection.
+        </p>
+      )}
       {/* Review summary */}
       <p className="rounded-lg bg-surface p-4 text-sm text-text-secondary">
         {formatVariantLabel(transfer?.source_variant)} to {" "}
@@ -85,7 +91,7 @@ export default function TransferDecisionModal({
         <Button
           variant={isConfirming ? "success" : "danger"}
           icon={isConfirming ? Check : X}
-          loading={isSubmitting}
+          loading={isSubmitting} disabled={reviewDisabled}
           onClick={handleReview}
         >
           {isConfirming ? "Confirm Transfer" : "Ignore Transfer"}

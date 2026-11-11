@@ -45,11 +45,12 @@ function getVariantPointOptions(variant) {
  */
 export default function TransferForm({
   transfer,
+  saveDisabled = false,
   onDirtyChange,
   onCancel,
   onSaved,
 }) {
-  const initialValues = useMemo(() => valuesFromTransfer(transfer), [transfer]);
+  const [initialValues] = useState(() => valuesFromTransfer(transfer));
   const [values, setValues] = useState(initialValues);
   const [errors, setErrors] = useState({});
   const {
@@ -134,6 +135,7 @@ export default function TransferForm({
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (saveDisabled) return;
     const validationErrors = validateValues();
 
     if (Object.keys(validationErrors).length) {
@@ -284,7 +286,7 @@ export default function TransferForm({
         <Button variant="secondary" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button type="submit" loading={isSubmitting} disabled={!isDirty || areVariantsLoading}>
+        <Button type="submit" loading={isSubmitting} disabled={!isDirty || areVariantsLoading || saveDisabled}>
           {isEditing ? "Save Connection" : "Add Pending Transfer"}
         </Button>
       </div>

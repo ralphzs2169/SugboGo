@@ -13,6 +13,8 @@ export default function TransitPointEditorPanel({
   values,
   errors,
   isSubmitting,
+  saveDisabled = false,
+  editDisabled = false,
   submittingAction,
   onNameChange,
   onStartAdd,
@@ -63,6 +65,7 @@ export default function TransitPointEditorPanel({
             variant="secondary"
             icon={Edit3}
             onClick={onStartEdit}
+            disabled={editDisabled}
           >
             Edit
           </Button>
@@ -89,7 +92,7 @@ export default function TransitPointEditorPanel({
 
   function handleSubmit(event) {
     event.preventDefault();
-    onSave(false);
+    if (!saveDisabled) onSave(false);
   }
 
   return (
@@ -183,7 +186,7 @@ export default function TransitPointEditorPanel({
         <Button
           type="submit"
           loading={isSubmitting && submittingAction === "save"}
-          disabled={isSubmitting}
+          disabled={isSubmitting || saveDisabled}
         >
           {isAdding ? "Save Point" : "Save Changes"}
         </Button>
