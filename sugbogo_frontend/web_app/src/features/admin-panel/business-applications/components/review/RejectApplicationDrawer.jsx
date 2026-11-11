@@ -42,6 +42,8 @@ export default function RejectApplicationDrawer({
   expectedSubmissionId,
   duplicateQuery,
   assessmentBlockReason = null,
+  draft,
+  onDraftChange,
 }) {
   const [rejectionType, setRejectionType] = useState(() =>
     initialRejectionFlow(duplicateQuery, expectedSubmissionId),
@@ -73,8 +75,25 @@ export default function RejectApplicationDrawer({
   const duplicateUnavailableMessage =
     assessmentBlockReason ||
     "The saved duplicate assessment state changed or is being rechecked. Review the current state before continuing with rejection.";
-  const [selectedSections, setSelectedSections] = useState([]);
-  const [feedback, setFeedback] = useState({});
+  const [localDraft, setLocalDraft] = useState({ selectedSections: [], feedback: {} });
+  const { selectedSections, feedback } = draft ?? localDraft;
+  const updateDraft = onDraftChange ?? setLocalDraft;
+
+  function setSelectedSections(updater) {
+    updateDraft((current) => ({
+      ...current,
+      selectedSections: typeof updater === "function"
+        ? updater(current.selectedSections)
+        : updater,
+    }));
+  }
+
+  function setFeedback(updater) {
+    updateDraft((current) => ({
+      ...current,
+      feedback: typeof updater === "function" ? updater(current.feedback) : updater,
+    }));
+  }
   const [errors, setErrors] = useState({});
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(isOpen);
@@ -265,6 +284,7 @@ export default function RejectApplicationDrawer({
     try {
       await rejectApplication(applicationId, payload);
 
+      updateDraft(() => ({ selectedSections: [], feedback: {} }));
       toast.success("Application rejected successfully.");
 
       setIsConfirmationOpen(false);
