@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   AdvancedMarker,
   ControlPosition,
@@ -13,6 +13,7 @@ import { googleMapsConfig } from "@/shared/utils/googleMapsConfig";
 import { GoogleMapsAuthContext } from "@/shared/utils/googleMapsAuthContext";
 import { getTransitMapNotice } from "../../utils/transitMapStatus";
 import TransitMapFrame from "./TransitMapFrame";
+import useGoogleMapTheme from "@/shared/hooks/useGoogleMapTheme";
 
 import {
   isPointEditingMode,
@@ -49,9 +50,20 @@ function toPath(geometry = []) {
 /** Focuses the persistent map only after an explicit feature selection. */
 function MapSelectionViewport({ focusRequest }) {
   const map = useMap();
+  const focusedRequest = useRef(null);
 
   useEffect(() => {
-    if (!map || !window.google?.maps || !focusRequest?.positions?.length) {
+    if (
+      !map ||
+      !window.google?.maps ||
+      focusedRequest.current === focusRequest
+    ) {
+      return;
+    }
+
+    focusedRequest.current = focusRequest;
+
+    if (!focusRequest?.positions?.length) {
       return;
     }
 
@@ -148,6 +160,10 @@ export default function TransitNetworkMapCanvas({
 }) {
   const loaderStatus = useApiLoadingStatus();
   const authFailed = useContext(GoogleMapsAuthContext);
+  const mapTheme = useGoogleMapTheme({
+    center: CEBU_CITY_CENTER,
+    zoom: 13,
+  });
   const apiStatus = authFailed ? "AUTH_FAILURE" : loaderStatus;
   const [markersAvailable, setMarkersAvailable] = useState(null);
   const [timedOutPhase, setTimedOutPhase] = useState(null);
@@ -281,8 +297,7 @@ export default function TransitNetworkMapCanvas({
     >
       {/* Persistent transit network map */}
       <Map
-        defaultCenter={CEBU_CITY_CENTER}
-        defaultZoom={13}
+        {...mapTheme}
         mapId={googleMapsConfig.mapId}
         mapTypeControl={false}
         streetViewControl={false}

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   AdvancedMarker,
   ControlPosition,
@@ -11,6 +11,7 @@ import {
 
 import BusinessMapMarker from "@/shared/components/maps/BusinessMapMarker";
 import StreetViewMarkerOverlay from "./StreetViewMarkerOverlay";
+import useGoogleMapTheme from "@/shared/hooks/useGoogleMapTheme";
 
 /**
  * Displays a read-only interactive map for a business location.
@@ -35,16 +36,33 @@ export default function BusinessLocationMap({
 
   const hasValidCoordinates = latitude != null && longitude != null;
 
-  const businessPosition = hasValidCoordinates
-    ? {
+  const businessPosition = useMemo(
+    () => {
+      if (!hasValidCoordinates) {
+        return null;
+      }
+
+      return {
         lat: Number(latitude),
         lng: Number(longitude),
-      }
-    : null;
+      };
+    },
+    [hasValidCoordinates, latitude, longitude],
+  );
+  const mapTheme = useGoogleMapTheme({
+    center: businessPosition,
+    zoom: 17,
+  });
+  const focusedPosition = useRef(null);
 
   // Center the map on a selected landmark unless Street View is active.
   useEffect(() => {
-    if (!map || !focusPosition) {
+    if (!map || focusedPosition.current === focusPosition) {
+      return;
+    }
+
+    if (!focusPosition) {
+      focusedPosition.current = focusPosition;
       return;
     }
 
@@ -54,6 +72,7 @@ export default function BusinessLocationMap({
       return;
     }
 
+    focusedPosition.current = focusPosition;
     map.panTo(focusPosition);
     map.setZoom(17);
   }, [map, focusPosition]);
@@ -83,7 +102,7 @@ export default function BusinessLocationMap({
       if (width > 0 && height > 0) {
         hasFixed = true;
 
-        google.maps.event.trigger(map, "resize");
+        globalThis.google.maps.event.trigger(map, "resize");
         map.setCenter(map.getCenter());
       }
     });
@@ -107,6 +126,8 @@ export default function BusinessLocationMap({
       return;
     }
 
+    // Synchronize selection requested by the surrounding landmark controls.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedMarker({
       id: landmark.id,
       type: "landmark",
@@ -151,8 +172,7 @@ export default function BusinessLocationMap({
       className={`overflow-hidden rounded-lg border border-stroke ${className}`}
     >
       <Map
-        defaultCenter={businessPosition}
-        defaultZoom={17}
+        {...mapTheme}
         mapId={GOOGLE_MAP_ID}
         streetViewControl={true}
       >
@@ -197,6 +217,7 @@ export default function BusinessLocationMap({
         {/* Business location */}
         <BusinessLocationMarker
           position={businessPosition}
+          colorScheme={mapTheme.colorScheme}
           variant="business"
           markerData={{
             id: "business",
@@ -240,6 +261,7 @@ export default function BusinessLocationMap({
               {/* Map marker */}
               <BusinessLocationMarker
                 position={position}
+                colorScheme={mapTheme.colorScheme}
                 variant={variant}
                 title={landmark.name}
                 markerData={{
@@ -288,6 +310,7 @@ export default function BusinessLocationMap({
  */
 function BusinessLocationMarker({
   position,
+  colorScheme,
   variant,
   title,
   markerData,
@@ -296,6 +319,20 @@ function BusinessLocationMarker({
   onClose,
 }) {
   const [markerRef, marker] = useAdvancedMarkerRef();
+  const [popupTheme, setPopupTheme] = useState({
+    colorScheme,
+    preserveCamera: false,
+  });
+
+  if (
+    popupTheme.colorScheme !== colorScheme ||
+    (!isSelected && popupTheme.preserveCamera)
+  ) {
+    setPopupTheme({
+      colorScheme,
+      preserveCamera: isSelected,
+    });
+  }
 
   return (
     <>
@@ -310,7 +347,12 @@ function BusinessLocationMarker({
 
       {/* Marker information */}
       {isSelected && marker && (
-        <InfoWindow anchor={marker} onCloseClick={onClose}>
+        <InfoWindow
+          anchor={marker}
+          onCloseClick={onClose}
+          // Reopening a selected popup after a theme change must not pan again.
+          disableAutoPan={popupTheme.preserveCamera}
+        >
           <div className="max-w-xs px-1 py-0">
             <p className="text-sm font-semibold text-gray-900">
               {markerData.name}

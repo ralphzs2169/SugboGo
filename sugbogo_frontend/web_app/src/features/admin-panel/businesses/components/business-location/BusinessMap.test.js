@@ -141,6 +141,7 @@ test("selection uses refreshed status, clears on removal, and counts matching re
   Object.assign(globalThis, {
     window: dom.window,
     document: dom.window.document,
+    MutationObserver: dom.window.MutationObserver,
     IS_REACT_ACT_ENVIRONMENT: true,
     requestAnimationFrame: (callback) => setTimeout(callback, 0),
     cancelAnimationFrame: clearTimeout,
@@ -271,6 +272,7 @@ test("selection uses refreshed status, clears on removal, and counts matching re
     dom.window.close();
     delete globalThis.window;
     delete globalThis.document;
+    delete globalThis.MutationObserver;
     delete globalThis.IS_REACT_ACT_ENVIRONMENT;
   }
 });
