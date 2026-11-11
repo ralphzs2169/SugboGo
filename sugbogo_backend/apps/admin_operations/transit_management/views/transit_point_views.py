@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 
 from apps.admin_operations.transit_management.serializers.transit_point_serializers import (
+    TransitPointDetailSerializer,
     TransitPointSerializer,
     TransitPointWriteSerializer,
 )
@@ -63,7 +64,7 @@ class TransitPointListView(APIView):
 
 
 class TransitPointDetailView(APIView):
-    """Handle administrator Transit Point retrieval and updates."""
+    """Handle administrator Transit Point retrieval, updates, and unused-point deletion."""
 
     permission_classes = ADMIN_PERMISSIONS
 
@@ -73,10 +74,27 @@ class TransitPointDetailView(APIView):
         transit_point = TransitPointService.get_transit_point(
             transit_point_id,
         )
+        transit_point.deletion = TransitPointService.get_deletion_dependencies(
+            transit_point,
+        )
 
         return success_response(
-            data=TransitPointSerializer(transit_point).data,
+            data=TransitPointDetailSerializer(transit_point).data,
             message="Transit Point retrieved successfully.",
+        )
+
+    def delete(
+        self,
+        request,
+        transit_point_id,
+    ):
+        """Delete an unused Transit Point with the existing administrator permissions."""
+
+        TransitPointService.delete_transit_point(
+            transit_point_id,
+        )
+        return success_response(
+            message="Transit Point deleted successfully.",
         )
 
     def put(self, request, transit_point_id):

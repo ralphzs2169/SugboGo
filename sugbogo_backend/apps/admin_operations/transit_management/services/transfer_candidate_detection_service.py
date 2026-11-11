@@ -13,6 +13,9 @@ from apps.transit.models import (
     TransitPoint,
     TransitTransfer,
 )
+from apps.transit.services.transit_spatial_validation_service import (
+    TransitSpatialValidationService,
+)
 
 
 class TransferCandidateDetectionService:
@@ -173,6 +176,7 @@ class TransferCandidateDetectionService:
     def detect_candidates():
         """Create missing pending candidates and return a detection summary."""
 
+        TransitSpatialValidationService.lock_network()
         candidate_rows = (
             TransferCandidateDetectionService
             ._find_spatial_candidates()
