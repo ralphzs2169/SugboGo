@@ -4,6 +4,7 @@ import { GoogleMapsAuthContext } from "@/shared/utils/googleMapsAuthContext";
 import { googleMapsConfig } from "@/shared/utils/googleMapsConfig";
 import { geographicOpacity, geographicRanges } from "../utils/geographicPresentation";
 import { formatCount } from "../utils/presentation";
+import useGoogleMapTheme from "@/shared/hooks/useGoogleMapTheme";
 
 /** Converts existing theme colors into RGB supported by the Maps Data layer. */
 function themeColor(token) {
@@ -16,7 +17,15 @@ function themeColor(token) {
 }
 
 /** Draws only backend-supplied GeoJSON; business locations never become explorer locations. */
-function CellLayer({ cells, metric, selected, hovered, onSelect, onHover }) {
+function CellLayer({
+  cells,
+  metric,
+  selected,
+  hovered,
+  onSelect,
+  onHover,
+  colorScheme,
+}) {
   const map = useMap("analytics-geography");
   const maps = useMapsLibrary("maps");
   const layerRef = useRef(null);
@@ -30,7 +39,7 @@ function CellLayer({ cells, metric, selected, hovered, onSelect, onHover }) {
     })) });
     const populated = new Set(cells.filter((cell) => cell.eligible_businesses > 0).map((cell) => cell.id));
     const signature = [...(populated.size ? populated : cells.map((cell) => cell.id))].join("|");
-    if (fittedRef.current?.map !== map || fittedRef.current?.signature !== signature) {
+    if (fittedRef.current !== signature) {
       const bounds = new window.google.maps.LatLngBounds();
       layer.forEach((feature) => {
         if (!populated.size || populated.has(String(feature.getId()))) {
@@ -38,7 +47,7 @@ function CellLayer({ cells, metric, selected, hovered, onSelect, onHover }) {
         }
       });
       if (!bounds.isEmpty()) map.fitBounds(bounds, 48);
-      fittedRef.current = { map, signature };
+      fittedRef.current = signature;
     }
     const listeners = [
       layer.addListener("click", (event) => {
@@ -98,10 +107,7 @@ function CellLayer({ cells, metric, selected, hovered, onSelect, onHover }) {
       });
     }
     style();
-    const observer = new MutationObserver(style);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme", "style"] });
-    return () => observer.disconnect();
-  }, [map, maps, cells, metric, selected, hovered?.id]);
+  }, [map, maps, cells, metric, selected, hovered?.id, colorScheme]);
   return null;
 }
 
@@ -109,13 +115,12 @@ function CellLayer({ cells, metric, selected, hovered, onSelect, onHover }) {
 export default function GeographicDistributionMap(props) {
   const status = useApiLoadingStatus();
   const authFailed = useContext(GoogleMapsAuthContext);
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  const mapTheme = useGoogleMapTheme({
+    id: "analytics-geography",
+    center: { lat: 10.3157, lng: 123.8854 },
+    zoom: 12,
+  });
   const [timedOut, setTimedOut] = useState(false);
-  useEffect(() => {
-    const observer = new MutationObserver(() => setDark(document.documentElement.classList.contains("dark")));
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
   useEffect(() => {
     if (status === "LOADED") return undefined;
     const timer = setTimeout(() => setTimedOut(true), 15000);
@@ -128,9 +133,16 @@ export default function GeographicDistributionMap(props) {
   return (
     <div aria-label="Cebu City business-location map" className="h-80 overflow-hidden rounded-lg border border-stroke focus-within:ring-2 focus-within:ring-info sm:h-112">
       {/* Existing Maps provider supplies the API; viewport fits the actual returned grid. */}
-      <Map id="analytics-geography" defaultCenter={{ lat: 10.3157, lng: 123.8854 }} defaultZoom={12}
-        mapId={googleMapsConfig.mapId || undefined} colorScheme={dark ? "DARK" : "LIGHT"} streetViewControl={false} fullscreenControl mapTypeControl={false} gestureHandling="cooperative">
-        <CellLayer {...props} />
+      <Map
+        {...mapTheme}
+        id="analytics-geography"
+        mapId={googleMapsConfig.mapId || undefined}
+        streetViewControl={false}
+        fullscreenControl
+        mapTypeControl={false}
+        gestureHandling="cooperative"
+      >
+        <CellLayer {...props} colorScheme={mapTheme.colorScheme} />
         {/* Hover/click information uses administrator-facing values, never internal cell IDs. */}
         {props.hovered && props.hoveredCell && <InfoWindow position={props.hovered.position} maxWidth={240} disableAutoPan onCloseClick={() => props.onHover(null)}>
           <div className="max-h-48 max-w-56 overflow-y-auto break-words rounded-lg bg-background p-2 text-sm text-text-primary">

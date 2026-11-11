@@ -1,5 +1,12 @@
 import { GoogleMapsAuthContext } from "@/shared/utils/googleMapsAuthContext";
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ControlPosition,
   Map,
@@ -12,6 +19,7 @@ import BusinessMapInfoWindow from "./BusinessMapInfoWindow";
 import BusinessMapClusters from "./BusinessMapClusters";
 import AnchoredMapPopup from "./AnchoredMapPopup";
 import BusinessMapChooser from "./BusinessMapChooser";
+import useGoogleMapTheme from "@/shared/hooks/useGoogleMapTheme";
 
 const DEFAULT_CENTER = {
   lat: 10.3157,
@@ -42,6 +50,11 @@ export default function BusinessManagementMap({
   const map = useMap();
   const loadingStatus = useApiLoadingStatus();
   const authFailed = useContext(GoogleMapsAuthContext);
+  const mapTheme = useGoogleMapTheme({
+    center: DEFAULT_CENTER,
+    zoom: DEFAULT_ZOOM,
+  });
+  const fittedBusinesses = useRef(null);
   const [selectedId, setSelectedId] = useState(null);
   const [overlapIds, setOverlapIds] = useState([]);
   const selectedBusiness = businesses.find(
@@ -72,7 +85,14 @@ export default function BusinessManagementMap({
   );
 
   useEffect(() => {
-    if (!map || businessesWithCoordinates.length === 0) {
+    if (!map || fittedBusinesses.current === businessesWithCoordinates) {
+      return;
+    }
+
+    // A theme-only instance change must not fit the same results again.
+    fittedBusinesses.current = businessesWithCoordinates;
+
+    if (businessesWithCoordinates.length === 0) {
       return;
     }
 
@@ -191,8 +211,7 @@ export default function BusinessManagementMap({
       className={`relative overflow-hidden rounded-lg border p-2 border-stroke ${className}`}
     >
       <Map
-        defaultCenter={DEFAULT_CENTER}
-        defaultZoom={DEFAULT_ZOOM}
+        {...mapTheme}
         mapId={GOOGLE_MAP_ID}
         streetViewControl={false}
         fullscreenControl={true}

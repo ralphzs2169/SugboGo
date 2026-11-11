@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
 import {
   AdvancedMarker,
   APILoadingStatus,
@@ -8,6 +8,7 @@ import {
 } from "@vis.gl/react-google-maps";
 
 import StreetViewMarkerOverlay from "@/shared/components/maps/StreetViewMarkerOverlay";
+import useGoogleMapTheme from "@/shared/hooks/useGoogleMapTheme";
 
 import LocationMapStateMarker from "./LocationMapStateMarker";
 import {
@@ -65,9 +66,15 @@ function MapUnavailable({ states }) {
 /** Fits exact marker positions and caps zoom for nearby locations. */
 function FitComparisonBounds({ groups }) {
   const map = useMap();
+  const fittedGroups = useRef(null);
 
   useEffect(() => {
-    if (!map || !window.google?.maps || !groups.length) {
+    if (
+      !map ||
+      !window.google?.maps ||
+      !groups.length ||
+      fittedGroups.current === groups
+    ) {
       return;
     }
 
@@ -75,6 +82,7 @@ function FitComparisonBounds({ groups }) {
       return;
     }
 
+    fittedGroups.current = groups;
     const bounds = new window.google.maps.LatLngBounds();
     groups.forEach((group) => bounds.extend(group.position));
 
@@ -147,6 +155,10 @@ export default function LocationComparisonMap({ states }) {
     (state) => !validLocationPosition(state.location),
   );
   const mapId = import.meta.env.VITE_GOOGLE_MAP_ID;
+  const mapTheme = useGoogleMapTheme({
+    center: groups[0]?.position,
+    zoom: 16,
+  });
 
   if (
     !groups.length ||
@@ -170,8 +182,7 @@ export default function LocationComparisonMap({ states }) {
       {/* Read-only map with Google Pegman and standard navigation controls */}
       <div className="h-72 overflow-hidden rounded-lg border border-stroke sm:h-80">
         <Map
-          defaultCenter={groups[0].position}
-          defaultZoom={16}
+          {...mapTheme}
           mapId={mapId}
           streetViewControl
           zoomControl
