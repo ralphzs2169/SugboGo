@@ -48,7 +48,12 @@ export default (): ExpoConfig => ({
     "expo-sharing",
     "expo-sqlite",
     "expo-image",
-    "expo-image-picker",
+    [
+      "expo-image-picker",
+      {
+        microphonePermission: false,
+      },
+    ],
     "expo-status-bar",
     "expo-web-browser",
     "@react-native-community/datetimepicker",
@@ -66,6 +71,7 @@ export default (): ExpoConfig => ({
       {
         cameraPermission:
           "Allow SugboGo to access your camera to capture verification photos.",
+        recordAudioAndroid: false,
       },
     ],
     [
