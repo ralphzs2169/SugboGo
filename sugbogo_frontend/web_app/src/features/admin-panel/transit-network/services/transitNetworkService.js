@@ -85,9 +85,10 @@ export function fetchRouteVariantReferences(options = {}) {
   return loadTransitReferences(fetchRouteVariants, options);
 }
 
-export async function fetchTransitPoint(transitPointId) {
+export async function fetchTransitPoint(transitPointId, { signal } = {}) {
   const response = await apiClient.get(
     `${BASE_URL}transit-points/${transitPointId}/`,
+    { signal },
   );
 
   return unwrapData(response);
@@ -103,6 +104,14 @@ export async function updateTransitPoint(transitPointId, data) {
   const response = await apiClient.patch(
     `${BASE_URL}transit-points/${transitPointId}/`,
     data,
+  );
+
+  return unwrapData(response);
+}
+
+export async function deleteTransitPoint(transitPointId) {
+  const response = await apiClient.delete(
+    `${BASE_URL}transit-points/${transitPointId}/`,
   );
 
   return unwrapData(response);

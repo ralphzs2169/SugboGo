@@ -7,6 +7,7 @@ import {
   createTransitPoint,
   createTransitTransfer,
   detectTransitTransferCandidates,
+  deleteTransitPoint,
   ignoreTransitTransfer,
   updateJeepneyRoute,
   updateRouteVariant,
@@ -102,6 +103,54 @@ export default function useTransitMutations() {
     onSuccess: (_, { transitPointId }) =>
       invalidateTransitPointQueries(transitPointId),
   });
+  const deletePointMutation = useMutation({
+    mutationFn: deleteTransitPoint,
+    onSuccess: async (_, transitPointId) => {
+      await queryClient.cancelQueries({
+        queryKey: transitQueryKeys.transitPoints(),
+      });
+      const keepPoint = (point) => String(point.id) !== String(transitPointId);
+      queryClient.setQueriesData(
+        { queryKey: [...transitQueryKeys.transitPoints(), "list"] },
+        (previous) => {
+          if (!previous) return previous;
+          const items = previous.items.filter(keepPoint);
+          const removed = previous.items.length - items.length;
+          if (!removed) return previous;
+          const total = Math.max(0, previous.pagination.total_items - removed);
+          const pages = Math.ceil(total / previous.pagination.page_size);
+          return {
+            ...previous,
+            items,
+            pagination: {
+              ...previous.pagination,
+              total_items: total,
+              total_pages: pages,
+              has_next: previous.pagination.page < pages,
+            },
+          };
+        },
+      );
+      queryClient.setQueryData(
+        transitQueryKeys.transitPointReferences(),
+        (previous) => previous?.filter(keepPoint),
+      );
+      queryClient.removeQueries({
+        queryKey: transitQueryKeys.transitPointDetail(transitPointId),
+        exact: true,
+      });
+      // The workspace clears its selected ID before refetching active families.
+      await Promise.all([
+        transitQueryKeys.transitPoints(),
+        transitQueryKeys.routes(),
+        transitQueryKeys.variants(),
+        transitQueryKeys.transfers(),
+      ].map((queryKey) => queryClient.invalidateQueries({
+        queryKey,
+        refetchType: "none",
+      })));
+    },
+  });
   const createTransferMutation = useMutation({
     mutationFn: createTransitTransfer,
     onSuccess: () => invalidateTransferQueries(),
@@ -131,6 +180,7 @@ export default function useTransitMutations() {
     updateVariant: updateVariantMutation.mutateAsync,
     createPoint: createPointMutation.mutateAsync,
     updatePoint: updatePointMutation.mutateAsync,
+    deletePoint: deletePointMutation.mutateAsync,
     createTransfer: createTransferMutation.mutateAsync,
     updateTransfer: updateTransferMutation.mutateAsync,
     confirmTransfer: confirmTransferMutation.mutateAsync,
@@ -142,6 +192,7 @@ export default function useTransitMutations() {
     isUpdatingVariant: updateVariantMutation.isPending,
     isCreatingPoint: createPointMutation.isPending,
     isUpdatingPoint: updatePointMutation.isPending,
+    isDeletingPoint: deletePointMutation.isPending,
     isCreatingTransfer: createTransferMutation.isPending,
     isUpdatingTransfer: updateTransferMutation.isPending,
     isConfirmingTransfer: confirmTransferMutation.isPending,

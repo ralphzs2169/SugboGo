@@ -113,20 +113,22 @@ export function useRouteVariant(variantId, options = {}) {
 export function useTransitPoints(params = {}, options = {}) {
   return usePaginatedTransitQuery({
     queryKey: transitQueryKeys.transitPointList(params),
-    queryFn: () => fetchTransitPoints(params),
+    queryFn: ({ signal }) => fetchTransitPoints(params, { signal }),
     enabled: options.enabled,
   });
 }
 
 export function useTransitPoint(transitPointId, options = {}) {
   const query = useQuery({
+    ...options,
     queryKey: transitQueryKeys.transitPointDetail(transitPointId),
-    queryFn: () => fetchTransitPoint(transitPointId),
+    queryFn: ({ signal }) => fetchTransitPoint(transitPointId, { signal }),
     enabled: options.enabled !== false && Boolean(transitPointId),
   });
 
   return {
     transitPoint: query.data ?? null,
+    isFetchedAfterMount: query.isFetchedAfterMount,
     dataUpdatedAt: query.dataUpdatedAt,
     isFetching: query.isFetching,
     isLoading: query.isLoading,
