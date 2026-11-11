@@ -28,6 +28,7 @@ import RouteBrowser from "../routes/RouteBrowser";
 import TransferBrowser from "../transfers/TransferBrowser";
 import TransferDecisionModal from "../transfers/TransferDecisionModal";
 import TransitPointList from "../transit-point-workspace/TransitPointList";
+import TransitPointDeleteModal from "../transit-point-workspace/TransitPointDeleteModal";
 import TransitNetworkContextActions from "./TransitNetworkContextActions";
 import TransitNetworkInspector from "./TransitNetworkInspector";
 import TransitNetworkMapCanvas from "./TransitNetworkMapCanvas";
@@ -79,6 +80,7 @@ export default function TransitNetworkWorkspace() {
   const [selectedVariantFallback, setSelectedVariantFallback] = useState(null);
   const client = useQueryClient();
   const [pointSelection, setPointSelection] = useState(null);
+  const [deletingPointId, setDeletingPointId] = useState(null);
   const [transferSelection, setTransferSelection] = useState(null);
   const [editingPoint, setEditingPoint] = useState(null);
   const [editingTransfer, setEditingTransfer] = useState(null);
@@ -214,6 +216,7 @@ export default function TransitNetworkWorkspace() {
   const isOverlayOpen =
     isLocalDiscardOpen ||
     navigationGuard.isLeaveConfirmationOpen ||
+    Boolean(deletingPointId) ||
     Boolean(transferDecision);
 
   useTransitWorkspaceKeyboardShortcuts({
@@ -302,6 +305,7 @@ export default function TransitNetworkWorkspace() {
   }, []);
 
   function requestWorkspaceAction(action) {
+    if (deletingPointId) return;
     if (isDirty) {
       pendingActionRef.current = action;
       setIsLocalDiscardOpen(true);
@@ -417,6 +421,46 @@ export default function TransitNetworkWorkspace() {
     setEditingPoint(selectedPoint);
     pointEditor.beginEdit(selectedPoint);
     setMode(TRANSIT_MODES.EDIT_POINT);
+  }
+
+  function startDeletePoint() {
+    if (
+      mode !== TRANSIT_MODES.BROWSE ||
+      context !== TRANSIT_CONTEXTS.POINTS ||
+      !pointSelectionState.canAct ||
+      !Number.isSafeInteger(Number(selectedPoint?.id)) ||
+      Number(selectedPoint.id) <= 0
+    ) {
+      return;
+    }
+    requestWorkspaceAction(() => setDeletingPointId(selectedPoint.id));
+  }
+
+  function handlePointDeleted(pointId) {
+    setDeletingPointId(null);
+    if (String(pointSelection?.id) === String(pointId)) {
+      setSelectedPoint(null);
+      setEditingPoint(null);
+      setFocusTarget(null);
+      pointEditor.beginAdd();
+    }
+    setRecentlyCreatedRoutePoints((previous) => previous.filter(
+      (point) => String(point.id) !== String(pointId),
+    ));
+    const cachedPage = client.getQueryData(transitQueryKeys.transitPointList(pointParams));
+    const lastPageIndex = Math.max(0, (cachedPage?.pagination?.total_pages ?? 1) - 1);
+    if (pagination.pageIndex > lastPageIndex) {
+      setPagination({ ...pagination, pageIndex: lastPageIndex });
+    }
+    void Promise.all([
+      client.invalidateQueries({
+        queryKey: transitQueryKeys.transitPoints(),
+        predicate: (query) => query.queryKey[3] !== "detail",
+      }),
+      client.invalidateQueries({ queryKey: transitQueryKeys.routes() }),
+      client.invalidateQueries({ queryKey: transitQueryKeys.variants() }),
+      client.invalidateQueries({ queryKey: transitQueryKeys.transfers() }),
+    ]);
   }
 
   async function savePoint(addAnother) {
@@ -878,6 +922,7 @@ export default function TransitNetworkWorkspace() {
             selectedPoint: mode === TRANSIT_MODES.EDIT_POINT ? editingPoint : selectedPoint,
             saveDisabled: mode === TRANSIT_MODES.EDIT_POINT && !pointSelectionState.canAct,
             editDisabled: !pointSelectionState.canAct,
+            deleteDisabled: !pointSelectionState.canAct || isDirty || mode !== TRANSIT_MODES.BROWSE,
             values: pointEditor.values,
             errors: pointEditor.errors,
             isSubmitting: pointEditor.isSubmitting,
@@ -885,6 +930,7 @@ export default function TransitNetworkWorkspace() {
             onNameChange: pointEditor.handleNameChange,
             onStartAdd: startAddPoint,
             onStartEdit: startEditPoint,
+            onStartDelete: startDeletePoint,
             onSave: savePoint,
             onCancel: cancelPointEdit,
           }}
@@ -947,6 +993,15 @@ export default function TransitNetworkWorkspace() {
       />
 
       {/* Explicit transfer decision confirmation */}
+      {deletingPointId && (
+        <TransitPointDeleteModal
+          key={deletingPointId}
+          pointId={deletingPointId}
+          onClose={() => setDeletingPointId(null)}
+          onDeleted={handlePointDeleted}
+        />
+      )}
+
       <TransferDecisionModal
         transfer={decisionTransfer}
         reviewDisabled={!transferSelectionState.canAct || selectedTransfer?.status !== "pending" || JSON.stringify(selectedTransfer) !== JSON.stringify(decisionTransfer)}

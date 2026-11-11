@@ -1,14 +1,22 @@
 from django.contrib.gis.geos import Point
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
+from django.db.models.deletion import ProtectedError
 from rest_framework.exceptions import NotFound, ValidationError
 
-from apps.transit.models import JeepneyRouteVariant, TransitPoint
+from apps.transit.models import (
+    JeepneyRoute,
+    JeepneyRouteVariant,
+    TransitPoint,
+    TransitTransfer,
+)
 from apps.transit.services.transit_spatial_validation_service import TransitSpatialValidationService
 
 
 class TransitPointService:
     """Manage SugboGo transit-network points."""
+
+    DEPENDENCY_EXAMPLE_LIMIT = 5
 
     @staticmethod
     def list_transit_points(
@@ -53,6 +61,176 @@ class TransitPointService:
             raise NotFound(
                 "The Transit Point could not be found.",
             )
+
+    @staticmethod
+    def get_deletion_dependencies(
+        transit_point,
+    ):
+        """Describe all persisted point references with distinct totals and bounded examples."""
+
+        directions = JeepneyRouteVariant.objects.filter(
+            Q(JRV_ORIGIN_ID=transit_point)
+            | Q(JRV_DESTINATION_ID=transit_point)
+            | Q(route_transit_points__TRPT_ID=transit_point),
+        ).distinct()
+        counts = directions.aggregate(
+            directions=Count("pk", distinct=True),
+            origin_directions=Count(
+                "pk",
+                filter=Q(JRV_ORIGIN_ID=transit_point),
+                distinct=True,
+            ),
+            destination_directions=Count(
+                "pk",
+                filter=Q(JRV_DESTINATION_ID=transit_point),
+                distinct=True,
+            ),
+            ordered_stops=Count(
+                "route_transit_points",
+                filter=Q(route_transit_points__TRPT_ID=transit_point),
+                distinct=True,
+            ),
+        )
+        routes = JeepneyRoute.objects.filter(
+            pk__in=directions.values("JRT_ID"),
+        ).order_by("JRT_ID")
+        counts["routes"] = routes.count()
+        transfers = TransitTransfer.objects.filter(
+            Q(TTFR_FROM_TRANSIT_POINT_ID=transit_point)
+            | Q(TTFR_TO_TRANSIT_POINT_ID=transit_point),
+        )
+        counts.update(
+            transfers.aggregate(
+                transfers=Count("pk", distinct=True),
+                alighting_transfers=Count(
+                    "pk",
+                    filter=Q(TTFR_FROM_TRANSIT_POINT_ID=transit_point),
+                    distinct=True,
+                ),
+                boarding_transfers=Count(
+                    "pk",
+                    filter=Q(TTFR_TO_TRANSIT_POINT_ID=transit_point),
+                    distinct=True,
+                ),
+            ),
+        )
+        limit = TransitPointService.DEPENDENCY_EXAMPLE_LIMIT
+        direction_examples = list(
+            directions.order_by("JRV_ID").values(
+                "JRV_ID",
+                "JRT_ID",
+                "JRT_ID__JRT_CODE",
+                "JRV_ORIGIN_ID__TRPT_NAME",
+                "JRV_DESTINATION_ID__TRPT_NAME",
+            )[:limit],
+        )
+        transfer_examples = list(
+            transfers.order_by("TTFR_ID").values(
+                "TTFR_ID",
+                "TTFR_STATUS",
+                "TTFR_FROM_VARIANT_ID",
+                "TTFR_FROM_VARIANT_ID__JRT_ID__JRT_CODE",
+                "TTFR_TO_VARIANT_ID",
+                "TTFR_TO_VARIANT_ID__JRT_ID__JRT_CODE",
+            )[:limit],
+        )
+
+        return {
+            "can_delete": (
+                counts["directions"] == 0
+                and counts["transfers"] == 0
+            ),
+            "counts": counts,
+            "example_limit": limit,
+            "examples": {
+                "routes": [
+                    {
+                        "id": route.JRT_ID,
+                        "code": route.JRT_CODE,
+                    }
+                    for route in routes[:limit]
+                ],
+                "directions": [
+                    {
+                        "id": direction["JRV_ID"],
+                        "route_id": direction["JRT_ID"],
+                        "route_code": direction["JRT_ID__JRT_CODE"],
+                        "origin": direction["JRV_ORIGIN_ID__TRPT_NAME"],
+                        "destination": direction["JRV_DESTINATION_ID__TRPT_NAME"],
+                    }
+                    for direction in direction_examples
+                ],
+                "transfers": [
+                    {
+                        "id": transfer["TTFR_ID"],
+                        "status": transfer["TTFR_STATUS"],
+                        "source_variant_id": transfer["TTFR_FROM_VARIANT_ID"],
+                        "source_route_code": transfer[
+                            "TTFR_FROM_VARIANT_ID__JRT_ID__JRT_CODE"
+                        ],
+                        "destination_variant_id": transfer["TTFR_TO_VARIANT_ID"],
+                        "destination_route_code": transfer[
+                            "TTFR_TO_VARIANT_ID__JRT_ID__JRT_CODE"
+                        ],
+                    }
+                    for transfer in transfer_examples
+                ],
+            },
+        }
+
+    @staticmethod
+    def _deletion_error(
+        dependencies,
+    ):
+        """Build a standard validation error retaining typed dependency information."""
+
+        error = ValidationError(
+            {
+                "non_field_errors": [
+                    "This Transit Point is still referenced. Reassign its route "
+                    "directions, stops, and transfers before deleting it.",
+                ],
+            },
+        )
+        # DRF otherwise converts numeric counts and eligibility into error strings.
+        error.detail["deletion"] = dependencies
+        return error
+
+    @staticmethod
+    @transaction.atomic
+    def delete_transit_point(
+        transit_point_id: int,
+    ):
+        """Permanently delete an unused point after locking and rechecking its references."""
+
+        TransitSpatialValidationService.lock_network()
+        try:
+            transit_point = (
+                TransitPoint.objects
+                .select_for_update()
+                .get(
+                    TRPT_ID=transit_point_id,
+                )
+            )
+        except TransitPoint.DoesNotExist:
+            raise NotFound(
+                "The Transit Point could not be found.",
+            )
+
+        dependencies = TransitPointService.get_deletion_dependencies(
+            transit_point,
+        )
+        if not dependencies["can_delete"]:
+            raise TransitPointService._deletion_error(dependencies)
+
+        try:
+            transit_point.delete()
+        except ProtectedError as exc:
+            dependencies = TransitPointService.get_deletion_dependencies(
+                transit_point,
+            )
+            dependencies["can_delete"] = False
+            raise TransitPointService._deletion_error(dependencies) from exc
 
     @staticmethod
     @transaction.atomic

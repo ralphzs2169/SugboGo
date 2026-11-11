@@ -47,6 +47,17 @@ class TransitPointSerializer(serializers.ModelSerializer):
         return instance.TRPT_POINT.x
 
 
+class TransitPointDetailSerializer(TransitPointSerializer):
+    """Include deletion eligibility only on the selected point's detail response."""
+
+    deletion = serializers.DictField(
+        read_only=True,
+    )
+
+    class Meta(TransitPointSerializer.Meta):
+        fields = TransitPointSerializer.Meta.fields + ("deletion",)
+
+
 class TransitPointWriteSerializer(serializers.Serializer):
     """Validate transit point create and update payloads."""
 

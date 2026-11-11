@@ -3,7 +3,13 @@ from django.db import transaction
 from django.db.models import Q
 from rest_framework.exceptions import NotFound, ValidationError
 
+from apps.admin_operations.transit_management.services.route_variant_service import (
+    RouteVariantService,
+)
 from apps.transit.models import TransitTransfer
+from apps.transit.services.transit_spatial_validation_service import (
+    TransitSpatialValidationService,
+)
 
 
 class TransitTransferService:
@@ -155,6 +161,14 @@ class TransitTransferService:
     ):
         """Validate a directed transfer and its route-point memberships."""
 
+        points = TransitSpatialValidationService.fresh_points(
+            [alighting_point, boarding_point],
+        )
+        alighting_point = points[0]
+        boarding_point = points[1]
+        source_variant = RouteVariantService.get_variant(source_variant.pk)
+        destination_variant = RouteVariantService.get_variant(destination_variant.pk)
+
         TransitTransferService.validate_transfer_memberships(
             source_variant,
             destination_variant,
@@ -186,6 +200,7 @@ class TransitTransferService:
     ) -> TransitTransfer:
         """Create a pending directed transfer connection."""
 
+        TransitSpatialValidationService.lock_network()
         TransitTransferService._validate_transfer_connection(
             validated_data["TTFR_FROM_VARIANT_ID"],
             validated_data["TTFR_TO_VARIANT_ID"],
@@ -209,6 +224,7 @@ class TransitTransferService:
     ) -> TransitTransfer:
         """Update a transfer's variants or connection points."""
 
+        TransitSpatialValidationService.lock_network()
         try:
             transfer = (
                 TransitTransfer.objects

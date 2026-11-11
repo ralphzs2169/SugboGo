@@ -1,4 +1,4 @@
-import { Edit3, MapPin, Plus } from "lucide-react";
+import { Edit3, MapPin, Plus, Trash2 } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import TextInput from "@/shared/components/forms/TextInput";
@@ -15,10 +15,12 @@ export default function TransitPointEditorPanel({
   isSubmitting,
   saveDisabled = false,
   editDisabled = false,
+  deleteDisabled = false,
   submittingAction,
   onNameChange,
   onStartAdd,
   onStartEdit,
+  onStartDelete,
   onSave,
   onCancel,
   allowSaveAndAddAnother = true,
@@ -84,6 +86,19 @@ export default function TransitPointEditorPanel({
             </dd>
           </div>
         </dl>
+        {onStartDelete && Number.isSafeInteger(Number(selectedPoint.id)) && Number(selectedPoint.id) > 0 && (
+          <div className="mt-4 border-t border-stroke pt-4">
+            <Button
+              size="sm"
+              variant="danger-outline"
+              icon={Trash2}
+              disabled={deleteDisabled}
+              onClick={onStartDelete}
+            >
+              Delete Point
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
