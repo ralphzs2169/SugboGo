@@ -1,6 +1,7 @@
 import { setTokens, clearTokens, getRefreshToken, getSessionGeneration } from "@/shared/api/storage";
 import { getCurrentUser, revokeRefreshToken } from "@/features/auth/api/auth.service";
 import { useAuthStore } from "../storage/auth.store";
+import { staleSessionError } from "@/shared/api/refresh";
 
 /**
  * Establishes a user session by storing tokens and fetching the current user.
@@ -17,13 +18,13 @@ export async function establishSession(authData) {
 
   try {
     const user = await getCurrentUser();
-    if (generation !== getSessionGeneration()) return;
+    if (generation !== getSessionGeneration()) {
+      throw staleSessionError();
+    }
     useAuthStore.getState().setUser(user);
   } catch (error) {
-    if (generation !== getSessionGeneration()) return;
-    if (error instanceof Error && error.name === "AUTH_ERROR") {
-      // Already handled globally (toast + redirect already fired).
-      return;
+    if (generation !== getSessionGeneration()) {
+      throw staleSessionError();
     }
     throw error;
   } finally {

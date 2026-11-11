@@ -101,7 +101,12 @@ apiClient.interceptors.response.use(
 
       try {
         const newAccessToken = await refreshSession();
-        if (getAccessToken() !== newAccessToken) throw staleSessionError();
+        if (
+          originalRequest._sessionGeneration !== getSessionGeneration() ||
+          getAccessToken() !== newAccessToken
+        ) {
+          throw staleSessionError();
+        }
 
         originalRequest.headers = {
           ...originalRequest.headers,
@@ -110,13 +115,15 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch (refreshError) {
+        // Refresh rejection and this continuation can straddle a new login/logout.
+        if (originalRequest._sessionGeneration !== getSessionGeneration()) {
+          return Promise.reject(staleSessionError());
+        }
         const status = refreshError.response?.status;
-        const code = refreshError.response?.data?.code;
         if (
+          axios.isCancel(refreshError) ||
           refreshError.name === "STALE_AUTH_SESSION" ||
-          status === 429 || status >= 500 ||
-          code === API_ERROR_CODE.NETWORK_ERROR ||
-          code === API_ERROR_CODE.REQUEST_TIMEOUT
+          (status !== 401 && refreshError.name !== "NO_REFRESH_TOKEN")
         ) {
           return Promise.reject(refreshError);
         }

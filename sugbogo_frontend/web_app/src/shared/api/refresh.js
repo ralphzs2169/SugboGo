@@ -22,7 +22,9 @@ export async function refreshSession() {
   const generation = getSessionGeneration();
   const refresh = getRefreshToken();
   if (!refresh) {
-    throw new Error("No refresh token available.");
+    const error = new Error("No refresh token available.");
+    error.name = "NO_REFRESH_TOKEN";
+    throw error;
   }
   if (inFlightRefresh?.generation === generation) {
     return inFlightRefresh.promise;

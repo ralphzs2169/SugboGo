@@ -81,7 +81,9 @@ function LoginForm() {
     const result = await handleLogin(email, password);
 
     if (result.success) {
-      navigate("/admin-panel/dashboard");
+      setEmail("");
+      setPassword("");
+      navigate("/admin-panel/dashboard", { replace: true });
       return;
     }
 
