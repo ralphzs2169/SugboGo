@@ -7,6 +7,7 @@ import Button from "@/shared/components/Button";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import useDebounce from "@/shared/hooks/useDebounce";
 import ModerationQueueSkeleton from "../../moderation/components/ModerationQueueSkeleton";
+import { isUnavailableQueuePage } from "../../moderation/utils/queuePagination";
 
 import useUnderReviewReviews from "../hooks/useUnderReviewReviews";
 import useUnderReviewDecisions from "../hooks/useUnderReviewDecisions";
@@ -60,6 +61,7 @@ export default function UnderReviewWorkspace() {
     pagination,
     isLoading,
     isFetching,
+    isPlaceholderData,
     error,
     refetch,
   } = useUnderReviewReviews(params);
@@ -69,6 +71,39 @@ export default function UnderReviewWorkspace() {
     isApproving,
     isRejecting,
   } = useUnderReviewDecisions();
+
+  const unavailablePage = isUnavailableQueuePage(error, page);
+  const paginationReady = (
+    !isFetching &&
+    !isPlaceholderData &&
+    !error &&
+    pagination?.page === page &&
+    Number.isInteger(pagination?.total_pages) &&
+    page >= 1 &&
+    page <= pagination.total_pages
+  );
+
+  function changePage(nextPage) {
+    if (
+      !paginationReady ||
+      !Number.isInteger(nextPage) ||
+      nextPage < 1 ||
+      nextPage > pagination.total_pages ||
+      Math.abs(nextPage - page) !== 1 ||
+      (nextPage < page && !pagination.has_previous) ||
+      (nextPage > page && !pagination.has_next)
+    ) {
+      return;
+    }
+
+    // A second click from the same render cannot queue another transition.
+    setPage((current) => current === pagination.page ? nextPage : current);
+  }
+
+  function returnToFirstPage() {
+    setPage(1);
+    selectReview(null);
+  }
 
   function selectReview(reviewId) {
     setSearchParams((previous) => {
@@ -149,46 +184,31 @@ export default function UnderReviewWorkspace() {
           </div>
           <QueueFilters filters={filters} onChange={updateFilter} />
 
-          {isLoading ? (
+          {isLoading || isPlaceholderData ? (
             <ModerationQueueSkeleton label="Loading moderation reviews" />
           ) : error ? (
             <DataErrorState
               title="Unable to load reviews"
-              message="The moderation queue could not be loaded."
-              onRetry={refetch}
+              message={
+                unavailablePage
+                  ? "This page is no longer available. Return to the first page to reload the queue."
+                  : "The moderation queue could not be loaded."
+              }
+              onRetry={unavailablePage ? returnToFirstPage : refetch}
+              retryLabel={unavailablePage ? "Return to first page" : "Try Again"}
+              retrying={isFetching}
             />
           ) : reviews.length ? (
-            <>
-              <div className="themed-scrollbar overflow-y-auto lg:max-h-[calc(100vh-380px)]">
-                {reviews.map((review) => (
-                  <QueueItem
-                    key={review.id}
-                    review={review}
-                    selected={selectedId === review.id}
-                    onSelect={() => selectReview(review.id)}
-                  />
-                ))}
-              </div>
-              <div className="flex items-center justify-between border-t border-stroke p-3 text-xs text-text-secondary">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={!pagination?.has_previous}
-                  onClick={() => setPage((current) => current - 1)}
-                >
-                  Previous
-                </Button>
-                <span>Page {page} of {pagination?.total_pages ?? 1}</span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={!pagination?.has_next}
-                  onClick={() => setPage((current) => current + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </>
+            <div className="themed-scrollbar overflow-y-auto lg:max-h-[calc(100vh-380px)]">
+              {reviews.map((review) => (
+                <QueueItem
+                  key={review.id}
+                  review={review}
+                  selected={selectedId === review.id}
+                  onSelect={() => selectReview(review.id)}
+                />
+              ))}
+            </div>
           ) : (
             <div className="flex min-h-72 flex-col items-center justify-center px-6 text-center">
               <Inbox className="h-9 w-9 text-text-secondary" />
@@ -202,6 +222,39 @@ export default function UnderReviewWorkspace() {
                   ? "New held reviews will appear here when they need a decision."
                   : "Try another status or adjust your filters to find past decisions."}
               </p>
+            </div>
+          )}
+          {pagination && !error && pagination.total_pages > 0 && (
+            <div className="flex items-center justify-between border-t border-stroke p-3 text-xs text-text-secondary">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={
+                  !paginationReady ||
+                  !pagination.has_previous ||
+                  page <= 1
+                }
+                onClick={() => changePage(page - 1)}
+              >
+                Previous
+              </Button>
+              <span role="status">
+                {isPlaceholderData || pagination.page !== page
+                  ? `Loading page ${page}…`
+                  : `Page ${pagination.page} of ${pagination.total_pages}`}
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={
+                  !paginationReady ||
+                  !pagination.has_next ||
+                  page >= pagination.total_pages
+                }
+                onClick={() => changePage(page + 1)}
+              >
+                Next
+              </Button>
             </div>
           )}
         </aside>

@@ -6,6 +6,7 @@ import { Inbox, Flag } from "lucide-react";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import useDebounce from "@/shared/hooks/useDebounce";
 import ModerationQueueSkeleton from "../../moderation/components/ModerationQueueSkeleton";
+import { isUnavailableQueuePage } from "../../moderation/utils/queuePagination";
 
 import {
   decideReportedReview,
@@ -46,7 +47,14 @@ export default function ReportedReviewWorkspace() {
     ...(aging ? { aging: true } : {}),
   }), [page, debouncedSearch, reason, status, ordering, aging]);
   const listKey = ["admin", "reported-reviews", "list", params];
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: listKey,
     queryFn: () => fetchReportedReviews(params),
     placeholderData: keepPreviousData,
@@ -54,6 +62,16 @@ export default function ReportedReviewWorkspace() {
   });
   const reviews = data?.items ?? [];
   const pagination = data?.pagination;
+  const unavailablePage = isUnavailableQueuePage(error, page);
+  const paginationReady = (
+    !isFetching &&
+    !isPlaceholderData &&
+    !error &&
+    pagination?.page === page &&
+    Number.isInteger(pagination?.total_pages) &&
+    page >= 1 &&
+    page <= pagination.total_pages
+  );
   const mutation = useMutation({
     mutationFn: ({ reviewId, decision, adminNotes }) => (
       decideReportedReview(reviewId, decision, adminNotes)
@@ -106,6 +124,29 @@ export default function ReportedReviewWorkspace() {
     selectReview(null);
   }
 
+  function changePage(nextPage) {
+    if (
+      !paginationReady ||
+      !Number.isInteger(nextPage) ||
+      nextPage < 1 ||
+      nextPage > pagination.total_pages ||
+      Math.abs(nextPage - page) !== 1 ||
+      (nextPage < page && !pagination.has_previous) ||
+      (nextPage > page && !pagination.has_next)
+    ) {
+      return;
+    }
+
+    // A second click from the same render cannot queue another transition.
+    setPage((current) => current === pagination.page ? nextPage : current);
+    selectReview(null);
+  }
+
+  function returnToFirstPage() {
+    setPage(1);
+    selectReview(null);
+  }
+
   function openDecision(review, decision) {
     mutation.reset();
     setNotes("");
@@ -146,10 +187,20 @@ export default function ReportedReviewWorkspace() {
           onOrderingChange={(value) => changeFilter(setOrdering, value)}
         />
         <div aria-busy={isLoading || isFetching} className="themed-scrollbar lg:max-h-[calc(100vh-360px)] lg:overflow-y-auto">
-          {isLoading ? (
+          {isLoading || isPlaceholderData ? (
             <ModerationQueueSkeleton label="Loading reported reviews" />
           ) : error ? (
-            <DataErrorState title="Unable to load reported reviews" message="The community report queue could not be loaded." onRetry={refetch} />
+            <DataErrorState
+              title="Unable to load reported reviews"
+              message={
+                unavailablePage
+                  ? "This page is no longer available. Return to the first page to reload the queue."
+                  : "The community report queue could not be loaded."
+              }
+              onRetry={unavailablePage ? returnToFirstPage : refetch}
+              retryLabel={unavailablePage ? "Return to first page" : "Try Again"}
+              retrying={isFetching}
+            />
           ) : reviews.length ? (
             reviews.map((review) => (
               <QueueItem key={review.id} review={review} selected={review.id === selectedId} onSelect={() => selectReview(review.id)} />
@@ -162,11 +213,37 @@ export default function ReportedReviewWorkspace() {
             </div>
           )}
         </div>
-        {pagination && pagination.total_pages > 1 && (
+        {pagination && !error && pagination.total_pages > 1 && (
           <div className="flex items-center justify-between border-t border-stroke px-4 py-3 text-sm text-text-secondary">
-            <button type="button" disabled={!pagination.has_previous} onClick={() => { setPage((value) => value - 1); selectReview(null); }} className="disabled:opacity-40">Previous</button>
-            <span>Page {pagination.page} of {pagination.total_pages}</span>
-            <button type="button" disabled={!pagination.has_next} onClick={() => { setPage((value) => value + 1); selectReview(null); }} className="disabled:opacity-40">Next</button>
+            <button
+              type="button"
+              disabled={
+                !paginationReady ||
+                !pagination.has_previous ||
+                page <= 1
+              }
+              onClick={() => changePage(page - 1)}
+              className="disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span role="status">
+              {isPlaceholderData || pagination.page !== page
+                ? `Loading page ${page}…`
+                : `Page ${pagination.page} of ${pagination.total_pages}`}
+            </span>
+            <button
+              type="button"
+              disabled={
+                !paginationReady ||
+                !pagination.has_next ||
+                page >= pagination.total_pages
+              }
+              onClick={() => changePage(page + 1)}
+              className="disabled:opacity-40"
+            >
+              Next
+            </button>
           </div>
         )}
       </aside>
