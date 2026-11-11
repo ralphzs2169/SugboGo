@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Inbox } from "lucide-react";
@@ -71,6 +72,11 @@ export default function UnderReviewWorkspace() {
     isApproving,
     isRejecting,
   } = useUnderReviewDecisions();
+
+  useApiErrorNotification(error, {
+    toastId: "admin-under-review-list-load-error",
+    fallbackMessage: "Unable to load review moderation queue. Please try again.",
+  });
 
   const unavailablePage = isUnavailableQueuePage(error, page);
   const paginationReady = (

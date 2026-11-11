@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MessageSquareText, List } from "lucide-react";
@@ -27,6 +28,11 @@ export default function AllReviewsPage() {
     () => allReviewColumns(table.selectReview),
     [table.selectReview],
   );
+  useApiErrorNotification(list.error, {
+    toastId: "admin-all-reviews-list-load-error",
+    fallbackMessage: "Unable to load reviews. Please try again.",
+  });
+
   const metadata = list.data?.pagination;
   const pagination = {
     pageIndex: metadata ? metadata.page - 1 : state.page - 1,

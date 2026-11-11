@@ -1,5 +1,6 @@
+import toast from "react-hot-toast";
 import assert from "node:assert/strict";
-import { after, afterEach, before, beforeEach, test } from "node:test";
+import { after, afterEach, before, beforeEach, mock, test } from "node:test";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import React, { act } from "react";
@@ -26,6 +27,59 @@ const queues = [
     newestLabel: "Newest Report",
   },
 ];
+const notificationSurfaces = [
+  [
+    "suspicious-reviews/components/SuspiciousReviewWorkspace.jsx",
+    "suspicious-reviews-list",
+    {}
+  ],
+  [
+    "suspicious-vouches/components/SuspiciousVouchWorkspace.jsx",
+    "suspicious-vouches-list",
+    {}
+  ],
+  [
+    "under-review/components/UnderReviewDetail.jsx",
+    "under-review-detail",
+    {
+      "reviewId": 7
+    }
+  ],
+  [
+    "reported-reviews/components/ReportedReviewDetail.jsx",
+    "reported-reviews-detail",
+    {
+      "reviewId": 7
+    }
+  ],
+  [
+    "suspicious-reviews/components/InvestigationDetail.jsx",
+    "suspicious-reviews-detail",
+    {
+      "reviewId": 7
+    }
+  ],
+  [
+    "review-disputes/components/ReviewDisputeWorkspace.jsx",
+    "review-disputes-list",
+    {}
+  ],
+  [
+    "review-disputes/components/DisputeInvestigation.jsx",
+    "review-disputes-detail",
+    {
+      "disputeId": 7
+    }
+  ],
+  [
+    "moderation/components/ModerationMetrics.jsx",
+    "moderation-metrics",
+    {
+      "tab": "under-review",
+      "tabLabel": "Review Moderation"
+    }
+  ]
+];
 let dom;
 let server;
 let root;
@@ -33,6 +87,8 @@ let container;
 let client;
 let reads;
 let transport;
+let notifications;
+let dismissed;
 
 function pageData(page) {
   return {
@@ -87,6 +143,9 @@ before(async () => {
       },
     }],
   });
+  for (const surface of notificationSurfaces) {
+    ({ default: surface[3] } = await server.ssrLoadModule(`/src/features/admin-panel/${surface[0]}`));
+  }
   for (const queue of queues) {
     ({ default: queue.Component } = await server.ssrLoadModule(
       `/src/features/admin-panel/${queue.module}`,
@@ -95,6 +154,10 @@ before(async () => {
 });
 
 beforeEach(async () => {
+  notifications = [];
+  dismissed = [];
+  mock.method(toast, "error", (...args) => notifications.push(args));
+  mock.method(toast, "dismiss", (id) => dismissed.push(id));
   reads = [];
   transport = async (params) => pageData(params.page);
   globalThis.__moderationPaginationGet = async (url, { params } = {}) => {
@@ -112,6 +175,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  mock.restoreAll();
   await act(async () => root.unmount());
   client.clear();
   onlineManager.setOnline(true);
@@ -142,13 +206,13 @@ async function until(predicate) {
   assert.fail("Moderation queue did not reach the expected state");
 }
 
-async function renderQueue(queue) {
+async function renderQueue(queue, ready = true) {
   await act(async () => root.render(
     React.createElement(QueryClientProvider, { client },
       React.createElement(MemoryRouter, null, React.createElement(queue.Component)),
     ),
   ));
-  await until(() => button("Next") && !button("Next").disabled);
+  if (ready) await until(() => button("Next") && !button("Next").disabled);
 }
 
 async function search(value) {
@@ -272,12 +336,45 @@ for (const queue of queues) {
       await act(async () => button("Next").click());
       await until(() => button("Try Again"));
       assert.ok(container.querySelector('[role="alert"]'));
+      const toastId = queue.name === "Review Moderation"
+        ? "admin-under-review-list-load-error"
+        : "admin-reported-reviews-list-load-error";
+      assert.equal(notifications.length, 1);
+      assert.equal(notifications[0][0], failure.message);
+      assert.equal(notifications[0][1].id, toastId);
+      await renderQueue(queue, false);
+      assert.equal(notifications.length, 1);
       assert.equal(button("Return to first page"), undefined);
       transport = async (params) => pageData(params.page);
       await act(async () => button("Try Again").click());
       await until(() => button("Previous") && !button("Previous").disabled);
       assert.equal(reads.at(-1).page, 2);
       assert.match(container.textContent, /Page 2 of 2/);
+      assert.ok(dismissed.includes(toastId));
     });
   }
+}
+
+for (const surface of notificationSurfaces) {
+  test(surface[1] + ": one notification per query failure survives rerenders and retries", async () => {
+    let count = 0;
+    globalThis.__moderationPaginationGet = async () => {
+      count += 1;
+      throw apiError(500, "Section unavailable.");
+    };
+    const mount = () => root.render(React.createElement(QueryClientProvider, { client },
+      React.createElement(MemoryRouter, null, React.createElement(surface[3], surface[2]))));
+    await act(async () => mount());
+    await until(() => notifications.length > 0);
+    assert.equal(notifications.length, 1);
+    assert.equal(notifications[0][1].id, "admin-" + surface[1] + "-load-error");
+    assert.equal(notifications[0][0], "Section unavailable.");
+    assert.ok(container.querySelector('[role="alert"]'));
+    await act(async () => mount());
+    assert.equal(notifications.length, 1);
+    assert.equal(count, 1);
+    await act(async () => button("Try Again").click());
+    await until(() => count === 2);
+    assert.equal(notifications.every((entry) => entry[1].id === notifications[0][1].id), true);
+  });
 }

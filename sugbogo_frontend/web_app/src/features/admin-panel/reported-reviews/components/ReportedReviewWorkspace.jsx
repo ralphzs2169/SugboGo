@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -62,6 +63,11 @@ export default function ReportedReviewWorkspace() {
   });
   const reviews = data?.items ?? [];
   const pagination = data?.pagination;
+  useApiErrorNotification(error, {
+    toastId: "admin-reported-reviews-list-load-error",
+    fallbackMessage: "Unable to load reported reviews. Please try again.",
+  });
+
   const unavailablePage = isUnavailableQueuePage(error, page);
   const paginationReady = (
     !isFetching &&

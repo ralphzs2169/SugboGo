@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useQuery } from "@tanstack/react-query";
 import { Flag } from "lucide-react";
 
@@ -24,6 +25,11 @@ function ReportedReviewDetail({ reviewId, onStale, onDecision, decisionPending }
     reviewHeaderRef,
     showContextBar,
   } = useReviewStickyContext(review?.id);
+
+  useApiErrorNotification(error, {
+    toastId: "admin-reported-reviews-detail-load-error",
+    fallbackMessage: "Unable to load reported review details. Please try again.",
+  });
 
   if (!reviewId) {
     return (

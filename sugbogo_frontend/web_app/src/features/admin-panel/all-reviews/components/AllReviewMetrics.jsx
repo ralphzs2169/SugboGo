@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2,
@@ -42,6 +43,11 @@ const GRID = "grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4";
 /** Display global review counts with the same shared cards as Business Management. */
 export default function AllReviewMetrics({ filters, onFilterChange }) {
   const query = useQuery(allReviewSummaryOptions());
+  useApiErrorNotification(query.error, {
+    toastId: "admin-all-reviews-metrics-load-error",
+    fallbackMessage: "Unable to load review metrics. Please try again.",
+  });
+
   const hasData = query.data != null;
 
   function metricUpdates(key) {

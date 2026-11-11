@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useQuery } from "@tanstack/react-query";
 import { ShieldAlert } from "lucide-react";
 
@@ -24,6 +25,11 @@ function InvestigationDetail({ reviewId, onStale }) {
     reviewHeaderRef,
     showContextBar,
   } = useReviewStickyContext(review?.id);
+
+  useApiErrorNotification(error, {
+    toastId: "admin-suspicious-reviews-detail-load-error",
+    fallbackMessage: "Unable to load this investigation. Please try again.",
+  });
 
   if (!reviewId) {
     return <div className="flex min-h-96 flex-col items-center justify-center p-8 text-center text-text-secondary"><ShieldAlert className="h-8 w-8" /><h2 className="mt-3 font-semibold text-text-primary">Select a review</h2><p className="mt-1 text-sm">Choose a review from the queue to investigate its reliability signals.</p></div>;
