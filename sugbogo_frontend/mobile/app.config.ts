@@ -5,6 +5,14 @@ export default (): ExpoConfig => ({
   slug: "sugbogo",
   version: "1.0.0",
 
+  runtimeVersion: {
+    policy: "appVersion",
+  },
+
+  updates: {
+    url: "https://u.expo.dev/02708995-d201-44c3-af34-1d1fb92ed2d0",
+  },
+
   orientation: "portrait",
 
   icon: "./assets/images/sugbogo-logo.png",
