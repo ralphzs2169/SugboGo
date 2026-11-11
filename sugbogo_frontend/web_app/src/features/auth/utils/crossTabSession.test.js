@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import React, { act } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { createServer } from "vite";
+import { AxiosError, CanceledError } from "axios";
 
 const { JSDOM } = createRequire(resolve("../mobile/package.json"))("jsdom");
 const previousGlobals = new Map(
@@ -23,6 +24,8 @@ let api;
 let authClient;
 let refresh;
 let useRestoreSession;
+let useLogin;
+let loginFlow;
 let ProtectedRoute;
 let user;
 let transport;
@@ -43,7 +46,7 @@ before(async () => {
   server = await createServer({
     appType: "custom",
     optimizeDeps: { noDiscovery: true, include: [] },
-    server: { middlewareMode: true, hmr: false },
+    server: { middlewareMode: true, hmr: false, ws: false },
   });
   storage = await server.ssrLoadModule("/src/shared/api/storage.js");
   ({ useAuthStore: auth } = await server.ssrLoadModule("/src/features/auth/storage/auth.store.js"));
@@ -52,6 +55,7 @@ before(async () => {
   ({ default: authClient } = await server.ssrLoadModule("/src/shared/api/authClient.js"));
   refresh = await server.ssrLoadModule("/src/shared/api/refresh.js");
   ({ useRestoreSession } = await server.ssrLoadModule("/src/features/auth/hooks/useRestoreSession.js"));
+  ({ useLogin } = await server.ssrLoadModule("/src/features/auth/hooks/useLogin.js"));
   ({ default: ProtectedRoute } = await server.ssrLoadModule("/src/features/auth/routes/ProtectedRoute.jsx"));
 });
 
@@ -103,6 +107,11 @@ function SessionProbe() {
       }),
     ),
   );
+}
+
+function LoginProbe() {
+  loginFlow = useLogin();
+  return null;
 }
 
 async function mountSession() {
@@ -230,4 +239,120 @@ test("a late successful response detects changed ownership before the storage ev
   });
   assert.equal(client.getQueryData(key), undefined);
   assert.equal(auth.getState().user.id, 2);
+});
+
+for (const failure of ["network", "timeout", "cancel", 429, 503]) {
+  test(`restoration ${failure} failure preserves credentials and an already verified user`, async () => {
+    auth.getState().setUser(user);
+    transport = (config) => {
+      if (failure === "cancel") {
+        throw new CanceledError("Canceled", config);
+      }
+
+      const response = typeof failure === "number"
+        ? { status: failure, data: {}, headers: {}, config }
+        : undefined;
+      const code = failure === "timeout" ? "ECONNABORTED" : "ERR_NETWORK";
+      throw new AxiosError("Unavailable", code, config, null, response);
+    };
+
+    await act(async () => root.render(React.createElement(SessionProbe)));
+
+    assert.equal(storage.getRefreshToken(), "refresh-a");
+    assert.equal(auth.getState().user.id, 1);
+    assert.equal(auth.getState().isLoading, false);
+    assert.match(container.textContent, /Protected administration/);
+  });
+}
+
+test("an offline reload retains credentials and restores on reconnect without granting access early", async () => {
+  transport = (config) => {
+    throw new AxiosError("Offline", "ERR_NETWORK", config);
+  };
+  await act(async () => root.render(React.createElement(SessionProbe)));
+
+  assert.equal(storage.getRefreshToken(), "refresh-a");
+  assert.equal(auth.getState().isAuthenticated, false);
+  assert.match(container.textContent, /Sign in/);
+
+  transport = async () => ({ data: { data: user } });
+  await act(async () => window.dispatchEvent(new window.Event("online")));
+
+  assert.equal(auth.getState().user.id, 1);
+  assert.equal(auth.getState().isLoading, false);
+});
+
+test("a final HTTP 401 from me still clears an invalid session after retry", async () => {
+  auth.getState().setUser(user);
+  authClient.post = async () => ({
+    data: { access: "rotated-access", refresh: "rotated-refresh" },
+  });
+  transport = (config) => {
+    throw new AxiosError("Unauthorized", "ERR_BAD_REQUEST", config, null, {
+      status: 401,
+      data: {},
+      headers: {},
+      config,
+    });
+  };
+
+  await act(async () => root.render(React.createElement(SessionProbe)));
+
+  assert.equal(storage.getRefreshToken(), null);
+  assert.equal(auth.getState().isAuthenticated, false);
+  assert.match(container.textContent, /Sign in/);
+});
+
+test("a late successful login response cannot replace a newer session", async () => {
+  let finish;
+  authClient.post = () => new Promise((resolveRequest) => {
+    finish = resolveRequest;
+  });
+  await act(async () => root.render(React.createElement(LoginProbe)));
+
+  let pending;
+  await act(async () => {
+    pending = loginFlow.handleLogin("admin@example.test", "test-only-password");
+  });
+  storage.setTokens({ access: "account-b", refresh: "refresh-b" });
+  auth.getState().setUser({ id: 2, role: "admin" });
+
+  let result;
+  await act(async () => {
+    finish({ data: { success: true, data: { access: "obsolete", refresh: "obsolete" } } });
+    result = await pending;
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.code, "STALE_AUTH_SESSION");
+  assert.equal(auth.getState().user.id, 2);
+  assert.equal(storage.getRefreshToken(), "refresh-b");
+});
+
+test("login only reports success after me establishes the authenticated user", async () => {
+  authClient.post = async () => ({
+    data: { success: true, data: { access: "login-access", refresh: "login-refresh" } },
+  });
+  let finish;
+  transport = () => new Promise((resolveRequest) => {
+    finish = () => resolveRequest({ data: { data: user } });
+  });
+  await act(async () => root.render(React.createElement(LoginProbe)));
+
+  let pending;
+  await act(async () => {
+    pending = loginFlow.handleLogin("admin@example.test", "test-only-password");
+  });
+  assert.equal(auth.getState().isAuthenticated, false);
+  assert.equal(loginFlow.loading, true);
+
+  let result;
+  await act(async () => {
+    finish();
+    result = await pending;
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(auth.getState().user.id, 1);
+  assert.equal(loginFlow.loading, false);
 });

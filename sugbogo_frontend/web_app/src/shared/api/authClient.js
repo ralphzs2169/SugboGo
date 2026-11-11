@@ -28,6 +28,9 @@ const authClient = axios.create({
 authClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
     if (axios.isAxiosError(error) && !error.response) {
       const code =
         error.code === "ECONNABORTED"

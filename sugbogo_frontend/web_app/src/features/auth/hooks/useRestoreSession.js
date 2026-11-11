@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import axios from "axios";
 
 import { getCurrentUser } from "../api/auth.service";
 import {
@@ -19,8 +20,10 @@ export function useRestoreSession() {
 
   useEffect(() => {
     let controller;
+    let retryRestore = false;
 
     async function restoreSession() {
+      retryRestore = false;
       controller?.abort();
       const currentController = new AbortController();
       controller = currentController;
@@ -40,21 +43,42 @@ export function useRestoreSession() {
         const user = await getCurrentUser({ signal: currentController.signal });
 
         if (isCurrent()) setUser(user);
-      } catch {
-        if (isCurrent()) {
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        if (
+          axios.isCancel(error) ||
+          error.name === "STALE_AUTH_SESSION"
+        ) {
+          return;
+        }
+
+        // A failed transport or temporary backend failure does not revoke a session.
+        if (error.response?.status === 401) {
           clearTokens();
-          clearUser();
-          setLoading(false);
+        } else {
+          retryRestore = true;
         }
       } finally {
         if (isCurrent()) setLoading(false);
       }
     }
 
+    function retryRestoration() {
+      if (retryRestore) {
+        void restoreSession();
+      }
+    }
+
     const unsubscribe = subscribeToSessionChanges(restoreSession);
+    window.addEventListener("online", retryRestoration);
+    window.addEventListener("focus", retryRestoration);
     restoreSession();
     return () => {
       unsubscribe();
+      window.removeEventListener("online", retryRestoration);
+      window.removeEventListener("focus", retryRestoration);
       controller?.abort();
     };
   }, [clearUser, setLoading, setUser]);
