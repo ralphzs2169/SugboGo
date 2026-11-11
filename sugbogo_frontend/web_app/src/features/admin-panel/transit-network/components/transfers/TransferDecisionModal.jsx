@@ -3,6 +3,7 @@ import { Check, X } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 import Modal from "@/shared/components/modals/Modal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 
 import useTransitMutations from "../../hooks/useTransitMutations";
 import { formatVariantLabel } from "../../utils/transitFormatters";
@@ -13,6 +14,7 @@ import { formatVariantLabel } from "../../utils/transitFormatters";
  */
 export default function TransferDecisionModal({
   transfer,
+  reviewDisabled = false,
   action,
   onClose,
   onSaved,
@@ -20,38 +22,49 @@ export default function TransferDecisionModal({
   const {
     confirmTransfer,
     ignoreTransfer,
-    isConfirmingTransfer,
-    isIgnoringTransfer,
   } = useTransitMutations();
   const isConfirming = action === "confirm";
-  const isSubmitting = isConfirming
-    ? isConfirmingTransfer
-    : isIgnoringTransfer;
+  const { isSubmitting, runSubmission, close } = useModalSubmission(
+    Boolean(transfer && action),
+    `${transfer?.id}:${action}`,
+    onClose,
+  );
 
   async function handleReview() {
-    try {
-      const savedTransfer = isConfirming
-        ? await confirmTransfer(transfer.id)
-        : await ignoreTransfer(transfer.id);
-
-      toast.success(
-        isConfirming
-          ? "Transit transfer confirmed successfully."
-          : "Transit transfer ignored successfully.",
-      );
-      onSaved(savedTransfer);
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message ||
-          `The transit transfer could not be ${isConfirming ? "confirmed" : "ignored"}.`,
-      );
+    if (!transfer || !action || reviewDisabled) {
+      return;
     }
+    return runSubmission(async (isCurrent) => {
+      try {
+        const savedTransfer = isConfirming
+          ? await confirmTransfer(transfer.id)
+          : await ignoreTransfer(transfer.id);
+
+        toast.success(
+          isConfirming
+            ? "Transit transfer confirmed successfully."
+            : "Transit transfer ignored successfully.",
+        );
+        if (isCurrent()) {
+          onSaved(savedTransfer);
+        }
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        toast.error(
+          error.response?.data?.message ||
+            `The transit transfer could not be ${isConfirming ? "confirmed" : "ignored"}.`,
+        );
+      }
+    });
   }
 
   return (
     <Modal
       isOpen={Boolean(transfer && action)}
-      onClose={onClose}
+      onClose={close}
+      dismissDisabled={isSubmitting}
       title={isConfirming ? "Confirm Transit Transfer?" : "Ignore Transit Transfer?"}
       description={
         isConfirming
@@ -59,6 +72,11 @@ export default function TransferDecisionModal({
           : "Ignored transfers remain recorded but will not participate in routing."
       }
     >
+      {reviewDisabled && (
+        <p role="alert" className="mb-3 text-sm text-text-secondary">
+          This record changed or could not be verified. Close this confirmation and review the current selection.
+        </p>
+      )}
       {/* Review summary */}
       <p className="rounded-lg bg-surface p-4 text-sm text-text-secondary">
         {formatVariantLabel(transfer?.source_variant)} to {" "}
@@ -67,13 +85,13 @@ export default function TransferDecisionModal({
 
       {/* Review actions */}
       <div className="mt-6 flex justify-end gap-3">
-        <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+        <Button variant="secondary" onClick={close} disabled={isSubmitting}>
           Cancel
         </Button>
         <Button
           variant={isConfirming ? "success" : "danger"}
           icon={isConfirming ? Check : X}
-          loading={isSubmitting}
+          loading={isSubmitting} disabled={reviewDisabled}
           onClick={handleReview}
         >
           {isConfirming ? "Confirm Transfer" : "Ignore Transfer"}

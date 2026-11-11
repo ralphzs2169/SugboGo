@@ -1,3 +1,4 @@
+import AdminRouteErrorBoundary from "../components/AdminRouteErrorBoundary";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import Sidebar from "@/features/admin-panel/components/sidebar/Sidebar";
@@ -53,7 +54,9 @@ export default function AdminPanelLayout() {
             <NavigationHeader onMenuClick={() => setIsSidebarOpen(true)} />
           </section>
           <main className="overflow-x-clip p-6 sm:p-4 ">
-            <Outlet />
+            <AdminRouteErrorBoundary key={location.pathname}>
+              <Outlet />
+            </AdminRouteErrorBoundary>
           </main>
         </div>
       </div>

@@ -24,16 +24,6 @@ export const PAGE_METADATA = {
     subtitle: "Oversee and manage your platform community.",
   },
 
-  "/admin-panel/users/roles-permissions": {
-    title: "Roles & Permissions",
-    subtitle:
-      "Define access levels and manage team capabilities to ensure secure platform operations.",
-  },
-
-  "/admin-panel/explorer-activity": {
-    title: "Explorer Activity Management",
-    subtitle: "Monitor and moderate community activity.",
-  },
 
   "/admin-panel/transit-network": {
     title: "Transit Network Management",
@@ -56,9 +46,4 @@ export const PAGE_METADATA = {
     subtitle: "Monitor the scores used to surface businesses in Hidden Gems.",
   },
 
-  "/admin-panel/settings": {
-    title: "Settings & Configuration",
-    subtitle:
-      "Manage the core logic, scoring weights, and reliability parameters of the SugboGo ecosystem.",
-  },
 };

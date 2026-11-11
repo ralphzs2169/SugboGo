@@ -222,7 +222,7 @@ test("successful synchronous recomputation refreshes rows and shared health with
   const unrelated = ["admin", "analytics", "platformGrowth", {}];
   client.setQueryData(unrelated, { unchanged: true });
   await openPage();
-  assert.equal(gets.length, 2);
+  assert.equal(gets.filter((request) => request.url === "/admin/analytics/discovery-scores/").length, 2);
   await confirmRecompute();
   await until(() =>
     [...container.querySelectorAll("output")].every(
@@ -235,12 +235,16 @@ test("successful synchronous recomputation refreshes rows and shared health with
     { queryKey: ["admin", "discovery-score-detail"] },
     { queryKey: ["admin", "visibility-diagnostics"] },
   ]);
-  assert.equal(gets.length, 4);
+  assert.equal(gets.filter((request) => request.url === "/admin/analytics/discovery-scores/").length, 4);
   assert.ok(
     gets.every(
-      (request) => request.url === "/admin/analytics/discovery-scores/",
+      (request) => (
+        request.url === "/admin/analytics/discovery-scores/"
+        || request.url.startsWith("/admin/taxonomy/")
+      ),
     ),
   );
+  assert.equal(gets.filter((request) => request.url.startsWith("/admin/taxonomy/")).length, 3);
   assert.equal(client.getQueryState(unrelated).isInvalidated, false);
   assert.equal(successes.length, 1);
 });
@@ -251,7 +255,7 @@ test("failed recomputation exposes its error without invalidating queries as a s
   await confirmRecompute();
   await until(() => errors.length === 1);
   assert.equal(invalidations.length, 0);
-  assert.equal(gets.length, 2);
+  assert.equal(gets.filter((request) => request.url === "/admin/analytics/discovery-scores/").length, 2);
   assert.ok(
     [...container.querySelectorAll("output")].every(
       (node) => node.textContent === "0",
@@ -405,4 +409,49 @@ test("detail accordions preserve independent defaults and do not fetch on toggle
   assert.match(container.textContent, /0\.333/);
   assert.match(container.textContent, /Fresh/);
   assert.doesNotMatch(container.textContent, /FRESH|Local Coffee/);
+});
+
+for (const code of ["REQUEST_TIMEOUT", "NETWORK_ERROR"]) {
+  test(code + ": outcome is uncertain and score refresh never resubmits", async () => {
+    await openPage();
+    globalThis.__recomputePost = async (url) => {
+      posts.push(url);
+      throw Object.assign(new Error("Transport interrupted"), {
+        response: { data: { code, message: "Please try again." } },
+      });
+    };
+    await confirmRecompute();
+    await until(() => errors.length === 1);
+    assert.match(errors[0], /Completion could not be confirmed.*may still be running or may have completed/);
+    assert.equal(successes.length, 0);
+    assert.equal(invalidations.length, 0);
+    const refresh = [...container.querySelectorAll("button")].find((button) => button.textContent === "Refresh score data");
+    assert.ok(refresh);
+    await act(async () => refresh.click());
+    await until(() => invalidations.length === 3);
+    assert.equal(posts.length, 1);
+    assert.equal(successes.length, 0);
+  });
+}
+
+test("concurrent recomputation shows controlled busy feedback without automatic retries", async () => {
+  await openPage();
+  globalThis.__recomputePost = async (url) => {
+    posts.push(url);
+    throw Object.assign(new Error("Busy"), {
+      response: { status: 409, data: {
+        code: "RECOMPUTATION_IN_PROGRESS",
+        message: "Discovery Score recomputation is already in progress. Refresh score data before trying again.",
+      } },
+    });
+  };
+  await confirmRecompute();
+  await until(() => errors.length === 1);
+  assert.match(errors[0], /already in progress/);
+  assert.equal(posts.length, 1);
+  assert.equal(successes.length, 0);
+  const refresh = [...container.querySelectorAll("button")].find((button) => button.textContent === "Refresh score data");
+  await act(async () => refresh.click());
+  assert.equal(posts.length, 1);
+  assert.equal(invalidations.length, 3);
 });

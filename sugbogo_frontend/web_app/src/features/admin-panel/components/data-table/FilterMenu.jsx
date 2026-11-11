@@ -94,6 +94,9 @@ export default function FilterMenu({
   }
 
   function handleSelectOption(filter, optionValue) {
+    if (filter.disabled) {
+      return;
+    }
     const nextValue = filter.value === optionValue ? "" : optionValue;
     filter.onChange(nextValue);
     setIsOpen(false);
@@ -171,8 +174,9 @@ export default function FilterMenu({
                     <button
                       type="button"
                       aria-label={`Choose ${filter.label} filter`}
+                      disabled={filter.disabled}
                       onClick={() => handleSelectDimension(filter.key)}
-                      className="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm text-text-primary hover:bg-interaction-hover"
+                      className="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm text-text-primary hover:bg-interaction-hover disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <span className="flex items-center gap-2">
                         {filter.icon && (
@@ -203,6 +207,7 @@ export default function FilterMenu({
                       ref={optionSearchInputRef}
                       type="text"
                       value={optionSearch}
+                      disabled={currentDimension.disabled}
                       onChange={(e) => setOptionSearch(e.target.value)}
                       placeholder={`Search ${currentDimension.label.toLowerCase()}...`}
                       className="w-full rounded-md border border-stroke-strong bg-background py-1.5 pl-8 pr-2 text-xs text-text-primary outline-none placeholder:text-slate-400 focus:border-stroke-active"
@@ -211,9 +216,13 @@ export default function FilterMenu({
                 )}
 
                 <ul className="max-h-64 overflow-y-auto py-1">
-                  {filteredOptions.length === 0 ? (
+                  {currentDimension.disabled ? (
+                    <li role="status" className="px-3 py-2 text-xs text-text-secondary">
+                      {currentDimension.disabledMessage || "Options unavailable."}
+                    </li>
+                  ) : filteredOptions.length === 0 ? (
                     <li className="px-3 py-2 text-xs text-text-secondary">
-                      No matches found.
+                      {optionSearch ? "No matches found." : currentDimension.emptyMessage || "No matches found."}
                     </li>
                   ) : (
                     filteredOptions.map((option) => {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import Modal from "@/shared/components/modals/Modal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 import { hasFormChanges } from "@/shared/utils/formUtils";
 
 import useUpdateSpecialtyTag from "../hooks/useUpdateSpecialtyTag";
@@ -34,7 +35,12 @@ export default function EditSpecialtyTagModal({
 
   const [errors, setErrors] = useState({});
 
-  const { submit, isSubmitting } = useUpdateSpecialtyTag();
+  const { submit } = useUpdateSpecialtyTag();
+  const { isSubmitting, runSubmission, close } = useModalSubmission(
+    isOpen,
+    specialtyTag?.id,
+    onClose,
+  );
 
   useEffect(() => {
     if (!specialtyTag) return;
@@ -89,21 +95,29 @@ export default function EditSpecialtyTagModal({
       return;
     }
 
-    try {
-      await submit(specialtyTag.id, values);
+    return runSubmission(async (isCurrent) => {
+      try {
+        await submit(specialtyTag.id, values);
 
-      onSuccess?.();
-      onClose();
+        await onSuccess?.();
+        if (!isCurrent()) {
+          return;
+        }
+        onClose();
 
-      setErrors({});
-    } catch (error) {
-      setErrors(error.response?.data?.errors ?? {});
+        setErrors({});
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        setErrors(error.response?.data?.errors ?? {});
 
-      toast.error(
-        error.response?.data?.message ||
-          "The specialty tag could not be updated. Please try again.",
-      );
-    }
+        toast.error(
+          error.response?.data?.message ||
+            "The specialty tag could not be updated. Please try again.",
+        );
+      }
+    });
   }
 
   if (!specialtyTag) return null;
@@ -111,9 +125,10 @@ export default function EditSpecialtyTagModal({
   return (
     <Modal
       isOpen={isOpen}
+      dismissDisabled={isSubmitting}
       title="Edit Specialty Tag"
       description="Update specialty tag information."
-      onClose={onClose}
+      onClose={close}
     >
       {/* Specialty tag edit form */}
       <SpecialtyTagForm

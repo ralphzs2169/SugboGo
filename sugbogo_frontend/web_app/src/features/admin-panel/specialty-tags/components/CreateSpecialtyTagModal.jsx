@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "react-hot-toast";
 
 import Modal from "@/shared/components/modals/Modal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 
 import useCreateSpecialtyTag from "../hooks/useCreateSpecialtyTag";
 import { validateSpecialtyTag } from "../validation/specialtyTagValidation";
@@ -26,7 +27,12 @@ export default function CreateSpecialtyTagModal({
 
   const [errors, setErrors] = useState({});
 
-  const { submit, isSubmitting } = useCreateSpecialtyTag();
+  const { submit } = useCreateSpecialtyTag();
+  const { isSubmitting, runSubmission, close } = useModalSubmission(
+    isOpen,
+    undefined,
+    onClose,
+  );
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -61,35 +67,44 @@ export default function CreateSpecialtyTagModal({
       return;
     }
 
-    try {
-      await submit(values);
+    return runSubmission(async (isCurrent) => {
+      try {
+        await submit(values);
 
-      onSuccess?.();
-      onClose();
+        await onSuccess?.();
+        if (!isCurrent()) {
+          return;
+        }
+        onClose();
 
-      setValues({
-        name: "",
-        color: "blue",
-        icon: "tag",
-      });
+        setValues({
+          name: "",
+          color: "blue",
+          icon: "tag",
+        });
 
-      setErrors({});
-    } catch (error) {
-      setErrors(error.response?.data?.errors ?? {});
+        setErrors({});
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        setErrors(error.response?.data?.errors ?? {});
 
-      toast.error(
-        error.response?.data?.message ||
-          "The specialty tag could not be created. Please try again.",
-      );
-    }
+        toast.error(
+          error.response?.data?.message ||
+            "The specialty tag could not be created. Please try again.",
+        );
+      }
+    });
   }
 
   return (
     <Modal
       isOpen={isOpen}
+      dismissDisabled={isSubmitting}
       title="Create Specialty Tag"
       description="Add a new specialty tag for businesses."
-      onClose={onClose}
+      onClose={close}
     >
       {/* Specialty tag creation form */}
       <SpecialtyTagForm

@@ -14,6 +14,7 @@ export default function useUnderReviewReviews(params) {
     pagination: query.data?.pagination,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
+    isPlaceholderData: query.isPlaceholderData,
     error: query.error,
     refetch: query.refetch,
   };

@@ -4,9 +4,9 @@ from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal, localcontext
 from enum import StrEnum
 
-from django.db import transaction
+from django.db import connections, transaction
 from django.utils import timezone
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import APIException, NotFound
 
 from apps.admin_operations.system_configuration.models import (
     DiscoveryAlgorithmConfiguration,
@@ -26,6 +26,17 @@ from apps.business.services.visibility_gap_service import (
     VisibilityGapResult,
     VisibilityGapService,
 )
+
+
+class DiscoveryScoreRecomputeInProgress(APIException):
+    """Reject overlapping batches without starting additional scoring work."""
+
+    status_code = 409
+    default_code = "RECOMPUTATION_IN_PROGRESS"
+    default_detail = (
+        "Discovery Score recomputation is already in progress. "
+        "Refresh score data before trying again."
+    )
 
 
 class DiscoveryScoreRecomputeStatus(StrEnum):
@@ -464,6 +475,46 @@ class DiscoveryScoreService:
 
     @classmethod
     def recompute_business_scores(
+        cls,
+        business_ids: Iterable[int] | None = None,
+        reference_time: datetime | None = None,
+    ) -> DiscoveryScoreBatchResult:
+        """Run one cross-worker batch without extending per-business transactions."""
+        # A private connection owns the session lock, independently of the ORM
+        # connection used by per-business transactions and request/task cleanup.
+        lock_connection = connections["default"].copy(
+            alias="discovery-score-batch-lock",
+        )
+        acquired = False
+        lock_name = "sugbogo:discovery-score-batch"
+        try:
+            lock_connection.ensure_connection()
+            lock_connection.set_autocommit(True)
+            with lock_connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))",
+                    [lock_name],
+                )
+                acquired = cursor.fetchone()[0]
+            if not acquired:
+                raise DiscoveryScoreRecomputeInProgress()
+            return cls._recompute_business_scores(
+                business_ids=business_ids,
+                reference_time=reference_time,
+            )
+        finally:
+            try:
+                if acquired:
+                    with lock_connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT pg_advisory_unlock(hashtextextended(%s, 0))",
+                            [lock_name],
+                        )
+            finally:
+                lock_connection.close()
+
+    @classmethod
+    def _recompute_business_scores(
         cls,
         business_ids: Iterable[int] | None = None,
         reference_time: datetime | None = None,

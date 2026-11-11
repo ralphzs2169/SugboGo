@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import useTableState from "@/shared/hooks/useTableState";
 
 /**
@@ -20,59 +20,41 @@ export default function useBusinessApplicationTableState() {
     ordering,
     pagination,
     setPagination,
-    resetPageIndex,
     updateSearchParams,
   } = useTableState({ defaultTab: "applications" });
 
-  const [statusFilter, setStatusFilterState] = useState(
-    () => new URLSearchParams(window.location.search).get("status") || "",
-  );
+  const [searchParams] = useSearchParams();
 
-  const [queueStatusFilter, setQueueStatusFilterState] = useState(
-    () => new URLSearchParams(window.location.search).get("queue_status") || "",
-  );
+  const statusFilter = searchParams.get("status") || "";
 
-  const [clusterFilter, setClusterFilterState] = useState(
-    () => new URLSearchParams(window.location.search).get("cluster") || "",
-  );
+  const queueStatusFilter = searchParams.get("queue_status") || "";
 
-  const [categoryFilter, setCategoryFilterState] = useState(
-    () => new URLSearchParams(window.location.search).get("category") || "",
-  );
+  const clusterFilter = searchParams.get("cluster") || "";
+
+  const categoryFilter = searchParams.get("category") || "";
 
   function setStatusFilter(status) {
-    setStatusFilterState(status);
     updateSearchParams({ status: status || null, page: null });
-    resetPageIndex();
   }
 
   function setQueueStatusFilter(queueStatus) {
-    setQueueStatusFilterState(queueStatus);
     updateSearchParams({ queue_status: queueStatus || null, page: null });
-    resetPageIndex();
   }
 
   function setReviewQueueFilter(queueStatus) {
-    setStatusFilterState("submitted");
-    setQueueStatusFilterState(queueStatus);
     updateSearchParams({
       status: "submitted",
       queue_status: queueStatus || null,
       page: null,
     });
-    resetPageIndex();
   }
 
   function setClusterFilter(value) {
-    setClusterFilterState(value);
     updateSearchParams({ cluster: value || null, page: null });
-    resetPageIndex();
   }
 
   function setCategoryFilter(value) {
-    setCategoryFilterState(value);
     updateSearchParams({ category: value || null, page: null });
-    resetPageIndex();
   }
 
   const params = {
@@ -97,12 +79,6 @@ export default function useBusinessApplicationTableState() {
 
   function handleResetFilters() {
     setGlobalFilter("");
-    setStatusFilterState("");
-    setQueueStatusFilterState("");
-    setClusterFilterState("");
-    setCategoryFilterState("");
-    setSorting([]);
-    resetPageIndex();
 
     updateSearchParams({
       search: null,

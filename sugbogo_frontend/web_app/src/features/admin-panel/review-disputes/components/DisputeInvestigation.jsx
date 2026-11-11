@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { FileWarning } from "lucide-react";
 
 import Button from "@/shared/components/Button";
@@ -17,6 +18,11 @@ import ReviewDisputeReview from "./review-dispute-detail/ReviewDisputeReview";
 
 export default function DisputeInvestigation({ disputeId, onDecision, decisionPending }) {
   const { dispute, isLoading, isFetching, error, refetch } = useReviewDisputeDetail(disputeId);
+  useApiErrorNotification(error, {
+    toastId: "admin-review-disputes-detail-load-error",
+    fallbackMessage: "Unable to load dispute details. Please try again.",
+  });
+
   const {
     scrollContainerRef,
     reviewHeaderRef,

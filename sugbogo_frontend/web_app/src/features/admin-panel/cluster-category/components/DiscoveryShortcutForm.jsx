@@ -9,6 +9,7 @@ export default function DiscoveryShortcutForm({
   errors,
   clusters,
   isLoadingClusters,
+  clusterOptionsQuery,
   onChange,
   onSubmit,
   onClearError,
@@ -32,6 +33,8 @@ export default function DiscoveryShortcutForm({
         error={errors.cluster_id}
         clusters={clusters}
         disabled={isLoadingClusters}
+        optionsQuery={clusterOptionsQuery}
+        placeholder={isLoadingClusters ? "Loading clusters..." : "Select a cluster"}
         required
       />
 

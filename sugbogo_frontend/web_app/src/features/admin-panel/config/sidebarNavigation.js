@@ -54,6 +54,8 @@ const navigation = [
         activePaths: [
           "/admin-panel/businesses/update-requests",
           "/admin-panel/businesses/update-requests/[requestId]",
+          "/admin-panel/businesses/update-requests/classification/[requestId]",
+          "/admin-panel/businesses/update-requests/location/[requestId]",
         ],
       },
       {

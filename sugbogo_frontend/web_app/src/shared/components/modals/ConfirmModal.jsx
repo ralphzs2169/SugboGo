@@ -21,6 +21,7 @@ export default function ConfirmModal({
       onClose={onClose}
       title={title}
       description={description}
+      dismissDisabled={loading}
     >
       <div className="flex justify-end gap-3">
         <Button variant="secondary" onClick={onClose} disabled={loading}>

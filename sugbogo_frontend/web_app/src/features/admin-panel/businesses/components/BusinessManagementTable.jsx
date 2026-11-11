@@ -12,9 +12,9 @@ import useBusinesses from "../hooks/useBusinesses";
 import useBusinessMap from "../hooks/useBusinessMap";
 import useBusinessTableState from "../hooks/useBusinessTableState";
 import BusinessManagementMap from "./business-location/BusinessManagementMap";
-import useClusters from "../../cluster-category/hooks/useClusters";
-import useCategories from "../../cluster-category/hooks/useCategories";
-import useSpecialtyTags from "../../specialty-tags/hooks/useSpecialtyTags";
+import { useQuery } from "@tanstack/react-query";
+import { taxonomyReferenceOptions } from "../../taxonomy/queries/taxonomyQueries";
+import TaxonomyOptionFeedback from "../../taxonomy/components/TaxonomyOptionFeedback";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -74,10 +74,13 @@ export default function BusinessManagementTable() {
     specialtyTag: specialtyTagFilter,
   });
 
-  // Filter option sources — fetched once, not paginated/searched.
-  const { clusters } = useClusters({ page_size: 100 });
-  const { categories } = useCategories({ page_size: 100 });
-  const { specialtyTags } = useSpecialtyTags({ page_size: 100 });
+  // Complete option sources stay independent of the directory's filters and page.
+  const clusterOptionsQuery = useQuery(taxonomyReferenceOptions("clusters"));
+  const categoryOptionsQuery = useQuery(taxonomyReferenceOptions("categories"));
+  const specialtyOptionsQuery = useQuery(taxonomyReferenceOptions("specialty-tags"));
+  const clusters = clusterOptionsQuery.data ?? [];
+  const categories = categoryOptionsQuery.data ?? [];
+  const specialtyTags = specialtyOptionsQuery.data ?? [];
 
   function handleViewBusiness(business) {
     navigate(`/admin-panel/businesses/${business.id}`);
@@ -102,6 +105,11 @@ export default function BusinessManagementTable() {
           {
             key: "cluster",
             label: "Cluster",
+            disabled: clusterOptionsQuery.isPending || Boolean(clusterOptionsQuery.error),
+            disabledMessage: clusterOptionsQuery.error
+              ? "Cluster options unavailable."
+              : "Loading cluster options…",
+            emptyMessage: "No cluster options available.",
             icon: Layers,
             options: clusters.map((cluster) => ({
               value: String(cluster.id),
@@ -113,6 +121,11 @@ export default function BusinessManagementTable() {
           {
             key: "category",
             label: "Category",
+            disabled: categoryOptionsQuery.isPending || Boolean(categoryOptionsQuery.error),
+            disabledMessage: categoryOptionsQuery.error
+              ? "Category options unavailable."
+              : "Loading category options…",
+            emptyMessage: "No category options available.",
             icon: Tag,
             options: categories.map((category) => ({
               value: String(category.id),
@@ -124,6 +137,11 @@ export default function BusinessManagementTable() {
           {
             key: "specialty_tag",
             label: "Specialty Tag",
+            disabled: specialtyOptionsQuery.isPending || Boolean(specialtyOptionsQuery.error),
+            disabledMessage: specialtyOptionsQuery.error
+              ? "Specialty Tag options unavailable."
+              : "Loading specialty tag options…",
+            emptyMessage: "No specialty tag options available.",
             icon: Tags,
             options: specialtyTags.map((tag) => ({
               value: String(tag.id),
@@ -149,6 +167,21 @@ export default function BusinessManagementTable() {
 
   return (
     <>
+      <TaxonomyOptionFeedback
+        query={clusterOptionsQuery}
+        resource="clusters"
+        label="Cluster"
+      />
+      <TaxonomyOptionFeedback
+        query={categoryOptionsQuery}
+        resource="categories"
+        label="Category"
+      />
+      <TaxonomyOptionFeedback
+        query={specialtyOptionsQuery}
+        resource="specialty-tags"
+        label="Specialty Tag"
+      />
       {currentTab === "businesses" && error && businesses.length > 0 && (
         <DataErrorState
           compact

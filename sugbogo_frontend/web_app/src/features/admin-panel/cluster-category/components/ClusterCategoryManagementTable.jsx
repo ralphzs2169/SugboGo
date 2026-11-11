@@ -9,6 +9,7 @@ import { MessageSquareText, Plus } from "lucide-react";
 import { FiLayers, FiTag } from "react-icons/fi";
 
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 import toast from "react-hot-toast";
 import FilterMenu from "../../../admin-panel/components/data-table/FilterMenu";
 import Button from "@/shared/components/Button";
@@ -76,19 +77,22 @@ export default function ClusterCategoryManagementTable({
   const [deleteType, setDeleteType] = useState(null);
 
   // Mutations
-  const { remove: deleteCluster, isDeleting: isDeletingCluster } =
-    useDeleteCluster();
-
-  const { remove: deleteCategory, isDeleting: isDeletingCategory } =
-    useDeleteCategory();
-  const { remove: deleteDiscoveryShortcut, isDeleting: isDeletingShortcut } =
-    useDeleteDiscoveryShortcut();
-
-  const isDeleting = deleteType === "cluster"
-    ? isDeletingCluster
-    : deleteType === "category"
-      ? isDeletingCategory
-      : isDeletingShortcut;
+  const { remove: deleteCluster } = useDeleteCluster();
+  const { remove: deleteCategory } = useDeleteCategory();
+  const { remove: deleteDiscoveryShortcut } = useDeleteDiscoveryShortcut();
+  const {
+    isSubmitting: isDeleting,
+    runSubmission: runDelete,
+    close: closeDelete,
+  } = useModalSubmission(
+    deleteModalOpen,
+    `${deleteType}:${deletingItem?.id}`,
+    () => {
+      setDeleteModalOpen(false);
+      setDeletingItem(null);
+      setDeleteType(null);
+    },
+  );
 
   // Table state management hook for global filter, sorting, column filters, and pagination.
   const {
@@ -272,38 +276,49 @@ export default function ClusterCategoryManagementTable({
     }));
   }
   async function handleConfirmDelete() {
-    try {
-      if (deleteType === "cluster") {
-        await deleteCluster(deletingItem.id);
-        await refreshTaxonomy("clusters");
-
-        toast.success("Cluster deleted successfully.");
-      }
-
-      if (deleteType === "category") {
-        await deleteCategory(deletingItem.id);
-        await refreshTaxonomy("categories");
-
-        toast.success("Category deleted successfully.");
-      }
-
-      if (deleteType === "discovery shortcut") {
-        await deleteDiscoveryShortcut(deletingItem.id);
-        await refreshShortcuts();
-        toast.success("Discovery shortcut deleted successfully.");
-      }
-
-      setDeleteModalOpen(false);
-      setDeletingItem(null);
-      setDeleteType(null);
-    } catch (error) {
-      console.error("Failed to delete item:", error);
-
-      toast.error(
-        error.response?.data?.message ||
-          "The item could not be deleted. Please try again.",
-      );
+    if (!deletingItem) {
+      return;
     }
+    return runDelete(async (isCurrent) => {
+      try {
+        if (deleteType === "cluster") {
+          await deleteCluster(deletingItem.id);
+          await refreshTaxonomy("clusters");
+
+          toast.success("Cluster deleted successfully.");
+        }
+
+        if (deleteType === "category") {
+          await deleteCategory(deletingItem.id);
+          await refreshTaxonomy("categories");
+
+          toast.success("Category deleted successfully.");
+        }
+
+        if (deleteType === "discovery shortcut") {
+          await deleteDiscoveryShortcut(deletingItem.id);
+          await refreshShortcuts();
+          toast.success("Discovery shortcut deleted successfully.");
+        }
+
+        if (!isCurrent()) {
+          return;
+        }
+        setDeleteModalOpen(false);
+        setDeletingItem(null);
+        setDeleteType(null);
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        console.error("Failed to delete item:", error);
+
+        toast.error(
+          error.response?.data?.message ||
+            "The item could not be deleted. Please try again.",
+        );
+      }
+    });
   }
 
   const resourcePlural = isClusterTab
@@ -489,6 +504,7 @@ export default function ClusterCategoryManagementTable({
       />}
 
       {editingCluster && <EditClusterModal
+        key={editingCluster.id}
         isOpen={isEditClusterOpen}
         cluster={editingCluster}
         onClose={() => {
@@ -503,6 +519,7 @@ export default function ClusterCategoryManagementTable({
       />}
 
       {editingCategory && <EditCategoryModal
+        key={editingCategory.id}
         isOpen={isEditCategoryOpen}
         category={editingCategory}
         onClose={() => {
@@ -527,6 +544,7 @@ export default function ClusterCategoryManagementTable({
       />}
 
       {editingDiscoveryShortcut && <EditDiscoveryShortcutModal
+        key={editingDiscoveryShortcut.id}
         isOpen={Boolean(editingDiscoveryShortcut)}
         shortcut={editingDiscoveryShortcut}
         onClose={() => setEditingDiscoveryShortcut(null)}
@@ -546,11 +564,7 @@ export default function ClusterCategoryManagementTable({
               : "Category"
         }?`}
         description={`Are you sure you want to delete "${deletingItem?.title ?? deletingItem?.name}"? This action cannot be undone.`}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setDeletingItem(null);
-          setDeleteType(null);
-        }}
+        onClose={closeDelete}
         onConfirm={handleConfirmDelete}
         loading={isDeleting}
       />

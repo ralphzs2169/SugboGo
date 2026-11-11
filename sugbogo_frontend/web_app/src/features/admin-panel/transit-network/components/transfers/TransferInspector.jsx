@@ -20,6 +20,7 @@ const STATUS_VARIANTS = {
  */
 export default function TransferInspector({
   transfer,
+  actionsDisabled = false,
   onEdit,
   onConfirm,
   onIgnore,
@@ -100,15 +101,15 @@ export default function TransferInspector({
 
       {/* Review actions */}
       <div className="mt-4 flex flex-wrap justify-end gap-2">
-        <Button variant="secondary" icon={Edit3} onClick={onEdit}>
+        <Button variant="secondary" icon={Edit3} onClick={onEdit} disabled={actionsDisabled}>
           Edit
         </Button>
         {transfer.status === "pending" && (
           <>
-            <Button variant="success" icon={Check} onClick={onConfirm}>
+            <Button variant="success" icon={Check} onClick={onConfirm} disabled={actionsDisabled}>
               Confirm
             </Button>
-            <Button variant="danger" icon={X} onClick={onIgnore}>
+            <Button variant="danger" icon={X} onClick={onIgnore} disabled={actionsDisabled}>
               Ignore
             </Button>
           </>

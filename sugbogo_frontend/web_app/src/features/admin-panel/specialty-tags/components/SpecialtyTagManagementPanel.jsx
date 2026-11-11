@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import Button from "@/shared/components/Button";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 
 import getSpecialtyTagColumns from "../columns/specialtyTagColumns";
 import useSpecialtyTags from "../hooks/useSpecialtyTags";
@@ -68,7 +69,19 @@ export default function SpecialtyTagManagementPanel({
   } = useSpecialtyTags(params, { enabled });
 
   // Mutations
-  const { remove: deleteSpecialtyTag, isDeleting } = useDeleteSpecialtyTag();
+  const { remove: deleteSpecialtyTag } = useDeleteSpecialtyTag();
+  const {
+    isSubmitting: isDeleting,
+    runSubmission: runDelete,
+    close: closeDelete,
+  } = useModalSubmission(
+    deleteModalOpen,
+    deletingSpecialtyTag?.id,
+    () => {
+      setDeleteModalOpen(false);
+      setDeletingSpecialtyTag(null);
+    },
+  );
 
   // Refresh the table after mutations.
   async function refreshSpecialtyTags() {
@@ -89,23 +102,34 @@ export default function SpecialtyTagManagementPanel({
 
   // Confirm deletion.
   async function handleConfirmDelete() {
-    try {
-      await deleteSpecialtyTag(deletingSpecialtyTag.id);
-
-      await refreshSpecialtyTags();
-
-      toast.success("Specialty tag deleted successfully.");
-
-      setDeleteModalOpen(false);
-      setDeletingSpecialtyTag(null);
-    } catch (error) {
-      console.error("Failed to delete specialty tag:", error);
-
-      toast.error(
-        error.response?.data?.message ||
-          "The specialty tag could not be deleted. Please try again.",
-      );
+    if (!deletingSpecialtyTag) {
+      return;
     }
+    return runDelete(async (isCurrent) => {
+      try {
+        await deleteSpecialtyTag(deletingSpecialtyTag.id);
+
+        await refreshSpecialtyTags();
+
+        toast.success("Specialty tag deleted successfully.");
+
+        if (!isCurrent()) {
+          return;
+        }
+        setDeleteModalOpen(false);
+        setDeletingSpecialtyTag(null);
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        console.error("Failed to delete specialty tag:", error);
+
+        toast.error(
+          error.response?.data?.message ||
+            "The specialty tag could not be deleted. Please try again.",
+        );
+      }
+    });
   }
 
   const columns = getSpecialtyTagColumns(
@@ -207,10 +231,7 @@ export default function SpecialtyTagManagementPanel({
         isOpen={deleteModalOpen}
         title="Delete Specialty Tag?"
         description={`Are you sure you want to delete "${deletingSpecialtyTag?.name}"? This action cannot be undone.`}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setDeletingSpecialtyTag(null);
-        }}
+        onClose={closeDelete}
         onConfirm={handleConfirmDelete}
         loading={isDeleting}
       />

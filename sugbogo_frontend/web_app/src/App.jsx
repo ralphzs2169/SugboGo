@@ -13,12 +13,9 @@ import ActivityLogsPage from "@/features/admin-panel/pages/ActivityLogsPage";
 import NotificationsPage from "@/features/admin-panel/pages/NotificationsPage";
 import Users from "@/features/admin-panel/pages/Users";
 import UserDetailPage from "@/features/admin-panel/pages/UserDetailPage";
-import ExplorerActivities from "@/features/admin-panel/pages/ExplorerActivities";
 import ModerationIntegrityPage from "@/features/admin-panel/pages/ModerationIntegrityPage";
 import Analytics from "@/features/admin-panel/pages/Analytics";
 import DiscoveryScoresPage from "@/features/admin-panel/pages/DiscoveryScoresPage";
-import Settings from "@/features/admin-panel/pages/Settings";
-import RolesPermissions from "@/features/admin-panel/pages/RolesPermissions";
 import ProtectedRoute from "@/features/auth/routes/ProtectedRoute";
 import ClusterCategoryPage from "@/features/admin-panel/pages/ClusterCategoryPage";
 import BusinessTaxonomyPage from "@/features/admin-panel/pages/BusinessTaxonomyPage";
@@ -124,11 +121,6 @@ function App() {
             <Route path="users" element={<Users />} />
             <Route path="users/all" element={<Users />} />
             <Route path="users/:userId" element={<UserDetailPage />} />
-            <Route
-              path="users/roles-permissions"
-              element={<RolesPermissions />}
-            />
-            <Route path="explorer-activity" element={<ExplorerActivities />} />
             <Route path="specialty-tags" element={<SpecialtyTagsPage />} />
             <Route path="transit-network" element={<TransitNetworkPage />} />
             <Route
@@ -170,10 +162,14 @@ function App() {
               path="analytics/discovery-scores"
               element={<DiscoveryScoresPage />}
             />
-            <Route path="settings" element={<Settings />} />
           </Route>
         </Route>
 
+        {/* Keep this retired URL from matching users/:userId. */}
+        <Route
+          path="/admin-panel/users/roles-permissions"
+          element={<NotFound />}
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <Toaster

@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -39,6 +40,11 @@ export default function SuspiciousReviewWorkspace() {
     placeholderData: keepPreviousData,
     retryOnMount: false,
   });
+  useApiErrorNotification(error, {
+    toastId: "admin-suspicious-reviews-list-load-error",
+    fallbackMessage: "Unable to load suspicious reviews. Please try again.",
+  });
+
   const reviews = data?.items ?? [];
   const pagination = data?.pagination;
 

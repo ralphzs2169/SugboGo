@@ -14,6 +14,7 @@ export default function Modal({
   onClose,
   children,
   showCloseButton = true,
+  dismissDisabled = false,
   maxWidth = "max-w-lg",
   scrollable = false,
   lockBodyScroll = true,
@@ -55,7 +56,9 @@ export default function Modal({
         !event.defaultPrevented &&
         (!activeDialog || activeDialog === dialogRef.current)
       ) {
-        onClose();
+        if (!dismissDisabled) {
+          onClose();
+        }
       }
 
       const dialog = dialogRef.current;
@@ -108,7 +111,7 @@ export default function Modal({
         document.body.style.overflow = previousOverflow;
       }
     };
-  }, [isOpen, onClose, lockBodyScroll]);
+  }, [isOpen, onClose, lockBodyScroll, dismissDisabled]);
 
   if (!isOpen) {
     return null;
@@ -117,7 +120,11 @@ export default function Modal({
   return (
     <div
       className={`fixed inset-0 z-50 flex bg-black/50 ${placement === "right" ? "items-stretch justify-end" : "items-center justify-center p-4"} ${overlayClassName}`}
-      onClick={onClose}
+      onClick={() => {
+        if (!dismissDisabled) {
+          onClose();
+        }
+      }}
     >
       <div
         ref={dialogRef}
@@ -156,7 +163,8 @@ export default function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="cursor-pointer rounded-lg p-2 text-text-secondary transition hover:bg-surface hover:text-text-primary"
+              disabled={dismissDisabled}
+              className="cursor-pointer rounded-lg p-2 text-text-secondary transition hover:bg-surface hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="Close modal"
             >
               <X className="h-5 w-5" />

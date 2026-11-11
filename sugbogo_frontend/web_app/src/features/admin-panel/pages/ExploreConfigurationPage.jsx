@@ -14,7 +14,7 @@ export default function ExploreConfigurationPage() {
         title="Explore Configuration"
         breadcrumbs={[
           { label: "SugboGo Admin" },
-          { label: "Management" },
+          { label: "Discovery" },
           { label: "Explore Configuration" },
         ]}
       />

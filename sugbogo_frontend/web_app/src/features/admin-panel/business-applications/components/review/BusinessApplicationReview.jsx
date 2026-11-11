@@ -87,6 +87,20 @@ export default function BusinessApplicationReview({
 
   const [documentPreviewUrls, setDocumentPreviewUrls] = useState({});
 
+  const [rejectionDraft, setRejectionDraft] = useState(null);
+  const currentRejectionDraft = rejectionDraft?.applicationId === application.id
+    ? rejectionDraft
+    : { selectedSections: [], feedback: {} };
+
+  function updateRejectionDraft(updater) {
+    setRejectionDraft((previous) => {
+      const current = previous?.applicationId === application.id
+        ? previous
+        : { selectedSections: [], feedback: {} };
+      return { ...updater(current), applicationId: application.id };
+    });
+  }
+
   const [rejectionSubmissionId, setRejectionSubmissionId] = useState(null);
   const [rejectionSession, setRejectionSession] = useState(0);
   const [isRejectDrawerOpen, setIsRejectDrawerOpen] = useState(false);
@@ -415,6 +429,8 @@ export default function BusinessApplicationReview({
         key={rejectionSession}
         isOpen={isRejectDrawerOpen}
         applicationId={application.id}
+        draft={currentRejectionDraft}
+        onDraftChange={updateRejectionDraft}
         onClose={() => setIsRejectDrawerOpen(false)}
         onSuccess={onApplicationRejected}
         businessName={businessName}

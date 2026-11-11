@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { getOrdering } from "@/features/admin-panel/components/data-table/tableUtils";
-import useDebounce from "@/shared/hooks/useDebounce";
 
 const DEFAULT_PAGE_SIZE = 10;
 
@@ -40,55 +39,55 @@ export default function useTableState({
 
   const currentTab = searchParams.get(tabParamKey) || defaultTab;
 
-  const [globalFilter, setGlobalFilter] = useState(
-    () => searchParams.get("search") || "",
-  );
-
-  const [sorting, setSortingState] = useState(() =>
-    parseSorting(searchParams.get("sort")),
-  );
-
-  const [pagination, setPaginationState] = useState(() => ({
-    pageIndex: Math.max(0, Number(searchParams.get("page") || 1) - 1),
+  const location = useLocation();
+  const urlSearch = searchParams.get("search") || "";
+  const [draft, setDraft] = useState(null);
+  const globalFilter = draft?.key === location.key ? draft.value : urlSearch;
+  const debouncedGlobalFilter = urlSearch;
+  const isSearching = globalFilter !== urlSearch;
+  const sortParam = searchParams.get("sort");
+  const sorting = useMemo(() => parseSorting(sortParam), [sortParam]);
+  const requestedPage = Number(searchParams.get("page") || 1);
+  const pagination = {
+    pageIndex: Number.isSafeInteger(requestedPage) && requestedPage > 0
+      ? requestedPage - 1
+      : 0,
     pageSize,
-  }));
+  };
 
-  const debouncedGlobalFilter = useDebounce(globalFilter, debounceMs);
-  const isSearching = globalFilter !== debouncedGlobalFilter;
-
-  // Skips the search-sync effect on mount so returning to this page
-  // (e.g. from a detail page) doesn't reset pagination back to page 1.
-  const isFirstRender = useRef(true);
+  function setGlobalFilter(value) {
+    setDraft({ key: location.key, value });
+  }
 
   function updateSearchParams(updates, { replace = true } = {}) {
-    setSearchParams(
-      (previous) => {
-        const next = new URLSearchParams(previous);
-
-        Object.entries(updates).forEach(([key, value]) => {
-          if (value === null || value === undefined || value === "") {
-            next.delete(key);
-          } else {
-            next.set(key, value);
-          }
-        });
-
-        return next;
-      },
-      { replace },
-    );
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === "") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    });
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace });
+    }
   }
 
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
+    setDraft((previous) => (
+      previous?.key === location.key ? previous : null
+    ));
+  }, [location.key]);
 
-    updateSearchParams({ search: debouncedGlobalFilter || null, page: null });
-    setPaginationState((previous) => ({ ...previous, pageIndex: 0 }));
+  // Navigation invalidates a draft and cancels its pending search update.
+  useEffect(() => {
+    if (!isSearching) return;
+    const timer = setTimeout(() => {
+      updateSearchParams({ search: globalFilter || null, page: null });
+    }, debounceMs);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedGlobalFilter]);
+  }, [globalFilter, isSearching, location.key, debounceMs]);
 
   function setCurrentTab(tab, options) {
     updateSearchParams(
@@ -103,14 +102,13 @@ export default function useTableState({
         ? updaterOrValue(sorting)
         : updaterOrValue;
 
-    setSortingState(next);
     updateSearchParams({
       sort: serializeSorting(next),
     });
   }
 
   function resetSortingState() {
-    setSortingState([]);
+    updateSearchParams({ sort: null });
   }
 
   function setPagination(updaterOrValue) {
@@ -119,14 +117,13 @@ export default function useTableState({
         ? updaterOrValue(pagination)
         : updaterOrValue;
 
-    setPaginationState(next);
     updateSearchParams({
       page: next.pageIndex > 0 ? String(next.pageIndex + 1) : null,
     });
   }
 
   function resetPageIndex() {
-    setPaginationState((previous) => ({ ...previous, pageIndex: 0 }));
+    updateSearchParams({ page: null });
   }
 
   const ordering = useMemo(() => getOrdering(sorting), [sorting]);

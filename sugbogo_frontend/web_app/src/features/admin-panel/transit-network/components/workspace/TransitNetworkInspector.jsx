@@ -173,6 +173,8 @@ function RouteContextInspector({
 function TransferContextInspector({
   mode,
   selectedTransfer,
+  saveDisabled,
+  actionsDisabled,
   geometryError,
   onDirtyChange,
   onCancel,
@@ -192,6 +194,7 @@ function TransferContextInspector({
         transfer={
           mode === TRANSIT_MODES.EDIT_TRANSFER ? selectedTransfer : null
         }
+        saveDisabled={saveDisabled}
         onDirtyChange={onDirtyChange}
         onCancel={onCancel}
         onSaved={onSaved}
@@ -203,6 +206,7 @@ function TransferContextInspector({
     <>
       <TransferInspector
         transfer={selectedTransfer}
+        actionsDisabled={actionsDisabled}
         onEdit={onEdit}
         onConfirm={onConfirm}
         onIgnore={onIgnore}

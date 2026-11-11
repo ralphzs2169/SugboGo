@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useEffect, useRef, useState } from "react";
 import { UserRound } from "lucide-react";
 
@@ -38,6 +39,11 @@ export default function UnderReviewDetail({
   const reviewHeaderRef = useRef(null);
   const [showContextBar, setShowContextBar] = useState(false);
   const { review, isLoading, error, refetch } = useUnderReviewReview(reviewId);
+
+  useApiErrorNotification(error, {
+    toastId: "admin-under-review-detail-load-error",
+    fallbackMessage: "Unable to load review moderation details. Please try again.",
+  });
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;

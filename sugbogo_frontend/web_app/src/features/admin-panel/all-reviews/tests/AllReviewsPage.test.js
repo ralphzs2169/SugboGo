@@ -1,5 +1,6 @@
+import toast from "react-hot-toast";
 import assert from "node:assert/strict";
-import { after, afterEach, before, beforeEach, test } from "node:test";
+import { after, afterEach, before, beforeEach, mock, test } from "node:test";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
@@ -23,6 +24,8 @@ let client;
 let Page;
 let reads;
 let transport;
+let notifications;
+let dismissed;
 let navigate;
 let keys;
 let queries;
@@ -84,6 +87,10 @@ before(async () => {
 });
 
 beforeEach(async () => {
+  notifications = [];
+  dismissed = [];
+  mock.method(toast, "error", (...args) => notifications.push(args));
+  mock.method(toast, "dismiss", (id) => dismissed.push(id));
   client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -106,6 +113,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  mock.restoreAll();
   await act(async () => root.unmount());
   client.clear();
   container.remove();
@@ -479,10 +487,14 @@ test("list error retries without losing filters or disabling the metric cards", 
   await render("/admin-panel/reviews?status=published");
   await until(() => container.textContent.includes("Unable to load reviews"));
   assert.ok(button("Total Reviews: 32. Clear status and reported filters"));
+  assert.deepEqual(notifications.map((entry) => entry[1].id), ["admin-all-reviews-list-load-error"]);
+  await render();
+  assert.equal(notifications.length, 1);
   fail = false;
   await click("Try Again");
   await until(() => container.textContent.includes("Ana Cruz"));
   assert.equal(listReads().at(-1).params.status, "published");
+  assert.ok(dismissed.includes("admin-all-reviews-list-load-error"));
 });
 
 test("summary error remains contained and retries without refetching the list", async () => {
@@ -497,6 +509,9 @@ test("summary error remains contained and retries without refetching the list", 
     container.textContent.includes("Unable to load review metrics"),
   );
   assert.match(container.textContent, /Ana Cruz/);
+  assert.deepEqual(notifications.map((entry) => entry[1].id), ["admin-all-reviews-metrics-load-error"]);
+  await render();
+  assert.equal(notifications.length, 1);
   fail = false;
   await click("Try Again");
   await until(() =>
@@ -696,6 +711,9 @@ test("detail error retries independently and can be closed", async () => {
   await until(() =>
     dialog()?.textContent.includes("Unable to load review details"),
   );
+  assert.deepEqual(notifications.map((entry) => entry[1].id), ["admin-all-reviews-detail-load-error"]);
+  await render();
+  assert.equal(notifications.length, 1);
   fail = false;
   await click("Try Again", dialog());
   await until(() => dialog()?.textContent.includes("Full review 41:"));

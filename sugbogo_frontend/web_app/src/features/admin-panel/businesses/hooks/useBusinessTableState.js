@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import useTableState from "@/shared/hooks/useTableState";
 
@@ -15,54 +14,30 @@ export default function useBusinessTableState() {
     ordering,
     pagination,
     setPagination,
-    resetPageIndex,
     updateSearchParams,
   } = useTableState({ defaultTab: "businesses" });
 
   // Observe same-page overview links and browser back/forward navigation.
   const [searchParams] = useSearchParams();
   const statusFilter = searchParams.get("status") || "";
-  const previousStatus = useRef(statusFilter);
-
-  useEffect(() => {
-    if (previousStatus.current !== statusFilter) {
-      previousStatus.current = statusFilter;
-      resetPageIndex();
-    }
-  }, [statusFilter, resetPageIndex]);
-
-  const [clusterFilter, setClusterFilterState] = useState(
-    () => searchParams.get("cluster") || "",
-  );
-  const [categoryFilter, setCategoryFilterState] = useState(
-    () => searchParams.get("category") || "",
-  );
-  const [specialtyTagFilter, setSpecialtyTagFilterState] = useState(
-    () =>
-      searchParams.get("specialty_tag") || "",
-  );
+  const clusterFilter = searchParams.get("cluster") || "";
+  const categoryFilter = searchParams.get("category") || "";
+  const specialtyTagFilter = searchParams.get("specialty_tag") || "";
 
   function setStatusFilter(status) {
     updateSearchParams({ status: status || null, page: null });
-    resetPageIndex();
   }
 
   function setClusterFilter(value) {
-    setClusterFilterState(value);
     updateSearchParams({ cluster: value || null, page: null });
-    resetPageIndex();
   }
 
   function setCategoryFilter(value) {
-    setCategoryFilterState(value);
     updateSearchParams({ category: value || null, page: null });
-    resetPageIndex();
   }
 
   function setSpecialtyTagFilter(value) {
-    setSpecialtyTagFilterState(value);
     updateSearchParams({ specialty_tag: value || null, page: null });
-    resetPageIndex();
   }
 
   const params = {
@@ -87,11 +62,6 @@ export default function useBusinessTableState() {
 
   function handleResetFilters() {
     setGlobalFilter("");
-    setClusterFilterState("");
-    setCategoryFilterState("");
-    setSpecialtyTagFilterState("");
-    setSorting([]);
-    resetPageIndex();
 
     updateSearchParams({
       search: null,

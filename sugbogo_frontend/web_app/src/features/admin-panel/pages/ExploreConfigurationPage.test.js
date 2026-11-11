@@ -368,21 +368,25 @@ test("actual legacy routes resolve to the correct destination and tab without lo
   assert.match(app, /path="business-taxonomy" element={<BusinessTaxonomyPage/);
 });
 
-test("the Management sidebar and metadata expose one entry per new destination", async () => {
+test("the Management and Discovery sidebar sections and metadata expose their intended destinations", async () => {
   const management = navigation.find((section) => section.section === "Management").items;
   for (const [label, to] of [
     ["Business Management", "/admin-panel/businesses"],
     ["Merchant Applications", "/admin-panel/businesses/applications"],
     ["Business Taxonomy", "/admin-panel/business-taxonomy"],
-    ["Explore Configuration", "/admin-panel/explore-configuration"],
   ]) {
     assert.equal(management.filter((item) => item.to === to && item.label === label).length, 1);
   }
+  const discovery = navigation.find((section) => section.section === "Discovery").items;
+  assert.equal(discovery.filter((item) => (
+    item.to === "/admin-panel/explore-configuration" && item.label === "Explore Configuration"
+  )).length, 1);
+  assert.equal(management.some((item) => item.to === "/admin-panel/explore-configuration"), false);
   for (const path of ["cluster-category", "specialty-tags", "discovery-shortcuts"]) {
     assert.equal(management.some((item) => item.to === `/admin-panel/${path}`), false);
   }
   assert.equal(metadata["/admin-panel/explore-configuration"].title, "Explore Configuration");
   assert.equal(metadata["/admin-panel/business-taxonomy"].title, "Business Taxonomy Management");
   await render();
-  assert.match(container.textContent, /SugboGo AdminManagementExplore Configuration/);
+  assert.match(container.textContent, /SugboGo AdminDiscoveryExplore Configuration/);
 });

@@ -2,9 +2,11 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 
 import Modal from "@/shared/components/modals/Modal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 
 import DiscoveryShortcutForm from "./DiscoveryShortcutForm";
-import useClusters from "../hooks/useClusters";
+import { useQuery } from "@tanstack/react-query";
+import { taxonomyReferenceOptions } from "../../taxonomy/queries/taxonomyQueries";
 import useCreateDiscoveryShortcut from "../hooks/useCreateDiscoveryShortcut";
 import { validateDiscoveryShortcut } from "../validation/discoveryShortcutValidation";
 
@@ -23,10 +25,25 @@ export default function CreateDiscoveryShortcutModal({
 }) {
   const [values, setValues] = useState(INITIAL_VALUES);
   const [errors, setErrors] = useState({});
-  const { submit, isSubmitting } = useCreateDiscoveryShortcut();
-  const { clusters, isLoading: isLoadingClusters } = useClusters(
-    { page_size: 100 },
-    { enabled: isOpen },
+  const { submit } = useCreateDiscoveryShortcut();
+  const { isSubmitting, runSubmission, close } = useModalSubmission(
+    isOpen,
+    undefined,
+    () => {
+      setValues(INITIAL_VALUES);
+      setErrors({});
+      onClose();
+    },
+  );
+  const clusterOptionsQuery = useQuery({
+    ...taxonomyReferenceOptions("clusters"),
+    enabled: isOpen,
+  });
+  const clusters = clusterOptionsQuery.data ?? [];
+  const isLoadingClusters = clusterOptionsQuery.isPending;
+  const referenceUnavailable = (
+    isLoadingClusters ||
+    Boolean(clusterOptionsQuery.error)
   );
   const assignedClusterIds = new Set(
     shortcuts.map((shortcut) => String(shortcut.cluster.id)),
@@ -44,6 +61,9 @@ export default function CreateDiscoveryShortcutModal({
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (referenceUnavailable) {
+      return;
+    }
     const validationErrors = validateDiscoveryShortcut(values);
 
     if (Object.keys(validationErrors).length > 0) {
@@ -51,43 +71,50 @@ export default function CreateDiscoveryShortcutModal({
       return;
     }
 
-    try {
-      await submit(values);
-      await onSuccess?.();
-      setValues(INITIAL_VALUES);
-      setErrors({});
-      onClose();
-    } catch (error) {
-      setErrors(error.response?.data?.errors ?? {});
-      toast.error(
-        error.response?.data?.message ||
-          "The Discovery Shortcut could not be created. Please try again.",
-      );
-    }
+    return runSubmission(async (isCurrent) => {
+      try {
+        await submit(values);
+        await onSuccess?.();
+        if (!isCurrent()) {
+          return;
+        }
+        setValues(INITIAL_VALUES);
+        setErrors({});
+        onClose();
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        setErrors(error.response?.data?.errors ?? {});
+        toast.error(
+          error.response?.data?.message ||
+            "The Discovery Shortcut could not be created. Please try again.",
+        );
+      }
+    });
   }
 
   return (
     <Modal
       isOpen={isOpen}
+      dismissDisabled={isSubmitting}
       title="Create Discovery Shortcut"
       description="Link a Discovery Shortcut to an existing cluster."
-      onClose={() => {
-        setValues(INITIAL_VALUES);
-        setErrors({});
-        onClose();
-      }}
+      onClose={close}
     >
       <DiscoveryShortcutForm
         values={values}
         errors={errors}
         clusters={availableClusters}
         isLoadingClusters={isLoadingClusters}
+        clusterOptionsQuery={clusterOptionsQuery}
         onChange={handleChange}
         onSubmit={handleSubmit}
         onClearError={(field) =>
           setErrors((previous) => ({ ...previous, [field]: undefined }))
         }
         isSubmitting={isSubmitting}
+        submitDisabled={referenceUnavailable}
         submitLabel="Create Discovery Shortcut"
       />
     </Modal>

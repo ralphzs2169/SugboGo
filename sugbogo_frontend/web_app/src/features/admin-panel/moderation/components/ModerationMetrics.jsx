@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ClipboardList, Clock3, Hourglass, ShieldCheck } from "lucide-react";
 
@@ -36,6 +37,11 @@ export default function ModerationMetrics({
     refetchInterval: 60_000,
     retryOnMount: false,
   });
+  useApiErrorNotification(query.error, {
+    toastId: "admin-moderation-metrics-load-error",
+    fallbackMessage: "Unable to load moderation metrics. Please try again.",
+  });
+
   const data = query.data;
   const loading = query.isPending && !query.isError;
   const advisory = tab === "suspicious";

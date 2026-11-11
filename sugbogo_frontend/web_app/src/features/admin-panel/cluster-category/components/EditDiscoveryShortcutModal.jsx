@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import Modal from "@/shared/components/modals/Modal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 import { hasFormChanges } from "@/shared/utils/formUtils";
 
 import DiscoveryShortcutForm from "./DiscoveryShortcutForm";
-import useClusters from "../hooks/useClusters";
+import { useQuery } from "@tanstack/react-query";
+import { taxonomyReferenceOptions } from "../../taxonomy/queries/taxonomyQueries";
 import useUpdateDiscoveryShortcut from "../hooks/useUpdateDiscoveryShortcut";
 import { validateDiscoveryShortcut } from "../validation/discoveryShortcutValidation";
 
@@ -25,10 +27,21 @@ export default function EditDiscoveryShortcutModal({
   const [values, setValues] = useState({});
   const [initialValues, setInitialValues] = useState({});
   const [errors, setErrors] = useState({});
-  const { submit, isSubmitting } = useUpdateDiscoveryShortcut();
-  const { clusters, isLoading: isLoadingClusters } = useClusters(
-    { page_size: 100 },
-    { enabled: isOpen },
+  const { submit } = useUpdateDiscoveryShortcut();
+  const { isSubmitting, runSubmission, close } = useModalSubmission(
+    isOpen,
+    shortcut?.id,
+    onClose,
+  );
+  const clusterOptionsQuery = useQuery({
+    ...taxonomyReferenceOptions("clusters"),
+    enabled: isOpen,
+  });
+  const clusters = clusterOptionsQuery.data ?? [];
+  const isLoadingClusters = clusterOptionsQuery.isPending;
+  const referenceUnavailable = (
+    isLoadingClusters ||
+    Boolean(clusterOptionsQuery.error)
   );
 
   useEffect(() => {
@@ -52,6 +65,9 @@ export default function EditDiscoveryShortcutModal({
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (referenceUnavailable) {
+      return;
+    }
     const validationErrors = validateDiscoveryShortcut(values);
 
     if (Object.keys(validationErrors).length > 0) {
@@ -59,17 +75,25 @@ export default function EditDiscoveryShortcutModal({
       return;
     }
 
-    try {
-      await submit(shortcut.id, values);
-      await onSuccess?.();
-      onClose();
-    } catch (error) {
-      setErrors(error.response?.data?.errors ?? {});
-      toast.error(
-        error.response?.data?.message ||
-          "The Discovery Shortcut could not be updated. Please try again.",
-      );
-    }
+    return runSubmission(async (isCurrent) => {
+      try {
+        await submit(shortcut.id, values);
+        await onSuccess?.();
+        if (!isCurrent()) {
+          return;
+        }
+        onClose();
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        setErrors(error.response?.data?.errors ?? {});
+        toast.error(
+          error.response?.data?.message ||
+            "The Discovery Shortcut could not be updated. Please try again.",
+        );
+      }
+    });
   }
 
   if (!shortcut) {
@@ -79,15 +103,17 @@ export default function EditDiscoveryShortcutModal({
   return (
     <Modal
       isOpen={isOpen}
+      dismissDisabled={isSubmitting}
       title="Edit Discovery Shortcut"
       description="Update the shortcut content or availability."
-      onClose={onClose}
+      onClose={close}
     >
       <DiscoveryShortcutForm
         values={values}
         errors={errors}
         clusters={clusters}
         isLoadingClusters={isLoadingClusters}
+        clusterOptionsQuery={clusterOptionsQuery}
         onChange={(event) =>
           setValues((previous) => ({
             ...previous,
@@ -101,6 +127,7 @@ export default function EditDiscoveryShortcutModal({
         isSubmitting={isSubmitting}
         submitLabel="Save Changes"
         submitDisabled={
+          referenceUnavailable ||
           !hasFormChanges(
             values,
             initialValues,

@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
@@ -46,6 +47,11 @@ function VouchDetail({ vouchId, onStale }) {
     queryFn: () => fetchSuspiciousVouch(vouchId),
     enabled: Boolean(vouchId),
     retryOnMount: false,
+  });
+
+  useApiErrorNotification(error, {
+    toastId: "admin-suspicious-vouches-detail-load-error",
+    fallbackMessage: "Unable to load vouch details. Please try again.",
   });
 
   if (!vouchId) {
@@ -158,6 +164,11 @@ export default function SuspiciousVouchWorkspace() {
     placeholderData: keepPreviousData,
     retryOnMount: false,
   });
+  useApiErrorNotification(error, {
+    toastId: "admin-suspicious-vouches-list-load-error",
+    fallbackMessage: "Unable to load suspicious vouches. Please try again.",
+  });
+
   const items = data?.items ?? [];
   const pagination = data?.pagination;
 

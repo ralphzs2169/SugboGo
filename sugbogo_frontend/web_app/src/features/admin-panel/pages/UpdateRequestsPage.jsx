@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileText, List, Tag } from "lucide-react";
 
@@ -6,7 +5,7 @@ import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import FilterMenu from "@/features/admin-panel/components/data-table/FilterMenu";
 import PageHeader from "@/features/admin-panel/components/PageHeader";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
-import useDebounce from "@/shared/hooks/useDebounce";
+import useTableState from "@/shared/hooks/useTableState";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
 import businessUpdateRequestColumns from "../business-update-requests/columns/businessUpdateRequestColumns";
@@ -32,10 +31,12 @@ export default function UpdateRequestsPage() {
 
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [globalFilter, setGlobalFilter] = useState(
-    () => searchParams.get("search") || "",
-  );
-  const debouncedGlobalFilter = useDebounce(globalFilter, 400);
+  const {
+    globalFilter,
+    setGlobalFilter,
+    debouncedGlobalFilter,
+    updateSearchParams,
+  } = useTableState();
   const selectedType = searchParams.get("type") || "all";
   const requestType = VALID_TYPES.has(selectedType) ? selectedType : "all";
   const selectedStatus = searchParams.get("status") || "pending";
@@ -102,7 +103,9 @@ export default function UpdateRequestsPage() {
   });
 
   function selectStatus(nextStatus) {
-    setSearchParams({
+    updateSearchParams({
+      page: null,
+      queue_view: null,
       ...businessScope,
       type: requestType,
       status: nextStatus || "all",
@@ -111,9 +114,10 @@ export default function UpdateRequestsPage() {
   }
 
   function selectRequestType(nextType) {
-    setSearchParams({
+    updateSearchParams({
       ...businessScope,
       ...metricScope,
+      page: null,
       type: nextType || "all",
       status,
       search: globalFilter,
@@ -122,16 +126,22 @@ export default function UpdateRequestsPage() {
 
   function changeSearch(value) {
     setGlobalFilter(value);
-    setSearchParams({ ...businessScope, ...metricScope, type: requestType, status, search: value });
   }
 
   function resetFilters() {
     setGlobalFilter("");
-    setSearchParams({ ...businessScope, type: "all", status: "all" });
+    updateSearchParams({
+      ...businessScope,
+      type: "all",
+      status: "all",
+      search: null,
+      page: null,
+      queue_view: null,
+    });
   }
 
   function changePagination(nextPagination) {
-    setSearchParams({
+    updateSearchParams({
       ...businessScope,
       ...metricScope,
       type: requestType,
@@ -143,11 +153,13 @@ export default function UpdateRequestsPage() {
 
   function filterMetricQueue(view) {
     setGlobalFilter("");
-    setSearchParams({
+    updateSearchParams({
       ...businessScope,
       type: requestType,
       status: view === "resolved_today" ? "all" : "pending",
-      ...(view === "pending" ? {} : { queue_view: view }),
+      search: null,
+      page: null,
+      queue_view: view === "pending" ? null : view,
     });
   }
 

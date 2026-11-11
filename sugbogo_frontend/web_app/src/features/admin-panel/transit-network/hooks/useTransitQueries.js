@@ -53,6 +53,8 @@ function usePaginatedTransitQuery({ queryKey, queryFn, enabled = true }) {
 
   return {
     items: response?.items ?? [],
+    dataUpdatedAt: query.dataUpdatedAt,
+    isPlaceholderData: query.isPlaceholderData,
     totalItems: response?.pagination?.total_items ?? 0,
     pageCount: response?.pagination?.total_pages ?? 0,
     isLoading: query.isLoading,
@@ -125,6 +127,8 @@ export function useTransitPoint(transitPointId, options = {}) {
 
   return {
     transitPoint: query.data ?? null,
+    dataUpdatedAt: query.dataUpdatedAt,
+    isFetching: query.isFetching,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
@@ -148,6 +152,8 @@ export function useTransitTransfer(transferId, options = {}) {
 
   return {
     transfer: query.data ?? null,
+    dataUpdatedAt: query.dataUpdatedAt,
+    isFetching: query.isFetching,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

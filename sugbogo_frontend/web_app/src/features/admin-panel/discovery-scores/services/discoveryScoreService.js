@@ -8,10 +8,35 @@ export async function fetchDiscoveryScores(params = {}) {
 }
 
 export async function recomputeDiscoveryScores() {
-  const response = await apiClient.post(
-    "/admin/analytics/discovery-scores/recompute/",
-  );
-  return response.data.data;
+  try {
+    const response = await apiClient.post(
+      "/admin/analytics/discovery-scores/recompute/",
+    );
+    return response.data.data;
+  } catch (error) {
+    const code = error.response?.data?.code || error.code;
+    if ([
+      "REQUEST_TIMEOUT",
+      "NETWORK_ERROR",
+      "ECONNABORTED",
+      "ETIMEDOUT",
+      "ERR_NETWORK",
+      "ERR_CANCELED",
+    ].includes(code)) {
+      const uncertain = new Error(
+        "Completion could not be confirmed. Recomputation may still be running or may have completed. Refresh score data before trying again.",
+        { cause: error },
+      );
+      uncertain.response = {
+        data: {
+          code: "RECOMPUTATION_OUTCOME_UNKNOWN",
+          message: uncertain.message,
+        },
+      };
+      throw uncertain;
+    }
+    throw error;
+  }
 }
 
 /** Load one current diagnostic only through the explicitly enabled query. */

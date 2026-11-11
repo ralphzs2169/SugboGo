@@ -36,6 +36,7 @@ before(async () => {
   ({ createRoot } = await import("react-dom/client"));
   server = await createServer({
     appType: "custom",
+    optimizeDeps: { noDiscovery: true, include: [] },
     server: { middlewareMode: true, hmr: false },
     plugins: [
       {
@@ -347,4 +348,82 @@ test("discarding one candidate does not clear another candidate's unsaved edits"
   await click(button("Discard assessment changes"));
   assert.equal(button("Approve Application").disabled, false);
   assert.equal(button("Reject Application").disabled, false);
+});
+
+async function openRejectionDraft() {
+  await click(button("Reject Application"));
+  await act(async () => new Promise((done) => setTimeout(done, 25)));
+}
+async function writeRejectionDraft() {
+  await click(document.querySelector("#section-identity"));
+  const field = document.querySelector("#feedback-identity");
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")
+      .set.call(field, "Please correct the registered business name.");
+    field.dispatchEvent(new window.Event("input", { bubbles: true }));
+  });
+}
+function assertRejectionDraft() {
+  assert.equal(document.querySelector("#section-identity").checked, true);
+  assert.equal(document.querySelector("#feedback-identity").value,
+    "Please correct the registered business name.");
+}
+for (const dismissal of ["Close", "Cancel", "Escape", "backdrop"]) {
+  test(`rejection draft survives ${dismissal}, section inspection and reopen`, async () => {
+    await renderPage();
+    await openRejectionDraft();
+    await writeRejectionDraft();
+    await click(document.querySelector("#section-identity"));
+    await click(document.querySelector("#section-identity"));
+    assertRejectionDraft();
+    if (dismissal === "Escape") {
+      await act(async () => window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape" })));
+    } else if (dismissal === "backdrop") {
+      await click(document.querySelector('[aria-hidden="true"].bg-black\\/40'));
+    } else if (dismissal === "Close") {
+      await click(document.querySelector('button[aria-label="Close"]'));
+    } else {
+      await click(button("Cancel"));
+    }
+    await renderPage(); // Inspect/refetch the same application without leaving it.
+    await openRejectionDraft();
+    assertRejectionDraft();
+  });
+}
+
+test("failed rejection retains the draft and success clears it without changing its payload", async () => {
+  await renderPage();
+  await openRejectionDraft();
+  await writeRejectionDraft();
+  globalThis.__assessmentTestReject = async () => { throw new Error("Request failed"); };
+  await renderPage();
+  await click(button("Review & Reject"));
+  await click([...document.querySelectorAll("button")].findLast((node) => node.textContent.trim() === "Reject Application"));
+  assertRejectionDraft();
+  globalThis.__assessmentTestReject = async (...args) => rejections.push(args);
+  await renderPage();
+  await click(button("Review & Reject"));
+  await click([...document.querySelectorAll("button")].findLast((node) => node.textContent.trim() === "Reject Application"));
+  assert.equal(rejections.length, 1);
+  assert.deepEqual(rejections[0][1].feedback, [{ section: "identity", message: "Please correct the registered business name." }]);
+  await openRejectionDraft();
+  assert.equal(document.querySelector("#section-identity").checked, false);
+  assert.equal(document.querySelector("#feedback-identity").value, "");
+});
+
+test("rejection draft does not leak to another application or a remounted page", async () => {
+  await renderPage();
+  await openRejectionDraft();
+  await writeRejectionDraft();
+  await click(document.querySelector('button[aria-label="Close"]'));
+  application = { ...application, id: 2 };
+  await renderPage();
+  await openRejectionDraft();
+  assert.equal(document.querySelector("#section-identity").checked, false);
+  assert.equal(document.querySelector("#feedback-identity").value, "");
+  await writeRejectionDraft();
+  await act(async () => root.render(null));
+  await renderPage();
+  await openRejectionDraft();
+  assert.equal(document.querySelector("#feedback-identity").value, "");
 });

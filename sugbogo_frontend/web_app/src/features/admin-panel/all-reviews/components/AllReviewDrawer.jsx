@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -16,6 +17,11 @@ export default function AllReviewDrawer({ reviewId, onClose }) {
     setIsVisible(false);
     setIsClosing(true);
   }, []);
+  useApiErrorNotification(query.error, {
+    toastId: "admin-all-reviews-detail-load-error",
+    fallbackMessage: "Unable to load review details. Please try again.",
+  });
+
   const gone = query.error?.response?.status === 404;
 
   useEffect(() => {

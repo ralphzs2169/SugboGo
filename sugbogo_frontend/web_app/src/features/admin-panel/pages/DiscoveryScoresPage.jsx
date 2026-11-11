@@ -5,9 +5,9 @@ import toast from "react-hot-toast";
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import FilterMenu from "@/features/admin-panel/components/data-table/FilterMenu";
 import useBusinessTableState from "@/features/admin-panel/businesses/hooks/useBusinessTableState";
-import useClusters from "@/features/admin-panel/cluster-category/hooks/useClusters";
-import useCategories from "@/features/admin-panel/cluster-category/hooks/useCategories";
-import useSpecialtyTags from "@/features/admin-panel/specialty-tags/hooks/useSpecialtyTags";
+import { useQuery } from "@tanstack/react-query";
+import { taxonomyReferenceOptions } from "../taxonomy/queries/taxonomyQueries";
+import TaxonomyOptionFeedback from "../taxonomy/components/TaxonomyOptionFeedback";
 import Button from "@/shared/components/Button";
 import Modal from "@/shared/components/modals/Modal";
 import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
@@ -34,6 +34,11 @@ export default function DiscoveryScoresPage() {
   const recompute = useRecomputeDiscoveryScores();
   const submitting = useRef(false);
   const isRecomputing = recompute.isPending;
+  const recomputeErrorCode = recompute.error?.response?.data?.code;
+  const canRefreshScores = [
+    "RECOMPUTATION_OUTCOME_UNKNOWN",
+    "RECOMPUTATION_IN_PROGRESS",
+  ].includes(recomputeErrorCode);
   const {
     globalFilter,
     setGlobalFilter,
@@ -63,9 +68,12 @@ export default function DiscoveryScoresPage() {
     error,
     refetch,
   } = useDiscoveryScores(params);
-  const { clusters } = useClusters({ page_size: 100 });
-  const { categories } = useCategories({ page_size: 100 });
-  const { specialtyTags } = useSpecialtyTags({ page_size: 100 });
+  const clusterOptionsQuery = useQuery(taxonomyReferenceOptions("clusters"));
+  const categoryOptionsQuery = useQuery(taxonomyReferenceOptions("categories"));
+  const specialtyOptionsQuery = useQuery(taxonomyReferenceOptions("specialty-tags"));
+  const clusters = clusterOptionsQuery.data ?? [];
+  const categories = categoryOptionsQuery.data ?? [];
+  const specialtyTags = specialtyOptionsQuery.data ?? [];
 
   useApiErrorNotification(error, {
     toastId: "discovery-scores-load-error",
@@ -109,6 +117,11 @@ export default function DiscoveryScoresPage() {
           {
             key: "cluster",
             label: "Cluster",
+            disabled: clusterOptionsQuery.isPending || Boolean(clusterOptionsQuery.error),
+            disabledMessage: clusterOptionsQuery.error
+              ? "Cluster options unavailable."
+              : "Loading cluster options…",
+            emptyMessage: "No cluster options available.",
             icon: Layers,
             options: clusters.map((cluster) => ({
               value: String(cluster.id),
@@ -120,6 +133,11 @@ export default function DiscoveryScoresPage() {
           {
             key: "category",
             label: "Category",
+            disabled: categoryOptionsQuery.isPending || Boolean(categoryOptionsQuery.error),
+            disabledMessage: categoryOptionsQuery.error
+              ? "Category options unavailable."
+              : "Loading category options…",
+            emptyMessage: "No category options available.",
             icon: Tag,
             options: categories.map((category) => ({
               value: String(category.id),
@@ -131,6 +149,11 @@ export default function DiscoveryScoresPage() {
           {
             key: "specialty_tag",
             label: "Specialty Tag",
+            disabled: specialtyOptionsQuery.isPending || Boolean(specialtyOptionsQuery.error),
+            disabledMessage: specialtyOptionsQuery.error
+              ? "Specialty Tag options unavailable."
+              : "Loading specialty tag options…",
+            emptyMessage: "No specialty tag options available.",
             icon: Tags,
             options: specialtyTags.map((tag) => ({
               value: String(tag.id),
@@ -185,6 +208,21 @@ export default function DiscoveryScoresPage() {
         )}
 
       {/* The shared table owns search, skeleton, empty, error, and pagination UI. */}
+      <TaxonomyOptionFeedback
+        query={clusterOptionsQuery}
+        resource="clusters"
+        label="Cluster"
+      />
+      <TaxonomyOptionFeedback
+        query={categoryOptionsQuery}
+        resource="categories"
+        label="Category"
+      />
+      <TaxonomyOptionFeedback
+        query={specialtyOptionsQuery}
+        resource="specialty-tags"
+        label="Specialty Tag"
+      />
       <DataTable
         data={scores}
         columns={getDiscoveryScoreColumns(setSelectedBusiness)}
@@ -244,6 +282,18 @@ export default function DiscoveryScoresPage() {
         {recompute.error && (
           <div role="alert" className="mb-4 rounded-lg border border-danger/25 bg-danger/10 p-3 text-sm text-text-primary">
             {recompute.error.response?.data?.message || recompute.error.message || "Recomputation failed. Please try again."}
+            {canRefreshScores && (
+              <div className="mt-3 space-y-2">
+                <p>Refreshing reads stored scores; it does not confirm whether this batch finished.</p>
+                <Button
+                  variant="secondary"
+                  loading={recompute.isRefreshing}
+                  onClick={recompute.refreshScores}
+                >
+                  Refresh score data
+                </Button>
+              </div>
+            )}
           </div>
         )}
         <div className="flex justify-end gap-3">

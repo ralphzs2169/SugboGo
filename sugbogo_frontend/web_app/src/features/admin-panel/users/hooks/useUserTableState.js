@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import useTableState from "@/shared/hooks/useTableState";
 
@@ -13,28 +13,19 @@ export default function useUserTableState() {
     ordering,
     pagination,
     setPagination,
-    resetPageIndex,
     updateSearchParams,
   } = useTableState();
 
-  const searchParams = new URLSearchParams(window.location.search);
-  const [roleFilter, setRoleFilterState] = useState(
-    () => searchParams.get("role") || "",
-  );
-  const [statusFilter, setStatusFilterState] = useState(
-    () => searchParams.get("status") || "",
-  );
+  const [searchParams] = useSearchParams();
+  const roleFilter = searchParams.get("role") || "";
+  const statusFilter = searchParams.get("status") || "";
 
   function setRoleFilter(role) {
-    setRoleFilterState(role);
     updateSearchParams({ role: role || null, page: null });
-    resetPageIndex();
   }
 
   function setStatusFilter(status) {
-    setStatusFilterState(status);
     updateSearchParams({ status: status || null, page: null });
-    resetPageIndex();
   }
 
   const params = {
@@ -52,10 +43,6 @@ export default function useUserTableState() {
 
   function handleResetFilters() {
     setGlobalFilter("");
-    setRoleFilterState("");
-    setStatusFilterState("");
-    setSorting([]);
-    resetPageIndex();
     updateSearchParams({
       search: null,
       role: null,

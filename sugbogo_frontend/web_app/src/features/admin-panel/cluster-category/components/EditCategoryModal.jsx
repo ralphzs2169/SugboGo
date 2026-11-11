@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 import Modal from "@/shared/components/modals/Modal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 import { hasFormChanges } from "@/shared/utils/formUtils";
 
 import CategoryForm from "./CategoryForm";
 import useUpdateCategory from "../hooks/useUpdateCategory";
-import useClusters from "../hooks/useClusters";
+import { useQuery } from "@tanstack/react-query";
+import { taxonomyReferenceOptions } from "../../taxonomy/queries/taxonomyQueries";
 import { validateCategory } from "../validation/categoryValidation";
 
 /**
@@ -35,9 +37,23 @@ export default function EditCategoryModal({
 
   const [errors, setErrors] = useState({});
 
-  const { submit, isSubmitting } = useUpdateCategory();
+  const { submit } = useUpdateCategory();
+  const { isSubmitting, runSubmission, close } = useModalSubmission(
+    isOpen,
+    category?.id,
+    onClose,
+  );
 
-  const { clusters, isLoading: isLoadingClusters } = useClusters();
+  const clusterOptionsQuery = useQuery({
+    ...taxonomyReferenceOptions("clusters"),
+    enabled: isOpen,
+  });
+  const clusters = clusterOptionsQuery.data ?? [];
+  const isLoadingClusters = clusterOptionsQuery.isPending;
+  const referenceUnavailable = (
+    isLoadingClusters ||
+    Boolean(clusterOptionsQuery.error)
+  );
 
   useEffect(() => {
     if (!category) return;
@@ -78,6 +94,9 @@ export default function EditCategoryModal({
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (referenceUnavailable) {
+      return;
+    }
 
     const validationErrors = validateCategory(values);
 
@@ -86,20 +105,28 @@ export default function EditCategoryModal({
       return;
     }
 
-    try {
-      await submit(category.id, values);
+    return runSubmission(async (isCurrent) => {
+      try {
+        await submit(category.id, values);
 
-      onSuccess?.();
-      onClose();
-      setErrors({});
-    } catch (error) {
-      setErrors(error.response?.data?.errors ?? {});
+        await onSuccess?.();
+        if (!isCurrent()) {
+          return;
+        }
+        onClose();
+        setErrors({});
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        setErrors(error.response?.data?.errors ?? {});
 
-      toast.error(
-        error.response?.data?.message ||
-          "The category could not be updated. Please try again.",
-      );
-    }
+        toast.error(
+          error.response?.data?.message ||
+            "The category could not be updated. Please try again.",
+        );
+      }
+    });
   }
 
   if (!category) return null;
@@ -107,21 +134,23 @@ export default function EditCategoryModal({
   return (
     <Modal
       isOpen={isOpen}
+      dismissDisabled={isSubmitting}
       title="Edit Category"
       description="Update category information and cluster assignment."
-      onClose={onClose}
+      onClose={close}
     >
       <CategoryForm
         values={values}
         errors={errors}
         clusters={clusters}
         isLoadingClusters={isLoadingClusters}
+        clusterOptionsQuery={clusterOptionsQuery}
         onChange={handleChange}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
         submitLabel="Save Changes"
         onClearError={onClearError}
-        submitDisabled={!hasChanges}
+        submitDisabled={!hasChanges || referenceUnavailable}
       />
     </Modal>
   );

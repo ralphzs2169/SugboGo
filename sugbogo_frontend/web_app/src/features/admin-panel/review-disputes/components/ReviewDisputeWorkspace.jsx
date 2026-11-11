@@ -1,3 +1,4 @@
+import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -66,6 +67,11 @@ export default function ReviewDisputeWorkspace() {
     ...(aging ? { aging: true } : {}),
   }), [page, debouncedSearch, filters.status, filters.reason, filters.ordering, aging]);
   const { disputes, totalItems, pageCount, isLoading, isFetching, error, refetch } = useReviewDisputes(params);
+  useApiErrorNotification(error, {
+    toastId: "admin-review-disputes-list-load-error",
+    fallbackMessage: "Unable to load review disputes. Please try again.",
+  });
+
   const { uphold, dismiss, isUpholding, isDismissing } = useReviewDisputeMutations();
   const decisionPending = isUpholding || isDismissing;
 

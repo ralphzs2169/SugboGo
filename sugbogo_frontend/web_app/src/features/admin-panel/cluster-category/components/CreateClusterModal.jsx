@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from "@/shared/components/modals/Modal";
+import useModalSubmission from "@/shared/hooks/useModalSubmission";
 import ClusterForm from "./ClusterForm";
 import useCreateCluster from "../hooks/useCreateCluster";
 import { toast } from "react-hot-toast";
@@ -16,7 +17,12 @@ export default function CreateClusterModal({ isOpen, onClose, onSuccess }) {
   });
 
   const [errors, setErrors] = useState({});
-  const { submit, isSubmitting } = useCreateCluster();
+  const { submit } = useCreateCluster();
+  const { isSubmitting, runSubmission, close } = useModalSubmission(
+    isOpen,
+    undefined,
+    onClose,
+  );
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -37,36 +43,45 @@ export default function CreateClusterModal({ isOpen, onClose, onSuccess }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    try {
-      await submit(values);
+    return runSubmission(async (isCurrent) => {
+      try {
+        await submit(values);
 
-      onSuccess?.();
+        await onSuccess?.();
+        if (!isCurrent()) {
+          return;
+        }
 
-      onClose();
+        onClose();
 
-      setValues({
-        name: "",
-        icon: "utensils",
-        description: "",
-      });
+        setValues({
+          name: "",
+          icon: "utensils",
+          description: "",
+        });
 
-      setErrors({});
-    } catch (error) {
-      setErrors(error.response?.data?.errors ?? {});
+        setErrors({});
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        setErrors(error.response?.data?.errors ?? {});
 
-      toast.error(
-        error.response?.data?.message ||
-          "The cluster could not be created. Please try again.",
-      );
-    }
+        toast.error(
+          error.response?.data?.message ||
+            "The cluster could not be created. Please try again.",
+        );
+      }
+    });
   }
 
   return (
     <Modal
       isOpen={isOpen}
+      dismissDisabled={isSubmitting}
       title="Create Cluster"
       description="Add a new business cluster."
-      onClose={onClose}
+      onClose={close}
     >
       <ClusterForm
         values={values}
