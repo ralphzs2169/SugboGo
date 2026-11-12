@@ -14,6 +14,8 @@ let container;
 let App;
 let navigation;
 let metadata;
+let authState;
+let sessionRestoration;
 const retiredPaths = [
   "/admin-panel/settings",
   "/admin-panel/users/roles-permissions",
@@ -26,8 +28,11 @@ before(async () => {
     window: dom.window,
     document: dom.window.document,
     HTMLElement: dom.window.HTMLElement,
+    localStorage: dom.window.localStorage,
+    requestAnimationFrame: (callback) => setTimeout(callback, 0),
     IS_REACT_ACT_ENVIRONMENT: true,
   });
+  dom.window.scrollTo = () => {};
   server = await createServer({
     appType: "custom",
     optimizeDeps: { noDiscovery: true, include: [] },
@@ -38,12 +43,15 @@ before(async () => {
       load(id) {
         const path = id.replaceAll("\\", "/");
         if (path.endsWith("/useRestoreSession.js")) {
-          return "export function useRestoreSession() {}";
+          return `export let restorationStarts = 0;
+            export function useRestoreSession() { restorationStarts += 1; }`;
         }
         if (path.endsWith("/auth.store.js")) {
-          return "export const useAuthStore = (select) => select({ isLoading: false });";
+          return `let state;
+            export function setAuthState(value) { state = value; }
+            export function useAuthStore(select = (value) => value) { return select(state); }`;
         }
-        if (path.endsWith("/ProtectedRoute.jsx") || path.endsWith("/AdminPanelLayout.jsx")) {
+        if (path.endsWith("/AdminPanelLayout.jsx")) {
           return 'export { Outlet as default } from "react-router-dom";';
         }
         if (/\/features\/(admin-panel|auth)\/pages\/[^/]+\.jsx$/.test(path)) {
@@ -55,6 +63,8 @@ before(async () => {
     }],
   });
   ({ default: App } = await server.ssrLoadModule("/src/App.jsx"));
+  authState = await server.ssrLoadModule("/src/features/auth/storage/auth.store.js");
+  sessionRestoration = await server.ssrLoadModule("/src/features/auth/hooks/useRestoreSession.js");
   ({ default: navigation } = await server.ssrLoadModule(
     "/src/features/admin-panel/config/sidebarNavigation.js",
   ));
@@ -63,6 +73,11 @@ before(async () => {
   ));
 });
 beforeEach(async () => {
+  authState.setAuthState({
+    isLoading: false,
+    isAuthenticated: true,
+    user: { role: "admin" },
+  });
   container = document.createElement("div");
   document.body.append(container);
   const { createRoot } = await import("react-dom/client");
@@ -75,7 +90,14 @@ afterEach(async () => {
 after(async () => {
   await server.close();
   dom.window.close();
-  for (const key of ["window", "document", "HTMLElement", "IS_REACT_ACT_ENVIRONMENT"]) {
+  for (const key of [
+    "window",
+    "document",
+    "HTMLElement",
+    "localStorage",
+    "requestAnimationFrame",
+    "IS_REACT_ACT_ENVIRONMENT",
+  ]) {
     delete globalThis[key];
   }
 });
@@ -85,6 +107,84 @@ async function render(path) {
     { initialEntries: [path] },
     React.createElement(App),
   )));
+}
+
+const legalDestinations = [
+  ["/privacy-policy", "Privacy Policy"],
+  ["/terms-of-service", "Terms of Service"],
+  ["/data-deletion", "Data Deletion Instructions"],
+];
+
+for (const [path, title] of legalDestinations) {
+  test(`${path} renders independently of session restoration`, async () => {
+    authState.setAuthState({
+      isLoading: true,
+      isAuthenticated: false,
+      user: null,
+    });
+    const initialRestorationStarts = sessionRestoration.restorationStarts;
+
+    await render(path);
+
+    assert.equal(container.querySelector("main h1")?.textContent, title);
+    assert.equal(document.title, `${title} | SugboGo`);
+    assert.equal(sessionRestoration.restorationStarts, initialRestorationStarts);
+    const supportLinks = container.querySelectorAll("main a[href^='mailto:']");
+    assert.equal(supportLinks.length, 1);
+    assert.equal(supportLinks[0].textContent, "support.sugbogo@gmail.com");
+    assert.equal(supportLinks[0].getAttribute("href"), "mailto:support.sugbogo@gmail.com");
+    assert.equal(container.querySelector("footer [aria-current='page']")?.getAttribute("href"), path);
+    assert.deepEqual(
+      [...container.querySelectorAll("footer nav a")].map((link) => link.getAttribute("href")),
+      legalDestinations.map(([destination]) => destination),
+    );
+  });
+}
+
+test("footer links navigate between legal pages and focus the main content", async () => {
+  authState.setAuthState({
+    isLoading: false,
+    isAuthenticated: false,
+    user: null,
+  });
+  await render("/privacy-policy");
+
+  await act(async () => {
+    container.querySelector("footer a[href='/data-deletion']").dispatchEvent(
+      new window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }),
+    );
+  });
+
+  assert.equal(container.querySelector("main h1")?.textContent, "Data Deletion Instructions");
+  assert.equal(document.activeElement, container.querySelector("main"));
+});
+
+for (const user of [null, { role: "explorer" }]) {
+  test(`admin dashboard redirects ${user?.role ?? "signed-out visitors"} to Login`, async () => {
+    authState.setAuthState({
+      isLoading: false,
+      isAuthenticated: Boolean(user),
+      user,
+    });
+
+    await render("/admin-panel/dashboard");
+
+    assert.equal(container.textContent, "LoginPage.jsx");
+  });
+}
+
+for (const path of ["/", "/login"]) {
+  test(`${path} retains the public Admin Login destination`, async () => {
+    authState.setAuthState({
+      isLoading: false,
+      isAuthenticated: false,
+      user: null,
+    });
+
+    await render(path);
+
+    assert.equal(container.textContent, "LoginPage.jsx");
+  });
 }
 for (const path of retiredPaths) {
   test(`${path} resolves to the existing Not Found page`, async () => {
