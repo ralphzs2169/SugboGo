@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import { useAuthStore } from "@/features/auth/storage/auth.store";
 import { Toaster } from "react-hot-toast";
@@ -33,6 +33,10 @@ import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
 import EmailSentPage from "@/features/auth/pages/EmailSentPage";
 import AdminInvitationSetupPage from "@/features/auth/pages/AdminInvitationSetupPage";
+import PublicLegalLayout from "@/features/legal/components/PublicLegalLayout";
+import DataDeletionPage from "@/features/legal/pages/DataDeletionPage";
+import PrivacyPolicyPage from "@/features/legal/pages/PrivacyPolicyPage";
+import TermsOfServicePage from "@/features/legal/pages/TermsOfServicePage";
 import NotFound from "@/shared/components/errors/NotFound";
 
 import PageLoader from "@/shared/components/loading/PageLoader";
@@ -52,7 +56,7 @@ function LegacyModerationRedirect({ tab }) {
   );
 }
 
-function App() {
+function AdminWebSession() {
   useRestoreSession();
 
   const isLoading = useAuthStore((state) => state.isLoading);
@@ -64,7 +68,27 @@ function App() {
 
   return (
     <>
-      <Routes>
+      <Outlet />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+        }}
+      />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route element={<PublicLegalLayout />}>
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+        <Route path="/data-deletion" element={<DataDeletionPage />} />
+      </Route>
+
+      <Route element={<AdminWebSession />}>
         <Route path="/" element={<LoginPage />} />
         <Route path="/login" element={<LoginPage />} />
 
@@ -171,14 +195,8 @@ function App() {
           element={<NotFound />}
         />
         <Route path="*" element={<NotFound />} />
-      </Routes>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-        }}
-      />
-    </>
+      </Route>
+    </Routes>
   );
 }
 
