@@ -19,6 +19,7 @@ const nextLocation = {
 } as LocationObject;
 let mockCurrentLocation: LocationObject | null = mockLocation;
 let mockLocationStatus = "available";
+let mockLocationError: Error | null = null;
 
 jest.mock("../../api/exploreBusiness.service", () => ({}));
 
@@ -38,6 +39,7 @@ jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
 jest.mock("@/shared/hooks/useUserLocation", () => () => ({
   location: mockCurrentLocation,
   status: mockLocationStatus,
+  error: mockLocationError,
   isRefreshingLocation: false,
   refreshLocation: mockRefreshLocation,
 }));
@@ -45,6 +47,7 @@ jest.mock("@/shared/hooks/useUserLocation", () => () => ({
 beforeEach(() => {
   mockCurrentLocation = mockLocation;
   mockLocationStatus = "available";
+  mockLocationError = null;
 });
 jest.mock("../../hooks/useOpenNowBusinesses", () => ({
   __esModule: true,
@@ -247,7 +250,29 @@ it("finishes refresh after independent and nearby failures and allows another re
   expect(mockRefreshLocation).toHaveBeenCalledTimes(2);
 });
 
-it("keeps the last successful location and labels it after a location failure", async () => {
+it("keeps nearby results when the location expires and warns only after a failed update", async () => {
+  const screen = await render(<ExploreScreen />);
+  await waitFor(() => expect(screen.getByText("10.33")).toBeTruthy());
+
+  mockCurrentLocation = null;
+  mockLocationStatus = "unavailable";
+  await screen.rerender(<ExploreScreen />);
+  expect(screen.getByText("10.33")).toBeTruthy();
+  expect(screen.queryByText("Using last location")).toBeNull();
+  expect(mockRefreshLocation).not.toHaveBeenCalled();
+
+  mockLocationError = new Error("Location update failed");
+  await screen.rerender(<ExploreScreen />);
+  expect(screen.getByText("Using last location")).toBeTruthy();
+
+  mockCurrentLocation = mockLocation;
+  mockLocationStatus = "available";
+  mockLocationError = null;
+  await screen.rerender(<ExploreScreen />);
+  expect(screen.queryByText("Using last location")).toBeNull();
+});
+
+it("keeps the last successful location and labels it after a pull-to-refresh location failure", async () => {
   mockRefreshLocation.mockResolvedValue({
     status: "unavailable",
     location: null,

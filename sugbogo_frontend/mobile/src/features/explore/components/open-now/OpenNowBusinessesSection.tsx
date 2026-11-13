@@ -115,7 +115,6 @@ export default function OpenNowBusinessesSection({
       impressions={impressions}
       userLocation={userLocation}
       cardVariant="default"
-      availabilityLabel={hasError ? undefined : "Open now"}
       sectionTestID="open-now-section"
       scrollTestID="open-now-scroll"
       impressionTestIDPrefix="open-now-impression"

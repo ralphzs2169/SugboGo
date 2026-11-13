@@ -209,7 +209,7 @@ describe.each(["default", "featured", "compact"] as const)(
           onPress={onPress}
         />,
       );
-      expect(view.getByText(name).props.numberOfLines).toBe(2);
+      expect(view.getByText(name).props.numberOfLines).toBe(1);
       expect(view.getByText("2.8 (5)")).toBeTruthy();
       const visibleSpecialties =
         variant === "compact"

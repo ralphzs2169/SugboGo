@@ -1,10 +1,7 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { BottomSheetTextInput } from "@gorhom/bottom-sheet";
 import { useMemo } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 
-import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import FilterChip from "@/shared/components/FilterChip";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
@@ -13,6 +10,7 @@ import type { SpecialtyTag } from "@/shared/types/specialtyTag.types";
 import { TAXONOMY_SEARCH_THRESHOLD } from "@/shared/utils/taxonomyFilters";
 
 import FilterSection from "./FilterSection";
+import FilterSheetSearchInput from "./FilterSheetSearchInput";
 
 type Props = {
   options: {
@@ -80,47 +78,14 @@ export default function TaxonomyFilterControls({
     <>
       {/* Optional search uses the containing bottom sheet's keyboard handling. */}
       {showSearch && (
-        <View
-          className={`mt-4 h-11 flex-row items-center rounded-full border border-border-primary px-4 ${
-            searchBackground === "surface" ? "bg-surface" : "bg-surface-muted"
-          }`}
-        >
-          <MaterialCommunityIcons
-            name="magnify"
-            size={20}
-            color={theme.extends.colors.text.tertiary}
-          />
-          <BottomSheetTextInput
-            value={query}
-            onChangeText={onQueryChange}
+        <View className="mt-4">
+          <FilterSheetSearchInput
+            query={query}
+            onQueryChange={onQueryChange}
             placeholder="Search categories and specialties"
-            placeholderTextColor={theme.extends.colors.text.tertiary}
-            returnKeyType="search"
-            autoCorrect={false}
-            autoCapitalize="none"
             accessibilityLabel="Search filters"
-            style={{
-              flex: 1,
-              marginLeft: 8,
-              paddingVertical: 0,
-              fontSize: 14,
-              color: theme.extends.colors.text.primary,
-            }}
+            background={searchBackground}
           />
-          {query.length > 0 && (
-            <Pressable
-              onPress={() => onQueryChange("")}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-            >
-              <MaterialCommunityIcons
-                name="close-circle"
-                size={18}
-                color={theme.extends.colors.text.tertiary}
-              />
-            </Pressable>
-          )}
         </View>
       )}
 

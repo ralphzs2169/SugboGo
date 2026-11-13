@@ -48,7 +48,17 @@ it("preserves the edit action while displaying the same draft indicator", async 
   expect(screen.getByText("You have unsaved changes")).toBeTruthy();
   await fireEvent.press(screen.getByText("Save & Review"));
   expect(actions.onSaveAndReview).toHaveBeenCalledTimes(1);
-  expect(screen.queryByText("Back")).toBeNull();
+  expect(screen.queryByText("Back to Review")).toBeNull();
+  await screen.rerender(
+    <RegistrationFooter
+      {...actions}
+      currentStep={2}
+      totalSteps={6}
+      isResubmission={false}
+      isEditing
+    />,
+  );
+  expect(screen.queryByText("Save & Review")).toBeNull();
   await fireEvent.press(screen.getByRole("button", { name: "Back to Review" }));
   expect(actions.onBack).toHaveBeenCalledTimes(1);
 });

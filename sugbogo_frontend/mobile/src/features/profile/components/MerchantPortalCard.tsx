@@ -1,6 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
-import colors from "tailwindcss/colors";
 import MerchantIllustration from "../../merchant/assets/illustrations/merchant-portal-no-shadow.svg";
 
 import { theme } from "@/constants/theme";
@@ -16,27 +15,19 @@ type MerchantPortalCardProps = {
 const STATUS_BADGE_CONFIG = {
   draft: {
     label: "Draft",
-    icon: "pencil-outline" as const,
-    color: colors.orange[700],
-    background: colors.orange[50],
+    backgroundClassName: "bg-slate-600",
   },
   submitted: {
-    label: "Under Review",
-    icon: "clock-outline" as const,
-    color: colors.amber[800],
-    background: colors.amber[50],
+    label: "Pending Review",
+    backgroundClassName: "bg-blue-700",
   },
   rejected: {
     label: "Rejected",
-    icon: "alert-circle-outline" as const,
-    color: colors.red[700],
-    background: colors.red[50],
+    backgroundClassName: "bg-red-700",
   },
   approved: {
     label: "Approved",
-    icon: "check-circle-outline" as const,
-    color: colors.green[700],
-    background: colors.green[50],
+    backgroundClassName: "bg-green-700",
   },
 };
 
@@ -88,23 +79,11 @@ export default function MerchantPortalCard({
     <View className="relative mx-4 mb-1.5 mt-3 rounded-l-[40px] rounded-r-md bg-[#ff860e]/90 p-4">
       {badge && (
         <View
-          className="absolute -right-1 -top-3 z-10 flex-row items-center gap-1 rounded-full px-2.5 py-1"
-          style={{
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.12,
-            shadowRadius: 2,
-            elevation: 2,
-            backgroundColor: badge.background,
-            borderColor: badge.color,
-            borderWidth: 1,
-          }}
+          className={`absolute -right-1 -top-3 z-10 max-w-full rounded-full px-2 py-0.5 ${badge.backgroundClassName}`}
         >
-          <MaterialCommunityIcons name={badge.icon} size={12} color={badge.color} />
           <AppText
-            weight="bold"
-            className="text-[10px] uppercase tracking-wide"
-            style={{ color: badge.color }}
+            weight="medium"
+            className="shrink text-xs text-white"
           >
             {badge.label}
           </AppText>
@@ -116,7 +95,7 @@ export default function MerchantPortalCard({
           <MerchantIllustration width={120} height={112} />
         </View>
 
-        <View className="flex-1 pl-3">
+        <View className="min-w-0 flex-1 pl-3">
           <AppText
             weight="extrabold"
             className="text-sm  uppercase tracking-wide text-white"

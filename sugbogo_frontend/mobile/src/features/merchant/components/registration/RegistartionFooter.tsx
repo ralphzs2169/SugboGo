@@ -22,7 +22,7 @@ type RegistrationFooterProps = {
  * The footer supports three states:
  * - Normal registration: Back + Continue
  * - First step: Continue only
- * - Editing a previously completed step: Back to Review + Save & Review
+ * - Editing from Review: Back to Review until changes require saving
  *
  * The final Review step hides Back because merchants can navigate to a
  * specific section through the review screen's edit actions instead.
@@ -59,7 +59,7 @@ export default function RegistrationFooter({
 
   /*
    * When editing an existing section, the footer intentionally replaces
-   * normal step navigation with a return to Review and a section-save action.
+   * normal step navigation with one action based on whether changes need saving.
    */
   if (isEditing) {
     return (
@@ -68,21 +68,12 @@ export default function RegistrationFooter({
       >
         {unsavedIndicator}
         <Button
-          title="Back to Review"
-          variant="soft"
+          title={hasChanges ? "Save & Review" : "Back to Review"}
+          variant={hasChanges ? "primary" : "soft"}
           rounded="full"
-          disabled={isSubmitting}
-          onPress={onBack}
-          className="mb-3"
-        />
-        <Button
-          title="Save & Review"
-          className="w-full"
-
           loading={isSubmitting}
           disabled={isSubmitting}
-          onPress={onSaveAndReview}
-          rounded="full"
+          onPress={hasChanges ? onSaveAndReview : onBack}
         />
       </View>
     );

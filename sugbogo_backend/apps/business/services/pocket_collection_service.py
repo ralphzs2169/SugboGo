@@ -1,8 +1,9 @@
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
-from apps.business.models import Business, PocketCollection
+from apps.business.models import Business, PocketCollection, PocketMembership
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.users.models import User
 
 
@@ -51,9 +52,30 @@ class PocketCollectionService:
 
     @staticmethod
     def list_collections(user):
-        """Returns owned collections with saved-membership and available-listing counts."""
+        """Returns owned collections with counts and the newest usable cover photo."""
+        cover_photos = (
+            PocketMembership.objects
+            .filter(
+                PCOL_ID=OuterRef("pk"),
+                PCKT_ID__USER_ID=user,
+                PCKT_ID__BUSN_ID__BUSN_STATUS=Business.BusinessStatus.ACTIVE,
+            )
+            .annotate(
+                cover_url=display_cover_photo_expression("PCKT_ID__BUSN_ID"),
+            )
+            .filter(
+                cover_url__isnull=False,
+            )
+            .order_by(
+                "-PMEM_CREATED_AT",
+                "-PMEM_ID",
+            )
+            .values("cover_url")[:1]
+        )
+
         return PocketCollection.objects.filter(USER_ID=user).annotate(
             business_count=Count("memberships"),
+            thumbnail_url=Subquery(cover_photos),
             available_business_count=Count(
                 "memberships",
                 filter=Q(

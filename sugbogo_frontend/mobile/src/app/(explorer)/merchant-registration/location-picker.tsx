@@ -250,7 +250,7 @@ export default function BusinessLocationPickerPage() {
         // icon="map-marker-radius"
         visible={showRefreshModal}
         title="Update location details?"
-        message="Changing your location will update your address and nearby landmarks. Do you want to continue?"
+        message="Moving the business pin will refresh your address and nearby landmarks and clear any jeepney arrival landmark and walking directions."
         confirmText="Continue"
         cancelText="Keep Current"
         onCancel={() => {

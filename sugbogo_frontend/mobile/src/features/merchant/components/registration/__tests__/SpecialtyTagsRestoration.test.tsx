@@ -29,10 +29,11 @@ jest.mock("../../../hooks/registration/useSpecialtyTags", () => ({
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("@gorhom/bottom-sheet", () => {
   const React = jest.requireActual<typeof import("react")>("react");
-  const { View, ScrollView, Pressable, Text } =
+  const { View, ScrollView, Pressable, Text, TextInput } =
     jest.requireActual("react-native");
   return {
     BottomSheetScrollView: ScrollView,
+    BottomSheetTextInput: TextInput,
     BottomSheetBackdrop: () => null,
     BottomSheetModal: React.forwardRef(function Sheet(
       {
@@ -162,6 +163,13 @@ describe("restored specialty visibility", () => {
 
     await fireEvent.press(screen.getByText("See all tags"));
     const picker = within(screen.getByTestId("specialty-picker"));
+    const search = picker.getByLabelText("Search specialty tags");
+    await fireEvent.changeText(search, "missing tag");
+    expect(picker.getByText("No specialty tags match your search.")).toBeTruthy();
+    await fireEvent.press(picker.getByRole("button", { name: "Clear search" }));
+    expect(picker.getByRole("button", { name: "Specialty 12" })).toBeTruthy();
+    await fireEvent.changeText(search, "  SPECIALTY 18  ");
+    expect(picker.queryByRole("button", { name: "Specialty 12" })).toBeNull();
     await fireEvent.press(picker.getByRole("button", { name: "Specialty 18" }));
     await fireEvent.press(screen.getByLabelText("Close tags"));
     expect(

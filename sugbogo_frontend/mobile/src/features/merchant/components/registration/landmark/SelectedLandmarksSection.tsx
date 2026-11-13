@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, View } from "react-native";
 
 import { theme } from "@/constants/theme";
+import { MAX_SELECTED_LANDMARKS } from "@/features/merchant/constants/registration/map.constants";
 import AppText from "@/shared/components/AppText";
 import type { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
 
@@ -12,8 +13,6 @@ import LandmarkCard from "./LandmarkCard";
 import LandmarksEmptyState from "./LandmarkEmptyState";
 import LandmarksLoadFailedState from "./landmark-picker/LandmarksFailedLoadtState";
 
-const MAX_SELECTED_LANDMARKS = 5;
-
 /**
  * Displays the shared Registration-style landmark selection surface.
  *
@@ -21,6 +20,7 @@ const MAX_SELECTED_LANDMARKS = 5;
  * dispatches landmark removal and custom-picker actions.
  */
 export default function SelectedLandmarksSection({
+  title = "Nearby Landmarks",
   selectedLandmarks,
   hasSelectedLocation,
   nearbyLandmarksLoadFailed,
@@ -29,6 +29,7 @@ export default function SelectedLandmarksSection({
   onRetryNearby,
   isRetryingNearby = false,
 }: {
+  title?: string;
   selectedLandmarks: BusinessLandmark[];
   hasSelectedLocation: boolean;
   nearbyLandmarksLoadFailed: boolean;
@@ -45,7 +46,7 @@ export default function SelectedLandmarksSection({
   return (
     <RegistrationSection
       icon="map-marker-radius-outline"
-      title="Nearby Landmarks"
+      title={title}
       description="Suggested automatically after you pin your location. You can remove them and add your own."
     >
       {/* Landmark selection state */}
