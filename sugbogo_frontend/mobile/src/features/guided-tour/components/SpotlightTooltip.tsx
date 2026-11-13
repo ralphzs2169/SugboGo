@@ -17,7 +17,7 @@ import Button from "@/shared/components/Button";
 import { shadows } from "@/shared/styles/shadows";
 
 const MASCOT = require("@/features/explore/assets/mascot-onboarding-tour.webp");
-const MASCOT_WIDTH = 88;
+const MASCOT_WIDTH = 76;
 export const MASCOT_OVERLAP = 20;
 export const POINTER_WIDTH = 30;
 const POINTER_HEIGHT = 14;
@@ -87,7 +87,7 @@ export default function SpotlightTooltip({
         bounces={false}
         className="rounded-3xl border border-border-primary bg-surface"
         style={[shadows.floating, { flexGrow: 0, maxHeight }]}
-        contentContainerClassName="gap-3 p-4"
+        contentContainerClassName="gap-1.5 px-5 pb-2 pt-3"
       >
         {/* Step instructions */}
 
@@ -101,14 +101,18 @@ export default function SpotlightTooltip({
               : `${title} ${description}`
           }
           onAccessibilityEscape={onDismiss}
-          className="gap-1.5"
+          className="gap-1"
         >
           {/* Step indicator */}
-          <View className="min-h-[48px] flex-row items-start justify-end">
+          <View
+            className={`items-start pl-16 ${
+              pointerUp ? "min-h-[56px]" : "min-h-[36px]"
+            }`}
+          >
             {progress && (
               <AppText
                 weight="bold"
-                className="rounded-full bg-brand/15 px-2.5 py-1 text-xs text-text-primary"
+                className="rounded-full bg-brand/20 px-3 py-0.5 text-xs leading-4 text-orange-800"
               >
                 {progress}
               </AppText>
@@ -116,11 +120,14 @@ export default function SpotlightTooltip({
           </View>
 
           {/* Tour content */}
-          <AppText weight="bold" className="text-lg text-text-primary">
+          <AppText
+            weight="bold"
+            className="text-lg leading-tight text-text-primary"
+          >
             {title}
           </AppText>
 
-          <AppText className="text-sm text-text-secondary">
+          <AppText className="text-sm leading-snug text-text-secondary">
             {description}
           </AppText>
         </View>
