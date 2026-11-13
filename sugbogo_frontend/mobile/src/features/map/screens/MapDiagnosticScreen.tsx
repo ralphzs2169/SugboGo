@@ -13,6 +13,7 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 
 const LOAD_TIMEOUT_MS = 30_000;
+const DIAGNOSTIC_MAP_ID = "ff9a89ad4b7211795769e17e";
 
 const CEBU_REGION = {
   latitude: 10.3157,
@@ -21,7 +22,7 @@ const CEBU_REGION = {
   longitudeDelta: 0.05,
 };
 
-const MODES = ["Configured", "Default"] as const;
+const MODES = ["Original", "Default", "Diagnostic"] as const;
 
 type Mode = (typeof MODES)[number];
 type Visibility = "Visible" | "Blank";
@@ -59,14 +60,19 @@ function describeTime(
   return elapsedMs === null ? missing : `${Math.round(elapsedMs)} ms`;
 }
 
-/** Compares two fresh native maps and retains the latest result for each mode. */
+/** Mounts one fresh native map per trial and retains the latest result for each mode. */
 export default function MapDiagnosticScreen() {
-  const mapId = process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID?.trim();
+  const mapIds: Record<Mode, string | undefined> = {
+    Original: process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID?.trim(),
+    Default: undefined,
+    Diagnostic: DIAGNOSTIC_MAP_ID,
+  };
   const [session, setSession] = useState<Session>({
     trial: null,
     results: {},
   });
   const { trial, results } = session;
+  const trialMapId = trial ? mapIds[trial.mode] : undefined;
 
   const record = useCallback((
     currentTrial: Trial,
@@ -155,22 +161,23 @@ export default function MapDiagnosticScreen() {
         removeClippedSubviews={false}
       >
         {/* Trial controls */}
-        <View className="flex-row gap-2">
+        <View className="flex-row flex-wrap gap-2">
           {MODES.map((mode) => (
             <Button
               key={mode}
-              title={`Run ${mode}`}
+              title={mode}
+              accessibilityLabel={`Run ${mode}`}
               onPress={() => startTrial(mode, performance.now())}
-              disabled={mode === "Configured" && !mapId}
+              disabled={mode === "Original" && !mapIds.Original}
               variant={trial?.mode === mode ? "primary" : "outline"}
               size="sm"
-              className="min-h-12 flex-1"
+              className="min-h-12 min-w-24 flex-1"
             />
           ))}
         </View>
-        {!mapId && (
+        {!mapIds.Original && (
           <AppText className="text-sm text-text-secondary">
-            The configured Map ID is unavailable in this update.
+            The original Map ID is unavailable in this update.
           </AppText>
         )}
 
@@ -192,7 +199,7 @@ export default function MapDiagnosticScreen() {
               zoomControlEnabled={false}
               rotateEnabled={false}
               pitchEnabled={false}
-              {...(trial.mode === "Configured" ? { googleMapId: mapId } : {})}
+              {...(trialMapId ? { googleMapId: trialMapId } : {})}
               onLayout={({ nativeEvent }) => {
                 const { width, height } = nativeEvent.layout;
                 record(trial, (result) => ({
@@ -222,12 +229,12 @@ export default function MapDiagnosticScreen() {
         ) : (
           <View style={styles.viewport} className="items-center justify-center bg-surface">
             <AppText className="text-sm text-text-secondary">
-              Choose either mode to start.
+              Choose a mode to start.
             </AppText>
           </View>
         )}
 
-        {/* On-device results, with both modes visible for comparison. */}
+        {/* Latest on-device result for each mode. */}
         <View className="gap-2">
           {MODES.map((mode) => {
             const result = results[mode];

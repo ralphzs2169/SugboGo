@@ -82,47 +82,60 @@ it.each([
 
   expect(screen.getByTestId("diagnostic-redirect").props.accessibilityLabel)
     .toBe("/(explorer)/(tabs)/map");
-  expect(screen.queryByRole("button", { name: "Run Configured" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Run Original" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Run Diagnostic" })).toBeNull();
   expect(mockMountMap).not.toHaveBeenCalled();
 });
 
 it.each([
-  ["Configured", "Default"],
-  ["Default", "Configured"],
-] as const)("runs %s then %s with a fresh native map", async (first, second) => {
+  ["Original", "Default", "Diagnostic"],
+  ["Diagnostic", "Default", "Original"],
+] as const)("runs %s → %s → %s with a fresh native map each time", async (...modes) => {
   const screen = await render(<MapDiagnosticRoute />);
   const map = () => screen.getByTestId("diagnostic-map");
-  const mapId = (mode: string) => mode === "Configured" ? "test-map-id" : undefined;
+  const expectedMapIds = {
+    Original: "test-map-id",
+    Default: undefined,
+    Diagnostic: "ff9a89ad4b7211795769e17e",
+  };
 
   expect(screen.getByText("Downloaded update ID test-update-id")).toBeTruthy();
   expect(screen.getByText("Channel preview · Runtime 1.0.0")).toBeTruthy();
   expect(screen.queryByTestId("diagnostic-map")).toBeNull();
 
-  await fireEvent.press(screen.getByRole("button", { name: `Run ${first}` }));
+  await fireEvent.press(screen.getByRole("button", { name: `Run ${modes[0]}` }));
   const firstMap = map().props;
-  expect(firstMap.googleMapId).toBe(mapId(first));
-  expect(mockMountMap).toHaveBeenCalledTimes(1);
 
-  await fireEvent.press(screen.getByRole("button", { name: `Run ${second}` }));
-  const secondMap = map().props;
-  expect(secondMap.googleMapId).toBe(mapId(second));
-  expect(secondMap).toMatchObject({
-    initialRegion: firstMap.initialRegion,
-    mapType: firstMap.mapType,
-    provider: firstMap.provider,
-    style: firstMap.style,
-  });
-  expect(mockUnmountMap).toHaveBeenCalledWith(mapId(first));
-  expect(mockMountMap).toHaveBeenNthCalledWith(2, mapId(second));
+  for (const [index, mode] of modes.entries()) {
+    if (index > 0) {
+      await fireEvent.press(screen.getByRole("button", { name: `Run ${mode}` }));
+    }
+
+    expect(screen.getAllByTestId("diagnostic-map")).toHaveLength(1);
+    expect(map().props.googleMapId).toBe(expectedMapIds[mode]);
+    if (mode === "Default") {
+      expect(map().props).not.toHaveProperty("googleMapId");
+    }
+
+    expect(map().props).toMatchObject({
+      initialRegion: firstMap.initialRegion,
+      mapType: firstMap.mapType,
+      provider: firstMap.provider,
+      style: firstMap.style,
+    });
+    expect(mockMountMap).toHaveBeenCalledTimes(index + 1);
+    expect(mockMountMap).toHaveBeenNthCalledWith(index + 1, expectedMapIds[mode]);
+    expect(mockUnmountMap).toHaveBeenCalledTimes(index);
+  }
 
   await act(() => firstMap.onMapLoaded());
   expect(screen.getByText("Ready Waiting · Loaded Waiting")).toBeTruthy();
-  expect(screen.getByText("Ready Not observed · Loaded Not observed")).toBeTruthy();
+  expect(screen.getAllByText("Ready Not observed · Loaded Not observed")).toHaveLength(2);
 });
 
 it("records layout, callbacks, the 30-second timeout, and a late load", async () => {
   const screen = await render(<MapDiagnosticRoute />);
-  await fireEvent.press(screen.getByRole("button", { name: "Run Default" }));
+  await fireEvent.press(screen.getByRole("button", { name: "Run Diagnostic" }));
 
   const map = () => screen.getByTestId("diagnostic-map");
   await fireEvent(map(), "layout", {
@@ -148,16 +161,20 @@ it("records layout, callbacks, the 30-second timeout, and a late load", async ()
   expect(screen.getByText("Ready 200 ms · Loaded 30500 ms")).toBeTruthy();
   expect(screen.getByText("Layout 352 × 256 dp · Streets Visible")).toBeTruthy();
 
-  await fireEvent.press(screen.getByRole("button", { name: "Run Configured" }));
+  await fireEvent.press(screen.getByRole("button", { name: "Run Original" }));
   expect(screen.getByText("Ready 200 ms · Loaded 30500 ms")).toBeTruthy();
   expect(screen.getByText("Load timeout at 30 s")).toBeTruthy();
 });
 
-it("keeps the default comparison available when the configured Map ID is empty", async () => {
+it("keeps both controls available when the original Map ID is missing", async () => {
   delete process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID;
   const screen = await render(<MapDiagnosticRoute />);
 
-  expect(screen.getByRole("button", { name: "Run Configured" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Run Original" })).toBeDisabled();
+  await fireEvent.press(screen.getByRole("button", { name: "Run Diagnostic" }));
+  expect(screen.getByTestId("diagnostic-map").props.googleMapId)
+    .toBe("ff9a89ad4b7211795769e17e");
+
   await fireEvent.press(screen.getByRole("button", { name: "Run Default" }));
   expect(screen.getByTestId("diagnostic-map").props).not.toHaveProperty("googleMapId");
 });
