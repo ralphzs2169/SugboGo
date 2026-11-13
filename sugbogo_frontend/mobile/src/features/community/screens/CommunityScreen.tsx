@@ -198,8 +198,16 @@ export default function CommunityScreen() {
     !community.isFetchingNextPage &&
     displayedReviews.length > 0;
 
+  const showEmptyState =
+    displayedReviews.length === 0 &&
+    !community.isPaused &&
+    !community.isInitialLoading &&
+    !hasListError &&
+    community.hasData &&
+    community.isSuccess;
+
   return (
-    <View className="flex-1 bg-background">
+    <View className={`flex-1 ${showEmptyState ? "bg-surface" : "bg-background"}`}>
       {/* Pinned title, filter button, and quick filters */}
       <CommunityHeader>
         <CommunityFilters
@@ -252,7 +260,7 @@ export default function CommunityScreen() {
                 onPrimaryAction={() => void community.refetch()}
               />
             </View>
-          ) : community.hasData && community.isSuccess ? (
+          ) : showEmptyState ? (
             <CommunityEmptyState
               isFiltered={hasContentFilters}
               onClearFilters={clearContentFilters}

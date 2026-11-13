@@ -9,8 +9,8 @@ export default function InterestHeader() {
       </AppText>
 
       <AppText className="mb-6 text-body leading-relaxed text-text-secondary">
-        Choose up to 3 specialties to personalize what you discover. You can
-        skip this and update your interests later.
+        Pick up to 3 specialties to get started. You can skip this step or add
+        more anytime in Profile → Your Interests.
       </AppText>
     </>
   );

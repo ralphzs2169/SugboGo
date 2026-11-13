@@ -120,7 +120,7 @@ export default function BusinessLocationSearchSheet({
       keyboardBehavior="fillParent"
       keyboardBlurBehavior="restore"
       backgroundStyle={{
-        backgroundColor: theme.extends.colors.background,
+        backgroundColor: theme.extends.colors.surface,
         borderRadius: 24,
       }}
       handleIndicatorStyle={{
