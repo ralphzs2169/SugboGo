@@ -18,6 +18,10 @@ import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
+import {
+  BookmarkTourSurfaceContext,
+  useBookmarkTourSurface,
+} from "@/features/guided-tour/hooks/useBookmarkTourSurface";
 import ExploreClusterFilters from "../components/ExploreClusterFilters";
 import ExploreCollectionEmptyState from "../components/explore-collection/ExploreCollectionEmptyState";
 import ExploreCollectionResultsHeader, {
@@ -88,6 +92,7 @@ export default function ExploreCollectionScreen() {
   const insets = useSafeAreaInsets();
 
   const filterSheetRef = useRef<BottomSheetModal | null>(null);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const isEndReachedRef = useRef(false);
 
   const [appliedCriteria, setAppliedCriteria] =
@@ -103,7 +108,11 @@ export default function ExploreCollectionScreen() {
   const collection = useExploreCollection(collectionType, appliedCriteria);
   const taxonomy = useExploreFilterOptions();
   const impressions = useResultsImpressions();
-  const { location: userLocation } = useUserLocation();
+  const { location: userLocation, isRefreshingLocation } = useUserLocation();
+  const bookmarkTour = useBookmarkTourSurface(
+    collectionType ? `/explore-collection/${collectionType}` : null,
+    filterSheetOpen || collection.isRefetching || isRefreshingLocation,
+  );
 
   const isRecommendationCollection =
     collectionType === "interests" && params.source === "recommendations";
@@ -139,6 +148,7 @@ export default function ExploreCollectionScreen() {
   }
 
   const openFilters = () => {
+    setFilterSheetOpen(true);
     setDraftCriteria(appliedCriteria);
     presentBottomSheet(filterSheetRef);
   };
@@ -305,95 +315,105 @@ export default function ExploreCollectionScreen() {
       <ExploreFilterOptionsFeedback state={taxonomy} />
 
       {/* Paginated collection results */}
-      <FlatList
-        testID="explore-collection-list"
-        data={collection.businesses}
-        keyExtractor={(business) => String(business.id)}
-        renderItem={renderBusiness}
-        ListHeaderComponent={
-          (collection.error || collection.isPaused) &&
-          collection.businesses.length === 0 ? null : (
-            <>
-              <ExploreClusterFilters
-                clusters={taxonomy.options.clusters}
-                selectedClusterId={appliedCriteria.clusterId}
-                isLoading={taxonomy.isLoading}
-                onSelectCluster={(clusterId) =>
-                  setAppliedCriteria((current) =>
-                    applyClusterSelection(
-                      current,
-                      clusterId,
-                      taxonomy.options.categories,
-                    ),
-                  )
-                }
-                contentContainerClassName="gap-2 px-4 py-3"
-              />
-              <ExploreCollectionResultsHeader
-                filters={appliedFilters.filter(
-                  (filter) => !filter.id.startsWith("cluster-"),
-                )}
-                isLoading={collection.isLoading}
-                totalItems={collection.totalItems}
-              />
-            </>
-          )
-        }
-        ListEmptyComponent={
-          <ExploreCollectionEmptyState
-            isLoading={collection.isLoading}
-            hasError={Boolean(collection.error || collection.isPaused)}
-            onRetry={() => void collection.refetch()}
-            onGoBack={goBack}
-            emptyTitle={emptyTitle}
-            emptyDescription={emptyDescription}
-          />
-        }
-        ListFooterComponent={
-          collection.isFetchingNextPage ? (
-            <View className="items-center py-5" testID="collection-page-loader">
-              <LottieView
-                source={loadingAnimation}
-                autoPlay
-                loop
-                style={{
-                  width: 50,
-                  height: 50,
-                }}
-              />
-            </View>
-          ) : collection.isFetchNextPageError &&
-            collection.businesses.length > 0 ? (
-            <View className="items-center py-5">
-              <Button
-                title="Retry loading more places"
-                onPress={() => loadNextPage(true)}
-                variant="soft"
-                rounded="full"
-                size="sm"
-              />
-            </View>
-          ) : shouldShowEndMessage ? (
-            <EndOfListMessage />
-          ) : null
-        }
-        contentContainerStyle={{
-          paddingBottom: insets.bottom,
-        }}
-        onEndReached={() => loadNextPage()}
-        onEndReachedThreshold={0.35}
-        onViewableItemsChanged={impressions.onViewableItemsChanged}
-        viewabilityConfig={impressions.viewabilityConfig}
-        refreshControl={
-          <RefreshControl
-            refreshing={
-              collection.isRefetching && !collection.isFetchingNextPage
-            }
-            onRefresh={() => void collection.refetch()}
-            tintColor={theme.extends.colors.brand}
-          />
-        }
-      />
+      <BookmarkTourSurfaceContext.Provider value={bookmarkTour.surface}>
+        <FlatList
+          ref={bookmarkTour.attachViewport}
+          testID="explore-collection-list"
+          data={collection.businesses}
+          keyExtractor={(business) => String(business.id)}
+          renderItem={renderBusiness}
+          onLayout={bookmarkTour.onLayout}
+          onScroll={bookmarkTour.onScroll}
+          scrollEventThrottle={16}
+          onTouchStart={bookmarkTour.onTouchStart}
+          onTouchEnd={bookmarkTour.onTouchEnd}
+          onTouchCancel={bookmarkTour.onTouchCancel}
+          onContentSizeChange={bookmarkTour.onContentSizeChange}
+          ListHeaderComponent={
+            (collection.error || collection.isPaused) &&
+            collection.businesses.length === 0 ? null : (
+              <>
+                <ExploreClusterFilters
+                  clusters={taxonomy.options.clusters}
+                  selectedClusterId={appliedCriteria.clusterId}
+                  isLoading={taxonomy.isLoading}
+                  onSelectCluster={(clusterId) =>
+                    setAppliedCriteria((current) =>
+                      applyClusterSelection(
+                        current,
+                        clusterId,
+                        taxonomy.options.categories,
+                      ),
+                    )
+                  }
+                  contentContainerClassName="gap-2 px-4 py-3"
+                />
+                <ExploreCollectionResultsHeader
+                  filters={appliedFilters.filter(
+                    (filter) => !filter.id.startsWith("cluster-"),
+                  )}
+                  isLoading={collection.isLoading}
+                  totalItems={collection.totalItems}
+                />
+              </>
+            )
+          }
+          ListEmptyComponent={
+            <ExploreCollectionEmptyState
+              isLoading={collection.isLoading}
+              hasError={Boolean(collection.error || collection.isPaused)}
+              onRetry={() => void collection.refetch()}
+              onGoBack={goBack}
+              emptyTitle={emptyTitle}
+              emptyDescription={emptyDescription}
+            />
+          }
+          ListFooterComponent={
+            collection.isFetchingNextPage ? (
+              <View className="items-center py-5" testID="collection-page-loader">
+                <LottieView
+                  source={loadingAnimation}
+                  autoPlay
+                  loop
+                  style={{
+                    width: 50,
+                    height: 50,
+                  }}
+                />
+              </View>
+            ) : collection.isFetchNextPageError &&
+              collection.businesses.length > 0 ? (
+              <View className="items-center py-5">
+                <Button
+                  title="Retry loading more places"
+                  onPress={() => loadNextPage(true)}
+                  variant="soft"
+                  rounded="full"
+                  size="sm"
+                />
+              </View>
+            ) : shouldShowEndMessage ? (
+              <EndOfListMessage />
+            ) : null
+          }
+          contentContainerStyle={{
+            paddingBottom: insets.bottom,
+          }}
+          onEndReached={() => loadNextPage()}
+          onEndReachedThreshold={0.35}
+          onViewableItemsChanged={impressions.onViewableItemsChanged}
+          viewabilityConfig={impressions.viewabilityConfig}
+          refreshControl={
+            <RefreshControl
+              refreshing={
+                collection.isRefetching && !collection.isFetchingNextPage
+              }
+              onRefresh={() => void collection.refetch()}
+              tintColor={theme.extends.colors.brand}
+            />
+          }
+        />
+      </BookmarkTourSurfaceContext.Provider>
 
       {/* Collection filters */}
       <SearchFilterBottomSheet
@@ -403,6 +423,7 @@ export default function ExploreCollectionScreen() {
         draft={draftCriteria}
         onChange={setDraftCriteria}
         onApply={applyFilters}
+        onDismiss={() => setFilterSheetOpen(false)}
       />
     </View>
   );

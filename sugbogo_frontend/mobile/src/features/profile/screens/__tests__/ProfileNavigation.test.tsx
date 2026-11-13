@@ -2,6 +2,7 @@ import type { PropsWithChildren } from "react";
 import { act, fireEvent, render } from "@testing-library/react-native";
 import { router } from "expo-router";
 
+import { ExplorerTourContext } from "@/features/guided-tour/hooks/useExplorerTour";
 import ProfileScreen from "../ProfileScreen";
 
 type FocusEffect = () => void | (() => void);
@@ -35,6 +36,7 @@ jest.mock("@/features/auth/store/auth.store", () => ({
         first_name: "Cebu",
         last_name: "Explorer",
         role: mockMerchant ? "merchant" : "explorer",
+        has_completed_interest_selection: true,
       },
     }),
 }));
@@ -105,6 +107,25 @@ describe("Profile screen navigation dispatches", () => {
     jest.clearAllMocks();
     mockFocused = true;
     mockMerchant = false;
+  });
+
+  it("requests a replay from the Explorer profile", async () => {
+    const requestReplay = jest.fn();
+    const screen = await render(
+      <ExplorerTourContext.Provider
+        value={{
+          requestReplay,
+          setExploreLocationReady: jest.fn(),
+          setTarget: jest.fn(),
+          invalidateLayout: jest.fn(),
+        }}
+      >
+        <ProfileScreen />
+      </ExplorerTourContext.Provider>,
+    );
+
+    await fireEvent.press(screen.getByText("Replay Explorer Tour"));
+    expect(requestReplay).toHaveBeenCalledTimes(1);
   });
 
   it("dispatches only once for two rapid taps on the same real menu row", async () => {

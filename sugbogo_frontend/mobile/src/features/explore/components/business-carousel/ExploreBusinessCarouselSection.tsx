@@ -1,11 +1,15 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { ComponentProps, ReactNode } from "react";
 import type { LocationObject } from "expo-location";
-import { useEffect } from "react";
+import { useContext, useEffect } from "react";
 import { ScrollView, View } from "react-native";
 
 import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 import AppText from "@/shared/components/AppText";
+import {
+  BookmarkTourSurfaceContext,
+  useBookmarkTourSurface,
+} from "@/features/guided-tour/hooks/useBookmarkTourSurface";
 
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
@@ -64,6 +68,12 @@ export default function ExploreBusinessCarousel({
   seeAllAccessibilityLabel,
 }: Props) {
   const { retainBusinesses } = impressions;
+  const bookmarkSurface = useContext(BookmarkTourSurfaceContext);
+  const bookmarkTour = useBookmarkTourSurface(
+    bookmarkSurface?.route ?? null,
+    bookmarkSurface?.blocked,
+    bookmarkSurface?.getViewport,
+  );
 
   useEffect(() => {
     retainBusinesses(businesses.map((business) => business.id));
@@ -104,52 +114,64 @@ export default function ExploreBusinessCarousel({
       {headerContent}
 
       {/* Business carousel */}
-      <ScrollView
-        testID={scrollTestID}
-        onLayout={impressions.onListLayout}
-        onScroll={impressions.onHorizontalScroll}
-        scrollEventThrottle={16}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerClassName={`gap-3 px-4 ${hiddenGemsOnly || businesses.some((business) => business.is_hidden_gem) ? "pt-3" : ""}`}
-      >
-        {businesses.map((business) => {
-          const distance =
-            userLocation !== null
-              ? calculateDistanceInKm(
-                  userLocation.coords.latitude,
-                  userLocation.coords.longitude,
-                  business.location.latitude,
-                  business.location.longitude,
-                )
-              : null;
-
-          return (
-            <View
-              key={business.id}
-              testID={`${impressionTestIDPrefix}-${business.id}`}
-              collapsable={false}
-              onLayout={(event) => impressions.onCardLayout(business.id, event)}
-            >
-              <BusinessCard
-                business={business}
-                distance={distance}
-                distanceAccuracy={userLocation?.coords.accuracy ?? null}
-                variant={cardVariant}
-                availabilityLabel={availabilityLabel}
-                isHiddenGem={hiddenGemsOnly || business.is_hidden_gem === true}
-                onPress={() =>
-                  onBusinessPress(
-                    business.id,
-                    distance,
-                    userLocation?.coords.accuracy ?? null,
+      <BookmarkTourSurfaceContext.Provider value={bookmarkTour.surface}>
+        <ScrollView
+          ref={bookmarkTour.attachViewport}
+          testID={scrollTestID}
+          onLayout={(event) => {
+            impressions.onListLayout(event);
+            bookmarkTour.onLayout?.();
+          }}
+          onScroll={(event) => {
+            impressions.onHorizontalScroll(event);
+            bookmarkTour.onScroll();
+          }}
+          onScrollBeginDrag={bookmarkTour.onScroll}
+          onMomentumScrollBegin={bookmarkTour.onScroll}
+          onContentSizeChange={bookmarkTour.onContentSizeChange}
+          scrollEventThrottle={16}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerClassName={`gap-3 px-4 ${hiddenGemsOnly || businesses.some((business) => business.is_hidden_gem) ? "pt-3" : ""}`}
+        >
+          {businesses.map((business) => {
+            const distance =
+              userLocation !== null
+                ? calculateDistanceInKm(
+                    userLocation.coords.latitude,
+                    userLocation.coords.longitude,
+                    business.location.latitude,
+                    business.location.longitude,
                   )
-                }
-              />
-            </View>
-          );
-        })}
-      </ScrollView>
+                : null;
+
+            return (
+              <View
+                key={business.id}
+                testID={`${impressionTestIDPrefix}-${business.id}`}
+                collapsable={false}
+                onLayout={(event) => impressions.onCardLayout(business.id, event)}
+              >
+                <BusinessCard
+                  business={business}
+                  distance={distance}
+                  distanceAccuracy={userLocation?.coords.accuracy ?? null}
+                  variant={cardVariant}
+                  availabilityLabel={availabilityLabel}
+                  isHiddenGem={hiddenGemsOnly || business.is_hidden_gem === true}
+                  onPress={() =>
+                    onBusinessPress(
+                      business.id,
+                      distance,
+                      userLocation?.coords.accuracy ?? null,
+                    )
+                  }
+                />
+              </View>
+            );
+          })}
+        </ScrollView>
+      </BookmarkTourSurfaceContext.Provider>
     </View>
   );
 }

@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { useExplorerTour } from "@/features/guided-tour/hooks/useExplorerTour";
 import ErrorState from "@/shared/components/ErrorState";
 import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import Skeleton from "@/shared/components/Skeleton";
@@ -29,6 +30,7 @@ import Toast from "react-native-toast-message";
 export default function ProfileScreen() {
   const navigate = useNavigationAction();
   const user = useAuthStore((state) => state.user);
+  const tour = useExplorerTour();
 
   const canAccessMerchantMode = user?.role === "merchant";
 
@@ -222,6 +224,15 @@ export default function ProfileScreen() {
 
           {/* Settings and support */}
           <ProfileMenuSection title="Settings & Support">
+            {tour &&
+              user?.role === "explorer" &&
+              user.has_completed_interest_selection && (
+                <ProfileMenuItem
+                  title="Replay Explorer Tour"
+                  icon="replay"
+                  onPress={() => navigate(tour.requestReplay)}
+                />
+              )}
             <ProfileMenuItem
               title="Account Settings"
               icon="account-cog-outline"
