@@ -1,7 +1,12 @@
 import { useNavigation } from "expo-router";
-import { Pressable, PressableProps } from "react-native";
+import { Pressable, type PressableProps, type View } from "react-native";
+import type { Ref } from "react";
 
-export default function SafePressable({ onPress, ...props }: PressableProps) {
+export default function SafePressable({
+  onPress,
+  ref,
+  ...props
+}: PressableProps & { ref?: Ref<View> }) {
   const navigation = useNavigation();
 
   const handlePress: PressableProps["onPress"] = (event) => {
@@ -12,5 +17,5 @@ export default function SafePressable({ onPress, ...props }: PressableProps) {
     onPress?.(event);
   };
 
-  return <Pressable onPress={handlePress} {...props} />;
+  return <Pressable ref={ref} onPress={handlePress} {...props} />;
 }

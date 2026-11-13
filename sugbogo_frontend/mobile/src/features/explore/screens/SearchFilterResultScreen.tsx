@@ -20,6 +20,10 @@ import { calculateDistanceInKm } from "@/shared/utils/distance.utils";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
+import {
+  BookmarkTourSurfaceContext,
+  useBookmarkTourSurface,
+} from "@/features/guided-tour/hooks/useBookmarkTourSurface";
 import SearchFilterBottomSheet from "../components/search-filter-results/SearchFilterBottomSheet";
 import SearchFilterEmptyState from "../components/search-filter-results/SearchFilterEmptyState";
 import SearchFilterResultsHeader from "../components/search-filter-results/SearchFilterResultsHeader";
@@ -111,6 +115,7 @@ export default function SearchFilterResultsScreen() {
   );
   const [appliedCriteria, setAppliedCriteria] = useState(initialCriteria);
   const [draftCriteria, setDraftCriteria] = useState(initialCriteria);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const history = useRecentSearchesStore();
   const hasSearch = search.trim().length > 0;
   const hasAppliedFilters =
@@ -190,11 +195,13 @@ export default function SearchFilterResultsScreen() {
     }
 
     didOpenInitialFilters.current = true;
+    setFilterSheetOpen(true);
     setDraftCriteria(appliedCriteria);
     presentBottomSheet(filterSheetRef);
   }, [appliedCriteria, params.openFilters, taxonomy.isLoading]);
 
   const openFilters = () => {
+    setFilterSheetOpen(true);
     setDraftCriteria({
       ...appliedCriteria,
       search,
@@ -320,6 +327,13 @@ export default function SearchFilterResultsScreen() {
     !results.error &&
     !results.hasNextPage &&
     results.businesses.length >= 5;
+  const bookmarkTour = useBookmarkTourSurface(
+    "/search-filter-results",
+    filterSheetOpen ||
+      (params.openFilters === "1" && !didOpenInitialFilters.current) ||
+      isUpdating ||
+      results.isRefetching,
+  );
 
   return (
     <View className="flex-1 bg-surface">
@@ -366,124 +380,134 @@ export default function SearchFilterResultsScreen() {
         </ScrollView>
       ) : (
         /* Paginated business results */
-        <FlatList
-          testID="search-filter-results-list"
-          data={hasDebouncedCriteria ? results.businesses : []}
-          keyExtractor={(business) => String(business.id)}
-          renderItem={renderBusiness}
-          ListHeaderComponent={
-            <>
-              {!hasSearch && history.queries.length > 0 && (
-                <View className="px-5 py-3">
-                  <RecentSearches
-                    key={history.scope}
-                    queries={history.queries}
-                    onSelect={replaySearch}
-                    onRemove={history.removeQuery}
-                    onClear={history.clearQueries}
+        <BookmarkTourSurfaceContext.Provider value={bookmarkTour.surface}>
+          <FlatList
+            ref={bookmarkTour.attachViewport}
+            testID="search-filter-results-list"
+            data={hasDebouncedCriteria ? results.businesses : []}
+            keyExtractor={(business) => String(business.id)}
+            renderItem={renderBusiness}
+            onLayout={bookmarkTour.onLayout}
+            onScroll={bookmarkTour.onScroll}
+            scrollEventThrottle={16}
+            onTouchStart={bookmarkTour.onTouchStart}
+            onTouchEnd={bookmarkTour.onTouchEnd}
+            onTouchCancel={bookmarkTour.onTouchCancel}
+            onContentSizeChange={bookmarkTour.onContentSizeChange}
+            ListHeaderComponent={
+              <>
+                {!hasSearch && history.queries.length > 0 && (
+                  <View className="px-5 py-3">
+                    <RecentSearches
+                      key={history.scope}
+                      queries={history.queries}
+                      onSelect={replaySearch}
+                      onRemove={history.removeQuery}
+                      onClear={history.clearQueries}
+                    />
+                  </View>
+                )}
+                {(results.error || results.isPaused) &&
+                results.businesses.length === 0 ? null : (
+                  <SearchFilterResultsHeader
+                    clusters={taxonomy.options.clusters}
+                    selectedClusterId={appliedCriteria.clusterId}
+                    selectedCategories={selectedCategories}
+                    selectedSpecialty={selectedSpecialty}
+                    totalItems={results.totalItems}
+                    isLoading={isInitialLoading}
+                    usedFuzzyFallback={
+                      resultsEnabled && results.usedFuzzyFallback
+                    }
+                    onSelectCluster={selectCluster}
+                    onRemoveCategory={removeCategory}
+                    onRemoveSpecialty={removeSpecialty}
                   />
-                </View>
-              )}
-              {(results.error || results.isPaused) &&
-              results.businesses.length === 0 ? null : (
-                <SearchFilterResultsHeader
-                  clusters={taxonomy.options.clusters}
-                  selectedClusterId={appliedCriteria.clusterId}
-                  selectedCategories={selectedCategories}
-                  selectedSpecialty={selectedSpecialty}
-                  totalItems={results.totalItems}
+                )}
+                {isUpdating && (
+                  <View
+                    className="flex-row items-center gap-2 px-4 pb-3"
+                    accessibilityRole="progressbar"
+                    accessibilityLabel="Updating search results"
+                  >
+                    <LottieView
+                      source={loadingAnimation}
+                      autoPlay
+                      loop
+                      style={{ width: 24, height: 24 }}
+                    />
+                    <AppText className="text-xs text-text-secondary">
+                      Updating results…
+                    </AppText>
+                  </View>
+                )}
+              </>
+            }
+            ListEmptyComponent={
+              isUpdating ? null : (
+                <SearchFilterEmptyState
                   isLoading={isInitialLoading}
-                  usedFuzzyFallback={
-                    resultsEnabled && results.usedFuzzyFallback
-                  }
-                  onSelectCluster={selectCluster}
-                  onRemoveCategory={removeCategory}
-                  onRemoveSpecialty={removeSpecialty}
+                  hasError={Boolean(results.error || results.isPaused)}
+                  hasSearch={debouncedSearch.length > 0}
+                  onRetry={() => void results.refetch()}
+                  onGoBack={goBack}
+                  isRetrying={results.isRefetching && !results.isFetchingNextPage}
                 />
-              )}
-              {isUpdating && (
+              )
+            }
+            ListFooterComponent={
+              !resultsEnabled ||
+              !results.isCurrentData ? null : results.isFetchingNextPage ? (
                 <View
-                  className="flex-row items-center gap-2 px-4 pb-3"
-                  accessibilityRole="progressbar"
-                  accessibilityLabel="Updating search results"
+                  className="items-center py-5"
+                  testID="search-filter-results-page-loader"
                 >
+                  {/* Pagination loader */}
                   <LottieView
                     source={loadingAnimation}
                     autoPlay
                     loop
-                    style={{ width: 24, height: 24 }}
+                    style={{
+                      width: 50,
+                      height: 50,
+                    }}
                   />
-                  <AppText className="text-xs text-text-secondary">
-                    Updating results…
-                  </AppText>
                 </View>
-              )}
-            </>
-          }
-          ListEmptyComponent={
-            isUpdating ? null : (
-              <SearchFilterEmptyState
-                isLoading={isInitialLoading}
-                hasError={Boolean(results.error || results.isPaused)}
-                hasSearch={debouncedSearch.length > 0}
-                onRetry={() => void results.refetch()}
-                onGoBack={goBack}
-                isRetrying={results.isRefetching && !results.isFetchingNextPage}
-              />
-            )
-          }
-          ListFooterComponent={
-            !resultsEnabled ||
-            !results.isCurrentData ? null : results.isFetchingNextPage ? (
-              <View
-                className="items-center py-5"
-                testID="search-filter-results-page-loader"
-              >
-                {/* Pagination loader */}
-                <LottieView
-                  source={loadingAnimation}
-                  autoPlay
-                  loop
-                  style={{
-                    width: 50,
-                    height: 50,
-                  }}
+              ) : results.isFetchNextPageError &&
+                results.businesses.length > 0 ? (
+                <View className="items-center py-5">
+                  <Button
+                    title="Retry loading more places"
+                    onPress={() => loadNextPage(true)}
+                    variant="soft"
+                    rounded="full"
+                    size="sm"
+                  />
+                </View>
+              ) : shouldShowEndMessage ? (
+                <EndOfListMessage description="You've reached the end of these results." />
+              ) : null
+            }
+            contentContainerStyle={{
+              paddingBottom: insets.bottom,
+            }}
+            onEndReached={() => loadNextPage()}
+            onEndReachedThreshold={0.35}
+            onViewableItemsChanged={impressions.onViewableItemsChanged}
+            viewabilityConfig={impressions.viewabilityConfig}
+            refreshControl={
+              resultsEnabled && results.isCurrentData ? (
+                <RefreshControl
+                  refreshing={results.isRefetching && !results.isFetchingNextPage}
+                  onRefresh={() => void results.refetch()}
+                  tintColor={theme.extends.colors.brand}
                 />
-              </View>
-            ) : results.isFetchNextPageError &&
-              results.businesses.length > 0 ? (
-              <View className="items-center py-5">
-                <Button
-                  title="Retry loading more places"
-                  onPress={() => loadNextPage(true)}
-                  variant="soft"
-                  rounded="full"
-                  size="sm"
-                />
-              </View>
-            ) : shouldShowEndMessage ? (
-              <EndOfListMessage description="You've reached the end of these results." />
-            ) : null
-          }
-          contentContainerStyle={{
-            paddingBottom: insets.bottom,
-          }}
-          onEndReached={() => loadNextPage()}
-          onEndReachedThreshold={0.35}
-          onViewableItemsChanged={impressions.onViewableItemsChanged}
-          viewabilityConfig={impressions.viewabilityConfig}
-          refreshControl={
-            resultsEnabled && results.isCurrentData ? (
-              <RefreshControl
-                refreshing={results.isRefetching && !results.isFetchingNextPage}
-                onRefresh={() => void results.refetch()}
-                tintColor={theme.extends.colors.brand}
-              />
-            ) : undefined
-          }
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        />
+              ) : undefined
+            }
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          />
+        </BookmarkTourSurfaceContext.Provider>
       )}
 
       {/* Search and taxonomy filters */}
@@ -494,6 +518,7 @@ export default function SearchFilterResultsScreen() {
         draft={draftCriteria}
         onChange={setDraftCriteria}
         onApply={applyFilters}
+        onDismiss={() => setFilterSheetOpen(false)}
       />
     </View>
   );

@@ -1,4 +1,5 @@
 import { useAuthGuard } from "@/features/auth/hooks/useAuthGuard";
+import ExplorerTourHost from "@/features/guided-tour/components/ExplorerTourHost";
 import {
   defaultStackScreenOptions,
   slideFromRight,
@@ -9,55 +10,57 @@ export default function ExplorerLayout() {
   useAuthGuard();
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
+    <ExplorerTourHost>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
 
-      <Stack.Screen
-        name="search-filter-results"
-        options={{
-          ...defaultStackScreenOptions,
-          ...slideFromRight,
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="explore-collection/[collectionType]"
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-          animationTypeForReplace: "push",
-        }}
-      />
+        <Stack.Screen
+          name="search-filter-results"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="explore-collection/[collectionType]"
+          options={{
+            headerShown: false,
+            animation: "slide_from_right",
+            animationTypeForReplace: "push",
+          }}
+        />
 
-      {/* Business profile */}
-      <Stack.Screen
-        name="business/[businessId]"
-        options={{
-          ...defaultStackScreenOptions,
-          ...slideFromRight,
-          headerShown: false,
-        }}
-      />
+        {/* Business profile */}
+        <Stack.Screen
+          name="business/[businessId]"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            headerShown: false,
+          }}
+        />
 
-      {/* Explorer profile */}
-      <Stack.Screen
-        name="profile"
-        options={{
-          ...defaultStackScreenOptions,
-          ...slideFromRight,
-          title: "Profile",
-        }}
-      />
+        {/* Explorer profile */}
+        <Stack.Screen
+          name="profile"
+          options={{
+            ...defaultStackScreenOptions,
+            ...slideFromRight,
+            title: "Profile",
+          }}
+        />
 
-      {/* Merchant registration */}
-      <Stack.Screen
-        name="merchant-registration"
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-          animationTypeForReplace: "push",
-        }}
-      />
-    </Stack>
+        {/* Merchant registration */}
+        <Stack.Screen
+          name="merchant-registration"
+          options={{
+            headerShown: false,
+            animation: "slide_from_right",
+            animationTypeForReplace: "push",
+          }}
+        />
+      </Stack>
+    </ExplorerTourHost>
   );
 }

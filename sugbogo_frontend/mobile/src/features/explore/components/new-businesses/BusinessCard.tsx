@@ -33,6 +33,8 @@ type Props = {
   onPress: () => void;
   onPocketPress?: () => void;
   pocketActionDisabled?: boolean;
+  pocketActionRef?: React.Ref<View>;
+  onPocketActionLayout?: () => void;
   compactTrailingAction?: ReactNode;
   variant?: "default" | "featured" | "compact";
   recommendationReason?: RecommendationReason | null;
@@ -80,6 +82,8 @@ export default function BusinessCard({
   onPress,
   onPocketPress,
   pocketActionDisabled = false,
+  pocketActionRef,
+  onPocketActionLayout,
   compactTrailingAction,
   variant = "default",
   recommendationReason = null,
@@ -206,6 +210,9 @@ export default function BusinessCard({
   // A sibling action keeps bookmark taps separate from profile navigation.
   const pocketAction = onPocketPress ? (
     <SafePressable
+      ref={pocketActionRef}
+      collapsable={pocketActionRef ? false : undefined}
+      onLayout={onPocketActionLayout}
       onPress={onPocketPress}
       disabled={pocketActionDisabled}
       accessibilityRole="button"

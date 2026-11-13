@@ -14,6 +14,10 @@ import {
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import { useExplorerTour } from "@/features/guided-tour/hooks/useExplorerTour";
+import {
+  BookmarkTourSurfaceContext,
+  useBookmarkTourSurface,
+} from "@/features/guided-tour/hooks/useBookmarkTourSurface";
 
 import ExploreBySpecialtySection from "../components/explore-by-specialty/ExploreBySpecialtySection";
 import ExploreTopBar from "../components/ExploreTopBar";
@@ -50,6 +54,7 @@ export default function ExploreScreen() {
   const navigate = useNavigationAction();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const bookmarkTour = useBookmarkTourSurface("/explore", isRefreshing);
   const [isRefreshingNearby, setIsRefreshingNearby] = useState(false);
   const refreshInProgress = useRef(false);
   const [openNowLocation, setOpenNowLocation] = useState<LocationObject | null>(
@@ -182,6 +187,7 @@ export default function ExploreScreen() {
   };
 
   const handleViewportLayout = (event: LayoutChangeEvent) => {
+    bookmarkTour.onLayout?.();
     discoveryImpressions.onViewportLayout(event);
     spotlightImpressions.onViewportLayout(event);
     newBusinessImpressions.onViewportLayout(event);
@@ -192,6 +198,7 @@ export default function ExploreScreen() {
   const handleVerticalScroll = (
     event: NativeSyntheticEvent<NativeScrollEvent>,
   ) => {
+    bookmarkTour.onScroll();
     discoveryImpressions.onVerticalScroll(event);
     spotlightImpressions.onVerticalScroll(event);
     newBusinessImpressions.onVerticalScroll(event);
@@ -264,73 +271,80 @@ export default function ExploreScreen() {
       <ExploreFilterOptionsFeedback state={filterOptions} />
 
       {/* Discovery content */}
-      <ScrollView
-        testID="explore-discovery-scroll"
-        onLayout={handleViewportLayout}
-        onScroll={handleVerticalScroll}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-        contentContainerClassName=" pb-8"
-        contentContainerStyle={{
-          paddingBottom: bottomSpacing,
-        }}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
-        }
-      >
-        {/* Curated discovery */}
-        <HiddenGemsSection
-          businesses={discoveryFeed.businesses}
-          isLoading={discoveryFeed.isLoading}
-          isPaused={discoveryFeed.isPaused}
-          error={discoveryFeed.error}
-          refetch={discoveryFeed.refetch}
-          impressions={discoveryImpressions}
-          spotlightImpressions={spotlightImpressions}
-          userLocation={userLocation}
-          onBusinessPress={handleBusinessPress}
-        />
-
-        {/* Nearby businesses open according to their listed hours */}
-        <OpenNowBusinessesSection
-          feed={openNow}
-          userLocation={nearbyLocation}
-          isLocating={locationStatus === "loading" && openNowLocation === null}
-          isUsingLastLocation={isUsingLastLocation}
-          impressions={openNowImpressions}
-          onBusinessPress={handleBusinessPress}
-        />
-
-        {/* Specialty discovery preview */}
-        <ExploreBySpecialtySection
-          onSpecialtyPress={(specialtyTagId) =>
-            navigate(() => navigateToExploreResults({ specialtyTagId }))
+      <BookmarkTourSurfaceContext.Provider value={bookmarkTour.surface}>
+        <ScrollView
+          ref={bookmarkTour.attachViewport}
+          testID="explore-discovery-scroll"
+          onLayout={handleViewportLayout}
+          onScroll={handleVerticalScroll}
+          onTouchStart={bookmarkTour.onTouchStart}
+          onTouchEnd={bookmarkTour.onTouchEnd}
+          onTouchCancel={bookmarkTour.onTouchCancel}
+          onContentSizeChange={bookmarkTour.onContentSizeChange}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName=" pb-8"
+          contentContainerStyle={{
+            paddingBottom: bottomSpacing,
+          }}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
           }
-        />
+        >
+          {/* Curated discovery */}
+          <HiddenGemsSection
+            businesses={discoveryFeed.businesses}
+            isLoading={discoveryFeed.isLoading}
+            isPaused={discoveryFeed.isPaused}
+            error={discoveryFeed.error}
+            refetch={discoveryFeed.refetch}
+            impressions={discoveryImpressions}
+            spotlightImpressions={spotlightImpressions}
+            userLocation={userLocation}
+            onBusinessPress={handleBusinessPress}
+          />
 
-        {/* Personalized discovery */}
-        <UserInterestsSection
-          impressions={recommendationImpressions}
-          userLocation={userLocation}
-          onBusinessPress={handleBusinessPress}
-          onSeeAll={(source) => openCollection("interests", source)}
-        />
+          {/* Nearby businesses open according to their listed hours */}
+          <OpenNowBusinessesSection
+            feed={openNow}
+            userLocation={nearbyLocation}
+            isLocating={locationStatus === "loading" && openNowLocation === null}
+            isUsingLastLocation={isUsingLastLocation}
+            impressions={openNowImpressions}
+            onBusinessPress={handleBusinessPress}
+          />
 
-        {/* Recently added businesses */}
-        <NewBusinessesSection
-          impressions={newBusinessImpressions}
-          userLocation={userLocation}
-          onBusinessPress={handleBusinessPress}
-          onSeeAll={() => openCollection("new-businesses")}
-        />
+          {/* Specialty discovery preview */}
+          <ExploreBySpecialtySection
+            onSpecialtyPress={(specialtyTagId) =>
+              navigate(() => navigateToExploreResults({ specialtyTagId }))
+            }
+          />
 
-        {/* Intent-based discovery shortcuts */}
-        <DiscoveryShortcutsSection
-          onShortcutPress={(clusterId) =>
-            navigate(() => navigateToExploreResults({ clusterId }))
-          }
-        />
-      </ScrollView>
+          {/* Personalized discovery */}
+          <UserInterestsSection
+            impressions={recommendationImpressions}
+            userLocation={userLocation}
+            onBusinessPress={handleBusinessPress}
+            onSeeAll={(source) => openCollection("interests", source)}
+          />
+
+          {/* Recently added businesses */}
+          <NewBusinessesSection
+            impressions={newBusinessImpressions}
+            userLocation={userLocation}
+            onBusinessPress={handleBusinessPress}
+            onSeeAll={() => openCollection("new-businesses")}
+          />
+
+          {/* Intent-based discovery shortcuts */}
+          <DiscoveryShortcutsSection
+            onShortcutPress={(clusterId) =>
+              navigate(() => navigateToExploreResults({ clusterId }))
+            }
+          />
+        </ScrollView>
+      </BookmarkTourSurfaceContext.Provider>
     </View>
   );
 }

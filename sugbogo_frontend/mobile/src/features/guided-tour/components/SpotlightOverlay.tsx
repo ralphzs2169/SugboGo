@@ -26,7 +26,14 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 type Props = Pick<
   ComponentProps<typeof SpotlightTooltip>,
-  "title" | "description" | "step" | "total" | "onBack" | "onNext" | "onSkip" | "onDismiss"
+  | "title"
+  | "description"
+  | "step"
+  | "total"
+  | "onBack"
+  | "onNext"
+  | "onSkip"
+  | "onDismiss"
 > & {
   target: SpotlightRect;
   viewport: Pick<SpotlightRect, "width" | "height">;
@@ -74,7 +81,12 @@ export default function SpotlightOverlay({
     insets.top -
     TOOLTIP_GUTTER -
     MASCOT_OVERLAP;
-  const canShowTooltip = tooltipWidth > 0 && tooltipHeight >= 72;
+  const belowTop = bottom + TOOLTIP_GAP + MASCOT_OVERLAP;
+  const belowHeight =
+    viewport.height - belowTop - insets.bottom - TOOLTIP_GUTTER;
+  const pointerUp = tooltip.step === undefined && belowHeight > tooltipHeight;
+  const maxHeight = pointerUp ? belowHeight : tooltipHeight;
+  const canShowTooltip = tooltipWidth > 0 && maxHeight >= 72;
 
   const geometry = useSharedValue({
     left,
@@ -122,7 +134,16 @@ export default function SpotlightOverlay({
             reduceMotion: ReduceMotion.Never,
           }),
     );
-  }, [bottom, geometry, left, pointerLeft, reduceMotion, right, tooltipLeft, top]);
+  }, [
+    bottom,
+    geometry,
+    left,
+    pointerLeft,
+    reduceMotion,
+    right,
+    tooltipLeft,
+    top,
+  ]);
 
   const { step } = tooltip;
   useEffect(() => {
@@ -198,13 +219,16 @@ export default function SpotlightOverlay({
       <Animated.View
         style={[
           styles.tooltip,
-          { bottom: tooltipBottom, width: tooltipWidth },
+          pointerUp
+            ? { top: belowTop, width: tooltipWidth }
+            : { bottom: tooltipBottom, width: tooltipWidth },
           bubbleMotion,
         ]}
       >
         <SpotlightTooltip
           {...tooltip}
-          maxHeight={tooltipHeight}
+          maxHeight={maxHeight}
+          pointerUp={pointerUp}
           pointerMotion={pointerMotion}
           onDismiss={onDismiss}
         />

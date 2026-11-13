@@ -8,13 +8,17 @@ import { withTiming } from "react-native-reanimated";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
 import { useExplorerTour } from "@/features/guided-tour/hooks/useExplorerTour";
+import ExplorerTourHost from "@/features/guided-tour/components/ExplorerTourHost";
+import { BookmarkTourSurfaceContext, useBookmarkTourSurface } from "@/features/guided-tour/hooks/useBookmarkTourSurface";
+import PocketBusinessCard from "@/features/pockets/components/PocketBusinessCard";
+import type { ExploreBusiness } from "@/features/explore/types/exploreBusiness.types";
 import type { User } from "@/features/users/types/user.types";
 import {
   beginAuthSession,
   invalidateAuthSession,
 } from "@/shared/api/authSessionGeneration.service";
 
-import TabLayout from "../_layout";
+import ExplorerTabs from "../_layout";
 
 const mockTabNames = ["explore", "map", "community", "profile"];
 const mockTabX = [0, 100, 200, 300];
@@ -25,6 +29,10 @@ let mockFocused = true;
 let mockKeyboardOpen = false;
 let mockLocationReady = true;
 let mockPickerOpen = false;
+const mockOpenPicker = jest.fn();
+let mockShowBookmarkCard = false;
+let mockBookmarkY = 290;
+let mockBookmarkBlocked = false;
 let measuredTabWidth = 100;
 let measuredViewportHeight = 800;
 
@@ -65,7 +73,10 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
     mockDisk.set(key, value);
   }),
 }));
-jest.mock("@tanstack/react-query", () => ({ useIsRestoring: () => false }));
+jest.mock("@tanstack/react-query", () => ({
+  ...jest.requireActual("@tanstack/react-query"),
+  useIsRestoring: () => false,
+}));
 jest.mock("@expo/vector-icons", () => ({
   Feather: () => null,
   MaterialCommunityIcons: () => null,
@@ -75,7 +86,7 @@ jest.mock("react-native-keyboard-controller", () => ({
 }));
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 jest.mock("@/features/pockets/providers/PocketPickerContext", () => ({
-  usePocketPicker: () => ({ isOpen: mockPickerOpen }),
+  usePocketPicker: () => ({ isOpen: mockPickerOpen, openPocketPicker: mockOpenPicker }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 20, bottom: 20, left: 0, right: 0 }),
@@ -135,6 +146,7 @@ jest.mock("expo-router", () => {
     Tabs: MockTabs,
     router: { navigate: jest.fn() },
     useIsFocused: () => mockFocused,
+    useNavigation: () => ({ isFocused: () => mockFocused }),
     usePathname: () => mockPathname,
   };
 });
@@ -143,6 +155,8 @@ function MockExplore() {
   const tour = useExplorerTour();
   const setReady = tour?.setExploreLocationReady;
   const locationReady = mockLocationReady;
+  const { surface, attachNativeViewport, onTouchStart, onTouchEnd, onLayout } =
+    useBookmarkTourSurface(mockPathname, mockBookmarkBlocked);
   useEffect(() => {
     setReady?.(locationReady);
   }, [setReady, locationReady]);
@@ -151,9 +165,51 @@ function MockExplore() {
     <View>
       <Text>No businesses</Text>
       <Text onPress={tour?.requestReplay}>Replay test action</Text>
+      <BookmarkTourSurfaceContext.Provider value={surface}>
+        <View
+          ref={attachNativeViewport}
+          testID="bookmark-viewport"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onLayout={onLayout}
+        >
+          {mockShowBookmarkCard && (
+            <PocketBusinessCard
+              business={bookmarkBusiness}
+              distance={null}
+              distanceAccuracy={null}
+              onPress={mockNavigateTab}
+            />
+          )}
+        </View>
+      </BookmarkTourSurfaceContext.Provider>
     </View>
   );
 }
+
+function TabLayout() {
+  return <ExplorerTourHost><ExplorerTabs /></ExplorerTourHost>;
+}
+
+const bookmarkBusiness: ExploreBusiness = {
+  id: 42,
+  business_name: "Card Cafe",
+  cover_photo_url: null,
+  display_cover_photo_url: null,
+  review_count: 0,
+  overall_vibe: null,
+  is_pocketed: false,
+  cluster: { id: 1, name: "Culinary", icon: "utensils" },
+  category: { id: 1, name: "Cafe" },
+  specialty_tags: [],
+  location: {
+    address: "Cebu",
+    city: "Cebu City",
+    province: "Cebu",
+    latitude: 10.31,
+    longitude: 123.89,
+  },
+};
 
 const user: User = {
   id: 101,
@@ -217,6 +273,9 @@ describe("Explorer navigation tour", () => {
     mockKeyboardOpen = false;
     mockLocationReady = true;
     mockPickerOpen = false;
+    mockShowBookmarkCard = false;
+    mockBookmarkY = 290;
+    mockBookmarkBlocked = false;
     AppState.currentState = "active";
     jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false);
     jest.spyOn(View.prototype, "measureLayout").mockImplementation(function (
@@ -232,6 +291,18 @@ describe("Explorer navigation tour", () => {
       }
     });
     jest.spyOn(AccessibilityInfo, "sendAccessibilityEvent").mockImplementation(() => {});
+    jest.spyOn(View.prototype, "measureInWindow").mockImplementation(function (
+      this: { props: { accessibilityLabel?: string; testID?: string } },
+      measure,
+    ) {
+      if (this.props.accessibilityLabel === "Save Card Cafe to Pockets") {
+        measure(240, mockBookmarkY, 48, 48);
+      } else if (this.props.testID === "bookmark-viewport") {
+        measure(0, 120, 400, 680);
+      } else if (this.props.testID === "explorer-tour-viewport") {
+        measure(0, 0, 400, 800);
+      }
+    });
     useAuthStore.getState().setLoading(false);
     signIn();
   });
@@ -289,7 +360,9 @@ describe("Explorer navigation tour", () => {
     signIn();
     const restored = await render(<TabLayout />);
     await layoutTabs(restored);
-    await waitFor(() => expect(AsyncStorage.getItem).toHaveBeenCalledTimes(2));
+    await waitFor(() => {
+      expect(AsyncStorage.getItem).toHaveBeenCalledWith("guided-tour:pockets-bookmark:v1:101");
+    });
     expect(queryMask(restored)).toBeNull();
 
     await act(() => signIn(202));
@@ -409,5 +482,90 @@ describe("Explorer navigation tour", () => {
     await fireEvent.press(screen.getByText("Next"));
     await expectStep(screen, "Explore the map", 108);
     expect(withTiming).not.toHaveBeenCalled();
+  });
+
+  it("waits for the navigation walkthrough, then highlights the real bookmark", async () => {
+    mockShowBookmarkCard = true;
+    const screen = await render(<TabLayout />);
+    await layoutTabs(screen);
+    await expectStep(screen, "Discover Cebu's hidden gems!", 12);
+    expect(screen.queryByText("Save places for later!")).toBeNull();
+
+    await fireEvent.press(screen.getByText("Skip"));
+    expect(await screen.findByText("Save places for later!")).toBeTruthy();
+    const mask = queryMask(screen);
+    expect(mask?.props.accessibilityLabel).toContain("M 248 286 H");
+    expect(screen.queryByText("Back")).toBeNull();
+    expect(screen.queryByText("Skip")).toBeNull();
+    expect(mockOpenPicker).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByText("Got it!"));
+    expect(mockDisk.get("guided-tour:explorer-navigation:v1:101")).toBe("true");
+    expect(mockDisk.get("guided-tour:pockets-bookmark:v1:101")).toBe("true");
+    expect(mockOpenPicker).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "Save Card Cafe to Pockets" }));
+    expect(mockOpenPicker).toHaveBeenCalledWith(42);
+    expect(mockNavigateTab).not.toHaveBeenCalled();
+  });
+
+  it("keeps bookmark completion scoped to its account and independent of navigation", async () => {
+    mockShowBookmarkCard = true;
+    mockDisk.set("guided-tour:explorer-navigation:v1:101", "true");
+    mockDisk.set("guided-tour:explorer-navigation:v1:202", "true");
+    const first = await render(<TabLayout />);
+    await layoutTabs(first);
+    await fireEvent.press(await first.findByText("Got it!"));
+    await first.unmount();
+
+    const restored = await render(<TabLayout />);
+    await layoutTabs(restored);
+    await waitFor(() => {
+      expect(AsyncStorage.getItem).toHaveBeenCalledWith("guided-tour:pockets-bookmark:v1:101");
+    });
+    expect(queryMask(restored)).toBeNull();
+
+    await act(() => signIn(202));
+    expect(await restored.findByText("Save places for later!")).toBeTruthy();
+    expect(mockDisk.has("guided-tour:pockets-bookmark:v1:202")).toBe(false);
+    await act(signOut);
+    expect(queryMask(restored)).toBeNull();
+  });
+
+  it("waits for a visible, unobstructed bookmark and dismisses when it disappears", async () => {
+    mockDisk.set("guided-tour:explorer-navigation:v1:101", "true");
+    const screen = await render(<TabLayout />);
+    await layoutTabs(screen);
+    await waitFor(() => {
+      expect(AsyncStorage.getItem).toHaveBeenCalledWith("guided-tour:pockets-bookmark:v1:101");
+    });
+    expect(queryMask(screen)).toBeNull();
+
+    mockShowBookmarkCard = true;
+    mockBookmarkY = 720;
+    await screen.rerender(<TabLayout />);
+    await waitFor(() => {
+      expect(View.prototype.measureInWindow).toHaveBeenCalled();
+    });
+    expect(queryMask(screen)).toBeNull();
+
+    mockBookmarkY = 290;
+    mockBookmarkBlocked = true;
+    await screen.rerender(<TabLayout />);
+    expect(queryMask(screen)).toBeNull();
+    const viewport = screen.getByTestId("bookmark-viewport");
+    await fireEvent(viewport, "touchStart");
+    mockBookmarkBlocked = false;
+    await screen.rerender(<TabLayout />);
+    expect(queryMask(screen)).toBeNull();
+    await fireEvent(viewport, "touchEnd");
+    expect(await screen.findByText("Save places for later!")).toBeTruthy();
+
+    mockShowBookmarkCard = false;
+    await screen.rerender(<TabLayout />);
+    await waitFor(() => expect(queryMask(screen)).toBeNull());
+    mockShowBookmarkCard = true;
+    await screen.rerender(<TabLayout />);
+    expect(queryMask(screen)).toBeNull();
+    expect(mockDisk.has("guided-tour:pockets-bookmark:v1:101")).toBe(false);
   });
 });
