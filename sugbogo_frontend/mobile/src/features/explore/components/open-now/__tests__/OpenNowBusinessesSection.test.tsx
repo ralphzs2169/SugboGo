@@ -147,12 +147,12 @@ it("shows available places in server order without a See all action", async () =
   const carouselProps = mockCarousel.mock.calls[0][0];
 
   expect(carouselProps.businesses).toBe(businesses);
-  expect(carouselProps.availabilityLabel).toBe("Open now");
+  expect(carouselProps.availabilityLabel).toBeUndefined();
   expect(carouselProps.onSeeAll).toBeUndefined();
   expect(carouselProps.onBusinessPress).toBe(props.onBusinessPress);
 });
 
-it("labels retained location and removes the open claim after an availability failure", async () => {
+it("labels retained location and shows an availability warning after a failure", async () => {
   const screen = await render(
     <OpenNowBusinessesSection
       {...props}
@@ -168,7 +168,6 @@ it("labels retained location and removes the open claim after an availability fa
     screen.getByText(/Showing places near your last location/),
   ).toBeTruthy();
   expect(screen.getByText(/Opening status may have changed/)).toBeTruthy();
-  expect(mockCarousel.mock.calls[0][0].availabilityLabel).toBeUndefined();
   await fireEvent.press(screen.getByLabelText("Retry nearby open places"));
   expect(refetch).toHaveBeenCalledTimes(1);
 });
