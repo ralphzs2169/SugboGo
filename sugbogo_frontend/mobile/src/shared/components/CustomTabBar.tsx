@@ -2,7 +2,7 @@
 import { theme } from "@/constants/theme";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { ComponentProps, useEffect, useState } from "react";
+import { ComponentProps, useCallback, useEffect, useState } from "react";
 import { Animated, Pressable, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -22,13 +22,21 @@ function TabItem({
   isFocused,
   onPress,
   config,
+  onTargetRef,
+  onTargetLayout,
 }: {
   routeName: string;
   isFocused: boolean;
   onPress: () => void;
   config: TabBarConfig;
+  onTargetRef?: (name: string, node: View | null) => void;
+  onTargetLayout?: () => void;
 }) {
   const [progress] = useState(() => new Animated.Value(isFocused ? 1 : 0));
+  const attachTarget = useCallback(
+    (node: View | null) => onTargetRef?.(routeName, node),
+    [onTargetRef, routeName],
+  );
 
   useEffect(() => {
     Animated.spring(progress, {
@@ -59,9 +67,13 @@ function TabItem({
 
   return (
     <Pressable
+      ref={onTargetRef ? attachTarget : undefined}
+      onLayout={onTargetLayout}
+      collapsable={onTargetRef ? false : undefined}
       onPress={onPress}
       hitSlop={8}
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ selected: isFocused }}
       className="flex-1 cursor-pointer items-center justify-center"
     >
@@ -111,7 +123,13 @@ export default function CustomTabBar({
   state,
   navigation,
   config,
-}: TabBarPropsArg & { config: TabBarConfig }) {
+  onTargetRef,
+  onTargetLayout,
+}: TabBarPropsArg & {
+  config: TabBarConfig;
+  onTargetRef?: (name: string, node: View | null) => void;
+  onTargetLayout?: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
@@ -133,6 +151,7 @@ export default function CustomTabBar({
   return (
     <View
       className="absolute bottom-0 left-0 right-0 border-t border-border-primary bg-white"
+      onLayout={onTargetLayout}
       style={{
         paddingBottom: insets.bottom,
       }}
@@ -176,6 +195,8 @@ export default function CustomTabBar({
               isFocused={isFocused}
               onPress={onPress}
               config={config}
+              onTargetRef={onTargetRef}
+              onTargetLayout={onTargetLayout}
             />
           );
         })}

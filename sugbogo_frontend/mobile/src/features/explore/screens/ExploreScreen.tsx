@@ -13,6 +13,7 @@ import {
 
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 import useNavigationAction from "@/shared/hooks/useNavigationAction";
+import { useExplorerTour } from "@/features/guided-tour/hooks/useExplorerTour";
 
 import ExploreBySpecialtySection from "../components/explore-by-specialty/ExploreBySpecialtySection";
 import ExploreTopBar from "../components/ExploreTopBar";
@@ -72,6 +73,16 @@ export default function ExploreScreen() {
     isRefreshingLocation,
     refreshLocation,
   } = useUserLocation({ mode: "recent" });
+  const setTourLocationReady = useExplorerTour()?.setExploreLocationReady;
+
+  useEffect(() => {
+    setTourLocationReady?.(!isRefreshingLocation);
+  }, [isRefreshingLocation, setTourLocationReady]);
+
+  useEffect(() => {
+    return () => setTourLocationReady?.(false);
+  }, [setTourLocationReady]);
+
   const nearbyLocation = openNowLocation;
 
   useEffect(() => {
