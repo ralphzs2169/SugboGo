@@ -9,6 +9,8 @@ import { BackHandler, View } from "react-native";
 import type { SpecialtyTagOption } from "@/features/merchant/types/registration/registrationOption.types";
 import SpecialtyTagsSheetHeader from "./SpecialtyTagsSheetHeader";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
+import AppText from "@/shared/components/AppText";
+import FilterSheetSearchInput from "@/shared/components/filters/FilterSheetSearchInput";
 
 type SpecialtyTagsBottomSheetProps = {
   sheetRef: React.RefObject<BottomSheetModal | null>;
@@ -34,6 +36,11 @@ export default function SpecialtyTagsBottomSheet({
   onClose,
 }: SpecialtyTagsBottomSheetProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleTags = tags.filter((tag) =>
+    tag.name.toLowerCase().includes(normalizedQuery),
+  );
 
   useEffect(() => {
     if (!isOpen) {
@@ -68,11 +75,15 @@ export default function SpecialtyTagsBottomSheet({
       snapPoints={["70%", "85%"]}
       index={1}
       enablePanDownToClose
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
       onChange={(index) => {
         setIsOpen(index >= 0);
       }}
       onDismiss={() => {
         setIsOpen(false);
+        setQuery("");
         onClose();
       }}
       backdropComponent={renderBackdrop}
@@ -82,12 +93,31 @@ export default function SpecialtyTagsBottomSheet({
         maxSelections={MAX_SPECIALTY_TAGS}
       />
 
+      <View className="mx-6 mb-4">
+        <FilterSheetSearchInput
+          query={query}
+          onQueryChange={setQuery}
+          placeholder="Search specialty tags"
+          accessibilityLabel="Search specialty tags"
+          background="surface"
+        />
+      </View>
+
       <BottomSheetScrollView
         contentContainerClassName="px-6 pb-8"
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
+        {normalizedQuery.length > 0 && visibleTags.length === 0 && (
+          <AppText
+            accessibilityLiveRegion="polite"
+            className="text-center text-sm text-text-secondary"
+          >
+            No specialty tags match your search.
+          </AppText>
+        )}
         <View className="flex-row flex-wrap justify-center gap-2">
-          {tags.map((tag) => {
+          {visibleTags.map((tag) => {
             const isSelected = selectedTags.includes(tag.id);
             const isDisabled =
               !isSelected && selectedTags.length >= MAX_SPECIALTY_TAGS;
