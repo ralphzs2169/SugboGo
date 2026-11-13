@@ -749,7 +749,7 @@ describe("registration navigation and persistence integrity", () => {
     },
   );
 
-  it.each(["footer", "hardware"])(
+  it.each(["header", "hardware"])(
     "returns to persisted Review through %s after confirming discarded section edits",
     async (path) => {
       const screen = await render(<MerchantRegistrationScreen />);
@@ -760,20 +760,24 @@ describe("registration navigation and persistence integrity", () => {
         screen.getByPlaceholderText("Business name"),
         "Discard me",
       );
-      if (path === "footer") {
-        await fireEvent.press(
-          screen.getByRole("button", { name: "Back to Review" }),
-        );
+      const header = mockNavigation.setOptions.mock.lastCall![0].headerLeft();
+      expect(header.props.accessibilityLabel).toBe("Back to Review");
+      if (path === "header") {
+        await act(async () => {
+          header.props.onPress();
+        });
       } else {
         await act(async () => {
           mockHardwareBack();
         });
       }
-      await fireEvent.press(screen.getByRole("button", { name: "Stay" }));
-      expect(screen.getByDisplayValue("Discard me")).toBeTruthy();
       await fireEvent.press(
-        screen.getByRole("button", { name: "Back to Review" }),
+        screen.getByRole("button", { name: "Keep editing" }),
       );
+      expect(screen.getByDisplayValue("Discard me")).toBeTruthy();
+      await act(async () => {
+        header.props.onPress();
+      });
       await fireEvent.press(screen.getByRole("button", { name: "Discard" }));
       expect(screen.getByText("Review: Saved Cafe")).toBeTruthy();
       expect(router.back).not.toHaveBeenCalled();

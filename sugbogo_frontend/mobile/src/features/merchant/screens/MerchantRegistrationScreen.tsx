@@ -449,41 +449,6 @@ function MerchantRegistrationFormScreen() {
     });
   };
 
-  // Set the header back button on the navigation options.
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerLeft: () => (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Exit registration"
-          disabled={isSavingCurrentStep}
-          className="min-h-12 min-w-12 cursor-pointer items-center justify-center active:opacity-70"
-          onPress={() => {
-            if (currentStep === REVIEW_STEP) {
-              requestReviewExit();
-              return;
-            }
-            requestExit(() => leaveRegistration(() => router.back()));
-          }}
-        >
-          <MaterialCommunityIcons
-            name="close"
-            size={28}
-            color={theme.extends.colors.text.primary}
-          />
-        </Pressable>
-      ),
-    });
-  }, [
-    navigation,
-    requestExit,
-    requestReviewExit,
-    currentStep,
-    REVIEW_STEP,
-    isSavingCurrentStep,
-    leaveRegistration,
-  ]);
-
   /**
    * Restores a previously saved merchant application.
    *
@@ -972,6 +937,50 @@ function MerchantRegistrationFormScreen() {
     restoreSavedReview,
   ]);
 
+  const isEditingFromReview = editingStep !== null;
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            isEditingFromReview ? "Back to Review" : "Exit registration"
+          }
+          disabled={isSavingCurrentStep}
+          className="min-h-12 min-w-12 cursor-pointer items-center justify-center active:opacity-70"
+          onPress={() => {
+            if (isEditingFromReview) {
+              requestBack();
+              return;
+            }
+            if (currentStep === REVIEW_STEP) {
+              requestReviewExit();
+              return;
+            }
+            requestExit(() => leaveRegistration(() => router.back()));
+          }}
+        >
+          <MaterialCommunityIcons
+            name={isEditingFromReview ? "arrow-left" : "close"}
+            size={28}
+            color={theme.extends.colors.text.primary}
+          />
+        </Pressable>
+      ),
+    });
+  }, [
+    navigation,
+    isEditingFromReview,
+    requestBack,
+    requestExit,
+    requestReviewExit,
+    currentStep,
+    REVIEW_STEP,
+    isSavingCurrentStep,
+    leaveRegistration,
+  ]);
+
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener(
@@ -1049,7 +1058,7 @@ function MerchantRegistrationFormScreen() {
               totalSteps={REVIEW_STEP}
               onNext={() => void persistAndContinue()}
               onBack={requestBack}
-              isEditing={editingStep !== null}
+              isEditing={isEditingFromReview}
               onSaveAndReview={() => void persistAndContinue(true)}
               isSubmitting={isSavingCurrentStep}
               isResubmission={isResubmission}
@@ -1124,7 +1133,7 @@ function MerchantRegistrationFormScreen() {
         destructive
         message={<DiscardChangesMessage sections={unsavedSections} />}
         confirmText="Discard"
-        cancelText="Stay"
+        cancelText={isEditingFromReview ? "Keep editing" : "Stay"}
         onConfirm={handleDiscardChanges}
         onCancel={() => {
           setShowDiscardChangesModal(false);
