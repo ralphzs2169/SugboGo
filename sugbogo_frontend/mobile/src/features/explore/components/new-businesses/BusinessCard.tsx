@@ -303,7 +303,8 @@ export default function BusinessCard({
                     }
                   : undefined
               }
-              numberOfLines={2}
+              numberOfLines={1}
+              ellipsizeMode="tail"
             >
               <HighlightedText
                 text={business.business_name}
@@ -494,7 +495,8 @@ export default function BusinessCard({
           <AppText
             weight="bold"
             className="text-base leading-5 text-text-primary"
-            numberOfLines={2}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
             {business.business_name}
           </AppText>
