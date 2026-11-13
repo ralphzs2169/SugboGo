@@ -6,6 +6,7 @@ import AppText from "@/shared/components/AppText";
 import SafePressable from "@/shared/components/SafePressable";
 
 import type { PocketCollection } from "../types/pockets.types";
+import PocketCollectionThumbnail from "./PocketCollectionThumbnail";
 
 type Props = {
   collection: PocketCollection;
@@ -30,17 +31,7 @@ export default function PocketCollectionCard({
   const content = (
     <>
       {/* Collection identity */}
-      <View
-        className="h-12 w-12 shrink-0 items-center justify-center rounded-card bg-surface-muted"
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      >
-        <MaterialCommunityIcons
-          name={collection.is_default ? "heart-outline" : "wallet-outline"}
-          size={22}
-          color={theme.extends.colors.text.secondary}
-        />
-      </View>
+      <PocketCollectionThumbnail collection={collection} />
 
       <View className="min-w-0 flex-1">
         <AppText

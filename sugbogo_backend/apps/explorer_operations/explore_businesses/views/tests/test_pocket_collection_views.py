@@ -184,6 +184,10 @@ class PocketCollectionViewTests(PocketFixtures, APIResponseAssertionsMixin, APIT
         self.assertEqual(business["id"], self.business.pk)
         self.assertIsNone(business["cover_photo_url"])
         self.assertEqual(business["display_cover_photo_url"], "https://example.com/storefront.jpg")
+        self.assertEqual(
+            self.client.get(self.detail_url).data["data"]["thumbnail_url"],
+            "https://example.com/storefront.jpg",
+        )
         self.assertTrue(business["is_pocketed"])
         self.assertEqual(business["specialty_tags"][0]["id"], tag.pk)
         self.assertIn("cluster", business)
@@ -202,6 +206,9 @@ class PocketCollectionViewTests(PocketFixtures, APIResponseAssertionsMixin, APIT
         self.assertValidationError(self.client.post(self.legacy_url, format="json"))
         self.assertEqual(self.client.get(self.detail_url).data["data"]["business_count"], 1)
         self.assertEqual(self.client.get(self.detail_url).data["data"]["available_business_count"], 0)
+        self.assertIsNone(
+            self.client.get(self.detail_url).data["data"]["thumbnail_url"],
+        )
         self.assertEqual(self.client.delete(self.legacy_url).status_code, 200)
         missing = self.base + "businesses/999999/pockets/"
         self.assertEqual(self.client.get(missing).status_code, 404)

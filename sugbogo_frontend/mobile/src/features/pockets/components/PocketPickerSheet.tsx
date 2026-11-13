@@ -29,6 +29,7 @@ import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 import useBusinessPocketMemberships from "../hooks/useBusinessPocketMemberships";
 import usePocketCollections from "../hooks/usePocketCollections";
+import PocketCollectionThumbnail from "./PocketCollectionThumbnail";
 import useReplacePocketMemberships from "../hooks/useReplacePocketMemberships";
 import type { PocketCollection } from "../types/pockets.types";
 import PocketNameForm from "./PocketNameForm";
@@ -491,20 +492,7 @@ export default function PocketPickerSheet({
                       onPress={() => toggle(item.id)}
                       className="min-h-16 cursor-pointer flex-row items-center gap-3 bg-surface px-3.5 py-3 active:opacity-80"
                     >
-                      {/* Collection icon */}
-                      <View
-                        className="h-10 w-10 items-center justify-center"
-                        accessibilityElementsHidden
-                        importantForAccessibility="no-hide-descendants"
-                      >
-                        <MaterialCommunityIcons
-                          name={
-                            item.is_default ? "heart-outline" : "wallet-outline"
-                          }
-                          size={21}
-                          color={theme.extends.colors.text.secondary}
-                        />
-                      </View>
+                      <PocketCollectionThumbnail collection={item} compact />
 
                       {/* Collection information */}
                       <View className="min-w-0 flex-1">

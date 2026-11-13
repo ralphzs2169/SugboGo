@@ -25,6 +25,10 @@ class PocketCollectionSerializer(serializers.ModelSerializer):
     is_default = serializers.BooleanField(source="PCOL_IS_DEFAULT", read_only=True)
     business_count = serializers.IntegerField(read_only=True)
     available_business_count = serializers.IntegerField(read_only=True)
+    thumbnail_url = serializers.URLField(
+        allow_null=True,
+        read_only=True,
+    )
     created_at = serializers.DateTimeField(source="PCOL_CREATED_AT", read_only=True)
     updated_at = serializers.DateTimeField(source="PCOL_UPDATED_AT", read_only=True)
 
@@ -36,6 +40,7 @@ class PocketCollectionSerializer(serializers.ModelSerializer):
             "is_default",
             "business_count",
             "available_business_count",
+            "thumbnail_url",
             "created_at",
             "updated_at",
         )

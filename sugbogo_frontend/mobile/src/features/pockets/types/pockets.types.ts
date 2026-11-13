@@ -7,6 +7,7 @@ export type PocketCollection = {
   is_default: boolean;
   business_count: number;
   available_business_count?: number;
+  thumbnail_url?: string | null;
   created_at: string;
   updated_at: string;
 };
