@@ -18,6 +18,7 @@ import { MAP_STYLE } from "@/features/merchant/constants/registration/map.consta
 import MapClusterMarker from "@/shared/components/map-related/MapClusterMarker";
 import SelectionBottomSheet from "@/shared/components/bottom-sheets/SelectionBottomSheet";
 import MapMarker from "@/shared/components/MapMarker";
+import { ANDROID_LIGHT_MAP_STYLE } from "@/shared/constants/androidLightMapStyle";
 import { MAP_MARKER_FALLBACK_IMAGE } from "@/shared/constants/mapMarkerSnapshot";
 
 import type { MapBounds } from "../types/mapDiscovery.types";
@@ -405,7 +406,13 @@ export default function BusinessDiscoveryMap({
         mapRef={captureMap}
         superClusterRef={superClusterRef}
         provider={PROVIDER_GOOGLE}
-        customMapStyle={Platform.OS === "ios" ? MAP_STYLE : undefined}
+        customMapStyle={
+          Platform.OS === "android"
+            ? ANDROID_LIGHT_MAP_STYLE
+            : Platform.OS === "ios"
+              ? MAP_STYLE
+              : undefined
+        }
         initialRegion={DEFAULT_REGION}
         mapPadding={mapPadding}
         onLayout={(event) => {
@@ -460,11 +467,6 @@ export default function BusinessDiscoveryMap({
         toolbarEnabled={false}
         clusteringEnabled
         tracksViewChanges={trackMarkerUpdates}
-        googleMapId={
-          Platform.OS === "android"
-            ? process.env.EXPO_PUBLIC_GOOGLE_MAPS_MAP_ID
-            : undefined
-        }
         minPoints={3}
         radius={56}
         renderCluster={(cluster) => {
