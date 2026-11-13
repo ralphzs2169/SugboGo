@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
+import { MAX_SELECTED_LANDMARKS } from "@/features/merchant/constants/registration/map.constants";
 import { MerchantRegistrationForm } from "@/features/merchant/validation/merchantRegistration.schema";
 import useNearbyLandmarks from "@/features/merchant/hooks/location-selection/useNearbyLandmarks";
 import { isDuplicateLandmarkName } from "@/features/merchant/validation/duplicateLandmark";
@@ -17,7 +18,7 @@ import SelectedLandmarksSection from "./SelectedLandmarksSection";
 /** Keeps the shared landmark selection surface bound to Registration state. */
 export default function LandmarksSection() {
   const {
-    setValue,
+    clearErrors,
     formState: { disabled },
   } = useFormContext<MerchantRegistrationForm>();
   const selectedLandmarks = useMerchantRegistrationStore(
@@ -90,7 +91,7 @@ export default function LandmarksSection() {
       // Preserve current selections, including custom additions during Retry.
       const landmarks = [...current.selectedLandmarks];
       for (const landmark of result.landmarks) {
-        if (landmarks.length >= 5) break;
+        if (landmarks.length >= MAX_SELECTED_LANDMARKS) break;
         if (
           landmarks.some((selected) => selected.id === landmark.id) ||
           isDuplicateLandmarkName(landmark.name, landmarks)
@@ -109,12 +110,9 @@ export default function LandmarksSection() {
     }
   }
 
-  useEffect(() => {
-    setValue("landmarks", selectedLandmarks);
-  }, [selectedLandmarks, setValue]);
-
   return (
     <SelectedLandmarksSection
+      title="Nearby Landmarks (optional)"
       selectedLandmarks={selectedLandmarks}
       hasSelectedLocation={selectedLocation !== null}
       nearbyLandmarksLoadFailed={nearbyLandmarksLoadFailed}
@@ -125,6 +123,7 @@ export default function LandmarksSection() {
         setSelectedLandmarks(
           selectedLandmarks.filter((landmark) => landmark.id !== id),
         );
+        clearErrors("landmarks");
       }}
       onAddCustom={() => {
         if (!disabled) {

@@ -16,3 +16,5 @@ export const MAP_STYLE = [
  * may be placed.
  */
 export const LANDMARK_RADIUS_METERS = 500;
+
+export const MAX_SELECTED_LANDMARKS = 5;

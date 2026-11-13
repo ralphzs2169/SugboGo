@@ -1,6 +1,7 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import Toast from "react-native-toast-message";
 
+import { MAX_SELECTED_LANDMARKS } from "@/features/merchant/constants/registration/map.constants";
 import LandmarkPickerScreen from "@/features/merchant/screens/LandmarkPickerScreen";
 import { useMerchantRegistrationStore } from "@/features/merchant/stores/merchantRegistrationStore";
 import { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
@@ -13,16 +14,14 @@ import { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
  * registration store.
  */
 export default function BusinessLandmarkPickerPage() {
+  const { purpose } = useLocalSearchParams<{ purpose?: string }>();
+  const isArrivalPicker = purpose === "arrival";
   const selectedLocation = useMerchantRegistrationStore(
     (state) => state.selectedLocation,
   );
 
   const selectedLandmarks = useMerchantRegistrationStore(
     (state) => state.selectedLandmarks,
-  );
-
-  const setSelectedLandmarks = useMerchantRegistrationStore(
-    (state) => state.setSelectedLandmarks,
   );
 
   // Prevent access to the landmark picker until a business
@@ -37,21 +36,27 @@ export default function BusinessLandmarkPickerPage() {
    * registration store.
    */
   function handleConfirm(customLandmark: BusinessLandmark) {
-    if (selectedLandmarks.length >= 5) {
+    const current = useMerchantRegistrationStore.getState();
+    if (current.selectedLocation !== selectedLocation) return;
+
+    if (current.selectedLandmarks.length >= MAX_SELECTED_LANDMARKS) {
       Toast.show({
         type: "error",
         text1: "Maximum landmarks reached",
-        text2: "You can only add up to five landmarks.",
+        text2: `You can only add up to ${MAX_SELECTED_LANDMARKS} landmarks.`,
       });
 
       return;
     }
 
-    setSelectedLandmarks([...selectedLandmarks, customLandmark]);
+    current.setSelectedLandmarks([...current.selectedLandmarks, customLandmark]);
+    if (isArrivalPicker) {
+      current.setArrivalLandmark(customLandmark.id);
+    }
 
     Toast.show({
       type: "success",
-      text1: "Landmark added",
+      text1: isArrivalPicker ? "Arrival landmark selected" : "Landmark added",
     });
 
     router.back();

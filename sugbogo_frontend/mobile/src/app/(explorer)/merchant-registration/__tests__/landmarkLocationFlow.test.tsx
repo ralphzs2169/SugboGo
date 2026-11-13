@@ -19,6 +19,7 @@ import {
 } from "@/shared/api/authSessionGeneration.service";
 
 const mockListeners = new Map<string, () => void>();
+const mockSearchParams = jest.fn();
 const mockNavigation = {
   addListener: jest.fn((event: string, listener: () => void) => {
     mockListeners.set(event, listener);
@@ -31,6 +32,7 @@ jest.mock("expo-router", () => ({
     back: jest.fn(),
   },
   useNavigation: () => mockNavigation,
+  useLocalSearchParams: () => mockSearchParams(),
   useFocusEffect: (callback: () => void) => {
     const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(callback, [callback]);
@@ -98,6 +100,7 @@ describe("merchant registration landmark location flow", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockListeners.clear();
+    mockSearchParams.mockReturnValue({});
     beginAuthSession();
     useAuthStore.setState({
       user: { id: 1 } as User,
@@ -284,5 +287,45 @@ describe("merchant registration landmark location flow", () => {
     ]);
 
     screen.unmount();
+  });
+
+  it("uses a newly pinned landmark for arrival and keeps the former directions as a draft", async () => {
+    mockSearchParams.mockReturnValue({ purpose: "arrival" });
+    const formerLandmark = {
+      id: "custom-1",
+      name: "Bakery",
+      address: "Cebu City",
+      latitude: 10.3159,
+      longitude: 123.8856,
+      source: "custom" as const,
+      is_arrival_point: true,
+      access_directions: "Walk to the green gate.",
+    };
+    const newLandmark = {
+      ...formerLandmark,
+      id: "custom-2",
+      name: "Roadside plaza",
+      is_arrival_point: false,
+      access_directions: "",
+    };
+    useMerchantRegistrationStore.setState({
+      selectedLocation: businessLocation,
+      selectedLandmarks: [formerLandmark],
+    });
+
+    await render(<BusinessLandmarkPickerPage />);
+    await act(async () => {
+      (LandmarkPickerScreen as jest.Mock).mock.lastCall[0].onConfirm(newLandmark);
+    });
+
+    const state = useMerchantRegistrationStore.getState();
+    expect(state.selectedLandmarks).toEqual([
+      { ...formerLandmark, is_arrival_point: false, access_directions: "" },
+      { ...newLandmark, is_arrival_point: true },
+    ]);
+    expect(state.arrivalDirectionsDrafts.get(formerLandmark.id)).toBe(
+      formerLandmark.access_directions,
+    );
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 });

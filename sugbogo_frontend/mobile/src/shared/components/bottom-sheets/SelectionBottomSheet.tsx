@@ -5,7 +5,7 @@ import {
   BottomSheetScrollView,
   type BottomSheetBackdropProps,
 } from "@gorhom/bottom-sheet";
-import { useCallback, type RefObject } from "react";
+import { useCallback, type ReactNode, type RefObject } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,6 +16,7 @@ import useBottomSheetBackHandler from "@/shared/hooks/useBottomSheetBackHandler"
 export type SelectionOption = {
   label: string;
   value: string;
+  description?: string;
   icon?: string;
   color?: string;
 };
@@ -27,7 +28,10 @@ type Props = {
   options: SelectionOption[];
   selectedValue?: string;
   onSelect: (value: string) => void;
+  onDismiss?: () => void;
   snapPoints?: (string | number)[];
+  singleChoice?: boolean;
+  footer?: ReactNode;
 };
 
 /**
@@ -43,7 +47,10 @@ export default function SelectionBottomSheet({
   options,
   selectedValue,
   onSelect,
+  onDismiss,
   snapPoints = ["55%"],
+  singleChoice = false,
+  footer,
 }: Props) {
   const insets = useSafeAreaInsets();
   const backHandler = useBottomSheetBackHandler(sheetRef);
@@ -74,7 +81,10 @@ export default function SelectionBottomSheet({
     <BottomSheetModal
       ref={sheetRef}
       onChange={backHandler.onChange}
-      onDismiss={backHandler.onDismiss}
+      onDismiss={() => {
+        backHandler.onDismiss();
+        onDismiss?.();
+      }}
       snapPoints={snapPoints}
       topInset={insets.top}
       enableDynamicSizing={false}
@@ -136,7 +146,11 @@ export default function SelectionBottomSheet({
         )}
 
         {/* Selectable options */}
-        <View className="pt-1">
+        <View
+          accessibilityRole={singleChoice ? "radiogroup" : undefined}
+          accessibilityLabel={singleChoice ? title : undefined}
+          className="pt-1"
+        >
           {options.map((option, index) => {
             const selected = selectedValue === option.value;
 
@@ -144,8 +158,10 @@ export default function SelectionBottomSheet({
               <Pressable
                 key={option.value}
                 onPress={() => handleSelect(option.value)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
+                accessibilityRole={singleChoice ? "radio" : "button"}
+                accessibilityState={
+                  singleChoice ? { checked: selected } : { selected }
+                }
                 className={`min-h-14 flex-row cursor-pointer items-center gap-3 py-3 active:opacity-70 ${
                   index > 0 ? "border-t border-border-primary/60" : ""
                 }`}
@@ -161,21 +177,40 @@ export default function SelectionBottomSheet({
                   />
                 ) : null}
 
-                <AppText
-                  weight={selected ? "semibold" : "medium"}
-                  className="min-w-0 flex-1 text-base"
-                  style={{
-                    color:
-                      option.color ??
-                      (selected
-                        ? theme.extends.colors.brand
-                        : theme.extends.colors.text.primary),
-                  }}
-                >
-                  {option.label}
-                </AppText>
+                <View className="min-w-0 flex-1">
+                  <AppText
+                    weight={selected ? "semibold" : "medium"}
+                    className="text-base"
+                    style={{
+                      color:
+                        option.color ??
+                        (selected
+                          ? theme.extends.colors.brand
+                          : theme.extends.colors.text.primary),
+                    }}
+                  >
+                    {option.label}
+                  </AppText>
 
-                {selected ? (
+                  {option.description ? (
+                    <AppText className="mt-0.5 text-sm text-text-secondary">
+                      {option.description}
+                    </AppText>
+                  ) : null}
+                </View>
+
+                {singleChoice ? (
+                  <MaterialCommunityIcons
+                    name={selected ? "radiobox-marked" : "radiobox-blank"}
+                    size={22}
+                    color={
+                      selected
+                        ? theme.extends.colors.brand
+                        : theme.extends.colors.text.secondary
+                    }
+                    accessible={false}
+                  />
+                ) : selected ? (
                   <MaterialCommunityIcons
                     name="check"
                     size={22}
@@ -187,6 +222,8 @@ export default function SelectionBottomSheet({
             );
           })}
         </View>
+
+        {footer}
       </BottomSheetScrollView>
     </BottomSheetModal>
   );

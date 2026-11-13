@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+import { MAX_SELECTED_LANDMARKS } from "../constants/registration/map.constants";
 import { operatingHoursSchema } from "./operatingHours.schema";
 
 const businessPhotoSchema = z.object({
@@ -104,31 +106,39 @@ export const merchantRegistrationSchema = z.object({
 
   landmarks: z
     .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        address: z.string(),
-        latitude: z.number(),
-        longitude: z.number(),
-        source: z.enum(["google", "custom"]),
-        placeId: z.string().optional(),
-        is_arrival_point: z.boolean().optional(),
-        access_directions: z.string().max(1000).optional(),
-      }),
+      z
+        .object({
+          id: z.string(),
+          name: z.string(),
+          address: z.string(),
+          latitude: z.number(),
+          longitude: z.number(),
+          source: z.enum(["google", "custom"]),
+          placeId: z.string().optional(),
+          is_arrival_point: z.boolean().optional(),
+          access_directions: z
+            .string()
+            .max(1000, "Use 1,000 characters or fewer for walking directions.")
+            .optional(),
+        })
+        .refine(
+          (landmark) =>
+            !landmark.is_arrival_point ||
+            Boolean(landmark.access_directions?.trim()),
+          {
+            path: ["access_directions"],
+            message: "Enter walking directions.",
+          },
+        ),
     )
-    .max(5, "You can only add up to 5 landmarks.")
+    .max(
+      MAX_SELECTED_LANDMARKS,
+      `You can only add up to ${MAX_SELECTED_LANDMARKS} landmarks.`,
+    )
     .refine(
       (landmarks) =>
         landmarks.filter((item) => item.is_arrival_point).length <= 1,
       "Choose only one arrival landmark.",
-    )
-    .refine(
-      (landmarks) =>
-        landmarks.every(
-          (item) =>
-            !item.is_arrival_point || Boolean(item.access_directions?.trim()),
-        ),
-      "Enter directions from the arrival landmark to your entrance.",
     ),
 
   latitude: z

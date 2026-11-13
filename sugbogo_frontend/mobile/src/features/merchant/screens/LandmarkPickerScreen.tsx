@@ -12,7 +12,10 @@ import type {
 import LandmarkPickerBottomSheet from "../components/registration/landmark/landmark-picker/LandmarkPickerBottomSheet";
 import LandmarkPickerHeader from "../components/registration/landmark/landmark-picker/LandmarkPickerHeader";
 import LandmarkPickerMap from "../components/registration/landmark/landmark-picker/LandmarkPickerMap";
-import { LANDMARK_RADIUS_METERS } from "../constants/registration/map.constants";
+import {
+  LANDMARK_RADIUS_METERS,
+  MAX_SELECTED_LANDMARKS,
+} from "../constants/registration/map.constants";
 import type { LandmarkNameErrors } from "../validation/customLandmark";
 import { validateLandmarkName } from "../validation/customLandmark";
 import { isDuplicateLandmarkName } from "../validation/duplicateLandmark";
@@ -128,11 +131,11 @@ export default function LandmarkPickerScreen({
       return;
     }
 
-    if (selectedLandmarks.length >= 5) {
+    if (selectedLandmarks.length >= MAX_SELECTED_LANDMARKS) {
       Toast.show({
         type: "error",
         text1: "Maximum landmarks reached",
-        text2: "You can only add up to 5 landmarks.",
+        text2: `You can only add up to ${MAX_SELECTED_LANDMARKS} landmarks.`,
       });
 
       return;

@@ -46,6 +46,8 @@ type MerchantRegistrationState = {
   /** Nearby landmarks currently selected for the business. */
   selectedLandmarks: BusinessLandmark[];
 
+  arrivalDirectionsDrafts: ReadonlyMap<string, string>;
+
   nearbyLandmarksLoadFailed: boolean;
   addressLoadFailed: boolean;
   addressLoadFailures: AddressLoadFailures;
@@ -64,6 +66,8 @@ type MerchantRegistrationState = {
 
   /** Sets the currently selected nearby landmarks. */
   setSelectedLandmarks: (landmarks: BusinessLandmark[]) => void;
+  setArrivalLandmark: (id: string | null) => void;
+  setArrivalDirections: (directions: string) => void;
 
   setAddressLoadFailed: (failed: boolean) => void;
 
@@ -84,6 +88,7 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
     selectedLocation: null,
     selectedAddress: null,
     selectedLandmarks: [],
+    arrivalDirectionsDrafts: new Map(),
     nearbyLandmarksLoadFailed: false,
     addressLoadFailed: false,
 
@@ -95,14 +100,65 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
     },
 
     setSelectedLocation: (location) =>
-      set({
+      set((state) => ({
         selectedLocation: location,
-      }),
+        arrivalDirectionsDrafts:
+          state.selectedLocation?.latitude === location.latitude &&
+          state.selectedLocation?.longitude === location.longitude
+            ? state.arrivalDirectionsDrafts
+            : new Map(),
+      })),
 
     setSelectedLandmarks: (landmarks) =>
       set({
         selectedLandmarks: landmarks,
       }),
+
+    setArrivalLandmark: (id) =>
+      set((state) => {
+        const next = state.selectedLandmarks.find(
+          (landmark) => landmark.id === id,
+        );
+
+        if (id !== null && !next) {
+          return state;
+        }
+
+        const drafts = new Map(state.arrivalDirectionsDrafts);
+        const selectedLandmarks = state.selectedLandmarks.map((landmark) => {
+          if (landmark === next) {
+            return {
+              ...landmark,
+              is_arrival_point: true,
+              access_directions: landmark.is_arrival_point
+                ? (landmark.access_directions ?? "")
+                : (drafts.get(landmark.id) ?? ""),
+            };
+          }
+
+          if (landmark.is_arrival_point) {
+            drafts.set(landmark.id, landmark.access_directions ?? "");
+            return {
+              ...landmark,
+              is_arrival_point: false,
+              access_directions: "",
+            };
+          }
+
+          return landmark;
+        });
+
+        return { selectedLandmarks, arrivalDirectionsDrafts: drafts };
+      }),
+
+    setArrivalDirections: (directions) =>
+      set((state) => ({
+        selectedLandmarks: state.selectedLandmarks.map((landmark) =>
+          landmark.is_arrival_point
+            ? { ...landmark, access_directions: directions }
+            : landmark,
+        ),
+      })),
 
     setSelectedAddress: (address: BusinessAddress) =>
       set({
@@ -117,6 +173,7 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
     clearSelectedLocation: () =>
       set({
         selectedLocation: null,
+        arrivalDirectionsDrafts: new Map(),
       }),
     clearSelectedAddress: () =>
       set({
@@ -126,6 +183,7 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
     clearSelectedLandmarks: () =>
       set({
         selectedLandmarks: [],
+        arrivalDirectionsDrafts: new Map(),
       }),
 
     setAddressLoadFailed: (failed) =>
@@ -143,6 +201,7 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
         selectedLocation: null,
         selectedAddress: null,
         selectedLandmarks: [],
+        arrivalDirectionsDrafts: new Map(),
         nearbyLandmarksLoadFailed: false,
         addressLoadFailed: false,
         addressLoadFailures: {

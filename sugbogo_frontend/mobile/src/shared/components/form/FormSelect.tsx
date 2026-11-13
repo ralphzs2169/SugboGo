@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import InputContainer from "./InputContainer";
 import { theme } from "@/constants/theme";
@@ -12,6 +12,7 @@ type FormSelectProps = {
   error?: string;
   disabled?: boolean;
   required?: boolean;
+  showLabel?: boolean;
   rightElement?: React.ReactNode;
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 };
@@ -31,6 +32,7 @@ export default function FormSelect({
   error,
   disabled = false,
   required = false,
+  showLabel = true,
   rightElement,
   icon,
 }: FormSelectProps) {
@@ -40,11 +42,15 @@ export default function FormSelect({
       error={error}
       rightElement={rightElement}
       required={required}
+      showLabel={showLabel}
       editable={!disabled}
     >
       <Pressable
         onPress={onPress}
         disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}, ${value || placeholder}`}
+        accessibilityState={{ disabled }}
         className="flex-1 flex-row items-center justify-between py-[14px]"
       >
         <View className="flex-1 flex-row items-center gap-2">

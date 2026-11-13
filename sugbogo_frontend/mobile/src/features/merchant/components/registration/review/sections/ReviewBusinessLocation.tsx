@@ -117,6 +117,14 @@ export default function ReviewBusinessLocation({
         ) : (
           <AppText className="text-sm text-text-primary">Not provided</AppText>
         )}
+
+        {returnTo === "registration-review" &&
+          form.landmarks.some((landmark) => landmark.is_arrival_point) && (
+            <AppText className="mt-2 text-xs text-text-secondary">
+              Your arrival landmark is available for jeepney guidance after
+              admin review.
+            </AppText>
+          )}
       </View>
     </ReviewSection>
   );
