@@ -45,7 +45,8 @@ export default function SocialLoginButtons({
       </Pressable>
 
       {/* Facebook authentication */}
-      <Pressable
+      {/* Hidden for now */}
+      {/* <Pressable
         disabled={disabled}
         onPress={onFacebookPress}
         accessibilityRole="button"
@@ -68,7 +69,7 @@ export default function SocialLoginButtons({
         >
           Facebook
         </AppText>
-      </Pressable>
+      </Pressable> */}
     </View>
   );
 }

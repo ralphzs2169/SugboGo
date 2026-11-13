@@ -1,7 +1,10 @@
 import React from "react";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import type { LocationObject } from "expo-location";
+import { Platform } from "react-native";
 
+import { MAP_STYLE } from "@/features/merchant/constants/registration/map.constants";
+import { ANDROID_LIGHT_MAP_STYLE } from "@/shared/constants/androidLightMapStyle";
 import BusinessDiscoveryMap from "../BusinessDiscoveryMap";
 
 jest.mock("@/shared/components/bottom-sheets/SelectionBottomSheet", () => () => null);
@@ -28,6 +31,25 @@ jest.mock("react-native-map-clustering", () => {
     }, [mapRef]);
     return <View testID="clustered-map" {...props} />;
   });
+});
+
+it.each([
+  ["android", ANDROID_LIGHT_MAP_STYLE],
+  ["ios", MAP_STYLE],
+] as const)("applies the local basemap style on %s without a cloud Map ID", async (os, style) => {
+  const platform = jest.replaceProperty(Platform, "OS", os);
+
+  try {
+    const screen = await render(
+      <BusinessDiscoveryMap businesses={[]} userLocation={null} />,
+    );
+    const map = screen.getByTestId("clustered-map");
+
+    expect(map.props.customMapStyle).toBe(style);
+    expect(map.props).not.toHaveProperty("googleMapId");
+  } finally {
+    platform.restore();
+  }
 });
 
 it("queues search focus until native readiness and layout, then uses the camera API once", async () => {
