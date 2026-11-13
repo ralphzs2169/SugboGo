@@ -1,8 +1,7 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useRef } from "react";
 import Toast from "react-native-toast-message";
 
-import { useAuthStore } from "@/features/auth/store/auth.store";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
@@ -10,7 +9,6 @@ import { submitApplication } from "../../api/merchantApplication.service";
 import type {
   ApplicationSubmissionResponse,
 } from "../../types/registration/registrationApi.types";
-import { merchantApplicationKeys } from "../merchantApplicationQueryKeys";
 
 /**
  * Handles final merchant application submission.
@@ -20,8 +18,6 @@ import { merchantApplicationKeys } from "../merchantApplicationQueryKeys";
  * been completed.
  */
 export default function useSubmitApplication() {
-  const queryClient = useQueryClient();
-  const userId = useAuthStore((state) => state.user?.id);
   const submissionInFlight = useRef(false);
 
   const mutation = useMutation<ApplicationSubmissionResponse, ApiError, void>({
@@ -29,14 +25,6 @@ export default function useSubmitApplication() {
       const response = await submitApplication();
 
       return throwOnApiError(response);
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: merchantApplicationKeys.current(userId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: merchantApplicationKeys.status(userId),
-      });
     },
   });
 

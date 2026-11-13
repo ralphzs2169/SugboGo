@@ -3,9 +3,10 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react-native";
+import { act, render, renderHook, waitFor } from "@testing-library/react-native";
 import Toast from "react-native-toast-message";
 
+import SubmissionSuccessPage from "@/app/(explorer)/merchant-registration/submission-success";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import { submitApplication } from "../../../api/merchantApplication.service";
@@ -20,6 +21,13 @@ jest.mock("@/features/auth/store/auth.store", () => ({
       },
     }),
 }));
+
+jest.mock("expo-router", () => ({
+  useFocusEffect: jest.fn(),
+  useLocalSearchParams: () => ({ minBusinessDays: "4", maxBusinessDays: "6" }),
+}));
+
+jest.mock("@/features/merchant/screens/SubmissionSuccessScreen", () => () => null);
 
 jest.mock("@/shared/utils/apiErrors", () => ({
   handleSystemError: jest.fn(),
@@ -60,7 +68,7 @@ describe("merchant application submission mutation", () => {
     jest.clearAllMocks();
   });
 
-  it("returns submission data and invalidates application caches without delaying success", async () => {
+  it("returns submission data without refreshing the outgoing Review screen", async () => {
     const response = {
       success: true as const,
       message: "Application submitted.",
@@ -73,11 +81,8 @@ describe("merchant application submission mutation", () => {
 
     (submitApplication as jest.Mock).mockResolvedValue(response);
 
-    const unresolvedInvalidation = new Promise<void>(() => undefined);
     const client = createQueryClient();
-    const invalidate = jest
-      .spyOn(client, "invalidateQueries")
-      .mockReturnValue(unresolvedInvalidation);
+    const invalidate = jest.spyOn(client, "invalidateQueries");
     const wrapper = createWrapper(client);
 
     const { result, unmount } = await renderHook(useSubmitApplication, {
@@ -94,12 +99,7 @@ describe("merchant application submission mutation", () => {
       success: true,
       data: response.data,
     });
-    expect(invalidate).toHaveBeenNthCalledWith(1, {
-      queryKey: merchantApplicationKeys.current(42),
-    });
-    expect(invalidate).toHaveBeenNthCalledWith(2, {
-      queryKey: merchantApplicationKeys.status(42),
-    });
+    expect(invalidate).not.toHaveBeenCalled();
     expect(result.current.isSubmitting).toBe(false);
 
     unmount();
@@ -227,7 +227,7 @@ describe("merchant application submission mutation", () => {
     client.clear();
   });
 
-  it("invalidates a rejected application when it is resubmitted", async () => {
+  it("refreshes the application and status once the success page mounts", async () => {
     const response = {
       success: true as const,
       message: "Application resubmitted.",
@@ -259,12 +259,19 @@ describe("merchant application submission mutation", () => {
 
     expect(
       client.getQueryState(merchantApplicationKeys.current(42))?.isInvalidated,
+    ).toBe(false);
+
+    await unmount();
+    const success = await render(<SubmissionSuccessPage />, { wrapper });
+
+    expect(
+      client.getQueryState(merchantApplicationKeys.current(42))?.isInvalidated,
     ).toBe(true);
     expect(
       client.getQueryState(merchantApplicationKeys.status(42))?.isInvalidated,
     ).toBe(true);
 
-    unmount();
+    await success.unmount();
     client.clear();
   });
 });

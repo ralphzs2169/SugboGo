@@ -812,7 +812,7 @@ function MerchantRegistrationFormScreen() {
     });
   }
 
-  function prepareReview() {
+  function canSubmitSavedReview() {
     const sections = unsavedSectionsNow();
     if (sections.length > 0) {
       Toast.show({
@@ -822,7 +822,6 @@ function MerchantRegistrationFormScreen() {
       });
       return false;
     }
-    setReviewValues(structuredClone(savedValues.current));
     return true;
   }
 
@@ -835,9 +834,10 @@ function MerchantRegistrationFormScreen() {
     setIsPersisting(true);
     Keyboard.dismiss();
 
+    let isLeavingForSuccess = false;
     try {
       if (currentStep === REVIEW_STEP) {
-        if (!prepareReview() || !canResubmit) {
+        if (!canSubmitSavedReview() || !canResubmit) {
           return;
         }
         const result = await submit();
@@ -853,6 +853,7 @@ function MerchantRegistrationFormScreen() {
             maxBusinessDays: String(result.data.review_sla_max_business_days),
           },
         });
+        isLeavingForSuccess = true;
         return;
       }
 
@@ -896,8 +897,11 @@ function MerchantRegistrationFormScreen() {
         });
       }
     } finally {
-      savingRef.current = false;
-      setIsPersisting(false);
+      // Keep the outgoing Review UI stable until the native replacement removes it.
+      if (!isLeavingForSuccess) {
+        savingRef.current = false;
+        setIsPersisting(false);
+      }
     }
   }
 
@@ -1082,6 +1086,7 @@ function MerchantRegistrationFormScreen() {
           )}
 
           <View
+            collapsable={false}
             pointerEvents={isSavingCurrentStep ? "none" : "auto"}
             accessibilityState={{ busy: isSavingCurrentStep }}
           >
