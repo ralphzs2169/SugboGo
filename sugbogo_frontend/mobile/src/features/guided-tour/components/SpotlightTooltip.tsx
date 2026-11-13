@@ -1,35 +1,48 @@
+import { Image } from "expo-image";
 import { useEffect, useRef } from "react";
-import { AccessibilityInfo, Pressable, ScrollView, View } from "react-native";
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ViewStyle,
+} from "react-native";
+import Animated, { type AnimatedStyle } from "react-native-reanimated";
+import Svg, { Path } from "react-native-svg";
 
+import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import { shadows } from "@/shared/styles/shadows";
+
+const MASCOT = require("@/features/explore/assets/mascot-onboarding-tour.webp");
+const MASCOT_WIDTH = 88;
+export const MASCOT_OVERLAP = 20;
+export const POINTER_WIDTH = 30;
+const POINTER_HEIGHT = 14;
 
 type Props = {
   title: string;
   description: string;
   step: number;
   total: number;
-  left: number;
-  width: number;
-  bottom: number;
   maxHeight: number;
+  pointerMotion: AnimatedStyle<ViewStyle>;
   onBack: () => void;
   onNext: () => void;
   onSkip: () => void;
   onDismiss: () => void;
 };
 
-/** Places tour instructions and controls above a measured spotlight. */
+/** Shows a mascot-led speech bubble with a pointer aimed at the spotlight. */
 export default function SpotlightTooltip({
   title,
   description,
   step,
   total,
-  left,
-  width,
-  bottom,
   maxHeight,
+  pointerMotion,
   onBack,
   onNext,
   onSkip,
@@ -53,14 +66,27 @@ export default function SpotlightTooltip({
 
   return (
     <View
-      className="absolute rounded-card border border-border-primary bg-surface"
-      style={[shadows.floating, { left, width, bottom, maxHeight }]}
       accessibilityViewIsModal
       onAccessibilityEscape={onDismiss}
     >
+      {/* The pointer joins the surface and follows the current tab. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.pointer, pointerMotion]}
+      >
+        <Svg width={POINTER_WIDTH} height={POINTER_HEIGHT} viewBox="0 0 30 14">
+          <Path
+            d="M 0 0 H 30 Q 26 0 23 4 L 17 12 Q 15 14 13 12 L 7 4 Q 4 0 0 0 Z"
+            fill={theme.extends.colors.surface}
+          />
+        </Svg>
+      </Animated.View>
+
+      {/* The heading reserves space for the mascot above the scrollable copy. */}
       <ScrollView
         bounces={false}
-        style={{ flexGrow: 0 }}
+        className="rounded-3xl border border-border-primary bg-surface"
+        style={[shadows.floating, { flexGrow: 0, maxHeight }]}
         contentContainerClassName="gap-3 p-4"
       >
         {/* Step instructions */}
@@ -72,15 +98,17 @@ export default function SpotlightTooltip({
           onAccessibilityEscape={onDismiss}
           className="gap-1.5"
         >
-          <View className="flex-row items-center gap-2">
-            <View className="h-1.5 w-1.5 rounded-full bg-brand" />
-            <AppText weight="bold" className="text-xs text-text-secondary">
+          <View className="min-h-[48px] items-start gap-1.5 pl-[68px]">
+            <AppText
+              weight="bold"
+              className="rounded-full bg-brand/15 px-2.5 py-1 text-xs text-text-primary"
+            >
               {progress}
             </AppText>
+            <AppText weight="bold" className="text-lg text-text-primary">
+              {title}
+            </AppText>
           </View>
-          <AppText weight="bold" className="text-lg text-text-primary">
-            {title}
-          </AppText>
           <AppText className="text-sm text-text-secondary">{description}</AppText>
         </View>
 
@@ -114,6 +142,37 @@ export default function SpotlightTooltip({
           </View>
         </View>
       </ScrollView>
+
+      {/* The transparent asset overlaps the edge without capturing gestures. */}
+      <View pointerEvents="none" style={styles.mascot}>
+        <Image
+          source={MASCOT}
+          testID="spotlight-mascot"
+          contentFit="contain"
+          accessible={false}
+          style={styles.mascotImage}
+        />
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  pointer: {
+    position: "absolute",
+    left: 0,
+    top: "100%",
+    marginTop: -1,
+    zIndex: 1,
+  },
+  mascot: {
+    position: "absolute",
+    top: -MASCOT_OVERLAP,
+    left: -2,
+    zIndex: 1,
+  },
+  mascotImage: {
+    width: MASCOT_WIDTH,
+    aspectRatio: 1312 / 1199,
+  },
+});

@@ -3,6 +3,7 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { useEffect } from "react";
 import { AccessibilityInfo, AppState, BackHandler, Text, View } from "react-native";
+import { withTiming } from "react-native-reanimated";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useLogoutConfirmationStore } from "@/features/auth/store/logoutConfirmation.store";
@@ -27,6 +28,37 @@ let mockPickerOpen = false;
 let measuredTabWidth = 100;
 let measuredViewportHeight = 800;
 
+jest.mock("react-native-reanimated", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+  const easing = (value: number) => value;
+  return {
+    __esModule: true,
+    default: { View, createAnimatedComponent: (component: unknown) => component },
+    Easing: { out: () => easing, cubic: easing, quad: easing },
+    ReduceMotion: { Never: "never" },
+    useAnimatedProps: (read: () => unknown) => read(),
+    useAnimatedStyle: (read: () => unknown) => read(),
+    useSharedValue: <Value,>(initial: Value) => {
+      const value = React.useRef(initial);
+      const [, refresh] = React.useReducer((count: number) => count + 1, 0);
+      return React.useMemo(
+        () => ({
+          get: () => value.current,
+          set: (next: Value) => {
+            value.current = next;
+            refresh();
+          },
+        }),
+        [],
+      );
+    },
+    withTiming: jest.fn((value: unknown) => value),
+  };
+});
+jest.mock("expo-image", () => ({
+  Image: jest.requireActual<typeof import("react-native")>("react-native").View,
+}));
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: jest.fn(async (key: string) => mockDisk.get(key) ?? null),
   setItem: jest.fn(async (key: string, value: string) => {
@@ -51,12 +83,12 @@ jest.mock("react-native-safe-area-context", () => ({
 jest.mock("react-native-svg", () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => children,
-  Path: ({ d }: { d: string }) => {
+  Path: ({ animatedProps, d }: { animatedProps?: { d: string }; d?: string }) => {
     const React = jest.requireActual<typeof import("react")>("react");
     const { View } = jest.requireActual<typeof import("react-native")>("react-native");
     return React.createElement(View, {
-      testID: "spotlight-mask",
-      accessibilityLabel: d,
+      testID: animatedProps ? "spotlight-mask" : "spotlight-pointer",
+      accessibilityLabel: animatedProps?.d ?? d,
     });
   },
 }));
@@ -172,7 +204,9 @@ async function expectStep(
   const mask = screen.getByTestId("spotlight-mask", {
     includeHiddenElements: true,
   });
-  expect(mask.props.accessibilityLabel).toContain(`M ${startOfCutout} 712 H`);
+  await waitFor(() => {
+    expect(mask.props.accessibilityLabel).toContain(`M ${startOfCutout} 712 H`);
+  });
 }
 
 describe("Explorer navigation tour", () => {
@@ -184,6 +218,7 @@ describe("Explorer navigation tour", () => {
     mockLocationReady = true;
     mockPickerOpen = false;
     AppState.currentState = "active";
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false);
     jest.spyOn(View.prototype, "measureLayout").mockImplementation(function (
       this: { props: { accessibilityLabel?: string } },
       _host,
@@ -214,9 +249,21 @@ describe("Explorer navigation tour", () => {
     expect(screen.getByText("No businesses")).toBeTruthy();
     await layoutTabs(screen);
     await expectStep(screen, "Discover Cebu's hidden gems!", 12);
+    expect(screen.getByTestId("spotlight-mascot", { includeHiddenElements: true }))
+      .toBeTruthy();
+    expect(screen.getByTestId("spotlight-pointer", { includeHiddenElements: true }))
+      .toBeTruthy();
 
     await fireEvent.press(screen.getByText("Next"));
     await expectStep(screen, "Explore the map", 108);
+    expect(withTiming).toHaveBeenCalledWith(
+      expect.objectContaining({ left: 96, pointerLeft: 119 }),
+      expect.objectContaining({ duration: 220 }),
+    );
+    expect(withTiming).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ duration: 180 }),
+    );
     await fireEvent.press(screen.getByText("Back"));
     await expectStep(screen, "Discover Cebu's hidden gems!", 12);
     await fireEvent.press(screen.getByText("Next"));
@@ -351,5 +398,16 @@ describe("Explorer navigation tour", () => {
 
     expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
     expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it("moves directly to the next spotlight when reduced motion is enabled", async () => {
+    jest.mocked(AccessibilityInfo.isReduceMotionEnabled).mockResolvedValue(true);
+    const screen = await render(<TabLayout />);
+    await layoutTabs(screen);
+    await expectStep(screen, "Discover Cebu's hidden gems!", 12);
+
+    await fireEvent.press(screen.getByText("Next"));
+    await expectStep(screen, "Explore the map", 108);
+    expect(withTiming).not.toHaveBeenCalled();
   });
 });
