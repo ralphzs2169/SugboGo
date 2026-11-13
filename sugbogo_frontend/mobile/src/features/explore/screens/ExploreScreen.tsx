@@ -68,6 +68,7 @@ export default function ExploreScreen() {
   const {
     location: userLocation,
     status: locationStatus,
+    error: locationError,
     isRefreshingLocation,
     refreshLocation,
   } = useUserLocation({ mode: "recent" });
@@ -85,10 +86,15 @@ export default function ExploreScreen() {
       appliedUserLocation.current = userLocation;
       setOpenNowLocation(userLocation);
       setIsUsingLastLocation(false);
-    } else if (userLocation === null && locationStatus !== "loading") {
-      setIsUsingLastLocation(openNowLocation !== null);
+    } else if (locationStatus !== "loading") {
+      // A cached reading can expire while Explore is open without a failed request.
+      setIsUsingLastLocation(
+        locationStatus === "unavailable" &&
+          locationError != null &&
+          openNowLocation !== null,
+      );
     }
-  }, [locationStatus, openNowLocation, userLocation]);
+  }, [locationError, locationStatus, openNowLocation, userLocation]);
 
   const openNow = useOpenNowBusinesses(
     nearbyLocation,
@@ -143,7 +149,9 @@ export default function ExploreScreen() {
               : (result.location ?? openNowLocation);
           setOpenNowLocation(nextLocation);
           setIsUsingLastLocation(
-            result.status !== "available" && nextLocation !== null,
+            result.status === "unavailable" &&
+              result.error != null &&
+              nextLocation !== null,
           );
 
           if (nextLocation !== null) {
