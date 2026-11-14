@@ -405,6 +405,131 @@ test("toolbar and empty-state point Add open the inspector and protect the draft
   assert.equal(globalThis.__selectionMap.selectedPoint.longitude, 123.9);
 });
 
+test("switching tabs restores independent searches, pages, and selected records", async () => {
+  const route = { id: 1, code: "R1", variant_count: 1 };
+  const destination = { ...point, id: 2, name: "Last stop" };
+  const routeVariant = { ...variants[0], destination };
+  function resultPage(items, pageNumber) {
+    return {
+      items,
+      pagination: {
+        ...page(items).pagination,
+        page: pageNumber,
+        total_items: 30,
+        total_pages: 3,
+        has_next: pageNumber < 3,
+        has_previous: pageNumber > 1,
+      },
+    };
+  }
+  const get = globalThis.__selectionGet;
+  globalThis.__selectionGet = async (url, options = {}) => {
+    if (url === "/admin/transit/routes/") {
+      reads.push({ url, options });
+      return response(resultPage([route], options.params.page));
+    }
+    return get(url, options);
+  };
+  gates["/admin/transit/routes/1/"] = Promise.resolve(response({
+    ...route,
+    variants: [routeVariant],
+  }));
+  pointListing = (params) => params.page_size === 10
+    ? resultPage([point], params.page)
+    : page([point]);
+
+  const routeSearch = () => container.querySelector('[aria-label="Search jeepney routes"]');
+  const pointSearch = () => container.querySelector('[aria-label="Search Transit Points"]');
+  const currentPage = () => container.querySelector('[aria-current="page"]')?.textContent;
+  const nextPage = () => container.querySelector('[aria-label="Next page"]');
+  const lastListRead = (suffix) => reads.filter(
+    ({ url, options }) => url.endsWith(suffix) && options.params?.page_size === 10,
+  ).at(-1)?.options.params;
+
+  await open("routes");
+  await input(routeSearch(), "R1");
+  await until(() => lastListRead("/routes/")?.search === "R1");
+  await click(nextPage());
+  await until(() => lastListRead("/routes/")?.page === 2);
+  await click(button("Original stop → Last stop"));
+  await click(button("Transit Points"));
+  await until(() => nextPage() && !nextPage().disabled);
+  assert.equal(globalThis.__selectionMap.selectedVariantId, undefined);
+  await input(pointSearch(), "Original");
+  await until(() => lastListRead("/transit-points/")?.search === "Original");
+  await click(nextPage());
+  await click(nextPage());
+  await until(() => lastListRead("/transit-points/")?.page === 3);
+  await act(async () => globalThis.__selectionMap.onTransitPointSelect(point));
+  await until(() => button("Edit") && !button("Edit").disabled);
+
+  await click(button("Routes"));
+  assert.equal(routeSearch().value, "R1");
+  assert.equal(currentPage(), "2");
+  assert.ok(button("Original stop → Last stop"));
+  assert.ok(button("Edit Direction"));
+  assert.equal(globalThis.__selectionMap.selectedVariantId, routeVariant.id);
+  assert.equal(globalThis.__selectionMap.selectedPoint, null);
+  assert.equal(globalThis.__selectionMap.focusRequest, null);
+
+  await click(button("Transit Points"));
+  assert.equal(pointSearch().value, "Original");
+  assert.equal(currentPage(), "3");
+  assert.equal(globalThis.__selectionMap.selectedPoint.id, point.id);
+  assert.equal(globalThis.__selectionMap.focusRequest, null);
+
+  await input(pointSearch(), "stop");
+  await click(button("Routes"));
+  await click(button("Transit Points"));
+  await until(() => lastListRead("/transit-points/")?.search === "stop");
+  assert.equal(pointSearch().value, "stop");
+  assert.equal(currentPage(), "1");
+  assert.equal(lastListRead("/transit-points/").page, 1);
+
+  await until(() => button("Edit") && !button("Edit").disabled);
+  await click(button("Edit"));
+  const draft = inspector().querySelector('input[name="name"]');
+  await input(draft, "Unsaved point name");
+  await click(button("Routes"));
+  await click(button("Keep Editing"));
+  assert.equal(pointSearch().value, "stop");
+  assert.equal(draft.value, "Unsaved point name");
+  await click(button("Routes"));
+  await click(button("Discard Changes"));
+  assert.ok(button("Edit Direction"));
+  await click(button("Transit Points"));
+  assert.equal(pointSearch().value, "stop");
+  assert.match(inspector().textContent, /Original stop/);
+  assert.equal(inspector().querySelector('input[name="name"]'), null);
+});
+
+test("returning to an unavailable route or direction hides the stale selection", async () => {
+  const route = { id: 1, code: "R1", variant_count: 0, variants: [] };
+  await open("routes");
+  await act(async () => globalThis.__selectionMap.onVariantSelect(variants[0]));
+  assert.ok(button("Edit Direction"));
+  await click(button("Transit Points"));
+  gates["/admin/transit/routes/1/"] = Promise.resolve(response(route));
+  await click(button("Routes"));
+  await until(() => button("Add First Direction"));
+  assert.equal(button("Edit Direction"), undefined);
+  assert.equal(globalThis.__selectionMap.selectedVariantId, undefined);
+
+  await click(button("Transit Points"));
+  const get = globalThis.__selectionGet;
+  globalThis.__selectionGet = async (url, options) => {
+    if (url === "/admin/transit/routes/1/") {
+      throw { response: { status: 404 } };
+    }
+    return get(url, options);
+  };
+  await click(button("Routes"));
+  await until(() => inspector().textContent.includes("The selected route is no longer available."));
+  assert.equal(button("Edit"), undefined);
+  assert.deepEqual(globalThis.__selectionMap.routeVariants, []);
+  assert.ok(button("Try Again"));
+});
+
 test("point list refetch reconciles the inspector, map and off-page selection", async () => {
   await open();
   point = { ...point, name: "Refreshed stop", latitude: 10.4 };
@@ -418,6 +543,10 @@ test("point list refetch reconciles the inspector, map and off-page selection", 
   await refresh(keys.transitPoints());
   assert.match(inspector().textContent, /Refreshed stop/);
   assert.equal(button("Edit").disabled, false);
+  assert.equal(globalThis.__selectionMap.selectedPoint.id, point.id);
+  assert.equal(globalThis.__selectionMap.selectedPointOutsideResults, true);
+  assert.deepEqual(globalThis.__selectionMap.transitPoints, []);
+  assert.match(container.textContent, /The selected map marker is outside the current results/);
 });
 
 test("transfer refetch changes status and removes obsolete decision actions", async () => {
@@ -444,6 +573,15 @@ test("temporary errors retain selections while a detail 404 removes actionable r
   detailFailure = null;
   await click(button("Try Again"));
   await until(() => button("Edit") && !button("Edit").disabled);
+
+  await click(button("Routes"));
+  excluded = true;
+  detailFailure = { response: { status: 404 } };
+  await act(async () => client.invalidateQueries({ queryKey: keys.transitPoints() }));
+  await click(button("Transit Points"));
+  await until(() => container.textContent.includes("Selected record is no longer available"));
+  assert.equal(globalThis.__selectionMap.selectedPoint, null);
+  assert.equal(globalThis.__selectionMap.selectedPointOutsideResults, false);
 });
 
 test("dirty point values survive refresh and removal, preserve guard, and cancel to current data", async () => {

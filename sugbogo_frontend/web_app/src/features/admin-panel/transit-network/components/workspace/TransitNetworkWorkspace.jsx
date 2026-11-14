@@ -130,25 +130,25 @@ export default function TransitNetworkWorkspace() {
   const transfersQuery = useTransitTransfers(transferParams, {
     enabled: context === TRANSIT_CONTEXTS.TRANSFERS,
   });
-  const routeDetailQuery = useJeepneyRoute(expandedRouteId, {
-    enabled: context === TRANSIT_CONTEXTS.ROUTES && Boolean(expandedRouteId),
-  });
+  const routeDetailQuery = useJeepneyRoute(
+    context === TRANSIT_CONTEXTS.ROUTES ? expandedRouteId : null,
+  );
   const routeReferencePointsQuery = useTransitPointReferences(
     { enabled: context === TRANSIT_CONTEXTS.ROUTES },
   );
   const pointReferenceVariantsQuery = useRouteVariantReferences(
     { enabled: context === TRANSIT_CONTEXTS.POINTS },
   );
-  const pointDetail = useTransitPoint(pointSelection?.id, {
-    enabled: context === TRANSIT_CONTEXTS.POINTS,
-  });
+  const activePointId =
+    context === TRANSIT_CONTEXTS.POINTS ? pointSelection?.id : null;
+  const pointDetail = useTransitPoint(activePointId);
   const transferDetail = useTransitTransfer(transferSelection?.id, {
     enabled: context === TRANSIT_CONTEXTS.TRANSFERS,
   });
   const pointSelectionState = useSelectedTransitRecord({
-    id: pointSelection?.id, fallback: pointSelection?.fallback, list: pointsQuery,
+    id: activePointId, fallback: pointSelection?.fallback, list: pointsQuery,
     detail: pointDetail, field: "transitPoint",
-    queryKey: transitQueryKeys.transitPointDetail(pointSelection?.id),
+    queryKey: transitQueryKeys.transitPointDetail(activePointId),
   });
   const transferSelectionState = useSelectedTransitRecord({
     id: transferSelection?.id, fallback: transferSelection?.fallback, list: transfersQuery,
@@ -160,6 +160,13 @@ export default function TransitNetworkWorkspace() {
   const visiblePoints = pointsQuery.items
     .filter((point) => !(pointSelectionState.unavailable && String(point.id) === String(pointSelection?.id)))
     .map((point) => String(point.id) === String(selectedPoint?.id) ? selectedPoint : point);
+  const selectedPointOutsideResults = Boolean(
+    selectedPoint &&
+      !pointsQuery.error &&
+      pointsQuery.dataUpdatedAt &&
+      !pointsQuery.isPlaceholderData &&
+      !visiblePoints.some((point) => String(point.id) === String(selectedPoint.id)),
+  );
   const visibleTransfers = transfersQuery.items
     .filter((transfer) => !(transferSelectionState.unavailable && String(transfer.id) === String(transferSelection?.id)))
     .map((transfer) => String(transfer.id) === String(selectedTransfer?.id) ? selectedTransfer : transfer);
@@ -179,19 +186,28 @@ export default function TransitNetworkWorkspace() {
     },
   );
 
-  const selectedRoute =
-    routeDetailQuery.route ??
-    routesQuery.items.find(
-      (route) => String(route.id) === String(selectedRouteId),
-    ) ??
-    selectedRouteFallback ??
-    null;
+  const isEditing = mode !== TRANSIT_MODES.BROWSE;
+  const routeUnavailable =
+    !isEditing && routeDetailQuery.error?.response?.status === 404;
+  const visibleRoutes = routeUnavailable
+    ? routesQuery.items.filter((route) => String(route.id) !== String(expandedRouteId))
+    : routesQuery.items;
+  const selectedRoute = routeUnavailable
+    ? null
+    : routeDetailQuery.route ??
+      visibleRoutes.find((route) => String(route.id) === String(selectedRouteId)) ??
+      selectedRouteFallback;
+  const routeVariants = routeUnavailable
+    ? []
+    : routeDetailQuery.route?.variants ?? [];
+  const listedVariant = routeVariants.find(
+    (variant) => String(variant.id) === String(selectedVariantId),
+  );
   const selectedVariant =
-    routeDetailQuery.route?.variants?.find(
-      (variant) => String(variant.id) === String(selectedVariantId),
-    ) ??
-    selectedVariantFallback;
-  const routeVariants = routeDetailQuery.route?.variants ?? [];
+    listedVariant ??
+    (isEditing || (!routeUnavailable && !routeDetailQuery.route)
+      ? selectedVariantFallback
+      : null);
   const isVariantMode = isVariantEditingMode(mode);
   const isPointMode = isPointEditingMode(mode);
   const isRoutePointCreationMode = isRouteTransitPointCreationMode(mode);
@@ -212,7 +228,6 @@ export default function TransitNetworkWorkspace() {
         : false;
   const navigationGuard = useUnsavedChangesGuard(isDirty);
   const fullscreen = useTransitWorkspaceFullscreen(workspaceRef);
-  const isEditing = mode !== TRANSIT_MODES.BROWSE;
   const isOverlayOpen =
     isLocalDiscardOpen ||
     navigationGuard.isLeaveConfirmationOpen ||
@@ -273,7 +288,9 @@ export default function TransitNetworkWorkspace() {
     if (focusTarget.type === "route") {
       return {
         key: focusTarget.key,
-        positions: geometryPositions(routeDetailQuery.route?.variants),
+        positions: geometryPositions(
+          routeUnavailable ? [] : routeDetailQuery.route?.variants,
+        ),
       };
     }
     if (focusTarget.type === "variant") {
@@ -296,6 +313,7 @@ export default function TransitNetworkWorkspace() {
     destinationVariantQuery.variant,
     focusTarget,
     routeDetailQuery.route?.variants,
+    routeUnavailable,
     selectedVariant,
     sourceVariantQuery.variant,
   ]);
@@ -315,25 +333,15 @@ export default function TransitNetworkWorkspace() {
     action();
   }
 
-  function resetSelections() {
-    setSelectedRouteId(null);
-    setSelectedRouteFallback(null);
-    setExpandedRouteId(null);
-    setSelectedVariantId(null);
-    setSelectedVariantFallback(null);
-    setSelectedPoint(null);
-    setSelectedTransfer(null);
-    setFocusTarget(null);
-    setFormDirty(false);
-  }
-
   function changeContext(nextContext) {
     if (nextContext === context) {
       return;
     }
 
     requestWorkspaceAction(() => {
-      resetSelections();
+      setSelectedTransfer(null);
+      setFocusTarget(null);
+      setFormDirty(false);
       setMode(TRANSIT_MODES.BROWSE);
       handleTabChange(nextContext);
     });
@@ -809,11 +817,11 @@ export default function TransitNetworkWorkspace() {
         >
           {context === TRANSIT_CONTEXTS.ROUTES && (
             <RouteBrowser
-              routes={routesQuery.items}
+              routes={visibleRoutes}
               routeDetail={routeDetailQuery.route}
               expandedRouteId={expandedRouteId}
               selectedRouteId={selectedRouteId}
-              selectedVariantId={selectedVariantId}
+              selectedVariantId={selectedVariant?.id}
               search={globalFilter}
               isSearching={isSearching}
               isLoading={routesQuery.isLoading}
@@ -838,6 +846,7 @@ export default function TransitNetworkWorkspace() {
             <TransitPointList
               transitPoints={visiblePoints}
               selectedPointId={selectedPoint?.id}
+              selectedPointOutsideResults={selectedPointOutsideResults}
               search={globalFilter}
               isSearching={isSearching}
               isLoading={pointsQuery.isLoading}
@@ -879,10 +888,13 @@ export default function TransitNetworkWorkspace() {
           mode={mode}
           routeVariants={routeVariants}
           referenceRouteVariants={pointReferenceVariantsQuery.items}
-          selectedVariantId={selectedVariantId}
+          selectedVariantId={
+            context === TRANSIT_CONTEXTS.ROUTES ? selectedVariant?.id : undefined
+          }
           variantEditor={variantEditor}
           transitPoints={mapTransitPoints}
           selectedPoint={selectedPoint}
+          selectedPointOutsideResults={selectedPointOutsideResults}
           pointDraftPosition={pointEditor.draftPosition}
           transfer={selectedTransfer}
           transferSourceVariant={sourceVariantQuery.variant}
