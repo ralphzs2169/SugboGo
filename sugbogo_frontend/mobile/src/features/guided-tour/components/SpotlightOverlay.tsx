@@ -8,7 +8,10 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  useSafeAreaInsets,
+  type EdgeInsets,
+} from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import type { SpotlightRect } from "../hooks/useSpotlightTargets";
@@ -39,38 +42,16 @@ type Props = Pick<
   viewport: Pick<SpotlightRect, "width" | "height">;
 };
 
-/** Dims the underlying screen and shields it from touches while a step is visible. */
-export default function SpotlightOverlay({
-  target,
-  viewport,
-  onDismiss,
-  ...tooltip
-}: Props) {
-  const insets = useSafeAreaInsets();
-  const [reduceMotion, setReduceMotion] = useState(true);
-  const left = Math.max(0, target.x - SPOTLIGHT_PADDING);
+/** Computes the room above a target using the overlay's safe-area rules. */
+export function getSpotlightSpace(
+  target: SpotlightRect,
+  viewport: Props["viewport"],
+  insets: EdgeInsets,
+) {
   const top = Math.max(0, target.y - SPOTLIGHT_PADDING);
-  const right = Math.min(
-    viewport.width,
-    target.x + target.width + SPOTLIGHT_PADDING,
-  );
-  const bottom = Math.min(
-    viewport.height,
-    target.y + target.height + SPOTLIGHT_PADDING,
-  );
-  const targetCenter = target.x + target.width / 2;
   const tooltipMinX = insets.left + TOOLTIP_GUTTER;
   const tooltipMaxX = viewport.width - insets.right - TOOLTIP_GUTTER;
   const tooltipWidth = Math.min(TOOLTIP_MAX_WIDTH, tooltipMaxX - tooltipMinX);
-  const tooltipLeft = Math.max(
-    tooltipMinX,
-    Math.min(targetCenter - tooltipWidth / 2, tooltipMaxX - tooltipWidth),
-  );
-  const pointerCenter = Math.max(
-    POINTER_INSET,
-    Math.min(targetCenter - tooltipLeft, tooltipWidth - POINTER_INSET),
-  );
-  const pointerLeft = pointerCenter - POINTER_WIDTH / 2;
   const tooltipBottom = Math.max(
     viewport.height - top + TOOLTIP_GAP,
     insets.bottom + TOOLTIP_GUTTER,
@@ -81,12 +62,63 @@ export default function SpotlightOverlay({
     insets.top -
     TOOLTIP_GUTTER -
     MASCOT_OVERLAP;
+
+  return {
+    top,
+    tooltipMinX,
+    tooltipMaxX,
+    tooltipWidth,
+    tooltipBottom,
+    tooltipHeight,
+  };
+}
+
+export function canDisplaySpotlight(width: number, height: number) {
+  return width > 0 && height >= 72;
+}
+
+/** Dims the underlying screen and shields it from touches while a step is visible. */
+export default function SpotlightOverlay({
+  target,
+  viewport,
+  onDismiss,
+  ...tooltip
+}: Props) {
+  const insets = useSafeAreaInsets();
+  const [reduceMotion, setReduceMotion] = useState(true);
+  const left = Math.max(0, target.x - SPOTLIGHT_PADDING);
+  const {
+    top,
+    tooltipMinX,
+    tooltipMaxX,
+    tooltipWidth,
+    tooltipBottom,
+    tooltipHeight,
+  } = getSpotlightSpace(target, viewport, insets);
+  const right = Math.min(
+    viewport.width,
+    target.x + target.width + SPOTLIGHT_PADDING,
+  );
+  const bottom = Math.min(
+    viewport.height,
+    target.y + target.height + SPOTLIGHT_PADDING,
+  );
+  const targetCenter = target.x + target.width / 2;
+  const tooltipLeft = Math.max(
+    tooltipMinX,
+    Math.min(targetCenter - tooltipWidth / 2, tooltipMaxX - tooltipWidth),
+  );
+  const pointerCenter = Math.max(
+    POINTER_INSET,
+    Math.min(targetCenter - tooltipLeft, tooltipWidth - POINTER_INSET),
+  );
+  const pointerLeft = pointerCenter - POINTER_WIDTH / 2;
   const belowTop = bottom + TOOLTIP_GAP + MASCOT_OVERLAP;
   const belowHeight =
     viewport.height - belowTop - insets.bottom - TOOLTIP_GUTTER;
   const pointerUp = tooltip.step === undefined && belowHeight > tooltipHeight;
   const maxHeight = pointerUp ? belowHeight : tooltipHeight;
-  const canShowTooltip = tooltipWidth > 0 && maxHeight >= 72;
+  const canShowTooltip = canDisplaySpotlight(tooltipWidth, maxHeight);
 
   const geometry = useSharedValue({
     left,

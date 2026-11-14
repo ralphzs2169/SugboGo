@@ -11,6 +11,7 @@ import {
 } from "react";
 import { AppState, View } from "react-native";
 import { useKeyboardState } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
@@ -34,7 +35,10 @@ import {
   hasHandledExplorerTour,
   recordExplorerTourHandled,
 } from "../services/explorerTourStorage";
-import SpotlightOverlay from "./SpotlightOverlay";
+import SpotlightOverlay, {
+  canDisplaySpotlight,
+  getSpotlightSpace,
+} from "./SpotlightOverlay";
 
 const TARGETS = EXPLORER_TOUR_STEPS.map((step) => step.target);
 const BOOKMARK_TOUR = "pockets-bookmark";
@@ -94,6 +98,7 @@ function isOnline() {
  */
 export default function ExplorerTourHost({ children }: PropsWithChildren) {
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const explorerFocused = useIsFocused();
   const exploreFocused = explorerFocused && pathname === "/explore";
   const ownerId = useAuthStore((state) => {
@@ -162,6 +167,17 @@ export default function ExplorerTourHost({ children }: PropsWithChildren) {
     !picker?.isOpen &&
     !keyboardOpen;
   const canPlay = unobstructed && exploreFocused && exploreLocationReady;
+  const firstTarget = targets?.get(EXPLORER_TOUR_STEPS[0].target);
+  const firstSpotlight = firstTarget
+    ? getSpotlightSpace(firstTarget, viewport, insets)
+    : null;
+  const firstSpotlightReady =
+    firstSpotlight !== null &&
+    canDisplaySpotlight(
+      firstSpotlight.tooltipWidth,
+      firstSpotlight.tooltipHeight,
+    );
+  const hasStarted = matchesSession(started, ownerId, generation);
   const canOfferBookmark =
     unobstructed &&
     explorerFocused &&
@@ -198,7 +214,11 @@ export default function ExplorerTourHost({ children }: PropsWithChildren) {
       : null;
 
   const active =
-    canPlay && matchesSession(playback, ownerId, generation) ? playback : null;
+    canPlay &&
+    (hasStarted || firstSpotlightReady) &&
+    matchesSession(playback, ownerId, generation)
+      ? playback
+      : null;
   const step = active ? EXPLORER_TOUR_STEPS[active.stepIndex] : null;
   const target = step ? targets?.get(step.target) : null;
   const overlayVisible = Boolean(target || bookmarkTarget);
@@ -223,6 +243,14 @@ export default function ExplorerTourHost({ children }: PropsWithChildren) {
       setBookmarkPlayback(null);
     }
   }, [active, bookmarkPlayback, bookmarkTarget, cancelReplay, playback]);
+
+  useEffect(() => {
+    if (active && firstSpotlightReady && !hasStarted) {
+      // Claim this session only after committing a displayable spotlight.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStarted({ ownerId: active.ownerId, generation: active.generation });
+    }
+  }, [active, firstSpotlightReady, hasStarted]);
 
   useEffect(() => {
     if (!eligible || ownerId === null) return;
@@ -283,7 +311,7 @@ export default function ExplorerTourHost({ children }: PropsWithChildren) {
   }, [bookmarkPlayback, candidate, container, generation, ownerId]);
 
   useEffect(() => {
-    if (!canPlay || !targets || ownerId === null || playback) return;
+    if (!canPlay || !firstSpotlightReady || ownerId === null || playback) return;
 
     const preferenceLoaded = matchesSession(preference, ownerId, generation);
     const manual =
@@ -291,7 +319,7 @@ export default function ExplorerTourHost({ children }: PropsWithChildren) {
     const automatic =
       preferenceLoaded &&
       preference?.status === "unseen" &&
-      !matchesSession(started, ownerId, generation);
+      !hasStarted;
 
     if (!manual && !automatic) return;
 
@@ -301,19 +329,18 @@ export default function ExplorerTourHost({ children }: PropsWithChildren) {
       if (!isCurrentSession(session)) return;
 
       setReplay(null);
-      setStarted(session);
       setPlayback({ ...session, stepIndex: 0 });
     });
     return () => cancelAnimationFrame(frame);
   }, [
     canPlay,
+    firstSpotlightReady,
     generation,
+    hasStarted,
     ownerId,
     playback,
     preference,
     replay,
-    started,
-    targets,
   ]);
 
   const requestReplay = useCallback(() => {
