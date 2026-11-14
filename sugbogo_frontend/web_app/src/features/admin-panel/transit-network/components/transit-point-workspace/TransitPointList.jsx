@@ -18,7 +18,7 @@ export default function TransitPointList({
   pagination,
   pageCount,
   totalItems,
-  selectionDisabled,
+  interactionDisabled,
   onSearchChange,
   onPageChange,
   onPointSelect,
@@ -84,7 +84,7 @@ export default function TransitPointList({
                 <button
                   key={point.id}
                   type="button"
-                  disabled={selectionDisabled}
+                  disabled={interactionDisabled}
                   onClick={() => onPointSelect(point)}
                   className={`flex w-full cursor-pointer items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                     isSelected
@@ -125,7 +125,7 @@ export default function TransitPointList({
                 ? "Try a different search term."
                 : "Add boarding, alighting, and transfer locations to begin building the network."}
             </p>
-            {!search && (
+            {!search && !interactionDisabled && (
               <Button className="mt-4" size="sm" onClick={onStartAdd}>
                 Add First Point
               </Button>

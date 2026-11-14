@@ -397,18 +397,31 @@ export default function TransitNetworkWorkspace() {
   }
 
   function startAddPoint() {
+    if (isEditing) return;
+
     pointEditor.beginAdd();
     setSelectedPoint(null);
+    setIsInspectorCollapsed(false);
     setMode(TRANSIT_MODES.ADD_POINT);
   }
 
   function startCreateRoute() {
+    if (isEditing) return;
+
     setSelectedRouteId(null);
     setSelectedRouteFallback(null);
     setExpandedRouteId(null);
     setSelectedVariantId(null);
     setSelectedVariantFallback(null);
+    setIsInspectorCollapsed(false);
     setMode(TRANSIT_MODES.CREATE_ROUTE);
+  }
+
+  function startEditRoute() {
+    if (isEditing) return;
+
+    setIsInspectorCollapsed(false);
+    setMode(TRANSIT_MODES.EDIT_ROUTE);
   }
 
   function startCreateTransfer() {
@@ -417,9 +430,11 @@ export default function TransitNetworkWorkspace() {
   }
 
   function startEditPoint() {
-    if (!pointSelectionState.canAct) return;
+    if (isEditing || !pointSelectionState.canAct) return;
+
     setEditingPoint(selectedPoint);
     pointEditor.beginEdit(selectedPoint);
+    setIsInspectorCollapsed(false);
     setMode(TRANSIT_MODES.EDIT_POINT);
   }
 
@@ -826,7 +841,7 @@ export default function TransitNetworkWorkspace() {
               pagination={pagination}
               pageCount={pointsQuery.pageCount}
               totalItems={pointsQuery.totalItems}
-              selectionDisabled={mode !== TRANSIT_MODES.BROWSE}
+              interactionDisabled={isEditing}
               onSearchChange={setGlobalFilter}
               onPageChange={(pageIndex) =>
                 setPagination({ ...pagination, pageIndex })
@@ -905,7 +920,7 @@ export default function TransitNetworkWorkspace() {
             onDirtyChange: handleFormDirtyChange,
             onRouteSaved: handleRouteSaved,
             onVariantSaved: handleVariantSaved,
-            onStartEditRoute: () => setMode(TRANSIT_MODES.EDIT_ROUTE),
+            onStartEditRoute: startEditRoute,
             onStartCreateVariant: startCreateVariant,
             onStartEditVariant: startEditVariant,
             onToggleDrawing: toggleRouteDrawing,

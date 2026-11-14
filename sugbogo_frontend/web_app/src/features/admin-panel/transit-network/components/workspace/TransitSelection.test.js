@@ -189,6 +189,11 @@ async function until(check) {
 const button = (text) => [...container.querySelectorAll("button")].find((node) => node.textContent.trim() === text);
 const inspector = () => container.querySelector("#transit-network-inspector");
 async function click(node) { await act(async () => node.click()); }
+async function collapseInspector() {
+  await click(container.querySelector('button[aria-label="Collapse inspector"]'));
+  assert.equal(inspector().getAttribute("aria-hidden"), "true");
+}
+
 async function input(node, value) {
   await act(async () => {
     Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(node, value);
@@ -210,6 +215,57 @@ async function refresh(key) {
   await act(async () => client.invalidateQueries({ queryKey: key }));
   await act(async () => new Promise((done) => setTimeout(done, 25)));
 }
+
+test("adding or editing a route opens the collapsed inspector", async () => {
+  await open("routes");
+  await collapseInspector();
+  await click(button("Edit"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
+  assert.equal(inspector().querySelector('input[name="code"]').value, "R1");
+  await click(button("Cancel"));
+
+  await collapseInspector();
+  await click(button("Add Route"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
+  assert.equal(inspector().querySelector('input[name="code"]').value, "");
+  assert.equal(button("Add Route"), undefined);
+  await click(button("Cancel"));
+  assert.ok(button("Add Route"));
+});
+
+test("toolbar and empty-state point Add open the inspector and protect the draft", async () => {
+  await open();
+  excluded = true;
+  await refresh(keys.transitPoints());
+  await until(() => button("Add First Point"));
+
+  await collapseInspector();
+  await click(button("Add Point"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
+  assert.equal(button("Add First Point"), undefined);
+  await click(button("Cancel"));
+
+  await collapseInspector();
+  await click(button("Add First Point"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
+  const field = inspector().querySelector('input[name="name"]');
+  await input(field, "First stop");
+  await act(async () => globalThis.__selectionMap.onPointPositionChange({ lat: 10.3, lng: 123.9 }));
+  assert.equal(button("Add Point"), undefined);
+  assert.equal(button("Add First Point"), undefined);
+
+  await click(button("Routes"));
+  assert.ok(button("Discard Changes"));
+  await click(button("Keep Editing"));
+  assert.equal(field.value, "First stop");
+  assert.deepEqual(globalThis.__selectionMap.pointDraftPosition, { lat: 10.3, lng: 123.9 });
+
+  excluded = false;
+  await click(button("Save Point"));
+  await until(() => globalThis.__selectionMap.selectedPoint?.name === "First stop");
+  assert.equal(globalThis.__selectionMap.selectedPoint.latitude, 10.3);
+  assert.equal(globalThis.__selectionMap.selectedPoint.longitude, 123.9);
+});
 
 test("point list refetch reconciles the inspector, map and off-page selection", async () => {
   await open();
@@ -254,7 +310,9 @@ test("temporary errors retain selections while a detail 404 removes actionable r
 
 test("dirty point values survive refresh and removal, preserve guard, and cancel to current data", async () => {
   await open();
+  await collapseInspector();
   await click(button("Edit"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
   assert.equal(button("Delete Point"), undefined);
   const field = container.querySelector('input[name="name"]');
   await input(field, "My draft");
