@@ -23,7 +23,7 @@ jobs:
         working-directory: sugbogo_frontend/web_app
 
     env:
-      VITE_API_URL: https://sugbogo-api-production.up.railway.app/api
+      VITE_API_URL: https://api.sugbogo.app/api
       VITE_GOOGLE_MAPS_API_KEY: ${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
       VITE_GOOGLE_MAP_ID: ${{ vars.VITE_GOOGLE_MAP_ID }}
 
