@@ -227,6 +227,7 @@ class PasswordResetServiceTests(TestCase):
 
         mock_revoke_sessions.assert_called_once_with(
             self.user,
+            revoke_oauth_links=True,
         )
 
 
@@ -298,6 +299,7 @@ class PasswordResetServiceTests(TestCase):
 
         mock_revoke_sessions.assert_called_once_with(
             self.user,
+            revoke_oauth_links=True,
         )
 
         # Attempt to reuse the same token.

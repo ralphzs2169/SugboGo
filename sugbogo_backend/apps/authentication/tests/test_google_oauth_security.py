@@ -1,7 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import override_settings
+from django.db import close_old_connections, transaction
+from django.test import TransactionTestCase, override_settings, skipUnlessDBFeature
 from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -9,11 +12,82 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 
 from apps.authentication.models import OAuthAccount
+from apps.authentication.services.oauth.account import (
+    OAuthAccountService,
+    OAuthLinkRequired,
+)
+from apps.authentication.services.oauth.base import OAuthUser
+from apps.authentication.services.password_reset_service import PasswordResetService
 from apps.authentication.tokens import (
     email_verification_token_generator,
     password_reset_token_generator,
 )
 from apps.users.models import User
+
+
+@skipUnlessDBFeature("has_select_for_update")
+class OAuthRecoveryConcurrencyTests(TransactionTestCase):
+    """Prevent a waiting OAuth request from restoring access after mailbox recovery."""
+
+    def test_recovery_removes_a_subject_seen_before_the_account_lock(self):
+        """Recheck the subject after acquiring the lock shared with password reset."""
+        user = User.objects.create_user(
+            email="oauth-recovery-race@example.com",
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+            EMAIL_VERIFIED=True,
+        )
+        identity = OAuthUser(
+            provider="google",
+            provider_id="legacy-google-subject",
+            email="old-third-party@example.com",
+            first_name="OAuth",
+            last_name="Tester",
+        )
+        OAuthAccount.objects.create(
+            USER=user,
+            OAUTH_PROVIDER=identity.provider,
+            OAUTH_PROVIDER_ID=identity.provider_id,
+        )
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = password_reset_token_generator.make_token(user)
+        waiting = Event()
+        original_lock = User.objects.select_for_update
+
+        def observed_lock(*args, **kwargs):
+            """Signal that the worker has already resolved the legacy subject."""
+            waiting.set()
+            return original_lock(*args, **kwargs)
+
+        def sign_in():
+            """Try the provider identity on an independent PostgreSQL connection."""
+            close_old_connections()
+            try:
+                with self.assertRaises(OAuthLinkRequired):
+                    OAuthAccountService.get_or_create_user(identity)
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            with transaction.atomic():
+                User.objects.select_for_update().get(pk=user.pk)
+                with patch.object(
+                    User.objects,
+                    "select_for_update",
+                    side_effect=observed_lock,
+                ):
+                    request = executor.submit(sign_in)
+                    self.assertTrue(waiting.wait(timeout=10))
+                    result = PasswordResetService.reset_password(
+                        uid,
+                        token,
+                        "Recovered-Mailbox-Password-731!",
+                    )
+                    self.assertIsNotNone(result)
+            request.result(timeout=10)
+
+        self.assertFalse(OAuthAccount.objects.filter(USER=user).exists())
+        self.assertFalse(OutstandingToken.objects.filter(user=user).exists())
 
 
 @override_settings(GOOGLE_OAUTH_CLIENT_ID="test-google-client")
@@ -167,21 +241,9 @@ class GoogleOAuthSecurityTests(APITestCase):
         """Require mailbox recovery before Google can link to an unverified password signup."""
         attacker_password = "Preregistered-Sample-Password-684!"
         owner_password = "Recovered-Account-Password-931!"
-        with patch(
-            "apps.authentication.views.register.EmailService.send_verification_email",
-        ):
-            registration = self.client.post(
-                reverse("register"),
-                {
-                    "email": self.payload["email"],
-                    "first_name": "Sample",
-                    "last_name": "User",
-                    "password": attacker_password,
-                },
-                format="json",
-            )
-        self.assertEqual(registration.status_code, 201, registration.data)
-        user = User.objects.get(USER_EMAIL=self.payload["email"])
+        user = self.create_user(self.payload["email"], verified=False)
+        user.set_password(attacker_password)
+        user.save(update_fields=["password"])
 
         self.assert_denied_without_account_changes(user)
 
@@ -210,12 +272,16 @@ class GoogleOAuthSecurityTests(APITestCase):
         user.refresh_from_db()
         self.assertFalse(user.EMAIL_VERIFIED)
 
-        verification = self.client.get(
+        setup_password = "Verified-Mailbox-Password-762!"
+        verification = self.client.post(
             reverse("verify_email"),
             {
                 "uid": uid,
                 "token": email_verification_token_generator.make_token(user),
+                "password": setup_password,
+                "confirm_password": setup_password,
             },
+            format="json",
         )
         self.assertEqual(verification.status_code, 200, verification.data)
 
@@ -223,7 +289,7 @@ class GoogleOAuthSecurityTests(APITestCase):
         self.assertEqual(google_login.status_code, 200, google_login.data)
         self.assertEqual(google_login.data["data"]["user"]["id"], user.pk)
         user.refresh_from_db()
-        self.assertTrue(user.check_password(owner_password))
+        self.assertTrue(user.check_password(setup_password))
 
         attacker_login = self.client.post(
             reverse("login"),
@@ -325,7 +391,7 @@ class GoogleOAuthSecurityTests(APITestCase):
                 )
                 self.assert_denied_without_account_changes(user)
 
-    def test_existing_third_party_subject_with_same_email_can_activate_pending_user(self):
+    def test_existing_third_party_subject_cannot_activate_pending_user(self):
         self.payload["email"] = "linked@example.com"
         user = self.create_user(
             self.payload["email"],
@@ -338,15 +404,58 @@ class GoogleOAuthSecurityTests(APITestCase):
             OAUTH_PROVIDER="google",
             OAUTH_PROVIDER_ID=self.payload["sub"],
         )
+        self.assert_denied_without_account_changes(user)
+
+    def test_new_third_party_google_email_cannot_establish_verified_ownership(self):
+        self.payload["email"] = "unclaimed@example.com"
+        response = self.login()
+        self.assertEqual(response.status_code, 403, response.data)
+        self.assertEqual(response.data["code"], "OAUTH_LINK_REQUIRED")
+        self.assertFalse(User.objects.exists())
+        self.assertFalse(OAuthAccount.objects.exists())
+
+    def test_mailbox_recovery_allows_only_an_authoritative_google_identity_to_relink(self):
+        """Remove a legacy subject and let the mailbox owner link their own Google subject."""
+        user = self.create_user(self.payload["email"])
+        OAuthAccount.objects.create(
+            USER=user,
+            OAUTH_PROVIDER=OAuthAccount.OAuthProvider.GOOGLE,
+            OAUTH_PROVIDER_ID="legacy-external-subject",
+        )
+        password = "Mailbox-Recovery-Password-489!"
+        response = self.client.post(
+            reverse("reset_password"),
+            {
+                "uid": urlsafe_base64_encode(force_bytes(user.pk)),
+                "token": password_reset_token_generator.make_token(user),
+                "password": password,
+                "confirm_password": password,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(OAuthAccount.objects.filter(USER=user).exists())
+
+        original_email = self.payload["email"]
+        original_subject = self.payload["sub"]
+        self.payload["email"] = "third-party@example.com"
+        self.payload["sub"] = "legacy-external-subject"
+        response = self.login()
+        self.assertEqual(response.status_code, 403, response.data)
+        self.assertEqual(response.data["code"], "OAUTH_LINK_REQUIRED")
+        self.assertFalse(OAuthAccount.objects.filter(USER=user).exists())
+
+        self.payload["email"] = original_email
+        self.payload["sub"] = original_subject
         response = self.login()
         self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["data"]["user"]["id"], user.pk)
+        self.assertEqual(OAuthAccount.objects.get(USER=user).OAUTH_PROVIDER_ID, original_subject)
         user.refresh_from_db()
-        self.assertEqual(user.USER_STATUS, User.UserStatus.ACTIVE)
-        self.assertTrue(user.EMAIL_VERIFIED)
-        self.assertEqual(user.USER_ROLE, User.UserRole.MERCHANT)
+        self.assertTrue(user.check_password(password))
 
     def test_new_verified_google_identity_can_register_and_return(self):
-        for email in ("new@gmail.com", "new@example.com"):
+        for email in ("new@gmail.com", "second@gmail.com"):
             with self.subTest(email=email):
                 cache.clear()
                 self.payload["email"] = email

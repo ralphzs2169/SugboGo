@@ -62,7 +62,6 @@ class ForgotPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
     ):
         """Keep a uniform response when mobile recovery cannot issue a token."""
         for role, account_status in (
-            (User.UserRole.EXPLORER, User.UserStatus.PENDING),
             (User.UserRole.EXPLORER, User.UserStatus.SUSPENDED),
             (User.UserRole.MERCHANT, User.UserStatus.DISABLED),
             (User.UserRole.ADMIN, User.UserStatus.ACTIVE),

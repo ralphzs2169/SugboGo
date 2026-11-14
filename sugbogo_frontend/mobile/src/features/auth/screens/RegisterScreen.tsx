@@ -21,7 +21,6 @@ import {
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FormInput from "@/shared/components/form/FormInput";
-import PasswordInput from "@/shared/components/form/PasswordInput";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 
 /**
@@ -37,8 +36,6 @@ export default function RegisterScreen() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [errors, setErrors] = useState<RegisterErrors>({});
   const [formError, setFormError] = useState("");
@@ -65,8 +62,6 @@ export default function RegisterScreen() {
       firstName,
       lastName,
       email,
-      password,
-      confirmPassword,
     );
 
     if (Object.keys(validationErrors).length > 0) {
@@ -82,7 +77,6 @@ export default function RegisterScreen() {
         firstName,
         lastName,
         email,
-        password,
       );
 
       if (!response.success) {
@@ -91,8 +85,7 @@ export default function RegisterScreen() {
         if (
           registerErrors.firstName ||
           registerErrors.lastName ||
-          registerErrors.email ||
-          registerErrors.password
+          registerErrors.email
         ) {
           setErrors(registerErrors);
           return;
@@ -160,23 +153,6 @@ export default function RegisterScreen() {
           error={errors.email}
         />
 
-        <PasswordInput
-          label="PASSWORD"
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
-          error={errors.password}
-          onFocus={() => clearFieldError("password")}
-        />
-
-        <PasswordInput
-          label="CONFIRM PASSWORD"
-          placeholder="Confirm your password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          error={errors.confirmPassword}
-          onFocus={() => clearFieldError("confirmPassword")}
-        />
       </View>
 
       {/* Registration error */}
@@ -201,7 +177,7 @@ export default function RegisterScreen() {
 
       {/* Primary registration action */}
       <Button
-        title="Create account"
+        title="Send verification email"
         loading={loading}
         disabled={loading}
         onPress={onRegister}

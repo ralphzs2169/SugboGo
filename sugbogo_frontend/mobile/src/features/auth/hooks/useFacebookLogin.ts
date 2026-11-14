@@ -42,8 +42,9 @@ export function useFacebookLogin() {
       const response = await facebookLogin(token.accessToken.toString());
 
       if (!response.success) {
-        showOAuthError("Facebook");
-        router.replace("/(auth)/login");
+        showOAuthError("Facebook", response, () =>
+          router.push("/(auth)/forgot-password"),
+        );
         return;
       }
 

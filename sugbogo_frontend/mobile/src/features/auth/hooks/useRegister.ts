@@ -1,8 +1,7 @@
 import { useState } from "react";
 
 import { register } from "../api/auth.service";
-import { AuthResponse } from "../types/auth.types";
-import { ApiResponse } from "@/shared/types/apiResponse.types";
+import type { ApiMessageResponse } from "@/shared/types/apiResponse.types";
 import { useVerificationStore } from "../store/verification.store";
 
 /**
@@ -22,8 +21,7 @@ export function useRegister() {
     firstName: string,
     lastName: string,
     email: string,
-    password: string,
-  ): Promise<ApiResponse<AuthResponse>> => {
+  ): Promise<ApiMessageResponse> => {
     setLoading(true);
 
     try {
@@ -31,7 +29,6 @@ export function useRegister() {
         first_name: firstName,
         last_name: lastName,
         email,
-        password,
       });
 
       if (response.success) {

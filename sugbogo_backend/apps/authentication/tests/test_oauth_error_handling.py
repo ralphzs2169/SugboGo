@@ -88,8 +88,18 @@ class OAuthErrorHandlingTests(APITestCase):
                 self.assertEqual(response.data["code"], "INVALID_FACEBOOK_TOKEN")
 
     def test_facebook_missing_profile_identity_returns_401(self):
-        debug_payload = {"data": {"is_valid": True, "app_id": "test-facebook-app"}}
-        for profile in ({"id": "provider-id"}, {"email": "user@example.com"}):
+        debug_payload = {
+            "data": {
+                "is_valid": True,
+                "app_id": "test-facebook-app",
+                "user_id": "provider-id",
+            },
+        }
+        for profile in (
+            {"id": "provider-id"},
+            {"email": "user@example.com"},
+            {"id": "different-subject", "email": "user@example.com"},
+        ):
             with self.subTest(profile=profile):
                 with patch(
                     "apps.authentication.services.oauth.facebook.requests.get",
@@ -154,6 +164,7 @@ class OAuthErrorHandlingTests(APITestCase):
             ),
             first_name="OAuth",
             last_name="User",
+            email_authoritative=provider == "google",
         )
         if linked:
             OAuthAccount.objects.create(
@@ -186,7 +197,10 @@ class OAuthErrorHandlingTests(APITestCase):
                         )
                         response = self._login_as(provider, user, linked)
                         self.assertEqual(response.status_code, 403)
-                        self.assertEqual(response.data["code"], "ACCOUNT_INACTIVE")
+                        expected_code = "ACCOUNT_INACTIVE"
+                        if provider == "facebook" and not linked:
+                            expected_code = "OAUTH_LINK_REQUIRED"
+                        self.assertEqual(response.data["code"], expected_code)
                         self.assertNotIn("data", response.data)
                         self.assertFalse(OutstandingToken.objects.filter(user=user).exists())
                         self.assertEqual(OAuthAccount.objects.filter(USER=user).count(), int(linked))
@@ -207,7 +221,10 @@ class OAuthErrorHandlingTests(APITestCase):
                         )
                         response = self._login_as(provider, user, linked)
                         self.assertEqual(response.status_code, 403)
-                        self.assertEqual(response.data["code"], "OAUTH_LOGIN_DENIED")
+                        expected_code = "OAUTH_LOGIN_DENIED"
+                        if provider == "facebook" and not linked:
+                            expected_code = "OAUTH_LINK_REQUIRED"
+                        self.assertEqual(response.data["code"], expected_code)
                         self.assertFalse(OutstandingToken.objects.filter(user=user).exists())
                         self.assertEqual(OAuthAccount.objects.filter(USER=user).count(), int(linked))
 
@@ -224,13 +241,16 @@ class OAuthErrorHandlingTests(APITestCase):
             with self.subTest(provider=provider):
                 response = self._login_as(provider, user, linked=False)
                 self.assertEqual(response.status_code, 403)
-                self.assertEqual(response.data["code"], "OAUTH_LOGIN_DENIED")
+                expected_code = "OAUTH_LOGIN_DENIED"
+                if provider == "facebook":
+                    expected_code = "OAUTH_LINK_REQUIRED"
+                self.assertEqual(response.data["code"], expected_code)
                 user.refresh_from_db()
                 self.assertEqual(user.USER_STATUS, User.UserStatus.PENDING)
                 self.assertFalse(user.EMAIL_VERIFIED)
 
-    def test_linked_pending_users_are_activated_and_can_login(self):
-        for provider in ("google", "facebook"):
+    def test_linked_pending_google_user_with_mailbox_authority_can_login(self):
+        for provider in ("google",):
             with self.subTest(provider=provider):
                 user = User.objects.create_user(
                     email=f"pending-{provider}@example.com",

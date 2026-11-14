@@ -1,40 +1,40 @@
-from apps.users.models import User
+from django.db import IntegrityError, transaction
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
+
+from apps.authentication.models import OAuthAccount
+from apps.users.models import User
 
 from .base import OAuthUser
-from apps.authentication.models import OAuthAccount
-from django.db import transaction
-from rest_framework.exceptions import PermissionDenied
 
 
 class OAuthAccountInactive(PermissionDenied):
     """Reject OAuth access for suspended or disabled accounts."""
 
+    default_detail = "Sign-in is unavailable. Contact SugboGo support for help."
     default_code = "account_inactive"
 
 
 class OAuthLoginDenied(PermissionDenied):
     """Keep administrative accounts outside mobile OAuth login."""
 
-    default_detail = "Admin accounts cannot use OAuth login."
+    default_detail = "This sign-in method is unavailable here. Use your usual SugboGo sign-in."
     default_code = "oauth_login_denied"
 
 
 class OAuthLinkRequired(PermissionDenied):
     """Require existing-account proof before accepting an unsafe OAuth link."""
 
-    default_detail = "Sign in with your existing account method to verify this account."
+    default_detail = (
+        "Use your usual sign-in or sign up by email. To recover access, use Forgot "
+        "password. If email setup is required, request a fresh verification link "
+        "and choose a different password to finish setup."
+    )
     default_code = "oauth_link_required"
 
 
 class OAuthAccountService:
-    """
-    Handles account lookup and creation for OAuth providers.
-
-    Every OAuth provider (Google, Facebook, Apple)
-    should use this service instead of touching the
-    User model directly.
-    """
+    """Resolve provider subjects and require current mailbox authority for new links."""
 
     @staticmethod
     def _validate_user_access(user: User) -> None:
@@ -48,132 +48,105 @@ class OAuthAccountService:
             User.UserStatus.ACTIVE,
             User.UserStatus.PENDING,
         ):
-            raise OAuthAccountInactive(
-                f"Account is {user.USER_STATUS}. Please contact support.",
-            )
-
-        # An OAuth login must not make a preregistered password usable.
-        if (
-            not user.EMAIL_VERIFIED
-            and user.has_usable_password()
-        ):
-            raise OAuthLinkRequired()
+            raise OAuthAccountInactive()
 
     @staticmethod
+    @transaction.atomic
     def get_or_create_user(oauth_user: OAuthUser) -> User:
-        """Resolve an allowed OAuth account and verify or create its user."""
-        with transaction.atomic():
-            # First, we check if the user has previously logged in with this OAuth provider.
-            oauth_account = (
-                OAuthAccount.objects.filter(
-                    OAUTH_PROVIDER=oauth_user.provider,
-                    OAUTH_PROVIDER_ID=oauth_user.provider_id,
-                )
-                .select_related("USER")
-                .first()
-            )
-           
-            # If the user has previously logged in with this OAuth provider, 
-            # we update their last login timestamp and return the associated User.
-            if oauth_account:
-                user = User.objects.select_for_update().get(pk=oauth_account.USER_id)
-                OAuthAccountService._validate_user_access(user)
-
-                if (
-                    oauth_user.provider == OAuthAccount.OAuthProvider.GOOGLE
-                    and oauth_user.email.casefold() != user.USER_EMAIL.casefold()
-                    and (
-                        not user.EMAIL_VERIFIED
-                        or user.USER_STATUS == User.UserStatus.PENDING
-                    )
-                ):
-                    raise OAuthLinkRequired()
-
-                oauth_account.OAUTH_LAST_LOGIN = timezone.now()
-                oauth_account.save(update_fields=["OAUTH_LAST_LOGIN"])
-
-                if (
-                    not user.EMAIL_VERIFIED
-                    or user.USER_STATUS == User.UserStatus.PENDING
-                ):
-                    user.EMAIL_VERIFIED = True
-                    if user.EMAIL_VERIFIED_AT is None:
-                        user.EMAIL_VERIFIED_AT = timezone.now()
-                    user.USER_STATUS = User.UserStatus.ACTIVE
-                    user.save(
-                        update_fields=[
-                            "EMAIL_VERIFIED",
-                            "EMAIL_VERIFIED_AT",
-                            "USER_STATUS",
-                        ]
-                    )
-
-                return user
-
-            user = User.objects.select_for_update().filter(
-                USER_EMAIL__iexact=oauth_user.email
+        """Resolve a stable subject under the same account lock used by mailbox recovery."""
+        subject = {
+            "OAUTH_PROVIDER": oauth_user.provider,
+            "OAUTH_PROVIDER_ID": oauth_user.provider_id,
+        }
+        linked_user_id = (
+            OAuthAccount.objects.filter(**subject)
+            .values_list("USER_id", flat=True)
+            .first()
+        )
+        users = User.objects.select_for_update()
+        if linked_user_id is not None:
+            user = users.filter(pk=linked_user_id).first()
+            # Recovery may remove the link before this request gets the user lock.
+            link = OAuthAccount.objects.filter(
+                USER_id=linked_user_id,
+                **subject,
             ).first()
+            if user is None or link is None:
+                raise OAuthLinkRequired()
+            OAuthAccountService._validate_user_access(user)
+        else:
+            if not oauth_user.email_authoritative:
+                raise OAuthLinkRequired()
 
-
-            # If the user exists, we update their email verification 
-            # status and account status if necessary. 
-            if user:
+            user = users.filter(USER_EMAIL__iexact=oauth_user.email).first()
+            if user is not None:
                 OAuthAccountService._validate_user_access(user)
-                if oauth_user.provider == OAuthAccount.OAuthProvider.GOOGLE:
-                    if (
-                        not oauth_user.email_authoritative
-                        or OAuthAccount.objects.filter(
-                            USER=user,
-                            OAUTH_PROVIDER=OAuthAccount.OAuthProvider.GOOGLE,
-                        ).exists()
-                    ):
-                        raise OAuthLinkRequired()
 
-                if not user.EMAIL_VERIFIED:
-                    user.EMAIL_VERIFIED = True
-                    user.EMAIL_VERIFIED_AT = timezone.now()
+            if user is None:
+                try:
+                    with transaction.atomic():
+                        user = User.objects.create_user(
+                            email=oauth_user.email,
+                            USER_FNAME=oauth_user.first_name,
+                            USER_LNAME=oauth_user.last_name,
+                            USER_ROLE=User.UserRole.EXPLORER,
+                            USER_STATUS=User.UserStatus.ACTIVE,
+                            EMAIL_VERIFIED=True,
+                            EMAIL_VERIFIED_AT=timezone.now(),
+                        )
+                except IntegrityError:
+                    user = users.filter(USER_EMAIL__iexact=oauth_user.email).first()
+                    if user is None:
+                        raise
+                    OAuthAccountService._validate_user_access(user)
 
-                if user.USER_STATUS == User.UserStatus.PENDING:
-                    user.USER_STATUS = User.UserStatus.ACTIVE
-                
-                user.save(
-                    update_fields=[
-                        "EMAIL_VERIFIED",
-                        "EMAIL_VERIFIED_AT",
-                        "USER_STATUS",
-                    ]
-                )
-            # If the user does not exist, we create a new account with the provided OAuth information.
-            # If no user exists, create one.
-            else:
-                user = User.objects.create_user(
-                    email=oauth_user.email,
-
-                    # OAuth users don't authenticate with a password.
-                    password=None,
-
-                    USER_FNAME=oauth_user.first_name,
-                    USER_LNAME=oauth_user.last_name,
-
-                    USER_ROLE=User.UserRole.EXPLORER,
-                    USER_STATUS=User.UserStatus.ACTIVE,
-
-                    EMAIL_VERIFIED=True,
-                    EMAIL_VERIFIED_AT=timezone.now(),
-                )
-
-                user.set_unusable_password()
-                user.save(update_fields=["password"])
-
-            # Link the user to this OAuth provider.
-            # Google email fallback cannot replace an existing subject association.
-            OAuthAccount.objects.update_or_create(
+            link = OAuthAccount.objects.filter(
                 USER=user,
                 OAUTH_PROVIDER=oauth_user.provider,
-                defaults={
-                    "OAUTH_PROVIDER_ID": oauth_user.provider_id,
-                    "OAUTH_AVATAR_URL": oauth_user.avatar_url,
-                },
+            ).first()
+            if link is None:
+                link, _ = OAuthAccount.objects.get_or_create(
+                    **subject,
+                    defaults={
+                        "USER": user,
+                        "OAUTH_AVATAR_URL": oauth_user.avatar_url,
+                    },
+                )
+            if (
+                link.USER_id != user.pk
+                or link.OAUTH_PROVIDER_ID != oauth_user.provider_id
+            ):
+                raise OAuthLinkRequired()
+
+        if (
+            not user.EMAIL_VERIFIED
+            or user.USER_STATUS == User.UserStatus.PENDING
+        ):
+            another_link_exists = OAuthAccount.objects.filter(
+                USER=user,
+            ).exclude(pk=link.pk).exists()
+            if (
+                not oauth_user.email_authoritative
+                or oauth_user.email.casefold() != user.USER_EMAIL.casefold()
+                or another_link_exists
+                or (
+                    not user.EMAIL_VERIFIED
+                    and user.has_usable_password()
+                )
+            ):
+                raise OAuthLinkRequired()
+
+            user.EMAIL_VERIFIED = True
+            if user.EMAIL_VERIFIED_AT is None:
+                user.EMAIL_VERIFIED_AT = timezone.now()
+            user.USER_STATUS = User.UserStatus.ACTIVE
+            user.save(
+                update_fields=[
+                    "EMAIL_VERIFIED",
+                    "EMAIL_VERIFIED_AT",
+                    "USER_STATUS",
+                ],
             )
 
-            return user
+        link.save(update_fields=["OAUTH_LAST_LOGIN"])
+        return user

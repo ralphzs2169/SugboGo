@@ -29,6 +29,7 @@ class FacebookOAuthServiceTests(TestCase):
             "data": {
                 "is_valid": True,
                 "app_id": "facebook-app-id",
+                "user_id": "facebook-123",
             }
         }
 
@@ -50,6 +51,7 @@ class FacebookOAuthServiceTests(TestCase):
             "valid-token",
         )
 
+        self.assertFalse(user.email_authoritative)
         self.assertEqual(
             user.provider,
             "facebook",
@@ -94,6 +96,7 @@ class FacebookOAuthServiceTests(TestCase):
             "data": {
                 "is_valid": False,
                 "app_id": "facebook-app-id",
+                "user_id": "facebook-123",
             }
         }
 
@@ -142,6 +145,7 @@ class FacebookOAuthServiceTests(TestCase):
             "data": {
                 "is_valid": True,
                 "app_id": "facebook-app-id",
+                "user_id": "facebook-123",
             }
         }
 

@@ -39,8 +39,9 @@ export function useGoogleLogin() {
       const result = await googleLogin(idToken);
 
       if (!result.success) {
-        showOAuthError("Google");
-        router.replace("/(auth)/login");
+        showOAuthError("Google", result, () =>
+          router.push("/(auth)/forgot-password"),
+        );
         return;
       }
 
@@ -77,6 +78,9 @@ export function useGoogleLogin() {
   }, [response]);
 
   return {
-    handleGoogleLogin: () => promptAsync(),
+    handleGoogleLogin: () => {
+      handledResponse.current = false;
+      return promptAsync();
+    },
   };
 }

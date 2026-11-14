@@ -134,12 +134,15 @@ class AdminInvitationLifecycleTests(APITestCase):
         send_verification.assert_not_called()
         send_reset.assert_not_called()
 
-        verification = self.client.get(
+        verification = self.client.post(
             reverse("verify_email"),
             {
                 "uid": uid,
                 "token": email_verification_token_generator.make_token(user),
+                "password": self.password,
+                "confirm_password": self.password,
             },
+            format="json",
         )
         self.assertEqual(verification.status_code, 400, verification.data)
         self.assertEqual(verification.data["code"], "INVALID_VERIFICATION_LINK")

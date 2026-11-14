@@ -2,29 +2,26 @@ from core.responses import error_response, success_response
 from rest_framework import status
 from rest_framework.decorators import api_view, throttle_classes
 
-from apps.authentication.serializers import ResendVerificationSerializer
+from apps.authentication.serializers import (
+    ResendVerificationSerializer,
+    VerifyEmailSerializer,
+)
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.services.verification_service import EmailVerificationService
 from apps.authentication.throttles import ResendVerificationThrottle
 from apps.users.models import User
 
 
-@api_view(["GET"])
+@api_view(["POST"])
 def verify_email_view(request):
-    """Verify an eligible account using its emailed credentials."""
-    uid = request.query_params.get("uid")
-    token = request.query_params.get("token")
-
-    if not uid or not token:
-        return error_response(
-            message="Missing verification credentials.",
-            code="MISSING_CREDENTIALS",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
+    """Verify the address and set a password in the same operation."""
+    serializer = VerifyEmailSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
 
     verified = EmailVerificationService.verify_email(
-        uid,
-        token,
+        uid=serializer.validated_data["uid"],
+        token=serializer.validated_data["token"],
+        password=serializer.validated_data["password"],
     )
 
     if verified is None:
@@ -66,7 +63,7 @@ def resend_verification_view(request):
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
-    if user.EMAIL_VERIFIED:
+    if user.EMAIL_VERIFIED and user.is_active:
         return error_response(
             message="Email is already verified.",
             code="EMAIL_ALREADY_VERIFIED",

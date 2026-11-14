@@ -33,18 +33,20 @@ class PasswordResetService:
         user: User,
         platform: str,
     ) -> bool:
-        """Restrict recovery to active accounts in the requested portal."""
-        if not user.is_active:
-            return False
-
+        """Permit recovery for active and pending consumers or active, verified Admins."""
         if platform == Platform.WEB:
             return (
-                user.EMAIL_VERIFIED
+                user.is_active
+                and user.EMAIL_VERIFIED
                 and user_has_role(user, User.UserRole.ADMIN)
             )
 
         return (
             platform == Platform.MOBILE
+            and user.USER_STATUS in (
+                User.UserStatus.ACTIVE,
+                User.UserStatus.PENDING,
+            )
             and user.USER_ROLE in (
                 User.UserRole.EXPLORER,
                 User.UserRole.MERCHANT,
@@ -170,9 +172,17 @@ class PasswordResetService:
             return None
 
         user.set_password(password)
-        user.save(update_fields=["password"])
+        update_fields = ["password"]
+        if (
+            user.USER_STATUS == User.UserStatus.PENDING
+            and user.EMAIL_VERIFIED
+        ):
+            user.USER_STATUS = User.UserStatus.ACTIVE
+            update_fields.append("USER_STATUS")
+        user.save(update_fields=update_fields)
         AccountLockoutService.clear(user)
 
-        SessionService.revoke_all_sessions(user)
+        # Legacy links do not record how the external identity was trusted.
+        SessionService.revoke_all_sessions(user, revoke_oauth_links=True)
 
         return user

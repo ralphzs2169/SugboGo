@@ -56,7 +56,6 @@ class LoginResponseSerializer(serializers.Serializer):
 
 class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, trim_whitespace=False)
     first_name = serializers.CharField(max_length=50)
     last_name = serializers.CharField(max_length=50)
     
@@ -66,11 +65,6 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError("An account with this email already exists.")
         return email
 
-    def validate_password(self, value):
-        # Reuses Django's AUTH_PASSWORD_VALIDATORS from settings.py
-        # (min length, common password check, numeric-only check, etc.)
-        validate_password(value)
-        return value
 
     
 class ResendVerificationSerializer(serializers.Serializer):
@@ -117,15 +111,15 @@ class ValidateResetTokenSerializer(serializers.Serializer):
     token = serializers.CharField()
 
 
-class AdminInvitationTokenSerializer(serializers.Serializer):
-    """Validates the public Admin invitation token request shape."""
+class MailboxTokenSerializer(serializers.Serializer):
+    """Validate the shape of an emailed account proof."""
 
     uid = serializers.CharField()
     token = serializers.CharField()
 
 
-class CompleteAdminInvitationSerializer(AdminInvitationTokenSerializer):
-    """Validates the Admin invitation completion request shape."""
+class MailboxPasswordSerializer(MailboxTokenSerializer):
+    """Validate the shape of an emailed proof with a replacement password."""
 
     password = serializers.CharField(
         write_only=True,
@@ -137,6 +131,26 @@ class CompleteAdminInvitationSerializer(AdminInvitationTokenSerializer):
     )
 
     
+class AdminInvitationTokenSerializer(MailboxTokenSerializer):
+    """Validate the public Admin invitation token request."""
+
+
+class CompleteAdminInvitationSerializer(MailboxPasswordSerializer):
+    """Validate Admin invitation completion input."""
+
+
+class VerifyEmailSerializer(MailboxPasswordSerializer):
+    """Accept the mailbox proof and the password chosen by its holder."""
+
+    def validate(self, attrs):
+        """Require an exact password confirmation before consuming the proof."""
+        if attrs["password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."},
+            )
+        return attrs
+
+
 class GoogleLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField()
 

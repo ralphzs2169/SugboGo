@@ -8,7 +8,7 @@ export default function PasswordResetSuccessScreen() {
     <AuthSuccessScreen
       animation={successAnimation}
       title="Password Updated"
-      description="Your password has been updated successfully. You can now sign in using your new password."
+      description="Sign in with your new password. If email setup is still required, request a fresh verification link from the sign-in screen."
       buttonTitle="Sign In"
       onPress={() => router.replace("/(auth)/login")}
     />

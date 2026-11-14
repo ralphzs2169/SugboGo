@@ -63,7 +63,15 @@ class LoginService:
                 None,
             )
 
-        if not user.is_active:
+        pending_mobile_setup = (
+            user.USER_STATUS == User.UserStatus.PENDING
+            and not user.EMAIL_VERIFIED
+            and user.USER_ROLE in (
+                User.UserRole.EXPLORER,
+                User.UserRole.MERCHANT,
+            )
+        )
+        if not user.is_active and not pending_mobile_setup:
             return (
                 error_response(
                     message=f"Account is {user.USER_STATUS}. Please contact support.",

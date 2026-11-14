@@ -13,11 +13,16 @@ export function useVerifyEmail() {
   const [loading, setLoading] = useState(false);
 
   const handleVerifyEmail = useCallback(
-    async (uid: string, token: string): Promise<ApiMessageResponse> => {
+    async (
+      uid: string,
+      token: string,
+      password: string,
+      confirmPassword: string,
+    ): Promise<ApiMessageResponse> => {
       setLoading(true);
 
       try {
-        return await verifyEmail(uid, token);
+        return await verifyEmail(uid, token, password, confirmPassword);
       } finally {
         setLoading(false);
       }
