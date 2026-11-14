@@ -602,6 +602,13 @@ function getMapHelpText(
       description: "Click the map or drag the highlighted marker to reposition it.",
     };
   }
+  if (mode === TRANSIT_MODES.CREATE_VARIANT_ADJUST) {
+    return {
+      title: "Adding a direction",
+      description:
+        "Choose stops in the inspector. Select Draw Route to draw on the map.",
+    };
+  }
   if (isVariantEditingMode(mode)) {
     return {
       title: "Adjusting route path",

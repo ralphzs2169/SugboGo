@@ -57,7 +57,7 @@ export default function RouteInspector({
 
         {/* Variant action */}
         <Button className="mt-5 w-full" icon={Map} onClick={onEditVariant}>
-          Edit Path
+          Edit Direction
         </Button>
       </section>
     );
@@ -97,8 +97,8 @@ export default function RouteInspector({
       </Button>
       {!route.variants?.length && (
         <p className="mt-3 rounded-lg border border-dashed border-stroke-strong px-3 py-4 text-center text-xs text-text-secondary">
-          This route has no directions yet. Add its starting stop, last stop and
-          road path before it can provide jeepney guidance.
+          Next, add the starting stop, last stop, and road path for this route’s
+          first direction.
         </p>
       )}
     </section>

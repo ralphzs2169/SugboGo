@@ -591,7 +591,7 @@ export default function TransitNetworkWorkspace() {
     variantEditor.begin(selectedRoute);
     setSelectedVariantId(null);
     setSelectedVariantFallback(null);
-    setMode(TRANSIT_MODES.CREATE_VARIANT_DRAW);
+    setMode(TRANSIT_MODES.CREATE_VARIANT_ADJUST);
   }
 
   function startEditVariant() {
@@ -611,13 +611,17 @@ export default function TransitNetworkWorkspace() {
   function toggleRouteDrawing() {
     const isCreating = mode.startsWith("create-variant");
 
-    if (isRouteDrawingMode(mode)) {
+    if (isRouteDrawingMode(mode) && !variantEditor.isSelectingTransitPoint) {
       setMode(
         isCreating
           ? TRANSIT_MODES.CREATE_VARIANT_ADJUST
           : TRANSIT_MODES.EDIT_VARIANT_ADJUST,
       );
       return;
+    }
+
+    if (variantEditor.isSelectingTransitPoint) {
+      variantEditor.cancelTransitPointSelection();
     }
 
     setMode(

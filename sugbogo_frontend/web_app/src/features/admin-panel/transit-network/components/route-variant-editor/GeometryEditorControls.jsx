@@ -182,7 +182,9 @@ export default function GeometryEditorControls({
               No route path yet
             </p>
             <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-              Choose Draw Route, then click along the roads in travel order.
+              {isDrawing
+                ? "Click along the roads in travel order to start the path."
+                : "Choose Draw Route, then click along the roads in travel order."}
             </p>
           </div>
         )}

@@ -138,7 +138,9 @@ function RouteContextInspector({
         variant={mode.startsWith("edit-variant") ? selectedVariant : null}
         transitPoints={routeReferencePointsQuery.items}
         editor={variantEditor}
-        isDrawing={isRouteDrawingMode(mode)}
+        isDrawing={
+          isRouteDrawingMode(mode) && !variantEditor.isSelectingTransitPoint
+        }
         onToggleDrawing={onToggleDrawing}
         onCreateTransitPoint={onStartCreateTransitPoint}
         onCancel={onCancelVariant}

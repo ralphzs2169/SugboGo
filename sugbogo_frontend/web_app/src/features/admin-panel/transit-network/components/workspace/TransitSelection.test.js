@@ -233,6 +233,66 @@ test("adding or editing a route opens the collapsed inspector", async () => {
   assert.ok(button("Add Route"));
 });
 
+test("saving a new route leads to its first direction with stop selection and save guidance", async () => {
+  const lastStop = { ...point, id: 2, name: "Last stop option" };
+  pointListing = () => page([point, lastStop]);
+  const route = { id: 4, code: "R4", variant_count: 0, variants: [] };
+  const posts = [];
+  globalThis.__selectionPost = async (url, data) => {
+    posts.push({ url, data });
+    return response(route);
+  };
+  gates["/admin/transit/routes/4/"] = Promise.resolve(response(route));
+  await open("routes");
+
+  await click(button("Add Route"));
+  await input(inspector().querySelector('input[name="code"]'), route.code);
+  await click(button("Create Route"));
+  await until(() => button("Add First Direction"));
+  assert.equal(inspector().querySelector("h2").textContent, route.code);
+  assert.match(inspector().textContent, /Next, add the starting stop/);
+  assert.equal(globalThis.__selectionMap.mode, "browse");
+
+  await click(button("Add First Direction"));
+  assert.equal(globalThis.__selectionMap.mode, "create-variant-adjust");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.routeId, "4");
+  assert.match(container.textContent, /Choose the starting and last stops in the inspector/);
+  assert.match(
+    button("Save Direction").parentElement.parentElement.textContent,
+    /Choose a starting stop/,
+  );
+
+  await act(async () => inspector().querySelector("#variant-origin").focus());
+  await click(button(point.name));
+  assert.match(
+    button("Save Direction").parentElement.parentElement.textContent,
+    /Choose a last stop/,
+  );
+  await click(button("Save Direction"));
+  const errors = [...inspector().querySelectorAll('[role="alert"]')];
+  assert.ok(errors.some((error) => error.textContent === "Choose a last stop."));
+  assert.ok(errors.some((error) => error.textContent === "Add at least two drawing points to the route path."));
+  assert.deepEqual(posts, [{ url: "/admin/transit/routes/", data: { code: "R4" } }]);
+
+  await act(async () => inspector().querySelector("#variant-destination").focus());
+  await click(button(lastStop.name));
+  assert.match(
+    button("Save Direction").parentElement.parentElement.textContent,
+    /Add at least two drawing points/,
+  );
+  await click(button("Draw Route"));
+  assert.equal(globalThis.__selectionMap.mode, "create-variant-draw");
+  await click(button("Add stop along the way"));
+  assert.equal(globalThis.__selectionMap.variantEditor.isSelectingTransitPoint, true);
+  await click(button("Draw Route"));
+  assert.equal(globalThis.__selectionMap.variantEditor.isSelectingTransitPoint, false);
+  assert.equal(globalThis.__selectionMap.mode, "create-variant-draw");
+  await click(button("Stop Drawing"));
+  assert.equal(globalThis.__selectionMap.mode, "create-variant-adjust");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.originId, "1");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.destinationId, "2");
+});
+
 test("toolbar and empty-state point Add open the inspector and protect the draft", async () => {
   await open();
   excluded = true;
@@ -534,6 +594,15 @@ test("deleting the final record on a later page moves to the remaining valid pag
   assert.equal(globalThis.__selectionMap.selectedPoint, null);
   assert.equal(globalThis.__selectionMap.transitPoints.length, 10);
   assert.equal(reads.filter((read) => read.url.endsWith("transit-points/")).at(-1).options.params.page, 1);
+});
+
+test("Edit Direction opens the existing direction in adjust mode", async () => {
+  await open("routes");
+  await act(async () => globalThis.__selectionMap.onVariantSelect(variants[0]));
+  await click(button("Edit Direction"));
+  assert.equal(globalThis.__selectionMap.mode, "edit-variant-adjust");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.originId, "1");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.destinationId, "2");
 });
 
 test("deletion removes a recently created route point from fallback markers and selectors", async () => {
