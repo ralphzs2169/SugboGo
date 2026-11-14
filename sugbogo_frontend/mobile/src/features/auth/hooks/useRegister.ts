@@ -21,6 +21,8 @@ export function useRegister() {
     firstName: string,
     lastName: string,
     email: string,
+    password: string,
+    confirmPassword: string,
   ): Promise<ApiMessageResponse> => {
     setLoading(true);
 
@@ -29,6 +31,8 @@ export function useRegister() {
         first_name: firstName,
         last_name: lastName,
         email,
+        password,
+        confirm_password: confirmPassword,
       });
 
       if (response.success) {

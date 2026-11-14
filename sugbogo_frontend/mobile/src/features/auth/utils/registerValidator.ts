@@ -1,7 +1,11 @@
+import { validatePassword } from "./passwordValidator";
+
 export interface RegisterErrors {
   firstName?: string;
   lastName?: string;
   email?: string;
+  password?: string;
+  confirmPassword?: string;
 }
 
 /**
@@ -17,10 +21,22 @@ export function validateRegisterForm(
   firstName: string,
   lastName: string,
   email: string,
+  password: string,
+  confirmPassword: string,
 ): RegisterErrors {
   const errors: RegisterErrors = {};
 
+  const commonPasswords = [
+    "123456",
+    "12345678",
+    "password",
+    "password123",
+    "qwerty",
+    "qwerty123",
+  ];
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const passwordError = validatePassword(password);
 
   if (!firstName.trim()) {
     errors.firstName = "First name is required.";
@@ -34,6 +50,16 @@ export function validateRegisterForm(
     errors.email = "Email is required.";
   } else if (!emailRegex.test(email)) {
     errors.email = "Enter a valid email address.";
+  }
+
+  if (passwordError) {
+    errors.password = passwordError;
+  }
+
+  if (!confirmPassword.trim()) {
+    errors.confirmPassword = "Please confirm your password.";
+  } else if (password !== confirmPassword) {
+    errors.confirmPassword = "Passwords do not match.";
   }
 
   return errors;

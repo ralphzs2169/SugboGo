@@ -58,15 +58,38 @@ class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()
     first_name = serializers.CharField(max_length=50)
     last_name = serializers.CharField(max_length=50)
-    
+    password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+    confirm_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
     def validate_email(self, value):
         email = User.objects.normalize_email(value)
         if User.objects.filter(USER_EMAIL__iexact=email).exists():
             raise serializers.ValidationError("An account with this email already exists.")
         return email
 
+    def validate_password(self, value):
+        """Apply the configured registration password validators."""
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages) from exc
+        return value
 
-    
+    def validate(self, attrs):
+        """Require an exact match with the registration password."""
+        if attrs["password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."},
+            )
+        return attrs
+
+
 class ResendVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField()
  
@@ -139,16 +162,13 @@ class CompleteAdminInvitationSerializer(MailboxPasswordSerializer):
     """Validate Admin invitation completion input."""
 
 
-class VerifyEmailSerializer(MailboxPasswordSerializer):
-    """Accept the mailbox proof and the password chosen by its holder."""
+class VerifyEmailSerializer(MailboxTokenSerializer):
+    """Accept the mailbox proof and the account's existing password."""
 
-    def validate(self, attrs):
-        """Require an exact password confirmation before consuming the proof."""
-        if attrs["password"] != attrs["confirm_password"]:
-            raise serializers.ValidationError(
-                {"confirm_password": "Passwords do not match."},
-            )
-        return attrs
+    password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
 
 
 class GoogleLoginSerializer(serializers.Serializer):

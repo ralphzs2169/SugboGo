@@ -272,14 +272,12 @@ class GoogleOAuthSecurityTests(APITestCase):
         user.refresh_from_db()
         self.assertFalse(user.EMAIL_VERIFIED)
 
-        setup_password = "Verified-Mailbox-Password-762!"
         verification = self.client.post(
             reverse("verify_email"),
             {
                 "uid": uid,
                 "token": email_verification_token_generator.make_token(user),
-                "password": setup_password,
-                "confirm_password": setup_password,
+                "password": owner_password,
             },
             format="json",
         )
@@ -289,7 +287,7 @@ class GoogleOAuthSecurityTests(APITestCase):
         self.assertEqual(google_login.status_code, 200, google_login.data)
         self.assertEqual(google_login.data["data"]["user"]["id"], user.pk)
         user.refresh_from_db()
-        self.assertTrue(user.check_password(setup_password))
+        self.assertTrue(user.check_password(owner_password))
 
         attacker_login = self.client.post(
             reverse("login"),

@@ -109,7 +109,7 @@ export async function refreshAccessToken(
 /**
  * Registers a new user.
  *
- * Sends the details needed to start email signup.
+ * Sends the registration details and password confirmation.
  */
 export function register(
   data: RegisterRequest,
@@ -120,20 +120,18 @@ export function register(
 }
 
 /**
- * Completes email verification with a password chosen by the mailbox holder.
+ * Completes email verification with the account's existing password.
  */
 export function verifyEmail(
   uid: string,
   token: string,
   password: string,
-  confirmPassword: string,
 ): Promise<ApiMessageResponse> {
   return request(
     authClient.post<ApiMessageResponse>("/auth/verify-email/", {
       uid,
       token,
       password,
-      confirm_password: confirmPassword,
     }),
   );
 }

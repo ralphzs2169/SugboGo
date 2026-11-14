@@ -28,7 +28,7 @@ class OAuthLinkRequired(PermissionDenied):
     default_detail = (
         "Use your usual sign-in or sign up by email. To recover access, use Forgot "
         "password. If email setup is required, request a fresh verification link "
-        "and choose a different password to finish setup."
+        "and enter the password you set during recovery."
     )
     default_code = "oauth_link_required"
 

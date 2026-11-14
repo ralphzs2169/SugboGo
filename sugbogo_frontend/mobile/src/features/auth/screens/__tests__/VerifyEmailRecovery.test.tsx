@@ -2,7 +2,8 @@ import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import VerifyEmailScreen from "../VerifyEmailScreen";
 
 const mockReplace = jest.fn();
-const mockRouter = { replace: mockReplace };
+const mockPush = jest.fn();
+const mockRouter = { replace: mockReplace, push: mockPush };
 let mockParams: Record<string, unknown> = {};
 let mockPendingEmail: string | null = null;
 const mockVerify = jest.fn();
@@ -74,9 +75,9 @@ jest.mock("@/shared/components/form/FormInput", () => {
   return TextInput;
 });
 
-describe("email verification with mailbox password setup", () => {
-  const password = "Mailbox-owner-password-546!";
-  const confirm = "Verify and set password";
+describe("email verification with the registration password", () => {
+  const password = "Registration-password-546!";
+  const submit = "Verify email";
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -85,18 +86,19 @@ describe("email verification with mailbox password setup", () => {
     mockResend.mockResolvedValue({ success: true });
   });
 
-  it("waits for the mailbox holder to choose and explicitly submit a password", async () => {
+  it("does not redeem the link until the user enters their registration password", async () => {
     mockVerify.mockResolvedValue({ success: true });
     const screen = await render(<VerifyEmailScreen />);
     expect(mockVerify).not.toHaveBeenCalled();
 
-    await fireEvent.press(screen.getByRole("button", { name: confirm }));
+    expect(screen.queryByLabelText("New password")).toBeNull();
+    expect(screen.queryByLabelText("Confirm password")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
     expect(mockVerify).not.toHaveBeenCalled();
-    await fireEvent.changeText(screen.getByLabelText("New password"), password);
-    await fireEvent.changeText(screen.getByLabelText("Confirm password"), password);
-    await fireEvent.press(screen.getByRole("button", { name: confirm }));
+    await fireEvent.changeText(screen.getByLabelText("Registration password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
 
-    expect(mockVerify).toHaveBeenCalledWith("legacy-user-id", "legacy-token", password, password);
+    expect(mockVerify).toHaveBeenCalledWith("legacy-user-id", "legacy-token", password);
     expect(mockReplace).toHaveBeenCalledWith("/(auth)/email-verified");
   });
 
@@ -108,14 +110,20 @@ describe("email verification with mailbox password setup", () => {
     });
     mockVerify.mockResolvedValueOnce({ success: true });
     const screen = await render(<VerifyEmailScreen />);
-    await fireEvent.changeText(screen.getByLabelText("New password"), password);
-    await fireEvent.changeText(screen.getByLabelText("Confirm password"), password);
-    await fireEvent.press(screen.getByRole("button", { name: confirm }));
+    await fireEvent.changeText(screen.getByLabelText("Registration password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
     expect(mockVerify).toHaveBeenCalledTimes(1);
 
     expect(screen.getByText("Try again")).toBeTruthy();
-    await fireEvent.press(screen.getByRole("button", { name: confirm }));
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/(auth)/email-verified"));
+  });
+
+  it("opens the existing password recovery screen without redeeming the link", async () => {
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.press(screen.getByRole("button", { name: "Forgot password?" }));
+    expect(mockPush).toHaveBeenCalledWith("/(auth)/forgot-password");
+    expect(mockVerify).not.toHaveBeenCalled();
   });
 
   it("supports resending from the normal check-inbox screen", async () => {

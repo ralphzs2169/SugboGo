@@ -20,11 +20,18 @@ class PendingConsumerRecoveryTests(APITestCase):
 
     password = "Mailbox-Owner-Password-415!"
 
-    def create_pending(self, role, *, verified=False):
+    def create_pending(
+        self,
+        role,
+        *,
+        verified=False,
+        password=None,
+    ):
         """Create a pending consumer with or without existing mailbox verification."""
         cache.clear()
         return User.objects.create_user(
             email=f"{role}-{verified}@example.com",
+            password=password,
             USER_ROLE=role,
             USER_STATUS=User.UserStatus.PENDING,
             EMAIL_VERIFIED=verified,
@@ -44,23 +51,22 @@ class PendingConsumerRecoveryTests(APITestCase):
         query = parse_qs(urlparse(link).query)
         return {"uid": query["uid"][0], "token": query["token"][0]}
 
-    def redeem(self, endpoint, proof, *, password=None):
-        """Submit mailbox proof and set a password through an existing route."""
-        chosen_password = password or self.password
+    def redeem(self, endpoint, proof):
+        """Submit the appropriate password proof for the existing route."""
+        payload = {**proof, "password": self.password}
+        if endpoint == "reset_password":
+            payload["confirm_password"] = self.password
         return self.client.post(
             reverse(endpoint),
-            {
-                **proof,
-                "password": chosen_password,
-                "confirm_password": chosen_password,
-            },
+            payload,
             format="json",
         )
 
     def test_pending_explorer_and_merchant_can_verify_and_activate(self):
         for role in (User.UserRole.EXPLORER, User.UserRole.MERCHANT):
             with self.subTest(role=role):
-                user = self.create_pending(role)
+                user = self.create_pending(role, password=self.password)
+                registration_hash = user.password
                 proof = self.email_proof("resend_verification", "verification_link", user)
                 response = self.redeem("verify_email", proof)
                 self.assertEqual(response.status_code, 200, response.data)
@@ -68,7 +74,7 @@ class PendingConsumerRecoveryTests(APITestCase):
                 self.assertTrue(user.EMAIL_VERIFIED)
                 self.assertTrue(user.is_active)
                 self.assertEqual(user.USER_ROLE, role)
-                self.assertTrue(user.check_password(self.password))
+                self.assertEqual(user.password, registration_hash)
 
     def test_pending_consumer_reset_requires_fresh_verification_when_unverified(self):
         for role in (User.UserRole.EXPLORER, User.UserRole.MERCHANT):
@@ -78,6 +84,11 @@ class PendingConsumerRecoveryTests(APITestCase):
                     "uid": urlsafe_base64_encode(force_bytes(user.pk)),
                     "token": email_verification_token_generator.make_token(user),
                 }
+                self.assertFalse(user.has_usable_password())
+                self.assertEqual(
+                    self.redeem("verify_email", previous_verification).status_code,
+                    400,
+                )
                 proof = self.email_proof("forgot_password", "reset_link", user)
                 response = self.redeem("reset_password", proof)
                 self.assertEqual(response.status_code, 200, response.data)
@@ -97,9 +108,14 @@ class PendingConsumerRecoveryTests(APITestCase):
                 verification = self.redeem(
                     "verify_email",
                     fresh_proof,
-                    password="Verified-Mailbox-Password-762!",
                 )
                 self.assertEqual(verification.status_code, 200, verification.data)
+                login = self.client.post(
+                    reverse("login"),
+                    {"email": user.USER_EMAIL, "password": self.password},
+                    format="json",
+                )
+                self.assertEqual(login.status_code, 200, login.data)
 
     def test_previously_verified_pending_consumers_can_finish_recovery(self):
         for role in (User.UserRole.EXPLORER, User.UserRole.MERCHANT):

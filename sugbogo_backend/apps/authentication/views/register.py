@@ -11,7 +11,7 @@ from apps.users.models import User
 @api_view(["POST"])
 @throttle_classes([RegisterThrottle])
 def register_view(request):
-    """Create an unverified Explorer without accepting a sign-in password yet."""
+    """Create an unverified Explorer with the submitted registration password."""
     serializer = RegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
@@ -19,6 +19,7 @@ def register_view(request):
 
     user = User.objects.create_user(
         email=data["email"],
+        password=data["password"],
         USER_FNAME=data["first_name"],
         USER_LNAME=data["last_name"],
         USER_ROLE=User.UserRole.EXPLORER,
