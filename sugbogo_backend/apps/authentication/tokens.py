@@ -13,6 +13,12 @@ class PasswordResetPurposeTokenGenerator(PasswordResetTokenGenerator):
     key_salt = "apps.authentication.tokens.PasswordResetPurposeTokenGenerator"
 
 
+class AdminPasswordResetTokenGenerator(PasswordResetPurposeTokenGenerator):
+    """Separate Admin recovery proof from tokens issued by mobile recovery."""
+
+    key_salt = "apps.authentication.tokens.AdminPasswordResetTokenGenerator"
+
+
 class AdminInvitationTokenGenerator(PasswordResetTokenGenerator):
     """Generate state-bound tokens used only for Admin account setup."""
 
@@ -30,4 +36,5 @@ class AdminInvitationTokenGenerator(PasswordResetTokenGenerator):
 
 email_verification_token_generator = EmailVerificationTokenGenerator()
 password_reset_token_generator = PasswordResetPurposeTokenGenerator()
+admin_password_reset_token_generator = AdminPasswordResetTokenGenerator()
 admin_invitation_token_generator = AdminInvitationTokenGenerator()

@@ -6,6 +6,7 @@ from rest_framework.decorators import api_view, throttle_classes
 from apps.authentication.constants import Platform
 from apps.authentication.serializers import ForgotPasswordSerializer
 from apps.authentication.services.email_service import EmailService
+from apps.authentication.services.password_reset_service import PasswordResetService
 from apps.authentication.throttles import ForgotPasswordThrottle
 from apps.users.models import User
 
@@ -27,9 +28,15 @@ def forgot_password_view(request):
         user = None
 
 
-    if user is not None:
+    if (
+        user is not None
+        and PasswordResetService.is_eligible(user, Platform.MOBILE)
+    ):
         try:
-            EmailService.send_password_reset_email(user, platform=Platform.MOBILE)
+            EmailService.send_password_reset_email(
+                user,
+                platform=Platform.MOBILE,
+            )
         except Exception:
             logger.exception("Failed to send password reset email")
 

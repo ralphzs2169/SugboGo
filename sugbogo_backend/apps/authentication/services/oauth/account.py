@@ -21,7 +21,7 @@ class OAuthLoginDenied(PermissionDenied):
 
 
 class OAuthLinkRequired(PermissionDenied):
-    """Require existing-account proof before accepting an unsafe Google link."""
+    """Require existing-account proof before accepting an unsafe OAuth link."""
 
     default_detail = "Sign in with your existing account method to verify this account."
     default_code = "oauth_link_required"
@@ -51,6 +51,13 @@ class OAuthAccountService:
             raise OAuthAccountInactive(
                 f"Account is {user.USER_STATUS}. Please contact support.",
             )
+
+        # An OAuth login must not make a preregistered password usable.
+        if (
+            not user.EMAIL_VERIFIED
+            and user.has_usable_password()
+        ):
+            raise OAuthLinkRequired()
 
     @staticmethod
     def get_or_create_user(oauth_user: OAuthUser) -> User:

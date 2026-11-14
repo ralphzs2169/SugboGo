@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 from django.urls import reverse
 from rest_framework import status
@@ -26,6 +27,7 @@ class AdminForgotPasswordViewTests(
             USER_LNAME="User",
             USER_ROLE=User.UserRole.ADMIN,
             USER_STATUS=User.UserStatus.ACTIVE,
+            EMAIL_VERIFIED=True,
         )
 
         self.super_admin = User.objects.create_user(
@@ -35,6 +37,7 @@ class AdminForgotPasswordViewTests(
             USER_LNAME="Admin",
             USER_ROLE=User.UserRole.SUPER_ADMIN,
             USER_STATUS=User.UserStatus.ACTIVE,
+            EMAIL_VERIFIED=True,
         )
 
         self.explorer = User.objects.create_user(
@@ -218,3 +221,44 @@ class AdminForgotPasswordViewTests(
             self.super_admin,
             platform=Platform.WEB,
         )
+
+    @patch("apps.authentication.services.email_service.EmailService.send_email")
+    def test_admin_reset_email_can_be_validated_and_redeemed(
+        self,
+        mock_send_email,
+    ):
+        """Complete the Admin recovery path using proof from the existing web email."""
+        request = self.client.post(
+            self.url,
+            {"email": self.admin.USER_EMAIL},
+            format="json",
+        )
+        self.assertEqual(request.status_code, 200, request.data)
+        mock_send_email.assert_called_once()
+        link = mock_send_email.call_args.kwargs["context"]["reset_link"]
+        query = parse_qs(urlparse(link).query)
+        proof = {
+            "uid": query["uid"][0],
+            "token": query["token"][0],
+        }
+
+        validation = self.client.post(
+            reverse("validate_reset_token"),
+            proof,
+            format="json",
+        )
+        self.assertEqual(validation.status_code, 200, validation.data)
+
+        new_password = "Recovered-Admin-Password-419!"
+        reset = self.client.post(
+            reverse("reset_password"),
+            {
+                **proof,
+                "password": new_password,
+                "confirm_password": new_password,
+            },
+            format="json",
+        )
+        self.assertEqual(reset.status_code, 200, reset.data)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.check_password(new_password))

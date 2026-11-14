@@ -54,6 +54,40 @@ class ForgotPasswordViewTests(APIResponseAssertionsMixin, APITestCase):
         mock_send.assert_called_once_with(self.user, platform=Platform.MOBILE)
 
     @patch(
+        "apps.authentication.views.forgot_password.EmailService.send_password_reset_email",
+    )
+    def test_mobile_recovery_skips_privileged_and_inactive_accounts(
+        self,
+        mock_send,
+    ):
+        """Keep a uniform response when mobile recovery cannot issue a token."""
+        for role, account_status in (
+            (User.UserRole.EXPLORER, User.UserStatus.PENDING),
+            (User.UserRole.EXPLORER, User.UserStatus.SUSPENDED),
+            (User.UserRole.MERCHANT, User.UserStatus.DISABLED),
+            (User.UserRole.ADMIN, User.UserStatus.ACTIVE),
+            (User.UserRole.SUPER_ADMIN, User.UserStatus.ACTIVE),
+        ):
+            with self.subTest(role=role, account_status=account_status):
+                User.objects.filter(pk=self.user.pk).update(
+                    USER_ROLE=role,
+                    USER_STATUS=account_status,
+                )
+                response = self.client.post(
+                    self.url,
+                    {"email": self.user.USER_EMAIL},
+                    format="json",
+                )
+                self.assertSuccessResponse(
+                    response,
+                    message=(
+                        "If an account exists with this email, "
+                        "a password reset link has been sent."
+                    ),
+                )
+        mock_send.assert_not_called()
+
+    @patch(
         "apps.authentication.views.forgot_password.EmailService.send_password_reset_email"
     )
     def test_nonexistent_email_returns_same_response(

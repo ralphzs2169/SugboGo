@@ -204,16 +204,21 @@ class AccountDeactivationTests(APIResponseAssertionsMixin, APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.USER_STATUS, User.UserStatus.DISABLED)
 
-    def test_password_reset_does_not_reactivate_account(self):
+    def test_password_reset_cannot_change_a_disabled_account(self):
+        """Reject password updates while a disabled account awaits manual restoration."""
         self.client.post(self.url, self.payload)
         self.user.refresh_from_db()
+        original_password = self.user.password
         token = password_reset_token_generator.make_token(self.user)
         updated = PasswordResetService.reset_password(
-            urlsafe_base64_encode(force_bytes(self.user.pk)), token, "ReplacementSecure981!",
+            urlsafe_base64_encode(force_bytes(self.user.pk)),
+            token,
+            "ReplacementSecure981!",
         )
-        self.assertIsNotNone(updated)
+        self.assertIsNone(updated)
         self.user.refresh_from_db()
         self.assertEqual(self.user.USER_STATUS, User.UserStatus.DISABLED)
+        self.assertEqual(self.user.password, original_password)
 
     def test_manual_reactivation_requires_fresh_login_and_never_restores_old_tokens(self):
         self.client.post(self.url, self.payload)

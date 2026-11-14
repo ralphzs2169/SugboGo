@@ -3,10 +3,16 @@ from unittest.mock import patch
 from django.core.cache import cache
 from django.test import override_settings
 from django.urls import reverse
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 
 from apps.authentication.models import OAuthAccount
+from apps.authentication.tokens import (
+    email_verification_token_generator,
+    password_reset_token_generator,
+)
 from apps.users.models import User
 
 
@@ -60,6 +66,7 @@ class GoogleOAuthSecurityTests(APITestCase):
         previous_status = user.USER_STATUS
         previous_verified = user.EMAIL_VERIFIED
         previous_verified_at = user.EMAIL_VERIFIED_AT
+        previous_password = user.password
         previous_links = list(
             OAuthAccount.objects.filter(USER=user).values()
         )
@@ -72,6 +79,7 @@ class GoogleOAuthSecurityTests(APITestCase):
         self.assertEqual(user.USER_STATUS, previous_status)
         self.assertEqual(user.EMAIL_VERIFIED, previous_verified)
         self.assertEqual(user.EMAIL_VERIFIED_AT, previous_verified_at)
+        self.assertEqual(user.password, previous_password)
         self.assertIsNone(user.last_login)
         self.assertEqual(
             list(OAuthAccount.objects.filter(USER=user).values()),
@@ -154,6 +162,91 @@ class GoogleOAuthSecurityTests(APITestCase):
                         OAuthAccount.objects.get(USER=user).OAUTH_PROVIDER_ID,
                         self.payload["sub"],
                     )
+
+    def test_preregistered_password_does_not_become_usable_through_google(self):
+        """Require mailbox recovery before Google can link to an unverified password signup."""
+        attacker_password = "Preregistered-Sample-Password-684!"
+        owner_password = "Recovered-Account-Password-931!"
+        with patch(
+            "apps.authentication.views.register.EmailService.send_verification_email",
+        ):
+            registration = self.client.post(
+                reverse("register"),
+                {
+                    "email": self.payload["email"],
+                    "first_name": "Sample",
+                    "last_name": "User",
+                    "password": attacker_password,
+                },
+                format="json",
+            )
+        self.assertEqual(registration.status_code, 201, registration.data)
+        user = User.objects.get(USER_EMAIL=self.payload["email"])
+
+        self.assert_denied_without_account_changes(user)
+
+        password_login = self.client.post(
+            reverse("login"),
+            {
+                "email": user.USER_EMAIL,
+                "password": attacker_password,
+            },
+            format="json",
+        )
+        self.assertEqual(password_login.data["code"], "EMAIL_NOT_VERIFIED")
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        recovery = self.client.post(
+            reverse("reset_password"),
+            {
+                "uid": uid,
+                "token": password_reset_token_generator.make_token(user),
+                "password": owner_password,
+                "confirm_password": owner_password,
+            },
+            format="json",
+        )
+        self.assertEqual(recovery.status_code, 200, recovery.data)
+        user.refresh_from_db()
+        self.assertFalse(user.EMAIL_VERIFIED)
+
+        verification = self.client.get(
+            reverse("verify_email"),
+            {
+                "uid": uid,
+                "token": email_verification_token_generator.make_token(user),
+            },
+        )
+        self.assertEqual(verification.status_code, 200, verification.data)
+
+        google_login = self.login()
+        self.assertEqual(google_login.status_code, 200, google_login.data)
+        self.assertEqual(google_login.data["data"]["user"]["id"], user.pk)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password(owner_password))
+
+        attacker_login = self.client.post(
+            reverse("login"),
+            {
+                "email": user.USER_EMAIL,
+                "password": attacker_password,
+            },
+            format="json",
+        )
+        self.assertEqual(attacker_login.data["code"], "INVALID_CREDENTIALS")
+
+    def test_existing_google_link_cannot_activate_an_unverified_usable_password(self):
+        """Apply the password guard when the provider subject already has a link."""
+        user = self.create_user(self.payload["email"], verified=False)
+        user.set_password("Unverified-Sample-Password-572!")
+        user.save(update_fields=["password"])
+        OAuthAccount.objects.create(
+            USER=user,
+            OAUTH_PROVIDER="google",
+            OAUTH_PROVIDER_ID=self.payload["sub"],
+        )
+
+        self.assert_denied_without_account_changes(user)
 
     def test_third_party_email_collision_requires_existing_account_proof(self):
         for status in (User.UserStatus.ACTIVE, User.UserStatus.PENDING):

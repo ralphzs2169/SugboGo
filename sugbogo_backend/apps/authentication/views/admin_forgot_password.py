@@ -2,9 +2,9 @@ from core.responses import success_response
 from rest_framework.decorators import api_view, throttle_classes
 
 from apps.authentication.constants import Platform
-from apps.authentication.permissions import user_has_role
 from apps.authentication.serializers import ForgotPasswordSerializer
 from apps.authentication.services.email_service import EmailService
+from apps.authentication.services.password_reset_service import PasswordResetService
 from apps.authentication.throttles import ForgotPasswordThrottle
 from apps.users.models import User
 
@@ -24,13 +24,13 @@ def admin_forgot_password_view(request):
     try:
         user = User.objects.get(USER_EMAIL__iexact=email)
 
-        if not user_has_role(user, User.UserRole.ADMIN):
-            user = None
-
     except User.DoesNotExist:
         user = None
 
-    if user is not None:
+    if (
+        user is not None
+        and PasswordResetService.is_eligible(user, Platform.WEB)
+    ):
         try:
             EmailService.send_password_reset_email(
                 user,

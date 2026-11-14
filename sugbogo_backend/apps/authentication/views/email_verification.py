@@ -1,8 +1,6 @@
 from core.responses import error_response, success_response
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, throttle_classes
-from rest_framework.exceptions import Throttled
 
 from apps.authentication.serializers import ResendVerificationSerializer
 from apps.authentication.services.email_service import EmailService
@@ -13,6 +11,7 @@ from apps.users.models import User
 
 @api_view(["GET"])
 def verify_email_view(request):
+    """Verify an eligible account using its emailed credentials."""
     uid = request.query_params.get("uid")
     token = request.query_params.get("token")
 
@@ -23,10 +22,13 @@ def verify_email_view(request):
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    user = EmailVerificationService.verify_token(uid, token)
+    verified = EmailVerificationService.verify_email(
+        uid,
+        token,
+    )
 
-    if user is None:
-       return error_response(
+    if verified is None:
+        return error_response(
             message=(
                 "This verification link is invalid or has expired. "
                 "Please request a new verification email."
@@ -35,23 +37,15 @@ def verify_email_view(request):
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    if user.EMAIL_VERIFIED:
+    if not verified:
         return success_response(message="Email is already verified.")
-
-    user.EMAIL_VERIFIED = True
-    user.EMAIL_VERIFIED_AT = timezone.now()
-    user.save(
-        update_fields=[
-            "EMAIL_VERIFIED",
-            "EMAIL_VERIFIED_AT",
-        ]
-    )
 
     return success_response(message="Email verified successfully.")
 
 @api_view(["POST"])
 @throttle_classes([ResendVerificationThrottle])
 def resend_verification_view(request):
+    """Resend ordinary verification for eligible, unverified accounts."""
     serializer = ResendVerificationSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
@@ -60,6 +54,12 @@ def resend_verification_view(request):
     try:
         user = User.objects.get(USER_EMAIL__iexact=email)
     except User.DoesNotExist:
+        user = None
+
+    if (
+        user is None
+        or not EmailVerificationService.is_eligible(user)
+    ):
         return error_response(
             message="No account found with this email.",
             code="USER_NOT_FOUND",

@@ -183,7 +183,7 @@ class FacebookLoginViewTests(
     @patch(
         "apps.authentication.views.facebook_login_view.FacebookOAuthService.verify_access_token"
     )
-    def test_pending_user_is_activated(
+    def test_pending_user_without_password_is_activated(
         self,
         mock_verify,
     ):
@@ -191,7 +191,7 @@ class FacebookLoginViewTests(
 
         user = User.objects.create_user(
             email="john@example.com",
-            password="Password123!",
+            password=None,
             USER_FNAME="John",
             USER_LNAME="Doe",
             USER_ROLE=User.UserRole.EXPLORER,
