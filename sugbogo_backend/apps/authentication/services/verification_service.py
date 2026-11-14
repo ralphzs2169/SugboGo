@@ -1,3 +1,6 @@
+from urllib.parse import urlencode
+
+from django.conf import settings
 from django.contrib.auth.hashers import check_password
 from django.db import transaction
 from django.utils import timezone
@@ -14,8 +17,6 @@ from apps.authentication.services.session_service import SessionService
 from apps.authentication.tokens import email_verification_token_generator
 from apps.users.models import User
 import logging
-
-from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +66,13 @@ class EmailVerificationService:
                 f"&token={token}"
             )
 
-        return (
-            f"{settings.MOBILE_SCHEME}verify-email"
-            f"?uid={uid}"
-            f"&token={token}"
+        query = urlencode(
+            {
+                "uid": uid,
+                "token": token,
+            },
         )
+        return f"{settings.EMAIL_VERIFICATION_URL}?{query}"
 
 
     @staticmethod

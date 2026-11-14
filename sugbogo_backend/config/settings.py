@@ -335,16 +335,15 @@ BACKEND_URL = os.getenv(
     "http://localhost:8000",
 )
 
-# Email Verification URL
+# Mobile email links open the app or the static browser fallback.
 EMAIL_VERIFICATION_URL = os.getenv(
     "EMAIL_VERIFICATION_URL",
-    "http://localhost:8000/api/auth/verify-email/",
+    "https://sugbogo.app/verify-email",
 )
 
-# Password Reset URL
 PASSWORD_RESET_URL = os.getenv(
     "PASSWORD_RESET_URL",
-    "http://localhost:8000/api/auth/reset-password/",
+    "https://sugbogo.app/reset-password",
 )
 
 # Email verification / password reset token lifetime (24 hours)

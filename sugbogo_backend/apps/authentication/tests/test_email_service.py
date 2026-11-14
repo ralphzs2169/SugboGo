@@ -1,4 +1,6 @@
+from html import escape
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 import resend
 from django.test import TestCase, override_settings
@@ -230,3 +232,32 @@ class EmailServiceTests(TestCase):
                 "reset_link": "https://example.com/reset",
             },
         )
+
+    @override_settings(
+        EMAIL_VERIFICATION_URL="https://sugbogo.app/verify-email",
+        PASSWORD_RESET_URL="https://sugbogo.app/reset-password",
+    )
+    @patch("apps.authentication.services.email_service.resend.Emails.send")
+    def test_mobile_email_buttons_and_plaintext_carry_the_same_https_link(
+        self,
+        mock_send,
+    ):
+        for send, path in (
+            (EmailService.send_verification_email, "/verify-email"),
+            (EmailService.send_password_reset_email, "/reset-password"),
+        ):
+            with self.subTest(path=path):
+                send(self.user)
+                email = mock_send.call_args.args[0]
+                links = [
+                    line.strip()
+                    for line in email["text"].splitlines()
+                    if line.strip().startswith("https://")
+                ]
+                self.assertEqual(len(links), 1)
+                link = links[0]
+                parsed = urlsplit(link)
+                self.assertEqual(parsed.netloc, "sugbogo.app")
+                self.assertEqual(parsed.path, path)
+                self.assertEqual(set(parse_qs(parsed.query)), {"uid", "token"})
+                self.assertIn(f'href="{escape(link)}"', email["html"])

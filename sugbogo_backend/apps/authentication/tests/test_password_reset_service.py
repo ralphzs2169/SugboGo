@@ -1,4 +1,6 @@
-from django.test import TestCase
+from urllib.parse import parse_qs, urlsplit
+
+from django.test import TestCase, override_settings
 from django.utils.encoding import force_bytes
 from django.utils.http import (
     urlsafe_base64_encode,
@@ -34,18 +36,26 @@ class PasswordResetServiceTests(TestCase):
             EMAIL_VERIFIED=True,
         )
 
-    def test_generate_mobile_reset_link_returns_valid_link(self):
-        link = PasswordResetService.generate_reset_link(
+    @override_settings(PASSWORD_RESET_URL="https://sugbogo.app/reset-password")
+    def test_mobile_reset_link_preserves_signed_proof(self):
+        link = urlsplit(
+            PasswordResetService.generate_reset_link(
+                self.user,
+                platform=Platform.MOBILE,
+            ),
+        )
+        self.assertEqual(link.scheme, "https")
+        self.assertEqual(link.netloc, "sugbogo.app")
+        self.assertEqual(link.path, "/reset-password")
+        query = parse_qs(link.query)
+        self.assertEqual(set(query), {"uid", "token"})
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        self.assertEqual(query["uid"], [uid])
+        self.assertEqual(len(query["token"]), 1)
+        self.assertEqual(
+            PasswordResetService.verify_token(uid, query["token"][0]),
             self.user,
-            platform=Platform.MOBILE,
         )
-
-        self.assertTrue(
-            link.startswith(f"{settings.MOBILE_SCHEME}reset-password"),
-        )
-
-        self.assertIn("uid=", link)
-        self.assertIn("token=", link)
 
 
     def test_generate_web_reset_link_returns_valid_link(self):

@@ -1,8 +1,13 @@
-from django.test import TestCase
+from urllib.parse import parse_qs, urlsplit
+
+from django.test import TestCase, override_settings
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 
 from apps.authentication.services.verification_service import (
     EmailVerificationService,
 )
+from apps.authentication.tokens import email_verification_token_generator
 
 from apps.users.models import User
 
@@ -21,19 +26,23 @@ class EmailVerificationServiceTests(TestCase):
         )
 
 
-    def test_generate_verification_link_contains_credentials(self):
-        link = EmailVerificationService.generate_verification_link(
-            self.user
+    @override_settings(EMAIL_VERIFICATION_URL="https://sugbogo.app/verify-email")
+    def test_mobile_verification_link_preserves_signed_proof(self):
+        link = urlsplit(
+            EmailVerificationService.generate_verification_link(self.user),
         )
-
-        self.assertIn(
-            "uid=",
-            link,
-        )
-
-        self.assertIn(
-            "token=",
-            link,
+        self.assertEqual(link.scheme, "https")
+        self.assertEqual(link.netloc, "sugbogo.app")
+        self.assertEqual(link.path, "/verify-email")
+        query = parse_qs(link.query)
+        self.assertEqual(set(query), {"uid", "token"})
+        self.assertEqual(query["uid"], [urlsafe_base64_encode(force_bytes(self.user.pk))])
+        self.assertEqual(len(query["token"]), 1)
+        self.assertTrue(
+            email_verification_token_generator.check_token(
+                self.user,
+                query["token"][0],
+            ),
         )
 
 

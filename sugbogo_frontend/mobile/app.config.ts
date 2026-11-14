@@ -34,6 +34,18 @@ export default (): ExpoConfig => ({
     predictiveBackGestureEnabled: false,
 
     package: "com.sugbogo.app",
+
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        category: ["BROWSABLE", "DEFAULT"],
+        data: [
+          { scheme: "https", host: "sugbogo.app", path: "/verify-email" },
+          { scheme: "https", host: "sugbogo.app", path: "/reset-password" },
+        ],
+      },
+    ],
   },
 
   web: {
