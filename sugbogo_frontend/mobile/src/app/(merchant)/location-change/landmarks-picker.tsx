@@ -1,4 +1,4 @@
-import { router, type Href } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect } from "react";
 import Toast from "react-native-toast-message";
 
@@ -12,15 +12,13 @@ import type { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
 
 /** Reuses the Registration custom-pin picker for proposal landmarks. */
 export default function LocationChangeLandmarkPickerRoute() {
+  const { purpose } = useLocalSearchParams<{ purpose?: string }>();
   const { business, isLoading: isProfileLoading } =
     useMerchantBusinessProfile();
   const { pendingRequest, isLoading: isRequestsLoading } =
     useMerchantLocationChangeRequests();
   const location = useLocationChangeDraftStore((state) => state.location);
   const landmarks = useLocationChangeDraftStore((state) => state.landmarks);
-  const setLandmarks = useLocationChangeDraftStore(
-    (state) => state.setLandmarks,
-  );
   const isIneligible =
     !business ||
     business.status !== "active" ||
@@ -46,7 +44,10 @@ export default function LocationChangeLandmarkPickerRoute() {
   }
 
   function handleConfirm(landmark: BusinessLandmark) {
-    if (landmarks.length >= 5) {
+    const current = useLocationChangeDraftStore.getState();
+    if (current.location !== location) return;
+
+    if (current.landmarks.length >= 5) {
       Toast.show({
         type: "error",
         text1: "Maximum landmarks reached",
@@ -54,8 +55,16 @@ export default function LocationChangeLandmarkPickerRoute() {
       });
       return;
     }
-    setLandmarks([...landmarks, landmark]);
-    Toast.show({ type: "success", text1: "Landmark added" });
+    if (purpose === "arrival") {
+      current.setArrivalLandmark(landmark.id, landmark);
+    } else {
+      current.setLandmarks([...current.landmarks, landmark]);
+    }
+    Toast.show({
+      type: "success",
+      text1:
+        purpose === "arrival" ? "Arrival landmark selected" : "Landmark added",
+    });
     router.back();
   }
 

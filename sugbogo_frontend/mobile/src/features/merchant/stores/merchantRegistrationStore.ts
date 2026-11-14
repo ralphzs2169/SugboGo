@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { selectArrivalLandmark } from "../utils/selectArrivalLandmark";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { subscribeAuthSessionChanges } from "@/shared/api/authSessionGeneration.service";
@@ -116,39 +117,11 @@ export const useMerchantRegistrationStore = create<MerchantRegistrationState>(
 
     setArrivalLandmark: (id) =>
       set((state) => {
-        const next = state.selectedLandmarks.find(
-          (landmark) => landmark.id === id,
+        return selectArrivalLandmark(
+          state.selectedLandmarks,
+          state.arrivalDirectionsDrafts,
+          id,
         );
-
-        if (id !== null && !next) {
-          return state;
-        }
-
-        const drafts = new Map(state.arrivalDirectionsDrafts);
-        const selectedLandmarks = state.selectedLandmarks.map((landmark) => {
-          if (landmark === next) {
-            return {
-              ...landmark,
-              is_arrival_point: true,
-              access_directions: landmark.is_arrival_point
-                ? (landmark.access_directions ?? "")
-                : (drafts.get(landmark.id) ?? ""),
-            };
-          }
-
-          if (landmark.is_arrival_point) {
-            drafts.set(landmark.id, landmark.access_directions ?? "");
-            return {
-              ...landmark,
-              is_arrival_point: false,
-              access_directions: "",
-            };
-          }
-
-          return landmark;
-        });
-
-        return { selectedLandmarks, arrivalDirectionsDrafts: drafts };
       }),
 
     setArrivalDirections: (directions) =>
