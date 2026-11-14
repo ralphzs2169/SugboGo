@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, MapPin, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, MapPin, Plus, Trash2 } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 
@@ -99,21 +99,19 @@ export default function OrderedTransitPointPanel({
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-text-primary">
-                  Choose a stop
+                  Add intermediate stops
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-                  Select an eligible marker on the map or search by name.
+                  Keep choosing stops by name, or select one on the map.
                 </p>
               </div>
               <Button
-                variant="action"
+                variant="secondary"
                 size="sm"
-                icon={X}
-                iconOnly
-                tooltipMessage="Cancel stop selection"
-                aria-label="Cancel stop selection"
                 onClick={onCancelTransitPointSelection}
-              />
+              >
+                Done
+              </Button>
             </div>
             <TransitPointSearchSelect
               id="route-transit-point-search"

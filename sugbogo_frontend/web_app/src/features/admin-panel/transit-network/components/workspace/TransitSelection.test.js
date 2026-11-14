@@ -293,6 +293,84 @@ test("saving a new route leads to its first direction with stop selection and sa
   assert.equal(globalThis.__selectionMap.variantEditor.editorState.destinationId, "2");
 });
 
+test("intermediate picker adds several stops in order before Done", async () => {
+  const lastStop = { ...point, id: 2, name: "Last stop option" };
+  const market = { ...point, id: 3, name: "Market stop" };
+  const church = { ...point, id: 4, name: "Church stop" };
+  const mapStop = { ...point, id: 5, name: "Map stop" };
+  pointListing = () => page([point, lastStop, market, church, mapStop]);
+  const picker = () => inspector().querySelector("#route-transit-point-search");
+  const options = () => [
+    ...inspector().querySelectorAll("#route-transit-point-search-options button"),
+  ];
+  const orderedNames = () => [
+    ...inspector().querySelectorAll("ol > li p:first-child"),
+  ].map((name) => name.textContent);
+
+  await open("routes");
+  await click(button("Add Direction"));
+  await until(() => inspector().querySelector("#variant-origin"));
+  const origin = inspector().querySelector("#variant-origin");
+  const destination = inspector().querySelector("#variant-destination");
+  await act(async () => origin.focus());
+  await click(button(point.name));
+  assert.equal(origin.getAttribute("aria-expanded"), "false");
+  await act(async () => destination.focus());
+  assert.equal(button(point.name), undefined);
+  await click(button(lastStop.name));
+  assert.equal(destination.getAttribute("aria-expanded"), "false");
+
+  await click(button("Add stop along the way"));
+  assert.deepEqual(
+    options().map((option) => option.textContent),
+    [market.name, church.name, mapStop.name],
+  );
+  const marketOption = button(market.name);
+  await act(async () => {
+    marketOption.focus();
+    marketOption.click();
+    marketOption.click();
+  });
+  assert.deepEqual(orderedNames(), [point.name, market.name, lastStop.name]);
+  assert.equal(document.activeElement, picker());
+  assert.equal(button(market.name), undefined);
+  await act(async () => {
+    globalThis.__selectionMap.onTransitPointSelect(point);
+    globalThis.__selectionMap.onTransitPointSelect(market);
+  });
+  assert.ok(picker());
+  assert.deepEqual(orderedNames(), [point.name, market.name, lastStop.name]);
+
+  await click(button(church.name));
+  assert.ok(picker());
+  assert.deepEqual(
+    orderedNames(),
+    [point.name, market.name, church.name, lastStop.name],
+  );
+  await click(button("Done"));
+  assert.equal(picker(), null);
+  assert.deepEqual(
+    globalThis.__selectionMap.variantEditor.editorState.intermediatePointIds,
+    ["3", "4"],
+  );
+
+  await click(inspector().querySelector('[aria-label="Move Church stop earlier"]'));
+  assert.deepEqual(
+    orderedNames(),
+    [point.name, church.name, market.name, lastStop.name],
+  );
+  await click(inspector().querySelector('[aria-label="Remove Market stop from route"]'));
+  assert.deepEqual(orderedNames(), [point.name, church.name, lastStop.name]);
+
+  await click(button("Add stop along the way"));
+  await act(async () => globalThis.__selectionMap.onTransitPointSelect(mapStop));
+  assert.equal(picker(), null);
+  assert.deepEqual(
+    orderedNames(),
+    [point.name, church.name, mapStop.name, lastStop.name],
+  );
+});
+
 test("toolbar and empty-state point Add open the inspector and protect the draft", async () => {
   await open();
   excluded = true;

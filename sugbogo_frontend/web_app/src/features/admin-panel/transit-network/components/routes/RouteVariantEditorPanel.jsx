@@ -70,7 +70,9 @@ export default function RouteVariantEditorPanel({
           isSelectingTransitPoint={editor.isSelectingTransitPoint}
           onBeginTransitPointSelection={editor.beginTransitPointSelection}
           onCancelTransitPointSelection={editor.cancelTransitPointSelection}
-          onSelectTransitPoint={editor.selectTransitPoint}
+          onSelectTransitPoint={(pointId) =>
+            editor.selectTransitPoint(pointId, { keepOpen: true })
+          }
           onCreateTransitPoint={onCreateTransitPoint}
           onMoveIntermediate={editor.moveIntermediate}
           onRemoveIntermediate={editor.removeIntermediate}

@@ -80,7 +80,9 @@ export default function TransitPointSearchSelect({
     onChange(String(point.id));
     setQuery("");
 
-    if (!alwaysOpen) {
+    if (alwaysOpen) {
+      inputRef.current?.focus();
+    } else {
       setIsOpen(false);
     }
   }
