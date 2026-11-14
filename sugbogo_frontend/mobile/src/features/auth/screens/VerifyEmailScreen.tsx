@@ -11,10 +11,6 @@ import { useResendVerification } from "@/features/auth/hooks/useResendVerificati
 import { useVerifyEmail } from "@/features/auth/hooks/useVerifyEmail";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
 import { validateForgotPasswordForm } from "@/features/auth/utils/forgotPasswordValidator";
-import {
-  type ResetPasswordErrors,
-  validateResetPasswordForm,
-} from "@/features/auth/utils/resetPasswordValidator";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FormInput from "@/shared/components/form/FormInput";
@@ -22,7 +18,7 @@ import PasswordInput from "@/shared/components/form/PasswordInput";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
 
-/** Completes setup only after the mailbox holder submits a new password. */
+/** Verifies the email link after the user enters their existing password. */
 export default function VerifyEmailScreen() {
   const { uid, token } = useLocalSearchParams();
 
@@ -47,36 +43,35 @@ function VerificationPasswordForm({ uid, token }: { uid: string; token: string }
   const { handleVerifyEmail, loading } = useVerifyEmail();
   const submitting = useRef(false);
   const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
-  const [errors, setErrors] = useState<ResetPasswordErrors>({});
+  const [passwordError, setPasswordError] = useState("");
   const [error, setError] = useState("");
 
   async function verify() {
     if (submitting.current) return;
-    const validationErrors = validateResetPasswordForm(password, confirmation);
-    setErrors(validationErrors);
     setError("");
-    if (Object.keys(validationErrors).length) return;
+    if (!password) {
+      setPasswordError("Enter your registration password.");
+      return;
+    }
+    setPasswordError("");
 
     submitting.current = true;
     try {
-      const response = await handleVerifyEmail(uid, token, password, confirmation);
+      const response = await handleVerifyEmail(uid, token, password);
       if (response.success) {
         setPassword("");
-        setConfirmation("");
         router.replace("/(auth)/email-verified");
         return;
       }
 
-      const passwordError = getFieldError(response, "password");
-      const confirmationError = getFieldError(response, "confirm_password");
-      setErrors({ password: passwordError, confirmPassword: confirmationError });
-      if (!passwordError && !confirmationError) {
-        setError(response.message || "Unable to finish setup. Please try again.");
+      const fieldError = getFieldError(response, "password");
+      setPasswordError(fieldError ?? "");
+      if (!fieldError) {
+        setError(response.message || "Unable to verify your email. Please try again.");
         handleSystemError(response);
       }
     } catch {
-      setError("Unable to finish setup. Please try again.");
+      setError("Unable to verify your email. Please try again.");
     } finally {
       submitting.current = false;
     }
@@ -86,47 +81,39 @@ function VerificationPasswordForm({ uid, token }: { uid: string; token: string }
     <AuthLayout>
       <View className="mb-6 gap-3">
         <AppText weight="bold" className="text-xl text-text-primary">
-          Verify your email and set a password
+          Verify your email
         </AppText>
         <AppText className="text-sm leading-5 text-text-secondary">
-          If you requested this account, choose the password you’ll use to sign in.
-          You can close this screen if you weren’t expecting the email.
+          Enter the password you used to register. If you reset it, enter your updated password.
+          If you didn’t create this account, you can close this screen.
         </AppText>
       </View>
       <PasswordInput
-        label="NEW PASSWORD"
-        accessibilityLabel="New password"
-        autoComplete="new-password"
-        textContentType="newPassword"
+        label="REGISTRATION PASSWORD"
+        accessibilityLabel="Registration password"
+        autoComplete="current-password"
+        textContentType="password"
         value={password}
         editable={!loading}
         onChangeText={(value) => {
           setPassword(value);
-          setErrors((previous) => ({ ...previous, password: undefined }));
+          setPasswordError("");
         }}
-        error={errors.password}
-      />
-      <PasswordInput
-        label="CONFIRM PASSWORD"
-        accessibilityLabel="Confirm password"
-        autoComplete="new-password"
-        textContentType="newPassword"
-        value={confirmation}
-        editable={!loading}
-        onChangeText={(value) => {
-          setConfirmation(value);
-          setErrors((previous) => ({ ...previous, confirmPassword: undefined }));
-        }}
-        error={errors.confirmPassword}
+        error={passwordError}
       />
       {error ? <VerificationError message={error} /> : null}
       <Button
-        title="Verify and set password"
+        title="Verify email"
         onPress={verify}
         loading={loading}
         disabled={loading}
         rounded="full"
         className="mb-4 mt-5"
+      />
+      <BottomAuthLink
+        text=""
+        actionText="Forgot password?"
+        onPress={() => router.push("/(auth)/forgot-password")}
       />
       <BottomAuthLink
         text=""
@@ -250,8 +237,8 @@ function VerificationEmailPrompt({ incompleteLink }: { incompleteLink: boolean }
 
   return (
     <EmailConfirmationLayout
-      title="Check your inbox"
-      description="Open your verification email to choose your password for"
+      title="Verify your email"
+      description="We've sent a verification email to"
       email={pendingEmail}
       openEmailApp={openEmailApp}
       resendTitle="Resend email"

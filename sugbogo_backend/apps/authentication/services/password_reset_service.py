@@ -1,3 +1,6 @@
+from urllib.parse import urlencode
+
+from django.conf import settings
 from django.db import transaction
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import (
@@ -16,7 +19,6 @@ from apps.authentication.tokens import (
     admin_password_reset_token_generator,
     password_reset_token_generator,
 )
-from config import settings
 from apps.authentication.services.account_lockout_service import AccountLockoutService
 
 logger = logging.getLogger(__name__)
@@ -80,11 +82,13 @@ class PasswordResetService:
             )
 
         token = password_reset_token_generator.make_token(user)
-        return (
-            f"{settings.MOBILE_SCHEME}reset-password"
-            f"?uid={uid}"
-            f"&token={token}"
+        query = urlencode(
+            {
+                "uid": uid,
+                "token": token,
+            },
         )
+        return f"{settings.PASSWORD_RESET_URL}?{query}"
 
     @staticmethod
     def _has_valid_token(

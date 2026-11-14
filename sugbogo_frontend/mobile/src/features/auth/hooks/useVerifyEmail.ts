@@ -17,12 +17,11 @@ export function useVerifyEmail() {
       uid: string,
       token: string,
       password: string,
-      confirmPassword: string,
     ): Promise<ApiMessageResponse> => {
       setLoading(true);
 
       try {
-        return await verifyEmail(uid, token, password, confirmPassword);
+        return await verifyEmail(uid, token, password);
       } finally {
         setLoading(false);
       }

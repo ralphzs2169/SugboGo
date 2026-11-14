@@ -5,9 +5,9 @@ Hello {{ user.USER_FNAME }},
 
 Welcome to SugboGo!
 
-If you requested a SugboGo account, open the link below in SugboGo to verify your email and choose your sign-in password.
+If you requested a SugboGo account, open the link below in SugboGo and enter your registration password to verify your email.
 
-{{ verification_link }}
+{% autoescape off %}{{ verification_link }}{% endautoescape %}
 
 This verification link will expire in 24 hours.
 

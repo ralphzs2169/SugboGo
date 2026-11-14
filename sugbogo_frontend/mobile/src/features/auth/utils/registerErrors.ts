@@ -15,5 +15,7 @@ export default function getRegisterErrors(error: ApiError): RegisterErrors {
     firstName: getFieldError(error, "first_name"),
     lastName: getFieldError(error, "last_name"),
     email: getFieldError(error, "email"),
+    password: getFieldError(error, "password"),
+    confirmPassword: getFieldError(error, "confirm_password"),
   };
 }

@@ -14,7 +14,7 @@ from apps.users.models import User
 
 @api_view(["POST"])
 def verify_email_view(request):
-    """Verify the address and set a password in the same operation."""
+    """Verify the address with the email link and the existing password."""
     serializer = VerifyEmailSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 

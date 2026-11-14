@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { BackHandler, View } from "react-native";
 import Toast from "react-native-toast-message";
@@ -26,18 +26,17 @@ const MASCOT_RESET_PASSWORD = require("@/shared/assets/mascot/mascot-reset-passw
  * Handles validation, reset-link errors, password updates, and navigation back
  * to the login flow after the reset process.
  */
-export default function ResetPasswordScreen() {
+export default function ResetPasswordScreen({
+  proof,
+}: {
+  proof?: { uid: string; token: string };
+}) {
   const router = useRouter();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<ResetPasswordErrors>({});
   const [formError, setFormError] = useState("");
-
-  const { uid, token } = useLocalSearchParams<{
-    uid: string;
-    token: string;
-  }>();
 
   const { handleResetPassword, loading } = useResetPassword();
 
@@ -82,15 +81,15 @@ export default function ResetPasswordScreen() {
     setErrors({});
     setFormError("");
 
-    if (!uid || !token) {
+    if (!proof) {
       setFormError("Invalid password reset link. Please request a new one.");
       return;
     }
 
     try {
       const response = await handleResetPassword(
-        uid.toString(),
-        token.toString(),
+        proof.uid,
+        proof.token,
         password,
         confirmPassword,
       );

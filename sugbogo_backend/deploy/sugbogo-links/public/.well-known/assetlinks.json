@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sugbogo.app",
+      "sha256_cert_fingerprints": [
+        "4D:C7:59:EC:45:F9:25:A9:01:A8:54:5C:BA:34:A3:E7:40:FE:F9:30:25:C2:E9:AE:CC:2C:80:A1:B0:47:5A:0B"
+      ]
+    }
+  }
+]

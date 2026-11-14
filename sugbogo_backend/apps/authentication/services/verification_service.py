@@ -1,6 +1,7 @@
+from urllib.parse import urlencode
+
+from django.conf import settings
 from django.contrib.auth.hashers import check_password
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
@@ -16,8 +17,6 @@ from apps.authentication.services.session_service import SessionService
 from apps.authentication.tokens import email_verification_token_generator
 from apps.users.models import User
 import logging
-
-from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +66,13 @@ class EmailVerificationService:
                 f"&token={token}"
             )
 
-        return (
-            f"{settings.MOBILE_SCHEME}verify-email"
-            f"?uid={uid}"
-            f"&token={token}"
+        query = urlencode(
+            {
+                "uid": uid,
+                "token": token,
+            },
         )
+        return f"{settings.EMAIL_VERIFICATION_URL}?{query}"
 
 
     @staticmethod
@@ -132,7 +133,7 @@ class EmailVerificationService:
         token: str,
         password: str,
     ) -> bool | None:
-        """Return True on verification, False on replay, or None for invalid proof."""
+        """Return True on verification, False if already verified, or None for an invalid link."""
         user = EmailVerificationService.verify_token(
             uid,
             token,
@@ -141,26 +142,25 @@ class EmailVerificationService:
         if user is None:
             return None
 
+        # Check the hash directly so verification never rewrites or upgrades it.
+        if not check_password(password, user.password):
+            raise ValidationError(
+                {
+                    "password": (
+                        "Enter the password you used to register. "
+                        "If you reset it, use your updated password and a fresh verification link."
+                    ),
+                },
+            )
+
         if user.EMAIL_VERIFIED and user.is_active:
             return False
 
-        try:
-            validate_password(password, user=user)
-        except DjangoValidationError as exc:
-            raise ValidationError({"password": exc.messages}) from exc
-
-        if check_password(password, user.password):
-            raise ValidationError(
-                {"password": "Choose a different password to finish setting up your account."},
-            )
-
-        user.set_password(password)
         user.EMAIL_VERIFIED = True
         user.EMAIL_VERIFIED_AT = timezone.now()
         user.USER_STATUS = User.UserStatus.ACTIVE
         user.save(
             update_fields=[
-                "password",
                 "EMAIL_VERIFIED",
                 "EMAIL_VERIFIED_AT",
                 "USER_STATUS",
