@@ -189,6 +189,11 @@ async function until(check) {
 const button = (text) => [...container.querySelectorAll("button")].find((node) => node.textContent.trim() === text);
 const inspector = () => container.querySelector("#transit-network-inspector");
 async function click(node) { await act(async () => node.click()); }
+async function collapseInspector() {
+  await click(container.querySelector('button[aria-label="Collapse inspector"]'));
+  assert.equal(inspector().getAttribute("aria-hidden"), "true");
+}
+
 async function input(node, value) {
   await act(async () => {
     Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(node, value);
@@ -211,6 +216,320 @@ async function refresh(key) {
   await act(async () => new Promise((done) => setTimeout(done, 25)));
 }
 
+test("adding or editing a route opens the collapsed inspector", async () => {
+  await open("routes");
+  await collapseInspector();
+  await click(button("Edit"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
+  assert.equal(inspector().querySelector('input[name="code"]').value, "R1");
+  await click(button("Cancel"));
+
+  await collapseInspector();
+  await click(button("Add Route"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
+  assert.equal(inspector().querySelector('input[name="code"]').value, "");
+  assert.equal(button("Add Route"), undefined);
+  await click(button("Cancel"));
+  assert.ok(button("Add Route"));
+});
+
+test("saving a new route leads to its first direction with stop selection and save guidance", async () => {
+  const lastStop = { ...point, id: 2, name: "Last stop option" };
+  pointListing = () => page([point, lastStop]);
+  const route = { id: 4, code: "R4", variant_count: 0, variants: [] };
+  const posts = [];
+  globalThis.__selectionPost = async (url, data) => {
+    posts.push({ url, data });
+    return response(route);
+  };
+  gates["/admin/transit/routes/4/"] = Promise.resolve(response(route));
+  await open("routes");
+
+  await click(button("Add Route"));
+  await input(inspector().querySelector('input[name="code"]'), route.code);
+  await click(button("Create Route"));
+  await until(() => button("Add First Direction"));
+  assert.equal(inspector().querySelector("h2").textContent, route.code);
+  assert.match(inspector().textContent, /Next, add the starting stop/);
+  assert.equal(globalThis.__selectionMap.mode, "browse");
+
+  await click(button("Add First Direction"));
+  assert.equal(globalThis.__selectionMap.mode, "create-variant-adjust");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.routeId, "4");
+  assert.match(container.textContent, /Choose the starting and last stops in the inspector/);
+  assert.match(
+    button("Save Direction").parentElement.parentElement.textContent,
+    /Choose a starting stop/,
+  );
+
+  await act(async () => inspector().querySelector("#variant-origin").focus());
+  await click(button(point.name));
+  assert.match(
+    button("Save Direction").parentElement.parentElement.textContent,
+    /Choose a last stop/,
+  );
+  await click(button("Save Direction"));
+  const errors = [...inspector().querySelectorAll('[role="alert"]')];
+  assert.ok(errors.some((error) => error.textContent === "Choose a last stop."));
+  assert.ok(errors.some((error) => error.textContent === "Add at least two drawing points to the route path."));
+  assert.deepEqual(posts, [{ url: "/admin/transit/routes/", data: { code: "R4" } }]);
+
+  await act(async () => inspector().querySelector("#variant-destination").focus());
+  await click(button(lastStop.name));
+  assert.match(
+    button("Save Direction").parentElement.parentElement.textContent,
+    /Add at least two drawing points/,
+  );
+  await click(button("Draw Route"));
+  assert.equal(globalThis.__selectionMap.mode, "create-variant-draw");
+  await click(button("Add stop along the way"));
+  assert.equal(globalThis.__selectionMap.variantEditor.isSelectingTransitPoint, true);
+  await click(button("Draw Route"));
+  assert.equal(globalThis.__selectionMap.variantEditor.isSelectingTransitPoint, false);
+  assert.equal(globalThis.__selectionMap.mode, "create-variant-draw");
+  await click(button("Stop Drawing"));
+  assert.equal(globalThis.__selectionMap.mode, "create-variant-adjust");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.originId, "1");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.destinationId, "2");
+});
+
+test("intermediate picker adds several stops in order before Done", async () => {
+  const lastStop = { ...point, id: 2, name: "Last stop option" };
+  const market = { ...point, id: 3, name: "Market stop" };
+  const church = { ...point, id: 4, name: "Church stop" };
+  const mapStop = { ...point, id: 5, name: "Map stop" };
+  pointListing = () => page([point, lastStop, market, church, mapStop]);
+  const picker = () => inspector().querySelector("#route-transit-point-search");
+  const options = () => [
+    ...inspector().querySelectorAll("#route-transit-point-search-options button"),
+  ];
+  const orderedNames = () => [
+    ...inspector().querySelectorAll("ol > li p:first-child"),
+  ].map((name) => name.textContent);
+
+  await open("routes");
+  await click(button("Add Direction"));
+  await until(() => inspector().querySelector("#variant-origin"));
+  const origin = inspector().querySelector("#variant-origin");
+  const destination = inspector().querySelector("#variant-destination");
+  await act(async () => origin.focus());
+  await click(button(point.name));
+  assert.equal(origin.getAttribute("aria-expanded"), "false");
+  await act(async () => destination.focus());
+  assert.equal(button(point.name), undefined);
+  await click(button(lastStop.name));
+  assert.equal(destination.getAttribute("aria-expanded"), "false");
+
+  await click(button("Add stop along the way"));
+  assert.deepEqual(
+    options().map((option) => option.textContent),
+    [market.name, church.name, mapStop.name],
+  );
+  const marketOption = button(market.name);
+  await act(async () => {
+    marketOption.focus();
+    marketOption.click();
+    marketOption.click();
+  });
+  assert.deepEqual(orderedNames(), [point.name, market.name, lastStop.name]);
+  assert.equal(document.activeElement, picker());
+  assert.equal(button(market.name), undefined);
+  await act(async () => {
+    globalThis.__selectionMap.onTransitPointSelect(point);
+    globalThis.__selectionMap.onTransitPointSelect(market);
+  });
+  assert.ok(picker());
+  assert.deepEqual(orderedNames(), [point.name, market.name, lastStop.name]);
+
+  await click(button(church.name));
+  assert.ok(picker());
+  assert.deepEqual(
+    orderedNames(),
+    [point.name, market.name, church.name, lastStop.name],
+  );
+  await click(button("Done"));
+  assert.equal(picker(), null);
+  assert.deepEqual(
+    globalThis.__selectionMap.variantEditor.editorState.intermediatePointIds,
+    ["3", "4"],
+  );
+
+  await click(inspector().querySelector('[aria-label="Move Church stop earlier"]'));
+  assert.deepEqual(
+    orderedNames(),
+    [point.name, church.name, market.name, lastStop.name],
+  );
+  await click(inspector().querySelector('[aria-label="Remove Market stop from route"]'));
+  assert.deepEqual(orderedNames(), [point.name, church.name, lastStop.name]);
+
+  await click(button("Add stop along the way"));
+  await act(async () => globalThis.__selectionMap.onTransitPointSelect(mapStop));
+  assert.equal(picker(), null);
+  assert.deepEqual(
+    orderedNames(),
+    [point.name, church.name, mapStop.name, lastStop.name],
+  );
+});
+
+test("toolbar and empty-state point Add open the inspector and protect the draft", async () => {
+  await open();
+  excluded = true;
+  await refresh(keys.transitPoints());
+  await until(() => button("Add First Point"));
+
+  await collapseInspector();
+  await click(button("Add Point"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
+  assert.equal(button("Add First Point"), undefined);
+  await click(button("Cancel"));
+
+  await collapseInspector();
+  await click(button("Add First Point"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
+  const field = inspector().querySelector('input[name="name"]');
+  await input(field, "First stop");
+  await act(async () => globalThis.__selectionMap.onPointPositionChange({ lat: 10.3, lng: 123.9 }));
+  assert.equal(button("Add Point"), undefined);
+  assert.equal(button("Add First Point"), undefined);
+
+  await click(button("Routes"));
+  assert.ok(button("Discard Changes"));
+  await click(button("Keep Editing"));
+  assert.equal(field.value, "First stop");
+  assert.deepEqual(globalThis.__selectionMap.pointDraftPosition, { lat: 10.3, lng: 123.9 });
+
+  excluded = false;
+  await click(button("Save Point"));
+  await until(() => globalThis.__selectionMap.selectedPoint?.name === "First stop");
+  assert.equal(globalThis.__selectionMap.selectedPoint.latitude, 10.3);
+  assert.equal(globalThis.__selectionMap.selectedPoint.longitude, 123.9);
+});
+
+test("switching tabs restores independent searches, pages, and selected records", async () => {
+  const route = { id: 1, code: "R1", variant_count: 1 };
+  const destination = { ...point, id: 2, name: "Last stop" };
+  const routeVariant = { ...variants[0], destination };
+  function resultPage(items, pageNumber) {
+    return {
+      items,
+      pagination: {
+        ...page(items).pagination,
+        page: pageNumber,
+        total_items: 30,
+        total_pages: 3,
+        has_next: pageNumber < 3,
+        has_previous: pageNumber > 1,
+      },
+    };
+  }
+  const get = globalThis.__selectionGet;
+  globalThis.__selectionGet = async (url, options = {}) => {
+    if (url === "/admin/transit/routes/") {
+      reads.push({ url, options });
+      return response(resultPage([route], options.params.page));
+    }
+    return get(url, options);
+  };
+  gates["/admin/transit/routes/1/"] = Promise.resolve(response({
+    ...route,
+    variants: [routeVariant],
+  }));
+  pointListing = (params) => params.page_size === 10
+    ? resultPage([point], params.page)
+    : page([point]);
+
+  const routeSearch = () => container.querySelector('[aria-label="Search jeepney routes"]');
+  const pointSearch = () => container.querySelector('[aria-label="Search Transit Points"]');
+  const currentPage = () => container.querySelector('[aria-current="page"]')?.textContent;
+  const nextPage = () => container.querySelector('[aria-label="Next page"]');
+  const lastListRead = (suffix) => reads.filter(
+    ({ url, options }) => url.endsWith(suffix) && options.params?.page_size === 10,
+  ).at(-1)?.options.params;
+
+  await open("routes");
+  await input(routeSearch(), "R1");
+  await until(() => lastListRead("/routes/")?.search === "R1");
+  await click(nextPage());
+  await until(() => lastListRead("/routes/")?.page === 2);
+  await click(button("Original stop → Last stop"));
+  await click(button("Transit Points"));
+  await until(() => nextPage() && !nextPage().disabled);
+  assert.equal(globalThis.__selectionMap.selectedVariantId, undefined);
+  await input(pointSearch(), "Original");
+  await until(() => lastListRead("/transit-points/")?.search === "Original");
+  await click(nextPage());
+  await click(nextPage());
+  await until(() => lastListRead("/transit-points/")?.page === 3);
+  await act(async () => globalThis.__selectionMap.onTransitPointSelect(point));
+  await until(() => button("Edit") && !button("Edit").disabled);
+
+  await click(button("Routes"));
+  assert.equal(routeSearch().value, "R1");
+  assert.equal(currentPage(), "2");
+  assert.ok(button("Original stop → Last stop"));
+  assert.ok(button("Edit Direction"));
+  assert.equal(globalThis.__selectionMap.selectedVariantId, routeVariant.id);
+  assert.equal(globalThis.__selectionMap.selectedPoint, null);
+  assert.equal(globalThis.__selectionMap.focusRequest, null);
+
+  await click(button("Transit Points"));
+  assert.equal(pointSearch().value, "Original");
+  assert.equal(currentPage(), "3");
+  assert.equal(globalThis.__selectionMap.selectedPoint.id, point.id);
+  assert.equal(globalThis.__selectionMap.focusRequest, null);
+
+  await input(pointSearch(), "stop");
+  await click(button("Routes"));
+  await click(button("Transit Points"));
+  await until(() => lastListRead("/transit-points/")?.search === "stop");
+  assert.equal(pointSearch().value, "stop");
+  assert.equal(currentPage(), "1");
+  assert.equal(lastListRead("/transit-points/").page, 1);
+
+  await until(() => button("Edit") && !button("Edit").disabled);
+  await click(button("Edit"));
+  const draft = inspector().querySelector('input[name="name"]');
+  await input(draft, "Unsaved point name");
+  await click(button("Routes"));
+  await click(button("Keep Editing"));
+  assert.equal(pointSearch().value, "stop");
+  assert.equal(draft.value, "Unsaved point name");
+  await click(button("Routes"));
+  await click(button("Discard Changes"));
+  assert.ok(button("Edit Direction"));
+  await click(button("Transit Points"));
+  assert.equal(pointSearch().value, "stop");
+  assert.match(inspector().textContent, /Original stop/);
+  assert.equal(inspector().querySelector('input[name="name"]'), null);
+});
+
+test("returning to an unavailable route or direction hides the stale selection", async () => {
+  const route = { id: 1, code: "R1", variant_count: 0, variants: [] };
+  await open("routes");
+  await act(async () => globalThis.__selectionMap.onVariantSelect(variants[0]));
+  assert.ok(button("Edit Direction"));
+  await click(button("Transit Points"));
+  gates["/admin/transit/routes/1/"] = Promise.resolve(response(route));
+  await click(button("Routes"));
+  await until(() => button("Add First Direction"));
+  assert.equal(button("Edit Direction"), undefined);
+  assert.equal(globalThis.__selectionMap.selectedVariantId, undefined);
+
+  await click(button("Transit Points"));
+  const get = globalThis.__selectionGet;
+  globalThis.__selectionGet = async (url, options) => {
+    if (url === "/admin/transit/routes/1/") {
+      throw { response: { status: 404 } };
+    }
+    return get(url, options);
+  };
+  await click(button("Routes"));
+  await until(() => inspector().textContent.includes("The selected route is no longer available."));
+  assert.equal(button("Edit"), undefined);
+  assert.deepEqual(globalThis.__selectionMap.routeVariants, []);
+  assert.ok(button("Try Again"));
+});
+
 test("point list refetch reconciles the inspector, map and off-page selection", async () => {
   await open();
   point = { ...point, name: "Refreshed stop", latitude: 10.4 };
@@ -224,6 +543,10 @@ test("point list refetch reconciles the inspector, map and off-page selection", 
   await refresh(keys.transitPoints());
   assert.match(inspector().textContent, /Refreshed stop/);
   assert.equal(button("Edit").disabled, false);
+  assert.equal(globalThis.__selectionMap.selectedPoint.id, point.id);
+  assert.equal(globalThis.__selectionMap.selectedPointOutsideResults, true);
+  assert.deepEqual(globalThis.__selectionMap.transitPoints, []);
+  assert.match(container.textContent, /The selected map marker is outside the current results/);
 });
 
 test("transfer refetch changes status and removes obsolete decision actions", async () => {
@@ -250,11 +573,22 @@ test("temporary errors retain selections while a detail 404 removes actionable r
   detailFailure = null;
   await click(button("Try Again"));
   await until(() => button("Edit") && !button("Edit").disabled);
+
+  await click(button("Routes"));
+  excluded = true;
+  detailFailure = { response: { status: 404 } };
+  await act(async () => client.invalidateQueries({ queryKey: keys.transitPoints() }));
+  await click(button("Transit Points"));
+  await until(() => container.textContent.includes("Selected record is no longer available"));
+  assert.equal(globalThis.__selectionMap.selectedPoint, null);
+  assert.equal(globalThis.__selectionMap.selectedPointOutsideResults, false);
 });
 
 test("dirty point values survive refresh and removal, preserve guard, and cancel to current data", async () => {
   await open();
+  await collapseInspector();
   await click(button("Edit"));
+  assert.equal(inspector().getAttribute("aria-hidden"), "false");
   assert.equal(button("Delete Point"), undefined);
   const field = container.querySelector('input[name="name"]');
   await input(field, "My draft");
@@ -476,6 +810,68 @@ test("deleting the final record on a later page moves to the remaining valid pag
   assert.equal(globalThis.__selectionMap.selectedPoint, null);
   assert.equal(globalThis.__selectionMap.transitPoints.length, 10);
   assert.equal(reads.filter((read) => read.url.endsWith("transit-points/")).at(-1).options.params.page, 1);
+});
+
+test("the direction inspector shows ordered stops and keeps editing explicit", async () => {
+  const firstStop = { ...point, name: "Starting landmark" };
+  const lastStop = { ...point, id: 2, name: "Ending landmark" };
+  const intermediateStops = ["Zeta stop", "Alpha stop", "Market stop"].map(
+    (name, index) => ({ ...point, id: index + 3, name }),
+  );
+  const stops = [firstStop, ...intermediateStops, lastStop];
+  const outbound = {
+    ...variants[0],
+    origin: firstStop,
+    destination: lastStop,
+    transit_points: stops.map((stop, index) => ({
+      sequence: index + 1,
+      transit_point: stop,
+    })),
+  };
+  const inbound = {
+    ...variants[1],
+    route_id: outbound.route_id,
+    origin: lastStop,
+    destination: firstStop,
+    transit_points: [
+      { sequence: 1, transit_point: lastStop },
+      { sequence: 2, transit_point: firstStop },
+    ],
+  };
+  gates["/admin/transit/routes/1/"] = Promise.resolve(response({
+    id: outbound.route_id,
+    code: outbound.route_code,
+    variants: [outbound, inbound],
+    variant_count: 2,
+  }));
+  const stopRows = () => [
+    ...inspector().querySelectorAll('ol[aria-labelledby="direction-stop-order"] > li'),
+  ];
+
+  await open("routes");
+  await click(button("Starting landmark → Ending landmark"));
+  assert.deepEqual(
+    stopRows().map((row) => row.firstElementChild.textContent),
+    stops.map((stop) => stop.name),
+  );
+  assert.match(stopRows()[0].textContent, /Starting stop/);
+  assert.match(stopRows().at(-1).textContent, /Last stop/);
+  await click(stopRows()[1]);
+  assert.equal(globalThis.__selectionMap.mode, "browse");
+  assert.equal(inspector().querySelector("ol button"), null);
+
+  await click(button("Ending landmark → Starting landmark"));
+  assert.deepEqual(
+    stopRows().map((row) => row.firstElementChild.textContent),
+    [lastStop.name, firstStop.name],
+  );
+  assert.match(stopRows()[0].textContent, /Starting stop/);
+  assert.match(stopRows()[1].textContent, /Last stop/);
+
+  await click(button("Edit Direction"));
+  assert.equal(globalThis.__selectionMap.mode, "edit-variant-adjust");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.originId, "2");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.destinationId, "1");
 });
 
 test("deletion removes a recently created route point from fallback markers and selectors", async () => {

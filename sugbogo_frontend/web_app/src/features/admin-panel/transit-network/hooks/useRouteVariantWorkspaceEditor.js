@@ -19,6 +19,14 @@ const EMPTY_EDITOR_STATE = {
   geometry: [],
 };
 
+function hasTransitPoint(state, pointId) {
+  return (
+    pointId === state.originId ||
+    pointId === state.destinationId ||
+    state.intermediatePointIds.includes(pointId)
+  );
+}
+
 /**
  * Owns coordinated route geometry and ordered Transit Point edits for the
  * shared map while preserving the existing payload and validation rules.
@@ -166,38 +174,34 @@ export default function useRouteVariantWorkspaceEditor() {
   }
 
   function addIntermediate(pointId) {
-    if (
-      pointId === editorState.originId ||
-      pointId === editorState.destinationId ||
-      editorState.intermediatePointIds.includes(pointId)
-    ) {
-      return;
-    }
-
     updateEditorState(
-      (previous) => ({
-        ...previous,
-        intermediatePointIds: [...previous.intermediatePointIds, pointId],
-      }),
+      (previous) => {
+        if (hasTransitPoint(previous, pointId)) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          intermediatePointIds: [...previous.intermediatePointIds, pointId],
+        };
+      },
       ["transit_point_ids"],
     );
   }
 
-  function selectTransitPoint(pointId) {
+  function selectTransitPoint(pointId, { keepOpen = false } = {}) {
     if (!isSelectingTransitPoint) {
       return;
     }
-    if (
-      pointId === editorState.originId ||
-      pointId === editorState.destinationId ||
-      editorState.intermediatePointIds.includes(pointId)
-    ) {
+    if (hasTransitPoint(editorState, pointId)) {
       toast("This Transit Point is already in the route.");
       return;
     }
 
     addIntermediate(pointId);
-    setIsSelectingTransitPoint(false);
+    if (!keepOpen) {
+      cancelTransitPointSelection();
+    }
     toast.success("Transit Point added to the traversal order.");
   }
 

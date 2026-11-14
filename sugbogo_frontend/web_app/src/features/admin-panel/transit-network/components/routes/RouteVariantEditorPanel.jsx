@@ -2,6 +2,7 @@ import { Save } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 
+import { validateVariantEditor } from "../../utils/variantEditorUtils";
 import EditorConfirmationModal from "../route-variant-editor/EditorConfirmationModal";
 import GeometryEditorControls from "../route-variant-editor/GeometryEditorControls";
 import OrderedTransitPointPanel from "../route-variant-editor/OrderedTransitPointPanel";
@@ -23,6 +24,9 @@ export default function RouteVariantEditorPanel({
   onSaved,
 }) {
   const [isClearConfirmationOpen, setIsClearConfirmationOpen] = useState(false);
+  const [saveRequirement] = Object.values(
+    validateVariantEditor(editor.editorState),
+  );
 
   async function handleSave() {
     const savedVariant = await editor.save(variant);
@@ -44,9 +48,9 @@ export default function RouteVariantEditorPanel({
             Route {route.code}
           </h2>
           <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-            Choose the starting and last stops, draw the roads used by this
-            direction, then add stops along the way. The return journey needs
-            its own direction.
+            Choose the starting and last stops and draw the route path. Add
+            stops along the way as needed. The return journey needs its own
+            direction.
           </p>
           {editor.isDirty && (
             <p className="mt-3 text-xs font-semibold text-warning">
@@ -66,7 +70,9 @@ export default function RouteVariantEditorPanel({
           isSelectingTransitPoint={editor.isSelectingTransitPoint}
           onBeginTransitPointSelection={editor.beginTransitPointSelection}
           onCancelTransitPointSelection={editor.cancelTransitPointSelection}
-          onSelectTransitPoint={editor.selectTransitPoint}
+          onSelectTransitPoint={(pointId) =>
+            editor.selectTransitPoint(pointId, { keepOpen: true })
+          }
           onCreateTransitPoint={onCreateTransitPoint}
           onMoveIntermediate={editor.moveIntermediate}
           onRemoveIntermediate={editor.removeIntermediate}
@@ -92,23 +98,32 @@ export default function RouteVariantEditorPanel({
         )}
 
         {/* Editor actions */}
-        <div className="sticky bottom-0 flex justify-end gap-2 rounded-xl border border-stroke bg-background/95 p-4 shadow-lg backdrop-blur-sm">
-          <Button
-            variant="secondary"
-            onClick={onCancel}
-            disabled={editor.isSaving}
-          >
-            Cancel
-          </Button>
-          <Button
-            icon={Save}
-            loading={editor.isSaving}
-            disabled={!editor.isDirty}
-            disabledTooltip="Make a route change before saving."
-            onClick={handleSave}
-          >
-            {variant ? "Save Changes" : "Save Direction"}
-          </Button>
+        <div className="sticky bottom-0 space-y-2 rounded-xl border border-stroke bg-background/95 p-4 shadow-lg backdrop-blur-sm">
+          {saveRequirement && (
+            <p className="text-xs text-text-secondary">
+              {saveRequirement}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={onCancel}
+              disabled={editor.isSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              icon={Save}
+              loading={editor.isSaving}
+              disabled={!editor.isDirty}
+              disabledTooltip={
+                saveRequirement || "Make a route change before saving."
+              }
+              onClick={handleSave}
+            >
+              {variant ? "Save Changes" : "Save Direction"}
+            </Button>
+          </div>
         </div>
       </section>
 

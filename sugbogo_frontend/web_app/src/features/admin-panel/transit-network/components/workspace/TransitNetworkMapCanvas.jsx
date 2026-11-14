@@ -145,6 +145,7 @@ export default function TransitNetworkMapCanvas({
   variantEditor,
   transitPoints,
   selectedPoint,
+  selectedPointOutsideResults,
   pointDraftPosition,
   transfer,
   transferSourceVariant,
@@ -396,6 +397,10 @@ export default function TransitNetworkMapCanvas({
           displayTransitPoints.map((point) => {
             const position = toPosition(point);
             const isSelected = String(point.id) === String(selectedPoint?.id);
+            const isOutsideResults =
+              context === TRANSIT_CONTEXTS.POINTS &&
+              isSelected &&
+              selectedPointOutsideResults;
             const isLocallyEditing =
               mode === TRANSIT_MODES.EDIT_POINT && isSelected;
             const pointId = String(point.id);
@@ -441,7 +446,9 @@ export default function TransitNetworkMapCanvas({
                 title={
                   context === TRANSIT_CONTEXTS.ROUTES
                     ? `${point.name} · ${routePointLabel}`
-                    : point.name
+                    : isOutsideResults
+                      ? `${point.name} · Outside results`
+                      : point.name
                 }
                 clickable={canSelect}
                 zIndex={isSelected ? 500 : 100}
@@ -460,6 +467,11 @@ export default function TransitNetworkMapCanvas({
                 >
                   <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span className="max-w-28 truncate">{point.name}</span>
+                  {isOutsideResults && (
+                    <span className="shrink-0 border-l border-white/50 pl-1">
+                      Outside results
+                    </span>
+                  )}
                 </div>
               </AdvancedMarker>
             );
@@ -600,6 +612,13 @@ function getMapHelpText(
           ? "Placing a new point"
           : "Editing point location",
       description: "Click the map or drag the highlighted marker to reposition it.",
+    };
+  }
+  if (mode === TRANSIT_MODES.CREATE_VARIANT_ADJUST) {
+    return {
+      title: "Adding a direction",
+      description:
+        "Choose stops in the inspector. Select Draw Route to draw on the map.",
     };
   }
   if (isVariantEditingMode(mode)) {

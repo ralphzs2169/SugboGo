@@ -47,7 +47,7 @@ function getModePresentation(
     },
     [TRANSIT_MODES.CREATE_VARIANT_ADJUST]: {
       label: "Adding Direction",
-      hint: "Choose stops and adjust the path in the inspector.",
+      hint: "Choose the starting and last stops in the inspector.",
     },
     [TRANSIT_MODES.EDIT_VARIANT_DRAW]: {
       label: "Editing Route Path",

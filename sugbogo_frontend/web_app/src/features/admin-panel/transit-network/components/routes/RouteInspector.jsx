@@ -33,6 +33,8 @@ export default function RouteInspector({
   }
 
   if (variant) {
+    const stops = variant.transit_points ?? [];
+
     return (
       <section className="rounded-xl border border-stroke bg-background p-4">
         {/* Variant identity */}
@@ -43,12 +45,6 @@ export default function RouteInspector({
           {variant.origin.name} → {variant.destination.name}
         </h2>
         <dl className="mt-5 space-y-3 text-sm">
-          <InspectorField label="Starting stop" value={variant.origin.name} />
-          <InspectorField label="Last stop" value={variant.destination.name} />
-          <InspectorField
-            label="Stops in travel order"
-            value={`${variant.transit_points?.length ?? 0}`}
-          />
           <InspectorField
             label="Path drawing points"
             value={`${variant.geometry?.length ?? 0}`}
@@ -57,8 +53,44 @@ export default function RouteInspector({
 
         {/* Variant action */}
         <Button className="mt-5 w-full" icon={Map} onClick={onEditVariant}>
-          Edit Path
+          Edit Direction
         </Button>
+
+        <h3
+          id="direction-stop-order"
+          className="mb-2 mt-5 text-xs font-bold uppercase tracking-wider text-text-secondary"
+        >
+          Stops in travel order
+        </h3>
+        {stops.length > 0 ? (
+          <ol
+            aria-labelledby="direction-stop-order"
+            className="list-decimal space-y-1 pl-6 marker:text-text-secondary"
+          >
+            {stops.map(({ transit_point: point }, index) => (
+              <li
+                key={point.id}
+                className="break-words rounded-lg bg-surface px-3 py-2 text-sm font-medium text-text-primary"
+              >
+                <span>{point.name}</span>
+                {index === 0 && (
+                  <span className="block text-xs text-text-secondary">
+                    Starting stop
+                  </span>
+                )}
+                {index === stops.length - 1 && (
+                  <span className="block text-xs text-text-secondary">
+                    Last stop
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="rounded-lg border border-dashed border-stroke-strong px-3 py-4 text-center text-xs text-text-secondary">
+            The stop sequence is unavailable for this direction.
+          </p>
+        )}
       </section>
     );
   }
@@ -97,8 +129,8 @@ export default function RouteInspector({
       </Button>
       {!route.variants?.length && (
         <p className="mt-3 rounded-lg border border-dashed border-stroke-strong px-3 py-4 text-center text-xs text-text-secondary">
-          This route has no directions yet. Add its starting stop, last stop and
-          road path before it can provide jeepney guidance.
+          Next, add the starting stop, last stop, and road path for this route’s
+          first direction.
         </p>
       )}
     </section>

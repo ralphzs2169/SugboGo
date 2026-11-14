@@ -43,11 +43,10 @@ export function validateVariantEditor(state) {
   ].filter(Boolean);
 
   if (!state.originId) {
-    errors.origin_transit_point_id = "Select an origin Transit Point.";
+    errors.origin_transit_point_id = "Choose a starting stop.";
   }
   if (!state.destinationId) {
-    errors.destination_transit_point_id =
-      "Select a destination Transit Point.";
+    errors.destination_transit_point_id = "Choose a last stop.";
   }
   if (
     state.originId &&
@@ -55,10 +54,10 @@ export function validateVariantEditor(state) {
     state.originId === state.destinationId
   ) {
     errors.destination_transit_point_id =
-      "The destination must differ from the origin.";
+      "Choose a different stop for the end of the direction.";
   }
   if (state.geometry.length < 2) {
-    errors.geometry = "Draw at least two route geometry vertices.";
+    errors.geometry = "Add at least two drawing points to the route path.";
   } else if (
     state.geometry.some(
       (coordinate) =>

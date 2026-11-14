@@ -11,6 +11,7 @@ import DataErrorState from "@/shared/components/errors/DataErrorState";
 export default function TransitPointList({
   transitPoints,
   selectedPointId,
+  selectedPointOutsideResults,
   search,
   isSearching,
   isLoading,
@@ -18,7 +19,7 @@ export default function TransitPointList({
   pagination,
   pageCount,
   totalItems,
-  selectionDisabled,
+  interactionDisabled,
   onSearchChange,
   onPageChange,
   onPointSelect,
@@ -35,7 +36,9 @@ export default function TransitPointList({
             Transit Points
           </h3>
           <p className="mt-0.5 text-xs text-text-secondary">
-            Map and list show the current result page.
+            {selectedPointOutsideResults
+              ? "The selected map marker is outside the current results."
+              : "Map and list show the current result page."}
           </p>
         </div>
         <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-text-secondary">
@@ -84,7 +87,7 @@ export default function TransitPointList({
                 <button
                   key={point.id}
                   type="button"
-                  disabled={selectionDisabled}
+                  disabled={interactionDisabled}
                   onClick={() => onPointSelect(point)}
                   className={`flex w-full cursor-pointer items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                     isSelected
@@ -125,7 +128,7 @@ export default function TransitPointList({
                 ? "Try a different search term."
                 : "Add boarding, alighting, and transfer locations to begin building the network."}
             </p>
-            {!search && (
+            {!search && !interactionDisabled && (
               <Button className="mt-4" size="sm" onClick={onStartAdd}>
                 Add First Point
               </Button>

@@ -138,7 +138,9 @@ function RouteContextInspector({
         variant={mode.startsWith("edit-variant") ? selectedVariant : null}
         transitPoints={routeReferencePointsQuery.items}
         editor={variantEditor}
-        isDrawing={isRouteDrawingMode(mode)}
+        isDrawing={
+          isRouteDrawingMode(mode) && !variantEditor.isSelectingTransitPoint
+        }
         onToggleDrawing={onToggleDrawing}
         onCreateTransitPoint={onStartCreateTransitPoint}
         onCancel={onCancelVariant}
@@ -147,11 +149,15 @@ function RouteContextInspector({
     );
   }
 
-  if (routeDetailQuery.error && selectedRoute) {
+  if (routeDetailQuery.error) {
     return (
       <DataErrorState
         title="Unable to load route"
-        message="The selected route details could not be loaded."
+        message={
+          routeDetailQuery.error.response?.status === 404
+            ? "The selected route is no longer available."
+            : "The selected route details could not be loaded."
+        }
         onRetry={routeDetailQuery.refetch}
       />
     );

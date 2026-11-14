@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import useTableState from "@/shared/hooks/useTableState";
 
 const VALID_TABS = new Set(["routes", "transit-points", "transfers"]);
+const BROWSING_TABS = new Set(["routes", "transit-points"]);
 
 export default function useTransitTableState() {
   const tableState = useTableState({ defaultTab: "routes" });
@@ -12,6 +13,7 @@ export default function useTransitTableState() {
   const [statusFilter, setStatusFilterState] = useState(
     () => new URLSearchParams(window.location.search).get("status") || "",
   );
+  const browsingByTab = useRef({});
 
   function setStatusFilter(status) {
     setStatusFilterState(status);
@@ -20,17 +22,23 @@ export default function useTransitTableState() {
   }
 
   function handleTabChange(tab) {
-    tableState.setGlobalFilter("");
-    tableState.resetSortingState();
+    if (BROWSING_TABS.has(currentTab)) {
+      browsingByTab.current[currentTab] = {
+        search: tableState.globalFilter,
+        page: tableState.isSearching ? 1 : tableState.pagination.pageIndex + 1,
+        sort: tableState.ordering,
+      };
+    }
+
+    const browsing = browsingByTab.current[tab];
     setStatusFilterState("");
-    tableState.resetPageIndex();
     tableState.updateSearchParams(
       {
         tab: tab === "routes" ? null : tab,
-        search: null,
+        search: browsing?.search,
         status: null,
-        sort: null,
-        page: null,
+        sort: browsing?.sort,
+        page: browsing?.page > 1 ? browsing.page : null,
       },
       { replace: false },
     );
