@@ -4,8 +4,8 @@ import { Pressable, View } from "react-native";
 import { useRef, useState, type ReactNode } from "react";
 
 import { theme } from "@/constants/theme";
-import ArrivalLandmarkGuidance from "../../ArrivalLandmarkGuidance";
 import AppText from "@/shared/components/AppText";
+import { LANDMARK_MARKER_ICON } from "@/shared/components/MapMarker";
 import DottedTimelineConnector from "@/shared/components/DottedTimelineConnector";
 import { shadows } from "@/shared/styles/shadows";
 import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
@@ -15,7 +15,7 @@ type Props = {
   boardingPointName: string;
   boardingDistance: string;
   alightingPointName: string;
-  destinationDistance: string;
+  destinationName: string;
   landmarkName?: string | null;
   accessDirections?: string | null;
   arrivalLandmark?:
@@ -39,7 +39,7 @@ export default function JeepneyStopGuidanceCard({
   boardingPointName,
   boardingDistance,
   alightingPointName,
-  destinationDistance,
+  destinationName,
   landmarkName,
   accessDirections,
   arrivalLandmark,
@@ -48,6 +48,9 @@ export default function JeepneyStopGuidanceCard({
   const directionsSheet = useRef<BottomSheetModal>(null);
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const directions = accessDirections?.trim();
+  const hasEntranceDirections = Boolean(
+    arrivalLandmark?.access_directions?.trim(),
+  );
 
   return (
     <View
@@ -59,10 +62,6 @@ export default function JeepneyStopGuidanceCard({
         <View className="min-w-0 flex-1 pr-3">
           <AppText weight="bold" className="text-base text-text-primary">
             Your stops
-          </AppText>
-
-          <AppText className="mt-0.5 text-xs text-text-secondary">
-            Where to board and get off
           </AppText>
         </View>
 
@@ -152,12 +151,6 @@ export default function JeepneyStopGuidanceCard({
               >
                 Get off
               </AppText>
-
-              <View className="rounded-full bg-surface-secondary px-2 py-1">
-                <AppText className="text-[10px] text-text-secondary">
-                  ~{destinationDistance} to destination
-                </AppText>
-              </View>
             </View>
 
             <AppText
@@ -187,27 +180,36 @@ export default function JeepneyStopGuidanceCard({
           </View>
         </View>
       </View>
-      <ArrivalLandmarkGuidance landmark={arrivalLandmark} />
-      {/* Merchant context is separate from calculated stops and opens outside the footer. */}
-      {directions && (
+
+      {(hasEntranceDirections || directions) && (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Access notes"
-          accessibilityHint="Opens merchant-provided access information"
+          accessibilityLabel="Arrival details"
+          accessibilityHint="Opens directions and notes from the business"
           accessibilityState={{ expanded: directionsOpen }}
           onPress={() => {
             setDirectionsOpen(true);
             presentBottomSheet(directionsSheet);
           }}
-          className="mt-3 min-h-12 cursor-pointer flex-row items-center px-1 py-2 active:opacity-70"
+          className="mt-3 min-h-12 cursor-pointer flex-row items-center gap-3 px-1 py-2 active:opacity-70"
         >
+          {hasEntranceDirections && (
+            <MaterialCommunityIcons
+              name={LANDMARK_MARKER_ICON}
+              size={18}
+              color={theme.extends.colors.text.secondary}
+              accessible={false}
+            />
+          )}
           <View className="min-w-0 flex-1">
             <AppText weight="semibold" className="text-sm text-text-primary">
-              Access notes
+              Arrival details
             </AppText>
-            <AppText className="mt-0.5 text-xs text-text-secondary">
-              Merchant-provided
-            </AppText>
+            {hasEntranceDirections && (
+              <AppText className="mt-0.5 text-xs text-text-secondary">
+                Directions from {arrivalLandmark?.name}
+              </AppText>
+            )}
           </View>
           <MaterialCommunityIcons
             name="chevron-right"
@@ -220,6 +222,9 @@ export default function JeepneyStopGuidanceCard({
       <MerchantAccessNotesSheet
         sheetRef={directionsSheet}
         directions={directions}
+        arrivalDetails
+        arrivalLandmark={arrivalLandmark}
+        destinationName={destinationName}
         isOpen={directionsOpen}
         onDismiss={() => setDirectionsOpen(false)}
       />

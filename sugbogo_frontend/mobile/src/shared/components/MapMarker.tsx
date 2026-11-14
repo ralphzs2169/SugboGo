@@ -18,7 +18,10 @@ type MapMarkerVariant =
   | "origin"
   | "boarding"
   | "alighting"
+  | "landmark"
   | "destination";
+
+export const LANDMARK_MARKER_ICON = "map-marker-radius-outline";
 
 type Props = {
   variant: MapMarkerVariant;
@@ -63,6 +66,10 @@ const MARKERS: Record<MapMarkerVariant, MarkerConfig> = {
   alighting: {
     color: "#22C55E",
     icon: "exit-run",
+  },
+  landmark: {
+    color: theme.extends.colors.text.secondary,
+    icon: LANDMARK_MARKER_ICON,
   },
   destination: {
     color: theme.extends.colors.brand,
@@ -120,6 +127,7 @@ export default function MapMarker({
   clusterIcon,
 }: Props) {
   const marker = MARKERS[variant];
+  const pinScale = variant === "landmark" ? 0.8 : 1;
   const borderColor = darkenHexColor(marker.color);
 
   const isExplorer = variant === "explorer";
@@ -285,13 +293,13 @@ export default function MapMarker({
       <View
         className="relative items-center"
         style={{
-          width: 40,
-          height: 48,
+          width: 40 * pinScale,
+          height: 48 * pinScale,
         }}
       >
         <Svg
-          width={40}
-          height={48}
+          width={40 * pinScale}
+          height={48 * pinScale}
           viewBox="0 0 48 58"
           style={{
             position: "absolute",
@@ -322,16 +330,16 @@ export default function MapMarker({
           pointerEvents="none"
           className="absolute items-center justify-center"
           style={{
-            top: 6,
-            left: 7,
-            width: 26,
-            height: 26,
+            top: 6 * pinScale,
+            left: 7 * pinScale,
+            width: 26 * pinScale,
+            height: 26 * pinScale,
           }}
         >
           {marker.icon ? (
             <MaterialCommunityIcons
               name={marker.icon}
-              size={18}
+              size={18 * pinScale}
               color="#FFFFFF"
             />
           ) : (

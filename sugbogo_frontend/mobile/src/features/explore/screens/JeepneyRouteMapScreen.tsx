@@ -139,14 +139,6 @@ export default function JeepneyRouteMapScreen({
       journey.boarding_transit_point.longitude,
     ) * 1000;
 
-  const destinationDistanceMeters =
-    calculateDistanceInKm(
-      journey.alighting_transit_point.latitude,
-      journey.alighting_transit_point.longitude,
-      journey.business_location.latitude,
-      journey.business_location.longitude,
-    ) * 1000;
-
   return (
     <SafeAreaView edges={["bottom"]} className="flex-1 bg-background">
       {/* Map area */}
@@ -183,9 +175,9 @@ export default function JeepneyRouteMapScreen({
         boardingPointName={journey.boarding_transit_point.name}
         boardingDistance={formatJourneyDistance(boardingDistanceMeters)}
         alightingPointName={journey.alighting_transit_point.name}
-        destinationDistance={formatJourneyDistance(destinationDistanceMeters)}
         landmarkName={journey.landmark_context?.name}
         arrivalLandmark={journey.arrival_landmark}
+        destinationName={businessName}
         accessDirections={businessQuery.business?.access_directions}
         headerAction={
           <SaveOfflineJourneyButton

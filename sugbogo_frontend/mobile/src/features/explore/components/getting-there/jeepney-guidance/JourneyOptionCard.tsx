@@ -42,6 +42,9 @@ export default function JourneyOptionCard({
     `${journey.route_variant_destination.name}`;
 
   const landmark = journey.landmark_context;
+  const hasEntranceDirections = Boolean(
+    journey.arrival_landmark?.access_directions?.trim(),
+  );
 
   const landmarkDetail = landmark
     ? `${landmark.name} · ${formatJourneyDistance(
@@ -50,26 +53,7 @@ export default function JourneyOptionCard({
     : undefined;
 
   return (
-    <View className="relative rounded-card border border-border-primary bg-surface">
-      {/* Recommended badge */}
-      {recommended && (
-        <View
-          className="absolute right-3 flex-row items-center rounded-full bg-info px-2.5 py-1"
-          style={{
-            top: -10,
-            zIndex: 10,
-          }}
-          pointerEvents="none"
-        >
-          <AppText
-            weight="bold"
-            className="text-[10px] tracking-wide text-text-info"
-          >
-            Recommended
-          </AppText>
-        </View>
-      )}
-
+    <View className="rounded-card border border-border-primary bg-surface">
       {/* Route-code summary */}
       <Pressable
         onPress={() => setIsExpanded((current) => !current)}
@@ -109,6 +93,11 @@ export default function JourneyOptionCard({
             {formatJourneyDistance(journey.approximate_ride_distance_meters)}{" "}
             ride
           </AppText>
+          {recommended && (
+            <AppText weight="semibold" className="mt-1 text-xs text-text-info">
+              Recommended
+            </AppText>
+          )}
         </View>
 
         {/* Expand control */}
@@ -150,14 +139,23 @@ export default function JourneyOptionCard({
             title={`Get off at ${journey.alighting_transit_point.name}`}
             detail={`${formatJourneyDistance(
               journey.alighting_to_business_distance_meters,
-            )} from destination`}
+            )} straight-line to destination`}
             supportingLabel="Landmark near this stop"
             supportingText={landmarkDetail}
             supportingIcon="map-marker-radius-outline"
-            isLast
+            isLast={!hasEntranceDirections}
           />
 
-          <ArrivalLandmarkGuidance landmark={journey.arrival_landmark} />
+          {hasEntranceDirections && (
+            <JourneyStep
+              number={4}
+              icon="door-open"
+              title="Find the entrance"
+              isLast
+            >
+              <ArrivalLandmarkGuidance landmark={journey.arrival_landmark} />
+            </JourneyStep>
+          )}
           {/* Map action */}
           <View className="mt-5 items-end">
             <Pressable
