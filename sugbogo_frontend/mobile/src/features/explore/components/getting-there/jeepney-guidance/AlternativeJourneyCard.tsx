@@ -103,7 +103,7 @@ export default function AlternativeJourneyCard({
               {formatJourneyDistance(
                 journey.alighting_to_business_distance_meters,
               )}{" "}
-              from destination
+              straight-line to destination
             </AppText>
 
             {/* Nearby landmark context */}
@@ -138,7 +138,11 @@ export default function AlternativeJourneyCard({
         </View>
       </View>
 
-      <ArrivalLandmarkGuidance landmark={journey.arrival_landmark} />
+      {journey.arrival_landmark?.access_directions?.trim() && (
+        <View className="mt-3">
+          <ArrivalLandmarkGuidance landmark={journey.arrival_landmark} />
+        </View>
+      )}
       {/* Map action */}
       <View className="mt-3 items-end">
         <Pressable

@@ -14,7 +14,7 @@ it("shows the named arrival point and its specific entrance directions", async (
       }}
     />,
   );
-  expect(screen.getByText("Continue via Roadside reference")).toBeTruthy();
+  expect(screen.getByText("From Roadside reference · Merchant-provided")).toBeTruthy();
   expect(screen.getByText("Follow the lane to the green gate.")).toBeTruthy();
-  expect(screen.getByText(/not a calculated walking route/)).toBeTruthy();
+  expect(screen.queryByText("Access notes")).toBeNull();
 });

@@ -10,7 +10,7 @@ import AppText from "@/shared/components/AppText";
 import { theme } from "@/constants/theme";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
-import ArrivalLandmarkEditor from "../../components/location-change/ArrivalLandmarkEditor";
+import { ArrivalLandmarkSelection } from "../../components/registration/landmark/ArrivalLandmarkField";
 import FormInput from "@/shared/components/form/FormInput";
 import MerchantChangeRequestSkeleton from "../../components/change-requests/MerchantChangeRequestSkeleton";
 import useMerchantEditorExit from "../../hooks/useMerchantEditorExit";
@@ -200,8 +200,7 @@ export default function LocationChangeRequestScreen() {
           landmark.is_arrival_point && !landmark.access_directions?.trim(),
       )
     ) {
-      errors.landmarks =
-        "Add directions from the arrival landmark to your entrance.";
+      errors.arrivalDirections = "Enter walking directions.";
     }
     setFieldErrors(errors);
 
@@ -599,6 +598,7 @@ export default function LocationChangeRequestScreen() {
 
             {/* Landmark selection */}
             <SelectedLandmarksSection
+              title="Nearby Landmarks (optional)"
               selectedLandmarks={landmarks}
               hasSelectedLocation
               nearbyLandmarksLoadFailed={nearbyLoadFailed}
@@ -611,16 +611,40 @@ export default function LocationChangeRequestScreen() {
                 )
               }
             />
-            <ArrivalLandmarkEditor
+            <ArrivalLandmarkSelection
               landmarks={landmarks}
-              onChange={setLandmarks}
+              landmarkError={fieldErrors.landmarks}
+              directionsError={fieldErrors.arrivalDirections}
               disabled={submitRequest.isPending || isSubmittingRequest}
+              onSelect={(id) => {
+                useLocationChangeDraftStore.getState().setArrivalLandmark(id);
+                setFieldErrors((errors) => ({
+                  ...errors,
+                  arrivalDirections: "",
+                }));
+              }}
+              onDirectionsChange={(directions) => {
+                setLandmarks(
+                  landmarks.map((landmark) =>
+                    landmark.is_arrival_point
+                      ? { ...landmark, access_directions: directions }
+                      : landmark,
+                  ),
+                );
+                if (directions.trim()) {
+                  setFieldErrors((errors) => ({
+                    ...errors,
+                    arrivalDirections: "",
+                  }));
+                }
+              }}
+              onAddCustom={() =>
+                router.push({
+                  pathname: "/(merchant)/location-change/landmarks-picker",
+                  params: { purpose: "arrival" },
+                } as Href)
+              }
             />
-            {fieldErrors.landmarks ? (
-              <AppText className="mt-2 px-6 text-xs text-text-error">
-                {fieldErrors.landmarks}
-              </AppText>
-            ) : null}
           </>
         )}
 

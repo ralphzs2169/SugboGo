@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { useMemo, useRef } from "react";
 import { useFormContext } from "react-hook-form";
 import { View } from "react-native";
+import type { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
 
 import { MAX_SELECTED_LANDMARKS } from "@/features/merchant/constants/registration/map.constants";
 import type useRegistrationErrorScroll from "@/features/merchant/hooks/registration/useRegistrationErrorScroll";
@@ -45,17 +46,15 @@ export default function ArrivalLandmarkField({
   const setArrivalDirections = useMerchantRegistrationStore(
     (state) => state.setArrivalDirections,
   );
-  const sheetRef = useRef<BottomSheetModal>(null);
-  const openCustomPickerAfterDismiss = useRef(false);
 
   const arrivalIndex = landmarks.findIndex(
     (landmark) => landmark.is_arrival_point,
   );
   const arrivalLandmark = landmarks[arrivalIndex];
-  const atCapacity = landmarks.length >= MAX_SELECTED_LANDMARKS;
   const landmarkError =
     errors.landmarks?.message ?? errors.landmarks?.root?.message;
-  const directionsField = `landmarks.${arrivalIndex}.access_directions` as const;
+  const directionsField =
+    `landmarks.${arrivalIndex}.access_directions` as const;
   const directionsError =
     errors.landmarks?.[arrivalIndex]?.access_directions?.message;
   const landmarkErrorTarget = useMemo(
@@ -76,16 +75,72 @@ export default function ArrivalLandmarkField({
     );
   }
 
-  function selectLandmark(value: string) {
+  function selectLandmark(id: string | null) {
     if (disabled) return;
 
-    const id = value === NO_ARRIVAL_LANDMARK ? null : value;
     if (id === (arrivalLandmark?.id ?? null) && !landmarkError) return;
 
     setArrivalLandmark(id);
     syncLandmarks();
     clearErrors("landmarks");
   }
+
+  return (
+    <ArrivalLandmarkSelection
+      landmarks={landmarks}
+      disabled={disabled}
+      landmarkError={landmarkError}
+      directionsError={directionsError}
+      landmarkErrorTarget={landmarkErrorTarget}
+      directionsErrorTarget={directionsErrorTarget}
+      onSelect={selectLandmark}
+      onDirectionsChange={(directions) => {
+        setArrivalDirections(directions);
+        syncLandmarks();
+        if (directions.trim() && directionsError) {
+          clearErrors(directionsField);
+        }
+      }}
+      onAddCustom={() =>
+        router.push({
+          pathname: "/(explorer)/merchant-registration/landmarks-picker",
+          params: { purpose: "arrival" },
+        })
+      }
+    />
+  );
+}
+
+type SelectionProps = {
+  landmarks: BusinessLandmark[];
+  disabled?: boolean;
+  landmarkError?: string;
+  directionsError?: string;
+  landmarkErrorTarget?: React.ComponentProps<typeof View>;
+  directionsErrorTarget?: React.ComponentProps<typeof View>;
+  onSelect: (id: string | null) => void;
+  onDirectionsChange: (directions: string) => void;
+  onAddCustom: () => void;
+};
+
+/** Shares the arrival picker and walking directions across merchant location forms. */
+export function ArrivalLandmarkSelection({
+  landmarks,
+  disabled,
+  landmarkError,
+  directionsError,
+  landmarkErrorTarget,
+  directionsErrorTarget,
+  onSelect,
+  onDirectionsChange,
+  onAddCustom,
+}: SelectionProps) {
+  const sheetRef = useRef<BottomSheetModal>(null);
+  const openCustomPickerAfterDismiss = useRef(false);
+  const arrivalLandmark = landmarks.find(
+    (landmark) => landmark.is_arrival_point,
+  );
+  const atCapacity = landmarks.length >= MAX_SELECTED_LANDMARKS;
 
   function openCustomPicker() {
     if (disabled || atCapacity || !sheetRef.current) return;
@@ -100,10 +155,7 @@ export default function ArrivalLandmarkField({
     openCustomPickerAfterDismiss.current = false;
     if (disabled) return;
 
-    router.push({
-      pathname: "/(explorer)/merchant-registration/landmarks-picker",
-      params: { purpose: "arrival" },
-    });
+    onAddCustom();
   }
 
   return (
@@ -135,15 +187,7 @@ export default function ArrivalLandmarkField({
             maxLength={1000}
             editable={!disabled}
             error={directionsError}
-            onChangeText={(directions) => {
-              if (disabled) return;
-
-              setArrivalDirections(directions);
-              syncLandmarks();
-              if (directions.trim() && directionsError) {
-                clearErrors(directionsField);
-              }
-            }}
+            onChangeText={onDirectionsChange}
           />
         </View>
       )}
@@ -161,7 +205,9 @@ export default function ArrivalLandmarkField({
           })),
         ]}
         selectedValue={arrivalLandmark?.id ?? NO_ARRIVAL_LANDMARK}
-        onSelect={selectLandmark}
+        onSelect={(value) => {
+          if (!disabled) onSelect(value === NO_ARRIVAL_LANDMARK ? null : value);
+        }}
         onDismiss={handleSheetDismiss}
         snapPoints={SHEET_SNAP_POINTS}
         singleChoice

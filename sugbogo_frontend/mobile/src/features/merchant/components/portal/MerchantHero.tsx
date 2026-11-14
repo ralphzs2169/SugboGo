@@ -1,10 +1,12 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { Image } from "expo-image";
+import { View } from "react-native";
+
 import { theme } from "@/constants/theme";
-import MerchantPortalIllustration from "../../assets/illustrations/merchant-portal.svg";
 import AppText from "@/shared/components/AppText";
 
-// Trust indicators displayed in the merchant portal hero section.
+const MERCHANT_PORTAL_ILLUSTRATION = require("../../assets/illustrations/merchant-portal-hero2.webp");
+
 const HIGHLIGHTS = [
   {
     icon: "cash-remove",
@@ -21,42 +23,51 @@ const HIGHLIGHTS = [
 ] as const;
 
 /**
- * Displays the introductory hero section of the merchant portal.
- *
- * Highlights the benefits of becoming a SugboGo merchant,
- * including key trust indicators and a visual introduction
- * before the user begins the registration process.
+ * Introduces the Merchant Portal and explains what to expect before applying.
  */
 export default function MerchantHero() {
   return (
-    <View className="relative  items-center bg-surface pb-8 px-8 pt-2">
-      <MerchantPortalIllustration width={280} height={280} />
+    <View className="items-center bg-surface px-8 pb-8 pt-2">
+      {/* Merchant portal illustration */}
+      <Image
+        source={MERCHANT_PORTAL_ILLUSTRATION}
+        style={{
+          width: 310,
+          height: 310,
+        }}
+        contentFit="contain"
+        transition={150}
+      />
 
-      <AppText
-        weight="superbold"
-        className="mt-6 text-center text-4xl tracking-tight text-text-primary"
-      >
-        Become a SugboGo Merchant
-      </AppText>
+      {/* Hero message */}
+      <View className="mt-4 items-center">
+        <AppText
+          weight="superbold"
+          className="text-center text-4xl tracking-tight text-text-primary"
+        >
+          Become a SugboGo Merchant
+        </AppText>
 
-      <AppText className="mt-3 text-center text-md text-text-secondary">
-        Turn your business into a destination explorers discover, visit, and
-        come back to.
-      </AppText>
+        <AppText className="mt-3 max-w-80 text-center text-md leading-6 text-text-secondary">
+          Turn your business into a destination explorers discover, visit, and
+          come back to.
+        </AppText>
+      </View>
 
-      <View className="mt-8 flex-row flex-wrap justify-center gap-3">
+      {/* Application highlights */}
+      <View className="mt-6 flex-row flex-wrap justify-center gap-2">
         {HIGHLIGHTS.map((item) => (
           <View
             key={item.label}
-            className="flex-row items-center rounded-full  bg-brand px-4 py-2"
+            className="flex-row items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1.5"
           >
             <MaterialCommunityIcons
               name={item.icon}
-              size={16}
-              color="#FFFFFF"
+              size={14}
+              color={theme.extends.colors.brand}
             />
 
-            <AppText weight="semibold" className="ml-2 text-xs  text-white">
+            <AppText weight="semibold" className="text-xs text-brand">
               {item.label}
             </AppText>
           </View>

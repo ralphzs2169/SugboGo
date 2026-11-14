@@ -408,9 +408,22 @@ describe("Explorer navigation tour", () => {
     mockPickerOpen = false;
     await screen.rerender(<TabLayout />);
     await act(() => useLogoutConfirmationStore.getState().close());
+
+    // Valid tab bounds can arrive before there is enough room for the bubble.
+    await layoutTabs(screen, 100, 180);
+    await act(async () => {
+      await new Promise(requestAnimationFrame);
+    });
+    await act(async () => {
+      await new Promise(requestAnimationFrame);
+    });
+    expect(queryMask(screen)).toBeNull();
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+
     await layoutTabs(screen);
 
     await expectStep(screen, "Discover Cebu's hidden gems!", 12);
+    expect(router.navigate).not.toHaveBeenCalled();
     mockPathname = "/search-filter-results";
     mockFocused = false;
     await screen.rerender(<TabLayout />);

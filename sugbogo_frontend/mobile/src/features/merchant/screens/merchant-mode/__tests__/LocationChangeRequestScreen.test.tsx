@@ -34,6 +34,10 @@ jest.mock("expo-router", () => ({
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+jest.mock(
+  "@/shared/components/bottom-sheets/SelectionBottomSheet",
+  () => () => null,
+);
 jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
   __esModule: true,
   default: () => mockProfile(),

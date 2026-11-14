@@ -19,7 +19,7 @@ export default function InterestGrid({
   onToggle,
 }: InterestGridProps) {
   return (
-    <View className="flex-row flex-wrap justify-center">
+    <View className="flex-row flex-wrap justify-start gap-2">
       {tags.map((tag) => {
         const isSelected = selected.includes(tag.id);
         const isDisabled = !isSelected && selected.length >= MAX_SELECTIONS;
@@ -29,6 +29,7 @@ export default function InterestGrid({
             key={tag.id}
             tag={tag}
             mode="filter"
+            size="medium"
             isSelected={isSelected}
             isDisabled={isDisabled}
             showSelectionIndicator

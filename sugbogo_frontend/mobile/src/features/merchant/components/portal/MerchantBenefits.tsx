@@ -1,4 +1,4 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import PromoteYourBusinessIllustration from "../../assets/illustrations/promote-business.svg";
 import ReachMoreExplorersIllustration from "../../assets/illustrations/reach-more.svg";
 import BuildYourReputationIllustration from "../../assets/illustrations/build-reputation.svg";
@@ -7,45 +7,41 @@ import AppText from "@/shared/components/AppText";
 
 const BENEFITS = [
   {
-    title: "Promote your business",
-    description: "Showcase your shop and help explorers discover your place.",
-    illustration: PromoteYourBusinessIllustration,
-  },
-  {
-    title: "Reach more explorers",
-    description: "Increase your visibility and connect with more visitors.",
+    title: "Get discovered on SugboGo",
+    description:
+      "Explorers can find your business in Explore and open your listing.",
     illustration: ReachMoreExplorersIllustration,
   },
   {
-    title: "Build your reputation",
-    description: "Collect reviews and build trust with the community.",
+    title: "Keep your listing up to date",
+    description: "Update your business details, hours, and photos.",
+    illustration: PromoteYourBusinessIllustration,
+  },
+  {
+    title: "Respond to customer reviews",
+    description: "Read and reply to reviews on your listing.",
     illustration: BuildYourReputationIllustration,
   },
   {
-    title: "Track your growth",
-    description: "Understand your performance through merchant insights.",
+    title: "See how people engage with your listing",
+    description: "Track profile visits, saves, and new reviews.",
     illustration: TrackYourGrowthIllustration,
   },
 ] as const;
 
 /**
- * Displays the benefits users receive as SugboGo merchants.
- *
- * Highlights how merchants can promote their business,
- * reach explorers, build trust, and monitor growth.
+ * Shows what merchants can do after their application is approved.
  */
 export default function MerchantBenefits() {
   return (
     <View className="p-6 bg-surface">
       <AppText weight="extrabold" className="mb-2 text-3xl   text-text-primary">
-        What you'll get as a merchant
+        What you’ll get as a merchant
       </AppText>
       <AppText weight="medium" className="mb-8  text-text-secondary">
-        Discover how SugboGo helps your business reach more explorers and grow
-        online.
+        Merchant Mode becomes available once your application is approved.
       </AppText>
 
-      {/* <View className="border border-border-primary px-4 py-2 rounded-xl"> */}
       <View>
         {BENEFITS.map((benefit, index) => {
           const Illustration = benefit.illustration;
@@ -89,7 +85,6 @@ export default function MerchantBenefits() {
           );
         })}
       </View>
-      {/* </View> */}
     </View>
   );
 }

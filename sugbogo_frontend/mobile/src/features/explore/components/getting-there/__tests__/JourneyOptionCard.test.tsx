@@ -73,15 +73,16 @@ describe("JourneyOptionCard", () => {
 
     expect(screen.getByText("Recommended")).toBeTruthy();
     expect(screen.getByText("Kamputhaw → Colon")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "14D, Kamputhaw → Colon" }));
     expect(screen.getByText("Board at Capitol")).toBeTruthy();
     expect(screen.getByText("Get off at Colon")).toBeTruthy();
     expect(
       screen.getByText(
-        "Near Gaisano Capital South · approx. 85 m from the stop",
+        "Gaisano Capital South · 85 m away",
       ),
     ).toBeTruthy();
-    expect(screen.getByText("Approx. 3.4 km ride")).toBeTruthy();
-    fireEvent.press(screen.getByText("View on map"));
+    expect(screen.getByText("3.4 km ride")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "View guide on map" }));
     expect(onViewMap).toHaveBeenCalledWith(journey);
   });
 
@@ -117,18 +118,17 @@ describe("JourneyOptionCard", () => {
       />,
     );
 
-    expect(screen.queryByText("Option 1")).toBeNull();
+    await user.press(screen.getByRole("button", { name: "14D, Kamputhaw → Colon" }));
+    expect(screen.queryByText("Alternative 1")).toBeNull();
     const alternativesToggle = screen.getByLabelText("Other ways to ride 14D");
     await user.press(alternativesToggle);
-    expect(screen.getByText("Option 1")).toBeTruthy();
-    expect(screen.getByText("Fuente")).toBeTruthy();
+    expect(screen.getByText("Alternative 1")).toBeTruthy();
 
-    const mapActions = screen.getAllByText("View on map");
-    fireEvent.press(mapActions[1]);
+    await fireEvent.press(screen.getByRole("button", { name: "View alternative 1 on map" }));
     expect(onViewMap).toHaveBeenLastCalledWith(alternativeJourney);
 
     await user.press(alternativesToggle);
-    expect(screen.queryByText("Option 1")).toBeNull();
+    expect(screen.queryByText("Alternative 1")).toBeNull();
   });
 
   it("omits the alternatives control when no other ways exist", async () => {

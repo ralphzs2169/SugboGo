@@ -150,6 +150,47 @@ describe("JeepneyRouteMapScreen", () => {
     });
   });
 
+  it("keeps entrance directions collapsed and separate from business access notes", async () => {
+    const entrance = "Follow the lane from the bakery to the blue gate.";
+    (useDirectJourneyMap as jest.Mock).mockReturnValue({
+      journey: {
+        ...journey,
+        arrival_landmark: {
+          id: 12,
+          name: "Roadside bakery",
+          latitude: 10.3,
+          longitude: 123.9,
+          access_directions: entrance,
+        },
+      },
+      isLoading: false,
+      error: null,
+    });
+    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      business: {
+        business_name: "Sugbo Cafe",
+        access_directions: "There is a ramp at the entrance.",
+      },
+    });
+    const screen = await render(
+      <JeepneyRouteMapScreen
+        businessId={21}
+        routeVariantId={8}
+        boardingTransitPointId={2}
+        alightingTransitPointId={4}
+        arrivalLandmarkId={12}
+      />,
+    );
+    expect(screen.queryByText(entrance)).toBeNull();
+    expect(screen.getByText("Capitol")).toBeTruthy();
+    expect(screen.getByText("Colon")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Arrival details" }));
+    expect(screen.getByText("Directions from Roadside bakery")).toBeTruthy();
+    expect(screen.getByText("Roadside bakery → Sugbo Cafe")).toBeTruthy();
+    expect(screen.getByText(entrance)).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Arrival details" })).toHaveLength(1);
+  });
+
   it("keeps long multiline merchant context collapsed until requested", async () => {
     const directions = "Use the entrance behind the chapel.\n".repeat(25);
     (useExploreBusinessProfile as jest.Mock).mockReturnValue({
@@ -165,12 +206,12 @@ describe("JeepneyRouteMapScreen", () => {
     );
     expect(screen.queryByText(directions.trim())).toBeNull();
     const disclosure = screen.getByRole("button", {
-      name: "Access notes",
+      name: "Arrival details",
     });
     expect(disclosure.props.accessibilityState.expanded).toBe(false);
     await fireEvent.press(disclosure);
     expect(screen.getByText(directions.trim())).toBeTruthy();
-    expect(screen.getAllByText("Merchant-provided")).toHaveLength(2);
+    expect(screen.getAllByText("Merchant-provided")).toHaveLength(1);
     expect(
       screen.getAllByRole("header", { name: "Access notes" }),
     ).toHaveLength(1);
@@ -186,7 +227,7 @@ describe("JeepneyRouteMapScreen", () => {
     }
     expect(scrollContainer).not.toBeNull();
     await fireEvent.press(
-      screen.getByRole("button", { name: "Close access notes" }),
+      screen.getByRole("button", { name: "Close arrival details" }),
     );
     expect(screen.queryByText(directions.trim())).toBeNull();
   });
@@ -208,7 +249,7 @@ describe("JeepneyRouteMapScreen", () => {
           alightingTransitPointId={4}
         />,
       );
-      expect(screen.queryByRole("button", { name: "Access notes" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Arrival details" })).toBeNull();
     },
   );
 
@@ -227,7 +268,7 @@ describe("JeepneyRouteMapScreen", () => {
         alightingTransitPointId={4}
       />,
     );
-    await fireEvent.press(screen.getByRole("button", { name: "Access notes" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Arrival details" }));
     (useExploreBusinessProfile as jest.Mock).mockReturnValue({
       business: { business_name: "Sugbo Cafe", access_directions: "" },
     });
@@ -240,7 +281,7 @@ describe("JeepneyRouteMapScreen", () => {
       />,
     );
     expect(screen.queryByText("Use the gate.")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Access notes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Arrival details" })).toBeNull();
     (useExploreBusinessProfile as jest.Mock).mockReturnValue({
       business: { business_name: "Sugbo Cafe", access_directions: "New gate." },
     });
@@ -254,7 +295,7 @@ describe("JeepneyRouteMapScreen", () => {
     );
     expect(screen.queryByText("New gate.")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Access notes" }).props
+      screen.getByRole("button", { name: "Arrival details" }).props
         .accessibilityState.expanded,
     ).toBe(false);
   });

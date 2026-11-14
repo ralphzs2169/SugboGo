@@ -1,11 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { View } from "react-native";
-import MerchantIllustration from "../../merchant/assets/illustrations/merchant-portal-no-shadow.svg";
 
 import { theme } from "@/constants/theme";
-import type { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
-import SafePressable from "@/shared/components/SafePressable";
 import AppText from "@/shared/components/AppText";
+import SafePressable from "@/shared/components/SafePressable";
+import type { MerchantApplicationStatus } from "@/shared/types/userInformation.types";
+
+const MERCHANT_PORTAL_HERO = require("../../merchant/assets/illustrations/merchant-portal-hero2.webp");
 
 type MerchantPortalCardProps = {
   status: MerchantApplicationStatus | null;
@@ -34,8 +36,8 @@ const STATUS_BADGE_CONFIG = {
 /**
  * Displays the user's merchant entry point from the explorer profile.
  *
- * The card adapts its content according to the current
- * merchant registration status.
+ * Adapts its messaging to the current merchant application status while
+ * keeping the merchant portal action and branded illustration consistent.
  */
 export default function MerchantPortalCard({
   status,
@@ -46,8 +48,6 @@ export default function MerchantPortalCard({
       title: "Continue Your Registration",
       description:
         "Your merchant registration is in progress. Continue where you left off.",
-      buttonTitle: "Continue Registration",
-      illustration: MerchantIllustration,
     },
     submitted: {
       title: "Application Under Review",
@@ -77,28 +77,35 @@ export default function MerchantPortalCard({
 
   return (
     <View className="relative mx-4 mb-1.5 mt-3 rounded-l-[40px] rounded-r-md bg-[#ff860e]/90 p-4">
+      {/* Application status */}
       {badge && (
         <View
           className={`absolute -right-1 -top-3 z-10 max-w-full rounded-full px-2 py-0.5 ${badge.backgroundClassName}`}
         >
-          <AppText
-            weight="medium"
-            className="shrink text-xs text-white"
-          >
+          <AppText weight="medium" className="shrink text-xs text-white">
             {badge.label}
           </AppText>
         </View>
       )}
 
       <View className="flex-row items-center">
-        <View>
-          <MerchantIllustration width={120} height={112} />
+        {/* Merchant illustration */}
+        <View className="h-28 w-[120px] items-center justify-center">
+          <Image
+            source={MERCHANT_PORTAL_HERO}
+            style={{
+              width: 120,
+              height: 130,
+            }}
+            contentFit="contain"
+          />
         </View>
 
+        {/* Merchant portal content */}
         <View className="min-w-0 flex-1 pl-3">
           <AppText
             weight="extrabold"
-            className="text-sm  uppercase tracking-wide text-white"
+            className="text-sm uppercase tracking-wide text-white"
           >
             {content.title}
           </AppText>
@@ -108,12 +115,13 @@ export default function MerchantPortalCard({
           </AppText>
 
           <SafePressable
-            className="mt-3 flex-row items-center justify-center bg-white px-3 py-2 rounded-full active:opacity-70 "
             onPress={onPress}
+            className="mt-3 cursor-pointer flex-row items-center justify-center rounded-full bg-white px-3 py-2 active:opacity-70"
           >
-            <AppText weight="bold" className="text-xs mr-2 text-brand">
+            <AppText weight="bold" className="mr-2 text-xs text-brand">
               Open Merchant Portal
             </AppText>
+
             <MaterialCommunityIcons
               name="arrow-right"
               size={16}

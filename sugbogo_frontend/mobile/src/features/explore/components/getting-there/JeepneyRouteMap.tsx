@@ -68,7 +68,6 @@ export default function JeepneyRouteMap({
   });
 
   const [showExplorerMarker, setShowExplorerMarker] = useState(true);
-  const [showBusinessMarker, setShowBusinessMarker] = useState(true);
 
   const updateMarkerVisibility = useCallback(async () => {
     const map = mapRef.current;
@@ -78,42 +77,23 @@ export default function JeepneyRouteMap({
     }
 
     try {
-      const [explorerPoint, boardingPoint, alightingPoint, businessPoint] =
-        await Promise.all([
-          map.pointForCoordinate(originLocation),
-          map.pointForCoordinate(journey.boarding_transit_point),
-          map.pointForCoordinate(journey.alighting_transit_point),
-          map.pointForCoordinate(journey.business_location),
-        ]);
+      const [explorerPoint, boardingPoint] = await Promise.all([
+        map.pointForCoordinate(originLocation),
+        map.pointForCoordinate(journey.boarding_transit_point),
+      ]);
 
       const explorerToBoardingDistance = Math.hypot(
         explorerPoint.x - boardingPoint.x,
         explorerPoint.y - boardingPoint.y,
       );
 
-      const alightingToBusinessDistance = Math.hypot(
-        alightingPoint.x - businessPoint.x,
-        alightingPoint.y - businessPoint.y,
-      );
-
       setShowExplorerMarker(
         explorerToBoardingDistance >= MARKER_COLLISION_DISTANCE,
       );
-
-      setShowBusinessMarker(
-        alightingToBusinessDistance >= MARKER_COLLISION_DISTANCE,
-      );
     } catch {
       setShowExplorerMarker(true);
-      setShowBusinessMarker(true);
     }
-  }, [
-    journey.alighting_transit_point,
-    journey.boarding_transit_point,
-    journey.business_location,
-    mapRef,
-    originLocation,
-  ]);
+  }, [journey.boarding_transit_point, mapRef, originLocation]);
 
   return (
     <View className="flex-1" onLayout={handleMapLayout}>
@@ -156,7 +136,7 @@ export default function JeepneyRouteMap({
           zIndex={1}
         />
 
-        {/* Approximate access and egress connections */}
+        {/* Straight-line guides between the ride and nearby points */}
         <Polyline
           testID="explorer-to-boarding-connector"
           coordinates={[originLocation, journey.boarding_transit_point]}
@@ -167,19 +147,17 @@ export default function JeepneyRouteMap({
           zIndex={2}
         />
 
-        <Polyline
-          testID="alighting-to-business-connector"
-          coordinates={[
-            journey.alighting_transit_point,
-            ...(journey.arrival_landmark ? [journey.arrival_landmark] : []),
-            journey.business_location,
-          ]}
-          strokeColor={PROXIMITY_CONNECTOR_COLOR}
-          strokeWidth={PROXIMITY_CONNECTOR_WIDTH}
-          lineDashPattern={PROXIMITY_CONNECTOR_DASH}
-          lineCap="round"
-          zIndex={2}
-        />
+        {journey.arrival_landmark && (
+          <Polyline
+            testID="alighting-to-landmark-connector"
+            coordinates={[journey.alighting_transit_point, journey.arrival_landmark]}
+            strokeColor={PROXIMITY_CONNECTOR_COLOR}
+            strokeWidth={PROXIMITY_CONNECTOR_WIDTH}
+            lineDashPattern={PROXIMITY_CONNECTOR_DASH}
+            lineCap="round"
+            zIndex={2}
+          />
+        )}
 
         {/* Selected Jeepney ride */}
 
@@ -235,12 +213,12 @@ export default function JeepneyRouteMap({
           <MapMarkerCallout
             label="Board here"
             title={journey.boarding_transit_point.name}
-            description="Approximate connection from your starting point"
+            description="Straight-line guide to boarding stop"
             labelColor={BOARDING_MARKER_COLOR}
           />
         </Marker>
 
-        {/* Reviewed arrival reference with an approximate connection only. */}
+        {/* Landmark where the business's directions begin */}
         {journey.arrival_landmark && (
           <Marker
             testID="arrival-landmark-marker"
@@ -249,11 +227,17 @@ export default function JeepneyRouteMap({
             onPress={() => void focusMarker(journey.arrival_landmark!)}
           >
             <View collapsable={false}>
-              <MapMarker variant="alighting" />
+              <MapMarker variant="landmark" />
             </View>
             <MapMarkerCallout
               label="Arrival landmark"
               title={journey.arrival_landmark.name}
+              description={
+                journey.arrival_landmark.access_directions?.trim()
+                  ? "Entrance directions start here"
+                  : undefined
+              }
+              labelColor={theme.extends.colors.text.secondary}
             />
           </Marker>
         )}
@@ -275,38 +259,35 @@ export default function JeepneyRouteMap({
             label="Get off here"
             title={journey.alighting_transit_point.name}
             description={
-              journey.landmark_context
+              journey.arrival_landmark
+                ? `Straight-line guide to ${journey.arrival_landmark.name}`
+                : journey.landmark_context
                 ? `Near ${journey.landmark_context.name}`
-                : "Approximate connection to your destination"
+                : undefined
             }
             labelColor={ALIGHTING_MARKER_COLOR}
           />
         </Marker>
 
         {/* Business destination */}
-        {showBusinessMarker && (
-          <Marker
-            testID="business-destination-marker"
-            coordinate={journey.business_location}
-            anchor={{ x: 0.5, y: 1 }}
-            onPress={() => {
-              void focusMarker(journey.business_location);
-            }}
-          >
-            <View collapsable={false}>
-              <MapMarker
-                variant="destination"
-                imageUrl={businessCoverPhotoUrl}
-              />
-            </View>
+        <Marker
+          testID="business-destination-marker"
+          coordinate={journey.business_location}
+          anchor={{ x: 0.5, y: 1 }}
+          onPress={() => {
+            void focusMarker(journey.business_location);
+          }}
+        >
+          <View collapsable={false}>
+            <MapMarker variant="destination" imageUrl={businessCoverPhotoUrl} />
+          </View>
 
-            <MapMarkerCallout
-              label="Destination"
-              title={businessName}
-              labelColor={theme.extends.colors.brand}
-            />
-          </Marker>
-        )}
+          <MapMarkerCallout
+            label="Destination"
+            title={businessName}
+            labelColor={theme.extends.colors.brand}
+          />
+        </Marker>
       </MapView>
     </View>
   );

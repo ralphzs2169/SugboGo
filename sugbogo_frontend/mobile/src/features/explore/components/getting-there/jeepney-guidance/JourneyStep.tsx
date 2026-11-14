@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
+import type { ReactNode } from "react";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
@@ -10,7 +11,8 @@ type JourneyStepVariant = "origin" | "step" | "destination";
 type Props = {
   number: number;
   title: string;
-  detail: string;
+  detail?: string;
+  children?: ReactNode;
   supportingLabel?: string;
   supportingText?: string;
   supportingDetail?: string;
@@ -36,6 +38,7 @@ export default function JourneyStep({
   number,
   title,
   detail,
+  children,
   supportingLabel,
   supportingText,
   supportingDetail,
@@ -46,12 +49,6 @@ export default function JourneyStep({
 }: Props) {
   const isOrigin = variant === "origin";
   const isDestination = variant === "destination";
-
-  const semanticColor = isOrigin
-    ? BOARDING_BACKGROUND
-    : isDestination
-      ? ALIGHTING_BACKGROUND
-      : theme.extends.colors.brand;
 
   return (
     <View className="flex-row">
@@ -106,15 +103,15 @@ export default function JourneyStep({
 
       {/* Primary journey guidance */}
       <View className={`ml-3 flex-1 ${isLast ? "" : "pb-4"}`}>
-        {(isOrigin || isDestination) && (
+        {isOrigin && (
           <AppText
             weight="bold"
             className="mb-0.5 text-[10px] uppercase tracking-wide"
             style={{
-              color: semanticColor,
+              color: BOARDING_BACKGROUND,
             }}
           >
-            {isOrigin ? "Start" : "Destination"}
+            Start
           </AppText>
         )}
 
@@ -125,9 +122,12 @@ export default function JourneyStep({
           {title}
         </AppText>
 
-        <AppText className="mt-0.5 text-xs leading-4 text-text-secondary">
-          {detail}
-        </AppText>
+        {detail && (
+          <AppText className="mt-0.5 text-xs leading-4 text-text-secondary">
+            {detail}
+          </AppText>
+        )}
+        {children}
 
         {/* Optional contextual guidance */}
         {supportingText && (

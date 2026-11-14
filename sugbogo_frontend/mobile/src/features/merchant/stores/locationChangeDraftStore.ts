@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { selectArrivalLandmark } from "../utils/selectArrivalLandmark";
 
 import type { BusinessLandmark } from "@/shared/types/BusinessLocation.types";
 import type { MerchantBusinessProfileResponse } from "../types/merchantBusinessProfile.types";
@@ -15,10 +16,15 @@ type LocationChangeDraftState = {
   baselineKey: string | null;
   location: LocationChangeLocation | null;
   landmarks: BusinessLandmark[];
+  arrivalDirectionsDrafts: ReadonlyMap<string, string>;
   nearbyLandmarksLoadFailed: boolean;
   initialize: (business: MerchantBusinessProfileResponse) => void;
   setLocation: (location: LocationChangeLocation) => void;
   setLandmarks: (landmarks: BusinessLandmark[]) => void;
+  setArrivalLandmark: (
+    id: string | null,
+    addedLandmark?: BusinessLandmark,
+  ) => void;
   setNearbyLandmarksLoadFailed: (failed: boolean) => void;
   reset: () => void;
 };
@@ -30,6 +36,7 @@ export const useLocationChangeDraftStore = create<LocationChangeDraftState>(
     baselineKey: null,
     location: null,
     landmarks: [],
+    arrivalDirectionsDrafts: new Map(),
     nearbyLandmarksLoadFailed: false,
     initialize: (business) => {
       const current = get();
@@ -57,6 +64,7 @@ export const useLocationChangeDraftStore = create<LocationChangeDraftState>(
         baselineKey,
         location,
         landmarks,
+        arrivalDirectionsDrafts: new Map(),
         nearbyLandmarksLoadFailed: false,
       });
     },
@@ -68,12 +76,27 @@ export const useLocationChangeDraftStore = create<LocationChangeDraftState>(
         return {
           location,
           landmarks: moved ? [] : state.landmarks,
+          arrivalDirectionsDrafts: moved
+            ? new Map()
+            : state.arrivalDirectionsDrafts,
           nearbyLandmarksLoadFailed: moved
             ? false
             : state.nearbyLandmarksLoadFailed,
         };
       }),
     setLandmarks: (landmarks) => set({ landmarks }),
+    setArrivalLandmark: (id, addedLandmark) =>
+      set((state) => {
+        const { selectedLandmarks, arrivalDirectionsDrafts } =
+          selectArrivalLandmark(
+            addedLandmark
+              ? [...state.landmarks, addedLandmark]
+              : state.landmarks,
+            state.arrivalDirectionsDrafts,
+            id,
+          );
+        return { landmarks: selectedLandmarks, arrivalDirectionsDrafts };
+      }),
     setNearbyLandmarksLoadFailed: (nearbyLandmarksLoadFailed) =>
       set({ nearbyLandmarksLoadFailed }),
     reset: () =>
@@ -82,6 +105,7 @@ export const useLocationChangeDraftStore = create<LocationChangeDraftState>(
         baselineKey: null,
         location: null,
         landmarks: [],
+        arrivalDirectionsDrafts: new Map(),
         nearbyLandmarksLoadFailed: false,
       }),
   }),
