@@ -18,7 +18,6 @@ class RegisterViewTests(APIResponseAssertionsMixin, APITestCase):
 
         self.valid_payload = {
             "email": "john@example.com",
-            "password": "StrongPassword123!",
             "first_name": "John",
             "last_name": "Doe",
         }
@@ -109,25 +108,17 @@ class RegisterViewTests(APIResponseAssertionsMixin, APITestCase):
         mock_send_email.assert_not_called()
 
     @patch("apps.authentication.services.email_service.EmailService.send_verification_email")
-    def test_register_fails_with_weak_password(self, mock_send_email):
-        payload = self.valid_payload.copy()
-        payload["password"] = "12345678"
-
+    def test_legacy_registration_password_is_ignored(self, mock_send_email):
+        """Accept older registration clients without storing their supplied password."""
         response = self.client.post(
             self.url,
-            payload,
+            {**self.valid_payload, "password": "legacy-password"},
             format="json",
         )
-
-        self.assertValidationError(
-            response,
-            "password"
-        )
-
-        self.assertFalse(User.objects.filter(USER_EMAIL="john@example.com").exists())
-
-        mock_send_email.assert_not_called()
-
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(USER_EMAIL="john@example.com")
+        self.assertFalse(user.has_usable_password())
+        mock_send_email.assert_called_once_with(user)
 
     @patch("apps.authentication.services.email_service.EmailService.send_verification_email")
     def test_register_fails_when_required_fields_are_missing(self, mock_send_email):
@@ -140,7 +131,6 @@ class RegisterViewTests(APIResponseAssertionsMixin, APITestCase):
         self.assertValidationError(
             response,
             "email",
-            "password",
             "first_name",
             "last_name",
         )

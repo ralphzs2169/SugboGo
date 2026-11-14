@@ -4,12 +4,18 @@ from django.utils.http import (
     urlsafe_base64_encode,
     urlsafe_base64_decode,
 )
+from rest_framework.exceptions import PermissionDenied
+
 from apps.users.models import User
 import logging
 
 from apps.authentication.services.session_service import SessionService
 from apps.authentication.constants import Platform
-from apps.authentication.tokens import password_reset_token_generator
+from apps.authentication.permissions import user_has_role
+from apps.authentication.tokens import (
+    admin_password_reset_token_generator,
+    password_reset_token_generator,
+)
 from config import settings
 from apps.authentication.services.account_lockout_service import AccountLockoutService
 
@@ -23,7 +29,35 @@ class PasswordResetService:
         return settings.PASSWORD_RESET_TIMEOUT 
 
     @staticmethod
-    def generate_reset_link(user: User, platform: str = Platform.MOBILE,) -> str:
+    def is_eligible(
+        user: User,
+        platform: str,
+    ) -> bool:
+        """Permit recovery for active and pending consumers or active, verified Admins."""
+        if platform == Platform.WEB:
+            return (
+                user.is_active
+                and user.EMAIL_VERIFIED
+                and user_has_role(user, User.UserRole.ADMIN)
+            )
+
+        return (
+            platform == Platform.MOBILE
+            and user.USER_STATUS in (
+                User.UserStatus.ACTIVE,
+                User.UserStatus.PENDING,
+            )
+            and user.USER_ROLE in (
+                User.UserRole.EXPLORER,
+                User.UserRole.MERCHANT,
+            )
+        )
+
+    @staticmethod
+    def generate_reset_link(
+        user: User,
+        platform: str = Platform.MOBILE,
+    ) -> str:
         """
         Generate a password reset link for a user.
 
@@ -33,20 +67,40 @@ class PasswordResetService:
         Returns:
             A signed reset URL containing the user's encoded ID and token.
         """
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = password_reset_token_generator.make_token(user)
+        if not PasswordResetService.is_eligible(user, platform):
+            raise PermissionDenied("This account cannot use this password recovery.")
 
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
         if platform == Platform.WEB:
+            token = admin_password_reset_token_generator.make_token(user)
             return (
                 f"{settings.WEB_APP_URL}/reset-password"
                 f"?uid={uid}"
                 f"&token={token}"
             )
 
+        token = password_reset_token_generator.make_token(user)
         return (
             f"{settings.MOBILE_SCHEME}reset-password"
             f"?uid={uid}"
             f"&token={token}"
+        )
+
+    @staticmethod
+    def _has_valid_token(
+        user: User,
+        token: str,
+    ) -> bool:
+        """Check the proof against the account's current recovery eligibility."""
+        if user_has_role(user, User.UserRole.ADMIN):
+            return (
+                PasswordResetService.is_eligible(user, Platform.WEB)
+                and admin_password_reset_token_generator.check_token(user, token)
+            )
+
+        return (
+            PasswordResetService.is_eligible(user, Platform.MOBILE)
+            and password_reset_token_generator.check_token(user, token)
         )
 
     @staticmethod
@@ -83,10 +137,7 @@ class PasswordResetService:
             )
             return None
 
-        if password_reset_token_generator.check_token(
-            user,
-            token,
-        ):
+        if PasswordResetService._has_valid_token(user, token):
             return user
 
         return None
@@ -117,13 +168,21 @@ class PasswordResetService:
             user = User.objects.select_for_update().get(pk=user.pk)
         except User.DoesNotExist:
             return None
-        if not password_reset_token_generator.check_token(user, token):
+        if not PasswordResetService._has_valid_token(user, token):
             return None
 
         user.set_password(password)
-        user.save(update_fields=["password"])
+        update_fields = ["password"]
+        if (
+            user.USER_STATUS == User.UserStatus.PENDING
+            and user.EMAIL_VERIFIED
+        ):
+            user.USER_STATUS = User.UserStatus.ACTIVE
+            update_fields.append("USER_STATUS")
+        user.save(update_fields=update_fields)
         AccountLockoutService.clear(user)
 
-        SessionService.revoke_all_sessions(user)
+        # Legacy links do not record how the external identity was trusted.
+        SessionService.revoke_all_sessions(user, revoke_oauth_links=True)
 
         return user

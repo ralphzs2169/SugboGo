@@ -1,208 +1,138 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import VerifyEmailScreen from "../VerifyEmailScreen";
 
 const mockReplace = jest.fn();
 const mockRouter = { replace: mockReplace };
 let mockParams: Record<string, unknown> = {};
+let mockPendingEmail: string | null = null;
 const mockVerify = jest.fn();
 const mockResend = jest.fn();
+const mockSetPendingEmail = jest.fn();
+
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock("expo-linking", () => ({
-  canOpenURL: jest.fn(),
-  openURL: jest.fn(),
-}));
+jest.mock("expo-linking", () => ({ canOpenURL: jest.fn(), openURL: jest.fn() }));
 jest.mock("../../hooks/useVerifyEmail", () => ({
   useVerifyEmail: () => ({ handleVerifyEmail: mockVerify }),
 }));
 jest.mock("../../hooks/useResendVerification", () => ({
-  useResendVerification: () => ({
-    handleResendVerification: mockResend,
-    loading: false,
-  }),
+  useResendVerification: () => ({ handleResendVerification: mockResend }),
 }));
 jest.mock("../../store/verification.store", () => ({
   useVerificationStore: (select: (state: unknown) => unknown) =>
-    select({ pendingEmail: "test@example.invalid" }),
+    select({ pendingEmail: mockPendingEmail, setPendingEmail: mockSetPendingEmail }),
 }));
 jest.mock("@/shared/utils/apiErrors", () => ({
-  handleSystemError: jest.fn(() => true),
+  ...jest.requireActual("@/shared/utils/apiErrors"),
+  handleSystemError: jest.fn(),
 }));
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
-jest.mock(
-  "../../components/EmailConfirmationLayout",
-  () =>
-    function MockEmailConfirmationLayout({
-      children,
-      onResend,
-    }: {
-      children: React.ReactNode;
-      onResend: () => void;
-    }) {
-      const { View, Pressable, Text } = jest.requireActual("react-native");
-      return (
-        <View>
-          <Pressable onPress={onResend}>
-            <Text>Resend</Text>
-          </Pressable>
-          {children}
-        </View>
-      );
-    },
-);
-jest.mock(
-  "../../components/BottomAuthLink",
-  () =>
-    function MockBottomAuthLink({ onPress }: { onPress: () => void }) {
-      const { Pressable, Text } = jest.requireActual("react-native");
-      return (
-        <Pressable onPress={onPress}>
-          <Text>Back to Login</Text>
-        </Pressable>
-      );
-    },
-);
-jest.mock(
-  "@/shared/components/LoadingScreen",
-  () =>
-    function MockLoadingScreen() {
-      const { Text } = jest.requireActual("react-native");
-      return <Text>Verifying Email</Text>;
-    },
-);
-jest.mock(
-  "@/shared/components/Button",
-  () =>
-    function MockButton({
-      title,
-      onPress,
-      disabled,
-    }: {
-      title: string;
-      onPress: () => void;
-      disabled: boolean;
-    }) {
-      const { Pressable, Text } = jest.requireActual("react-native");
-      return (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={title}
-          disabled={disabled}
-          onPress={onPress}
-        >
-          <Text>{title}</Text>
-        </Pressable>
-      );
-    },
-);
+jest.mock("../../components/AuthLayout", () => function MockLayout({
+  children,
+}: { children: React.ReactNode }) {
+  const { View } = jest.requireActual("react-native");
+  return <View>{children}</View>;
+});
+jest.mock("../../components/EmailConfirmationLayout", () => function MockEmail({
+  children,
+  onResend,
+}: { children: React.ReactNode; onResend: () => void }) {
+  const { Pressable, View } = jest.requireActual("react-native");
+  return (
+    <View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Resend email" onPress={onResend} />
+      {children}
+    </View>
+  );
+});
+jest.mock("../../components/BottomAuthLink", () => function MockLink({
+  actionText,
+  onPress,
+}: { actionText: string; onPress: () => void }) {
+  const { Pressable } = jest.requireActual("react-native");
+  return <Pressable accessibilityRole="button" accessibilityLabel={actionText} onPress={onPress} />;
+});
+jest.mock("@/shared/components/AppText", () => {
+  const { Text } = jest.requireActual("react-native");
+  return Text;
+});
+jest.mock("@/shared/components/Button", () => function MockButton({
+  title,
+  onPress,
+}: { title: string; onPress: () => void }) {
+  const { Pressable } = jest.requireActual("react-native");
+  return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} />;
+});
+jest.mock("@/shared/components/form/PasswordInput", () => {
+  const { TextInput } = jest.requireActual("react-native");
+  return TextInput;
+});
+jest.mock("@/shared/components/form/FormInput", () => {
+  const { TextInput } = jest.requireActual("react-native");
+  return TextInput;
+});
 
-describe("verification error recovery", () => {
+describe("email verification with mailbox password setup", () => {
+  const password = "Mailbox-owner-password-546!";
+  const confirm = "Verify and set password";
+
   beforeEach(() => {
     jest.clearAllMocks();
-    mockParams = { uid: "user-id", token: "verification-token" };
+    mockParams = { uid: "legacy-user-id", token: "legacy-token" };
+    mockPendingEmail = null;
     mockResend.mockResolvedValue({ success: true });
   });
 
-  it.each([
-    "NETWORK_ERROR",
-    "REQUEST_TIMEOUT",
-    "SERVER_ERROR",
-    "INVALID_TOKEN",
-  ])("releases loading and permits retry after %s", async (code) => {
-    mockVerify.mockResolvedValueOnce({
-      success: false,
-      code,
-      message: "Verification unavailable",
-    });
-    const screen = await render(<VerifyEmailScreen />);
-    await waitFor(() =>
-      expect(screen.queryByText("Verifying Email")).toBeNull(),
-    );
-    expect(screen.getByText("Verification unavailable")).toBeTruthy();
-    expect(mockReplace).not.toHaveBeenCalled();
-    mockVerify.mockResolvedValueOnce({ success: true });
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Retry verification" }),
-    );
-    await waitFor(() =>
-      expect(mockReplace).toHaveBeenCalledWith("/(auth)/email-verified"),
-    );
-    expect(mockVerify).toHaveBeenCalledTimes(2);
-    await screen.unmount();
-  });
-
-  it("recovers from thrown failures and keeps the login escape available", async () => {
-    mockVerify.mockRejectedValueOnce(new Error("Unexpected failure"));
-    const screen = await render(<VerifyEmailScreen />);
-    await waitFor(() =>
-      expect(screen.queryByText("Verifying Email")).toBeNull(),
-    );
-    expect(
-      screen.getByRole("button", { name: "Retry verification" }),
-    ).toBeTruthy();
-    await fireEvent.press(screen.getByText("Back to Login"));
-    expect(mockReplace).toHaveBeenCalledWith("/(auth)/login");
-    await screen.unmount();
-  });
-
-  it("rejects incomplete or repeated link parameters without consuming a token", async () => {
-    mockParams = { uid: ["one", "two"], token: "token" };
+  it("waits for the mailbox holder to choose and explicitly submit a password", async () => {
+    mockVerify.mockResolvedValue({ success: true });
     const screen = await render(<VerifyEmailScreen />);
     expect(mockVerify).not.toHaveBeenCalled();
-    expect(screen.getByText(/link is incomplete/)).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Retry verification" }),
-    ).toBeNull();
-    await screen.unmount();
+
+    await fireEvent.press(screen.getByRole("button", { name: confirm }));
+    expect(mockVerify).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByLabelText("New password"), password);
+    await fireEvent.changeText(screen.getByLabelText("Confirm password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: confirm }));
+
+    expect(mockVerify).toHaveBeenCalledWith("legacy-user-id", "legacy-token", password, password);
+    expect(mockReplace).toHaveBeenCalledWith("/(auth)/email-verified");
   });
 
-  it("keeps verification retry available when resending also fails", async () => {
+  it("permits retry after a transport error", async () => {
     mockVerify.mockResolvedValueOnce({
       success: false,
-      message: "Verification unavailable",
+      code: "NETWORK_ERROR",
+      message: "Try again",
     });
-    mockResend.mockResolvedValueOnce({ success: false, code: "NETWORK_ERROR" });
+    mockVerify.mockResolvedValueOnce({ success: true });
     const screen = await render(<VerifyEmailScreen />);
-    await waitFor(() =>
-      expect(screen.queryByText("Verifying Email")).toBeNull(),
-    );
-    await fireEvent.press(screen.getByText("Resend"));
-    expect(
-      screen.getByRole("button", { name: "Retry verification" }),
-    ).toBeTruthy();
-    await screen.unmount();
+    await fireEvent.changeText(screen.getByLabelText("New password"), password);
+    await fireEvent.changeText(screen.getByLabelText("Confirm password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: confirm }));
+    expect(mockVerify).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByText("Try again")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: confirm }));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/(auth)/email-verified"));
   });
 
-  it("releases the loading view if a pending link is replaced by an incomplete link", async () => {
-    let resolve!: (value: unknown) => void;
-    mockVerify.mockReturnValueOnce(
-      new Promise((r) => {
-        resolve = r;
-      }),
-    );
+  it("supports resending from the normal check-inbox screen", async () => {
+    mockParams = {};
+    mockPendingEmail = "test@example.invalid";
     const screen = await render(<VerifyEmailScreen />);
-    expect(screen.getByText("Verifying Email")).toBeTruthy();
-    mockParams = { uid: "missing-token" };
-    await screen.rerender(<VerifyEmailScreen />);
-    expect(screen.queryByText("Verifying Email")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Resend email" }));
+    expect(mockResend).toHaveBeenCalledWith(mockPendingEmail);
+  });
+
+  it("can request fresh proof when there is no local pending email", async () => {
+    mockParams = { uid: ["duplicate", "uid"] };
+    const screen = await render(<VerifyEmailScreen />);
     expect(screen.getByText(/link is incomplete/)).toBeTruthy();
-    await act(async () => resolve({ success: true }));
-    expect(mockReplace).not.toHaveBeenCalled();
-    await screen.unmount();
-  });
-
-  it("does not navigate when an obsolete verification finishes after unmount", async () => {
-    let resolve!: (value: unknown) => void;
-    mockVerify.mockReturnValueOnce(
-      new Promise((r) => {
-        resolve = r;
-      }),
-    );
-    const screen = await render(<VerifyEmailScreen />);
-    await screen.unmount();
-    await act(async () => resolve({ success: true }));
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockVerify).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByLabelText("Email address"), "person@example.invalid");
+    await fireEvent.press(screen.getByRole("button", { name: "Send verification email" }));
+    expect(mockResend).toHaveBeenCalledWith("person@example.invalid");
   });
 });

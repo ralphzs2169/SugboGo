@@ -92,13 +92,19 @@ class IAMCoreFlowTests(APITestCase):
         user = User.objects.get(USER_EMAIL="registered-core@example.com")
         self.assertEqual(user.USER_ROLE, User.UserRole.EXPLORER)
         blocked = self.post(self.client, "login", {"email": user.USER_EMAIL, "password": self.password})
-        self.assertEqual(blocked.data["code"], "EMAIL_NOT_VERIFIED")
+        self.assertEqual(blocked.data["code"], "INVALID_CREDENTIALS")
         user.refresh_from_db()
         self.assertIsNone(user.last_login)
-        response = self.client.get(reverse("verify_email"), {
-            "uid": urlsafe_base64_encode(force_bytes(user.pk)),
-            "token": email_verification_token_generator.make_token(user),
-        })
+        response = self.post(
+            self.client,
+            "verify_email",
+            {
+                "uid": urlsafe_base64_encode(force_bytes(user.pk)),
+                "token": email_verification_token_generator.make_token(user),
+                "password": self.password,
+                "confirm_password": self.password,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         client, _ = self.sign_in(user)
         self.assertEqual(client.get(reverse("me")).status_code, 200)
@@ -250,8 +256,20 @@ class IAMCoreFlowTests(APITestCase):
             })
         self.assertEqual(response.status_code, 201)
         user = User.objects.get(USER_EMAIL="exact-password-core@example.com")
+        self.assertFalse(user.has_usable_password())
+        confirmation = self.post(
+            self.client,
+            "verify_email",
+            {
+                "uid": urlsafe_base64_encode(force_bytes(user.pk)),
+                "token": email_verification_token_generator.make_token(user),
+                "password": original,
+                "confirm_password": original,
+            },
+        )
+        self.assertEqual(confirmation.status_code, 200, confirmation.data)
+        user.refresh_from_db()
         self.assertTrue(user.check_password(original))
-        User.objects.filter(pk=user.pk).update(EMAIL_VERIFIED=True)
         client, old = self.sign_in(user, original)
         user.refresh_from_db()
         proof = password_reset_token_generator.make_token(user)
@@ -298,13 +316,32 @@ class IAMCoreFlowTests(APITestCase):
         """Preserves nonblank validation while retaining exact text for usable passwords."""
         blank = " " * 12
         with patch("apps.authentication.services.email_service.EmailService.send_verification_email"):
-            response = self.post(APIClient(), "register", {
-                "email": "blank-core@example.com", "password": blank,
-                "first_name": "Blank", "last_name": "Tester",
-            })
+            registration = self.post(
+                APIClient(),
+                "register",
+                {
+                    "email": "blank-core@example.com",
+                    "first_name": "Blank",
+                    "last_name": "Tester",
+                },
+            )
+        self.assertEqual(registration.status_code, 201)
+        unverified = User.objects.get(USER_EMAIL="blank-core@example.com")
+        response = self.post(
+            APIClient(),
+            "verify_email",
+            {
+                "uid": urlsafe_base64_encode(force_bytes(unverified.pk)),
+                "token": email_verification_token_generator.make_token(unverified),
+                "password": blank,
+                "confirm_password": blank,
+            },
+        )
         self.assertEqual(response.status_code, 400)
         self.assertIn("password", response.data["errors"])
-        self.assertFalse(User.objects.filter(USER_EMAIL="blank-core@example.com").exists())
+        unverified.refresh_from_db()
+        self.assertFalse(unverified.EMAIL_VERIFIED)
+        self.assertFalse(unverified.has_usable_password())
         user = self.account("blank-recovery-core")
         client, _ = self.sign_in(user)
         user.refresh_from_db()

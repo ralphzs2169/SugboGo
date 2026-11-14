@@ -5,6 +5,7 @@ from threading import Barrier
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
+from django.core.cache import cache
 from django.db import close_old_connections
 from django.test import TransactionTestCase
 from django.test import override_settings
@@ -28,6 +29,7 @@ from apps.authentication.services.verification_service import (
 )
 from apps.authentication.tokens import (
     admin_invitation_token_generator,
+    admin_password_reset_token_generator,
     email_verification_token_generator,
     password_reset_token_generator,
 )
@@ -103,6 +105,85 @@ class AdminInvitationLifecycleTests(APITestCase):
         self.assertIsNone(
             AdminInvitationService.verify_token(uid, reset_token)
         )
+
+    def test_ordinary_verification_and_recovery_leave_pending_invitation_usable(self):
+        """Block issuance and redemption of ordinary links for an invited Admin."""
+        cache.clear()
+        user = self.create_invited_admin()
+        invitation = self.completion_payload(user)
+        uid = invitation["uid"]
+
+        with (
+            patch.object(EmailService, "send_verification_email") as send_verification,
+            patch.object(EmailService, "send_password_reset_email") as send_reset,
+        ):
+            resend = self.client.post(
+                reverse("resend_verification"),
+                {"email": user.USER_EMAIL},
+                format="json",
+            )
+            self.assertEqual(resend.status_code, 404, resend.data)
+            for endpoint in ("forgot_password", "admin_forgot_password"):
+                with self.subTest(endpoint=endpoint):
+                    recovery = self.client.post(
+                        reverse(endpoint),
+                        {"email": user.USER_EMAIL},
+                        format="json",
+                    )
+                    self.assertEqual(recovery.status_code, 200, recovery.data)
+        send_verification.assert_not_called()
+        send_reset.assert_not_called()
+
+        verification = self.client.post(
+            reverse("verify_email"),
+            {
+                "uid": uid,
+                "token": email_verification_token_generator.make_token(user),
+                "password": self.password,
+                "confirm_password": self.password,
+            },
+            format="json",
+        )
+        self.assertEqual(verification.status_code, 400, verification.data)
+        self.assertEqual(verification.data["code"], "INVALID_VERIFICATION_LINK")
+
+        for generator in (
+            password_reset_token_generator,
+            admin_password_reset_token_generator,
+        ):
+            with self.subTest(generator=type(generator).__name__):
+                proof = {"uid": uid, "token": generator.make_token(user)}
+                validation = self.client.post(
+                    reverse("validate_reset_token"),
+                    proof,
+                    format="json",
+                )
+                self.assertEqual(validation.status_code, 400, validation.data)
+                self.assertEqual(validation.data["code"], "INVALID_RESET_TOKEN")
+
+                reset = self.client.post(
+                    reverse("reset_password"),
+                    {
+                        **proof,
+                        "password": self.password,
+                        "confirm_password": self.password,
+                    },
+                    format="json",
+                )
+                self.assertEqual(reset.status_code, 400, reset.data)
+                self.assertEqual(reset.data["code"], "INVALID_RESET_LINK")
+
+        user.refresh_from_db()
+        self.assertEqual(user.USER_STATUS, User.UserStatus.PENDING)
+        self.assertFalse(user.EMAIL_VERIFIED)
+        self.assertIsNone(user.EMAIL_VERIFIED_AT)
+        self.assertFalse(user.has_usable_password())
+        completion = self.client.post(
+            reverse("complete_admin_invitation"),
+            invitation,
+            format="json",
+        )
+        self.assertEqual(completion.status_code, 200, completion.data)
 
     def test_invitation_token_is_invalidated_by_bound_account_state(self):
         mutations = (

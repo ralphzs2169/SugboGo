@@ -9,7 +9,10 @@ from unittest.mock import patch
 from apps.authentication.services.password_reset_service import (
     PasswordResetService,
 )
-from apps.authentication.tokens import password_reset_token_generator
+from apps.authentication.tokens import (
+    admin_password_reset_token_generator,
+    password_reset_token_generator,
+)
 from apps.users.models import User
 from apps.authentication.constants import Platform
 from config import settings
@@ -46,6 +49,8 @@ class PasswordResetServiceTests(TestCase):
 
 
     def test_generate_web_reset_link_returns_valid_link(self):
+        self.user.USER_ROLE = User.UserRole.ADMIN
+        self.user.save(update_fields=["USER_ROLE"])
         link = PasswordResetService.generate_reset_link(
             self.user,
             platform=Platform.WEB,
@@ -59,21 +64,55 @@ class PasswordResetServiceTests(TestCase):
         self.assertIn("token=", link)
 
 
-    def test_generate_reset_link_returns_different_links_per_platform(self):
-        mobile_link = PasswordResetService.generate_reset_link(
-            self.user,
-            platform=Platform.MOBILE,
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = link.split("token=")[1]
+        self.assertTrue(
+            admin_password_reset_token_generator.check_token(self.user, token),
+        )
+        self.assertFalse(
+            password_reset_token_generator.check_token(self.user, token),
+        )
+        self.assertEqual(PasswordResetService.verify_token(uid, token), self.user)
+
+    def test_recovery_rejects_a_proof_from_the_wrong_portal(self):
+        """Reject an outstanding token after the account crosses a portal boundary."""
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        mobile_token = password_reset_token_generator.make_token(self.user)
+
+        self.user.USER_ROLE = User.UserRole.SUPER_ADMIN
+        self.user.save(update_fields=["USER_ROLE"])
+        self.assertIsNone(PasswordResetService.verify_token(uid, mobile_token))
+
+        admin_token = admin_password_reset_token_generator.make_token(self.user)
+        self.assertEqual(PasswordResetService.verify_token(uid, admin_token), self.user)
+
+        self.user.USER_ROLE = User.UserRole.MERCHANT
+        self.user.save(update_fields=["USER_ROLE"])
+        self.assertIsNone(PasswordResetService.verify_token(uid, admin_token))
+
+    def test_reset_rechecks_account_eligibility_on_the_locked_row(self):
+        """Reject an account suspended after the initial, unlocked proof check."""
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = password_reset_token_generator.make_token(self.user)
+        original_password = self.user.password
+        User.objects.filter(pk=self.user.pk).update(
+            USER_STATUS=User.UserStatus.SUSPENDED,
         )
 
-        web_link = PasswordResetService.generate_reset_link(
-            self.user,
-            platform=Platform.WEB,
-        )
+        with patch.object(
+            PasswordResetService,
+            "verify_token",
+            return_value=self.user,
+        ):
+            result = PasswordResetService.reset_password(
+                uid,
+                token,
+                "New-Account-Password-831!",
+            )
 
-        self.assertNotEqual(
-            mobile_link,
-            web_link,
-        )
+        self.assertIsNone(result)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.password, original_password)
 
     def test_generate_reset_link_contains_correct_uid(self):
         link = PasswordResetService.generate_reset_link(
@@ -188,6 +227,7 @@ class PasswordResetServiceTests(TestCase):
 
         mock_revoke_sessions.assert_called_once_with(
             self.user,
+            revoke_oauth_links=True,
         )
 
 
@@ -259,6 +299,7 @@ class PasswordResetServiceTests(TestCase):
 
         mock_revoke_sessions.assert_called_once_with(
             self.user,
+            revoke_oauth_links=True,
         )
 
         # Attempt to reuse the same token.

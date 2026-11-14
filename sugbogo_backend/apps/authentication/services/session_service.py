@@ -4,6 +4,7 @@ from rest_framework_simplejwt.token_blacklist.models import (
     BlacklistedToken,
 )
 
+from apps.authentication.models import OAuthAccount
 from apps.users.models import User
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.settings import api_settings
@@ -29,11 +30,18 @@ class SessionService:
 
     @staticmethod
     @transaction.atomic
-    def revoke_all_sessions(user: User) -> None:
-        """Blacklists all registered refresh tokens for the locked account."""
+    def revoke_all_sessions(
+        user: User,
+        *,
+        revoke_oauth_links: bool = False,
+    ) -> None:
+        """Blacklists refresh tokens and optionally removes external sign-in credentials."""
 
         # Share the account lock used by refresh rotation and password changes.
         User.objects.select_for_update().get(pk=user.pk)
+        if revoke_oauth_links:
+            OAuthAccount.objects.filter(USER=user).delete()
+
         outstanding_tokens = OutstandingToken.objects.filter(user=user)
 
         for token in outstanding_tokens:

@@ -109,38 +109,31 @@ export async function refreshAccessToken(
 /**
  * Registers a new user.
  *
- * Sends the user's registration information to the backend and returns
- * the authenticated user together with the issued JWT access and refresh tokens.
- *
- * @param {RegisterRequest} data - The user's registration information.
- * @returns {Promise<ApiMessageResponse>} The authenticated user and JWT tokens.
- * @throws {AxiosError} If the registration request fails or validation errors occur.
+ * Sends the details needed to start email signup.
  */
 export function register(
   data: RegisterRequest,
-): Promise<ApiResponse<AuthResponse>> {
+): Promise<ApiMessageResponse> {
   return request(
-    authClient.post<ApiResponse<AuthResponse>>("/auth/register/", data),
+    authClient.post<ApiMessageResponse>("/auth/register/", data),
   );
 }
 
 /**
- * Verifies a user's email using the uid and token from the email link.
- *
- * @param uid - Base64 encoded user id.
- * @param token - Django verification token.
- * @returns Backend response.
+ * Completes email verification with a password chosen by the mailbox holder.
  */
 export function verifyEmail(
   uid: string,
   token: string,
+  password: string,
+  confirmPassword: string,
 ): Promise<ApiMessageResponse> {
   return request(
-    authClient.get<ApiMessageResponse>("/auth/verify-email/", {
-      params: {
-        uid,
-        token,
-      },
+    authClient.post<ApiMessageResponse>("/auth/verify-email/", {
+      uid,
+      token,
+      password,
+      confirm_password: confirmPassword,
     }),
   );
 }

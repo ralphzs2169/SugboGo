@@ -11,7 +11,11 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 
 from apps.authentication.models import OAuthAccount
 from apps.authentication.services.account_deactivation_service import AccountDeactivationService
-from apps.authentication.services.oauth.account import OAuthAccountInactive, OAuthAccountService
+from apps.authentication.services.oauth.account import (
+    OAuthAccountInactive,
+    OAuthAccountService,
+    OAuthLinkRequired,
+)
 from apps.authentication.services.oauth.base import OAuthUser
 from apps.authentication.services.password_reset_service import PasswordResetService
 from apps.authentication.tokens import password_reset_token_generator
@@ -189,9 +193,19 @@ class AccountDeactivationTests(APIResponseAssertionsMixin, APITestCase):
     def test_google_and_facebook_cannot_reactivate_or_link_disabled_account(self):
         self.client.post(self.url, self.payload)
         for provider in ["google", "facebook"]:
-            identity = OAuthUser(provider, f"{provider}-123", self.user.USER_EMAIL, "Cebu", "Explorer")
+            identity = OAuthUser(
+                provider=provider,
+                provider_id=f"{provider}-123",
+                email=self.user.USER_EMAIL,
+                first_name="Cebu",
+                last_name="Explorer",
+                email_authoritative=provider == "google",
+            )
             with self.subTest(provider=provider, linked=False):
-                with self.assertRaises(OAuthAccountInactive):
+                expected_error = OAuthAccountInactive
+                if not identity.email_authoritative:
+                    expected_error = OAuthLinkRequired
+                with self.assertRaises(expected_error):
                     OAuthAccountService.get_or_create_user(identity)
                 self.assertFalse(OAuthAccount.objects.filter(USER=self.user).exists())
             link = OAuthAccount.objects.create(
@@ -204,16 +218,21 @@ class AccountDeactivationTests(APIResponseAssertionsMixin, APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.USER_STATUS, User.UserStatus.DISABLED)
 
-    def test_password_reset_does_not_reactivate_account(self):
+    def test_password_reset_cannot_change_a_disabled_account(self):
+        """Reject password updates while a disabled account awaits manual restoration."""
         self.client.post(self.url, self.payload)
         self.user.refresh_from_db()
+        original_password = self.user.password
         token = password_reset_token_generator.make_token(self.user)
         updated = PasswordResetService.reset_password(
-            urlsafe_base64_encode(force_bytes(self.user.pk)), token, "ReplacementSecure981!",
+            urlsafe_base64_encode(force_bytes(self.user.pk)),
+            token,
+            "ReplacementSecure981!",
         )
-        self.assertIsNotNone(updated)
+        self.assertIsNone(updated)
         self.user.refresh_from_db()
         self.assertEqual(self.user.USER_STATUS, User.UserStatus.DISABLED)
+        self.assertEqual(self.user.password, original_password)
 
     def test_manual_reactivation_requires_fresh_login_and_never_restores_old_tokens(self):
         self.client.post(self.url, self.payload)

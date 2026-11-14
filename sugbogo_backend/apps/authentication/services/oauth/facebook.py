@@ -71,6 +71,10 @@ class FacebookOAuthService:
         if payload.get("app_id") != settings.FACEBOOK_APP_ID:
             raise FacebookAuthError
 
+        subject = payload.get("user_id")
+        if not isinstance(subject, str) or not subject:
+            raise FacebookAuthError
+
         # Retrieve the authenticated user's Facebook profile.
         profile = FacebookOAuthService._get_payload(
             "https://graph.facebook.com/me",
@@ -83,7 +87,7 @@ class FacebookOAuthService:
         # SugboGo requires an email address to identify users.
         email = profile.get("email")
 
-        if not email or not profile.get("id"):
+        if not isinstance(email, str) or not email or profile.get("id") != subject:
             raise FacebookAuthError
 
         picture = profile.get("picture")
@@ -91,10 +95,11 @@ class FacebookOAuthService:
 
         return OAuthUser(
             provider="facebook",
-            provider_id=profile["id"],
+            provider_id=subject,
             email=email,
             first_name=profile.get("first_name", ""),
             last_name=profile.get("last_name", ""),
+            email_authoritative=False,
             avatar_url=(
                 picture_data.get("url")
                 if isinstance(picture_data, dict)
