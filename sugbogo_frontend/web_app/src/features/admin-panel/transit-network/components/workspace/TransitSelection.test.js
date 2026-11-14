@@ -596,13 +596,66 @@ test("deleting the final record on a later page moves to the remaining valid pag
   assert.equal(reads.filter((read) => read.url.endsWith("transit-points/")).at(-1).options.params.page, 1);
 });
 
-test("Edit Direction opens the existing direction in adjust mode", async () => {
+test("the direction inspector shows ordered stops and keeps editing explicit", async () => {
+  const firstStop = { ...point, name: "Starting landmark" };
+  const lastStop = { ...point, id: 2, name: "Ending landmark" };
+  const intermediateStops = ["Zeta stop", "Alpha stop", "Market stop"].map(
+    (name, index) => ({ ...point, id: index + 3, name }),
+  );
+  const stops = [firstStop, ...intermediateStops, lastStop];
+  const outbound = {
+    ...variants[0],
+    origin: firstStop,
+    destination: lastStop,
+    transit_points: stops.map((stop, index) => ({
+      sequence: index + 1,
+      transit_point: stop,
+    })),
+  };
+  const inbound = {
+    ...variants[1],
+    route_id: outbound.route_id,
+    origin: lastStop,
+    destination: firstStop,
+    transit_points: [
+      { sequence: 1, transit_point: lastStop },
+      { sequence: 2, transit_point: firstStop },
+    ],
+  };
+  gates["/admin/transit/routes/1/"] = Promise.resolve(response({
+    id: outbound.route_id,
+    code: outbound.route_code,
+    variants: [outbound, inbound],
+    variant_count: 2,
+  }));
+  const stopRows = () => [
+    ...inspector().querySelectorAll('ol[aria-labelledby="direction-stop-order"] > li'),
+  ];
+
   await open("routes");
-  await act(async () => globalThis.__selectionMap.onVariantSelect(variants[0]));
+  await click(button("Starting landmark → Ending landmark"));
+  assert.deepEqual(
+    stopRows().map((row) => row.firstElementChild.textContent),
+    stops.map((stop) => stop.name),
+  );
+  assert.match(stopRows()[0].textContent, /Starting stop/);
+  assert.match(stopRows().at(-1).textContent, /Last stop/);
+  await click(stopRows()[1]);
+  assert.equal(globalThis.__selectionMap.mode, "browse");
+  assert.equal(inspector().querySelector("ol button"), null);
+
+  await click(button("Ending landmark → Starting landmark"));
+  assert.deepEqual(
+    stopRows().map((row) => row.firstElementChild.textContent),
+    [lastStop.name, firstStop.name],
+  );
+  assert.match(stopRows()[0].textContent, /Starting stop/);
+  assert.match(stopRows()[1].textContent, /Last stop/);
+
   await click(button("Edit Direction"));
   assert.equal(globalThis.__selectionMap.mode, "edit-variant-adjust");
-  assert.equal(globalThis.__selectionMap.variantEditor.editorState.originId, "1");
-  assert.equal(globalThis.__selectionMap.variantEditor.editorState.destinationId, "2");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.originId, "2");
+  assert.equal(globalThis.__selectionMap.variantEditor.editorState.destinationId, "1");
 });
 
 test("deletion removes a recently created route point from fallback markers and selectors", async () => {
