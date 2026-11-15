@@ -365,7 +365,7 @@ describe("MerchantAnalyticsScreen", () => {
     client.setQueryData(merchantPlusStatusKey(42), plusStatus(false));
     jest.mocked(plusService.getMerchantPlusStatus).mockResolvedValue(plusSuccess(plusStatus(false)));
     const screen = await renderScreen();
-    await screen.findByText("₱1.00 for 30 days");
+    await screen.findByRole("button", { name: "Try 30 days for ₱1" });
     expect(screen.getByRole("header", { name: "Specialty vouches" })).toBeTruthy();
     expect(screen.getByRole("header", { name: "Route-planning activity" })).toBeTruthy();
     expect(getAnalytics).toHaveBeenCalled();

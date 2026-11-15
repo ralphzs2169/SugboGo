@@ -120,9 +120,8 @@ it.each([
 
     await screen.rerender(<MerchantPlusEntry discovery />);
     expect(
-      screen.getByRole("button", { name: "Explore Merchant Plus" }),
+      screen.getByRole("button", { name: "Try 30 days for ₱1" }),
     ).toBeTruthy();
-    expect(screen.getByText("₱1.00 for 30 days")).toBeTruthy();
 
     await screen.rerender(<MerchantPlusScreen />);
     expect(screen.queryByText("Merchant Plus active")).toBeNull();
@@ -186,10 +185,9 @@ it("announces preparing state and disables Pay", async () => {
 
 it("renders compact discovery and Business entries linked to the same screen", async () => {
   const screen = await render(<MerchantPlusEntry discovery />);
-  expect(screen.getByText("₱1.00 for 30 days")).toBeTruthy();
-  expect(screen.getByText("Recommendations")).toBeTruthy();
+  expect(screen.getByText("One-time payment · No automatic renewal")).toBeTruthy();
   await fireEvent.press(
-    screen.getByRole("button", { name: "Explore Merchant Plus" }),
+    screen.getByRole("button", { name: "Try 30 days for ₱1" }),
   );
   expect(mockPush).toHaveBeenCalledWith("/(merchant)/merchant-plus");
   await screen.rerender(<MerchantPlusEntry />);
@@ -221,4 +219,20 @@ it("routes locked Further insights to Plus and restores report navigation after 
     screen.getByRole("button", { name: "Open Peer comparisons" }),
   );
   expect(open).toHaveBeenCalledWith("peers");
+});
+
+it("dismisses the Analytics offer without hiding the Business entry", async () => {
+  const screen = await render(<MerchantPlusEntry discovery />);
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Dismiss Merchant Plus offer" }),
+  );
+  expect(
+    screen.queryByRole("button", { name: "Try 30 days for ₱1" }),
+  ).toBeNull();
+  expect(mockPush).not.toHaveBeenCalled();
+
+  await screen.rerender(<MerchantPlusEntry />);
+  expect(
+    screen.getByRole("button", { name: "Explore Merchant Plus" }),
+  ).toBeTruthy();
 });

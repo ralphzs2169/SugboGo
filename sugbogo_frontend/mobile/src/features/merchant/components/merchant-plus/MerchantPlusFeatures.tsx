@@ -7,11 +7,13 @@ const PLUS_FEATURES = [
   {
     title: "Peer comparisons",
     icon: "store-outline",
+    discoveryIcon: "account-group-outline",
     detail: "Compare activity with similar businesses.",
   },
   {
     title: "Specialty trends",
     icon: "heart-outline",
+    discoveryIcon: "trending-up",
     detail: "Track how specialty support changes over time.",
   },
   {
@@ -35,32 +37,37 @@ export default function MerchantPlusFeatures({
   compact?: boolean;
 }) {
   const { width, fontScale } = useWindowDimensions();
-  const useShortLabel = width < 360 && fontScale > 1.1;
+  const useShortLabel = width < 375 || width / fontScale < 370;
+  const stackTileContents = width / fontScale < 280;
 
   if (compact) {
     return (
       <View className="gap-2">
         {[PLUS_FEATURES.slice(0, 2), PLUS_FEATURES.slice(2)].map((row) => (
-          <View key={row[0].title} className="flex-row items-start gap-2">
+          <View key={row[0].title} className="flex-row items-stretch gap-2">
             {row.map((feature) => (
               <View
                 key={feature.title}
                 accessibilityLabel={
                   "shortTitle" in feature ? feature.title : undefined
                 }
-                className="min-w-0 flex-1 flex-row items-start gap-1.5"
+                className={`min-h-12 min-w-0 flex-1 gap-1.5 rounded-card bg-background px-2 py-1.5 ${stackTileContents ? "items-start" : "flex-row items-center"}`}
               >
-                <View className="mt-0.5 shrink-0">
+                <View className="h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand/15">
                   <MaterialCommunityIcons
-                    name={feature.icon}
-                    size={15}
-                    color={theme.extends.colors.text.secondary}
+                    name={
+                      "discoveryIcon" in feature
+                        ? feature.discoveryIcon
+                        : feature.icon
+                    }
+                    size={16}
+                    color={theme.extends.colors.brand}
                     accessible={false}
                   />
                 </View>
                 <AppText
                   weight="semibold"
-                  className="min-w-0 flex-1 text-small text-text-primary"
+                  className={`min-w-0 text-small text-text-primary ${stackTileContents ? "self-stretch" : "flex-1"}`}
                 >
                   {"compactTitle" in feature
                     ? useShortLabel

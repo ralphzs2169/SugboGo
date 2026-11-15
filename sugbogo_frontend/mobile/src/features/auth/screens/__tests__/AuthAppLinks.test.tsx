@@ -9,7 +9,7 @@ import ResetPasswordRoute from "@/app/(auth)/reset-password";
 import VerifyEmailRoute from "@/app/(auth)/verify-email";
 import OAuthRedirect from "@/app/oauthredirect";
 import MerchantPlusReturnRoute from "@/app/(merchant)/merchant-plus/return";
-import MerchantPlusRoute from "@/app/(merchant)/merchant-plus/index";
+import MerchantPlusRoute from "@/app/(merchant)/merchant-plus";
 import MerchantPlusEntry from "@/features/merchant/components/merchant-plus/MerchantPlusEntry";
 
 jest.mock("@/features/merchant/screens/merchant-mode/MerchantPlusScreen", () => ({
@@ -69,7 +69,7 @@ const routes = getMockContext({
   "(auth)/verify-email": VerifyEmailRoute,
   oauthredirect: OAuthRedirect,
   "(merchant)/merchant-plus/return": MerchantPlusReturnRoute,
-  "(merchant)/merchant-plus/index": MerchantPlusRoute,
+  "(merchant)/merchant-plus": MerchantPlusRoute,
   "(merchant)/(tabs)/analytics": () => <MerchantPlusEntry discovery />,
 });
 
@@ -97,7 +97,9 @@ function launchApp(url: string | null = null) {
 
 it("opens the actual offer route by tapping the Merchant Plus card", async () => {
   const app = await launchApp("sugbogo://analytics");
-  await fireEvent.press(await app.findByRole("button", { name: "Explore Merchant Plus" }));
+  await fireEvent.press(
+    await app.findByRole("button", { name: "Try 30 days for ₱1" }),
+  );
   expect(await app.findByText("Merchant Plus offer screen")).toBeTruthy();
 });
 

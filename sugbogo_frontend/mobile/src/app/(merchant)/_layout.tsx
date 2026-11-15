@@ -21,7 +21,7 @@ export default function MerchantLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen
-        name="merchant-plus/index"
+        name="merchant-plus"
         options={{
           ...defaultStackScreenOptions,
           ...slideFromRight,
