@@ -7,8 +7,6 @@ import {
 } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
-import AppText from "@/shared/components/AppText";
-import SafePressable from "@/shared/components/SafePressable";
 import AnalyticsPeerComparisons from "../../components/analytics/AnalyticsPeerComparisons";
 import AnalyticsStoredReviewInsights from "../../components/analytics/AnalyticsStoredReviewInsights";
 import AnalyticsProfileVisitTiming from "../../components/analytics/AnalyticsProfileVisitTiming";
@@ -166,23 +164,6 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
               />
             )}
           </View>
-          {__DEV__ && (kind === "peers" || kind === "recommendations") && (
-            <SafePressable
-              onPress={() =>
-                router.push(
-                  kind === "peers"
-                    ? "/(merchant)/analytics/peer-preview"
-                    : "/(merchant)/analytics/recommendations-preview",
-                )
-              }
-              accessibilityLabel={`Open ${kind === "peers" ? "peer comparisons" : "recommendations"} development preview`}
-              className="mt-4 min-h-12 cursor-pointer justify-center border-t border-border-primary/60 py-3"
-            >
-              <AppText className="text-sm text-text-secondary">
-                Open development preview
-              </AppText>
-            </SafePressable>
-          )}
         </View>
       </ScrollView>
     </SafeAreaView>

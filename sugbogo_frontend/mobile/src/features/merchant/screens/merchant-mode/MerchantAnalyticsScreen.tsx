@@ -17,9 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
 import NotificationBellButton from "@/features/notifications/components/NotificationBellButton";
-import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
-import SafePressable from "@/shared/components/SafePressable";
 
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
@@ -425,22 +423,6 @@ export default function MerchantAnalyticsScreen() {
             }}
           />
 
-          {__DEV__ && (
-            <View className="bg-surface px-5 py-3">
-              <SafePressable
-                accessibilityRole="button"
-                accessibilityLabel="Open Analytics development preview"
-                onPress={() =>
-                  router.push("/(merchant)/analytics/development-preview")
-                }
-                className="min-h-11 cursor-pointer justify-center"
-              >
-                <AppText className="text-sm text-brand">
-                  Open Analytics development preview
-                </AppText>
-              </SafePressable>
-            </View>
-          )}
           {/* Additional analytics detail reports */}
           <AnalyticsMoreInsights onOpen={openPlusDetail} />
           <View className="mt-2 bg-surface px-5 py-4">

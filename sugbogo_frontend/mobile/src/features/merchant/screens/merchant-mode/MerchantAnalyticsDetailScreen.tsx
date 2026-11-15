@@ -1,4 +1,4 @@
-import { router, useIsFocused } from "expo-router";
+import { useIsFocused } from "expo-router";
 import { useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import {
@@ -7,11 +7,9 @@ import {
 } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
-import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
 
-import SafePressable from "@/shared/components/SafePressable";
 import AnalyticsPocketTrends, {
   AnalyticsPocketHeader,
 } from "../../components/analytics/AnalyticsPocketTrends";
@@ -247,19 +245,6 @@ function CoreAnalyticsDetailScreen({
                 error={specialties.error}
                 retry={() => void specialties.refetch()}
               />
-              {__DEV__ && (
-                <SafePressable
-                  onPress={() =>
-                    router.push("/(merchant)/analytics/specialties-preview")
-                  }
-                  accessibilityLabel="Open specialty trends development preview"
-                  className="min-h-11 cursor-pointer justify-center border-t border-border-primary/60 py-3"
-                >
-                  <AppText className="text-sm text-text-secondary">
-                    Open development preview
-                  </AppText>
-                </SafePressable>
-              )}
             </>
           ) : (
             <>
