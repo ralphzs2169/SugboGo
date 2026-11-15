@@ -69,10 +69,19 @@ beforeEach(() => {
 
 it("presents the fixed offer and four benefits with an explicit Pay action", async () => {
   const screen = await render(<MerchantPlusScreen />);
-  expect(screen.getByText("₱1.00 for 30 days")).toBeTruthy();
+  expect(screen.getByText("₱1.00")).toBeTruthy();
+  expect(screen.getByText("30 days of Merchant Plus")).toBeTruthy();
   expect(
     screen.getByText("One-time payment · No automatic renewal"),
   ).toBeTruthy();
+  for (const benefit of [
+    "Peer comparisons",
+    "Specialty trends",
+    "Visit timing",
+    "Business recommendations",
+  ]) {
+    expect(screen.getByText(benefit)).toBeTruthy();
+  }
   expect(screen.queryByText("Review insights")).toBeNull();
   await fireEvent.press(screen.getByRole("button", { name: "Pay ₱1.00" }));
   expect(mockStart).toHaveBeenCalledTimes(1);
@@ -87,8 +96,10 @@ it("replaces the offer with access and real backend expiry", async () => {
     entitlement_expires_at: "2026-12-15T04:00:00Z",
   } as typeof mockStatus;
   const screen = await render(<MerchantPlusScreen />);
-  expect(screen.getByText("Merchant Plus is active")).toBeTruthy();
+  expect(screen.getByText("Merchant Plus active")).toBeTruthy();
   expect(screen.getByText("Dec 15, 2026")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "View Analytics" })).toBeTruthy();
+  expect(screen.queryByText("30 days of Merchant Plus")).toBeNull();
   expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
 });
 
@@ -108,11 +119,14 @@ it.each([
     expect(screen.queryByText("Access enabled")).toBeNull();
 
     await screen.rerender(<MerchantPlusEntry discovery />);
-    expect(screen.getByRole("button", { name: "Explore Merchant Plus" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Explore Merchant Plus" }),
+    ).toBeTruthy();
     expect(screen.getByText("₱1.00 for 30 days")).toBeTruthy();
 
     await screen.rerender(<MerchantPlusScreen />);
-    expect(screen.queryByText("Merchant Plus is active")).toBeNull();
+    expect(screen.queryByText("Merchant Plus active")).toBeNull();
+    expect(screen.queryByText("Active until")).toBeNull();
     expect(screen.getByRole("button", { name: "Pay ₱1.00" })).toBeTruthy();
     expect(mockStart).not.toHaveBeenCalled();
   },
@@ -173,6 +187,7 @@ it("announces preparing state and disables Pay", async () => {
 it("renders compact discovery and Business entries linked to the same screen", async () => {
   const screen = await render(<MerchantPlusEntry discovery />);
   expect(screen.getByText("₱1.00 for 30 days")).toBeTruthy();
+  expect(screen.getByText("Recommendations")).toBeTruthy();
   await fireEvent.press(
     screen.getByRole("button", { name: "Explore Merchant Plus" }),
   );

@@ -1,9 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 import AppText from "@/shared/components/AppText";
 import { theme } from "@/constants/theme";
 
-export const PLUS_FEATURES = [
+const PLUS_FEATURES = [
   {
     title: "Peer comparisons",
     icon: "store-outline",
@@ -21,36 +21,83 @@ export const PLUS_FEATURES = [
   },
   {
     title: "Business recommendations",
+    compactTitle: "Recommendations",
+    shortTitle: "Business tips",
     icon: "lightbulb-outline",
     detail: "Get suggestions based on your business activity.",
   },
 ] as const;
 
-/** Presents the four paid benefits using the merchant feature's quiet icon rows. */
+/** Presents the same benefits as a discovery grid or a grouped offer section. */
 export default function MerchantPlusFeatures({
   compact = false,
 }: {
   compact?: boolean;
 }) {
+  const { width, fontScale } = useWindowDimensions();
+  const useShortLabel = width < 360 && fontScale > 1.1;
+
+  if (compact) {
+    return (
+      <View className="gap-2">
+        {[PLUS_FEATURES.slice(0, 2), PLUS_FEATURES.slice(2)].map((row) => (
+          <View key={row[0].title} className="flex-row items-start gap-2">
+            {row.map((feature) => (
+              <View
+                key={feature.title}
+                accessibilityLabel={
+                  "shortTitle" in feature ? feature.title : undefined
+                }
+                className="min-w-0 flex-1 flex-row items-start gap-1.5"
+              >
+                <View className="mt-0.5 shrink-0">
+                  <MaterialCommunityIcons
+                    name={feature.icon}
+                    size={15}
+                    color={theme.extends.colors.text.secondary}
+                    accessible={false}
+                  />
+                </View>
+                <AppText
+                  weight="semibold"
+                  className="min-w-0 flex-1 text-small text-text-primary"
+                >
+                  {"compactTitle" in feature
+                    ? useShortLabel
+                      ? feature.shortTitle
+                      : feature.compactTitle
+                    : feature.title}
+                </AppText>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  }
+
   return (
-    <View className={compact ? "gap-2.5" : "gap-6"}>
-      {PLUS_FEATURES.map((feature) => (
-        <View key={feature.title} className="flex-row items-start gap-3">
-          <MaterialCommunityIcons
-            name={feature.icon}
-            size={compact ? 17 : 22}
-            color={theme.extends.colors.text.secondary}
-            accessible={false}
-          />
-          <View className="min-w-0 flex-1 gap-1">
-            <AppText weight="semibold" className="text-sm text-text-primary">
+    <View className="rounded-card border border-border-primary bg-background px-3">
+      {PLUS_FEATURES.map((feature, index) => (
+        <View
+          key={feature.title}
+          className={`flex-row items-start gap-3 py-3 ${index > 0 ? "border-t border-border-primary" : ""}`}
+        >
+          <View className="h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10">
+            <MaterialCommunityIcons
+              name={feature.icon}
+              size={19}
+              color={theme.extends.colors.text.primary}
+              accessible={false}
+            />
+          </View>
+          <View className="min-w-0 flex-1 gap-0.5">
+            <AppText weight="bold" className="text-sm text-text-primary">
               {feature.title}
             </AppText>
-            {!compact && (
-              <AppText className="text-sm leading-5 text-text-secondary">
-                {feature.detail}
-              </AppText>
-            )}
+            <AppText className="text-sm leading-5 text-text-secondary">
+              {feature.detail}
+            </AppText>
           </View>
         </View>
       ))}

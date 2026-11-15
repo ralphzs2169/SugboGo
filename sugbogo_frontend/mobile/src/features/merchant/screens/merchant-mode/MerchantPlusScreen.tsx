@@ -11,7 +11,34 @@ import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 import useMerchantPlusCheckout from "../../hooks/payments/useMerchantPlusCheckout";
 import MerchantPlusFeatures from "../../components/merchant-plus/MerchantPlusFeatures";
 import MerchantPlusPaymentState from "../../components/merchant-plus/MerchantPlusPaymentState";
-import { hasPaidMerchantPlus } from "../../utils/merchantPlusPayment";
+import {
+  hasPaidMerchantPlus,
+  merchantPlusExpiry,
+} from "../../utils/merchantPlusPayment";
+
+/** Groups the fixed offer's price, length, and payment terms. */
+function OfferPrice() {
+  return (
+    <View className="gap-1 rounded-card bg-background p-3">
+      <View className="gap-0.5 border-l-2 border-brand pl-3">
+        <View className="flex-row flex-wrap items-center justify-between gap-2">
+          <AppText weight="extrabold" className="text-2xl text-text-primary">
+            ₱1.00
+          </AppText>
+          <AppText className="rounded-tag bg-surface-muted px-2 py-1 text-small text-text-secondary">
+            Sandbox
+          </AppText>
+        </View>
+        <AppText weight="bold" className="text-sm text-text-primary">
+          30 days of Merchant Plus
+        </AppText>
+      </View>
+      <AppText className="text-small leading-5 text-text-secondary">
+        One-time payment · No automatic renewal
+      </AppText>
+    </View>
+  );
+}
 
 /** Presents the fixed one-time offer and existing-purchase management from backend status. */
 export default function MerchantPlusScreen() {
@@ -38,13 +65,22 @@ export default function MerchantPlusScreen() {
     offerValid &&
     status?.checkout_enabled === true &&
     ((!unresolved && status.purchase_eligible === true) || resume);
+  const showOffer =
+    access.state !== "loading" && !access.error && !paidActive && !unresolved;
+  const checkoutProgress =
+    checkout.phase === "preparing"
+      ? "Preparing secure checkout…"
+      : checkout.phase === "opening"
+        ? "Opening Maya Checkout…"
+        : null;
+
   return (
     <SafeAreaView
       edges={["left", "right", "bottom"]}
-      className="flex-1 bg-background"
+      className="flex-1 bg-surface"
     >
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: 20 }}
         refreshControl={
           <RefreshControl
             refreshing={access.isFetching}
@@ -53,41 +89,6 @@ export default function MerchantPlusScreen() {
           />
         }
       >
-        {/* Offer identity */}
-        <View className="gap-3 bg-surface px-5 py-6">
-          <View className="flex-row items-center gap-2">
-            <MaterialCommunityIcons
-              name="plus-circle-outline"
-              size={21}
-              color={theme.extends.colors.brand}
-              accessible={false}
-            />
-            <AppText weight="bold" className="text-sm text-text-primary">
-              Merchant Plus
-            </AppText>
-          </View>
-          <AppText
-            weight="bold"
-            className="text-2xl leading-8 text-text-primary"
-          >
-            {paidActive
-              ? "Your Merchant Plus access"
-              : "More insight into your business."}
-          </AppText>
-          <AppText className="text-sm leading-6 text-text-secondary">
-            {paidActive
-              ? "Explore your unlocked analytics and view your access period."
-              : "Make more informed decisions with deeper business analytics."}
-          </AppText>
-        </View>
-        {!access.error && status?.access_source === "preview" && (
-          <View className="bg-surface px-5 pb-4">
-            <AppText className="text-sm text-text-secondary">
-              Analytics preview is enabled for testing. Merchant Plus has not
-              been purchased.
-            </AppText>
-          </View>
-        )}
         {/* Access and purchase recovery */}
         {checkout.error ? (
           <View className="px-5 pt-5">
@@ -117,7 +118,45 @@ export default function MerchantPlusScreen() {
               onPrimaryAction={() => void access.refetch()}
             />
           </View>
-        ) : paidActive || unresolved ? (
+        ) : paidActive ? (
+          <View className="px-5 py-5">
+            <View className="gap-4 rounded-card border border-border-primary bg-background p-4">
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 shrink-0 items-center justify-center rounded-full bg-success/10">
+                  <MaterialCommunityIcons
+                    name="check-circle-outline"
+                    size={22}
+                    color={theme.extends.colors.border.success}
+                    accessible={false}
+                  />
+                </View>
+                <AppText
+                  accessibilityRole="header"
+                  weight="extrabold"
+                  className="min-w-0 flex-1 text-lg text-text-primary"
+                >
+                  Merchant Plus active
+                </AppText>
+              </View>
+              <View className="gap-1 border-t border-border-primary pt-3">
+                <AppText className="text-small text-text-secondary">
+                  Active until
+                </AppText>
+                <AppText weight="bold" className="text-lg text-text-primary">
+                  {merchantPlusExpiry(status?.entitlement_expires_at)}
+                </AppText>
+                <AppText className="text-sm text-text-secondary">
+                  Your Plus analytics are unlocked.
+                </AppText>
+              </View>
+              <Button
+                title="View Analytics"
+                textTone="primary"
+                onPress={() => router.replace("/(merchant)/(tabs)/analytics")}
+              />
+            </View>
+          </View>
+        ) : unresolved ? (
           <View className="px-5 py-5">
             <MerchantPlusPaymentState
               status={status}
@@ -126,80 +165,68 @@ export default function MerchantPlusScreen() {
             />
           </View>
         ) : null}
-        {/* Feature rows follow existing merchant information sections. */}
-        {access.state !== "loading" && (
-          <View className="mt-2 gap-6 bg-surface px-5 py-6">
-            <AppText weight="bold" className="text-base text-text-primary">
-              {paidActive
-                ? "Included with your access"
-                : "A closer look at your business"}
-            </AppText>
-            <MerchantPlusFeatures />
-          </View>
-        )}
-        {!paidActive &&
-          !canPurchase &&
-          access.state !== "loading" &&
-          !access.error &&
-          !unresolved && (
-            <View className="mt-2 gap-2 bg-surface px-5 py-6">
-              <AppText weight="bold" className="text-xl text-text-primary">
-                ₱1.00 for 30 days
+        {/* Offer introduction and benefits */}
+        {showOffer && (
+          <View className="gap-4 px-5 pt-5">
+            <View className="gap-1.5">
+              <AppText
+                accessibilityRole="header"
+                weight="extrabold"
+                className="text-2xl text-text-primary"
+              >
+                See more of what’s working.
               </AppText>
-              <AppText className="text-sm leading-6 text-text-secondary">
-                One-time payment · No automatic renewal
-              </AppText>
-              <AppText className="text-xs leading-5 text-text-secondary">
-                Sandbox payment for capstone testing
+              <AppText className="text-sm leading-5 text-text-secondary">
+                See how people find, visit, and support your business with
+                deeper analytics.
               </AppText>
             </View>
-          )}
+            <MerchantPlusFeatures />
+            {status?.access_source === "preview" && (
+              <View className="flex-row items-start gap-2">
+                <View className="mt-0.5 shrink-0">
+                  <MaterialCommunityIcons
+                    name="information-outline"
+                    size={15}
+                    color={theme.extends.colors.text.secondary}
+                    accessible={false}
+                  />
+                </View>
+                <AppText className="min-w-0 flex-1 text-small leading-4 text-text-secondary">
+                  <AppText weight="bold">Preview mode</AppText>
+                  {" · Some Plus analytics are available in this test build."}
+                </AppText>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
       {/* Safe-area-aware checkout action */}
       {canPurchase && (
-        <View className="gap-2 border-t border-border-primary bg-surface px-5 py-4">
-          {!resume && (
-            <View className="mb-2 gap-1">
-              <AppText weight="bold" className="text-base text-text-primary">
-                ₱1.00 for 30 days
-              </AppText>
-              <AppText className="text-xs leading-5 text-text-secondary">
-                One-time payment · No automatic renewal
-              </AppText>
-              <AppText className="text-xs leading-5 text-text-secondary">
-                Sandbox payment for capstone testing
-              </AppText>
-            </View>
-          )}
+        <View className="gap-2 border-t border-border-primary bg-surface px-5 pb-3 pt-2.5">
+          {!resume && <OfferPrice />}
           <Button
             title={
-              checkout.phase === "preparing"
-                ? "Preparing secure checkout…"
-                : checkout.phase === "opening"
-                  ? "Opening Maya Checkout…"
-                  : resume
-                    ? "Continue checkout"
-                    : "Pay ₱1.00"
+              checkoutProgress ?? (resume ? "Continue checkout" : "Pay ₱1.00")
             }
+            textTone="primary"
             loading={checkout.busy}
             disabled={checkout.busy}
             onPress={checkout.startCheckout}
           />
           <AppText className="text-center text-xs leading-5 text-text-secondary">
-            {checkout.phase === "preparing" ? "Preparing secure checkout…" : checkout.phase === "opening" ? "Opening Maya Checkout…" : "Secure checkout powered by Maya"}
+            {checkoutProgress ?? "Secure checkout powered by Maya"}
           </AppText>
         </View>
       )}
-      {!canPurchase &&
-        !paidActive &&
-        !unresolved &&
-        access.state !== "loading" && !access.error && (
-          <View className="border-t border-border-primary bg-surface px-5 py-4">
-            <AppText className="text-sm text-text-secondary">
-              Checkout is currently unavailable. Please check again later.
-            </AppText>
-          </View>
-        )}
+      {!canPurchase && showOffer && (
+        <View className="gap-2 border-t border-border-primary bg-surface px-5 pb-3 pt-2.5">
+          <OfferPrice />
+          <AppText className="text-sm text-text-secondary">
+            Checkout is currently unavailable. Please check again later.
+          </AppText>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
