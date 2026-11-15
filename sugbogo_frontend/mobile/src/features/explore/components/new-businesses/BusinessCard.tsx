@@ -41,6 +41,7 @@ type Props = {
   highlightQuery?: string;
   availabilityLabel?: string;
   isHiddenGem?: boolean;
+  fillCarouselHeight?: boolean;
 };
 
 const CARD_WIDTH = 226;
@@ -72,6 +73,7 @@ export function getBusinessCardWidth(
  *
  * Standard and featured variants use an edge-to-edge cover image followed by
  * business identity, review metadata, and specialty tags.
+ * Carousel cards can grow to match the tallest business in their row.
  *
  * Compact cards use the same information hierarchy in a horizontal layout.
  */
@@ -90,6 +92,7 @@ export default function BusinessCard({
   highlightQuery,
   availabilityLabel,
   isHiddenGem = business.is_hidden_gem === true,
+  fillCarouselHeight = false,
 }: Props) {
   const [failedCover, setFailedCover] = useState<string | null>(null);
 
@@ -402,7 +405,7 @@ export default function BusinessCard({
 
   return (
     <View
-      className="mb-2 mr-3 rounded-card bg-surface"
+      className={`mb-2 mr-3 rounded-card bg-surface ${fillCarouselHeight ? "grow" : ""}`}
       style={[
         {
           width: cardWidth,
@@ -415,7 +418,7 @@ export default function BusinessCard({
         accessibilityRole="button"
         accessible
         accessibilityLabel={profileAccessibilityLabel}
-        className="w-full cursor-pointer overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90"
+        className={`w-full cursor-pointer overflow-hidden rounded-card border border-border-primary bg-surface active:opacity-90 ${fillCarouselHeight ? "grow" : ""}`}
         android_ripple={{
           color: "rgba(0,0,0,0.05)",
         }}

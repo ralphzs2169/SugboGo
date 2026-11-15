@@ -416,6 +416,8 @@ class DiscoveryScoreService:
         reference_time: datetime | None = None,
         configuration: DiscoveryAlgorithmConfiguration | None = None,
         only_if_pending: bool = False,
+        *,
+        read_only_visibility: bool = False,
     ) -> DiscoveryScoreBusinessResult:
         """Refreshes one active business while retaining provenance on failures."""
         if reference_time is None:
@@ -451,10 +453,14 @@ class DiscoveryScoreService:
                 score,
             )
         try:
+            visibility_options = {}
+            if read_only_visibility:
+                visibility_options["read_only"] = True
             visibility_result = VisibilityGapService.calculate_business_visibility_gap(
                 business_id=business_id,
                 reference_time=reference_time,
                 configuration=configuration,
+                **visibility_options,
             )
             return cls._persist_business_score(
                 business_id=business_id,

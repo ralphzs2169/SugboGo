@@ -134,7 +134,7 @@ export default function ExploreBusinessCarousel({
           scrollEventThrottle={16}
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerClassName={`gap-3 px-4 ${hiddenGemsOnly || businesses.some((business) => business.is_hidden_gem) ? "pt-3" : ""}`}
+          contentContainerClassName={`items-stretch gap-3 px-4 ${hiddenGemsOnly || businesses.some((business) => business.is_hidden_gem) ? "pt-3" : ""}`}
         >
           {businesses.map((business) => {
             const distance =
@@ -155,6 +155,7 @@ export default function ExploreBusinessCarousel({
                 onLayout={(event) => impressions.onCardLayout(business.id, event)}
               >
                 <BusinessCard
+                  fillCarouselHeight
                   readOnly={readOnly}
                   business={business}
                   distance={distance}
