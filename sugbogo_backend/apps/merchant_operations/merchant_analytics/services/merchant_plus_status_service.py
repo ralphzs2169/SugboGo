@@ -22,6 +22,7 @@ class MerchantPlusStatusService:
         status.update({
             "payment_mode": PaymentService.current_mode(),
             "checkout_enabled": CheckoutService.is_enabled(),
+            "checkout_can_resume": False,
             "product": PaymentService.get_product(),
             "entitlement_starts_at": None,
             "entitlement_expires_at": None,
@@ -53,6 +54,10 @@ class MerchantPlusStatusService:
             )
             if checkout is not None:
                 status["unresolved_checkout_status"] = checkout.PCHK_STATE
+                status["checkout_can_resume"] = (
+                    paid is None
+                    and CheckoutService.can_resume(unresolved, checkout)
+                )
         if paid is not None:
             payment = paid.PYMT_ID
             status.update({

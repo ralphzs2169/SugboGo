@@ -78,6 +78,52 @@ it("serializes rapid taps into one checkout action and one browser session", asy
   expect(router.replace).not.toHaveBeenCalled();
 });
 
+it("reopens the returned existing URL only after another explicit Continue action", async () => {
+  const before = {
+    ...plusStatus(false),
+    unresolved_payment_id: checkout.payment_id,
+    unresolved_payment_status: "pending" as const,
+    checkout_outcome: "pending" as const,
+    checkout_can_resume: true,
+  };
+  const fetchStatus = jest.fn().mockResolvedValue(before);
+  const hook = await renderHook(
+    () => {
+      const action = useMerchantPlusCheckout();
+      const status = useQuery({
+        queryKey: merchantPlusStatusKey(analyticsMerchant().id),
+        queryFn: fetchStatus,
+      });
+      return { action, status: status.data };
+    },
+    { wrapper: Wrapper },
+  );
+  await waitFor(() => expect(hook.result.current.status).toEqual(before));
+  expect(service.createMerchantPlusCheckout).not.toHaveBeenCalled();
+
+  await act(async () => hook.result.current.action.startCheckout());
+  await waitFor(() => expect(fetchStatus).toHaveBeenCalledTimes(2));
+  expect(hook.result.current.action.busy).toBe(false);
+  expect(hook.result.current.status).toEqual(before);
+  expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(1);
+  expect(WebBrowser.openBrowserAsync).toHaveBeenCalledTimes(1);
+
+  await act(async () => hook.result.current.action.startCheckout());
+  await waitFor(() =>
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledTimes(2),
+  );
+  expect(WebBrowser.openBrowserAsync).toHaveBeenNthCalledWith(
+    1,
+    checkout.checkout_url,
+  );
+  expect(WebBrowser.openBrowserAsync).toHaveBeenNthCalledWith(
+    2,
+    checkout.checkout_url,
+  );
+  expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(2);
+  expect(router.replace).not.toHaveBeenCalled();
+});
+
 it.each([
   [true, "pending", "pending", "checking"],
   [false, "pending", "pending", "checking"],
@@ -183,6 +229,11 @@ it("takes waiting and uncertain results to backend checking without opening a br
   await act(async () => hook.result.current.startCheckout());
   await waitFor(() => expect(router.replace).toHaveBeenCalled());
   expect(WebBrowser.openBrowserAsync).not.toHaveBeenCalled();
+  expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(1);
+  expect(hook.result.current.error).toBeNull();
+  expect(router.replace).toHaveBeenCalledWith(
+    "/(merchant)/merchant-plus/return",
+  );
 });
 
 it.each([

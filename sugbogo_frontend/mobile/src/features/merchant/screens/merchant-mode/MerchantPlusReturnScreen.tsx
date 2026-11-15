@@ -1,9 +1,8 @@
 import { router } from "expo-router";
 import { useEffect } from "react";
-import { Platform, ScrollView, View } from "react-native";
+import { Platform, ScrollView } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AppText from "@/shared/components/AppText";
 import useMerchantPlusPaymentStatus from "../../hooks/payments/useMerchantPlusPaymentStatus";
 import MerchantPlusPaymentState from "../../components/merchant-plus/MerchantPlusPaymentState";
 import { parseMerchantPlusReturnOutcome } from "../../utils/merchantPlusReturn";
@@ -23,21 +22,12 @@ export default function MerchantPlusReturnScreen({
   return (
     <SafeAreaView
       edges={["left", "right", "bottom"]}
-      className="flex-1 bg-background"
+      className="flex-1 bg-surface"
     >
       <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: "center",
-          padding: 20,
-        }}
+        contentContainerClassName="grow px-4 pb-10 pt-5"
+        showsVerticalScrollIndicator={false}
       >
-        {/* All financial and access messaging comes from the backend. */}
-        <View className="mb-4">
-          <AppText weight="semibold" className="text-sm text-text-secondary">
-            Merchant Plus
-          </AppText>
-        </View>
         <MerchantPlusPaymentState
           status={access.status}
           error={access.error}

@@ -27,6 +27,7 @@ class MerchantPlusAccessStatusSerializer(MerchantPlusStatusSerializer):
     )
     payment_mode = serializers.ChoiceField(choices=PaymentMode.values)
     checkout_enabled = serializers.BooleanField()
+    checkout_can_resume = serializers.BooleanField()
     product = MerchantPlusProductSerializer()
     entitlement_starts_at = serializers.DateTimeField(allow_null=True)
     entitlement_expires_at = serializers.DateTimeField(allow_null=True)

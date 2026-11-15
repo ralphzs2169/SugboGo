@@ -8,7 +8,7 @@ It builds on a GitHub-hosted Ubuntu runner with Node 24, runs `npm ci` and
 `npm run build` in `sugbogo_frontend/web_app`, then uploads `dist` to the existing
 Cloudflare Pages Direct Upload project `sugbogo-admin` with `--branch=main`.
 The production API URL is fixed in the workflow to
-`https://sugbogo-api-production.up.railway.app/api`.
+`https://api.sugbogo.app/api`.
 
 ### Required repository configuration
 
@@ -23,8 +23,9 @@ On the **Variables** tab, configure these repository variables before deploying:
 | --- | --- |
 | `VITE_GOOGLE_MAPS_API_KEY` | The existing Google Maps browser API key. |
 | `VITE_GOOGLE_MAP_ID` | The existing JavaScript map ID used for production maps. |
+| `VITE_GOOGLE_TRANSIT_MAP_ID` | The existing map ID used for production transit maps. |
 
-The workflow fails before installation if either Maps variable is blank. The
+The workflow fails before installation if any Maps variable is blank. The
 shared Maps configuration only permits the demo map ID in development; production
 transit maps and advanced markers require real configuration. Enable the Maps
 JavaScript API and the APIs used by the app in Google Cloud, and allow
@@ -37,7 +38,7 @@ variables alone does not change a Direct Upload bundle. Rebuild to apply changes
 
 1. Review the workflow and validate it with `actionlint`. A build-only check can
    run `npm ci` followed by `npm run build` in the app directory with the workflow's
-   three `VITE_*` environment variables. These commands do not upload anything;
+   four `VITE_*` environment variables. These commands do not upload anything;
    production Maps values are needed to verify Maps behavior in the built app.
    No local build or Wrangler installation is required for deployment.
 2. After the reviewed workflow is added to the repository's default branch,
@@ -59,6 +60,67 @@ Only `contents: read` is granted to the GitHub token. Wrangler authenticates wit
 the two Cloudflare secrets; GitHub Deployment records are not requested.
 No credentials or environment files are uploaded. This follows Cloudflare's
 [Wrangler Direct Upload workflow](https://developers.cloudflare.com/pages/how-to/use-direct-upload-with-continuous-integration/).
+
+## Merchant Plus public return bridge
+
+`/merchant-plus/return` is a standalone public React route outside
+`AdminWebSession`, authentication guards, and `AdminPanelLayout`. It must load
+while signed out without starting session restoration. Its only outbound action
+is the **Open SugboGo** link to the fixed `sugbogo://merchant-plus/return`
+destination. A single `outcome=success`, `failure`, or `cancel` is forwarded as a
+navigation hint. Missing, unknown, or duplicate outcomes are discarded; all
+other query parameters are discarded. This page makes no payment API calls.
+
+The mobile route already invokes the existing backend reconciliation/status
+flow. The hint never confirms payment or activates access. Development and
+Preview profiles share the `sugbogo` scheme from `app.config.ts`; neither profile
+overrides it. This bridge needs no native scheme change or APK rebuild if the
+installed build already includes that scheme. Physical-device opening still
+requires the acceptance check below.
+
+### Deployment diagnosis (2026-11-16)
+
+The production return URL returned HTTP 200 with the SPA HTML, but the served
+`index-GLrGQmvf.js` bundle contained neither the return route nor its fixed app
+link or **Open SugboGo** text. The current source already contains the bridge.
+This establishes an outdated deployed application bundle, rather than a missing
+Cloudflare history fallback. GitHub `main` at `e758d3ede312` also lacks the return
+route; the most recent successful production workflow used that same commit.
+Local `main` already contains the bridge. GitHub authentication works outside the
+network sandbox, but rerunning the workflow against remote `main` would publish
+the missing route again. Publication was not performed: promoting accumulated
+local commits is outside this focused bridge task. Browser access was unavailable;
+corrected production rendering and device handoff remain unverified.
+
+There is no top-level `public/404.html`; Cloudflare Pages therefore provides its
+default SPA fallback. Do not add a catch-all redirect to the Merchant Plus route.
+Application routes must continue to resolve normally, including Admin guards
+and the application's genuine not-found page.
+
+### Publish and verify
+
+1. Ensure `main` contains `src/features/payments/pages/MayaReturnPage.jsx`, its
+   helper, and the public route in `src/App.jsx`.
+2. Use **Actions > Deploy Admin Web > Run workflow > main** with the repository
+   configuration described above. A push alone does not trigger this workflow.
+3. Confirm the build and Cloudflare upload succeed for project `sugbogo-admin`.
+   Record the deployed source commit and deployment ID. Do not upload a local
+   build containing a loopback API URL.
+4. In a signed-out browser, directly open and refresh
+   `https://sugbogo-admin.pages.dev/merchant-plus/return?outcome=success`.
+   Confirm **Return to SugboGo** and **Open SugboGo**, with no Admin sidebar,
+   login page, session-restoration spinner, or 404. HTTP 200 alone is insufficient.
+5. Repeat for `failure`, `cancel`, an unknown value, and no outcome. Inspect the
+   link: valid outcomes use `sugbogo://merchant-plus/return?outcome=<value>`;
+   invalid/missing outcomes use `sugbogo://merchant-plus/return`.
+6. Confirm the existing backend `MAYA_RETURN_BASE_URL` points to
+   `https://sugbogo-admin.pages.dev/merchant-plus/return`. This task does not
+   change backend configuration or recreate existing checkouts.
+7. Open the Development APK first, start Maya Sandbox checkout, complete or exit
+   checkout, and use Maya's return action. Confirm the public bridge appears,
+   tap **Open SugboGo**, and verify the Merchant Plus return flow runs backend
+   reconciliation/status checks. Access must follow backend evidence, never the
+   URL hint. Repeat using the Preview APK; the scheme and route are identical.
 
 ## Historical Phase 1 readiness review
 

@@ -111,8 +111,10 @@ it("resolves the canonical Merchant Plus deep link without an index suffix", asy
 it.each([
   ["sugbogo", "success", "success"],
   ["sugbogo", "failure", "failure"],
+  ["sugbogo", "cancel", "cancel"],
   ["com.sugbogo.app", "cancel", "cancel"],
   ["sugbogo", "paid", "none"],
+  ["sugbogo", "success&outcome=cancel", "none"],
 ])("opens payment return from %s with only the %s hint", async (scheme, outcome, expected) => {
   const app = await launchApp(`${scheme}://merchant-plus/return?outcome=${outcome}`);
   expect(await app.findByText(`Payment navigation hint: ${expected}`)).toBeTruthy();

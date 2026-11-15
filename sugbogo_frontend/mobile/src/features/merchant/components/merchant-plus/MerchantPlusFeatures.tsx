@@ -3,30 +3,39 @@ import { useWindowDimensions, View } from "react-native";
 import AppText from "@/shared/components/AppText";
 import { theme } from "@/constants/theme";
 
+/**
+ * Brand orange (#F27F0D) shades used for icon tiles. The icon shade is the
+ * same hue darkened for contrast, and the tile is a light tint of the brand.
+ * Set through `style` because `bg-brand/10` style opacity classes do not
+ * render in this app's NativeWind setup.
+ */
+const ICON_COLOR = "#B85F08";
+const ICON_TILE = "#FEF1E2";
+
 const PLUS_FEATURES = [
   {
     title: "Peer comparisons",
     icon: "store-outline",
     discoveryIcon: "account-group-outline",
-    detail: "Compare activity with similar businesses.",
+    detail: "Compare with similar businesses",
   },
   {
     title: "Specialty trends",
     icon: "heart-outline",
     discoveryIcon: "trending-up",
-    detail: "Track how specialty support changes over time.",
+    detail: "Track how specialty support changes",
   },
   {
     title: "Visit timing",
     icon: "clock-outline",
-    detail: "See when explorers are most interested.",
+    detail: "See when explorers are most interested",
   },
   {
     title: "Business recommendations",
     compactTitle: "Recommendations",
     shortTitle: "Business tips",
     icon: "lightbulb-outline",
-    detail: "Get suggestions based on your business activity.",
+    detail: "Get suggestions based on your activity",
   },
 ] as const;
 
@@ -53,7 +62,10 @@ export default function MerchantPlusFeatures({
                 }
                 className={`min-h-12 min-w-0 flex-1 gap-1.5 rounded-card bg-background px-2 py-1.5 ${stackTileContents ? "items-start" : "flex-row items-center"}`}
               >
-                <View className="h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand/15">
+                <View
+                  className="h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                  style={{ backgroundColor: ICON_TILE }}
+                >
                   <MaterialCommunityIcons
                     name={
                       "discoveryIcon" in feature
@@ -61,7 +73,7 @@ export default function MerchantPlusFeatures({
                         : feature.icon
                     }
                     size={16}
-                    color={theme.extends.colors.brand}
+                    color={ICON_COLOR}
                     accessible={false}
                   />
                 </View>
@@ -84,25 +96,32 @@ export default function MerchantPlusFeatures({
   }
 
   return (
-    <View className="rounded-card border border-border-primary bg-background px-3">
+    <View className="rounded-2xl border border-border-primary bg-surface px-4">
       {PLUS_FEATURES.map((feature, index) => (
         <View
           key={feature.title}
-          className={`flex-row items-start gap-3 py-3 ${index > 0 ? "border-t border-border-primary" : ""}`}
+          className={`flex-row items-center gap-3 py-3 ${index > 0 ? "border-t border-border-primary" : ""}`}
         >
-          <View className="h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10">
+          <View
+            className="h-10 w-10 shrink-0 items-center justify-center rounded-btn"
+            style={{ backgroundColor: ICON_TILE }}
+          >
             <MaterialCommunityIcons
-              name={feature.icon}
-              size={19}
-              color={theme.extends.colors.text.primary}
+              name={
+                "discoveryIcon" in feature
+                  ? feature.discoveryIcon
+                  : feature.icon
+              }
+              size={22}
+              color={ICON_COLOR}
               accessible={false}
             />
           </View>
           <View className="min-w-0 flex-1 gap-0.5">
-            <AppText weight="bold" className="text-sm text-text-primary">
+            <AppText weight="extrabold" className="text-sm text-text-primary">
               {feature.title}
             </AppText>
-            <AppText className="text-sm leading-5 text-text-secondary">
+            <AppText className="text-small leading-4 text-text-secondary">
               {feature.detail}
             </AppText>
           </View>

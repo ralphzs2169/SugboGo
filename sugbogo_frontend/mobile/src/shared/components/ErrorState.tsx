@@ -19,6 +19,7 @@ type ErrorStateProps = {
   primaryActionTextTone?: "default" | "primary";
 
   secondaryActionTitle?: string;
+  secondaryActionVariant?: "outline" | "soft";
   onSecondaryAction?: () => void;
 };
 
@@ -38,6 +39,7 @@ export default function ErrorState({
   onPrimaryAction,
   primaryActionTextTone = "default",
   secondaryActionTitle,
+  secondaryActionVariant = "outline",
   onSecondaryAction,
 }: ErrorStateProps) {
   const isDefault = size === "default";
@@ -46,6 +48,10 @@ export default function ErrorState({
 
   const hasPrimaryAction = Boolean(primaryActionTitle && onPrimaryAction);
   const hasSecondaryAction = Boolean(secondaryActionTitle && onSecondaryAction);
+  const secondaryBorder =
+    secondaryActionVariant === "soft" ? "border-brand" : "border-border-primary";
+  const secondaryText =
+    secondaryActionVariant === "soft" ? "text-brand" : "text-text-primary";
 
   const isSectionTapToRetry =
     isSection && hasPrimaryAction && !hasSecondaryAction;
@@ -96,11 +102,11 @@ export default function ErrorState({
                 accessibilityRole="button"
                 accessibilityLabel={`${title}. ${secondaryActionTitle}`}
                 onPress={onSecondaryAction}
-                className="min-h-11 cursor-pointer items-center justify-center rounded-full border border-border-primary bg-surface px-4 py-2 active:opacity-70"
+                className={`min-h-11 cursor-pointer items-center justify-center rounded-full border bg-surface px-4 py-2 active:opacity-70 ${secondaryBorder}`}
               >
                 <AppText
                   weight="semibold"
-                  className="text-sm text-text-primary"
+                  className={`text-sm ${secondaryText}`}
                 >
                   {secondaryActionTitle}
                 </AppText>
@@ -182,13 +188,13 @@ export default function ErrorState({
               onPress={onSecondaryAction}
               accessibilityRole="button"
               accessibilityLabel={secondaryActionTitle}
-              className={`cursor-pointer flex-row items-center justify-center rounded-full border border-border-primary bg-surface active:opacity-70 ${
+              className={`cursor-pointer flex-row items-center justify-center rounded-full border bg-surface active:opacity-70 ${secondaryBorder} ${
                 isSection ? "px-4 py-2" : "px-5 py-3"
               }`}
             >
               <AppText
                 weight="semibold"
-                className={`text-text-primary ${
+                className={`${secondaryText} ${
                   isSection ? "text-xs" : "text-sm"
                 }`}
               >

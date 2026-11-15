@@ -79,18 +79,39 @@ it("offers recoverable backend status errors without creating checkout", async (
   mockError = new Error("offline");
   const screen = await render(<MerchantPlusReturnRoute />);
   expect(screen.getByText("Unable to check payment status")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+  expect(screen.queryByText("Payment failed")).toBeNull();
+  await fireEvent.press(screen.getByRole("button", { name: "Try again" }));
+  expect(mockCheck).toHaveBeenCalledTimes(1);
+  await fireEvent.press(screen.getByRole("button", { name: "Go back" }));
+  expect(router.replace).toHaveBeenCalledWith("/(merchant)/merchant-plus");
 });
 
 it("offers manual recovery and Analytics after bounded polling ends", async () => {
   mockExhausted = true;
   const screen = await render(<MerchantPlusReturnRoute />);
-  expect(screen.getByText("Still processing")).toBeTruthy();
+  expect(screen.getByText("Payment not confirmed")).toBeTruthy();
+  expect(screen.queryByText("Payment pending")).toBeNull();
   expect(
     screen.getByRole("button", { name: "Check status again" }),
   ).toBeTruthy();
   expect(
     screen.getByRole("button", { name: "Return to Analytics" }),
+  ).toBeTruthy();
+});
+
+it("keeps paid and activating visible even after polling ends", async () => {
+  mockExhausted = true;
+  mockStatus = {
+    ...mockStatus,
+    unresolved_payment_status: "paid",
+    unresolved_fulfilment_status: "pending",
+  } as typeof mockStatus;
+  const screen = await render(<MerchantPlusReturnRoute />);
+  expect(screen.getByText("Payment confirmed")).toBeTruthy();
+  expect(screen.getByText("Activation pending")).toBeTruthy();
+  expect(screen.queryByText("Active until")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Check status again" }),
   ).toBeTruthy();
 });
 it.each(["success", "failure", "cancel"])(

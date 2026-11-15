@@ -96,11 +96,28 @@ it("replaces the offer with access and real backend expiry", async () => {
     entitlement_expires_at: "2026-12-15T04:00:00Z",
   } as typeof mockStatus;
   const screen = await render(<MerchantPlusScreen />);
-  expect(screen.getByText("Merchant Plus active")).toBeTruthy();
+  expect(screen.getByText("Merchant Plus is active")).toBeTruthy();
   expect(screen.getByText("Dec 15, 2026")).toBeTruthy();
   expect(screen.getByRole("button", { name: "View Analytics" })).toBeTruthy();
   expect(screen.queryByText("30 days of Merchant Plus")).toBeNull();
   expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
+});
+
+it("checks availability again without starting checkout when it is unavailable", async () => {
+  mockStatus = {
+    ...offer(),
+    checkout_enabled: false,
+    has_plus_access: true,
+    access_source: "preview",
+  };
+  const screen = await render(<MerchantPlusScreen />);
+  expect(screen.getByText(/Preview mode:/)).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
+
+  await fireEvent.press(screen.getByRole("button", { name: "Check again" }));
+
+  expect(mockRefetch).toHaveBeenCalledTimes(1);
+  expect(mockStart).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -124,7 +141,7 @@ it.each([
     ).toBeTruthy();
 
     await screen.rerender(<MerchantPlusScreen />);
-    expect(screen.queryByText("Merchant Plus active")).toBeNull();
+    expect(screen.queryByText("Merchant Plus is active")).toBeNull();
     expect(screen.queryByText("Active until")).toBeNull();
     expect(screen.getByRole("button", { name: "Pay ₱1.00" })).toBeTruthy();
     expect(mockStart).not.toHaveBeenCalled();
@@ -132,7 +149,7 @@ it.each([
 );
 
 it.each([
-  ["pending", "Payment pending"],
+  ["pending", "Payment not confirmed"],
   ["unknown", "We're still checking this payment"],
   ["cancelled", "Checkout cancelled"],
   ["failed", "Payment wasn't completed"],
@@ -149,7 +166,67 @@ it.each([
     } as typeof mockStatus;
     const screen = await render(<MerchantPlusScreen />);
     expect(screen.getByText(title)).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Continue checkout" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
+  },
+);
+
+it("lets a merchant resume an unconfirmed checkout or check its status", async () => {
+  mockStatus = {
+    ...offer(),
+    unresolved_payment_id: 1,
+    unresolved_payment_provider: "maya",
+    checkout_can_resume: true,
+    unresolved_payment_status: "pending",
+    unresolved_checkout_status: "ready",
+    checkout_outcome: "pending",
+  };
+  const screen = await render(<MerchantPlusScreen />);
+
+  expect(screen.getByText("Payment not confirmed")).toBeTruthy();
+  expect(
+    screen.getByText("You can continue the existing checkout."),
+  ).toBeTruthy();
+  expect(screen.queryByText("Payment pending")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
+  expect(mockStart).not.toHaveBeenCalled();
+
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Check payment status" }),
+  );
+  expect(mockPush).toHaveBeenCalledWith("/(merchant)/merchant-plus/return");
+  expect(mockStart).not.toHaveBeenCalled();
+
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Continue checkout" }),
+  );
+  expect(mockStart).toHaveBeenCalledTimes(1);
+});
+
+it.each(["ready", "creating", "creation_unknown"])(
+  "offers only status checking for a non-resumable %s checkout",
+  async (checkoutState) => {
+    mockStatus = {
+      ...offer(),
+      checkout_can_resume: false,
+      unresolved_payment_id: 1,
+      unresolved_payment_status: "pending",
+      unresolved_checkout_status: checkoutState,
+      checkout_outcome:
+        checkoutState === "creation_unknown" ? "unknown" : "pending",
+    };
+    const screen = await render(<MerchantPlusScreen />);
+    expect(
+      screen.queryByRole("button", { name: "Continue checkout" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Check payment status" }),
+    );
+    expect(mockPush).toHaveBeenCalledWith("/(merchant)/merchant-plus/return");
+    expect(mockStart).not.toHaveBeenCalled();
   },
 );
 
@@ -163,6 +240,9 @@ it("shows confirmed payment awaiting activation", async () => {
   } as typeof mockStatus;
   const screen = await render(<MerchantPlusScreen />);
   expect(screen.getByText("Payment confirmed")).toBeTruthy();
+  expect(screen.getByText("Confirmed")).toBeTruthy();
+  expect(screen.getByText("Activation pending")).toBeTruthy();
+  expect(screen.queryByText("Active until")).toBeNull();
   expect(screen.queryByText("Checkout cancelled")).toBeNull();
 });
 
@@ -185,7 +265,9 @@ it("announces preparing state and disables Pay", async () => {
 
 it("renders compact discovery and Business entries linked to the same screen", async () => {
   const screen = await render(<MerchantPlusEntry discovery />);
-  expect(screen.getByText("One-time payment · No automatic renewal")).toBeTruthy();
+  expect(
+    screen.getByText("One-time payment · No automatic renewal"),
+  ).toBeTruthy();
   await fireEvent.press(
     screen.getByRole("button", { name: "Try 30 days for ₱1" }),
   );
@@ -201,6 +283,10 @@ it("renders compact discovery and Business entries linked to the same screen", a
   } as typeof mockStatus;
   await screen.rerender(<MerchantPlusEntry />);
   expect(screen.getByText("Active until Dec 15, 2026")).toBeTruthy();
+  await screen.rerender(<MerchantPlusEntry discovery />);
+  expect(screen.getByText("Active until Dec 15, 2026")).toHaveStyle({
+    color: "#166534",
+  });
 });
 
 it("routes locked Further insights to Plus and restores report navigation after activation", async () => {
@@ -220,6 +306,32 @@ it("routes locked Further insights to Plus and restores report navigation after 
   );
   expect(open).toHaveBeenCalledWith("peers");
 });
+
+it.each([
+  ["pending", "Payment not confirmed"],
+  ["cancelled", "Checkout cancelled"],
+  ["failed", "Payment wasn't completed"],
+  ["expired", "Checkout expired"],
+] as const)(
+  "shows the backend %s outcome in the compact entry",
+  async (outcome, label) => {
+    mockStatus = {
+      ...offer(),
+      unresolved_payment_id: 1,
+      unresolved_payment_status: "pending",
+      checkout_outcome: outcome,
+    };
+    const screen = await render(<MerchantPlusEntry discovery />);
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Try 30 days for ₱1" }),
+    ).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Explore Merchant Plus" }),
+    );
+    expect(mockPush).toHaveBeenCalledWith("/(merchant)/merchant-plus");
+  },
+);
 
 it("dismisses the Analytics offer without hiding the Business entry", async () => {
   const screen = await render(<MerchantPlusEntry discovery />);
