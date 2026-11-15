@@ -1,5 +1,88 @@
 # Merchant Plus payment foundation
 
+## M3 — Maya Sandbox Create Checkout
+
+The active gateway for `PAYMENT_PROVIDER=maya` and `PAYMENT_MODE=test` is Maya
+Sandbox. For controlled testing, enable `MAYA_CHECKOUT_ENABLED`, enforce Plus,
+disable mock grants, and supply the Sandbox keys and HTTPS return base through the
+local ignored environment. The Create Checkout request uses the Sandbox public
+API key as the HTTP Basic username with a blank password. The secret key is
+part of the M2 configuration but is unused by Create Checkout. The PayMongo
+adapter and historical payment reads remain available.
+
+`POST /api/merchant/plus/checkout/` accepts an authenticated Merchant's empty
+JSON object. SugboGo checks ownership and eligibility, locks the Business and
+Payment, then commits one open checkout operation before sending a single
+`POST https://pg-sandbox.paymaya.com/checkout/v1/checkouts`. The request maps:
+
+- The server snapshot's 100 centavos to the JSON number `1.00` in PHP using
+  `Decimal`, with one Merchant Plus item of quantity 1 and matching unit and
+  total amounts.
+- The local checkout operation UUID to `requestReferenceNumber`.
+- Server-generated HTTPS `success`, `failure`, and `cancel` URLs to
+  `redirectUrl`. They carry the public payment and operation references and an
+  outcome hint for navigation. The payload omits optional Basic Buyer fields.
+
+Maya documents a `200` response containing `checkoutId` and `redirectUrl`.
+SugboGo validates the checkout UUID and accepts the exact HTTPS Sandbox origins
+`payments-web-sandbox.paymaya.com` and `payments-web-sandbox.maya.ph`. It
+persists Maya's URL intact on the `maya/test` operation. The operation is
+`ready` and the Payment remains
+`pending` with fulfilment `not_started`. An optional provider status is stored
+only if supplied. All PayMongo intent fields remain null. Payment confirmation
+is not implemented yet, and checkout creation does not create an entitlement.
+[Maya Create Checkout](https://developers.maya.ph/reference/createv1checkout) ·
+[Maya one-time Checkout](https://developers.maya.ph/reference/accept-one-time-payment-using-maya-checkout) ·
+[Maya environments](https://developers.maya.ph/reference/api-environments)
+
+The endpoint returns `201` for a new usable checkout, `200` to reuse the
+same checkout, and `202` while waiting for a creation result or reconciliation.
+The ownership and open-operation constraints used by concurrent requests also
+hold across repeated calls. When a ready checkout reaches Maya's one-hour
+lifetime, SugboGo withholds its hosted URL and keeps the operation for later
+reconciliation. Local elapsed time alone cannot authorize replacement. The
+general Plus status endpoint exposes the owner's pending references and states
+without the hosted URL.
+
+Outbound HTTP uses verified TLS, 3.05-second connect and 10-second read
+timeouts, a 64 KiB response limit, and disabled redirects. Only recognizable
+pre-creation Maya validation or authentication errors are classified as
+definite rejections. Ambiguous responses and transport failures leave
+`creation_unknown`. An interrupted worker's elapsed creation lease moves the
+same operation to `creation_unknown`. The reservation and operation reference
+survive, and requests make no additional provider POST until the outcome can
+be reconciled. [Maya online payment errors](https://developers.maya.ph/reference/payment-errors) ·
+[Maya authentication errors](https://developers.maya.ph/reference/authentication-and-api-key-error)
+
+### Real Sandbox smoke test
+
+On November 15, 2026, an authenticated request through the SugboGo checkout
+endpoint sent one Create Checkout POST to Maya Sandbox using the published
+Checkout credentials and a synthetic local merchant. The request sent numeric
+`1.00` PHP, one Merchant Plus item, and omitted buyer information. The transport
+received HTTP `200`, but the response did not yield a validated checkout ID
+and hosted URL. SugboGo returned `202` and kept the operation in
+`creation_unknown`. The Payment remained `pending` with fulfilment
+`not_started` and zero paid entitlements. The hosted page could not be opened
+from verified evidence. The attempt recorded a generic outcome code, so the
+reason the response could not be used was not determined at that point.
+
+One follow-up Create Checkout POST used a separate synthetic merchant and
+operation UUID. Maya returned HTTP `200` and an `application/json` object
+containing only `checkoutId` and `redirectUrl`. The ID was a canonical UUID.
+The initial validator rejected the exact HTTPS hostname
+`payments-web-sandbox.maya.ph`. Maya's published domain table lists the
+`paymaya.com` hostname. The live Sandbox API returned the `maya.ph` hostname,
+and both hostnames resolved to the same addresses and passed hostname-specific
+TLS verification. SugboGo now accepts both exact origins. The captured
+response was revalidated locally and persisted on the follow-up operation
+without another Create Checkout POST. The operation became `ready`, the
+Payment remained `pending`, and the paid entitlement count stayed at zero.
+The first operation stayed in `creation_unknown` without changes. The hosted
+page returned HTTP `200` in Chromium and displayed a checkout for ₱1.00. The
+item name was absent from the rendered text. No payment was submitted.
+[Maya domain table](https://developers.maya.ph/docs/domains-and-ip-addresses)
+
 ## M2 — Provider provenance and Maya Sandbox configuration
 
 M2 does not yet call Maya Checkout.
@@ -51,13 +134,13 @@ provider alone grants no access. The owner-only Plus status shows the unresolved
 payment's references, provider, mode, financial state, fulfilment state and
 checkout state without returning provider credentials or payloads.
 
-### Active settings
+### Settings introduced in M2
 
 | Setting | Purpose |
 | --- | --- |
 | `PAYMENT_PROVIDER` | Defaults to `maya`. The legacy `paymongo` value supports an explicitly configured historical environment without activating its gateway. |
 | `PAYMENT_MODE` | Defaults to `test`. Supports `test` and `live` for application environment isolation. Maya is available only with `test`. |
-| `MAYA_CHECKOUT_ENABLED` | Defaults to `False`. Setting it to `True` validates configuration for M3. The checkout endpoint remains unavailable in M2. |
+| `MAYA_CHECKOUT_ENABLED` | Defaults to `False`. In M3, `True` enables Sandbox checkout with valid settings, Plus enforcement, and mock grants disabled. |
 | `MAYA_SANDBOX_PUBLIC_KEY` / `MAYA_SANDBOX_SECRET_KEY` | API authentication keys. Use the ignored local `.env` or deployment environment configuration. Repository examples are empty and automated tests use synthetic values. |
 | `MAYA_RETURN_BASE_URL` | Server-owned HTTPS return base, without user information, query or fragment. Configure it before enabling Maya settings. |
 
@@ -350,6 +433,4 @@ No model or migration changes are required by Task 3A.
 git diff --check
 ```
 
-The planned PayMongo connectivity check was superseded by the Maya Sandbox
-migration. Task M3 will implement Create Checkout and run the first real Maya
-Sandbox smoke test.
+The Maya Sandbox migration superseded the planned PayMongo connectivity check.

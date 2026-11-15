@@ -42,7 +42,9 @@ class MerchantPlusCheckoutView(APIView):
         data, status_code = CheckoutService.create_checkout(request.user)
         message = "Secure checkout is ready."
         if status_code == 202:
-            message = "We're checking your checkout. Please wait and check again later."
+            message = "This checkout needs review before it can continue."
+            if data["status_check_after_seconds"] is not None:
+                message = "We're checking your checkout. Please wait and check again later."
         return success_response(
             data=MerchantPlusCheckoutSerializer(data).data,
             message=message,

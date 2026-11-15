@@ -15,7 +15,7 @@ from apps.merchant_operations.merchant_analytics.views.tests.test_plus_checkout_
     CHECKOUT_TEST_SETTINGS,
 )
 from apps.payments.models import Payment, PaymentCheckoutSession
-from apps.shared.tests.test_paymongo_service import provider_response
+from apps.shared.tests.test_maya_checkout_service import maya_response
 from apps.users.models import User
 
 
@@ -49,7 +49,7 @@ class CheckoutConcurrencyTests(MerchantAnalyticsFixtures, TransactionTestCase):
                 raise AssertionError("Duplicate request waited behind provider I/O.")
             if uncertain:
                 raise requests.ReadTimeout()
-            return provider_response()
+            return maya_response()
 
         def request_checkout(_):
             try:
@@ -67,7 +67,7 @@ class CheckoutConcurrencyTests(MerchantAnalyticsFixtures, TransactionTestCase):
                 connections.close_all()
 
         with patch(
-            "apps.shared.services.paymongo_service.requests.post",
+            "apps.shared.services.maya_checkout_service.requests.post",
             side_effect=provider,
         ) as post:
             with ThreadPoolExecutor(max_workers=2) as pool:

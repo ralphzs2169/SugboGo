@@ -1,8 +1,53 @@
-"""Validate payment environment and staged Maya Sandbox configuration."""
+"""Validate payment environment and Maya Sandbox configuration."""
 
 from urllib.parse import urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
+
+
+MAYA_SANDBOX_API_BASE_URL = "https://pg-sandbox.paymaya.com"
+
+
+def is_maya_api_key(
+    key,
+    prefix,
+):
+    """Validate the credential shape without including its value in errors."""
+    return (
+        isinstance(key, str)
+        and key.startswith(prefix)
+        and len(key) > len(prefix)
+        and ":" not in key
+        and not any(character.isspace() or not character.isprintable() for character in key)
+        and key.isascii()
+    )
+
+
+def parse_maya_return_url(
+    value,
+    *,
+    allow_query=False,
+):
+    """Validate a server-owned HTTPS return URL and return its parsed components."""
+    try:
+        url = urlsplit(value)
+        url.port
+        if (
+            url.scheme == "https"
+            and bool(url.hostname)
+            and url.username is None
+            and url.password is None
+            and not url.netloc.endswith(":")
+            and not any(character in value for character in "#\\")
+            and (allow_query or "?" not in value)
+            and not any(character.isspace() or not character.isprintable() for character in value)
+        ):
+            return url
+    except (TypeError, ValueError):
+        pass
+    raise ImproperlyConfigured(
+        "MAYA_RETURN_BASE_URL must be an HTTPS URL without credentials, a query, or a fragment.",
+    )
 
 
 def load_payment_configuration(
@@ -11,7 +56,7 @@ def load_payment_configuration(
     plus_enforced,
     mock_enabled,
 ):
-    """Load backend-owned provider settings while keeping gateway I/O disabled in M2."""
+    """Load backend-owned settings for the enabled checkout environment."""
     provider = environment.get("PAYMENT_PROVIDER", "maya").strip().lower()
     if provider not in {"maya", "paymongo"}:
         raise ImproperlyConfigured("PAYMENT_PROVIDER must be maya or paymongo.")
@@ -32,7 +77,7 @@ def load_payment_configuration(
         "PAYMENT_PROVIDER": provider,
         "PAYMENT_MODE": mode,
         "MAYA_CHECKOUT_ENABLED": enabled,
-        "MAYA_SANDBOX_API_BASE_URL": "https://pg-sandbox.paymaya.com",
+        "MAYA_SANDBOX_API_BASE_URL": MAYA_SANDBOX_API_BASE_URL,
         "MAYA_SANDBOX_PUBLIC_KEY": environment.get("MAYA_SANDBOX_PUBLIC_KEY", "").strip(),
         "MAYA_SANDBOX_SECRET_KEY": environment.get("MAYA_SANDBOX_SECRET_KEY", "").strip(),
         "MAYA_RETURN_BASE_URL": environment.get("MAYA_RETURN_BASE_URL", "").strip(),
@@ -53,31 +98,8 @@ def load_payment_configuration(
         ("MAYA_SANDBOX_SECRET_KEY", "sk-"),
     ):
         key = configuration[name]
-        if (
-            not key.startswith(prefix)
-            or len(key) == len(prefix)
-            or ":" in key
-            or any(character.isspace() for character in key)
-        ):
+        if not is_maya_api_key(key, prefix):
             raise ImproperlyConfigured(f"{name} must contain a Maya Sandbox API key.")
 
-    base_url = configuration["MAYA_RETURN_BASE_URL"]
-    try:
-        url = urlsplit(base_url)
-        valid_url = (
-            url.scheme == "https"
-            and bool(url.hostname)
-            and url.username is None
-            and url.password is None
-            and not url.netloc.endswith(":")
-            and not any(character in base_url for character in "?#\\")
-            and not any(character.isspace() for character in base_url)
-        )
-        url.port
-    except ValueError:
-        valid_url = False
-    if not valid_url:
-        raise ImproperlyConfigured(
-            "MAYA_RETURN_BASE_URL must be an HTTPS URL without credentials, a query, or a fragment.",
-        )
+    parse_maya_return_url(configuration["MAYA_RETURN_BASE_URL"])
     return configuration

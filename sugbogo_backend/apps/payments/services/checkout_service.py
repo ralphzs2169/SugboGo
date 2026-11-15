@@ -1,25 +1,27 @@
 """Reserve and resume Merchant Plus checkout without confirming payment."""
 
 from datetime import timedelta
-from urllib.parse import urlencode, urlsplit, urlunsplit
+from urllib.parse import urlencode, urlunsplit
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied
 
 from apps.business.models import Business
-from apps.shared.services.paymongo_service import (
-    PayMongoConfigurationError,
-    PayMongoCreationRejected,
-    PayMongoCreationUnknown,
-    PayMongoService,
+from apps.shared.services.maya_checkout_service import (
+    MayaCheckoutService,
+    MayaConfigurationError,
+    MayaCreationRejected,
+    MayaCreationUnknown,
 )
 from apps.users.models import User
+from config.payments import parse_maya_return_url
 
 from ..constants import MERCHANT_PLUS_PRODUCT
-from ..models import Payment, PaymentCheckoutSession, PaymentProvider
+from ..models import Payment, PaymentCheckoutSession, PaymentMode, PaymentProvider
 from .payment_service import PaymentService
 
 
@@ -51,13 +53,15 @@ class CheckoutService:
     """Coordinate local locks and a single external creation attempt per operation."""
 
     CREATION_LEASE_SECONDS = 60
+    MAYA_CHECKOUT_LIFETIME = timedelta(hours=1)
 
     @staticmethod
     def is_enabled():
-        """Report whether the legacy checkout path has been explicitly enabled."""
+        """Report whether this environment can create a Maya Sandbox checkout."""
         return (
-            settings.PAYMENT_PROVIDER == PaymentProvider.PAYMONGO
-            and getattr(settings, "PAYMONGO_CHECKOUT_ENABLED", False)
+            settings.PAYMENT_PROVIDER == PaymentProvider.MAYA
+            and settings.PAYMENT_MODE == PaymentMode.TEST
+            and settings.MAYA_CHECKOUT_ENABLED
             and settings.MERCHANT_PLUS_ENFORCED
             and not settings.MERCHANT_PLUS_MOCK_ENABLED
         )
@@ -68,7 +72,8 @@ class CheckoutService:
         product = MERCHANT_PLUS_PRODUCT
         if (
             payment.PYMT_STATUS != Payment.Status.PENDING
-            or payment.PYMT_PROVIDER != PaymentProvider.PAYMONGO
+            or payment.PYMT_PROVIDER != PaymentProvider.MAYA
+            or payment.PYMT_MODE != PaymentMode.TEST
             or payment.PYMT_FULFILMENT_STATUS != Payment.FulfilmentStatus.NOT_STARTED
             or payment.PYMT_PRODUCT != product.code
             or payment.PYMT_PRODUCT_VERSION != product.version
@@ -137,8 +142,8 @@ class CheckoutService:
                 raise CheckoutConflict()
             if operation.PCHK_STATE == PaymentCheckoutSession.State.READY:
                 if (
-                    not PayMongoService.is_safe_checkout_url(operation.PCHK_CHECKOUT_URL)
-                    or operation.PCHK_PROVIDER_STATUS not in {"", "active"}
+                    not MayaCheckoutService.is_checkout_id(operation.PCHK_PROVIDER_SESSION_ID)
+                    or not MayaCheckoutService.is_safe_checkout_url(operation.PCHK_CHECKOUT_URL)
                 ):
                     raise CheckoutConflict()
                 return payment, operation, False
@@ -160,7 +165,9 @@ class CheckoutService:
             if (
                 operation.PCHK_STATE != PaymentCheckoutSession.State.CREATION_FAILED
                 or operation.PCHK_LAST_ERROR not in {
-                    "provider_rejected", "configuration_unavailable",
+                    "provider_validation_rejected",
+                    "provider_authentication_rejected",
+                    "configuration_unavailable",
                 }
             ):
                 # Replacement after completion/expiry requires later authoritative recovery.
@@ -182,11 +189,10 @@ class CheckoutService:
         outcome,
     ):
         """Build non-authoritative return hints using only server configuration/references."""
-        base = settings.PAYMONGO_RETURN_BASE_URL
-        PayMongoService.validate_return_url(base)
-        parsed = urlsplit(base)
-        if parsed.query:
-            raise PayMongoConfigurationError("Payment return configuration is unavailable.")
+        try:
+            parsed = parse_maya_return_url(settings.MAYA_RETURN_BASE_URL)
+        except ImproperlyConfigured:
+            raise MayaConfigurationError("Payment return configuration is unavailable.") from None
         query = urlencode({
             "payment_reference": str(payment.PYMT_REFERENCE),
             "operation_reference": str(operation.PCHK_OPERATION_REFERENCE),
@@ -229,18 +235,16 @@ class CheckoutService:
         }:
             raise CheckoutConflict()
         if checkout is not None:
-            locked.PCHK_PROVIDER_SESSION_ID = checkout.session_id
+            locked.PCHK_PROVIDER_SESSION_ID = checkout.checkout_id
             locked.PCHK_CHECKOUT_URL = checkout.checkout_url
             locked.PCHK_PROVIDER_STATUS = checkout.status
-            locked.PCHK_INTENT_ID = checkout.intent_id
-            locked.PCHK_INTENT_STATUS = checkout.intent_status
         locked.PCHK_STATE = state
         locked.PCHK_LAST_ERROR = error
         locked.PCHK_CHECKED_AT = timezone.now()
         locked.PCHK_LEASE_UNTIL = None
         locked.save(update_fields=[
             "PCHK_PROVIDER_SESSION_ID", "PCHK_CHECKOUT_URL", "PCHK_PROVIDER_STATUS",
-            "PCHK_INTENT_ID", "PCHK_INTENT_STATUS", "PCHK_STATE", "PCHK_LAST_ERROR",
+            "PCHK_STATE", "PCHK_LAST_ERROR",
             "PCHK_CHECKED_AT", "PCHK_LEASE_UNTIL", "PCHK_UPDATED_AT",
         ])
         return locked, valid_relationships
@@ -258,18 +262,17 @@ class CheckoutService:
         if not reserved:
             return cls._response(payment, operation, created=False)
         try:
-            checkout = PayMongoService.create_checkout_session(
+            checkout = MayaCheckoutService.create_checkout(
                 mode=payment.PYMT_MODE,
-                payment_reference=payment.PYMT_REFERENCE,
                 operation_reference=operation.PCHK_OPERATION_REFERENCE,
                 product_name=MERCHANT_PLUS_PRODUCT.name,
                 amount_centavos=payment.PYMT_AMOUNT_CENTAVOS,
                 currency=payment.PYMT_CURRENCY,
-                payment_methods=settings.PAYMONGO_PAYMENT_METHOD_TYPES,
                 success_url=cls._return_url(payment, operation, "success"),
+                failure_url=cls._return_url(payment, operation, "failure"),
                 cancel_url=cls._return_url(payment, operation, "cancel"),
             )
-        except PayMongoConfigurationError:
+        except MayaConfigurationError:
             cls._record_outcome(
                 payment,
                 operation,
@@ -277,20 +280,20 @@ class CheckoutService:
                 error="configuration_unavailable",
             )
             raise CheckoutUnavailable() from None
-        except PayMongoCreationRejected:
+        except MayaCreationRejected as error:
             cls._record_outcome(
                 payment,
                 operation,
                 state=PaymentCheckoutSession.State.CREATION_FAILED,
-                error="provider_rejected",
+                error=str(error),
             )
             raise CheckoutRejected() from None
-        except PayMongoCreationUnknown:
+        except MayaCreationUnknown as error:
             operation, valid = cls._record_outcome(
                 payment,
                 operation,
                 state=PaymentCheckoutSession.State.CREATION_UNKNOWN,
-                error="provider_outcome_unknown",
+                error=str(error),
             )
         else:
             try:
@@ -314,8 +317,9 @@ class CheckoutService:
             raise CheckoutConflict()
         return cls._response(payment, operation, created=True)
 
-    @staticmethod
+    @classmethod
     def _response(
+        cls,
         payment,
         operation,
         *,
@@ -329,14 +333,15 @@ class CheckoutService:
         next_action = "wait"
         check_after_seconds = 5
         if ready:
-            session_id = operation.PCHK_PROVIDER_SESSION_ID
-            checkout_url = operation.PCHK_CHECKOUT_URL
-            next_action = "open_checkout"
             check_after_seconds = None
-            if created:
-                status_code = 201
-            else:
-                status_code = 200
+            if (
+                timezone.now() < operation.PCHK_CREATED_AT + cls.MAYA_CHECKOUT_LIFETIME
+                and operation.PCHK_PROVIDER_STATUS in {"", "PENDING_TOKEN"}
+            ):
+                session_id = operation.PCHK_PROVIDER_SESSION_ID
+                checkout_url = operation.PCHK_CHECKOUT_URL
+                next_action = "open_checkout"
+                status_code = 201 if created else 200
         return {
             "payment_id": payment.pk,
             "payment_reference": payment.PYMT_REFERENCE,
@@ -346,6 +351,7 @@ class CheckoutService:
             },
             "amount_centavos": payment.PYMT_AMOUNT_CENTAVOS,
             "currency": payment.PYMT_CURRENCY,
+            "provider": payment.PYMT_PROVIDER,
             "mode": payment.PYMT_MODE,
             "payment_status": payment.PYMT_STATUS,
             "fulfilment_status": payment.PYMT_FULFILMENT_STATUS,
