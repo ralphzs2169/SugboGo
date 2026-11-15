@@ -17,7 +17,7 @@ export function getTransitMapNotice({
     return {
       title: "Map ID needed",
       description:
-        "Set VITE_GOOGLE_MAP_ID to a JavaScript map ID, then rebuild and reload the web app. Route markers need this setting.",
+        "Set VITE_GOOGLE_TRANSIT_MAP_ID to a JavaScript map ID, then rebuild and reload the web app. Route markers need this setting.",
       kind: "error",
     };
   }
