@@ -132,7 +132,7 @@ it.each([
 );
 
 it.each([
-  ["pending", "Checking your payment"],
+  ["pending", "Payment pending"],
   ["unknown", "We're still checking this payment"],
   ["cancelled", "Checkout cancelled"],
   ["failed", "Payment wasn't completed"],

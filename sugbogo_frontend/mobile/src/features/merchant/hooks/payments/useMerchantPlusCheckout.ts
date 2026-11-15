@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import { AppState, Platform } from "react-native";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import {
   getAuthSessionGeneration,
@@ -21,6 +22,7 @@ export default function useMerchantPlusCheckout() {
   const client = useQueryClient();
   const active = useRef(false);
   const controller = useRef<AbortController | null>(null);
+  const stopWatchingBrowser = useRef<(() => void) | null>(null);
   const scope = `${accountId}:${generation}`;
   const [progress, setProgress] = useState<{
     scope: string;
@@ -32,6 +34,7 @@ export default function useMerchantPlusCheckout() {
     return () => {
       active.current = false;
       controller.current?.abort();
+      stopWatchingBrowser.current?.();
     };
   }, [accountId, generation]);
   const mutation = useMutation({
@@ -58,9 +61,6 @@ export default function useMerchantPlusCheckout() {
           await createMerchantPlusCheckout(controller.current.signal),
         );
         if (!current()) return;
-        void client.invalidateQueries({
-          queryKey: merchantPlusStatusKey(operation.accountId),
-        });
         if (checkout.next_action === "open_checkout") {
           if (
             checkout.provider !== "maya" ||
@@ -70,9 +70,37 @@ export default function useMerchantPlusCheckout() {
             throw new Error("Checkout could not be opened safely.");
           }
           setProgress({ scope: operationScope, phase: "opening" });
-          await WebBrowser.openBrowserAsync(checkout.checkout_url);
+          stopWatchingBrowser.current?.();
+          if (Platform.OS === "android") {
+            // Android resolves when the custom tab opens, before it closes.
+            let leftApp = AppState.currentState === "background";
+            const subscription = AppState.addEventListener(
+              "change",
+              (state) => {
+                if (state === "background") leftApp = true;
+                if (state !== "active" || !leftApp) return;
+                stopWatching();
+                if (!current()) return;
+                void client.invalidateQueries({
+                  queryKey: merchantPlusStatusKey(operation.accountId),
+                });
+              },
+            );
+            const stopWatching = () => {
+              subscription.remove();
+              stopWatchingBrowser.current = null;
+            };
+            stopWatchingBrowser.current = stopWatching;
+          }
+          try {
+            await WebBrowser.openBrowserAsync(checkout.checkout_url);
+          } catch (error) {
+            stopWatchingBrowser.current?.();
+            throw error;
+          }
+          return;
         }
-        if (current()) router.replace("/(merchant)/merchant-plus/return");
+        router.replace("/(merchant)/merchant-plus/return");
       } finally {
         openingCheckout = false;
         if (current()) {

@@ -1,5 +1,7 @@
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
+import { router } from "expo-router";
 import MerchantPlusReturnRoute from "@/app/(merchant)/merchant-plus/return";
+import MerchantPlusBackButton from "../../../components/merchant-plus/MerchantPlusBackButton";
 import { parseMerchantPlusReturnOutcome } from "../../../utils/merchantPlusReturn";
 import { plusStatus } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
@@ -10,10 +12,16 @@ let mockStatus = {
   checkout_outcome: "pending",
 };
 const mockCheck = jest.fn();
+const mockCanGoBack = jest.fn();
+const mockGoBack = jest.fn();
 let mockError: unknown = null;
 let mockExhausted = false;
 jest.mock("expo-router", () => ({
   router: { replace: jest.fn() },
+  useNavigation: () => ({
+    canGoBack: mockCanGoBack,
+    goBack: mockGoBack,
+  }),
   useLocalSearchParams: () => ({ outcome: mockOutcome }),
 }));
 jest.mock("../../../hooks/payments/useMerchantPlusPaymentStatus", () => ({
@@ -27,6 +35,8 @@ jest.mock("../../../hooks/payments/useMerchantPlusPaymentStatus", () => ({
   }),
 }));
 beforeEach(() => {
+  jest.clearAllMocks();
+  mockCanGoBack.mockReturnValue(false);
   mockError = null;
   mockExhausted = false;
   mockStatus = {
@@ -34,6 +44,35 @@ beforeEach(() => {
     unresolved_payment_id: 1,
     checkout_outcome: "pending",
   };
+});
+
+it("replaces a root deep-link return with Merchant Plus without dispatching GO_BACK", async () => {
+  mockOutcome = "cancel";
+  const screen = await render(
+    <>
+      <MerchantPlusBackButton fallback="/(merchant)/merchant-plus" />
+      <MerchantPlusReturnRoute />
+    </>,
+  );
+  expect(screen.getByText("Checking your payment")).toBeTruthy();
+  await fireEvent.press(screen.getByRole("button", { name: "Go back" }));
+  expect(router.replace).toHaveBeenCalledWith("/(merchant)/merchant-plus");
+  expect(mockGoBack).not.toHaveBeenCalled();
+});
+
+it("uses the current navigation history at tap time", async () => {
+  const screen = await render(
+    <MerchantPlusBackButton fallback="/(merchant)/(tabs)/analytics" />,
+  );
+  expect(mockCanGoBack).not.toHaveBeenCalled();
+  mockCanGoBack.mockReturnValue(true);
+  await fireEvent.press(screen.getByRole("button", { name: "Go back" }));
+  expect(mockGoBack).toHaveBeenCalledTimes(1);
+  expect(router.replace).not.toHaveBeenCalled();
+  mockCanGoBack.mockReturnValue(false);
+  await fireEvent.press(screen.getByRole("button", { name: "Go back" }));
+  expect(mockGoBack).toHaveBeenCalledTimes(1);
+  expect(router.replace).toHaveBeenCalledWith("/(merchant)/(tabs)/analytics");
 });
 
 it("offers recoverable backend status errors without creating checkout", async () => {
@@ -47,8 +86,12 @@ it("offers manual recovery and Analytics after bounded polling ends", async () =
   mockExhausted = true;
   const screen = await render(<MerchantPlusReturnRoute />);
   expect(screen.getByText("Still processing")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Check status again" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Return to Analytics" })).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Check status again" }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Return to Analytics" }),
+  ).toBeTruthy();
 });
 it.each(["success", "failure", "cancel"])(
   "does not infer paid access from %s",

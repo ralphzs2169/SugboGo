@@ -1,3 +1,4 @@
+import MerchantPlusBackButton from "@/features/merchant/components/merchant-plus/MerchantPlusBackButton";
 import useMerchantRouteGuard from "@/features/merchant/hooks/useMerchantRouteGuard";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 import {
@@ -27,6 +28,9 @@ export default function MerchantLayout() {
           ...slideFromRight,
           headerShown: true,
           title: "Merchant Plus",
+          headerLeft: () => (
+            <MerchantPlusBackButton fallback="/(merchant)/(tabs)/analytics" />
+          ),
         }}
       />
       <Stack.Screen
@@ -36,6 +40,9 @@ export default function MerchantLayout() {
           ...slideFromRight,
           headerShown: true,
           title: "Payment status",
+          headerLeft: () => (
+            <MerchantPlusBackButton fallback="/(merchant)/merchant-plus" />
+          ),
         }}
       />
 

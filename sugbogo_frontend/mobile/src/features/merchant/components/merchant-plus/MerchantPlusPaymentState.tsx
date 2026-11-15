@@ -53,18 +53,26 @@ export default function MerchantPlusPaymentState({
 }) {
   const state = merchantPlusPaymentState(status);
   const limited = exhausted && (state === "checking" || state === "activating");
+  const pending = !returning && state === "checking" && !!status;
   const waiting =
-    !error && !exhausted && (state === "checking" || state === "activating");
+    !error &&
+    !exhausted &&
+    !pending &&
+    (state === "checking" || state === "activating");
   const title = error
     ? "Unable to check payment status"
     : limited
       ? "Still processing"
-      : COPY[state][0];
+      : pending
+        ? "Payment pending"
+        : COPY[state][0];
   const body = error
     ? "Your payment information is still safe. Please try checking again."
     : limited
       ? "Your payment status hasn't finished updating yet."
-      : COPY[state][1];
+      : pending
+        ? "No payment has been confirmed yet."
+        : COPY[state][1];
   const expiry = merchantPlusExpiry(status?.entitlement_expires_at);
   return (
     <View className="gap-5 rounded-card border border-border-primary bg-surface p-5">
@@ -113,7 +121,7 @@ export default function MerchantPlusPaymentState({
           onPress={onCheck}
         />
       ) : null}
-      {!returning && waiting && (
+      {!returning && !error && (pending || waiting) && (
         <Button
           title="Check payment status"
           variant="outline"
