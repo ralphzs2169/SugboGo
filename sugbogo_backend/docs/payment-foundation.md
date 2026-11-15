@@ -1,5 +1,35 @@
 # Merchant Plus payment foundation
 
+## M6 prerequisite — checkout outcome and return navigation
+
+The Plus status response includes nullable `checkout_outcome`, derived from the
+unresolved checkout's stored evidence. Maya PAYMENT_CANCELLED, PAYMENT_FAILED
+and PAYMENT_EXPIRED map to cancelled, failed and expired. Stored local expired
+also maps to expired. Creating/ready with an absent or known initial pending
+observation maps to pending. Other evidence, including creation_unknown, maps
+to unknown. Paid purchases and absence of an unresolved purchase return null.
+Financial status, fulfilment and has_plus_access remain separate authoritative fields.
+
+Configure `MAYA_RETURN_BASE_URL` as the deployed public web application's full
+HTTPS URL ending in `/merchant-plus/return`. The existing backend builder adds
+distinct outcome=success, outcome=failure or outcome=cancel plus local references.
+The public page forwards only one recognized outcome to
+`sugbogo://merchant-plus/return` through an explicit Open SugboGo link.
+Invalid, duplicate or missing outcomes produce a link without a hint. Other
+parameters, including references and arbitrary redirect destinations, are dropped.
+
+The public route bypasses Admin session restoration. The mobile route uses the
+existing merchant authentication/role guard and refreshes GET Plus status on focus.
+It makes no checkout POST. Its placeholder Continue to Analytics action preserves
+the existing merchant navigation. No purchase or financial mutation is attached to
+either return route. Full return presentation and polling are deferred to M6.
+
+Deploy the updated web build with SPA fallback for this public path, and install
+the updated mobile build containing the route. Existing sugbogo custom-scheme
+registration is reused. No domain association or native configuration change is
+required for the explicit custom-scheme link. Opening the installed app from the
+deployed bridge still needs physical-device acceptance testing.
+
 ## M5 — paid Merchant Plus fulfilment
 
 M4 verifies Maya evidence and commits a financially paid Payment with fulfilment

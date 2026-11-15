@@ -1,6 +1,6 @@
 """Read paid access alongside preserved preview and demo metadata."""
 
-from apps.payments.models import PaymentMode
+from apps.payments.models import Payment, PaymentCheckoutSession, PaymentMode, PaymentProvider
 from apps.payments.services.checkout_service import CheckoutService
 from apps.payments.services.payment_service import PaymentService
 
@@ -34,6 +34,7 @@ class MerchantPlusStatusService:
             "unresolved_payment_status": None,
             "unresolved_fulfilment_status": None,
             "unresolved_checkout_status": None,
+            "checkout_outcome": None,
             "purchase_eligible": eligibility["eligible"],
             "purchase_ineligibility_reason": eligibility["reason"],
         })
@@ -46,6 +47,10 @@ class MerchantPlusStatusService:
             status["unresolved_payment_status"] = unresolved.PYMT_STATUS
             status["unresolved_fulfilment_status"] = unresolved.PYMT_FULFILMENT_STATUS
             checkout = unresolved.checkout_sessions.order_by("-PCHK_ID").first()
+            status["checkout_outcome"] = MerchantPlusStatusService.checkout_outcome(
+                unresolved,
+                checkout,
+            )
             if checkout is not None:
                 status["unresolved_checkout_status"] = checkout.PCHK_STATE
         if paid is not None:
@@ -62,3 +67,33 @@ class MerchantPlusStatusService:
                 "paid_payment_reference": payment.PYMT_REFERENCE,
             })
         return status
+
+    @staticmethod
+    def checkout_outcome(
+        payment,
+        checkout,
+    ):
+        """Normalize stored unpaid checkout evidence independently of financial confirmation."""
+        if payment.PYMT_STATUS == Payment.Status.PAID:
+            return None
+        if checkout is None:
+            return "unknown"
+        if checkout.PCHK_PROVIDER == PaymentProvider.MAYA:
+            terminal = {
+                "PAYMENT_CANCELLED": "cancelled",
+                "PAYMENT_FAILED": "failed",
+                "PAYMENT_EXPIRED": "expired",
+            }
+            if checkout.PCHK_PROVIDER_STATUS in terminal:
+                return terminal[checkout.PCHK_PROVIDER_STATUS]
+        if checkout.PCHK_STATE == PaymentCheckoutSession.State.EXPIRED:
+            return "expired"
+        if (
+            checkout.PCHK_STATE in (
+                PaymentCheckoutSession.State.CREATING,
+                PaymentCheckoutSession.State.READY,
+            )
+            and checkout.PCHK_PROVIDER_STATUS in ("", "PENDING_TOKEN", "PENDING_PAYMENT")
+        ):
+            return "pending"
+        return "unknown"

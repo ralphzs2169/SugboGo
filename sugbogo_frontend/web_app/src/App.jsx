@@ -38,6 +38,7 @@ import DataDeletionPage from "@/features/legal/pages/DataDeletionPage";
 import PrivacyPolicyPage from "@/features/legal/pages/PrivacyPolicyPage";
 import TermsOfServicePage from "@/features/legal/pages/TermsOfServicePage";
 import NotFound from "@/shared/components/errors/NotFound";
+import MayaReturnPage from "@/features/payments/pages/MayaReturnPage";
 
 import PageLoader from "@/shared/components/loading/PageLoader";
 import useDelayedLoading from "@/shared/hooks/useDelayedLoading";
@@ -82,6 +83,7 @@ function AdminWebSession() {
 function App() {
   return (
     <Routes>
+      <Route path="/merchant-plus/return" element={<MayaReturnPage />} />
       <Route element={<PublicLegalLayout />}>
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />

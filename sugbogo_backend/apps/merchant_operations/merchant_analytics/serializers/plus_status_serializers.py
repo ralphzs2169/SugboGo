@@ -45,5 +45,9 @@ class MerchantPlusAccessStatusSerializer(MerchantPlusStatusSerializer):
     unresolved_payment_status = serializers.CharField(allow_null=True)
     unresolved_fulfilment_status = serializers.CharField(allow_null=True)
     unresolved_checkout_status = serializers.CharField(allow_null=True)
+    checkout_outcome = serializers.ChoiceField(
+        choices=("pending", "cancelled", "failed", "expired", "unknown"),
+        allow_null=True,
+    )
     purchase_eligible = serializers.BooleanField()
     purchase_ineligibility_reason = serializers.CharField(allow_null=True)

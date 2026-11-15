@@ -136,6 +136,13 @@ export type MerchantPlusStatus = {
   stored_demo_state: "not_created" | "inactive" | "active";
   effective_tier: "standard" | "plus";
   has_plus_access: boolean;
+  checkout_outcome?:
+    | "pending"
+    | "cancelled"
+    | "failed"
+    | "expired"
+    | "unknown"
+    | null;
   access_source:
     | "none"
     | "preview"

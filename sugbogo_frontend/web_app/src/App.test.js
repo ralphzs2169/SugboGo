@@ -115,6 +115,20 @@ const legalDestinations = [
   ["/data-deletion", "Data Deletion Instructions"],
 ];
 
+for (const outcome of ["success", "failure", "cancel", "invalid", "success&outcome=cancel"]) {
+  test(`Maya return accepts ${outcome} without an admin session or restoration`, async () => {
+    authState.setAuthState({ isLoading: true, isAuthenticated: false, user: null });
+    const starts = sessionRestoration.restorationStarts;
+    await render(`/merchant-plus/return?outcome=${outcome}&redirect=https://attacker.invalid&payment_reference=private`);
+    const link = container.querySelector("a");
+    const valid = ["success", "failure", "cancel"].includes(outcome);
+    assert.equal(link.getAttribute("href"), `sugbogo://merchant-plus/return${valid ? `?outcome=${outcome}` : ""}`);
+    assert.equal(sessionRestoration.restorationStarts, starts);
+    assert.match(container.textContent, /check your Merchant Plus status/);
+    assert.doesNotMatch(container.textContent, /Payment successful|Payment confirmed|Plus activated/);
+  });
+}
+
 for (const [path, title] of legalDestinations) {
   test(`${path} renders independently of session restoration`, async () => {
     authState.setAuthState({

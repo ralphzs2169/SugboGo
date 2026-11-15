@@ -8,6 +8,15 @@ import {
 import ResetPasswordRoute from "@/app/(auth)/reset-password";
 import VerifyEmailRoute from "@/app/(auth)/verify-email";
 import OAuthRedirect from "@/app/oauthredirect";
+import MerchantPlusReturnRoute from "@/app/(merchant)/merchant-plus/return";
+
+jest.mock("@/features/merchant/screens/merchant-mode/MerchantPlusReturnScreen", () => ({
+  __esModule: true,
+  default: function MockPaymentReturn({ outcome }: { outcome: string | null }) {
+    const { Text } = require("react-native");
+    return <Text>{`Payment navigation hint: ${outcome ?? "none"}`}</Text>;
+  },
+}));
 
 jest.mock("../../screens/VerifyEmailScreen", () => ({
   __esModule: true,
@@ -45,6 +54,7 @@ const routes = getMockContext({
   "(auth)/reset-password": ResetPasswordRoute,
   "(auth)/verify-email": VerifyEmailRoute,
   oauthredirect: OAuthRedirect,
+  "(merchant)/merchant-plus/return": MerchantPlusReturnRoute,
 });
 
 const origin = "https://sugbogo.app";
@@ -68,6 +78,16 @@ function launchApp(url: string | null = null) {
   jest.spyOn(NativeLinking, "getInitialURL").mockResolvedValue(url);
   return render(<ExpoRoot context={routes} />);
 }
+
+it.each([
+  ["sugbogo", "success", "success"],
+  ["sugbogo", "failure", "failure"],
+  ["com.sugbogo.app", "cancel", "cancel"],
+  ["sugbogo", "paid", "none"],
+])("opens payment return from %s with only the %s hint", async (scheme, outcome, expected) => {
+  const app = await launchApp(`${scheme}://merchant-plus/return?outcome=${outcome}`);
+  expect(await app.findByText(`Payment navigation hint: ${expected}`)).toBeTruthy();
+});
 
 it.each(routeCases)(
   "opens /%s with the HTTPS proof on cold start",
