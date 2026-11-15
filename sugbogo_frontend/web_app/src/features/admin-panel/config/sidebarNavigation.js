@@ -140,7 +140,7 @@ const navigation = [
         to: "/admin-panel/analytics",
         label: "Analytics",
         Icon: FiBarChart2,
-        roles: ["super_admin"],
+        roles: ["admin", "super_admin"],
       },
       {
         type: "link",
