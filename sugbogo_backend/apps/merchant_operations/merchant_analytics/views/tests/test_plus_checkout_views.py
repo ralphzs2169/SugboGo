@@ -11,9 +11,9 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.business.models import Business
-from apps.payments.models import Payment, PaymentCheckoutSession, PayMongoWebhookEvent
+from apps.payments.models import Payment, PaymentCheckoutSession, PaymentProviderEvent
 from apps.payments.services.payment_service import PaymentService
-from apps.shared.tests.test_paymongo_service import checkout_payload, provider_response
+from apps.shared.tests.test_maya_checkout_service import CHECKOUT_ID, CHECKOUT_URL, maya_response
 from apps.users.models import User
 
 from ...models import PaidMerchantPlusEntitlement
@@ -21,12 +21,12 @@ from ...services.tests.fixtures import MerchantAnalyticsFixtures
 
 
 CHECKOUT_TEST_SETTINGS = {
-    "PAYMONGO_MODE": "test",
-    "PAYMONGO_CHECKOUT_ENABLED": True,
-    "PAYMONGO_TEST_SECRET_KEY": "sk_test_mock_only",
-    "PAYMONGO_LIVE_SECRET_KEY": "sk_live_mock_only",
-    "PAYMONGO_PAYMENT_METHOD_TYPES": ("gcash",),
-    "PAYMONGO_RETURN_BASE_URL": "https://sugbogo.example/payment-return",
+    "PAYMENT_MODE": "test",
+    "PAYMENT_PROVIDER": "maya",
+    "MAYA_CHECKOUT_ENABLED": True,
+    "MAYA_SANDBOX_PUBLIC_KEY": "pk-checkout-fixture-only",
+    "MAYA_SANDBOX_SECRET_KEY": "sk-checkout-fixture-only",
+    "MAYA_RETURN_BASE_URL": "https://sugbogo.example/payment-return",
     "MERCHANT_PLUS_ENFORCED": True,
     "MERCHANT_PLUS_MOCK_ENABLED": False,
     "CACHES": {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}},
@@ -40,10 +40,10 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         cache.clear()
         self.url = reverse("merchant-plus-checkout")
         self.client.force_authenticate(self.merchant_a)
-        patcher = patch("apps.shared.services.paymongo_service.requests.post")
+        patcher = patch("apps.shared.services.maya_checkout_service.requests.post")
         self.post = patcher.start()
         self.addCleanup(patcher.stop)
-        self.post.return_value = provider_response()
+        self.post.return_value = maya_response()
 
     def checkout(self):
         return self.client.post(self.url, {}, format="json")
@@ -55,7 +55,6 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
             PYMT_STATUS="paid",
             PYMT_FULFILMENT_STATUS="fulfilled",
             PYMT_PROVIDER_PAYMENT_ID="pay_existing",
-            PYMT_PROVIDER_INTENT_ID="pi_existing",
             PYMT_PAID_AT=now,
             PYMT_VERIFIED_AT=now,
             PYMT_FULFILLED_AT=now,
@@ -96,7 +95,8 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
     def test_all_client_overrides_are_rejected(self):
         for field in (
             "amount", "currency", "product", "business_id", "user_id", "mode",
-            "return_url", "paid", "entitlement", "price", "access_duration",
+            "provider", "return_url", "redirect_url", "paid", "payment_status",
+            "fulfilment_status", "entitlement", "price", "access_duration", "product_version",
         ):
             with self.subTest(field=field):
                 cache.clear()
@@ -129,7 +129,7 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
 
     def test_checkout_disabled_and_preview_mock_configuration_block_creation(self):
         for configuration in (
-            {"PAYMONGO_CHECKOUT_ENABLED": False},
+            {"MAYA_CHECKOUT_ENABLED": False},
             {"MERCHANT_PLUS_ENFORCED": False},
             {"MERCHANT_PLUS_MOCK_ENABLED": True},
         ):
@@ -153,29 +153,39 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(payment.PYMT_PRODUCT_VERSION, "capstone-v1")
         self.assertEqual(payment.PYMT_ACCESS_DURATION_DAYS, 30)
         self.assertEqual(payment.PYMT_MODE, "test")
+        self.assertEqual(payment.PYMT_PROVIDER, "maya")
+        self.assertEqual(response.data["data"]["provider"], "maya")
         self.assertEqual(payment.PYMT_STATUS, "pending")
         self.assertEqual(payment.PYMT_FULFILMENT_STATUS, "not_started")
         self.assertIsNone(payment.PYMT_PROVIDER_PAYMENT_ID)
         self.assertIsNone(payment.PYMT_PAID_AT)
         self.assertEqual(operation.PCHK_STATE, "ready")
         self.assertEqual(operation.PCHK_MODE, "test")
-        self.assertEqual(operation.PCHK_PROVIDER_SESSION_ID, "cs_mock_session")
+        self.assertEqual(operation.PCHK_PROVIDER_SESSION_ID, CHECKOUT_ID)
+        self.assertEqual(operation.PCHK_PROVIDER, "maya")
+        self.assertEqual(operation.PCHK_CHECKOUT_URL, CHECKOUT_URL)
         self.assertEqual(operation.PCHK_CHECKOUT_URL, response.data["data"]["checkout_url"])
+        self.assertIsNone(payment.PYMT_PROVIDER_INTENT_ID)
+        self.assertIsNone(operation.PCHK_INTENT_ID)
+        self.assertIsNone(operation.PCHK_INTENT_STATUS)
+        self.assertEqual(operation.PCHK_PROVIDER_STATUS, "")
         self.assertIsNone(operation.PCHK_LEASE_UNTIL)
         self.assertIsNotNone(operation.PCHK_CHECKED_AT)
         self.assertEqual(response.data["data"]["next_action"], "open_checkout")
         self.assertFalse(PaidMerchantPlusEntitlement.objects.exists())
-        self.assertFalse(PayMongoWebhookEvent.objects.exists())
+        self.assertFalse(PaymentProviderEvent.objects.exists())
         self.post.assert_called_once()
-        self.assertNotIn("sk_test_mock_only", str(response.data))
+        self.assertNotIn("pk-checkout-fixture-only", str(response.data))
+        self.assertNotIn("sk-checkout-fixture-only", str(response.data))
 
     def test_provider_receives_server_generated_return_hints(self):
         self.checkout()
         payment = Payment.objects.get()
         operation = PaymentCheckoutSession.objects.get()
-        attributes = self.post.call_args.kwargs["json"]["data"]["attributes"]
-        for key, outcome in (("success_url", "success"), ("cancel_url", "cancel")):
-            parsed = urlsplit(attributes[key])
+        payload = json.loads(self.post.call_args.kwargs["data"])
+        self.assertEqual(payload["requestReferenceNumber"], str(operation.PCHK_OPERATION_REFERENCE))
+        for outcome in ("success", "failure", "cancel"):
+            parsed = urlsplit(payload["redirectUrl"][outcome])
             self.assertEqual(parsed.scheme, "https")
             self.assertEqual(parsed.netloc, "sugbogo.example")
             self.assertEqual(parsed.path, "/payment-return")
@@ -198,10 +208,38 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
     def test_ready_session_is_reused_despite_elapsed_local_lease(self):
         self.checkout()
         PaymentCheckoutSession.objects.update(
-            PCHK_CREATED_AT=timezone.now() - timedelta(days=90),
             PCHK_LEASE_UNTIL=timezone.now() - timedelta(days=1),
         )
         self.assertEqual(self.checkout().status_code, 200)
+        self.post.assert_called_once()
+
+    def test_stale_ready_session_waits_without_opening_or_creating_another(self):
+        self.assertEqual(self.checkout().status_code, 201)
+        PaymentCheckoutSession.objects.update(
+            PCHK_CREATED_AT=timezone.now() - timedelta(hours=1),
+        )
+        second = self.checkout()
+        self.assertEqual(second.status_code, 202)
+        self.assertEqual(second.data["data"]["next_action"], "wait")
+        self.assertIsNone(second.data["data"]["checkout_url"])
+        self.assertIsNone(second.data["data"]["checkout_session_id"])
+        self.assertIsNone(second.data["data"]["status_check_after_seconds"])
+        self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_STATE, "ready")
+        self.assertEqual(Payment.objects.get().PYMT_STATUS, "pending")
+        self.post.assert_called_once()
+
+    def test_reported_in_progress_status_is_preserved_and_does_not_expose_a_url(self):
+        self.post.return_value = maya_response({
+            "checkoutId": CHECKOUT_ID,
+            "redirectUrl": CHECKOUT_URL,
+            "paymentStatus": "PENDING_PAYMENT",
+        })
+        for _ in range(2):
+            response = self.checkout()
+            self.assertEqual(response.status_code, 202)
+            self.assertIsNone(response.data["data"]["checkout_url"])
+        self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_PROVIDER_STATUS, "PENDING_PAYMENT")
+        self.assertEqual(Payment.objects.get().PYMT_STATUS, "pending")
         self.post.assert_called_once()
 
     def test_network_uncertainty_is_preserved_and_not_retried(self):
@@ -209,6 +247,7 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(self.checkout().status_code, 202)
         operation = PaymentCheckoutSession.objects.get()
         self.assertEqual(operation.PCHK_STATE, "creation_unknown")
+        self.assertEqual(operation.PCHK_LAST_ERROR, "provider_connection_interrupted")
         self.assertIsNone(operation.PCHK_PROVIDER_SESSION_ID)
         self.assertEqual(operation.PCHK_CHECKOUT_URL, "")
         reference = operation.PCHK_OPERATION_REFERENCE
@@ -231,14 +270,16 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_STATE, "creation_unknown")
 
     def test_malformed_success_is_unknown_and_not_retried(self):
-        self.post.return_value = provider_response({"data": {"id": "cs_created"}})
+        self.post.return_value = maya_response({"checkoutId": CHECKOUT_ID})
         self.assertEqual(self.checkout().status_code, 202)
         self.assertEqual(self.checkout().status_code, 202)
         self.post.assert_called_once()
-        self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_STATE, "creation_unknown")
+        operation = PaymentCheckoutSession.objects.get()
+        self.assertEqual(operation.PCHK_STATE, "creation_unknown")
+        self.assertEqual(operation.PCHK_LAST_ERROR, "provider_checkout_url_invalid")
 
     def test_uncertain_server_error_is_not_definite_rejection(self):
-        self.post.return_value = provider_response({}, status_code=500)
+        self.post.return_value = maya_response({}, status_code=500)
         self.assertEqual(self.checkout().status_code, 202)
         self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_STATE, "creation_unknown")
 
@@ -246,6 +287,7 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         payment, _ = PaymentService.create_or_get_payment(self.merchant_a)
         operation = PaymentCheckoutSession.objects.create(
             PYMT_ID=payment,
+            PCHK_PROVIDER="maya",
             PCHK_MODE="test",
             PCHK_LEASE_UNTIL=timezone.now() + timedelta(minutes=1),
         )
@@ -259,8 +301,8 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(PaymentCheckoutSession.objects.count(), 1)
 
     def test_definite_rejection_can_be_explicitly_retried_with_same_payment(self):
-        self.post.return_value = provider_response(
-            {"errors": [{"code": "parameter_invalid", "detail": "private-provider-detail"}]},
+        self.post.return_value = maya_response(
+            {"code": "2553", "message": "private-provider-detail"},
             status_code=400,
         )
         response = self.checkout()
@@ -268,7 +310,7 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertNotIn("private-provider-detail", str(response.data))
         self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_STATE, "creation_failed")
         payment = Payment.objects.get()
-        self.post.return_value = provider_response()
+        self.post.return_value = maya_response()
         self.assertEqual(self.checkout().status_code, 201)
         self.assertEqual(Payment.objects.get().pk, payment.pk)
         self.assertEqual(PaymentCheckoutSession.objects.count(), 2)
@@ -276,7 +318,7 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(payment.PYMT_STATUS, "pending")
 
     def test_missing_credentials_fail_safely_without_http(self):
-        with override_settings(PAYMONGO_TEST_SECRET_KEY=""):
+        with override_settings(MAYA_SANDBOX_PUBLIC_KEY=""):
             response = self.checkout()
         self.assertEqual(response.status_code, 503)
         self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_STATE, "creation_failed")
@@ -311,54 +353,70 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         status = self.client.get(reverse("merchant-plus-status")).data["data"]
         self.assertEqual(status["unresolved_payment_id"], created["payment_id"])
         self.assertEqual(status["unresolved_payment_reference"], created["payment_reference"])
+        self.assertTrue(status["checkout_enabled"])
+        self.assertEqual(status["unresolved_payment_provider"], "maya")
+        self.assertEqual(status["unresolved_payment_mode"], "test")
         self.assertEqual(status["unresolved_payment_status"], "pending")
+        self.assertEqual(status["unresolved_fulfilment_status"], "not_started")
         self.assertEqual(status["unresolved_checkout_status"], "ready")
         self.assertNotIn("checkout_url", status)
         self.client.force_authenticate(self.merchant_b)
         status = self.client.get(reverse("merchant-plus-status")).data["data"]
         self.assertIsNone(status["unresolved_payment_id"])
         self.assertIsNone(status["unresolved_checkout_status"])
-        payload = checkout_payload()
-        payload["data"]["id"] = "cs_mock_other_owner"
-        self.post.return_value = provider_response(payload)
+        self.post.return_value = maya_response({
+            "checkoutId": "87654321-4321-4321-8321-876543218765",
+            "redirectUrl": CHECKOUT_URL,
+        })
         self.assertEqual(self.checkout().status_code, 201)
         self.assertEqual(Payment.objects.count(), 2)
         self.assertFalse(PaidMerchantPlusEntitlement.objects.exists())
 
-    def test_test_and_live_purchases_and_credentials_remain_separate(self):
-        test_result = self.checkout()
-        live_payload = checkout_payload()
-        live_payload["data"]["attributes"]["livemode"] = True
-        self.post.return_value = provider_response(live_payload)
-        with override_settings(PAYMONGO_MODE="live"):
-            live_result = self.checkout()
-            self.assertEqual(live_result.status_code, 201)
-            self.assertEqual(self.post.call_args.kwargs["auth"].username, "sk_live_mock_only")
-        self.assertNotEqual(test_result.data["data"]["payment_id"], live_result.data["data"]["payment_id"])
-        self.assertEqual(self.checkout().status_code, 200)
-        self.assertEqual(self.post.call_count, 2)
-        self.assertEqual(set(Payment.objects.values_list("PYMT_MODE", flat=True)), {"test", "live"})
+    def test_maya_live_and_legacy_checkout_are_disabled(self):
+        for configuration in (
+            {"PAYMENT_MODE": "live"},
+            {"PAYMENT_PROVIDER": "paymongo", "PAYMONGO_CHECKOUT_ENABLED": True},
+        ):
+            with self.subTest(configuration=configuration):
+                with override_settings(**configuration):
+                    self.assertEqual(self.checkout().status_code, 403)
+        self.assertFalse(Payment.objects.exists())
+        self.post.assert_not_called()
+
+    def test_legacy_unresolved_payment_remains_readable_and_blocks_maya_checkout(self):
+        with override_settings(PAYMENT_PROVIDER="paymongo"):
+            legacy, _ = PaymentService.create_or_get_payment(self.merchant_a)
+        self.assertEqual(self.checkout().status_code, 409)
+        status = self.client.get(reverse("merchant-plus-status")).data["data"]
+        self.assertEqual(status["unresolved_payment_provider"], "paymongo")
+        self.assertEqual(status["unresolved_payment_reference"], str(legacy.PYMT_REFERENCE))
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.PYMT_PROVIDER, "paymongo")
+        self.assertEqual(Payment.objects.count(), 1)
+        self.assertFalse(PaymentCheckoutSession.objects.exists())
+        self.post.assert_not_called()
 
     def test_mode_switch_during_http_does_not_reinterpret_reserved_payment(self):
         def change_mode(
             *args,
             **kwargs,
         ):
-            configuration = override_settings(PAYMONGO_MODE="live")
+            configuration = override_settings(PAYMENT_MODE="live")
             configuration.enable()
             self.addCleanup(configuration.disable)
             self.assertEqual(Payment.objects.get().PYMT_MODE, "test")
-            return provider_response()
+            return maya_response()
 
         self.post.side_effect = change_mode
         self.assertEqual(self.checkout().status_code, 201)
-        self.assertEqual(self.post.call_args.kwargs["auth"].username, "sk_test_mock_only")
+        self.assertEqual(self.post.call_args.kwargs["auth"].username, "pk-checkout-fixture-only")
         self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_MODE, "test")
 
-    def test_provider_mode_mismatch_is_unknown(self):
-        payload = checkout_payload()
-        payload["data"]["attributes"]["livemode"] = True
-        self.post.return_value = provider_response(payload)
+    def test_production_host_echo_is_unknown(self):
+        self.post.return_value = maya_response({
+            "checkoutId": CHECKOUT_ID,
+            "redirectUrl": "https://payments.maya.ph/v2/checkout",
+        })
         self.assertEqual(self.checkout().status_code, 202)
         self.assertEqual(self.checkout().status_code, 202)
         self.post.assert_called_once()
@@ -369,13 +427,13 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
             **kwargs,
         ):
             Business.objects.filter(pk=self.business_a.pk).update(USER_ID=self.supporter_a)
-            return provider_response()
+            return maya_response()
 
         self.post.side_effect = change_owner
         self.assertEqual(self.checkout().status_code, 409)
         operation = PaymentCheckoutSession.objects.get()
         self.assertEqual(operation.PCHK_STATE, "creation_unknown")
-        self.assertEqual(operation.PCHK_PROVIDER_SESSION_ID, "cs_mock_session")
+        self.assertEqual(operation.PCHK_PROVIDER_SESSION_ID, CHECKOUT_ID)
         self.assertEqual(operation.PCHK_LAST_ERROR, "ownership_requires_review")
         self.assertEqual(Payment.objects.get().PYMT_STATUS, "pending")
 

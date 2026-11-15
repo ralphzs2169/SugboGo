@@ -35,6 +35,7 @@ class MerchantPlusCheckoutSerializer(serializers.Serializer):
     product = CheckoutProductSerializer()
     amount_centavos = serializers.IntegerField()
     currency = serializers.CharField()
+    provider = serializers.CharField()
     mode = serializers.CharField()
     payment_status = serializers.CharField()
     fulfilment_status = serializers.CharField()

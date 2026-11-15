@@ -136,7 +136,14 @@ export type MerchantPlusStatus = {
   stored_demo_state: "not_created" | "inactive" | "active";
   effective_tier: "standard" | "plus";
   has_plus_access: boolean;
-  access_source: "none" | "preview" | "mock" | "paymongo_test" | "paymongo_live";
+  access_source:
+    | "none"
+    | "preview"
+    | "mock"
+    | "paymongo_test"
+    | "paymongo_live"
+    | "maya_test"
+    | "maya_live";
   enforcement_enabled: boolean;
   mock_enabled: boolean;
   is_simulation: boolean;

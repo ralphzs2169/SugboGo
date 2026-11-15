@@ -28,5 +28,8 @@ NORMALIZED_EVENT_FIELDS = frozenset({
     "currency",
     "status",
     "payment_method_type",
+    "checkout_id",
+    "request_reference",
+    "amount_centavos",
 })
 MAX_EVENT_DATA_BYTES = 16384

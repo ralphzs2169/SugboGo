@@ -291,8 +291,11 @@ const loadedLibraries = {
 
 before(async () => {
   server = await createServer({
+    cacheDir: "node_modules/.vite-map-theme-tests",
     define: {
+      "import.meta.env.VITE_GOOGLE_MAPS_API_KEY": JSON.stringify("theme-test-key"),
       "import.meta.env.VITE_GOOGLE_MAP_ID": JSON.stringify("theme-test-map"),
+      "import.meta.env.VITE_GOOGLE_TRANSIT_MAP_ID": JSON.stringify("theme-test-transit-map"),
     },
     ssr: { noExternal: ["@vis.gl/react-google-maps"] },
     server: { middlewareMode: true, ws: false, hmr: false },
@@ -649,6 +652,9 @@ for (const name of [
         await harness.render(element);
         assert.equal(instances.length, 1);
         assert.equal(instances[0].options.colorScheme, theme.toUpperCase());
+        if (name === "transit network") {
+          assert.equal(instances[0].options.mapId, "theme-test-transit-map");
+        }
         await scenario.verify(instances[0]);
         if (name === "business location") {
           await act(async () => instances[0].setMapTypeId("terrain"));
@@ -665,6 +671,9 @@ for (const name of [
             localStorage.getItem("theme").toUpperCase(),
           );
           assert.deepEqual(current.camera, movedCamera);
+          if (name === "transit network") {
+            assert.equal(current.options.mapId, "theme-test-transit-map");
+          }
           assert.equal(current.fitCount, 0);
           assert.ok(
             [...previous.listeners.values()].every(

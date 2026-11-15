@@ -25,7 +25,7 @@ from celery.schedules import crontab
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
-from config.paymongo import load_paymongo_configuration
+from config.payments import load_payment_configuration
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -122,7 +122,7 @@ if _merchant_plus_mock_enabled not in {"true", "false"}:
 MERCHANT_PLUS_MOCK_ENABLED = _merchant_plus_mock_enabled == "true"
 
 globals().update(
-    load_paymongo_configuration(
+    load_payment_configuration(
         os.environ,
         plus_enforced=MERCHANT_PLUS_ENFORCED,
         mock_enabled=MERCHANT_PLUS_MOCK_ENABLED,
@@ -666,6 +666,10 @@ if not CELERY_BEAT_SCHEDULE_FILENAME:
     raise ImproperlyConfigured("CELERY_BEAT_SCHEDULE_FILENAME must be nonempty.")
 
 CELERY_BEAT_SCHEDULE = {
+    "recover-merchant-plus-fulfilment": {
+        "task": "apps.payments.tasks.recover_merchant_plus_fulfilment",
+        "schedule": 30.0,
+    },
     "recover-gemini-sentiment-shadow": {
         "task": "apps.reviews.tasks.recover_gemini_sentiment_shadow",
         "schedule": 60.0,
@@ -714,6 +718,11 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+if MAYA_WEBHOOK_ENABLED:
+    CELERY_BEAT_SCHEDULE["recover-maya-events"] = {
+        "task": "apps.payments.tasks.recover_maya_events",
+        "schedule": 30.0,
+    }
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/

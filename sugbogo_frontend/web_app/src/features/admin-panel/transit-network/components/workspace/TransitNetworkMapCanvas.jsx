@@ -9,7 +9,7 @@ import {
   useApiLoadingStatus,
 } from "@vis.gl/react-google-maps";
 import { MapPin } from "lucide-react";
-import { googleMapsConfig } from "@/shared/utils/googleMapsConfig";
+import { resolveGoogleMapsConfig } from "@/shared/utils/googleMapsConfig";
 import { GoogleMapsAuthContext } from "@/shared/utils/googleMapsAuthContext";
 import { getTransitMapNotice } from "../../utils/transitMapStatus";
 import TransitMapFrame from "./TransitMapFrame";
@@ -28,6 +28,12 @@ const CEBU_CITY_CENTER = {
   lat: 10.3157,
   lng: 123.8854,
 };
+
+const transitMapConfig = resolveGoogleMapsConfig({
+  VITE_GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+  VITE_GOOGLE_MAP_ID: import.meta.env.VITE_GOOGLE_TRANSIT_MAP_ID,
+  DEV: import.meta.env.DEV,
+});
 
 function toPosition(point) {
   if (!point || point.latitude == null || point.longitude == null) {
@@ -175,7 +181,7 @@ export default function TransitNetworkMapCanvas({
     (apiStatus === "LOADED" && markersAvailable === null);
 
   useEffect(() => {
-    if (!isWaiting || !googleMapsConfig.apiKey || !googleMapsConfig.mapId) {
+    if (!isWaiting || !transitMapConfig.apiKey || !transitMapConfig.mapId) {
       return undefined;
     }
     const timer = setTimeout(() => setTimedOutPhase(waitingPhase), 15000);
@@ -183,7 +189,7 @@ export default function TransitNetworkMapCanvas({
   }, [isWaiting, waitingPhase]);
 
   const mapNotice = getTransitMapNotice({
-    config: googleMapsConfig,
+    config: transitMapConfig,
     apiStatus,
     markersAvailable,
     timedOut: timedOutPhase === waitingPhase,
@@ -287,7 +293,7 @@ export default function TransitNetworkMapCanvas({
   );
   const showMapHelp = isVariantEditing || isPointEditing;
   const canMountMap = Boolean(
-    googleMapsConfig.apiKey && googleMapsConfig.mapId && apiStatus === "LOADED",
+    transitMapConfig.apiKey && transitMapConfig.mapId && apiStatus === "LOADED",
   );
 
   return (
@@ -299,7 +305,7 @@ export default function TransitNetworkMapCanvas({
       {/* Persistent transit network map */}
       <Map
         {...mapTheme}
-        mapId={googleMapsConfig.mapId}
+        mapId={transitMapConfig.mapId}
         mapTypeControl={false}
         streetViewControl={false}
         fullscreenControl={false}

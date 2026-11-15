@@ -2,6 +2,8 @@
 
 from rest_framework import serializers
 
+from apps.payments.models import PaymentMode, PaymentProvider
+
 from .mock_plus_serializers import MerchantPlusStatusSerializer
 
 
@@ -21,9 +23,9 @@ class MerchantPlusAccessStatusSerializer(MerchantPlusStatusSerializer):
     """Keep legacy demo metadata while identifying independent paid purchases."""
 
     access_source = serializers.ChoiceField(
-        choices=("none", "preview", "mock", "paymongo_test", "paymongo_live"),
+        choices=("none", "preview", "mock", "paymongo_test", "paymongo_live", "maya_test", "maya_live"),
     )
-    payment_mode = serializers.ChoiceField(choices=("test", "live"))
+    payment_mode = serializers.ChoiceField(choices=PaymentMode.values)
     checkout_enabled = serializers.BooleanField()
     product = MerchantPlusProductSerializer()
     entitlement_starts_at = serializers.DateTimeField(allow_null=True)
@@ -32,7 +34,16 @@ class MerchantPlusAccessStatusSerializer(MerchantPlusStatusSerializer):
     paid_payment_reference = serializers.UUIDField(allow_null=True)
     unresolved_payment_id = serializers.IntegerField(allow_null=True)
     unresolved_payment_reference = serializers.UUIDField(allow_null=True)
+    unresolved_payment_provider = serializers.ChoiceField(
+        choices=PaymentProvider.values,
+        allow_null=True,
+    )
+    unresolved_payment_mode = serializers.ChoiceField(
+        choices=PaymentMode.values,
+        allow_null=True,
+    )
     unresolved_payment_status = serializers.CharField(allow_null=True)
+    unresolved_fulfilment_status = serializers.CharField(allow_null=True)
     unresolved_checkout_status = serializers.CharField(allow_null=True)
     purchase_eligible = serializers.BooleanField()
     purchase_ineligibility_reason = serializers.CharField(allow_null=True)

@@ -18,6 +18,7 @@ test("requires a browser key even if another script reports Maps loaded", () => 
 test("requires a map ID before attempting route marker placement", () => {
   const notice = getTransitMapNotice({ ...ready, config: { apiKey: "key", mapId: "" } });
   assert.equal(notice.title, "Map ID needed");
+  assert.match(notice.description, /VITE_GOOGLE_TRANSIT_MAP_ID/);
 });
 
 test("auth failure remains an error even when previous map capabilities were ready", () => {

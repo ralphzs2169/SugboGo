@@ -32,7 +32,10 @@ class IntegrationReadinessTests(SimpleTestCase):
         self.assertIsNone(configuration["RESEND_API_KEY"])
         self.assertEqual(configuration["OPENAI_API_KEY"], "")
         self.assertEqual(configuration["GEMINI_API_KEY"], "")
-        self.assertFalse(configuration["PAYMONGO_CHECKOUT_ENABLED"])
+        self.assertFalse(configuration["MAYA_CHECKOUT_ENABLED"])
+        self.assertEqual(configuration["PAYMENT_PROVIDER"], "maya")
+        self.assertEqual(configuration["PAYMENT_MODE"], "test")
+        self.assertNotIn("PAYMONGO_CHECKOUT_ENABLED", configuration)
         self.assertFalse(configuration["GEMINI_SENTIMENT_SHADOW_ENABLED"])
         self.assertFalse(configuration["GEMINI_SENTIMENT_CUTOVER_ENABLED"])
 

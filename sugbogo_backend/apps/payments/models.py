@@ -16,6 +16,11 @@ class PaymentMode(models.TextChoices):
     LIVE = "live", "Live"
 
 
+class PaymentProvider(models.TextChoices):
+    PAYMONGO = "paymongo", "PayMongo"
+    MAYA = "maya", "Maya"
+
+
 def validate_event_data(value):
     """Accept only bounded scalar reconciliation fields rather than gateway payloads."""
     if (
@@ -71,6 +76,7 @@ class Payment(models.Model):
     PYMT_AMOUNT_CENTAVOS = models.PositiveIntegerField()
     PYMT_CURRENCY = models.CharField(max_length=3)
     PYMT_ACCESS_DURATION_DAYS = models.PositiveSmallIntegerField()
+    PYMT_PROVIDER = models.CharField(max_length=8, choices=PaymentProvider.choices)
     PYMT_MODE = models.CharField(max_length=4, choices=PaymentMode.choices)
     PYMT_STATUS = models.CharField(
         max_length=8,
@@ -83,6 +89,7 @@ class Payment(models.Model):
         default=FulfilmentStatus.NOT_STARTED,
     )
     PYMT_PROVIDER_PAYMENT_ID = models.CharField(max_length=128, null=True, blank=True)
+    # Deprecated PayMongo-only evidence retained for historical payments.
     PYMT_PROVIDER_INTENT_ID = models.CharField(max_length=128, null=True, blank=True)
     PYMT_METHOD_TYPE = models.CharField(max_length=32, blank=True, default="")
     PYMT_CARD_BRAND = models.CharField(max_length=24, blank=True, default="")
@@ -119,6 +126,17 @@ class Payment(models.Model):
                 name="payment_php_currency",
             ),
             models.CheckConstraint(
+                condition=models.Q(PYMT_PROVIDER__in=PaymentProvider.values),
+                name="payment_valid_provider",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(PYMT_PROVIDER=PaymentProvider.PAYMONGO)
+                    | models.Q(PYMT_PROVIDER_INTENT_ID__isnull=True)
+                ),
+                name="payment_legacy_intent_provider",
+            ),
+            models.CheckConstraint(
                 condition=models.Q(PYMT_MODE__in=PaymentMode.values),
                 name="payment_valid_mode",
             ),
@@ -138,12 +156,17 @@ class Payment(models.Model):
                     | (
                         models.Q(
                             PYMT_PROVIDER_PAYMENT_ID__isnull=False,
-                            PYMT_PROVIDER_INTENT_ID__isnull=False,
                             PYMT_PAID_AT__isnull=False,
                             PYMT_VERIFIED_AT__isnull=False,
                         )
                         & ~models.Q(PYMT_PROVIDER_PAYMENT_ID="")
-                        & ~models.Q(PYMT_PROVIDER_INTENT_ID="")
+                        & (
+                            ~models.Q(PYMT_PROVIDER=PaymentProvider.PAYMONGO)
+                            | (
+                                models.Q(PYMT_PROVIDER_INTENT_ID__isnull=False)
+                                & ~models.Q(PYMT_PROVIDER_INTENT_ID="")
+                            )
+                        )
                     )
                 ),
                 name="payment_paid_has_evidence",
@@ -163,7 +186,7 @@ class Payment(models.Model):
                 name="payment_fulfilled_has_time",
             ),
             models.UniqueConstraint(
-                fields=["PYMT_MODE", "PYMT_PROVIDER_PAYMENT_ID"],
+                fields=["PYMT_PROVIDER", "PYMT_MODE", "PYMT_PROVIDER_PAYMENT_ID"],
                 condition=models.Q(PYMT_PROVIDER_PAYMENT_ID__isnull=False),
                 name="payment_provider_mode_unique",
             ),
@@ -195,12 +218,12 @@ class Payment(models.Model):
         *args,
         **kwargs,
     ):
-        """Keep the reference, purchaser, environment, and product snapshot immutable on saves."""
+        """Keep the payment identity and product snapshot immutable on saves."""
         if not self._state.adding:
             fields = (
                 "PYMT_REFERENCE", "USER_ID_id", "BUSN_ID_id", "PYMT_PRODUCT",
                 "PYMT_PRODUCT_VERSION", "PYMT_AMOUNT_CENTAVOS", "PYMT_CURRENCY",
-                "PYMT_ACCESS_DURATION_DAYS", "PYMT_MODE",
+                "PYMT_ACCESS_DURATION_DAYS", "PYMT_PROVIDER", "PYMT_MODE",
             )
             original = type(self).objects.values(*fields).get(pk=self.pk)
             if any(
@@ -230,13 +253,15 @@ class PaymentCheckoutSession(models.Model):
         related_name="checkout_sessions",
     )
     PCHK_OPERATION_REFERENCE = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    PCHK_PROVIDER = models.CharField(max_length=8, choices=PaymentProvider.choices)
     PCHK_MODE = models.CharField(max_length=4, choices=PaymentMode.choices)
     PCHK_PROVIDER_SESSION_ID = models.CharField(max_length=128, null=True, blank=True)
     PCHK_CHECKOUT_URL = models.URLField(max_length=2048, blank=True, default="")
     PCHK_STATE = models.CharField(max_length=16, choices=State.choices, default=State.CREATING)
     PCHK_PROVIDER_STATUS = models.CharField(max_length=32, blank=True, default="")
-    PCHK_INTENT_ID = models.CharField(max_length=128, blank=True, default="")
-    PCHK_INTENT_STATUS = models.CharField(max_length=40, blank=True, default="")
+    # Deprecated PayMongo-only observations retained for historical checkouts.
+    PCHK_INTENT_ID = models.CharField(max_length=128, null=True, blank=True)
+    PCHK_INTENT_STATUS = models.CharField(max_length=40, null=True, blank=True)
     PCHK_LAST_ERROR = models.CharField(max_length=64, blank=True, default="")
     PCHK_LEASE_UNTIL = models.DateTimeField(null=True, blank=True)
     PCHK_CHECKED_AT = models.DateTimeField(null=True, blank=True)
@@ -246,6 +271,20 @@ class PaymentCheckoutSession(models.Model):
     class Meta:
         db_table = "PAYMENT_CHECKOUT_SESSION"
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(PCHK_PROVIDER__in=PaymentProvider.values),
+                name="checkout_valid_provider",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(PCHK_PROVIDER=PaymentProvider.PAYMONGO)
+                    | models.Q(
+                        PCHK_INTENT_ID__isnull=True,
+                        PCHK_INTENT_STATUS__isnull=True,
+                    )
+                ),
+                name="checkout_legacy_intent_provider",
+            ),
             models.CheckConstraint(
                 condition=models.Q(PCHK_MODE__in=PaymentMode.values),
                 name="checkout_valid_mode",
@@ -267,7 +306,7 @@ class PaymentCheckoutSession(models.Model):
                 name="checkout_ready_has_provider",
             ),
             models.UniqueConstraint(
-                fields=["PCHK_MODE", "PCHK_PROVIDER_SESSION_ID"],
+                fields=["PCHK_PROVIDER", "PCHK_MODE", "PCHK_PROVIDER_SESSION_ID"],
                 condition=models.Q(PCHK_PROVIDER_SESSION_ID__isnull=False),
                 name="checkout_provider_mode_unique",
             ),
@@ -285,13 +324,13 @@ class PaymentCheckoutSession(models.Model):
         ]
 
     def clean(self):
-        """Reject a checkout mode that disagrees with its payment."""
+        """Require a checkout to share its payment's provider and mode."""
         super().clean()
-        if (
-            self.PYMT_ID_id
-            and self.PCHK_MODE != self.PYMT_ID.PYMT_MODE
-        ):
-            raise ValidationError({"PCHK_MODE": "Checkout mode must match its payment."})
+        if self.PYMT_ID_id:
+            if self.PCHK_PROVIDER != self.PYMT_ID.PYMT_PROVIDER:
+                raise ValidationError({"PCHK_PROVIDER": "Checkout provider must match its payment."})
+            if self.PCHK_MODE != self.PYMT_ID.PYMT_MODE:
+                raise ValidationError({"PCHK_MODE": "Checkout mode must match its payment."})
 
     def save(
         self,
@@ -301,7 +340,12 @@ class PaymentCheckoutSession(models.Model):
         """Preserve the operation identity when updating provider observations."""
         self.clean()
         if not self._state.adding:
-            fields = ("PCHK_OPERATION_REFERENCE", "PYMT_ID_id", "PCHK_MODE")
+            fields = (
+                "PCHK_OPERATION_REFERENCE",
+                "PYMT_ID_id",
+                "PCHK_PROVIDER",
+                "PCHK_MODE",
+            )
             original = type(self).objects.values(*fields).get(pk=self.pk)
             if any(
                 getattr(self, field) != original[field]
@@ -311,7 +355,7 @@ class PaymentCheckoutSession(models.Model):
         return super().save(*args, **kwargs)
 
 
-class PayMongoWebhookEvent(models.Model):
+class PaymentProviderEvent(models.Model):
     """Retain deduplicated normalized evidence for future durable processing."""
 
     class State(models.TextChoices):
@@ -322,10 +366,11 @@ class PayMongoWebhookEvent(models.Model):
         NEEDS_ATTENTION = "needs_attention", "Needs attention"
 
     PWEV_ID = models.BigAutoField(primary_key=True)
-    PWEV_PROVIDER_EVENT_ID = models.CharField(max_length=128)
+    PWEV_PROVIDER = models.CharField(max_length=8, choices=PaymentProvider.choices)
+    PWEV_DEDUPE_KEY = models.CharField(max_length=128)
     PWEV_TYPE = models.CharField(max_length=100)
     PWEV_MODE = models.CharField(max_length=4, choices=PaymentMode.choices)
-    PWEV_PROVIDER_SESSION_ID = models.CharField(max_length=128, blank=True, default="")
+    PWEV_PROVIDER_CHECKOUT_ID = models.CharField(max_length=128, blank=True, default="")
     PYMT_ID = models.ForeignKey(
         Payment,
         on_delete=models.PROTECT,
@@ -352,65 +397,117 @@ class PayMongoWebhookEvent(models.Model):
     PWEV_RETRY_AT = models.DateTimeField(null=True, blank=True)
     PWEV_LEASE_UNTIL = models.DateTimeField(null=True, blank=True)
     PWEV_LAST_ERROR = models.CharField(max_length=64, blank=True, default="")
-    PWEV_PROVIDER_CREATED_AT = models.DateTimeField()
+    PWEV_PROVIDER_CREATED_AT = models.DateTimeField(null=True, blank=True)
     PWEV_RECEIVED_AT = models.DateTimeField(auto_now_add=True)
     PWEV_PROCESSED_AT = models.DateTimeField(null=True, blank=True)
     PWEV_CREATED_AT = models.DateTimeField(auto_now_add=True)
     PWEV_UPDATED_AT = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "PAYMONGO_WEBHOOK_EVENT"
+        db_table = "PAYMENT_PROVIDER_EVENT"
         constraints = [
             models.UniqueConstraint(
-                fields=["PWEV_MODE", "PWEV_PROVIDER_EVENT_ID"],
-                name="paymongo_event_mode_unique",
+                fields=["PWEV_PROVIDER", "PWEV_MODE", "PWEV_DEDUPE_KEY"],
+                name="provider_event_dedupe_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(PWEV_PROVIDER__in=PaymentProvider.values),
+                name="provider_event_valid_provider",
             ),
             models.CheckConstraint(
                 condition=models.Q(PWEV_MODE__in=PaymentMode.values),
-                name="paymongo_event_valid_mode",
+                name="provider_event_valid_mode",
             ),
             models.CheckConstraint(
                 condition=models.Q(PWEV_STATE__in=[
                     "queued", "processing", "processed", "ignored", "needs_attention",
                 ]),
-                name="paymongo_event_valid_state",
+                name="provider_event_valid_state",
             ),
             models.CheckConstraint(
                 condition=(
                     ~models.Q(PWEV_STATE__in=["processed", "ignored"])
                     | models.Q(PWEV_PROCESSED_AT__isnull=False)
                 ),
-                name="paymongo_event_processed_time",
+                name="provider_event_processed_time",
             ),
         ]
         indexes = [
-            models.Index(fields=["PWEV_STATE", "PWEV_RETRY_AT"], name="paymongo_event_due"),
             models.Index(
-                fields=["PWEV_MODE", "PWEV_PROVIDER_SESSION_ID"],
-                name="paymongo_event_session",
+                fields=["PWEV_STATE", "PWEV_RETRY_AT"],
+                name="provider_event_due",
+            ),
+            models.Index(
+                fields=["PWEV_PROVIDER", "PWEV_MODE", "PWEV_PROVIDER_CHECKOUT_ID"],
+                name="provider_event_checkout",
             ),
         ]
+
+    @classmethod
+    def record_delivery(
+        cls,
+        *,
+        provider,
+        mode,
+        dedupe_key,
+        event_type,
+        data,
+        payload_digest,
+        provider_checkout_id="",
+        provider_created_at=None,
+    ):
+        """Store a normalized delivery once and flag conflicting evidence for reconciliation."""
+        if not dedupe_key:
+            raise ValidationError("A provider event deduplication key is required.")
+        validate_event_data(data)
+        event, created = cls.objects.get_or_create(
+            PWEV_PROVIDER=provider,
+            PWEV_MODE=mode,
+            PWEV_DEDUPE_KEY=dedupe_key,
+            defaults={
+                "PWEV_TYPE": event_type,
+                "PWEV_PROVIDER_CHECKOUT_ID": provider_checkout_id,
+                "PWEV_DATA": data,
+                "PWEV_PAYLOAD_DIGEST": payload_digest,
+                "PWEV_PROVIDER_CREATED_AT": provider_created_at,
+            },
+        )
+        if not created and (
+            event.PWEV_TYPE != event_type
+            or event.PWEV_PROVIDER_CHECKOUT_ID != provider_checkout_id
+            or json.dumps(event.PWEV_DATA, sort_keys=True) != json.dumps(data, sort_keys=True)
+        ):
+            raise ValidationError(
+                "Provider event evidence conflicts with a previous delivery.",
+                code="provider_event_evidence_conflict",
+            )
+        return event, created
 
     def clean(self):
         """Keep normalized event data and matched financial relationships consistent."""
         super().clean()
         validate_event_data(self.PWEV_DATA)
+        self._meta.get_field("PWEV_PAYLOAD_DIGEST").run_validators(self.PWEV_PAYLOAD_DIGEST)
         if (
             self.PYMT_ID_id
-            and self.PWEV_MODE != self.PYMT_ID.PYMT_MODE
+            and (
+                self.PWEV_PROVIDER != self.PYMT_ID.PYMT_PROVIDER
+                or self.PWEV_MODE != self.PYMT_ID.PYMT_MODE
+            )
         ):
-            raise ValidationError("Event mode must match its payment.")
+            raise ValidationError("Event provider and mode must match its payment.")
         if self.PCHK_ID_id:
             session = self.PCHK_ID
             if (
-                session.PCHK_MODE != self.PWEV_MODE
+                session.PCHK_PROVIDER != self.PWEV_PROVIDER
+                or session.PCHK_MODE != self.PWEV_MODE
                 or (
                     self.PYMT_ID_id
                     and session.PYMT_ID_id != self.PYMT_ID_id
                 )
                 or (
-                    self.PWEV_PROVIDER_SESSION_ID
-                    and session.PCHK_PROVIDER_SESSION_ID != self.PWEV_PROVIDER_SESSION_ID
+                    self.PWEV_PROVIDER_CHECKOUT_ID
+                    and session.PCHK_PROVIDER_SESSION_ID != self.PWEV_PROVIDER_CHECKOUT_ID
                 )
             ):
                 raise ValidationError("Event checkout relationships must agree.")
@@ -420,6 +517,23 @@ class PayMongoWebhookEvent(models.Model):
         *args,
         **kwargs,
     ):
-        """Reject unnecessary payload data before ordinary inbox persistence."""
+        """Validate inbox evidence and preserve the original delivery on processing updates."""
         self.clean()
+        if not self._state.adding:
+            fields = (
+                "PWEV_PROVIDER",
+                "PWEV_MODE",
+                "PWEV_DEDUPE_KEY",
+                "PWEV_TYPE",
+                "PWEV_PROVIDER_CHECKOUT_ID",
+                "PWEV_DATA",
+                "PWEV_PAYLOAD_DIGEST",
+                "PWEV_PROVIDER_CREATED_AT",
+            )
+            original = type(self).objects.values(*fields).get(pk=self.pk)
+            if any(
+                getattr(self, field) != original[field]
+                for field in fields
+            ):
+                raise ValidationError("Original provider event evidence cannot be changed.")
         return super().save(*args, **kwargs)
