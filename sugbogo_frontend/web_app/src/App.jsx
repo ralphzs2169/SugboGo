@@ -9,6 +9,7 @@ import AdminPanelLayout from "@/features/admin-panel/pages/AdminPanelLayout";
 import Dashboard from "@/features/admin-panel/pages/Dashboard";
 import Businesses from "@/features/admin-panel/pages/BusinessesPage";
 import AllReviewsPage from "@/features/admin-panel/pages/AllReviewsPage";
+import PaymentsPage from "@/features/admin-panel/pages/PaymentsPage";
 import ActivityLogsPage from "@/features/admin-panel/pages/ActivityLogsPage";
 import NotificationsPage from "@/features/admin-panel/pages/NotificationsPage";
 import Users from "@/features/admin-panel/pages/Users";
@@ -118,6 +119,7 @@ function App() {
             {/* Business Management */}
             <Route path="businesses" element={<Businesses />} />
             <Route path="reviews" element={<AllReviewsPage />} />
+            <Route path="payments" element={<PaymentsPage />} />
             <Route path="activity-logs" element={<ActivityLogsPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route

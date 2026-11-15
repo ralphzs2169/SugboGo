@@ -547,3 +547,44 @@ git diff --check
 ```
 
 The Maya Sandbox migration superseded the planned PayMongo connectivity check.
+
+## M7 — Admin read-only payment inspection
+
+The Admin Web Payments directory (`/admin-panel/payments`) exposes stored Merchant
+Plus payment history through active Admin / Super Admin permissions:
+
+- `GET /api/admin/payments/` — standard server-paginated directory.
+- `GET /api/admin/payments/summary/` — global counts, independent of list filters.
+- `GET /api/admin/payments/<id>/` — safe, read-only inspection snapshot.
+
+Directory criteria: `search`, `financial_status`, `fulfilment_status`, `provider`,
+`mode`, `checkout_outcome`, `needs_review`, `start_date`, `end_date`, `ordering`,
+`page`, and `page_size`. Search covers public reference, purchaser name/email,
+business name, and provider payment ID. Creation dates are inclusive Philippine
+calendar dates. Ordering accepts `newest`, `oldest`, `amount_highest`, and
+`amount_lowest`, with stable ID tie-breakers. Pagination defaults to 10 and caps
+page size at 100.
+
+Global counts include both Test and Live history, regardless of the configured
+active provider/mode. Needs Review counts distinct purchases with stored
+fulfilment `needs_attention`, any `creation_unknown` checkout, or a provider event
+in `needs_attention`. It overlaps Pending and Paid; it is a projection, not a new
+financial state. Unlinked events are correlated only through stored checkout IDs
+within the same provider and mode. Event history is oldest-received first.
+
+The drawer separates financial verification from fulfilment and entitlement
+activation. Entitlement activity is labelled in its stored environment; Test
+activity never represents live revenue. It displays all stored checkout operations
+and safe event metadata. Verification references require a matching completed
+checkout; unavailable legacy evidence remains unavailable. Checkout lease timing
+is not represented as provider expiry. No inspection request contacts Maya.
+
+Only allowlisted fields leave the API. Hosted checkout URLs, normalized/raw event
+payloads, digests, dedupe keys, API credentials, signatures, card digits, and legacy
+intent IDs are withheld. Conflict indicators derive from stored controlled error
+codes without returning the underlying error strings.
+
+The API permits GET, HEAD, and OPTIONS only. The Web service has GET operations
+only and no financial or entitlement action controls. No schema migration,
+payment mutation, fulfilment dispatch, provider retry, or entitlement creation is
+part of M7.
