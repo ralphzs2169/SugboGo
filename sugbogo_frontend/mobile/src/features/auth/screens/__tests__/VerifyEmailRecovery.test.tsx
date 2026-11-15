@@ -67,8 +67,18 @@ jest.mock("@/shared/components/Button", () => function MockButton({
   return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} />;
 });
 jest.mock("@/shared/components/form/PasswordInput", () => {
-  const { TextInput } = jest.requireActual("react-native");
-  return TextInput;
+  const { TextInput, View } = jest.requireActual("react-native");
+  return function MockPasswordInput({
+    rightElement,
+    ...props
+  }: import("react-native").TextInputProps & { rightElement?: React.ReactNode }) {
+    return (
+      <View>
+        {rightElement}
+        <TextInput {...props} />
+      </View>
+    );
+  };
 });
 jest.mock("@/shared/components/form/FormInput", () => {
   const { TextInput } = jest.requireActual("react-native");
@@ -95,7 +105,7 @@ describe("email verification with the registration password", () => {
     expect(screen.queryByLabelText("Confirm password")).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: submit }));
     expect(mockVerify).not.toHaveBeenCalled();
-    await fireEvent.changeText(screen.getByLabelText("Registration password"), password);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
     await fireEvent.press(screen.getByRole("button", { name: submit }));
 
     expect(mockVerify).toHaveBeenCalledWith("legacy-user-id", "legacy-token", password);
@@ -110,7 +120,7 @@ describe("email verification with the registration password", () => {
     });
     mockVerify.mockResolvedValueOnce({ success: true });
     const screen = await render(<VerifyEmailScreen />);
-    await fireEvent.changeText(screen.getByLabelText("Registration password"), password);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
     await fireEvent.press(screen.getByRole("button", { name: submit }));
     expect(mockVerify).toHaveBeenCalledTimes(1);
 
@@ -132,6 +142,75 @@ describe("email verification with the registration password", () => {
     const screen = await render(<VerifyEmailScreen />);
     await fireEvent.press(screen.getByRole("button", { name: "Resend email" }));
     expect(mockResend).toHaveBeenCalledWith(mockPendingEmail);
+  });
+
+  it("offers fresh proof instead of password retry after the server rejects the link", async () => {
+    mockPendingEmail = "signup@example.invalid";
+    mockVerify.mockResolvedValue({
+      success: false,
+      code: "INVALID_VERIFICATION_LINK",
+    });
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
+
+    expect(screen.queryByLabelText("Password")).toBeNull();
+    expect(screen.queryByRole("button", { name: submit })).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Resend email" }));
+    expect(mockResend).toHaveBeenCalledWith(mockPendingEmail);
+    expect(mockReplace).toHaveBeenCalledWith("/(auth)/verify-email");
+  });
+
+  it("resends directly to the saved signup address from password confirmation", async () => {
+    mockPendingEmail = "signup@example.invalid";
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.press(screen.getByRole("button", { name: "Resend email" }));
+
+    expect(mockResend).toHaveBeenCalledWith(mockPendingEmail);
+    expect(mockSetPendingEmail).toHaveBeenCalledWith(mockPendingEmail);
+    expect(mockReplace).toHaveBeenCalledWith("/(auth)/verify-email");
+    expect(mockVerify).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Email address")).toBeNull();
+  });
+
+  it("collects an unknown address inline before sending", async () => {
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.press(screen.getByRole("button", { name: "Resend email" }));
+    expect(mockResend).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Password")).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole("button", { name: "Send verification email" }));
+    expect(mockResend).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByLabelText("Email address"), "other@example.invalid");
+    await fireEvent.press(screen.getByRole("button", { name: "Send verification email" }));
+    expect(mockResend).toHaveBeenCalledWith("other@example.invalid");
+    expect(mockReplace).toHaveBeenCalledWith("/(auth)/verify-email");
+  });
+
+  it("lets the user correct a saved resend destination inline", async () => {
+    mockPendingEmail = "previous@example.invalid";
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.press(screen.getByRole("button", { name: "Use another email" }));
+    await fireEvent.changeText(screen.getByLabelText("Email address"), "current@example.invalid");
+    await fireEvent.press(screen.getByRole("button", { name: "Send verification email" }));
+
+    expect(mockResend).toHaveBeenCalledWith("current@example.invalid");
+    expect(mockSetPendingEmail).toHaveBeenCalledWith("current@example.invalid");
+  });
+
+  it("keeps password confirmation available when resending fails and supports retry", async () => {
+    mockPendingEmail = "signup@example.invalid";
+    mockResend.mockRejectedValueOnce(new Error("Connection lost"));
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: "Resend email" }));
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(screen.getByLabelText("Password").props.value).toBe(password);
+
+    await fireEvent.press(screen.getByRole("button", { name: "Resend email" }));
+    expect(mockReplace).toHaveBeenCalledWith("/(auth)/verify-email");
   });
 
   it("can request fresh proof when there is no local pending email", async () => {

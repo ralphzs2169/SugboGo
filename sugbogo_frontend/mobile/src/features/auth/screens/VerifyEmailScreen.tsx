@@ -1,9 +1,12 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
+import { theme } from "@/constants/theme";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import EmailConfirmationLayout from "@/features/auth/components/EmailConfirmationLayout";
@@ -17,6 +20,8 @@ import FormInput from "@/shared/components/form/FormInput";
 import PasswordInput from "@/shared/components/form/PasswordInput";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
+
+const MASCOT_PASSWORD_CONFIRMATION = require("@/shared/assets/mascot/mascot-reset-password.webp");
 
 /** Verifies the email link after the user enters their existing password. */
 export default function VerifyEmailScreen() {
@@ -38,19 +43,90 @@ export default function VerifyEmailScreen() {
 }
 
 /** Sends the proof and password together without using the active session. */
-function VerificationPasswordForm({ uid, token }: { uid: string; token: string }) {
+function VerificationPasswordForm({
+  uid,
+  token,
+}: {
+  uid: string;
+  token: string;
+}) {
   const router = useRouter();
   const { handleVerifyEmail, loading } = useVerifyEmail();
+  const { handleResendVerification, loading: resending } = useResendVerification();
+  const pendingEmail = useVerificationStore((state) => state.pendingEmail);
+  const setPendingEmail = useVerificationStore((state) => state.setPendingEmail);
   const submitting = useRef(false);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [error, setError] = useState("");
+  const [invalidLink, setInvalidLink] = useState(false);
+  const [showEmailInput, setShowEmailInput] = useState(false);
+  const [email, setEmail] = useState(pendingEmail ?? "");
+  const [emailError, setEmailError] = useState("");
+  const [resendError, setResendError] = useState("");
+  const busy = loading || resending;
+
+  async function requestNewLink() {
+    if (submitting.current) {
+      return;
+    }
+    if (!pendingEmail && !showEmailInput) {
+      setShowEmailInput(true);
+      return;
+    }
+
+    const address = showEmailInput
+      ? email.trim()
+      : (pendingEmail ?? "");
+    const validation = validateForgotPasswordForm(address);
+    if (validation.email) {
+      setEmailError(validation.email);
+      return;
+    }
+
+    setEmailError("");
+    setResendError("");
+    submitting.current = true;
+    try {
+      const response = await handleResendVerification(address);
+      if (response.success) {
+        setPendingEmail(address);
+        setPassword("");
+        Toast.show({ type: "success", text1: "Verification email sent." });
+        router.replace("/(auth)/verify-email");
+        return;
+      }
+      if (response.code === "EMAIL_ALREADY_VERIFIED") {
+        setPassword("");
+        router.replace("/(auth)/email-verified");
+        return;
+      }
+      if (response.code === "RATE_LIMIT_EXCEEDED") {
+        const retryAfter = Number(response.errors?.retry_after ?? response.retry_after);
+        setResendError(getRetryAfterMessage(retryAfter));
+        return;
+      }
+      const fieldError = getFieldError(response, "email");
+      if (fieldError) {
+        setShowEmailInput(true);
+        setEmail(address);
+        setEmailError(fieldError);
+        return;
+      }
+      setResendError(response.message || "Unable to send verification email. Please try again.");
+      handleSystemError(response);
+    } catch {
+      setResendError("Unable to send verification email. Please try again.");
+    } finally {
+      submitting.current = false;
+    }
+  }
 
   async function verify() {
     if (submitting.current) return;
     setError("");
     if (!password) {
-      setPasswordError("Enter your registration password.");
+      setPasswordError("Enter your current password.");
       return;
     }
     setPasswordError("");
@@ -61,6 +137,13 @@ function VerificationPasswordForm({ uid, token }: { uid: string; token: string }
       if (response.success) {
         setPassword("");
         router.replace("/(auth)/email-verified");
+        return;
+      }
+
+      if (response.code === "INVALID_VERIFICATION_LINK") {
+        setPassword("");
+        setPasswordError("");
+        setInvalidLink(true);
         return;
       }
 
@@ -79,55 +162,161 @@ function VerificationPasswordForm({ uid, token }: { uid: string; token: string }
 
   return (
     <AuthLayout>
-      <View className="mb-6 gap-3">
-        <AppText weight="bold" className="text-xl text-text-primary">
-          Verify your email
+      {/* Password confirmation introduction */}
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        className="mb-6 items-center justify-center"
+      >
+        <Image
+          source={MASCOT_PASSWORD_CONFIRMATION}
+          style={{
+            width: 140,
+            height: 140,
+          }}
+          contentFit="contain"
+          accessible={false}
+        />
+      </View>
+      <View className="mb-7">
+        <AppText
+          weight="bold"
+          className="text-center text-xl text-text-primary"
+          accessibilityRole="header"
+        >
+          {invalidLink
+            ? "This verification link is unavailable"
+            : "Confirm your password"}
         </AppText>
-        <AppText className="text-sm leading-5 text-text-secondary">
-          Enter the password you used to register. If you reset it, enter your updated password.
-          If you didn’t create this account, you can close this screen.
+        <AppText
+          accessibilityLiveRegion="polite"
+          className="mt-2 text-center text-sm leading-5 text-text-secondary"
+        >
+          {invalidLink
+            ? "This link is invalid or has expired. Request a new link to verify your email."
+            : "Enter your current SugboGo password to finish verifying your email."}
         </AppText>
       </View>
-      <PasswordInput
-        label="REGISTRATION PASSWORD"
-        accessibilityLabel="Registration password"
-        autoComplete="current-password"
-        textContentType="password"
-        value={password}
-        editable={!loading}
-        onChangeText={(value) => {
-          setPassword(value);
-          setPasswordError("");
-        }}
-        error={passwordError}
-      />
-      {error ? <VerificationError message={error} /> : null}
+
+      {/* Password confirmation or link recovery */}
+      {!invalidLink ? (
+        <>
+          <PasswordInput
+            label="PASSWORD"
+            accessibilityLabel="Password"
+            placeholder="Enter your password"
+            autoComplete="current-password"
+            textContentType="password"
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={password}
+            editable={!busy}
+            onChangeText={(value) => {
+              setPassword(value);
+              setPasswordError("");
+            }}
+            error={passwordError}
+            rightElement={
+              <Pressable
+                onPress={() => router.push("/(auth)/forgot-password")}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel="Forgot password?"
+                accessibilityState={{ disabled: busy }}
+                hitSlop={12}
+                className="cursor-pointer py-2 active:opacity-60"
+              >
+                <AppText
+                  weight="semibold"
+                  className="text-xs tracking-[0.3px] text-brand"
+                >
+                  Forgot?
+                </AppText>
+              </Pressable>
+            }
+          />
+          {error ? <VerificationError message={error} /> : null}
+          <Button
+            title="Verify email"
+            onPress={verify}
+            loading={loading}
+            disabled={busy}
+            textWeight="bold"
+            rounded="full"
+            className="mb-3 mt-5"
+          />
+        </>
+      ) : null}
+
+      {/* Resend destination and inline fallback */}
+      {showEmailInput ? (
+        <FormInput
+          label="EMAIL ADDRESS"
+          accessibilityLabel="Email address"
+          placeholder="Enter your email"
+          keyboardType="email-address"
+          autoComplete="email"
+          autoCapitalize="none"
+          editable={!busy}
+          value={email}
+          onChangeText={(value) => {
+            setEmail(value);
+            setEmailError("");
+          }}
+          error={emailError}
+        />
+      ) : pendingEmail ? (
+        <View className="mb-3 items-center">
+          <AppText className="text-center text-sm text-text-secondary">
+            Resend to {pendingEmail}
+          </AppText>
+          <Pressable
+            onPress={() => {
+              setEmail(pendingEmail);
+              setShowEmailInput(true);
+            }}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy }}
+            className="min-h-12 cursor-pointer items-center justify-center px-3 active:opacity-60"
+          >
+            <AppText weight="semibold" className="text-sm text-brand">
+              Use another email
+            </AppText>
+          </Pressable>
+        </View>
+      ) : null}
+      {resendError ? <VerificationError message={resendError} /> : null}
       <Button
-        title="Verify email"
-        onPress={verify}
-        loading={loading}
-        disabled={loading}
+        title={showEmailInput ? "Send verification email" : "Resend email"}
+        onPress={requestNewLink}
+        loading={resending}
+        disabled={busy}
+        variant={invalidLink ? "primary" : "outline"}
         rounded="full"
-        className="mb-4 mt-5"
+        textWeight="semibold"
+        className="mb-4"
       />
-      <BottomAuthLink
-        text=""
-        actionText="Forgot password?"
-        onPress={() => router.push("/(auth)/forgot-password")}
-      />
-      <BottomAuthLink
-        text=""
-        actionText="Request a new verification email"
-        onPress={() => router.replace({
-          pathname: "/(auth)/verify-email",
-          params: { request: "new" },
-        })}
-      />
-      <BottomAuthLink
-        text=""
-        actionText="Back to Login"
+
+      {/* Exit navigation */}
+      <Pressable
         onPress={() => router.replace("/(auth)/login")}
-      />
+        disabled={busy}
+        accessibilityRole="button"
+        accessibilityLabel="Back to log in"
+        accessibilityState={{ disabled: busy }}
+        className="mt-2 min-h-12 cursor-pointer flex-row items-center justify-center py-3 active:opacity-60"
+      >
+        <MaterialIcons
+          name="arrow-back"
+          size={20}
+          color={theme.extends.colors.text.secondary}
+          accessible={false}
+        />
+        <AppText weight="semibold" className="ml-1 text-sm text-text-secondary">
+          Back to log in
+        </AppText>
+      </Pressable>
     </AuthLayout>
   );
 }
@@ -237,8 +426,8 @@ function VerificationEmailPrompt({ incompleteLink }: { incompleteLink: boolean }
 
   return (
     <EmailConfirmationLayout
-      title="Verify your email"
-      description="We've sent a verification email to"
+      title="Check your email"
+      description="We've sent a verification link to"
       email={pendingEmail}
       openEmailApp={openEmailApp}
       resendTitle="Resend email"
