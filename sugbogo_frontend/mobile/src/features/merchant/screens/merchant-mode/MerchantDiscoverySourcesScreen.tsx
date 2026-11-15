@@ -18,6 +18,8 @@ import AnalyticsChartEmptyState from "../../components/analytics/AnalyticsChartE
 import AnalyticsOverviewSection from "../../components/analytics/AnalyticsOverviewSection";
 import AnalyticsHeaderControls from "../../components/analytics/AnalyticsHeaderControls";
 import DiscoverySourcesMeasurementSheet from "../../components/analytics/DiscoverySourcesMeasurementSheet";
+import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
+import { PlusAccessGate } from "../../components/analytics/AnalyticsPlusStates";
 import useMerchantDiscoverySources from "../../hooks/analytics/useMerchantDiscoverySources";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
@@ -28,7 +30,7 @@ const PERIOD_OPTIONS = [
   { label: "Last 90 days", value: "90" },
 ];
 
-/** Presents Standard opening-source counts independently of Plus and other reports. */
+/** Presents opening-source counts only for merchants with Plus access. */
 export default function MerchantDiscoverySourcesScreen({
   initialPeriod = "30",
 }: {
@@ -36,6 +38,7 @@ export default function MerchantDiscoverySourcesScreen({
 }) {
   const [period, setPeriod] = useState(initialPeriod);
   const focused = useIsFocused();
+  const access = useMerchantPlusAccess();
   const query = useMerchantDiscoverySources(period, focused);
   useApiErrorNotification({
     error: focused ? query.error : null,
@@ -43,6 +46,9 @@ export default function MerchantDiscoverySourcesScreen({
     title: "Unable to load visit sources",
     fallbackMessage: "Please retry this report.",
   });
+  if (!access.allowed) {
+    return <PlusAccessGate access={access}>{null}</PlusAccessGate>;
+  }
   return (
     <DiscoverySourcesReportView
       period={period}

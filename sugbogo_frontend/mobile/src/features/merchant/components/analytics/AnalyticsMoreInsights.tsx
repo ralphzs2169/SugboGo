@@ -81,13 +81,12 @@ export function AnalyticsReportLinks({
 }: Props) {
   const access = useMerchantPlusAccess();
   const handleOpenReport = (kind: ReportItem["kind"]) => {
-    if (kind === "discovery-sources") {
-      onOpenDiscoverySources?.();
-      return;
-    }
-
     if (kind !== "review-insights" && !access.allowed) {
       router.push("/(merchant)/merchant-plus");
+      return;
+    }
+    if (kind === "discovery-sources") {
+      onOpenDiscoverySources?.();
       return;
     }
     onOpen(kind);
@@ -109,7 +108,6 @@ export function AnalyticsReportLinks({
     <View>
       {reports.map((report, index) => {
         const locked =
-          report.kind !== "discovery-sources" &&
           report.kind !== "review-insights" &&
           !access.allowed;
         return (

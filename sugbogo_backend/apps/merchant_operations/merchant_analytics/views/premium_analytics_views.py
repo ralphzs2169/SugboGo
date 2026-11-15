@@ -37,6 +37,10 @@ class PremiumAnalyticsView(APIView):
 class PremiumVisibilityView(PremiumAnalyticsView):
     """Serve recorded visibility trends independently of Standard responses."""
 
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.MERCHANT),
+    )
     query_serializer = PremiumVisibilityQuerySerializer
     response_serializer = PremiumVisibilitySerializer
 

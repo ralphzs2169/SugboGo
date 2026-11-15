@@ -13,6 +13,7 @@ import type {
   AnalyticsSelection,
   PlusReportKind,
 } from "../../types/merchantPlusAnalytics.types";
+import { merchantStandardAnalyticsScope } from "./merchantAnalyticsQueryKeys";
 import { merchantPlusReportKey } from "./merchantPlusAnalyticsQueryKeys";
 import useMerchantPlusAccess, {
   denyMerchantPlusAccess,
@@ -57,9 +58,15 @@ export function useMerchantPlusVisibility(
   interval: AnalyticsInterval,
   enabled: boolean,
 ) {
-  return usePlusReport("visibility", selection, interval, enabled, (signal) =>
-    getMerchantPlusVisibility(selection, interval, signal),
-  );
+  const accountId = useAuthStore((state) => state.user?.id);
+  return useQuery({
+    queryKey: [...merchantStandardAnalyticsScope(accountId), "visibility", selection, interval],
+    queryFn: async ({ signal }) =>
+      throwOnApiError(await getMerchantPlusVisibility(selection, interval, signal)),
+    enabled: !!accountId && enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
 }
 
 /** Requests weekly saves while the hosting analytics screen is focused. */

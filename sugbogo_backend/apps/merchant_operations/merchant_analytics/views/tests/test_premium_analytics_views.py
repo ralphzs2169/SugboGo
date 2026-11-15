@@ -69,19 +69,20 @@ class PremiumAnalyticsViewTests(MerchantAnalyticsFixtures, APIResponseAssertions
             "apps.merchant_operations.business_profile.services.business_profile_service.BusinessProfileService.get_business_for_merchant",
             side_effect=AssertionError("Denied request reached ownership lookup"),
         ):
-            for name in ("visibility", "pocket", "specialties", "review-performance"):
+            for name in ("pocket", "specialties", "review-performance"):
                 response = self.client.get(self.url(name))
                 self.assertEqual(response.status_code, 403)
                 self.assertEqual(response.data["code"], "PLUS_REQUIRED")
 
     @override_settings(MERCHANT_PLUS_ENFORCED=True)
-    def test_review_insights_are_available_to_the_owner_without_plus(self):
+    def test_standard_visibility_and_review_insights_are_available_without_plus(self):
         with patch(
             "apps.merchant_operations.merchant_analytics.entitlements.merchant_has_plus_access",
             return_value=False,
         ) as plus_access:
-            response = self.client.get(self.url("review-insights"))
-        self.assertEqual(response.status_code, 200)
+            for name in ("visibility", "review-insights"):
+                response = self.client.get(self.url(name))
+                self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.data["data"]["business"]["id"],
             self.business_a.pk,

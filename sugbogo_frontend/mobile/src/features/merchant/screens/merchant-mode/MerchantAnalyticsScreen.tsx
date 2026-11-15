@@ -1,6 +1,5 @@
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 import MerchantPlusEntry from "../../components/merchant-plus/MerchantPlusEntry";
-import { PlusAccessGate } from "../../components/analytics/AnalyticsPlusStates";
 import AnalyticsSectionInformation from "../../components/analytics/AnalyticsSectionInformation";
 import MerchantMetricCard from "../../components/MerchantMetricCard";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
@@ -266,43 +265,27 @@ export default function MerchantAnalyticsScreen() {
           ) : null}
 
           {/* Visibility trends */}
-          {plusAccess.allowed ? (
-            <AnalyticsVisibilityTrends
-              flushTop
-              period={visibilityPeriod}
-              onOpenPeriod={() => openPeriodSheet("visibility")}
-            >
-              <AnalyticsReportLinks
-                group="visibility"
-                onOpen={(kind) =>
-                  router.push({
-                    pathname: "/(merchant)/analytics/[report]",
-                    params: { report: kind, period: visibilityPeriod },
-                  })
-                }
-                onOpenDiscoverySources={() =>
-                  router.push({
-                    pathname: "/(merchant)/analytics/discovery-sources",
-                    params: { period: visibilityPeriod },
-                  })
-                }
-              />
-            </AnalyticsVisibilityTrends>
-          ) : (
-            <AnalyticsOverviewSection title="Visibility trends">
-              <PlusAccessGate access={plusAccess}>{null}</PlusAccessGate>
-              <AnalyticsReportLinks
-                group="visibility"
-                onOpen={openPlusDetail}
-                onOpenDiscoverySources={() =>
-                  router.push({
-                    pathname: "/(merchant)/analytics/discovery-sources",
-                    params: { period: visibilityPeriod },
-                  })
-                }
-              />
-            </AnalyticsOverviewSection>
-          )}
+          <AnalyticsVisibilityTrends
+            flushTop
+            period={visibilityPeriod}
+            onOpenPeriod={() => openPeriodSheet("visibility")}
+          >
+            <AnalyticsReportLinks
+              group="visibility"
+              onOpen={(kind) =>
+                router.push({
+                  pathname: "/(merchant)/analytics/[report]",
+                  params: { report: kind, period: visibilityPeriod },
+                })
+              }
+              onOpenDiscoverySources={() =>
+                router.push({
+                  pathname: "/(merchant)/analytics/discovery-sources",
+                  params: { period: visibilityPeriod },
+                })
+              }
+            />
+          </AnalyticsVisibilityTrends>
 
           <AnalyticsReviewSummaryPreview
             report={reviewInsights.data}

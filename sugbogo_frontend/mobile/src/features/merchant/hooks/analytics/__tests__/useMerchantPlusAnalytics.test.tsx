@@ -15,7 +15,7 @@ import {
   visibilityReport,
 } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 import useMerchantPlusAccess from "../useMerchantPlusAccess";
-import { useMerchantPlusVisibility } from "../useMerchantPlusAnalytics";
+import { useMerchantPlusVisibility, usePlusReport } from "../useMerchantPlusAnalytics";
 import {
   merchantPlusReportKey,
   merchantPlusReportScope,
@@ -46,10 +46,8 @@ describe("server-gated, account-scoped Plus queries", () => {
     interval: AnalyticsInterval = "daily",
   ) {
     const access = useMerchantPlusAccess();
-    const report = useMerchantPlusVisibility(
-      { period },
-      interval,
-      access.allowed,
+    const report = usePlusReport("visibility", { period }, interval, access.allowed,
+      (signal) => service.getMerchantPlusVisibility({ period }, interval, signal),
     );
     return { access, report };
   }
@@ -65,6 +63,16 @@ describe("server-gated, account-scoped Plus queries", () => {
     await cleanup();
     client.clear();
     useAuthStore.setState({ user: null });
+  });
+
+  it("loads Standard visibility without consulting Plus status", async () => {
+    const { result } = await renderHook(
+      () => useMerchantPlusVisibility({ period: "30" }, "daily", true),
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => expect(result.current.data).toEqual(visibilityReport()));
+    expect(status).not.toHaveBeenCalled();
+    expect(visibility).toHaveBeenCalledTimes(1);
   });
 
   it("waits for entitlement and never requests restricted reports", async () => {
