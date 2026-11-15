@@ -4,10 +4,8 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import * as Native from "react-native";
 import { router } from "expo-router";
 import useRecentExplore from "../../hooks/useRecentExplore";
-import RecentExploreScreen from "../RecentExploreScreen";
 import RecentExploreBusinessScreen from "../RecentExploreBusinessScreen";
 import useOfflineBusinessSnapshots from "@/features/offline-pockets/hooks/useOfflineBusinessSnapshots";
 import {
@@ -151,92 +149,6 @@ afterEach(async () => {
   onlineManager.setOnline(true);
   jest.restoreAllMocks();
   jest.clearAllMocks();
-});
-
-it.each([320, 390, 430])(
-  "renders all three local sections with one status and no Pocket actions at width %s",
-  async (width) => {
-    jest.spyOn(Native, "useWindowDimensions").mockReturnValue({
-      width,
-      height: 760,
-      scale: 1,
-      fontScale: width === 320 ? 1.5 : 1,
-    });
-    const view = await render(<RecentExploreScreen />);
-    for (const title of titles) expect(view.getByText(title)).toBeTruthy();
-    expect(view.getAllByText("Showing previously loaded content")).toHaveLength(
-      1,
-    );
-    expect(
-      view.getByText(`Updated ${new Date(fetchedAt).toLocaleString()}`),
-    ).toBeTruthy();
-    expect(view.queryByRole("button", { name: /Pocket/i })).toBeNull();
-    await fireEvent.press(
-      view.getByRole("button", { name: "Open Local place 1 business profile" }),
-    );
-    expect(router.push).toHaveBeenCalledWith({
-      pathname: "/recent-explore/[businessId]",
-      params: { businessId: "1" },
-    });
-  },
-);
-
-it("omits missing sections and preserves long names when a cover fails", async () => {
-  const local = state();
-  local.feeds = local.feeds.slice(0, 1);
-  local.feeds[0].items[0].business_name =
-    "A long local business name that remains readable on a small device";
-  local.feeds[0].items[0].display_cover_photo_url =
-    "https://example.test/cover.jpg";
-  jest.mocked(useRecentExplore).mockReturnValue(local as never);
-  const view = await render(<RecentExploreScreen />);
-  expect(view.queryByText(titles[1])).toBeNull();
-  expect(view.queryByText(titles[2])).toBeNull();
-  await fireEvent(view.getByTestId("remote-cover"), "error");
-  expect(view.queryByTestId("remote-cover")).toBeNull();
-  expect(view.getByText(local.feeds[0].items[0].business_name)).toBeTruthy();
-});
-
-it("omits cached rating aggregates on the local-only screen even while reconnecting", async () => {
-  onlineManager.setOnline(true);
-  const local = state();
-  local.feeds = local.feeds.map((feed) => ({
-    ...feed,
-    items: feed.items.map((business) => ({
-      ...business,
-      sentiment_rating: {
-        value: 4.2,
-        contributing_review_count: 7,
-        state: "ready",
-        experimental: true,
-        provenance: "legacy_unverified",
-        scoring_version: "legacy-unverified-v1",
-        calculation_version: "signed-average-v1",
-        computed_at: "2026-10-30T00:00:00Z",
-        automatic_updates_enabled: true,
-      },
-    })),
-  }));
-  jest.mocked(useRecentExplore).mockReturnValue(local as never);
-  const view = await render(<RecentExploreScreen />);
-  expect(view.queryByText(/4.2\/5/)).toBeNull();
-  expect(view.queryByText(/AI sentiment/)).toBeNull();
-  expect(
-    view.getByRole("button", {
-      name: "Open Local place 1 business profile",
-    }),
-  ).toBeTruthy();
-});
-
-it("provides intentional empty navigation without granting authentication", async () => {
-  jest
-    .mocked(useRecentExplore)
-    .mockReturnValue({ grant: null, feeds: [], isPending: false } as never);
-  const view = await render(<RecentExploreScreen />);
-  expect(view.getByText("Recent Explore unavailable")).toBeTruthy();
-  await fireEvent.press(view.getByRole("button", { name: "Sign in" }));
-  expect(router.replace).toHaveBeenCalledWith("/(auth)/login");
-  expect(useAuthStore.getState().isAuthenticated).toBe(false);
 });
 
 it.each(["recent", "offline-pocket"])(

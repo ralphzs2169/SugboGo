@@ -1,4 +1,5 @@
 import { refreshAccessToken } from "@/features/auth/api/token.service";
+import { API_ERROR_CODE } from "@/shared/constants/errorCodes";
 import {
   assertAuthSessionCurrent,
   getAuthSessionGeneration,
@@ -42,7 +43,9 @@ export async function refreshSession(
       assertAuthSessionCurrent(generation);
 
       if (!refreshToken) {
-        throw new Error("No refresh token available");
+        const error = new Error("No refresh token available");
+        error.name = API_ERROR_CODE.AUTH_ERROR;
+        throw error;
       }
 
       const response = await refreshAccessToken(refreshToken);

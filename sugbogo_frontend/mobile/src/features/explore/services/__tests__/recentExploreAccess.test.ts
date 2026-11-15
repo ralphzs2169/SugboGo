@@ -166,6 +166,7 @@ it.each([
   if (key === "explore-recommendations")
     Object.assign(data.items[0], { recommendation_reason: null });
   await seed(key, data);
+  clock += 7 * 24 * 60 * 60 * 1000 - 1;
   const original = await AsyncStorage.getItem(QUERY_PERSISTENCE_STORAGE_KEY);
   await restoreSession();
   const grant = useOfflineAccessStore.getState().recentExplore;
@@ -198,7 +199,7 @@ it.each([
   );
   if (kind === "missing")
     await AsyncStorage.removeItem(QUERY_PERSISTENCE_STORAGE_KEY);
-  else if (kind === "expired") clock += 24 * 60 * 60 * 1000;
+  else if (kind === "expired") clock += 7 * 24 * 60 * 60 * 1000;
   else {
     if (kind === "version") json.policyVersion += 1;
     if (kind === "owner") json.ownerId = 8;

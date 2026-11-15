@@ -1,11 +1,11 @@
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { getOfflineOwner } from "@/features/offline-routes/services/offlineAccess.service";
 import {
+  isRecentExploreCurrent,
   useOfflineAccessStore,
   type RecentExploreGrant,
 } from "@/features/offline-routes/stores/offlineAccess.store";
 import {
-  isAuthSessionGenerationCurrent,
   isOfflineTransportSession,
 } from "@/shared/api/authSessionGeneration.service";
 import { queryPersistence } from "@/shared/query/queryPersistence.service";
@@ -18,7 +18,6 @@ import {
   DISCOVERY_FEED_QUERY_KEY,
   NEW_BUSINESSES_QUERY_KEY,
   RECOMMENDATIONS_QUERY_KEY,
-  EXPLORE_HOMEPAGE_RETENTION_MS,
 } from "../constants/exploreHomepageQueries";
 
 export type RecentExploreFeed = {
@@ -36,15 +35,17 @@ const feeds = [
   { key: RECOMMENDATIONS_QUERY_KEY[0], title: "Explore local picks" },
 ];
 
-/** Runtime grants come only from startup transport failure, never from stored JSON alone. */
-export function isRecentExploreCurrent(grant: RecentExploreGrant) {
-  const current = useOfflineAccessStore.getState().recentExplore;
-  return (
-    !useAuthStore.getState().isAuthenticated &&
-    current === grant &&
-    !useOfflineAccessStore.getState().isRevoking &&
-    isAuthSessionGenerationCurrent(grant.generation) &&
-    grant.apiScope === getQueryPersistenceApiScope()
+export { isRecentExploreCurrent };
+
+export function hasCachedExploreFeed(
+  entries: Awaited<ReturnType<typeof queryPersistence.readLocal>>,
+) {
+  return feeds.some((feed) =>
+    entries.some((entry) => {
+      if (entry.queryKey[0] !== feed.key) return false;
+      const data = entry.data as ExploreBusinessListResponse;
+      return entry.queryKey.length === 1 && data.items.length > 0;
+    }),
   );
 }
 
@@ -71,7 +72,7 @@ export async function readRecentExploreFeeds(
                 : feed.title,
             items: data.items,
             fetchedAt: entry.fetchedAt,
-            expiresAt: entry.fetchedAt + EXPLORE_HOMEPAGE_RETENTION_MS,
+            expiresAt: entry.expiresAt,
           },
         ]
       : [];
@@ -93,6 +94,6 @@ export async function restoreRecentExploreAccess(generation: number) {
     !useOfflineAccessStore.getState().isRevoking &&
     grant.apiScope === getQueryPersistenceApiScope();
   if (!current()) return null;
-  const entries = await readRecentExploreFeeds(grant, current);
-  return current() && entries.length > 0 ? grant : null;
+  const entries = await queryPersistence.readLocal(grant, current);
+  return current() && hasCachedExploreFeed(entries) ? grant : null;
 }

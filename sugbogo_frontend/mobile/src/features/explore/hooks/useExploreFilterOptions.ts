@@ -11,8 +11,9 @@ import {
 export { EXPLORE_FILTER_OPTIONS_QUERY_KEY } from "../constants/exploreHomepageQueries";
 
 /** Loads authoritative taxonomy choices for Explorer search and filtering. */
-export default function useExploreFilterOptions() {
+export default function useExploreFilterOptions(enabled = true) {
   const query = useQuery({
+    enabled,
     queryKey: EXPLORE_FILTER_OPTIONS_QUERY_KEY,
     queryFn: async () => {
       const response = await getExploreFilterOptions();

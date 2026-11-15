@@ -13,16 +13,17 @@ type Props = Omit<
   | "pocketActionDisabled"
   | "pocketActionRef"
   | "onPocketActionLayout"
->;
+> & { readOnly?: boolean };
 
 /** Explicitly opts supported card placements into the shared Pocket picker. */
-export default function PocketBusinessCard(props: Props) {
+export default function PocketBusinessCard({ readOnly = false, ...props }: Props) {
   const picker = usePocketPicker();
   const tour = useExplorerTour()?.bookmark;
   const surface = useContext(BookmarkTourSurfaceContext);
   const action = useRef<View>(null);
   const businessId = props.business.id;
   const canRegister =
+    !readOnly &&
     Boolean(picker && !picker.isOpen && surface && !surface.blocked && tour) &&
     Number.isSafeInteger(businessId) &&
     businessId > 0;
@@ -32,6 +33,14 @@ export default function PocketBusinessCard(props: Props) {
     return tour?.register({ node: action.current, surface });
   }, [businessId, canRegister, surface, tour]);
 
+  if (readOnly) {
+    return (
+      <BusinessCard
+        {...props}
+        business={{ ...props.business, sentiment_rating: undefined }}
+      />
+    );
+  }
   if (!picker) return <BusinessCard {...props} />;
   return (
     <BusinessCard

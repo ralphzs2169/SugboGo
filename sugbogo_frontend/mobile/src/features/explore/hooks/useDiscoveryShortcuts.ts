@@ -9,8 +9,9 @@ import {
 
 export { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../constants/exploreHomepageQueries";
 
-export default function useDiscoveryShortcuts() {
+export default function useDiscoveryShortcuts(enabled = true) {
   const query = useQuery({
+    enabled,
     queryKey: DISCOVERY_SHORTCUTS_QUERY_KEY,
     queryFn: async () => {
       const response = await getDiscoveryShortcuts();

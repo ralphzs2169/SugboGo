@@ -49,7 +49,13 @@ import type { ExploreCollectionType } from "../types/exploreBusiness.types";
  * The screen combines curated, personalized, specialty, and newly added
  * discovery surfaces while sharing refresh and impression observation.
  */
-export default function ExploreScreen() {
+export default function ExploreScreen({
+  offline = false,
+  hasDownloads = false,
+}: {
+  offline?: boolean;
+  hasDownloads?: boolean;
+} = {}) {
   const queryClient = useQueryClient();
   const navigate = useNavigationAction();
 
@@ -65,11 +71,15 @@ export default function ExploreScreen() {
 
   const bottomSpacing = useTabBarSpacing();
 
-  const discoveryImpressions = useBusinessImpressions(bottomSpacing, 0);
-  const spotlightImpressions = useBusinessImpressions(bottomSpacing, 0);
-  const newBusinessImpressions = useBusinessImpressions(bottomSpacing, 0);
-  const recommendationImpressions = useBusinessImpressions(bottomSpacing, 0);
-  const openNowImpressions = useBusinessImpressions(bottomSpacing);
+  const discoveryImpressions = useBusinessImpressions(bottomSpacing, 0, !offline);
+  const spotlightImpressions = useBusinessImpressions(bottomSpacing, 0, !offline);
+  const newBusinessImpressions = useBusinessImpressions(bottomSpacing, 0, !offline);
+  const recommendationImpressions = useBusinessImpressions(
+    bottomSpacing,
+    0,
+    !offline,
+  );
+  const openNowImpressions = useBusinessImpressions(bottomSpacing, 0, !offline);
 
   const {
     location: userLocation,
@@ -77,7 +87,7 @@ export default function ExploreScreen() {
     error: locationError,
     isRefreshingLocation,
     refreshLocation,
-  } = useUserLocation({ mode: "recent" });
+  } = useUserLocation({ mode: "recent", enabled: !offline });
   const setTourLocationReady = useExplorerTour()?.setExploreLocationReady;
 
   useEffect(() => {
@@ -114,14 +124,14 @@ export default function ExploreScreen() {
 
   const openNow = useOpenNowBusinesses(
     nearbyLocation,
-    !isRefreshingNearby && !isRefreshingLocation,
+    !offline && !isRefreshingNearby && !isRefreshingLocation,
   );
 
-  const discoveryFeed = useDiscoveryFeed();
-  const filterOptions = useExploreFilterOptions();
+  const discoveryFeed = useDiscoveryFeed(!offline);
+  const filterOptions = useExploreFilterOptions(!offline);
 
   const handleRefresh = async () => {
-    if (refreshInProgress.current) {
+    if (offline || refreshInProgress.current) {
       return;
     }
 
@@ -211,6 +221,16 @@ export default function ExploreScreen() {
     distance: number | null,
     distanceAccuracy: number | null,
   ) => {
+    if (offline) {
+      navigate(() =>
+        router.push({
+          pathname: "/recent-explore/[businessId]",
+          params: { businessId: String(businessId) },
+        }),
+      );
+      return;
+    }
+
     navigate(() =>
       router.push({
         pathname: "/(explorer)/business/[businessId]",
@@ -253,6 +273,12 @@ export default function ExploreScreen() {
     <View className="flex-1 bg-surface">
       {/* Discovery controls */}
       <ExploreTopBar
+        offline={offline}
+        onOpenOfflineStorage={
+          offline && hasDownloads
+            ? () => navigate(() => router.push("/offline-storage"))
+            : undefined
+        }
         clusters={filterOptions.options.clusters}
         selectedClusterId={null}
         isLoadingClusters={filterOptions.isLoading}
@@ -268,7 +294,7 @@ export default function ExploreScreen() {
           navigate(() => navigateToExploreResults({}, true))
         }
       />
-      <ExploreFilterOptionsFeedback state={filterOptions} />
+      {!offline && <ExploreFilterOptionsFeedback state={filterOptions} />}
 
       {/* Discovery content */}
       <BookmarkTourSurfaceContext.Provider value={bookmarkTour.surface}>
@@ -288,11 +314,14 @@ export default function ExploreScreen() {
             paddingBottom: bottomSpacing,
           }}
           refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+            !offline ? (
+              <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+            ) : undefined
           }
         >
           {/* Curated discovery */}
           <HiddenGemsSection
+            offline={offline}
             businesses={discoveryFeed.businesses}
             isLoading={discoveryFeed.isLoading}
             isPaused={discoveryFeed.isPaused}
@@ -305,42 +334,52 @@ export default function ExploreScreen() {
           />
 
           {/* Nearby businesses open according to their listed hours */}
-          <OpenNowBusinessesSection
-            feed={openNow}
-            userLocation={nearbyLocation}
-            isLocating={locationStatus === "loading" && openNowLocation === null}
-            isUsingLastLocation={isUsingLastLocation}
-            impressions={openNowImpressions}
-            onBusinessPress={handleBusinessPress}
-          />
+          {!offline && (
+            <OpenNowBusinessesSection
+              feed={openNow}
+              userLocation={nearbyLocation}
+              isLocating={locationStatus === "loading" && openNowLocation === null}
+              isUsingLastLocation={isUsingLastLocation}
+              impressions={openNowImpressions}
+              onBusinessPress={handleBusinessPress}
+            />
+          )}
 
           {/* Specialty discovery preview */}
           <ExploreBySpecialtySection
-            onSpecialtyPress={(specialtyTagId) =>
-              navigate(() => navigateToExploreResults({ specialtyTagId }))
+            offline={offline}
+            onSpecialtyPress={
+              offline ? undefined : (specialtyTagId) =>
+                navigate(() => navigateToExploreResults({ specialtyTagId }))
             }
           />
 
           {/* Personalized discovery */}
           <UserInterestsSection
+            offline={offline}
             impressions={recommendationImpressions}
             userLocation={userLocation}
             onBusinessPress={handleBusinessPress}
-            onSeeAll={(source) => openCollection("interests", source)}
+            onSeeAll={
+              offline ? undefined : (source) => openCollection("interests", source)
+            }
           />
 
           {/* Recently added businesses */}
           <NewBusinessesSection
+            offline={offline}
             impressions={newBusinessImpressions}
             userLocation={userLocation}
             onBusinessPress={handleBusinessPress}
-            onSeeAll={() => openCollection("new-businesses")}
+            onSeeAll={offline ? undefined : () => openCollection("new-businesses")}
           />
 
           {/* Intent-based discovery shortcuts */}
           <DiscoveryShortcutsSection
-            onShortcutPress={(clusterId) =>
-              navigate(() => navigateToExploreResults({ clusterId }))
+            offline={offline}
+            onShortcutPress={
+              offline ? undefined : (clusterId) =>
+                navigate(() => navigateToExploreResults({ clusterId }))
             }
           />
         </ScrollView>

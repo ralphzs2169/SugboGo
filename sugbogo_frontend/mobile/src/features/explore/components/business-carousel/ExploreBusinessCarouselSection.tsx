@@ -17,6 +17,7 @@ import ExploreSectionHeader from "../ExploreSectionHeader";
 import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
 
 type Props = {
+  readOnly?: boolean;
   title: string;
   subtitle: string;
   titleIcon?: ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -48,6 +49,7 @@ type Props = {
  * impression visibility, and uses the shared Explore section heading.
  */
 export default function ExploreBusinessCarousel({
+  readOnly = false,
   title,
   subtitle,
   titleIcon,
@@ -153,6 +155,7 @@ export default function ExploreBusinessCarousel({
                 onLayout={(event) => impressions.onCardLayout(business.id, event)}
               >
                 <BusinessCard
+                  readOnly={readOnly}
                   business={business}
                   distance={distance}
                   distanceAccuracy={userLocation?.coords.accuracy ?? null}

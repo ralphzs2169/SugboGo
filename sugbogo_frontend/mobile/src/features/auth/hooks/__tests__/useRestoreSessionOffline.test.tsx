@@ -128,7 +128,7 @@ describe("offline startup boundary", () => {
   it("revalidates the stored session when Retry is selected", async () => {
     jest
       .mocked(getCurrentUser)
-      .mockRejectedValueOnce(createApiError("NETWORK_ERROR"));
+      .mockRejectedValueOnce(new Error("Unable to validate saved sign-in"));
     const hook = await renderHook(() => useRestoreSession());
     await waitFor(() =>
       expect(hook.result.current.recoveryRequired).toBe(true),
@@ -144,18 +144,18 @@ describe("offline startup boundary", () => {
     await hook.unmount();
   });
 
-  it("allows continuing to the existing offline/sign-in flow without erasing credentials", async () => {
+  it("continues to sign-in when offline without eligible local data", async () => {
     jest
       .mocked(getCurrentUser)
       .mockRejectedValueOnce(createApiError("NETWORK_ERROR"));
+    jest.mocked(getRestorableOfflineOwner).mockResolvedValueOnce(null);
     const hook = await renderHook(() => useRestoreSession());
     await waitFor(() =>
-      expect(hook.result.current.recoveryRequired).toBe(true),
+      expect(useAuthStore.getState().isLoading).toBe(false),
     );
-    await act(async () => hook.result.current.continueWithoutSession());
     expect(hook.result.current.recoveryRequired).toBe(false);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
-    expect(useOfflineAccessStore.getState().ownerId).toBe(7);
+    expect(useOfflineAccessStore.getState().ownerId).toBeNull();
     expect(clearSessionTokens).not.toHaveBeenCalled();
     await hook.unmount();
   });
@@ -171,6 +171,7 @@ describe("offline startup boundary", () => {
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
       expect(useAuthStore.getState().user).toBeNull();
       expect(useOfflineAccessStore.getState().ownerId).toBe(7);
+      expect(hook.result.current.recoveryRequired).toBe(false);
       expect(clearSessionTokens).not.toHaveBeenCalled();
       hook.unmount();
     },
@@ -183,21 +184,23 @@ describe("offline startup boundary", () => {
     expect(getCurrentUser).not.toHaveBeenCalled();
     expect(getRestorableOfflineOwner).not.toHaveBeenCalled();
     expect(clearOfflineAccess).toHaveBeenCalled();
+    expect(hook.result.current.recoveryRequired).toBe(false);
     hook.unmount();
   });
 
-  it("restores eligible Recent Explore alongside startup recovery", async () => {
+  it("opens eligible Recent Explore without startup recovery", async () => {
     jest.mocked(getCurrentUser).mockRejectedValueOnce(
       createApiError("NETWORK_ERROR"),
     );
     const grant = { ownerId: 7, apiScope: "test", generation: 1 };
     jest.mocked(restoreRecentExploreAccess).mockResolvedValueOnce(grant);
+    jest.mocked(getRestorableOfflineOwner).mockResolvedValueOnce(null);
     const hook = await renderHook(() => useRestoreSession());
 
     await waitFor(() =>
-      expect(hook.result.current.recoveryRequired).toBe(true),
+      expect(useOfflineAccessStore.getState().recentExplore).toEqual(grant),
     );
-    expect(useOfflineAccessStore.getState().recentExplore).toEqual(grant);
+    expect(hook.result.current.recoveryRequired).toBe(false);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(clearSessionTokens).not.toHaveBeenCalled();
     await hook.unmount();
@@ -223,9 +226,12 @@ describe("offline startup boundary", () => {
       new Error("storage unavailable"),
     );
     const hook = await renderHook(() => useRestoreSession());
-    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    await waitFor(() =>
+      expect(hook.result.current.recoveryRequired).toBe(true),
+    );
     expect(useOfflineAccessStore.getState().ownerId).toBeNull();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(clearSessionTokens).not.toHaveBeenCalled();
     hook.unmount();
   });
 

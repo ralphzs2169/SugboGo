@@ -22,9 +22,13 @@ import {
 import QueryPersistenceProvider from "@/shared/query/QueryPersistenceProvider";
 import { queryClient } from "@/shared/query/queryClient";
 import { createApiError } from "@/shared/utils/apiErrors";
-import RecentExploreReconnect from "../RecentExploreReconnect";
+import OfflineSessionReconnect from "../OfflineSessionReconnect";
 
-jest.mock("expo-router", () => ({ router: { replace: jest.fn() } }));
+let mockPathname = "/recent-explore";
+jest.mock("expo-router", () => ({
+  router: { replace: jest.fn() },
+  usePathname: () => mockPathname,
+}));
 jest.mock("@react-native-async-storage/async-storage", () =>
   jest.requireActual(
     "@react-native-async-storage/async-storage/jest/async-storage-mock",
@@ -65,8 +69,9 @@ function localGrant(generation = getAuthSessionGeneration()) {
 }
 
 const mounted = jest.fn();
+const requireRecovery = jest.fn();
 
-/** Observes local presentation and proves the real provider remounts its children. */
+/** Observes local presentation across changes to the authenticated query scope. */
 function LocalContent() {
   const grant = useOfflineAccessStore((state) => state.recentExplore);
   useEffect(() => {
@@ -78,13 +83,14 @@ function LocalContent() {
 function RecoveryRoot() {
   return (
     <QueryPersistenceProvider>
-      <RecentExploreReconnect />
+      <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />
       <LocalContent />
     </QueryPersistenceProvider>
   );
 }
 
 beforeEach(() => {
+  mockPathname = "/recent-explore";
   invalidateAuthSession();
   suspendAuthSession();
   onlineManager.setOnline(false);
@@ -122,7 +128,9 @@ afterEach(() => {
 it("validates on reconnect, preserves local access while pending, and routes only after success", async () => {
   const request = deferred<Awaited<ReturnType<typeof getCurrentUser>>>();
   jest.mocked(getCurrentUser).mockReturnValueOnce(request.promise);
-  const view = await render(<RecentExploreReconnect />);
+  const view = await render(
+    <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
+  );
   expect(sessionRestoration.restoreSession).not.toHaveBeenCalled();
   await act(async () => onlineManager.setOnline(true));
   expect(getCurrentUser).toHaveBeenCalledTimes(1);
@@ -139,7 +147,9 @@ it("routes definitive rejection to login and preserves session cleanup", async (
   jest
     .mocked(getCurrentUser)
     .mockRejectedValueOnce(createApiError("AUTH_ERROR"));
-  const view = await render(<RecentExploreReconnect />);
+  const view = await render(
+    <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
+  );
   await act(async () => onlineManager.setOnline(true));
   await waitFor(() =>
     expect(router.replace).toHaveBeenCalledWith("/(auth)/login"),
@@ -155,7 +165,9 @@ it("retries transport failure on a later connection and removes event subscripti
   jest
     .mocked(getCurrentUser)
     .mockRejectedValue(createApiError("NETWORK_ERROR"));
-  const view = await render(<RecentExploreReconnect />);
+  const view = await render(
+    <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
+  );
   await act(async () => onlineManager.setOnline(true));
   expect(useAuthStore.getState().isAuthenticated).toBe(false);
   expect(router.replace).not.toHaveBeenCalled();
@@ -174,7 +186,9 @@ it("retries transport failure on a later connection and removes event subscripti
 it("does not navigate from stale validation after a new session begins", async () => {
   const request = deferred<Awaited<ReturnType<typeof getCurrentUser>>>();
   jest.mocked(getCurrentUser).mockReturnValueOnce(request.promise);
-  const view = await render(<RecentExploreReconnect />);
+  const view = await render(
+    <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
+  );
   await act(async () => onlineManager.setOnline(true));
   await act(async () => {
     beginAuthSession();
@@ -185,16 +199,14 @@ it("does not navigate from stale validation after a new session begins", async (
   await view.unmount();
 });
 
-it("keeps one real restoration pending across the provider generation remount", async () => {
+it("keeps one restoration pending across a query scope change and a focus event", async () => {
   const request = deferred<Awaited<ReturnType<typeof getCurrentUser>>>();
   jest.mocked(getCurrentUser).mockReturnValue(request.promise);
   const generation = getAuthSessionGeneration();
   const view = await render(<RecoveryRoot />);
   const initialMounts = mounted.mock.calls.length;
   await act(async () => onlineManager.setOnline(true));
-  await waitFor(() =>
-    expect(mounted.mock.calls.length).toBeGreaterThan(initialMounts),
-  );
+  expect(mounted).toHaveBeenCalledTimes(initialMounts);
   expect(getAuthSessionGeneration()).toBe(generation + 1);
   expect(view.getByText("Local places")).toBeTruthy();
   expect(useAuthStore.getState().isAuthenticated).toBe(false);
@@ -213,7 +225,7 @@ it("keeps one real restoration pending across the provider generation remount", 
   await view.unmount();
 });
 
-it("does not retry a transport-failed remount until a distinct focus transition", async () => {
+it("does not retry a transport failure until a distinct focus transition", async () => {
   const first = deferred<Awaited<ReturnType<typeof getCurrentUser>>>();
   const second = deferred<Awaited<ReturnType<typeof getCurrentUser>>>();
   jest
@@ -249,3 +261,47 @@ it("does not retry a transport-failed remount until a distinct focus transition"
   expect(router.replace).toHaveBeenCalledTimes(1);
   await view.unmount();
 });
+
+it.each([7, null])(
+  "reconnects without Recent Explore when the durable owner is %s",
+  async (ownerId) => {
+    useOfflineAccessStore.setState({ ownerId, recentExplore: null });
+    jest.mocked(getCurrentUser).mockResolvedValueOnce({ id: 7 } as never);
+    const view = await render(
+      <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
+    );
+    expect(getCurrentUser).not.toHaveBeenCalled();
+    await act(async () => onlineManager.setOnline(true));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+    expect(getCurrentUser).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().user?.id).toBe(7);
+    await view.unmount();
+  },
+);
+
+it.each([7, 8])(
+  "keeps the Explore route and cache only for the validated owner %s",
+  async (userId) => {
+    mockPathname = "/explore";
+    const key = ["explore-discovery"];
+    const cached = { items: [{ id: 3 }] };
+    queryClient.setQueryData(key, cached);
+    jest.mocked(getCurrentUser).mockResolvedValueOnce({ id: userId } as never);
+    const view = await render(
+      <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
+    );
+
+    await act(async () => onlineManager.setOnline(true));
+    await waitFor(() => expect(useAuthStore.getState().user?.id).toBe(userId));
+    expect(getCurrentUser).toHaveBeenCalledTimes(1);
+    if (userId === 7) {
+      expect(router.replace).not.toHaveBeenCalled();
+      expect(queryClient.getQueryData(key)).toEqual(cached);
+    } else {
+      expect(router.replace).toHaveBeenCalledWith("/");
+      expect(queryClient.getQueryData(key)).toBeUndefined();
+    }
+    await view.unmount();
+  },
+);

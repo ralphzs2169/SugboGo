@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useExplorerTour } from "@/features/guided-tour/hooks/useExplorerTour";
 import CustomTabBar, { TabBarConfig } from "@/shared/components/CustomTabBar";
 import { Tabs } from "expo-router";
@@ -34,15 +35,22 @@ function ExplorerTabBar(props: TabBarProps) {
 
 /** Connects the Explorer navigator's real tab buttons to the shared spotlight. */
 export default function TabLayout() {
+  const authenticated = useAuthStore((state) => state.isAuthenticated);
+
   return (
-    <Tabs tabBar={renderExplorerTabBar} screenOptions={{ headerShown: false }}>
+    <Tabs
+      tabBar={authenticated ? renderExplorerTabBar : () => null}
+      screenOptions={{ headerShown: false }}
+    >
       <Tabs.Screen name="explore" options={{ title: "Explore" }} />
-      <Tabs.Screen name="map" options={{ title: "Map" }} />
-      <Tabs.Screen name="community" options={{ title: "Community" }} />
-      <Tabs.Screen
-        name="profile"
-        options={{ headerShown: false, title: "Profile", href: "/profile" }}
-      />
+      <Tabs.Protected guard={authenticated}>
+        <Tabs.Screen name="map" options={{ title: "Map" }} />
+        <Tabs.Screen name="community" options={{ title: "Community" }} />
+        <Tabs.Screen
+          name="profile"
+          options={{ headerShown: false, title: "Profile", href: "/profile" }}
+        />
+      </Tabs.Protected>
     </Tabs>
   );
 }
