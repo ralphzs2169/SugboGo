@@ -286,6 +286,8 @@ def _mark_paid(
     evidence,
 ):
     """Record the financial transition while leaving entitlement activation to M5."""
+    from ..tasks import dispatch_merchant_plus_fulfilment
+
     payment.PYMT_STATUS = Payment.Status.PAID
     payment.PYMT_FULFILMENT_STATUS = Payment.FulfilmentStatus.PENDING
     payment.PYMT_PROVIDER_PAYMENT_ID = evidence.payment_id
@@ -299,6 +301,7 @@ def _mark_paid(
         "PYMT_PAID_AT", "PYMT_VERIFIED_AT", "PYMT_METHOD_TYPE", "PYMT_CARD_BRAND",
         "PYMT_CARD_LAST4", "PYMT_UPDATED_AT",
     ])
+    transaction.on_commit(partial(dispatch_merchant_plus_fulfilment, payment.pk))
 
 
 def process_maya_delivery(event_id):

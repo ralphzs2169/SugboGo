@@ -666,6 +666,10 @@ if not CELERY_BEAT_SCHEDULE_FILENAME:
     raise ImproperlyConfigured("CELERY_BEAT_SCHEDULE_FILENAME must be nonempty.")
 
 CELERY_BEAT_SCHEDULE = {
+    "recover-merchant-plus-fulfilment": {
+        "task": "apps.payments.tasks.recover_merchant_plus_fulfilment",
+        "schedule": 30.0,
+    },
     "recover-gemini-sentiment-shadow": {
         "task": "apps.reviews.tasks.recover_gemini_sentiment_shadow",
         "schedule": 60.0,

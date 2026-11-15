@@ -75,6 +75,16 @@ class ConfirmationFixtures(MerchantAnalyticsFixtures):
 
 
 class MayaConfirmationTests(ConfirmationFixtures, TestCase):
+    def test_fulfilment_dispatch_occurs_only_after_confirmation_commit(self):
+        event = self.event()
+        with patch("apps.payments.tasks.dispatch_merchant_plus_fulfilment") as dispatch:
+            with self.captureOnCommitCallbacks(execute=True):
+                with patch(RETRIEVE, return_value=self.evidence):
+                    process_maya_delivery(event.pk)
+                dispatch.assert_not_called()
+                self.assertFalse(PaidMerchantPlusEntitlement.objects.exists())
+            dispatch.assert_called_once_with(self.payment.pk)
+
     def test_exact_verified_success_marks_paid_once_without_activation(self):
         event = self.event()
         with patch(RETRIEVE, return_value=self.evidence) as retrieve:

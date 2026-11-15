@@ -1,5 +1,40 @@
 # Merchant Plus payment foundation
 
+## M5 — paid Merchant Plus fulfilment
+
+M4 verifies Maya evidence and commits a financially paid Payment with fulfilment
+pending. It then dispatches `apps.payments.tasks.fulfil_merchant_plus_payment`
+after commit. M5 uses that stored verification evidence to activate access.
+
+The fulfilment service locks Business then Payment, matching checkout and
+confirmation lock order. It validates the owner, supported provider/environment,
+Merchant Plus version, 100 centavos PHP, 30-day duration, payment ID and verification
+timestamps. Unsupported or conflicting paid obligations require review.
+
+Entitlement creation and fulfilment completion share one database transaction.
+The existing one-to-one Payment relationship enforces at most one grant.
+Access starts at the first successful fulfilment time and expires exactly 30 days
+later. A duplicate invocation returns the same grant with its original timestamps.
+An existing valid grant on an unfinished Payment is reused, including an expired
+grant. An overlapping grant in the same environment requires review without stacking.
+
+The financial state stays paid. Successful fulfilment sets fulfilment fulfilled and
+records the original access start in `PYMT_FULFILLED_AT`. Existing access and status
+queries derive `maya_test` or historical PayMongo sources from the associated
+Payment, with test/live isolation. Maya Production fulfilment is unsupported.
+
+No external HTTP runs inside fulfilment. The transaction locks serve as the claim,
+so interruption before commit rolls back both grant creation and completion.
+Celery Beat runs `recover_merchant_plus_fulfilment` every 30 seconds, redispatching
+up to 100 eligible unfinished paid Payments. Existing future retry times and leases
+are respected. Broker loss and worker interruption leave the Payment recoverable.
+Invalid records and fulfilled Payments are excluded from automatic recovery.
+
+After activation commits, the existing notification service creates a persistent
+`merchant_plus_activated` notification deduplicated by recipient and Payment.
+Notification failure is logged safely and activation stays committed. Notification
+delivery is best effort and has no separate recovery worker in M5.
+
 ## M4 — Maya Sandbox webhook and payment confirmation
 
 Enable `MAYA_WEBHOOK_ENABLED=True` only on a Sandbox deployment configured
@@ -41,7 +76,7 @@ records provider payment and verification times, using the provider's update
 time when a successful payment lacks a distinct payment timestamp. It
 completes the local checkout. Verified unsuccessful events update checkout
 observations and never change a paid Payment. A verified expiry also marks
-the checkout expired. No entitlement is created in M4.
+the checkout expired. Financial confirmation dispatches M5 fulfilment after commit.
 [Maya Retrieve Payment by ID](https://developers.maya.ph/reference/getpaymentviapaymentid-1)
 
 Only shared published Sandbox credentials were available for the integration
