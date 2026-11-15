@@ -25,7 +25,7 @@ from celery.schedules import crontab
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
-from config.paymongo import load_paymongo_configuration
+from config.payments import load_payment_configuration
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -122,7 +122,7 @@ if _merchant_plus_mock_enabled not in {"true", "false"}:
 MERCHANT_PLUS_MOCK_ENABLED = _merchant_plus_mock_enabled == "true"
 
 globals().update(
-    load_paymongo_configuration(
+    load_payment_configuration(
         os.environ,
         plus_enforced=MERCHANT_PLUS_ENFORCED,
         mock_enabled=MERCHANT_PLUS_MOCK_ENABLED,

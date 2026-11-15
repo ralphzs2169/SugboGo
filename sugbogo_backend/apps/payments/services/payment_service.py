@@ -13,7 +13,7 @@ from apps.merchant_operations.business_profile.services.business_profile_service
 from apps.users.models import User
 
 from ..constants import MERCHANT_PLUS_PRODUCT
-from ..models import Payment, PaymentMode
+from ..models import Payment, PaymentMode, PaymentProvider
 
 
 class PaymentService:
@@ -27,10 +27,24 @@ class PaymentService:
     @staticmethod
     def current_mode():
         """Resolve the configured environment without changing historical records."""
-        mode = settings.PAYMONGO_MODE
+        mode = settings.PAYMENT_MODE
         if mode not in PaymentMode.values:
             raise ValidationError("The payment environment is unavailable.")
         return mode
+
+    @classmethod
+    def current_provider(cls):
+        """Resolve the backend provider for newly reserved payments."""
+        provider = settings.PAYMENT_PROVIDER
+        if (
+            provider not in PaymentProvider.values
+            or (
+                provider == PaymentProvider.MAYA
+                and cls.current_mode() != PaymentMode.TEST
+            )
+        ):
+            raise ValidationError("The payment provider is unavailable.")
+        return provider
 
     @staticmethod
     def require_merchant(user):
@@ -179,6 +193,7 @@ class PaymentService:
             PYMT_AMOUNT_CENTAVOS=product.amount_centavos,
             PYMT_CURRENCY=product.currency,
             PYMT_ACCESS_DURATION_DAYS=product.access_duration_days,
+            PYMT_PROVIDER=cls.current_provider(),
             PYMT_MODE=cls.current_mode(),
         )
         return payment, True

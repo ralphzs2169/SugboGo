@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.business.models import Business
-from apps.payments.models import Payment, PaymentCheckoutSession, PayMongoWebhookEvent
+from apps.payments.models import Payment, PaymentCheckoutSession, PaymentProviderEvent
 from apps.payments.services.payment_service import PaymentService
 from apps.shared.tests.test_paymongo_service import checkout_payload, provider_response
 from apps.users.models import User
@@ -21,7 +21,8 @@ from ...services.tests.fixtures import MerchantAnalyticsFixtures
 
 
 CHECKOUT_TEST_SETTINGS = {
-    "PAYMONGO_MODE": "test",
+    "PAYMENT_MODE": "test",
+    "PAYMENT_PROVIDER": "paymongo",
     "PAYMONGO_CHECKOUT_ENABLED": True,
     "PAYMONGO_TEST_SECRET_KEY": "sk_test_mock_only",
     "PAYMONGO_LIVE_SECRET_KEY": "sk_live_mock_only",
@@ -127,6 +128,18 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(response.status_code, 400)
         self.post.assert_not_called()
 
+    def test_maya_configuration_does_not_enable_checkout_in_m2(self):
+        with override_settings(
+            PAYMENT_PROVIDER="maya",
+            MAYA_CHECKOUT_ENABLED=True,
+        ):
+            response = self.client.post(self.url, {}, format="json")
+            status = self.client.get(reverse("merchant-plus-status")).data["data"]
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(status["checkout_enabled"])
+        self.assertFalse(Payment.objects.exists())
+        self.post.assert_not_called()
+
     def test_checkout_disabled_and_preview_mock_configuration_block_creation(self):
         for configuration in (
             {"PAYMONGO_CHECKOUT_ENABLED": False},
@@ -165,7 +178,7 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertIsNotNone(operation.PCHK_CHECKED_AT)
         self.assertEqual(response.data["data"]["next_action"], "open_checkout")
         self.assertFalse(PaidMerchantPlusEntitlement.objects.exists())
-        self.assertFalse(PayMongoWebhookEvent.objects.exists())
+        self.assertFalse(PaymentProviderEvent.objects.exists())
         self.post.assert_called_once()
         self.assertNotIn("sk_test_mock_only", str(response.data))
 
@@ -246,6 +259,7 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         payment, _ = PaymentService.create_or_get_payment(self.merchant_a)
         operation = PaymentCheckoutSession.objects.create(
             PYMT_ID=payment,
+            PCHK_PROVIDER="paymongo",
             PCHK_MODE="test",
             PCHK_LEASE_UNTIL=timezone.now() + timedelta(minutes=1),
         )
@@ -330,7 +344,7 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         live_payload = checkout_payload()
         live_payload["data"]["attributes"]["livemode"] = True
         self.post.return_value = provider_response(live_payload)
-        with override_settings(PAYMONGO_MODE="live"):
+        with override_settings(PAYMENT_MODE="live"):
             live_result = self.checkout()
             self.assertEqual(live_result.status_code, 201)
             self.assertEqual(self.post.call_args.kwargs["auth"].username, "sk_live_mock_only")
@@ -344,7 +358,7 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
             *args,
             **kwargs,
         ):
-            configuration = override_settings(PAYMONGO_MODE="live")
+            configuration = override_settings(PAYMENT_MODE="live")
             configuration.enable()
             self.addCleanup(configuration.disable)
             self.assertEqual(Payment.objects.get().PYMT_MODE, "test")

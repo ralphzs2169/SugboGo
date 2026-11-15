@@ -19,7 +19,7 @@ from apps.shared.services.paymongo_service import (
 from apps.users.models import User
 
 from ..constants import MERCHANT_PLUS_PRODUCT
-from ..models import Payment, PaymentCheckoutSession
+from ..models import Payment, PaymentCheckoutSession, PaymentProvider
 from .payment_service import PaymentService
 
 
@@ -53,11 +53,22 @@ class CheckoutService:
     CREATION_LEASE_SECONDS = 60
 
     @staticmethod
+    def is_enabled():
+        """Report whether the legacy checkout path has been explicitly enabled."""
+        return (
+            settings.PAYMENT_PROVIDER == PaymentProvider.PAYMONGO
+            and getattr(settings, "PAYMONGO_CHECKOUT_ENABLED", False)
+            and settings.MERCHANT_PLUS_ENFORCED
+            and not settings.MERCHANT_PLUS_MOCK_ENABLED
+        )
+
+    @staticmethod
     def _assert_payable(payment):
         """Fail closed if an unresolved record is paid or has an unexpected offer."""
         product = MERCHANT_PLUS_PRODUCT
         if (
             payment.PYMT_STATUS != Payment.Status.PENDING
+            or payment.PYMT_PROVIDER != PaymentProvider.PAYMONGO
             or payment.PYMT_FULFILMENT_STATUS != Payment.FulfilmentStatus.NOT_STARTED
             or payment.PYMT_PRODUCT != product.code
             or payment.PYMT_PRODUCT_VERSION != product.version
@@ -115,7 +126,10 @@ class CheckoutService:
         if operation is None:
             operation = operations.order_by("-PCHK_ID").first()
         if operation is not None:
-            if operation.PCHK_MODE != payment.PYMT_MODE:
+            if (
+                operation.PCHK_PROVIDER != payment.PYMT_PROVIDER
+                or operation.PCHK_MODE != payment.PYMT_MODE
+            ):
                 raise CheckoutConflict()
             if operation.PCHK_LAST_ERROR in {
                 "provider_identity_conflict", "ownership_requires_review",
@@ -153,6 +167,7 @@ class CheckoutService:
                 raise CheckoutConflict()
         operation = PaymentCheckoutSession.objects.create(
             PYMT_ID=payment,
+            PCHK_PROVIDER=payment.PYMT_PROVIDER,
             PCHK_MODE=payment.PYMT_MODE,
             PCHK_LEASE_UNTIL=(
                 timezone.now() + timedelta(seconds=cls.CREATION_LEASE_SECONDS)
@@ -197,8 +212,10 @@ class CheckoutService:
             business.USER_ID_id == payment.USER_ID_id
             and locked_payment.USER_ID_id == payment.USER_ID_id
             and locked_payment.BUSN_ID_id == business.pk
+            and locked_payment.PYMT_PROVIDER == payment.PYMT_PROVIDER
             and locked_payment.PYMT_MODE == payment.PYMT_MODE
             and locked.PYMT_ID_id == locked_payment.pk
+            and locked.PCHK_PROVIDER == locked_payment.PYMT_PROVIDER
             and locked.PCHK_MODE == locked_payment.PYMT_MODE
             and business.USER_ID.is_active
             and business.USER_ID.USER_ROLE == User.UserRole.MERCHANT
@@ -235,11 +252,7 @@ class CheckoutService:
     ):
         """Create once or resume checkout while leaving payment and fulfilment untouched."""
         PaymentService.require_merchant(user)
-        if (
-            not settings.PAYMONGO_CHECKOUT_ENABLED
-            or not settings.MERCHANT_PLUS_ENFORCED
-            or settings.MERCHANT_PLUS_MOCK_ENABLED
-        ):
+        if not cls.is_enabled():
             raise PermissionDenied("Merchant Plus checkout is not enabled.")
         payment, operation, reserved = cls._reserve(user)
         if not reserved:

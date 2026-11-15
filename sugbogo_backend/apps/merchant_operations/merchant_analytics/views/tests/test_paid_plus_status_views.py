@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from apps.payments.models import Payment
+from apps.payments.models import Payment, PaymentCheckoutSession
 from apps.payments.services.payment_service import PaymentService
 
 from ...models import DemoMerchantPlusEntitlement, PaidMerchantPlusEntitlement
@@ -14,8 +14,8 @@ from ...services.tests.fixtures import MerchantAnalyticsFixtures
 
 
 @override_settings(
-    PAYMONGO_MODE="test",
-    PAYMONGO_CHECKOUT_ENABLED=False,
+    PAYMENT_MODE="test",
+    PAYMENT_PROVIDER="paymongo",
     MERCHANT_PLUS_ENFORCED=True,
     MERCHANT_PLUS_MOCK_ENABLED=False,
 )
@@ -28,11 +28,14 @@ class PaidPlusStatusViewTests(MerchantAnalyticsFixtures, APITestCase):
     def grant(self):
         now = timezone.now()
         payment, _ = PaymentService.create_or_get_payment(self.merchant_a)
+        intent_id = None
+        if payment.PYMT_PROVIDER == "paymongo":
+            intent_id = "pi_status"
         Payment.objects.filter(pk=payment.pk).update(
             PYMT_STATUS="paid",
             PYMT_FULFILMENT_STATUS="fulfilled",
             PYMT_PROVIDER_PAYMENT_ID="pay_status",
-            PYMT_PROVIDER_INTENT_ID="pi_status",
+            PYMT_PROVIDER_INTENT_ID=intent_id,
             PYMT_PAID_AT=now,
             PYMT_VERIFIED_AT=now,
             PYMT_FULFILLED_AT=now,
@@ -78,21 +81,54 @@ class PaidPlusStatusViewTests(MerchantAnalyticsFixtures, APITestCase):
 
     def test_mode_switch_never_reports_test_grant_as_live(self):
         self.grant()
-        with override_settings(PAYMONGO_MODE="live"):
+        with override_settings(PAYMENT_MODE="live"):
             data = self.client.get(self.url).data["data"]
             self.assertFalse(data["has_plus_access"])
             self.assertEqual(data["access_source"], "none")
             self.assertEqual(data["payment_mode"], "live")
             self.assertIsNone(data["paid_payment_id"])
 
+    def test_active_provider_switch_preserves_historical_paymongo_access(self):
+        payment, _ = self.grant()
+        with override_settings(PAYMENT_PROVIDER="maya"):
+            data = self.client.get(self.url).data["data"]
+        self.assertTrue(data["has_plus_access"])
+        self.assertEqual(data["access_source"], "paymongo_test")
+        self.assertEqual(data["paid_payment_id"], payment.pk)
+
+    def test_maya_test_access_comes_from_the_paid_entitlement(self):
+        with override_settings(PAYMENT_PROVIDER="maya"):
+            self.assertFalse(self.client.get(self.url).data["data"]["has_plus_access"])
+            payment, _ = self.grant()
+            data = self.client.get(self.url).data["data"]
+        self.assertTrue(data["has_plus_access"])
+        self.assertEqual(data["access_source"], "maya_test")
+        self.assertTrue(data["is_simulation"])
+        self.assertEqual(data["paid_payment_id"], payment.pk)
+        with override_settings(PAYMENT_MODE="live"):
+            self.assertFalse(self.client.get(self.url).data["data"]["has_plus_access"])
+
     def test_pending_payment_reference_is_private_to_owner(self):
         payment, _ = PaymentService.create_or_get_payment(self.merchant_a)
-        data = self.client.get(self.url).data["data"]
+        PaymentCheckoutSession.objects.create(
+            PYMT_ID=payment,
+            PCHK_PROVIDER="paymongo",
+            PCHK_MODE="test",
+            PCHK_STATE="creation_unknown",
+        )
+        with override_settings(PAYMENT_PROVIDER="maya"):
+            data = self.client.get(self.url).data["data"]
         self.assertEqual(data["unresolved_payment_id"], payment.pk)
         self.assertEqual(data["unresolved_payment_reference"], str(payment.PYMT_REFERENCE))
+        self.assertEqual(data["unresolved_payment_provider"], "paymongo")
+        self.assertEqual(data["unresolved_payment_mode"], "test")
+        self.assertEqual(data["unresolved_payment_status"], "pending")
+        self.assertEqual(data["unresolved_fulfilment_status"], "not_started")
+        self.assertEqual(data["unresolved_checkout_status"], "creation_unknown")
         self.client.force_authenticate(self.merchant_b)
         data = self.client.get(self.url).data["data"]
         self.assertIsNone(data["unresolved_payment_id"])
+        self.assertIsNone(data["unresolved_payment_provider"])
 
     def test_demonstration_configuration_never_treats_mock_grant_as_paid(self):
         with override_settings(MERCHANT_PLUS_MOCK_ENABLED=True):
@@ -113,7 +149,7 @@ class PaidPlusStatusViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_live_source_is_not_marked_simulated(self):
-        with override_settings(PAYMONGO_MODE="live"):
+        with override_settings(PAYMENT_MODE="live"):
             self.grant()
             data = self.client.get(self.url).data["data"]
         self.assertEqual(data["access_source"], "paymongo_live")

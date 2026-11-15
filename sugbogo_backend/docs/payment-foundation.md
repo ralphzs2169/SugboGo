@@ -1,4 +1,81 @@
-# Merchant Plus payment foundation and mocked checkout
+# Merchant Plus payment foundation
+
+## M2 — Provider provenance and Maya Sandbox configuration
+
+M2 does not yet call Maya Checkout.
+
+Merchant Plus is a fixed server-priced purchase of ₱1.00 (100 centavos), in PHP,
+for one 30-day period without renewal. Payment represents the local financial
+obligation. Checkout operations track creation separately from payment
+confirmation. Paid Plus access requires a verified paid Payment and its
+fulfilled entitlement in the current environment.
+
+### Persistence and upgrade
+
+- `Payment.PYMT_PROVIDER`, `PaymentCheckoutSession.PCHK_PROVIDER` and
+  `PaymentProviderEvent.PWEV_PROVIDER` identify the provider. The two forward
+  migrations after `payments/0001` backfill historical rows to `paymongo`, copy
+  the parent provider to each checkout, require the new fields, and rename the
+  event table and columns in place. Existing primary keys and entitlement
+  relationships are preserved.
+- Checkout and Payment provider and environment are immutable on model saves.
+  A checkout must agree with its parent. Provider payment and checkout IDs are
+  unique within a provider and mode. One unresolved purchase remains enforced
+  per business, product and mode, and one open checkout per payment. An existing
+  same-mode PayMongo purchase stays unresolved across a provider switch.
+- Paid payments require a provider payment ID and paid/verified timestamps.
+  The nullable `PYMT_PROVIDER_INTENT_ID`, `PCHK_INTENT_ID` and
+  `PCHK_INTENT_STATUS` are deprecated PayMongo-only evidence. PayMongo paid
+  rows retain the existing intent requirement. Maya rows leave all three
+  intent fields null. Checkout operation states and `creation_unknown` are
+  preserved. Provider-confirmed terminal handling belongs to later work.
+- `PAYMENT_PROVIDER_EVENT` uses provider, mode and dedupe key as its identity.
+  Existing PayMongo event IDs become dedupe keys, and normalized PayMongo
+  evidence remains readable. The checkout ID has its own column, and a
+  separate payment ID can be carried as normalized `payment_id` evidence.
+  Future Maya intake will choose a stable key
+  based on verified payment identity and event type. Delivery timestamps and
+  payload digests are separate from deduplication. The inbox retains the first
+  normalized evidence and surfaces a conflicting duplicate for reconciliation.
+  Store only bounded, allowlisted scalar evidence and a digest. Keep credentials,
+  signature headers, raw card details, buyer data and unrestricted payloads
+  out of the inbox. Provider-created time is optional.
+
+Quiesce old payment writers before upgrading the database. Set the intended
+`PAYMENT_MODE` explicitly on deployments that previously used
+`PAYMONGO_MODE`. Checkout reservations and paid access use the current mode,
+while owned historical payment reads use each stored row's provider and mode.
+Stored `paymongo_test` and `paymongo_live` access sources remain readable.
+Future verified Sandbox access will report `maya_test`. Changing the configured
+provider alone grants no access. The owner-only Plus status shows the unresolved
+payment's references, provider, mode, financial state, fulfilment state and
+checkout state without returning provider credentials or payloads.
+
+### Active settings
+
+| Setting | Purpose |
+| --- | --- |
+| `PAYMENT_PROVIDER` | Defaults to `maya`. The legacy `paymongo` value supports an explicitly configured historical environment without activating its gateway. |
+| `PAYMENT_MODE` | Defaults to `test`. Supports `test` and `live` for application environment isolation. Maya is available only with `test`. |
+| `MAYA_CHECKOUT_ENABLED` | Defaults to `False`. Setting it to `True` validates configuration for M3. The checkout endpoint remains unavailable in M2. |
+| `MAYA_SANDBOX_PUBLIC_KEY` / `MAYA_SANDBOX_SECRET_KEY` | API authentication keys. Use the ignored local `.env` or deployment environment configuration. Repository examples are empty and automated tests use synthetic values. |
+| `MAYA_RETURN_BASE_URL` | Server-owned HTTPS return base, without user information, query or fragment. Configure it before enabling Maya settings. |
+
+The Sandbox API host is fixed in backend code at
+`https://pg-sandbox.paymaya.com`. The old `PAYMONGO_*` environment variables
+are retired from Django startup. The PayMongo adapter, configuration parser and
+mocked contract tests remain in the tree. No Maya production settings are used.
+
+M4 should load both published Maya Sandbox webhook verification public keys
+from deployment-managed configuration in two slots so keys can overlap during
+rotation. Reserve `MAYA_SANDBOX_WEBHOOK_VERIFICATION_KEY_1` and
+`MAYA_SANDBOX_WEBHOOK_VERIFICATION_KEY_2` for that work. These RSA keys are
+separate from the Checkout API public key above. M4 will verify
+`X-Maya-Webhook-Timestamp` and
+`X-Maya-Webhook-Signature` before recording an event.
+[Maya webhook security](https://developers.maya.ph/reference/webhook-security)
+
+## Historical Task 2 and Task 3A implementation
 
 Task 2 added financial persistence and read-only paid-access lookup. Task 3A adds
 Hosted Checkout v2 creation/resumption, exercised only with mocked provider HTTP.
@@ -273,5 +350,6 @@ No model or migration changes are required by Task 3A.
 git diff --check
 ```
 
-Next: Task 3B — verify real PayMongo test API connectivity and create one real
-test-mode Hosted Checkout Session once PayMongo credentials become available.
+The planned PayMongo connectivity check was superseded by the Maya Sandbox
+migration. Task M3 will implement Create Checkout and run the first real Maya
+Sandbox smoke test.
