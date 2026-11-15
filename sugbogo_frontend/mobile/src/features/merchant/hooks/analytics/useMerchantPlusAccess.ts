@@ -45,6 +45,7 @@ export default function useMerchantPlusAccess() {
     staleTime: 60_000,
     refetchOnMount: "always",
     retry: false,
+    networkMode: "always",
   });
   const allowed =
     !!accountId && !query.error && query.data?.has_plus_access === true;

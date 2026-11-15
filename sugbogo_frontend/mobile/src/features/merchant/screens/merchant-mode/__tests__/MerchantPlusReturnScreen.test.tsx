@@ -1,43 +1,93 @@
-import { render, waitFor } from "@testing-library/react-native";
+import { render } from "@testing-library/react-native";
 import MerchantPlusReturnRoute from "@/app/(merchant)/merchant-plus/return";
 import { parseMerchantPlusReturnOutcome } from "../../../utils/merchantPlusReturn";
+import { plusStatus } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
-const mockRefetch = jest.fn().mockResolvedValue({ data: { has_plus_access: false } });
 let mockOutcome: unknown;
-const mockPost = jest.fn();
-
+let mockStatus = {
+  ...plusStatus(false),
+  unresolved_payment_id: 1,
+  checkout_outcome: "pending",
+};
+const mockCheck = jest.fn();
+let mockError: unknown = null;
+let mockExhausted = false;
 jest.mock("expo-router", () => ({
   router: { replace: jest.fn() },
   useLocalSearchParams: () => ({ outcome: mockOutcome }),
-  useFocusEffect: (callback: () => void) => {
-    require("react").useEffect(callback, [callback]);
-  },
 }));
-jest.mock("../../../hooks/analytics/useMerchantPlusAccess", () => ({
+jest.mock("../../../hooks/payments/useMerchantPlusPaymentStatus", () => ({
   __esModule: true,
-  default: () => ({ refetch: mockRefetch }),
+  default: () => ({
+    status: mockStatus,
+    allowed: mockStatus.has_plus_access,
+    error: mockError,
+    exhausted: mockExhausted,
+    checkAgain: mockCheck,
+  }),
 }));
-jest.mock("@/shared/api/apiClient.service", () => ({
-  __esModule: true,
-  default: { post: (...args: unknown[]) => mockPost(...args) },
-}));
+beforeEach(() => {
+  mockError = null;
+  mockExhausted = false;
+  mockStatus = {
+    ...plusStatus(false),
+    unresolved_payment_id: 1,
+    checkout_outcome: "pending",
+  };
+});
 
-beforeEach(() => jest.clearAllMocks());
-
-it.each(["success", "failure", "cancel"])("accepts %s only as a navigation hint", async (outcome) => {
-  mockOutcome = outcome;
-  expect(parseMerchantPlusReturnOutcome(outcome)).toBe(outcome);
+it("offers recoverable backend status errors without creating checkout", async () => {
+  mockError = new Error("offline");
   const screen = await render(<MerchantPlusReturnRoute />);
-  await waitFor(() => expect(mockRefetch).toHaveBeenCalledTimes(1));
-  expect(screen.getByText("Back in SugboGo")).toBeTruthy();
-  expect(screen.queryByText(/Payment confirmed|Plus activated/)).toBeNull();
-  expect(mockPost).not.toHaveBeenCalled();
+  expect(screen.getByText("Unable to check payment status")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
 });
 
-it.each([undefined, "paid", ["success", "cancel"], "https://attacker.invalid"])("drops malformed hints %p", async (outcome) => {
-  mockOutcome = outcome;
-  expect(parseMerchantPlusReturnOutcome(outcome)).toBeNull();
-  await render(<MerchantPlusReturnRoute />);
-  expect(mockRefetch).toHaveBeenCalled();
-  expect(mockPost).not.toHaveBeenCalled();
+it("offers manual recovery and Analytics after bounded polling ends", async () => {
+  mockExhausted = true;
+  const screen = await render(<MerchantPlusReturnRoute />);
+  expect(screen.getByText("Still processing")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Check status again" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Return to Analytics" })).toBeTruthy();
 });
+it.each(["success", "failure", "cancel"])(
+  "does not infer paid access from %s",
+  async (outcome) => {
+    mockOutcome = outcome;
+    const screen = await render(<MerchantPlusReturnRoute />);
+    expect(screen.getByText("Checking your payment")).toBeTruthy();
+    expect(screen.queryByText("Merchant Plus is active")).toBeNull();
+  },
+);
+it.each(["failure", "cancel"])(
+  "does not override backend activation with %s",
+  async (outcome) => {
+    mockOutcome = outcome;
+    mockStatus = {
+      ...mockStatus,
+      has_plus_access: true,
+      access_source: "maya_test",
+      paid_payment_id: 7,
+      entitlement_expires_at: "2026-12-15T04:00:00Z",
+    } as typeof mockStatus;
+    const screen = await render(<MerchantPlusReturnRoute />);
+    expect(screen.getByText("Merchant Plus is active")).toBeTruthy();
+  },
+);
+it("does not mistake analytics preview for payment confirmation on return", async () => {
+  mockOutcome = "success";
+  mockStatus = {
+    ...mockStatus,
+    has_plus_access: true,
+    access_source: "preview",
+  };
+  const screen = await render(<MerchantPlusReturnRoute />);
+  expect(screen.getByText("Checking your payment")).toBeTruthy();
+  expect(screen.queryByText("Merchant Plus is active")).toBeNull();
+});
+it.each([undefined, "paid", ["success", "cancel"], "https://attacker.invalid"])(
+  "drops malformed hints %p",
+  (outcome) => {
+    expect(parseMerchantPlusReturnOutcome(outcome)).toBeNull();
+  },
+);

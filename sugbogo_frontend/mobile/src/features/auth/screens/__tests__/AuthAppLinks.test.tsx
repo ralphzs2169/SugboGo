@@ -1,6 +1,6 @@
 import { Linking as NativeLinking, Platform, Text } from "react-native";
 import { ExpoRoot } from "expo-router";
-import { act, cleanup, render, waitFor } from "@testing-library/react-native";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
 import {
   getMockContext,
 } from "expo-router/testing-library";
@@ -9,6 +9,20 @@ import ResetPasswordRoute from "@/app/(auth)/reset-password";
 import VerifyEmailRoute from "@/app/(auth)/verify-email";
 import OAuthRedirect from "@/app/oauthredirect";
 import MerchantPlusReturnRoute from "@/app/(merchant)/merchant-plus/return";
+import MerchantPlusRoute from "@/app/(merchant)/merchant-plus/index";
+import MerchantPlusEntry from "@/features/merchant/components/merchant-plus/MerchantPlusEntry";
+
+jest.mock("@/features/merchant/screens/merchant-mode/MerchantPlusScreen", () => ({
+  __esModule: true,
+  default: function MockOffer() {
+    const { Text } = require("react-native");
+    return <Text>Merchant Plus offer screen</Text>;
+  },
+}));
+jest.mock("@/features/merchant/hooks/analytics/useMerchantPlusAccess", () => ({
+  __esModule: true,
+  default: () => ({ state: "restricted", allowed: false, status: { has_plus_access: false, access_source: "none" } }),
+}));
 
 jest.mock("@/features/merchant/screens/merchant-mode/MerchantPlusReturnScreen", () => ({
   __esModule: true,
@@ -55,6 +69,8 @@ const routes = getMockContext({
   "(auth)/verify-email": VerifyEmailRoute,
   oauthredirect: OAuthRedirect,
   "(merchant)/merchant-plus/return": MerchantPlusReturnRoute,
+  "(merchant)/merchant-plus/index": MerchantPlusRoute,
+  "(merchant)/(tabs)/analytics": () => <MerchantPlusEntry discovery />,
 });
 
 const origin = "https://sugbogo.app";
@@ -78,6 +94,17 @@ function launchApp(url: string | null = null) {
   jest.spyOn(NativeLinking, "getInitialURL").mockResolvedValue(url);
   return render(<ExpoRoot context={routes} />);
 }
+
+it("opens the actual offer route by tapping the Merchant Plus card", async () => {
+  const app = await launchApp("sugbogo://analytics");
+  await fireEvent.press(await app.findByRole("button", { name: "Explore Merchant Plus" }));
+  expect(await app.findByText("Merchant Plus offer screen")).toBeTruthy();
+});
+
+it("resolves the canonical Merchant Plus deep link without an index suffix", async () => {
+  const app = await launchApp("sugbogo://merchant-plus");
+  expect(await app.findByText("Merchant Plus offer screen")).toBeTruthy();
+});
 
 it.each([
   ["sugbogo", "success", "success"],

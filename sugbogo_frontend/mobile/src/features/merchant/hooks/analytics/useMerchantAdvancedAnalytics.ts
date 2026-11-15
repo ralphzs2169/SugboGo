@@ -12,7 +12,9 @@ import {
 import type { AnalyticsSelection } from "../../types/merchantPlusAnalytics.types";
 import { merchantPlusReportKey } from "./merchantPlusAnalyticsQueryKeys";
 import { usePlusReport } from "./useMerchantPlusAnalytics";
-import { denyMerchantPlusAccess } from "./useMerchantPlusAccess";
+import useMerchantPlusAccess, {
+  denyMerchantPlusAccess,
+} from "./useMerchantPlusAccess";
 
 /** Advanced reports share Core Plus ownership, cancellation and denial behavior. */
 export function useMerchantPlusPeers(
@@ -51,6 +53,7 @@ export function useMerchantPlusRecommendations(
   enabled: boolean,
 ) {
   const accountId = useAuthStore((state) => state.user?.id);
+  const access = useMerchantPlusAccess();
   const client = useQueryClient();
   const key = merchantPlusReportKey(accountId, "recommendations", selection);
   const scope = JSON.stringify(key);
@@ -77,6 +80,7 @@ export function useMerchantPlusRecommendations(
     }) => {
       if (
         !enabled ||
+        !access.allowed ||
         useAuthStore.getState().user?.id !== variables.accountId
       ) {
         throw {

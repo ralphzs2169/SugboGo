@@ -1,4 +1,5 @@
 import MerchantBusinessStatusNotice from "../../components/business-profile/MerchantBusinessStatusNotice";
+import MerchantPlusEntry from "../../components/merchant-plus/MerchantPlusEntry";
 import MerchantRefreshRecovery from "../../components/MerchantRefreshRecovery";
 import MerchantMetricCard from "../../components/MerchantMetricCard";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -546,7 +547,8 @@ export default function MerchantProfileScreen() {
             </View>
           </View>
 
-          {/* Business introduction and specialties */}
+            <MerchantPlusEntry />
+            {/* Business introduction and specialties */}
           <MerchantBusinessStory
             business={business}
             onEditInformation={() =>

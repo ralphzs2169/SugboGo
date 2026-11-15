@@ -21,6 +21,8 @@ import {
 } from "../../hooks/analytics/useMerchantAdvancedAnalytics";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { AdvancedPlusDetailKind } from "../../types/merchantPlusAnalytics.types";
+import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
+import { PlusAccessGate } from "../../components/analytics/AnalyticsPlusStates";
 
 /** Lazily loads one advanced report and keeps generation separate from all read/refresh actions. */
 export default function MerchantAdvancedAnalyticsDetailScreen({
@@ -34,8 +36,9 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
   const [period, setPeriod] = useState(initialPeriod);
   const [refreshing, setRefreshing] = useState(false);
   const focused = useIsFocused();
+  const access = useMerchantPlusAccess();
   const insets = useSafeAreaInsets();
-  const enabled = focused;
+  const enabled = focused && access.allowed;
   const selection = { period };
   const peers = useMerchantPlusPeers(selection, enabled && kind === "peers");
   const insights = useMerchantPlusStoredInsights(
@@ -78,6 +81,13 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
       setRefreshing(false);
     }
   };
+  if (!access.allowed) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface px-5 py-5">
+        <PlusAccessGate access={access}>{null}</PlusAccessGate>
+      </SafeAreaView>
+    );
+  }
   return (
     <SafeAreaView edges={["left", "right"]} className="flex-1 bg-surface">
       {/* Stored insights retain their own dates, with no dashboard date selector. */}

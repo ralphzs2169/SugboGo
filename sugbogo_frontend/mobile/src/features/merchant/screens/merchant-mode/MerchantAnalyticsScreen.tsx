@@ -1,3 +1,6 @@
+import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
+import MerchantPlusEntry from "../../components/merchant-plus/MerchantPlusEntry";
+import { PlusAccessGate } from "../../components/analytics/AnalyticsPlusStates";
 import AnalyticsSectionInformation from "../../components/analytics/AnalyticsSectionInformation";
 import MerchantMetricCard from "../../components/MerchantMetricCard";
 import { formatAnalyticsCount } from "../../utils/merchantAnalytics.utils";
@@ -61,6 +64,7 @@ type PeriodSection = "visibility" | "routePlanning";
 /** Displays detailed business reports with independent period controls and recovery. */
 export default function MerchantAnalyticsScreen() {
   const router = useRouter();
+  const plusAccess = useMerchantPlusAccess();
   const focused = useIsFocused();
   const queryClient = useQueryClient();
 
@@ -182,6 +186,7 @@ export default function MerchantAnalyticsScreen() {
   // Refresh analytics without reloading the entire screen.
   const refresh = () => {
     void Promise.all([
+      plusAccess.refetch(),
       refetch(),
       refetchProfile(),
       reviewInsights.refetch(),
@@ -193,6 +198,10 @@ export default function MerchantAnalyticsScreen() {
 
   // Existing detail-report navigation
   const openPlusDetail = (kind: PlusDetailKind) => {
+    if (!plusAccess.allowed) {
+      router.push("/(merchant)/merchant-plus");
+      return;
+    }
     router.push({
       pathname: "/(merchant)/analytics/[report]",
       params: { report: kind, period: reportPeriod },
@@ -245,6 +254,7 @@ export default function MerchantAnalyticsScreen() {
         }
       >
         <View className="bg-background">
+          <MerchantPlusEntry discovery />
           {/* Standard Analytics request recovery */}
           {error ? (
             <View className="bg-surface px-5 pb-4 pt-3">
@@ -267,65 +277,84 @@ export default function MerchantAnalyticsScreen() {
           ) : null}
 
           {/* Visibility trends */}
-          <AnalyticsVisibilityTrends
-            flushTop
-            period={visibilityPeriod}
-            onOpenPeriod={() => openPeriodSheet("visibility")}
-          >
-            <AnalyticsReportLinks
-              group="visibility"
-              onOpen={(kind) =>
-                router.push({
-                  pathname: "/(merchant)/analytics/[report]",
-                  params: { report: kind, period: visibilityPeriod },
-                })
-              }
-              onOpenDiscoverySources={() =>
-                router.push({
-                  pathname: "/(merchant)/analytics/discovery-sources",
-                  params: { period: visibilityPeriod },
-                })
-              }
-            />
-          </AnalyticsVisibilityTrends>
-
-          {/* Pocket activity keeps independent period controls and recovery. */}
-          <View className="mt-2 gap-4 bg-surface px-5 pb-5 pt-4">
-            <AnalyticsPocketHeader
-              title="Pocket trends"
-              period={pocketPeriod}
-              onPeriodChange={setPocketPeriod}
-              report={pocket.data}
-            />
-            {(!!pocket.error ||
-              pocket.data?.meta.availability === "unavailable") && (
-              <ErrorState
-                size="section"
-                title={
-                  pocket.data
-                    ? "Unable to refresh Pocket activity"
-                    : "Pocket activity unavailable"
+          {plusAccess.allowed ? (
+            <AnalyticsVisibilityTrends
+              flushTop
+              period={visibilityPeriod}
+              onOpenPeriod={() => openPeriodSheet("visibility")}
+            >
+              <AnalyticsReportLinks
+                group="visibility"
+                onOpen={(kind) =>
+                  router.push({
+                    pathname: "/(merchant)/analytics/[report]",
+                    params: { report: kind, period: visibilityPeriod },
+                  })
                 }
-                description={
-                  pocket.data
-                    ? "Available measurements are still shown."
-                    : "Please try this section again."
+                onOpenDiscoverySources={() =>
+                  router.push({
+                    pathname: "/(merchant)/analytics/discovery-sources",
+                    params: { period: visibilityPeriod },
+                  })
                 }
-                primaryActionTitle="Retry"
-                onPrimaryAction={() => void pocket.refetch()}
               />
-            )}
-            {(pocket.isPending ||
-              (pocket.data &&
-                pocket.data.meta.availability !== "unavailable")) && (
-              <AnalyticsPocketTrends
-                report={pocket.data}
-                loading={pocket.isPending}
-                retry={() => void pocket.refetch()}
+            </AnalyticsVisibilityTrends>
+          ) : (
+            <AnalyticsOverviewSection title="Visibility trends">
+              <PlusAccessGate access={plusAccess}>{null}</PlusAccessGate>
+              <AnalyticsReportLinks
+                group="visibility"
+                onOpen={openPlusDetail}
+                onOpenDiscoverySources={() =>
+                  router.push({
+                    pathname: "/(merchant)/analytics/discovery-sources",
+                    params: { period: visibilityPeriod },
+                  })
+                }
               />
-            )}
-          </View>
+            </AnalyticsOverviewSection>
+          )}
 
+          {plusAccess.allowed && (
+            <>
+              {/* Pocket activity keeps independent period controls and recovery. */}
+              <View className="mt-2 gap-4 bg-surface px-5 pb-5 pt-4">
+                <AnalyticsPocketHeader
+                  title="Pocket trends"
+                  period={pocketPeriod}
+                  onPeriodChange={setPocketPeriod}
+                  report={pocket.data}
+                />
+                {(!!pocket.error ||
+                  pocket.data?.meta.availability === "unavailable") && (
+                  <ErrorState
+                    size="section"
+                    title={
+                      pocket.data
+                        ? "Unable to refresh Pocket activity"
+                        : "Pocket activity unavailable"
+                    }
+                    description={
+                      pocket.data
+                        ? "Available measurements are still shown."
+                        : "Please try this section again."
+                    }
+                    primaryActionTitle="Retry"
+                    onPrimaryAction={() => void pocket.refetch()}
+                  />
+                )}
+                {(pocket.isPending ||
+                  (pocket.data &&
+                    pocket.data.meta.availability !== "unavailable")) && (
+                  <AnalyticsPocketTrends
+                    report={pocket.data}
+                    loading={pocket.isPending}
+                    retry={() => void pocket.refetch()}
+                  />
+                )}
+              </View>
+            </>
+          )}
           {/* Current specialty support */}
           <AnalyticsOverviewSection
             title="Specialty vouches"
@@ -372,15 +401,17 @@ export default function MerchantAnalyticsScreen() {
             </View>
           </AnalyticsOverviewSection>
 
-          <AnalyticsReviewSummaryPreview
-            report={reviewInsights.data}
-            loading={reviewInsights.isPending}
-            error={reviewInsights.error}
-            onRetry={() => void reviewInsights.refetch()}
-            onOpen={() => openPlusDetail("review-insights")}
-          >
-            <AnalyticsReportLinks group="reviews" onOpen={openPlusDetail} />
-          </AnalyticsReviewSummaryPreview>
+          {plusAccess.allowed && (
+            <AnalyticsReviewSummaryPreview
+              report={reviewInsights.data}
+              loading={reviewInsights.isPending}
+              error={reviewInsights.error}
+              onRetry={() => void reviewInsights.refetch()}
+              onOpen={() => openPlusDetail("review-insights")}
+            >
+              <AnalyticsReportLinks group="reviews" onOpen={openPlusDetail} />
+            </AnalyticsReviewSummaryPreview>
+          )}
 
           {/* Recorded route-planning activity */}
           <AnalyticsRoutePlanning
@@ -413,7 +444,7 @@ export default function MerchantAnalyticsScreen() {
           {/* Additional analytics detail reports */}
           <AnalyticsMoreInsights onOpen={openPlusDetail} />
           <View className="mt-2 bg-surface px-5 py-4">
-            <AnalyticsExport enabled={focused} />
+            {plusAccess.allowed && <AnalyticsExport enabled={focused} />}
           </View>
         </View>
       </ScrollView>

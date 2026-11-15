@@ -134,6 +134,7 @@ jest.mock("../../../hooks/business-profile/useMerchantBusinessProfile", () => ({
 }));
 
 jest.mock("expo-router", () => ({
+  router: { push: (...args: unknown[]) => mockNavigate(...args) },
   useRouter: () => ({ navigate: mockNavigate, push: mockNavigate }),
   useIsFocused: () => mockFocused,
   useNavigation: () => ({ isFocused: () => true }),
@@ -253,6 +254,7 @@ describe("MerchantAnalyticsScreen", () => {
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
     useAuthStore.setState({ user: analyticsMerchant() });
+    client.setQueryData(merchantPlusStatusKey(42), plusStatus());
     getAnalytics.mockReset();
     getAnalytics.mockResolvedValue(analyticsSuccess());
     jest.mocked(getMerchantRoutePlanning).mockReset().mockResolvedValue({
@@ -268,7 +270,7 @@ describe("MerchantAnalyticsScreen", () => {
     jest
       .mocked(plusService.getMerchantPlusStatus)
       .mockReset()
-      .mockResolvedValue(plusSuccess(plusStatus(false)));
+      .mockResolvedValue(plusSuccess(plusStatus()));
     jest
       .mocked(plusService.getMerchantPlusVisibility)
       .mockReset()
@@ -341,7 +343,7 @@ describe("MerchantAnalyticsScreen", () => {
       .mockResolvedValue(plusSuccess(status));
   }
 
-  it("keeps all reports and export visible without checking entitlement", async () => {
+  it("keeps permitted reports and export available after checking entitlement", async () => {
     const screen = await renderScreen();
     await screen.findByLabelText(/^1\. Friendly service/);
     await waitFor(() =>
@@ -352,11 +354,26 @@ describe("MerchantAnalyticsScreen", () => {
     expect(getAnalytics).toHaveBeenCalledTimes(1);
     expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(1);
     expect(plusService.getMerchantPlusPocket).toHaveBeenCalledTimes(1);
-    expect(plusService.getMerchantPlusStatus).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusStatus).toHaveBeenCalled();
     expect(mockExport).toHaveBeenCalledWith({ enabled: true });
     expect(screen.queryByText("Report access unavailable")).toBeNull();
     expect(screen.getByText("Stored narrative from eligible reviews.")).toBeTruthy();
     expect(screen.queryByText("Mixed")).toBeNull();
+  });
+
+  it("shows the upgrade card and Standard analytics while blocking premium calls", async () => {
+    client.setQueryData(merchantPlusStatusKey(42), plusStatus(false));
+    jest.mocked(plusService.getMerchantPlusStatus).mockResolvedValue(plusSuccess(plusStatus(false)));
+    const screen = await renderScreen();
+    await screen.findByText("₱1.00 for 30 days");
+    expect(screen.getByRole("header", { name: "Specialty vouches" })).toBeTruthy();
+    expect(screen.getByRole("header", { name: "Route-planning activity" })).toBeTruthy();
+    expect(getAnalytics).toHaveBeenCalled();
+    expect(plusService.getMerchantPlusVisibility).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusStoredInsights).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "Open Peer comparisons, Merchant Plus required" }));
+    expect(mockNavigate).toHaveBeenCalledWith("/(merchant)/merchant-plus");
   });
 
   it("retries report failures directly without an entitlement guard", async () => {
@@ -377,7 +394,7 @@ describe("MerchantAnalyticsScreen", () => {
     await waitFor(() =>
       expect(plusService.getMerchantPlusPocket).toHaveBeenCalledTimes(2),
     );
-    expect(plusService.getMerchantPlusStatus).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusStatus).toHaveBeenCalled();
     await waitFor(() =>
       expect(screen.queryByText("Pocket activity unavailable")).toBeNull(),
     );

@@ -1,3 +1,4 @@
+import { merchantPlusStatusKey } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -74,6 +75,7 @@ describe("lazy Core Plus detail reports", () => {
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
     useAuthStore.setState({ user: analyticsMerchant() });
+    client.setQueryData(merchantPlusStatusKey(42), plusStatus());
     jest
       .mocked(service.getMerchantPlusStatus)
       .mockReset()
@@ -103,10 +105,10 @@ describe("lazy Core Plus detail reports", () => {
       </QueryClientProvider>,
     );
 
-  it("loads core reports without checking entitlement and retries report failures directly", async () => {
+  it("checks entitlement before loading core reports and retries report failures directly", async () => {
     jest
       .mocked(service.getMerchantPlusStatus)
-      .mockResolvedValueOnce(plusSuccess(plusStatus(false)));
+      .mockResolvedValueOnce(plusSuccess(plusStatus()));
     jest
       .mocked(service.getMerchantPlusPocket)
       .mockResolvedValueOnce({
@@ -117,7 +119,7 @@ describe("lazy Core Plus detail reports", () => {
     const screen = await renderDetail("pocket");
     await screen.findByText("Unable to load this report");
     expect(service.getMerchantPlusPocket).toHaveBeenCalledTimes(1);
-    expect(service.getMerchantPlusStatus).not.toHaveBeenCalled();
+    expect(service.getMerchantPlusStatus).toHaveBeenCalled();
     expect(screen.queryByText("Report access unavailable")).toBeNull();
     await fireEvent.press(
       screen.getByRole("button", {
@@ -563,7 +565,8 @@ describe("lazy Core Plus detail reports", () => {
     expect(screen.queryByTestId("analytics-chart-viewport")).toBeNull();
   });
 
-  it("keeps core reports available when the entitlement service is unavailable", async () => {
+  it("keeps premium reports locked when entitlement cannot be checked", async () => {
+    client.removeQueries({ queryKey: merchantPlusStatusKey(42) });
     jest
       .mocked(service.getMerchantPlusStatus)
       .mockResolvedValueOnce({
@@ -572,10 +575,9 @@ describe("lazy Core Plus detail reports", () => {
         message: "Offline",
       });
     const screen = await renderDetail("pocket");
-    await screen.findByLabelText(/Saving accounts: 3/);
-    expect(service.getMerchantPlusPocket).toHaveBeenCalledTimes(1);
-    expect(service.getMerchantPlusStatus).not.toHaveBeenCalled();
-    expect(screen.queryByText("Unable to check report access")).toBeNull();
+    await screen.findByText("Unable to check report access");
+    expect(service.getMerchantPlusPocket).not.toHaveBeenCalled();
+    expect(service.getMerchantPlusStatus).toHaveBeenCalled();
   });
 
   it("recovers a report failure and keeps cached data after a failed refresh", async () => {

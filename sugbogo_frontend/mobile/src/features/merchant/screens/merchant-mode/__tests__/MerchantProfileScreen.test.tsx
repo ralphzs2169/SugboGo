@@ -17,6 +17,14 @@ const mockLocationState = jest.fn();
 const mockClusters = jest.fn();
 const mockDocumentAccess = jest.fn();
 const mockLogout = jest.fn();
+jest.mock("../../../hooks/analytics/useMerchantPlusAccess", () => ({
+  __esModule: true,
+  default: () => ({ state: "restricted", allowed: false, status: {}, error: null }),
+}));
+jest.mock("../../../hooks/business-profile/useMerchantBusinessRating", () => ({
+  __esModule: true,
+  default: () => ({ rating: null, refetch: jest.fn() }),
+}));
 
 jest.mock("@/features/auth/hooks/useLogout", () => ({
   useLogout: () => ({ logout: mockLogout }),

@@ -33,6 +33,8 @@ import type {
 } from "../../types/merchantPlusAnalytics.types";
 
 import MerchantAdvancedAnalyticsDetailScreen from "./MerchantAdvancedAnalyticsDetailScreen";
+import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
+import { PlusAccessGate } from "../../components/analytics/AnalyticsPlusStates";
 
 export const PLUS_DETAIL_TITLES: Record<PlusDetailKind, string> = {
   pocket: "Pocket trends",
@@ -62,12 +64,20 @@ type CoreDetailScreenProps = {
  * Routes merchant analytics reports to their corresponding
  * detail screens while preserving existing route contracts.
  *
- * Core reports load without a frontend Plus access check.
+ * Detailed reports share the backend-driven Merchant Plus access gate.
  */
 export default function MerchantAnalyticsDetailScreen({
   kind,
   initialPeriod = "30",
 }: DetailScreenProps) {
+  const access = useMerchantPlusAccess();
+  if (!access.allowed) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface px-5 py-5">
+        <PlusAccessGate access={access}>{null}</PlusAccessGate>
+      </SafeAreaView>
+    );
+  }
   if (kind === "pocket" || kind === "specialties" || kind === "reviews") {
     return (
       <CoreAnalyticsDetailScreen kind={kind} initialPeriod={initialPeriod} />

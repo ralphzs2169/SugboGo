@@ -20,6 +20,24 @@ export default function MerchantLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="merchant-plus/index"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Merchant Plus",
+        }}
+      />
+      <Stack.Screen
+        name="merchant-plus/return"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Payment status",
+        }}
+      />
 
       <Stack.Screen name="business-location-map" />
       <Stack.Screen

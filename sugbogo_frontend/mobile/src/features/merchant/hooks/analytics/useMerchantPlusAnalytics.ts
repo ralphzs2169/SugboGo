@@ -14,7 +14,9 @@ import type {
   PlusReportKind,
 } from "../../types/merchantPlusAnalytics.types";
 import { merchantPlusReportKey } from "./merchantPlusAnalyticsQueryKeys";
-import { denyMerchantPlusAccess } from "./useMerchantPlusAccess";
+import useMerchantPlusAccess, {
+  denyMerchantPlusAccess,
+} from "./useMerchantPlusAccess";
 
 /** Loads one permitted report without cross-period placeholders or cross-account data. */
 export function usePlusReport<T>(
@@ -26,9 +28,12 @@ export function usePlusReport<T>(
 ) {
   const accountId = useAuthStore((state) => state.user?.id);
   const client = useQueryClient();
+  const access = useMerchantPlusAccess();
   return useQuery({
     queryKey: merchantPlusReportKey(accountId, kind, selection, interval),
     queryFn: async ({ signal }) => {
+      if (!access.allowed)
+        throw { code: "PLUS_REQUIRED", message: "Merchant Plus is required." };
       const response = await fetchReport(signal);
       if (
         !response.success &&
@@ -40,7 +45,7 @@ export function usePlusReport<T>(
       }
       return throwOnApiError(response);
     },
-    enabled: !!accountId && enabled,
+    enabled: !!accountId && enabled && access.allowed,
     staleTime: 60_000,
     retry: false,
   });

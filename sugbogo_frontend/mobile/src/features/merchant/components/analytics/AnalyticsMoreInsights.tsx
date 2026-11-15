@@ -8,6 +8,8 @@ import SafePressable from "@/shared/components/SafePressable";
 
 import type { PlusDetailKind } from "../../types/merchantPlusAnalytics.types";
 import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
+import { router } from "expo-router";
+import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 
 type ReportIconName = ComponentProps<typeof MaterialCommunityIcons>["name"];
 
@@ -77,12 +79,17 @@ export function AnalyticsReportLinks({
   onOpenDiscoverySources,
   group = "further",
 }: Props) {
+  const access = useMerchantPlusAccess();
   const handleOpenReport = (kind: ReportItem["kind"]) => {
     if (kind === "discovery-sources") {
       onOpenDiscoverySources?.();
       return;
     }
 
+    if (!access.allowed) {
+      router.push("/(merchant)/merchant-plus");
+      return;
+    }
     onOpen(kind);
   };
 
@@ -104,7 +111,7 @@ export function AnalyticsReportLinks({
         <SafePressable
           key={report.kind}
           accessibilityRole="button"
-          accessibilityLabel={`Open ${report.title}`}
+          accessibilityLabel={`Open ${report.title}${report.kind !== "discovery-sources" && !access.allowed ? ", Merchant Plus required" : ""}`}
           accessibilityHint={report.description}
           onPress={() => handleOpenReport(report.kind)}
           className={`min-h-16 flex-row cursor-pointer items-center gap-3 py-3.5 active:bg-surface-muted ${
@@ -131,13 +138,19 @@ export function AnalyticsReportLinks({
             </AppText>
 
             <AppText className="text-xs leading-5 text-text-secondary">
-              {report.description}
+              {report.kind !== "discovery-sources" && !access.allowed
+                ? "Merchant Plus required"
+                : report.description}
             </AppText>
           </View>
 
           {/* Navigation indicator */}
           <MaterialCommunityIcons
-            name="chevron-right"
+            name={
+              report.kind !== "discovery-sources" && !access.allowed
+                ? "lock-outline"
+                : "chevron-right"
+            }
             size={20}
             color={theme.extends.colors.text.secondary}
             accessible={false}
