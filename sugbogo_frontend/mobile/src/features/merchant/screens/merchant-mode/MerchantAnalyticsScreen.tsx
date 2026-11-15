@@ -24,7 +24,7 @@ import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
 
 import AnalyticsExport from "../../components/analytics/AnalyticsExport";
 import AnalyticsReviewSummaryPreview from "../../components/analytics/AnalyticsReviewSummaryPreview";
-import { useMerchantPlusStoredInsights } from "../../hooks/analytics/useMerchantAdvancedAnalytics";
+import { useMerchantReviewInsights } from "../../hooks/analytics/useMerchantAdvancedAnalytics";
 import AnalyticsMoreInsights, {
   AnalyticsReportLinks,
 } from "../../components/analytics/AnalyticsMoreInsights";
@@ -89,7 +89,7 @@ export default function MerchantAnalyticsScreen() {
     useMerchantStandardAnalytics(reportPeriod);
 
   // Independent analytics
-  const reviewInsights = useMerchantPlusStoredInsights(focused);
+  const reviewInsights = useMerchantReviewInsights(focused);
   const routePlanning = useMerchantRoutePlanning(routePlanningPeriod, focused);
 
   // Account-scoped report refresh
@@ -128,13 +128,6 @@ export default function MerchantAnalyticsScreen() {
     fallbackMessage: "Please try again.",
   });
 
-  useQueryErrorNotification({
-    error: focused ? reviewInsights.error : null,
-    toastId: "merchant-review-summary-error",
-    title: "Unable to load review summary",
-    fallbackMessage: "Please retry this section.",
-  });
-
   // One sheet edits only the section that opened it.
   const selectedSheetPeriod = {
     visibility: visibilityPeriod,
@@ -171,9 +164,7 @@ export default function MerchantAnalyticsScreen() {
           queryKey: merchantPlusReportScope(accountId),
           type: "active",
           predicate: (query) =>
-            query.queryKey[7] === undefined &&
-            query.queryKey[2] !== "review-insights" &&
-            query.queryKey[2] !== "pocket",
+            query.queryKey[7] === undefined && query.queryKey[2] !== "pocket",
         });
       }
     } finally {
@@ -196,7 +187,7 @@ export default function MerchantAnalyticsScreen() {
 
   // Existing detail-report navigation
   const openPlusDetail = (kind: PlusDetailKind) => {
-    if (!plusAccess.allowed) {
+    if (kind !== "review-insights" && !plusAccess.allowed) {
       router.push("/(merchant)/merchant-plus");
       return;
     }
@@ -313,6 +304,16 @@ export default function MerchantAnalyticsScreen() {
             </AnalyticsOverviewSection>
           )}
 
+          <AnalyticsReviewSummaryPreview
+            report={reviewInsights.data}
+            loading={reviewInsights.isPending}
+            error={reviewInsights.error}
+            onRetry={() => void reviewInsights.refetch()}
+            onOpen={() => openPlusDetail("review-insights")}
+          >
+            <AnalyticsReportLinks group="reviews" onOpen={openPlusDetail} />
+          </AnalyticsReviewSummaryPreview>
+
           {plusAccess.allowed && (
             <>
               {/* Pocket activity keeps independent period controls and recovery. */}
@@ -398,18 +399,6 @@ export default function MerchantAnalyticsScreen() {
               />
             </View>
           </AnalyticsOverviewSection>
-
-          {plusAccess.allowed && (
-            <AnalyticsReviewSummaryPreview
-              report={reviewInsights.data}
-              loading={reviewInsights.isPending}
-              error={reviewInsights.error}
-              onRetry={() => void reviewInsights.refetch()}
-              onOpen={() => openPlusDetail("review-insights")}
-            >
-              <AnalyticsReportLinks group="reviews" onOpen={openPlusDetail} />
-            </AnalyticsReviewSummaryPreview>
-          )}
 
           {/* Recorded route-planning activity */}
           <AnalyticsRoutePlanning

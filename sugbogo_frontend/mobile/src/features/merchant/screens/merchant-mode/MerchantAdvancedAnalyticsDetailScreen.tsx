@@ -13,7 +13,7 @@ import AnalyticsProfileVisitTiming from "../../components/analytics/AnalyticsPro
 import AnalyticsBusinessRecommendations from "../../components/analytics/AnalyticsBusinessRecommendations";
 import {
   useMerchantPlusPeers,
-  useMerchantPlusStoredInsights,
+  useMerchantReviewInsights,
   useMerchantPlusTiming,
   useMerchantPlusRecommendations,
 } from "../../hooks/analytics/useMerchantAdvancedAnalytics";
@@ -39,8 +39,8 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
   const enabled = focused && access.allowed;
   const selection = { period };
   const peers = useMerchantPlusPeers(selection, enabled && kind === "peers");
-  const insights = useMerchantPlusStoredInsights(
-    enabled && kind === "review-insights",
+  const insights = useMerchantReviewInsights(
+    focused && kind === "review-insights",
   );
   const timing = useMerchantPlusTiming(selection, enabled && kind === "timing");
   const recommendations = useMerchantPlusRecommendations(
@@ -79,7 +79,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
       setRefreshing(false);
     }
   };
-  if (!access.allowed) {
+  if (kind !== "review-insights" && !access.allowed) {
     return (
       <SafeAreaView className="flex-1 bg-surface px-5 py-5">
         <PlusAccessGate access={access}>{null}</PlusAccessGate>

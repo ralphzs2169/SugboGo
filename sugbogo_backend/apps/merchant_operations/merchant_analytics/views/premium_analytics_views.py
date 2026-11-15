@@ -68,8 +68,12 @@ class PremiumSpecialtyView(PremiumAnalyticsView):
 
 
 class PremiumReviewInsightsView(PremiumAnalyticsView):
-    """Serve stored summaries with their existing content and sampling gates."""
+    """Serve stored review insights to the merchant who owns the business."""
 
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.MERCHANT),
+    )
     response_serializer = PremiumReviewInsightsSerializer
 
     def get_report(self, user, query):

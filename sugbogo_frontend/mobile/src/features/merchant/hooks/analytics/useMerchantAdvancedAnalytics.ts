@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
@@ -11,6 +11,7 @@ import {
 } from "../../api/merchantPlusAnalytics.service";
 import type { AnalyticsSelection } from "../../types/merchantPlusAnalytics.types";
 import { merchantPlusReportKey } from "./merchantPlusAnalyticsQueryKeys";
+import { merchantStandardAnalyticsScope } from "./merchantAnalyticsQueryKeys";
 import { usePlusReport } from "./useMerchantPlusAnalytics";
 import useMerchantPlusAccess, {
   denyMerchantPlusAccess,
@@ -27,14 +28,21 @@ export function useMerchantPlusPeers(
 }
 
 /** One account-scoped cache independent of the dashboard's date selector. */
-export function useMerchantPlusStoredInsights(enabled: boolean) {
-  return usePlusReport(
-    "review-insights",
-    { period: "30" },
-    "weekly",
-    enabled,
-    getMerchantPlusStoredInsights,
-  );
+export function useMerchantReviewInsights(enabled: boolean) {
+  const accountId = useAuthStore((state) => state.user?.id);
+  return useQuery({
+    queryKey: [...merchantStandardAnalyticsScope(accountId), "review-insights"],
+    queryFn: async ({ signal }) => {
+      const response = await getMerchantPlusStoredInsights(signal);
+      if (!response.success && response.code === "PLUS_REQUIRED") {
+        throw new Error("Review insights are unavailable on this server.");
+      }
+      return throwOnApiError(response);
+    },
+    enabled: !!accountId && enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
 }
 
 /** Day selection is local; the report already contains all seven days and 24 hours. */

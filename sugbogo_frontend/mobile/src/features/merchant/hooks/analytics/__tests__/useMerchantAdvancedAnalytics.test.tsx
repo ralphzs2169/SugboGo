@@ -26,7 +26,7 @@ import useMerchantPlusAccess from "../useMerchantPlusAccess";
 import {
   useMerchantPlusPeers,
   useMerchantPlusRecommendations,
-  useMerchantPlusStoredInsights,
+  useMerchantReviewInsights,
 } from "../useMerchantAdvancedAnalytics";
 import {
   merchantPlusReportKey,
@@ -55,7 +55,7 @@ describe("advanced report cache and mutation isolation", () => {
       { period },
       access.allowed,
     );
-    const insights = useMerchantPlusStoredInsights(access.allowed);
+    const insights = useMerchantReviewInsights(true);
     return { access, peers, recommendations, insights };
   }
   beforeEach(() => {
@@ -120,6 +120,7 @@ describe("advanced report cache and mutation isolation", () => {
       wrapper: Wrapper,
     });
     await waitFor(() => expect(result.current.peers.data).toBeDefined());
+    await waitFor(() => expect(result.current.insights.data).toBeDefined());
     jest.mocked(service.getMerchantPlusPeers).mockResolvedValueOnce({
       success: false,
       code: "PLUS_REQUIRED",
@@ -129,6 +130,7 @@ describe("advanced report cache and mutation isolation", () => {
       await result.current.peers.refetch();
     });
     await waitFor(() => expect(result.current.access.allowed).toBe(false));
+    expect(result.current.insights.data).toBeDefined();
     expect(
       client
         .getQueriesData({ queryKey: merchantPlusReportScope(42) })

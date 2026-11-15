@@ -18,7 +18,8 @@ export type CorePlusDetailKind = "pocket" | "specialties" | "reviews";
 export type AdvancedPlusDetailKind =
   "peers" | "review-insights" | "timing" | "recommendations";
 export type PlusDetailKind = CorePlusDetailKind | AdvancedPlusDetailKind;
-export type PlusReportKind = "visibility" | PlusDetailKind;
+export type PlusReportKind =
+  "visibility" | Exclude<PlusDetailKind, "review-insights">;
 export type OwnedAnalyticsBusiness = MerchantStandardAnalytics["business"];
 
 /** Premium metadata retains the shared helper's prior-period boundaries. */

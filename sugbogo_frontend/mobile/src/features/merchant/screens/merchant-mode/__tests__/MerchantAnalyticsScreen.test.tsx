@@ -371,9 +371,33 @@ describe("MerchantAnalyticsScreen", () => {
     expect(getAnalytics).toHaveBeenCalled();
     expect(plusService.getMerchantPlusVisibility).not.toHaveBeenCalled();
     expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
-    expect(plusService.getMerchantPlusStoredInsights).not.toHaveBeenCalled();
+    const reviewInsights = await screen.findByRole("button", { name: "Open Review insights" });
+    expect(plusService.getMerchantPlusStoredInsights).toHaveBeenCalledTimes(1);
+    await fireEvent.press(reviewInsights);
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({ params: expect.objectContaining({ report: "review-insights" }) }),
+    );
     await fireEvent.press(screen.getByRole("button", { name: "Open Peer comparisons, Merchant Plus required" }));
     expect(mockNavigate).toHaveBeenCalledWith("/(merchant)/merchant-plus");
+  });
+
+  it("keeps Review Insights visible and offers inline retry if an older server requires Plus", async () => {
+    jest.mocked(plusService.getMerchantPlusStatus).mockResolvedValue(plusSuccess(plusStatus(false)));
+    jest.mocked(plusService.getMerchantPlusStoredInsights).mockResolvedValueOnce({
+      success: false,
+      code: "PLUS_REQUIRED",
+      message: "Merchant Plus is required.",
+    });
+    const screen = await renderScreen();
+    await screen.findByText("Review insights are unavailable on this server.");
+    expect(screen.getByRole("header", { name: "Review insights" })).toBeTruthy();
+    expect(Toast.show).not.toHaveBeenCalledWith(
+      expect.objectContaining({ text2: "Merchant Plus is required." }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Unable to load review summary. Retry" }),
+    );
+    await screen.findByText("Stored narrative from eligible reviews.");
   });
 
   it("retries report failures directly without an entitlement guard", async () => {
