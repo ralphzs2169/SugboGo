@@ -11,6 +11,7 @@ import { plusStatus } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 
 let mockAccount = 42;
 const mockRefetch = jest.fn();
+const mockReconcile = jest.fn();
 const mockPending = {
   ...plusStatus(false),
   unresolved_payment_id: 1,
@@ -18,6 +19,9 @@ const mockPending = {
   checkout_outcome: "pending",
 };
 jest.mock("expo-router", () => ({ useIsFocused: () => true }));
+jest.mock("../../../api/merchantPlusCheckout.service", () => ({
+  reconcileMerchantPlusPayment: (...args: unknown[]) => mockReconcile(...args),
+}));
 jest.mock("../../analytics/useMerchantPlusAccess", () => ({
   __esModule: true,
   default: () => ({
@@ -36,6 +40,9 @@ beforeEach(() => {
   jest.useFakeTimers();
   mockAccount = 42;
   mockRefetch.mockReset().mockResolvedValue({ data: mockPending });
+  mockReconcile
+    .mockReset()
+    .mockResolvedValue({ success: true, data: mockPending });
   client = new QueryClient({
     defaultOptions: { queries: { gcTime: Infinity } },
   });
@@ -55,9 +62,50 @@ it("refreshes immediately and stops after the bounded attempt limit", async () =
     await act(async () => jest.advanceTimersByTime(PAYMENT_CHECK_INTERVAL));
   }
   expect(mockRefetch).toHaveBeenCalledTimes(PAYMENT_CHECK_LIMIT);
+  expect(mockReconcile).toHaveBeenCalledTimes(1);
   expect(hook.result.current.exhausted).toBe(true);
   await act(async () => hook.result.current.checkAgain());
   expect(mockRefetch).toHaveBeenCalledTimes(PAYMENT_CHECK_LIMIT + 1);
+  expect(mockReconcile).toHaveBeenCalledTimes(2);
+});
+
+it("reconciles before status reads and recovers from a temporary provider failure", async () => {
+  mockReconcile.mockResolvedValueOnce({
+    success: false,
+    code: "payment_reconciliation_unavailable",
+  });
+  const hook = await renderHook(() => useMerchantPlusPaymentStatus(), {
+    wrapper: Wrapper,
+  });
+  expect(mockReconcile).toHaveBeenCalledTimes(1);
+  expect(mockReconcile.mock.invocationCallOrder[0]).toBeLessThan(
+    mockRefetch.mock.invocationCallOrder[0],
+  );
+  expect(hook.result.current.error?.message).toContain("couldn't verify");
+  await act(async () => jest.advanceTimersByTime(120000));
+  expect(mockRefetch).toHaveBeenCalledTimes(1);
+
+  await act(async () => hook.result.current.checkAgain());
+  expect(mockReconcile).toHaveBeenCalledTimes(2);
+  expect(hook.result.current.error).toBeNull();
+});
+
+it("keeps verified paid access authoritative if reconciliation times out", async () => {
+  mockReconcile.mockRejectedValueOnce(new Error("provider timeout"));
+  mockRefetch.mockResolvedValue({
+    data: {
+      ...mockPending,
+      unresolved_payment_status: "paid",
+      unresolved_fulfilment_status: "pending",
+    },
+  });
+  const hook = await renderHook(() => useMerchantPlusPaymentStatus(), {
+    wrapper: Wrapper,
+  });
+  expect(hook.result.current.error).toBeNull();
+  await act(async () => jest.advanceTimersByTime(PAYMENT_CHECK_INTERVAL));
+  expect(mockReconcile).toHaveBeenCalledTimes(1);
+  expect(mockRefetch).toHaveBeenCalledTimes(2);
 });
 
 it.each(["active", "cancelled", "failed", "expired", "unknown", "error"])(

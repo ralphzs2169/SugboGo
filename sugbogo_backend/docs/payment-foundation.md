@@ -588,3 +588,31 @@ The API permits GET, HEAD, and OPTIONS only. The Web service has GET operations
 only and no financial or entitlement action controls. No schema migration,
 payment mutation, fulfilment dispatch, provider retry, or entitlement creation is
 part of M7.
+
+## Maya reconciliation fallback
+
+Merchants can request independent verification through
+`POST /api/merchant/plus/payment/reconcile/` with an empty JSON object.
+The endpoint resolves the current owned Merchant Plus purchase in Maya test mode.
+It retrieves the payment using the persisted checkout ID and the backend secret
+key, outside database locks. Purchases without a known provider identity remain
+unresolved.
+
+Webhook processing and reconciliation share the same purchase evidence checks,
+paid transition, and checkout observation functions. Under business, payment,
+and checkout locks, reconciliation rechecks ownership, provider, environment,
+product/version/duration, the exact PHP 100-centavo amount, checkout identity,
+and operation request reference. PAYMENT_SUCCESS also requires a provider paid
+timestamp. The transition dispatches the existing fulfilment task after commit.
+Repeated requests for paid or active purchases perform no additional transition.
+Existing fulfilment recovery handles missed broker dispatch.
+
+The mobile payment-status screen reconciles once per explicit check or return
+session, then performs bounded database-status polling. Return outcomes remain
+navigation hints. Temporary provider failures are recoverable, and pending
+provider observations preserve the unresolved purchase. Expired, failed, and
+cancelled checkouts are never replaced through this endpoint.
+
+Real signed webhook delivery and public HTTPS return-bridge reachability still
+require deployment-specific acceptance. This fallback needs the existing Celery
+fulfilment worker and recovery schedule to activate paid access.

@@ -67,7 +67,9 @@ export default function MerchantPlusPaymentState({
         ? "Payment pending"
         : COPY[state][0];
   const body = error
-    ? "Your payment information is still safe. Please try checking again."
+    ? error instanceof Error && error.name === "MerchantPlusReconciliationError"
+      ? error.message
+      : "Your payment information is still safe. Please try checking again."
     : limited
       ? "Your payment status hasn't finished updating yet."
       : pending
