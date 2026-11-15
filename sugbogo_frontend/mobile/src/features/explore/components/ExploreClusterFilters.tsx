@@ -12,6 +12,7 @@ type Props = {
   clusters: ExploreFilterCluster[];
   selectedClusterId: number | null;
   onSelectCluster: (clusterId: number | null) => void;
+  disabled?: boolean;
   isLoading?: boolean;
   contentContainerClassName?: string;
 };
@@ -21,6 +22,7 @@ export default function ExploreClusterFilters({
   clusters = [],
   selectedClusterId,
   onSelectCluster,
+  disabled = false,
   isLoading = false,
   contentContainerClassName = "gap-2",
 }: Props) {
@@ -46,8 +48,9 @@ export default function ExploreClusterFilters({
             <SafePressable
               key={cluster.id ?? "all"}
               onPress={() => onSelectCluster(cluster.id)}
+              disabled={disabled}
               accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
+              accessibilityState={{ selected: isActive, disabled }}
               className={`cursor-pointer flex-row items-center rounded-full px-4 py-2 active:opacity-70 ${isActive ? "bg-brand" : "bg-background"}`}
             >
               {cluster.icon && (

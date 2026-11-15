@@ -16,6 +16,7 @@ import ExploreSectionHeader from "../ExploreSectionHeader";
 import ExploreBySpecialtySkeleton from "./ExploreBySpecialtySkeleton";
 
 type Props = {
+  offline?: boolean;
   onSpecialtyPress?: (specialtyId: number) => void;
 };
 
@@ -25,9 +26,12 @@ type Props = {
  * The section owns its specialty query states and hides itself when no active
  * specialty shortcuts are available.
  */
-export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
+export default function ExploreBySpecialtySection({
+  onSpecialtyPress,
+  offline = false,
+}: Props) {
   const { specialties, isLoading, isPaused, error, refetch } =
-    useExploreSpecialties();
+    useExploreSpecialties(!offline);
   const [isRetrying, setIsRetrying] = useState(false);
   const hasContent = specialties.length > 0;
   const showLoading = (isLoading || isRetrying) && !isPaused && !hasContent;
@@ -57,6 +61,8 @@ export default function ExploreBySpecialtySection({ onSpecialtyPress }: Props) {
       });
     }
   }, [error]);
+
+  if (offline && !hasContent) return null;
 
   if (!isLoading && !isPaused && !error && specialties.length === 0) {
     return null;

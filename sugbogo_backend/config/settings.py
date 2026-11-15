@@ -121,13 +121,13 @@ if _merchant_plus_mock_enabled not in {"true", "false"}:
     raise ImproperlyConfigured("MERCHANT_PLUS_MOCK_ENABLED must be True or False.")
 MERCHANT_PLUS_MOCK_ENABLED = _merchant_plus_mock_enabled == "true"
 
-globals().update(
-    load_payment_configuration(
-        os.environ,
-        plus_enforced=MERCHANT_PLUS_ENFORCED,
-        mock_enabled=MERCHANT_PLUS_MOCK_ENABLED,
-    ),
+_payment_configuration = load_payment_configuration(
+    os.environ,
+    plus_enforced=MERCHANT_PLUS_ENFORCED,
+    mock_enabled=MERCHANT_PLUS_MOCK_ENABLED,
 )
+globals().update(_payment_configuration)
+MAYA_WEBHOOK_ENABLED = _payment_configuration["MAYA_WEBHOOK_ENABLED"]
 
 if os.name == 'nt':
     GDAL_LIBRARY_PATH = os.environ.get("GDAL_LIBRARY_PATH")

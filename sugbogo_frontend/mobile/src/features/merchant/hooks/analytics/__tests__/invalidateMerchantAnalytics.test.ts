@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { invalidateMerchantAnalytics } from "../invalidateMerchantAnalytics";
 import {
   merchantStandardAnalyticsKey,
+  merchantStandardAnalyticsScope,
   merchantDiscoverySourcesKey,
   merchantRoutePlanningKey,
   merchantUnansweredReviewsKey,
@@ -21,6 +22,7 @@ describe("scoped Merchant analytics dependencies", () => {
         merchantUnansweredReviewsKey(42),
         merchantDiscoverySourcesKey(42, "30"),
         merchantRoutePlanningKey(42, "30"),
+        [...merchantStandardAnalyticsScope(42), "review-insights"] as const,
         ...(
           [
             "visibility",
@@ -28,7 +30,6 @@ describe("scoped Merchant analytics dependencies", () => {
             "specialties",
             "reviews",
             "peers",
-            "review-insights",
             "timing",
             "recommendations",
           ] as const

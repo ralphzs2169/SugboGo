@@ -16,8 +16,9 @@ export { EXPLORE_SPECIALTIES_QUERY_KEY } from "../constants/exploreHomepageQueri
  * The backend owns candidate selection and ordering so the mobile client
  * renders the discovery shortcuts exactly as returned.
  */
-export default function useExploreSpecialties() {
+export default function useExploreSpecialties(enabled = true) {
   const query = useQuery({
+    enabled,
     queryKey: EXPLORE_SPECIALTIES_QUERY_KEY,
     queryFn: async () => {
       const response = await getExploreSpecialties();

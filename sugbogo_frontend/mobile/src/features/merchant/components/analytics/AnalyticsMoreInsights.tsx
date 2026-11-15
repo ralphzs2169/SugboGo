@@ -8,6 +8,8 @@ import SafePressable from "@/shared/components/SafePressable";
 
 import type { PlusDetailKind } from "../../types/merchantPlusAnalytics.types";
 import AnalyticsOverviewSection from "./AnalyticsOverviewSection";
+import { router } from "expo-router";
+import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 
 type ReportIconName = ComponentProps<typeof MaterialCommunityIcons>["name"];
 
@@ -77,12 +79,16 @@ export function AnalyticsReportLinks({
   onOpenDiscoverySources,
   group = "further",
 }: Props) {
+  const access = useMerchantPlusAccess();
   const handleOpenReport = (kind: ReportItem["kind"]) => {
+    if (kind !== "review-insights" && !access.allowed) {
+      router.push("/(merchant)/merchant-plus");
+      return;
+    }
     if (kind === "discovery-sources") {
       onOpenDiscoverySources?.();
       return;
     }
-
     onOpen(kind);
   };
 
@@ -100,50 +106,55 @@ export function AnalyticsReportLinks({
   });
   return (
     <View>
-      {reports.map((report, index) => (
-        <SafePressable
-          key={report.kind}
-          accessibilityRole="button"
-          accessibilityLabel={`Open ${report.title}`}
-          accessibilityHint={report.description}
-          onPress={() => handleOpenReport(report.kind)}
-          className={`min-h-16 flex-row cursor-pointer items-center gap-3 py-3.5 active:bg-surface-muted ${
-            index > 0 ? "border-t border-border-primary/60" : ""
-          }`}
-        >
-          {/* Neutral report icon */}
-          <View className="h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-muted">
+      {reports.map((report, index) => {
+        const locked =
+          report.kind !== "review-insights" &&
+          !access.allowed;
+        return (
+          <SafePressable
+            key={report.kind}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${report.title}${locked ? ", Merchant Plus required" : ""}`}
+            accessibilityHint={report.description}
+            onPress={() => handleOpenReport(report.kind)}
+            className={`min-h-16 flex-row cursor-pointer items-center gap-3 py-3.5 active:bg-surface-muted ${
+              index > 0 ? "border-t border-border-primary/60" : ""
+            }`}
+          >
+            {/* Neutral report icon */}
+            <View className="h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-muted">
+              <MaterialCommunityIcons
+                name={report.icon}
+                size={19}
+                color={theme.extends.colors.text.secondary}
+                accessible={false}
+              />
+            </View>
+
+            {/* Report title and supporting description */}
+            <View className="min-w-0 flex-1 gap-0.5">
+              <AppText
+                weight="semibold"
+                className="text-sm leading-5 text-text-primary"
+              >
+                {report.title}
+              </AppText>
+
+              <AppText className="text-xs leading-5 text-text-secondary">
+                {locked ? "Merchant Plus required" : report.description}
+              </AppText>
+            </View>
+
+            {/* Navigation indicator */}
             <MaterialCommunityIcons
-              name={report.icon}
-              size={19}
+              name={locked ? "lock-outline" : "chevron-right"}
+              size={20}
               color={theme.extends.colors.text.secondary}
               accessible={false}
             />
-          </View>
-
-          {/* Report title and supporting description */}
-          <View className="min-w-0 flex-1 gap-0.5">
-            <AppText
-              weight="semibold"
-              className="text-sm leading-5 text-text-primary"
-            >
-              {report.title}
-            </AppText>
-
-            <AppText className="text-xs leading-5 text-text-secondary">
-              {report.description}
-            </AppText>
-          </View>
-
-          {/* Navigation indicator */}
-          <MaterialCommunityIcons
-            name="chevron-right"
-            size={20}
-            color={theme.extends.colors.text.secondary}
-            accessible={false}
-          />
-        </SafePressable>
-      ))}
+          </SafePressable>
+        );
+      })}
     </View>
   );
 }

@@ -45,7 +45,7 @@ export default function AnalyticsReviewSummaryPreview({
     Boolean(summary.narrative?.trim());
   return (
     <AnalyticsOverviewSection
-      title="Review summary"
+      title="Review insights"
       description="What customers mention in their reviews"
       accessory={<AnalyticsSectionInformation section="reviews" />}
     >
@@ -61,7 +61,9 @@ export default function AnalyticsReviewSummaryPreview({
             description={
               report
                 ? "Previously loaded information is still shown."
-                : "Please try this section again."
+                : error instanceof Error
+                  ? error.message
+                  : "Please try this section again."
             }
             primaryActionTitle="Retry"
             onPrimaryAction={onRetry}

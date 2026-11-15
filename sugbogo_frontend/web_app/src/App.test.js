@@ -52,7 +52,11 @@ before(async () => {
             export function useAuthStore(select = (value) => value) { return select(state); }`;
         }
         if (path.endsWith("/AdminPanelLayout.jsx")) {
-          return 'export { Outlet as default } from "react-router-dom";';
+          return `import React from "react";
+            import { Outlet } from "react-router-dom";
+            export default function Layout() {
+              return React.createElement("div", { "data-admin-layout": true }, React.createElement(Outlet));
+            }`;
         }
         if (/\/features\/(admin-panel|auth)\/pages\/[^/]+\.jsx$/.test(path)) {
           const name = path.split("/").at(-1);
@@ -114,6 +118,34 @@ const legalDestinations = [
   ["/terms-of-service", "Terms of Service"],
   ["/data-deletion", "Data Deletion Instructions"],
 ];
+
+for (const outcome of ["success", "failure", "cancel", "invalid", "success&outcome=cancel"]) {
+  test(`Maya return accepts ${outcome} without an admin session or restoration`, async () => {
+    authState.setAuthState({ isLoading: true, isAuthenticated: false, user: null });
+    const starts = sessionRestoration.restorationStarts;
+    await render(`/merchant-plus/return?outcome=${outcome}&redirect=https://attacker.invalid&payment_reference=private`);
+    const link = container.querySelector("a");
+    const valid = ["success", "failure", "cancel"].includes(outcome);
+    assert.equal(link.getAttribute("href"), `sugbogo://merchant-plus/return${valid ? `?outcome=${outcome}` : ""}`);
+    assert.equal(sessionRestoration.restorationStarts, starts);
+    assert.equal(container.querySelector("[data-admin-layout]"), null);
+    assert.equal(container.querySelector("form"), null);
+    assert.equal(container.querySelector("main h1")?.textContent, "Return to SugboGo");
+    assert.match(container.textContent, /check your Merchant Plus status/);
+    assert.doesNotMatch(container.textContent, /Payment successful|Payment confirmed|Plus activated/);
+  });
+}
+
+test("Maya return without an outcome remains public and uses the fixed app destination", async () => {
+  authState.setAuthState({ isLoading: true, isAuthenticated: false, user: null });
+  const starts = sessionRestoration.restorationStarts;
+
+  await render("/merchant-plus/return?redirect=sugbogo://attacker&payment_id=private");
+
+  assert.equal(container.querySelector("a")?.getAttribute("href"), "sugbogo://merchant-plus/return");
+  assert.equal(container.querySelector("[data-admin-layout]"), null);
+  assert.equal(sessionRestoration.restorationStarts, starts);
+});
 
 for (const [path, title] of legalDestinations) {
   test(`${path} renders independently of session restoration`, async () => {

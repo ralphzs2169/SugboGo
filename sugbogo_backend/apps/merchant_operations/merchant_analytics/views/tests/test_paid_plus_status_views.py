@@ -20,6 +20,48 @@ from ...services.tests.fixtures import MerchantAnalyticsFixtures
     MERCHANT_PLUS_MOCK_ENABLED=False,
 )
 class PaidPlusStatusViewTests(MerchantAnalyticsFixtures, APITestCase):
+    def test_checkout_outcome_comes_only_from_stored_evidence(self):
+        with override_settings(PAYMENT_PROVIDER="maya"):
+            payment, _ = PaymentService.create_or_get_payment(self.merchant_a)
+        checkout = PaymentCheckoutSession.objects.create(
+            PYMT_ID=payment,
+            PCHK_PROVIDER="maya",
+            PCHK_MODE="test",
+            PCHK_PROVIDER_SESSION_ID="4ecb2bc0-09da-4ee5-9914-8ede80203a40",
+            PCHK_CHECKOUT_URL="https://payments-web-sandbox.paymaya.com/fixture",
+        )
+        cases = (
+            ("ready", "PENDING_TOKEN", "pending"),
+            ("ready", "PAYMENT_CANCELLED", "cancelled"),
+            ("ready", "PAYMENT_FAILED", "failed"),
+            ("expired", "PAYMENT_EXPIRED", "expired"),
+            ("creation_unknown", "", "unknown"),
+        )
+        for state, provider_status, expected in cases:
+            with self.subTest(state=state, provider_status=provider_status):
+                PaymentCheckoutSession.objects.filter(pk=checkout.pk).update(
+                    PCHK_STATE=state,
+                    PCHK_PROVIDER_STATUS=provider_status,
+                )
+                data = self.client.get(self.url).data["data"]
+                self.assertEqual(data["checkout_outcome"], expected)
+                self.assertEqual(data["unresolved_payment_status"], "pending")
+                self.assertFalse(data["has_plus_access"])
+        now = timezone.now()
+        Payment.objects.filter(pk=payment.pk).update(
+            PYMT_STATUS="paid",
+            PYMT_FULFILMENT_STATUS="pending",
+            PYMT_PROVIDER_PAYMENT_ID="verified-payment",
+            PYMT_PAID_AT=now,
+            PYMT_VERIFIED_AT=now,
+        )
+        PaymentCheckoutSession.objects.filter(pk=checkout.pk).update(
+            PCHK_PROVIDER_STATUS="PAYMENT_CANCELLED",
+        )
+        data = self.client.get(self.url).data["data"]
+        self.assertIsNone(data["checkout_outcome"])
+        self.assertEqual(data["unresolved_payment_status"], "paid")
+
     def setUp(self):
         super().setUp()
         self.url = reverse("merchant-plus-status")

@@ -1,4 +1,6 @@
-import apiClient from "@/shared/api/apiClient.service";
+import apiClient, {
+  type SessionValidationRequestConfig,
+} from "@/shared/api/apiClient.service";
 import authClient from "@/shared/api/authClient.service";
 import { User } from "@/features/users/types/user.types";
 import {
@@ -63,25 +65,13 @@ export function facebookLogin(
   );
 }
 
-/**
- * Fetches the current user directly via apiClient — deliberately NOT
- * using request(), because request() intentionally never resolves its
- * promise when the session has expired (see request.ts). That's correct
- * for screens the user is actively viewing (the global redirect unmounts
- * them shortly after), but WRONG here: this function's only caller,
- * useRestoreSession, runs at app boot and its `finally` block is what
- * clears the initial loading screen. If this hung forever, the app would
- * be stuck on the splash screen permanently for any expired session.
- */
-/**
- * Retrieves the currently authenticated user's information.
- *
- * Sends a request to the backend using the current JWT access token.
- * This endpoint is primarily used to restore the user's session when
- * the application starts.
- */
+/** Fetches the server identity and lets restoration handle validation failures. */
 export async function getCurrentUser(): Promise<User> {
-  const response = await apiClient.get<ApiResponse<User>>("/users/me/");
+  const config: SessionValidationRequestConfig = { _validateSession: true };
+  const response = await apiClient.get<ApiResponse<User>>(
+    "/users/me/",
+    config,
+  );
 
   if (!response.data.success) {
     throw new Error(response.data.message);

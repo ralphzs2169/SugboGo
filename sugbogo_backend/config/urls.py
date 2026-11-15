@@ -41,6 +41,7 @@ urlpatterns = [
     path("api/merchant/review-disputes/", include("apps.review_disputes.urls")),
 
     # Admin Operations
+    path('api/admin/payments/', include('apps.admin_operations.payment_management.urls')),
     path(
         'api/admin/search/',
         include('apps.admin_operations.global_search.urls'),

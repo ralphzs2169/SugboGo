@@ -20,8 +20,8 @@ jest.mock("@/shared/api/onboardingStorage.service", () => ({
 }));
 
 it.each([
-  [true, true, "/offline-storage"],
-  [false, true, "/recent-explore"],
+  [true, true, "/(explorer)/(tabs)/explore"],
+  [false, true, "/(explorer)/(tabs)/explore"],
   [true, false, "/offline-storage"],
   [false, false, "/(auth)/login"],
 ] as const)(

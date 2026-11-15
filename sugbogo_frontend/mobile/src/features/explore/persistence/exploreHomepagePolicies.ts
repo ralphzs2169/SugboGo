@@ -10,6 +10,7 @@ import {
   EXPLORE_SPECIALTIES_QUERY_KEY,
   EXPLORE_FILTER_OPTIONS_QUERY_KEY,
   EXPLORE_HOMEPAGE_RETENTION_MS,
+  EXPLORE_BUSINESS_FEED_RETENTION_MS,
   EXPLORE_FILTER_RETENTION_MS,
   EXPLORE_HOMEPAGE_ITEM_LIMIT,
 } from "../constants/exploreHomepageQueries";
@@ -107,13 +108,22 @@ function policy(
 
 export const EXPLORE_HOMEPAGE_PERSISTENCE_POLICIES: readonly QueryPersistencePolicy[] =
   Object.freeze([
-    policy(DISCOVERY_FEED_QUERY_KEY, feedSchema(business)),
-    policy(NEW_BUSINESSES_QUERY_KEY, feedSchema(business)),
+    policy(
+      DISCOVERY_FEED_QUERY_KEY,
+      feedSchema(business),
+      EXPLORE_BUSINESS_FEED_RETENTION_MS,
+    ),
+    policy(
+      NEW_BUSINESSES_QUERY_KEY,
+      feedSchema(business),
+      EXPLORE_BUSINESS_FEED_RETENTION_MS,
+    ),
     policy(
       RECOMMENDATIONS_QUERY_KEY,
       feedSchema(recommendation).extend({
         is_personalized: z.boolean().optional(),
       }),
+      EXPLORE_BUSINESS_FEED_RETENTION_MS,
     ),
     policy(
       DISCOVERY_SHORTCUTS_QUERY_KEY,

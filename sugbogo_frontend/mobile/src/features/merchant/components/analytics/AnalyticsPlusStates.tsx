@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { router } from "expo-router";
 import { Pressable, View } from "react-native";
 import AppText from "@/shared/components/AppText";
 import ErrorState from "@/shared/components/ErrorState";
@@ -47,14 +48,14 @@ export function PlusAccessGate({
   if (!access.allowed)
     return (
       <InfoBanner
-        title="Report access unavailable"
+        title="Merchant Plus required"
         icon="lock-outline"
-        actionTitle="Check access again"
-        onAction={() => void access.refetch()}
+        actionTitle="Explore Merchant Plus"
+        onAction={() => router.push("/(merchant)/merchant-plus")}
       >
         <AppText className="text-sm leading-5 text-text-secondary">
-          These reports require access granted by SugboGo. Your other analytics
-          remain available.
+          Unlock deeper business reports. Your Standard analytics remain
+          available.
         </AppText>
       </InfoBanner>
     );

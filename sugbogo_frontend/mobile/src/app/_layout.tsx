@@ -1,10 +1,10 @@
 import BusinessAvailabilitySync from "@/features/business-availability/components/BusinessAvailabilitySync";
 import { useRestoreSession } from "@/features/auth/hooks/useRestoreSession";
 import LogoutConfirmationModal from "@/features/auth/components/LogoutConfirmationModal";
+import OfflineSessionReconnect from "@/features/auth/components/OfflineSessionReconnect";
 import "@/features/explore/stores/recentSearches.store";
 import QueryPersistenceProvider from "@/shared/query/QueryPersistenceProvider";
 import QueryLifecycle from "@/shared/query/QueryLifecycle";
-import RecentExploreReconnect from "@/features/explore/components/RecentExploreReconnect";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import AppSplash from "@/shared/components/AppSplash";
 import ErrorState from "@/shared/components/ErrorState";
@@ -34,7 +34,6 @@ import {
 import Toast from "react-native-toast-message";
 import NotificationRealtimeSync from "@/features/notifications/components/NotificationRealtimeSync";
 import PocketPickerProvider from "@/features/pockets/providers/PocketPickerProvider";
-import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import OfflinePocketSync from "@/features/offline-pockets/providers/OfflinePocketSync";
 import {
   defaultStackScreenOptions,
@@ -48,6 +47,15 @@ import "../../global.css";
  * restoration, navigation, keyboard handling, and shared UI infrastructure.
  */
 export default function RootLayout() {
+  return (
+    <>
+      <QueryLifecycle />
+      <RootNavigation />
+    </>
+  );
+}
+
+function RootNavigation() {
   const restoration = useRestoreSession();
 
   const [fontsLoaded] = useFonts({
@@ -63,8 +71,6 @@ export default function RootLayout() {
 
   const isLoading = useAuthStore((state) => state.isLoading);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const offlineOwnerId = useOfflineAccessStore((state) => state.ownerId);
-  const recentExplore = useOfflineAccessStore((state) => state.recentExplore);
 
   if (!fontsLoaded) {
     return null;
@@ -80,12 +86,10 @@ export default function RootLayout() {
         {/* Retry server validation without discarding saved credentials. */}
         <ErrorState
           title="Unable to restore your session"
-          description="Your saved sign-in has been kept. Retry when the service is available, or continue without restoring this session."
+          description="Retry when the service is available, or continue to sign-in."
           primaryActionTitle="Retry"
           onPrimaryAction={restoration.retry}
-          secondaryActionTitle={
-            offlineOwnerId || recentExplore ? "Offline guidance" : "Sign in"
-          }
+          secondaryActionTitle="Sign in"
           onSecondaryAction={restoration.continueWithoutSession}
         />
       </View>
@@ -94,8 +98,9 @@ export default function RootLayout() {
 
   return (
     <QueryPersistenceProvider>
-      <QueryLifecycle />
-      <RecentExploreReconnect />
+      <OfflineSessionReconnect
+        onRecoveryRequired={restoration.requireRecovery}
+      />
       <NotificationRealtimeSync />
       <OfflinePocketSync />
       <BusinessAvailabilitySync />

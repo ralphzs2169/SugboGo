@@ -14,6 +14,8 @@ import ExploreClusterFilters from "./ExploreClusterFilters";
 type ClusterOption = { id: number; name: string; icon: string };
 
 type Props = {
+  offline?: boolean;
+  onOpenOfflineStorage?: () => void;
   clusters: ClusterOption[];
   selectedClusterId: number | null;
   onSelectCluster: (clusterId: number | null) => void;
@@ -30,6 +32,8 @@ type Props = {
  * filters provide direct ways to refine discovery.
  */
 export default function ExploreTopBar({
+  offline = false,
+  onOpenOfflineStorage,
   clusters = [],
   selectedClusterId,
   onSelectCluster,
@@ -60,41 +64,66 @@ export default function ExploreTopBar({
         </View>
 
         {/* Header actions */}
-        <View className="ml-2 flex-row items-center">
-          <NotificationBellButton />
-          <SafePressable
-            accessibilityRole="button"
-            accessibilityLabel={hasSession ? "Open your profile" : "Sign in"}
-            onPress={() =>
-              router.navigate(
-                hasSession ? "/(explorer)/(tabs)/profile" : "/(auth)/login",
-              )
-            }
-            className="h-12 w-12 cursor-pointer items-center justify-center rounded-full active:opacity-75"
-          >
-            {hasSession ? (
-              <Avatar
-                imageUrl={user?.avatar_url}
-                avatarKey={user?.avatar_key}
-                size={36}
-              />
-            ) : (
+        {offline ? (
+          onOpenOfflineStorage && (
+            <SafePressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Offline Storage"
+              onPress={onOpenOfflineStorage}
+              className="h-12 w-12 cursor-pointer items-center justify-center rounded-full active:opacity-75"
+            >
               <MaterialCommunityIcons
-                name="account-circle-outline"
-                size={36}
+                name="download-outline"
+                size={24}
                 color={theme.extends.colors.text.secondary}
               />
-            )}
-          </SafePressable>
-        </View>
+            </SafePressable>
+          )
+        ) : (
+          <View className="ml-2 flex-row items-center">
+            <NotificationBellButton />
+            <SafePressable
+              accessibilityRole="button"
+              accessibilityLabel={hasSession ? "Open your profile" : "Sign in"}
+              onPress={() =>
+                router.navigate(
+                  hasSession ? "/(explorer)/(tabs)/profile" : "/(auth)/login",
+                )
+              }
+              className="h-12 w-12 cursor-pointer items-center justify-center rounded-full active:opacity-75"
+            >
+              {hasSession ? (
+                <Avatar
+                  imageUrl={user?.avatar_url}
+                  avatarKey={user?.avatar_key}
+                  size={36}
+                />
+              ) : (
+                <MaterialCommunityIcons
+                  name="account-circle-outline"
+                  size={36}
+                  color={theme.extends.colors.text.secondary}
+                />
+              )}
+            </SafePressable>
+          </View>
+        )}
       </View>
+
+      {offline && (
+        <AppText accessibilityLiveRegion="polite" className="mb-2 text-xs text-text-secondary">
+          Offline · Previously loaded content
+        </AppText>
+      )}
 
       {/* Search and filtering */}
       <View className="mb-3 flex-row gap-2">
         <SafePressable
           onPress={onPressSearch}
+          disabled={offline}
           accessibilityRole="button"
           accessibilityLabel="Search businesses or places"
+          accessibilityState={{ disabled: offline }}
           className="min-h-12 cursor-pointer flex-1 flex-row items-center rounded-full border border-border-primary bg-background px-3.5 active:opacity-80"
         >
           <MaterialCommunityIcons
@@ -110,9 +139,11 @@ export default function ExploreTopBar({
 
         <SafePressable
           onPress={onPressFilters}
+          disabled={offline}
           hitSlop={6}
           accessibilityRole="button"
           accessibilityLabel="Open discovery filters"
+          accessibilityState={{ disabled: offline }}
           className="relative min-h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-border-primary bg-background active:opacity-70"
         >
           <MaterialCommunityIcons
@@ -138,6 +169,7 @@ export default function ExploreTopBar({
         clusters={clusters}
         selectedClusterId={selectedClusterId}
         onSelectCluster={onSelectCluster}
+        disabled={offline}
         isLoading={isLoadingClusters}
       />
     </View>

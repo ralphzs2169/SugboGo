@@ -28,6 +28,7 @@ const CEBU_CITY_CENTER = {
   lat: 10.3157,
   lng: 123.8854,
 };
+const TRANSIT_MAP_REGISTRY_ID = "transit-network-map";
 
 const transitMapConfig = resolveGoogleMapsConfig({
   VITE_GOOGLE_MAPS_API_KEY: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -168,6 +169,7 @@ export default function TransitNetworkMapCanvas({
   const loaderStatus = useApiLoadingStatus();
   const authFailed = useContext(GoogleMapsAuthContext);
   const mapTheme = useGoogleMapTheme({
+    id: TRANSIT_MAP_REGISTRY_ID,
     center: CEBU_CITY_CENTER,
     zoom: 13,
   });
@@ -305,6 +307,7 @@ export default function TransitNetworkMapCanvas({
       {/* Persistent transit network map */}
       <Map
         {...mapTheme}
+        id={TRANSIT_MAP_REGISTRY_ID}
         mapId={transitMapConfig.mapId}
         mapTypeControl={false}
         streetViewControl={false}

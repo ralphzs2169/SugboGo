@@ -40,8 +40,10 @@ export default function Index() {
   }
 
   if (!isAuthenticated) {
+    if (recentExplore) {
+      return <Redirect href="/(explorer)/(tabs)/explore" />;
+    }
     if (offlineOwnerId) return <Redirect href="/offline-storage" />;
-    if (recentExplore) return <Redirect href="/recent-explore" />;
     if (pendingEmail) {
       return (
         <Redirect

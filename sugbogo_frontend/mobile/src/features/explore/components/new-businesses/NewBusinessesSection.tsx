@@ -13,6 +13,7 @@ import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 import ExploreQueryNotice from "../ExploreQueryNotice";
 
 type Props = {
+  offline?: boolean;
   impressions: BusinessImpressionObservation;
   userLocation: LocationObject | null;
   onBusinessPress: (
@@ -30,13 +31,14 @@ type Props = {
  * horizontal business presentation and impression tracking to the shared carousel.
  */
 export default function NewBusinessesSection({
+  offline = false,
   onBusinessPress,
   impressions,
   userLocation,
   onSeeAll,
 }: Props) {
   const { businesses, isLoading, isPaused, error, refetch } =
-    useNewBusinesses();
+    useNewBusinesses(!offline);
   const [isRetrying, setIsRetrying] = useState(false);
 
   const handleRetry = async () => {
@@ -48,6 +50,8 @@ export default function NewBusinessesSection({
       setIsRetrying(false);
     }
   };
+
+  if (offline && businesses.length === 0) return null;
 
   if ((isLoading || isRetrying) && !isPaused && businesses.length === 0) {
     return (
@@ -105,7 +109,7 @@ export default function NewBusinessesSection({
 
   return (
     <>
-      {Boolean(error) && (
+      {!offline && Boolean(error) && (
         <ExploreQueryNotice
           message="Couldn't refresh new businesses. Showing previously loaded places."
           retryLabel="Retry refreshing new businesses"
@@ -114,6 +118,7 @@ export default function NewBusinessesSection({
       )}
       {/* Recently added business carousel */}
       <ExploreBusinessCarousel
+        readOnly={offline}
         title="New to SugboGo"
         subtitle="Recently added places waiting to be discovered."
         businesses={businesses}

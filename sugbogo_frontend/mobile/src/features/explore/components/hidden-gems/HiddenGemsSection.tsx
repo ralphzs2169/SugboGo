@@ -14,6 +14,7 @@ import HiddenGemSpotlight from "./HiddenGemSpotlight";
 import ExploreQueryNotice from "../ExploreQueryNotice";
 
 type Props = {
+  offline?: boolean;
   businesses: ExploreBusiness[];
   isLoading: boolean;
   isPaused?: boolean;
@@ -36,6 +37,7 @@ type Props = {
  * successful carousel presentation and impression tracking to shared UI.
  */
 export default function HiddenGemsSection({
+  offline = false,
   businesses: rankedBusinesses,
   isLoading,
   isPaused = false,
@@ -62,6 +64,8 @@ export default function HiddenGemsSection({
       setIsRetrying(false);
     }
   };
+
+  if (offline && businesses.length === 0) return null;
 
   if ((isLoading || isRetrying) && !isPaused && businesses.length === 0) {
     return (
@@ -130,7 +134,7 @@ export default function HiddenGemsSection({
 
   return (
     <>
-      {Boolean(error) && (
+      {!offline && Boolean(error) && (
         <ExploreQueryNotice
           message="Couldn't refresh Hidden Gems. Showing previously loaded places."
           retryLabel="Retry refreshing Hidden Gems"
@@ -139,7 +143,7 @@ export default function HiddenGemsSection({
       )}
       {spotlight && (
         <HiddenGemSpotlight
-          business={spotlight}
+          business={offline ? { ...spotlight, sentiment_rating: undefined } : spotlight}
           impressions={spotlightImpressions}
           userLocation={userLocation}
           onCoverError={() => setFailedCover(spotlight.display_cover_photo_url)}
@@ -149,6 +153,7 @@ export default function HiddenGemsSection({
       {remainingBusinesses.length > 0 && (
         /* Ranked discovery carousel */
         <ExploreBusinessCarousel
+          readOnly={offline}
           title={spotlight ? "More Hidden Gems" : "Hidden Gems"}
           compactHeading={Boolean(spotlight)}
           subtitle={

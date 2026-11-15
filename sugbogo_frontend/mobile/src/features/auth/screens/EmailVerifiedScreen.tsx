@@ -7,9 +7,9 @@ export default function EmailVerifiedScreen() {
   return (
     <AuthSuccessScreen
       animation={successAnimation}
-      title="Email Verified"
-      description="Your email has been successfully verified. You can now sign in to your SugboGo account."
-      buttonTitle="Sign In"
+      title="Email verified"
+      description="Your email has been successfully verified. You can now log in to your SugboGo account."
+      buttonTitle="Log in"
       onPress={() => router.replace("/(auth)/login")}
     />
   );

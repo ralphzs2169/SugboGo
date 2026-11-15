@@ -20,12 +20,15 @@ import MerchantDiscoverySourcesScreen from "../MerchantDiscoverySourcesScreen";
 import { AnalyticsReportLinks } from "../../../components/analytics/AnalyticsMoreInsights";
 
 let mockFocused = true;
+let mockPlusAllowed = true;
+const mockPush = jest.fn();
 jest.mock("@gorhom/bottom-sheet", () =>
   jest
     .requireActual("../../../__tests__/analyticsSheet.mock")
     .analyticsSheetMock(),
 );
 jest.mock("expo-router", () => ({
+  router: { push: (...args: unknown[]) => mockPush(...args) },
   useIsFocused: () => mockFocused,
   useNavigation: () => ({ isFocused: () => true }),
   useLocalSearchParams: () => ({ period: "7" }),
@@ -33,9 +36,9 @@ jest.mock("expo-router", () => ({
 jest.mock("../../../api/merchantDiscoverySources.service", () => ({
   getMerchantDiscoverySources: jest.fn(),
 }));
-jest.mock("../../../hooks/analytics/useMerchantPlusAccess", () => () => {
-  throw new Error("Standard sources must not check Plus");
-});
+jest.mock("../../../hooks/analytics/useMerchantPlusAccess", () => () => ({
+  allowed: mockPlusAllowed, state: mockPlusAllowed ? "allowed" : "restricted",
+}));
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("react-native-toast-message", () => ({
   __esModule: true,
@@ -64,7 +67,7 @@ jest.mock(
 );
 
 const getReport = jest.mocked(getMerchantDiscoverySources);
-describe("Standard discovery sources", () => {
+describe("Plus discovery sources", () => {
   let client: QueryClient;
   function Wrapper({ children }: PropsWithChildren) {
     return (
@@ -73,6 +76,7 @@ describe("Standard discovery sources", () => {
   }
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPlusAllowed = true;
     mockFocused = true;
     client = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
@@ -89,7 +93,18 @@ describe("Standard discovery sources", () => {
     client.clear();
     useAuthStore.setState({ user: null });
   });
-  it("loads the genuine Standard route and ranks exact counts without Plus", async () => {
+  it("does not request Plus-only sources without access", async () => {
+    mockPlusAllowed = false;
+    await renderHook(() => useMerchantDiscoverySources("30"), { wrapper: Wrapper });
+    expect(getReport).not.toHaveBeenCalled();
+    const open = jest.fn();
+    const screen = await render(<AnalyticsReportLinks group="visibility" onOpen={jest.fn()} onOpenDiscoverySources={open} />);
+    await fireEvent.press(screen.getByRole("button", { name: "Open Where visits came from, Merchant Plus required" }));
+    expect(mockPush).toHaveBeenCalledWith("/(merchant)/merchant-plus");
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("loads the existing route and ranks exact counts with Plus", async () => {
     const screen = await render(<DiscoverySourcesRoute />, {
       wrapper: Wrapper,
     });
@@ -144,7 +159,7 @@ describe("Standard discovery sources", () => {
     const screen = await render(<MerchantDiscoverySourcesScreen />, {
       wrapper: Wrapper,
     });
-    expect(screen.getByLabelText("Loading visit sources")).toBeTruthy();
+    expect(screen.getByLabelText("Loading breakdown")).toBeTruthy();
     expect(screen.getByText("Visit sources")).toBeTruthy();
     expect(screen.getByText("Source breakdown")).toBeTruthy();
     await fireEvent.press(
@@ -191,7 +206,7 @@ describe("Standard discovery sources", () => {
         .accessibilityState.selected,
     ).toBe(true);
     await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
-    expect(screen.getByLabelText("Loading visit sources")).toBeTruthy();
+    expect(screen.getByLabelText("Loading breakdown")).toBeTruthy();
     expect(screen.getByText("Source breakdown")).toBeTruthy();
     expect(screen.getByText("Recorded profile visits")).toBeTruthy();
     expect(
@@ -216,7 +231,7 @@ describe("Standard discovery sources", () => {
         .accessibilityState.selected,
     ).toBe(true);
     await fireEvent.press(screen.getByRole("button", { name: "Last 30 days" }));
-    expect(screen.queryByLabelText("Loading visit sources")).toBeNull();
+    expect(screen.queryByLabelText("Loading breakdown")).toBeNull();
     expect(getReport.mock.calls.map(([period]) => period)).toEqual(["30", "7"]);
   });
 

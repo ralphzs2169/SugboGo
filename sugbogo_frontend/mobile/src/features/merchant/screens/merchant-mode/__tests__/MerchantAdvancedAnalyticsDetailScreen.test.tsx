@@ -1,3 +1,4 @@
+import { merchantPlusStatusKey } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -71,6 +72,7 @@ describe("advanced Plus detail integration", () => {
       },
     });
     useAuthStore.setState({ user: analyticsMerchant() });
+    client.setQueryData(merchantPlusStatusKey(42), plusStatus());
     jest
       .mocked(service.getMerchantPlusStatus)
       .mockReset()
@@ -647,14 +649,14 @@ describe("advanced Plus detail integration", () => {
     expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(1);
   });
 
-  it("loads advanced reports without a frontend entitlement guard", async () => {
+  it("blocks advanced reports when backend access is restricted", async () => {
+    client.setQueryData(merchantPlusStatusKey(42), plusStatus(false));
     jest
       .mocked(service.getMerchantPlusStatus)
       .mockResolvedValueOnce(plusSuccess(plusStatus(false)));
     const screen = await renderDetail("recommendations");
-    await screen.findByText("Reply to unanswered reviews");
-    expect(service.getMerchantPlusRecommendations).toHaveBeenCalledTimes(1);
-    expect(service.getMerchantPlusStatus).not.toHaveBeenCalled();
-    expect(screen.queryByText("Report access unavailable")).toBeNull();
+    await screen.findByText("Merchant Plus required");
+    expect(service.getMerchantPlusRecommendations).not.toHaveBeenCalled();
+    expect(service.getMerchantPlusStatus).toHaveBeenCalled();
   });
 });

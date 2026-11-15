@@ -8,13 +8,18 @@ from ..serializers.discovery_sources_serializers import (
     DiscoverySourcesQuerySerializer,
     DiscoverySourcesSerializer,
 )
+from ..permissions import HasMerchantPlus
 from ..services.discovery_sources_service import DiscoverySourcesService
 
 
 class DiscoverySourcesView(APIView):
-    """Serve owned-business source counts without consulting Plus entitlement."""
+    """Serve owned-business source counts only with Merchant Plus access."""
 
-    permission_classes = (IsAuthenticated, HasRole(User.UserRole.MERCHANT))
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(User.UserRole.MERCHANT),
+        HasMerchantPlus,
+    )
 
     def get(
         self,

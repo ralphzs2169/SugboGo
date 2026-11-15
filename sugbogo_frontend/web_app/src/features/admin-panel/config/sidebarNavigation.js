@@ -10,6 +10,7 @@ import {
   FiTrendingUp,
   FiLayers,
   FiActivity,
+  FiCreditCard,
 } from "react-icons/fi";
 
 import { MdStorefront } from "react-icons/md";
@@ -75,6 +76,13 @@ const navigation = [
           "/admin-panel/users/all",
           "/admin-panel/users/[userId]",
         ],
+      },
+      {
+        type: "link",
+        to: "/admin-panel/payments",
+        label: "Payments",
+        Icon: FiCreditCard,
+        roles: ["admin", "super_admin"],
       },
     ],
   },

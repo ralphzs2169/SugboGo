@@ -13,8 +13,11 @@ import type {
   AnalyticsSelection,
   PlusReportKind,
 } from "../../types/merchantPlusAnalytics.types";
+import { merchantStandardAnalyticsScope } from "./merchantAnalyticsQueryKeys";
 import { merchantPlusReportKey } from "./merchantPlusAnalyticsQueryKeys";
-import { denyMerchantPlusAccess } from "./useMerchantPlusAccess";
+import useMerchantPlusAccess, {
+  denyMerchantPlusAccess,
+} from "./useMerchantPlusAccess";
 
 /** Loads one permitted report without cross-period placeholders or cross-account data. */
 export function usePlusReport<T>(
@@ -26,9 +29,12 @@ export function usePlusReport<T>(
 ) {
   const accountId = useAuthStore((state) => state.user?.id);
   const client = useQueryClient();
+  const access = useMerchantPlusAccess();
   return useQuery({
     queryKey: merchantPlusReportKey(accountId, kind, selection, interval),
     queryFn: async ({ signal }) => {
+      if (!access.allowed)
+        throw { code: "PLUS_REQUIRED", message: "Merchant Plus is required." };
       const response = await fetchReport(signal);
       if (
         !response.success &&
@@ -40,7 +46,7 @@ export function usePlusReport<T>(
       }
       return throwOnApiError(response);
     },
-    enabled: !!accountId && enabled,
+    enabled: !!accountId && enabled && access.allowed,
     staleTime: 60_000,
     retry: false,
   });
@@ -52,9 +58,15 @@ export function useMerchantPlusVisibility(
   interval: AnalyticsInterval,
   enabled: boolean,
 ) {
-  return usePlusReport("visibility", selection, interval, enabled, (signal) =>
-    getMerchantPlusVisibility(selection, interval, signal),
-  );
+  const accountId = useAuthStore((state) => state.user?.id);
+  return useQuery({
+    queryKey: [...merchantStandardAnalyticsScope(accountId), "visibility", selection, interval],
+    queryFn: async ({ signal }) =>
+      throwOnApiError(await getMerchantPlusVisibility(selection, interval, signal)),
+    enabled: !!accountId && enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
 }
 
 /** Requests weekly saves while the hosting analytics screen is focused. */

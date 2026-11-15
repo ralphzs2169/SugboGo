@@ -494,7 +494,15 @@ export function createQueryPersistence({
       generation,
       persistOptions,
       track,
-      parseLocal: restore,
+      parseLocal: (json: string) => {
+        restore(json);
+        return envelope().entries.map((entry) => ({
+          queryKey: entry.queryKey,
+          data: entry.data,
+          fetchedAt: entry.fetchedAt,
+          expiresAt: entry.fetchedAt + policyFor(entry.queryKey)!.maxAgeMs,
+        }));
+      },
       revoke: () => {
         revoked = true;
         entries.clear();
@@ -510,15 +518,10 @@ export function createQueryPersistence({
         try {
           const json = await storage.getItem(QUERY_PERSISTENCE_STORAGE_KEY);
           if (!json || !current()) return [];
-          const parsed = createSession(null, { scope, current }).parseLocal(
+          const entries = createSession(null, { scope, current }).parseLocal(
             json,
           );
-          if (!current()) return [];
-          return parsed.clientState.queries.map((query) => ({
-            queryKey: query.queryKey,
-            data: query.state.data,
-            fetchedAt: query.state.dataUpdatedAt,
-          }));
+          return current() ? entries : [];
         } catch {
           return [];
         }

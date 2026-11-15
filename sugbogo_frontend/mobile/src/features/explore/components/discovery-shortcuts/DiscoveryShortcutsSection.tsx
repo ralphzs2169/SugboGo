@@ -16,6 +16,7 @@ import ExploreSectionHeader from "../ExploreSectionHeader";
 import DiscoveryShortcutsSkeleton from "./DiscoveryShortcutSkeleton";
 
 type Props = {
+  offline?: boolean;
   onShortcutPress?: (clusterId: number) => void;
 };
 
@@ -26,9 +27,12 @@ type Props = {
  * The section owns its loading and recovery states and hides itself when no
  * active shortcuts are available.
  */
-export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
+export default function DiscoveryShortcutsSection({
+  onShortcutPress,
+  offline = false,
+}: Props) {
   const { shortcuts, isLoading, isPaused, error, refetch } =
-    useDiscoveryShortcuts();
+    useDiscoveryShortcuts(!offline);
   const [isRetrying, setIsRetrying] = useState(false);
   const hasContent = shortcuts.length > 0;
   const showLoading = (isLoading || isRetrying) && !isPaused && !hasContent;
@@ -58,6 +62,8 @@ export default function DiscoveryShortcutsSection({ onShortcutPress }: Props) {
       });
     }
   }, [error]);
+
+  if (offline && !hasContent) return null;
 
   if (!isLoading && !isPaused && !error && shortcuts.length === 0) {
     return null;

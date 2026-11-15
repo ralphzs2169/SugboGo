@@ -7,20 +7,20 @@ import {
 } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification";
-import AppText from "@/shared/components/AppText";
-import SafePressable from "@/shared/components/SafePressable";
 import AnalyticsPeerComparisons from "../../components/analytics/AnalyticsPeerComparisons";
 import AnalyticsStoredReviewInsights from "../../components/analytics/AnalyticsStoredReviewInsights";
 import AnalyticsProfileVisitTiming from "../../components/analytics/AnalyticsProfileVisitTiming";
 import AnalyticsBusinessRecommendations from "../../components/analytics/AnalyticsBusinessRecommendations";
 import {
   useMerchantPlusPeers,
-  useMerchantPlusStoredInsights,
+  useMerchantReviewInsights,
   useMerchantPlusTiming,
   useMerchantPlusRecommendations,
 } from "../../hooks/analytics/useMerchantAdvancedAnalytics";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { AdvancedPlusDetailKind } from "../../types/merchantPlusAnalytics.types";
+import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
+import { PlusAccessGate } from "../../components/analytics/AnalyticsPlusStates";
 
 /** Lazily loads one advanced report and keeps generation separate from all read/refresh actions. */
 export default function MerchantAdvancedAnalyticsDetailScreen({
@@ -34,12 +34,13 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
   const [period, setPeriod] = useState(initialPeriod);
   const [refreshing, setRefreshing] = useState(false);
   const focused = useIsFocused();
+  const access = useMerchantPlusAccess();
   const insets = useSafeAreaInsets();
-  const enabled = focused;
+  const enabled = focused && access.allowed;
   const selection = { period };
   const peers = useMerchantPlusPeers(selection, enabled && kind === "peers");
-  const insights = useMerchantPlusStoredInsights(
-    enabled && kind === "review-insights",
+  const insights = useMerchantReviewInsights(
+    focused && kind === "review-insights",
   );
   const timing = useMerchantPlusTiming(selection, enabled && kind === "timing");
   const recommendations = useMerchantPlusRecommendations(
@@ -78,6 +79,13 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
       setRefreshing(false);
     }
   };
+  if (kind !== "review-insights" && !access.allowed) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface px-5 py-5">
+        <PlusAccessGate access={access}>{null}</PlusAccessGate>
+      </SafeAreaView>
+    );
+  }
   return (
     <SafeAreaView edges={["left", "right"]} className="flex-1 bg-surface">
       {/* Stored insights retain their own dates, with no dashboard date selector. */}
@@ -156,23 +164,6 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
               />
             )}
           </View>
-          {__DEV__ && (kind === "peers" || kind === "recommendations") && (
-            <SafePressable
-              onPress={() =>
-                router.push(
-                  kind === "peers"
-                    ? "/(merchant)/analytics/peer-preview"
-                    : "/(merchant)/analytics/recommendations-preview",
-                )
-              }
-              accessibilityLabel={`Open ${kind === "peers" ? "peer comparisons" : "recommendations"} development preview`}
-              className="mt-4 min-h-12 cursor-pointer justify-center border-t border-border-primary/60 py-3"
-            >
-              <AppText className="text-sm text-text-secondary">
-                Open development preview
-              </AppText>
-            </SafePressable>
-          )}
         </View>
       </ScrollView>
     </SafeAreaView>

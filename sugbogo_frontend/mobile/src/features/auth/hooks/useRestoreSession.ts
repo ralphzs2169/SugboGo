@@ -18,7 +18,7 @@ export function useRestoreSession() {
 
     void restoreSession()
       .then((result) => {
-        setRecoveryRequired(result === "offline" || result === "recovery");
+        setRecoveryRequired(result === "recovery");
       })
       .catch(() => {
         // Cleanup failures must still leave a usable recovery path.
@@ -32,8 +32,11 @@ export function useRestoreSession() {
     setAttempt((value) => value + 1);
   }, [setLoading]);
 
+  const requireRecovery = useCallback(() => setRecoveryRequired(true), []);
+
   return {
     recoveryRequired,
+    requireRecovery,
     retry,
     continueWithoutSession: () => setRecoveryRequired(false),
   };

@@ -21,6 +21,7 @@ import CompactBusinessListSkeleton from "../CompactBusinessListSkeleton";
 import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 
 type Props = {
+  offline?: boolean;
   impressions: BusinessImpressionObservation;
   userLocation: LocationObject | null;
   onBusinessPress: (
@@ -40,12 +41,13 @@ const PREVIEW_LIMIT = 3;
  * matches, and keeps recommendation loading and recovery local to the section.
  */
 export default function UserInterestsSection({
+  offline = false,
   impressions,
   userLocation,
   onBusinessPress,
   onSeeAll,
 }: Props) {
-  const recommendations = useRecommendations();
+  const recommendations = useRecommendations(!offline);
   const { retainBusinesses } = impressions;
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -61,13 +63,14 @@ export default function UserInterestsSection({
 
   const visibleBusinesses = useMemo(
     () =>
-      recommendations.isPersonalized
+      offline || recommendations.isPersonalized
         ? recommendations.businesses.slice(0, PREVIEW_LIMIT)
         : [],
-    [recommendations.businesses, recommendations.isPersonalized],
+    [offline, recommendations.businesses, recommendations.isPersonalized],
   );
 
   const showSetup =
+    !offline &&
     !recommendations.isPersonalized &&
     !recommendations.isLoading &&
     !isRetrying &&
@@ -93,7 +96,7 @@ export default function UserInterestsSection({
   }, [retainBusinesses]);
 
   useEffect(() => {
-    if (!recommendations.error) {
+    if (offline || !recommendations.error) {
       return;
     }
 
@@ -106,7 +109,9 @@ export default function UserInterestsSection({
         text2: response.message || "Please try again.",
       });
     }
-  }, [recommendations.error]);
+  }, [offline, recommendations.error]);
+
+  if (offline && visibleBusinesses.length === 0) return null;
 
   return (
     <View
@@ -117,8 +122,12 @@ export default function UserInterestsSection({
       {/* Section heading */}
       {!showSetup && (
         <ExploreSectionHeader
-          title="For You"
-          subtitle="Places connected to your interests and activity."
+          title={offline && !recommendations.isPersonalized ? "Explore local picks" : "For You"}
+          subtitle={
+            offline && !recommendations.isPersonalized
+              ? ""
+              : "Places connected to your interests and activity."
+          }
           onSeeAll={
             showSeeAll ? () => onSeeAll?.("recommendations") : undefined
           }
@@ -231,6 +240,7 @@ export default function UserInterestsSection({
                 }
               >
                 <BusinessCard
+                  readOnly={offline}
                   business={business}
                   distance={distance}
                   distanceAccuracy={userLocation?.coords.accuracy ?? null}

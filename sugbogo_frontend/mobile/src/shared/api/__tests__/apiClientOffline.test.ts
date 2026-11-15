@@ -3,6 +3,7 @@ import MockAdapter from "axios-mock-adapter";
 import { AxiosError } from "axios";
 import NetInfo from "@react-native-community/netinfo";
 
+import { getCurrentUser } from "@/features/auth/api/auth.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { createApiError } from "@/shared/utils/apiErrors";
 import apiClient from "../apiClient.service";
@@ -71,6 +72,24 @@ describe("refresh failure classification", () => {
     });
     expect(clearSessionTokens).toHaveBeenCalled();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it("lets session validation handle an explicit refresh rejection", async () => {
+    const error = Object.assign(new AxiosError("Refresh token rejected"), {
+      response: { status: 401 },
+    });
+    jest.mocked(refreshSession).mockRejectedValueOnce(error);
+    await expect(getCurrentUser()).rejects.toMatchObject({
+      name: "AUTH_ERROR",
+    });
+    expect(clearSessionTokens).not.toHaveBeenCalled();
+  });
+
+  it("preserves a refresh storage failure for session recovery", async () => {
+    const error = new Error("SecureStore unavailable");
+    jest.mocked(refreshSession).mockRejectedValueOnce(error);
+    await expect(getCurrentUser()).rejects.toBe(error);
+    expect(clearSessionTokens).not.toHaveBeenCalled();
   });
 
   it.each([429, 500, 503])(

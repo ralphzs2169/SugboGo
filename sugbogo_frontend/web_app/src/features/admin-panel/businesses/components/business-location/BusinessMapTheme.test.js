@@ -717,6 +717,38 @@ for (const name of [
   }
 }
 
+test("transit network does not capture Street View from the outgoing default map", async (t) => {
+  const harness = await createMapHarness("light");
+  const application = mapScenario("business location");
+  const transit = mapScenario("transit network");
+
+  try {
+    await harness.render(
+      React.createElement(application.component, application.props),
+    );
+    const applicationMap = instances[0];
+    const applicationPanorama = applicationMap.getStreetView();
+    await act(async () => {
+      applicationPanorama.setPano("application-panorama");
+      applicationPanorama.setVisible(true);
+    });
+    const lookupApplicationPanorama = t.mock.method(
+      applicationMap,
+      "getStreetView",
+    );
+
+    await harness.render(React.createElement(transit.component, transit.props));
+
+    assert.equal(instances.length, 2);
+    const transitPanorama = instances[1].getStreetView();
+    assert.equal(transitPanorama.getVisible(), false);
+    assert.notEqual(transitPanorama.getPano(), "application-panorama");
+    assert.equal(lookupApplicationPanorama.mock.callCount(), 0);
+  } finally {
+    await harness.close();
+  }
+});
+
 function ThemeMapProbe({ id }) {
   const themeProps = useGoogleMapTheme({
     id,

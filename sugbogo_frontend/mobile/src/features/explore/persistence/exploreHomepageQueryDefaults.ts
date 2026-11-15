@@ -8,6 +8,7 @@ import {
   EXPLORE_SPECIALTIES_QUERY_KEY,
   EXPLORE_FILTER_OPTIONS_QUERY_KEY,
   EXPLORE_HOMEPAGE_RETENTION_MS,
+  EXPLORE_BUSINESS_FEED_RETENTION_MS,
   EXPLORE_FILTER_RETENTION_MS,
 } from "../constants/exploreHomepageQueries";
 
@@ -17,6 +18,10 @@ export function configureExploreHomepageQueryRetention(client: QueryClient) {
     DISCOVERY_FEED_QUERY_KEY,
     NEW_BUSINESSES_QUERY_KEY,
     RECOMMENDATIONS_QUERY_KEY,
+  ]) {
+    client.setQueryDefaults(key, { gcTime: EXPLORE_BUSINESS_FEED_RETENTION_MS });
+  }
+  for (const key of [
     DISCOVERY_SHORTCUTS_QUERY_KEY,
     EXPLORE_SPECIALTIES_QUERY_KEY,
   ]) {

@@ -205,6 +205,70 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(PaymentCheckoutSession.objects.count(), 1)
         self.post.assert_called_once()
 
+    def test_status_and_post_share_checkout_resumability_rules(self):
+        self.assertEqual(self.checkout().status_code, 201)
+        operation = PaymentCheckoutSession.objects.get()
+        now = timezone.now()
+        cases = (
+            ("ready", "", timedelta(minutes=5), True, 200),
+            ("ready", "PENDING_TOKEN", timedelta(minutes=5), True, 200),
+            ("ready", "PENDING_PAYMENT", timedelta(minutes=5), True, 200),
+            ("ready", "PENDING_PAYMENT", timedelta(hours=1), False, 202),
+            ("ready", "PENDING_PAYMENT", timedelta(hours=2), False, 202),
+            ("ready", "", timedelta(hours=1), False, 202),
+            ("ready", "PENDING_TOKEN", timedelta(hours=2), False, 202),
+            ("creating", "", timedelta(seconds=1), False, 202),
+            ("creation_unknown", "", timedelta(minutes=5), False, 202),
+            ("ready", "PAYMENT_CANCELLED", timedelta(minutes=5), False, 202),
+            ("ready", "PAYMENT_FAILED", timedelta(minutes=5), False, 202),
+            ("expired", "PAYMENT_EXPIRED", timedelta(minutes=5), False, 409),
+        )
+        for state, provider_status, age, expected, response_code in cases:
+            with self.subTest(state=state, provider_status=provider_status, age=age):
+                cache.clear()
+                PaymentCheckoutSession.objects.filter(pk=operation.pk).update(
+                    PCHK_STATE=state,
+                    PCHK_PROVIDER_STATUS=provider_status,
+                    PCHK_CREATED_AT=now - age,
+                )
+                status = self.client.get(reverse("merchant-plus-status")).data["data"]
+                self.assertEqual(status["checkout_can_resume"], expected)
+                response = self.checkout()
+                self.assertEqual(response.status_code, response_code)
+                if response_code != 409:
+                    data = response.data["data"]
+                    self.assertEqual(data["next_action"] == "open_checkout", expected)
+                    if expected:
+                        self.assertEqual(data["checkout_url"], CHECKOUT_URL)
+                    else:
+                        self.assertIsNone(data["checkout_url"])
+                self.assertEqual(Payment.objects.count(), 1)
+                self.assertEqual(PaymentCheckoutSession.objects.count(), 1)
+                self.post.assert_called_once()
+
+    def test_paid_payment_and_active_entitlement_cannot_resume(self):
+        self.checkout()
+        payment = Payment.objects.get()
+        PaymentCheckoutSession.objects.update(PCHK_PROVIDER_STATUS="PENDING_PAYMENT")
+        now = timezone.now()
+        Payment.objects.filter(pk=payment.pk).update(
+            PYMT_STATUS="paid",
+            PYMT_FULFILMENT_STATUS="pending",
+            PYMT_PROVIDER_PAYMENT_ID="pay_verified",
+            PYMT_PAID_AT=now,
+            PYMT_VERIFIED_AT=now,
+        )
+        status = self.client.get(reverse("merchant-plus-status")).data["data"]
+        self.assertFalse(status["checkout_can_resume"])
+        self.assertEqual(self.checkout().status_code, 409)
+        self.grant_paid()
+        cache.clear()
+        status = self.client.get(reverse("merchant-plus-status")).data["data"]
+        self.assertTrue(status["has_plus_access"])
+        self.assertFalse(status["checkout_can_resume"])
+        self.assertEqual(self.checkout().status_code, 409)
+        self.post.assert_called_once()
+
     def test_ready_session_is_reused_despite_elapsed_local_lease(self):
         self.checkout()
         PaymentCheckoutSession.objects.update(
@@ -228,18 +292,37 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(Payment.objects.get().PYMT_STATUS, "pending")
         self.post.assert_called_once()
 
-    def test_reported_in_progress_status_is_preserved_and_does_not_expose_a_url(self):
+    def test_pending_payment_reopens_the_same_checkout_without_provider_creation(self):
         self.post.return_value = maya_response({
             "checkoutId": CHECKOUT_ID,
             "redirectUrl": CHECKOUT_URL,
             "paymentStatus": "PENDING_PAYMENT",
         })
-        for _ in range(2):
+        for expected_code in (201, 200, 200):
             response = self.checkout()
-            self.assertEqual(response.status_code, 202)
-            self.assertIsNone(response.data["data"]["checkout_url"])
+            self.assertEqual(response.status_code, expected_code)
+            data = response.data["data"]
+            self.assertEqual(data["next_action"], "open_checkout")
+            self.assertEqual(data["checkout_url"], CHECKOUT_URL)
+            self.assertEqual(data["checkout_session_id"], CHECKOUT_ID)
+            self.assertTrue(
+                self.client.get(reverse("merchant-plus-status")).data["data"]["checkout_can_resume"],
+            )
+            self.assertEqual(Payment.objects.count(), 1)
+            self.assertEqual(PaymentCheckoutSession.objects.count(), 1)
         self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_PROVIDER_STATUS, "PENDING_PAYMENT")
         self.assertEqual(Payment.objects.get().PYMT_STATUS, "pending")
+        self.post.assert_called_once()
+
+    def test_pending_payment_with_an_invalid_url_cannot_resume(self):
+        self.checkout()
+        PaymentCheckoutSession.objects.update(
+            PCHK_PROVIDER_STATUS="PENDING_PAYMENT",
+            PCHK_CHECKOUT_URL="https://untrusted.example/checkout",
+        )
+        status = self.client.get(reverse("merchant-plus-status")).data["data"]
+        self.assertFalse(status["checkout_can_resume"])
+        self.assertEqual(self.checkout().status_code, 409)
         self.post.assert_called_once()
 
     def test_network_uncertainty_is_preserved_and_not_retried(self):

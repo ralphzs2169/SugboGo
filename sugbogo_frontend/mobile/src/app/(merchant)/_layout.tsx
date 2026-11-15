@@ -1,3 +1,4 @@
+import MerchantPlusBackButton from "@/features/merchant/components/merchant-plus/MerchantPlusBackButton";
 import useMerchantRouteGuard from "@/features/merchant/hooks/useMerchantRouteGuard";
 import LoadingScreen from "@/shared/components/LoadingScreen";
 import {
@@ -20,44 +21,32 @@ export default function MerchantLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="merchant-plus"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Merchant Plus",
+          headerLeft: () => (
+            <MerchantPlusBackButton fallback="/(merchant)/(tabs)/analytics" />
+          ),
+        }}
+      />
+      <Stack.Screen
+        name="merchant-plus/return"
+        options={{
+          ...defaultStackScreenOptions,
+          ...slideFromRight,
+          headerShown: true,
+          title: "Payment status",
+          headerLeft: () => (
+            <MerchantPlusBackButton fallback="/(merchant)/merchant-plus" />
+          ),
+        }}
+      />
 
       <Stack.Screen name="business-location-map" />
-      <Stack.Screen
-        name="analytics/development-preview"
-        options={{
-          ...defaultStackScreenOptions,
-          ...slideFromRight,
-          headerShown: true,
-          title: "Analytics development preview",
-        }}
-      />
-      <Stack.Screen
-        name="analytics/specialties-preview"
-        options={{
-          ...defaultStackScreenOptions,
-          ...slideFromRight,
-          headerShown: true,
-          title: "Specialty trends preview",
-        }}
-      />
-      <Stack.Screen
-        name="analytics/recommendations-preview"
-        options={{
-          ...defaultStackScreenOptions,
-          ...slideFromRight,
-          headerShown: true,
-          title: "Recommendations preview",
-        }}
-      />
-      <Stack.Screen
-        name="analytics/peer-preview"
-        options={{
-          ...defaultStackScreenOptions,
-          ...slideFromRight,
-          headerShown: true,
-          title: "Peer comparisons preview",
-        }}
-      />
       <Stack.Screen
         name="analytics/discovery-sources"
         options={{

@@ -1,5 +1,35 @@
 # Merchant Plus payment foundation
 
+## M6 prerequisite — checkout outcome and return navigation
+
+The Plus status response includes nullable `checkout_outcome`, derived from the
+unresolved checkout's stored evidence. Maya PAYMENT_CANCELLED, PAYMENT_FAILED
+and PAYMENT_EXPIRED map to cancelled, failed and expired. Stored local expired
+also maps to expired. Creating/ready with an absent or known initial pending
+observation maps to pending. Other evidence, including creation_unknown, maps
+to unknown. Paid purchases and absence of an unresolved purchase return null.
+Financial status, fulfilment and has_plus_access remain separate authoritative fields.
+
+Configure `MAYA_RETURN_BASE_URL` as the deployed public web application's full
+HTTPS URL ending in `/merchant-plus/return`. The existing backend builder adds
+distinct outcome=success, outcome=failure or outcome=cancel plus local references.
+The public page forwards only one recognized outcome to
+`sugbogo://merchant-plus/return` through an explicit Open SugboGo link.
+Invalid, duplicate or missing outcomes produce a link without a hint. Other
+parameters, including references and arbitrary redirect destinations, are dropped.
+
+The public route bypasses Admin session restoration. The mobile route uses the
+existing merchant authentication/role guard and refreshes GET Plus status on focus.
+It makes no checkout POST. Its placeholder Continue to Analytics action preserves
+the existing merchant navigation. No purchase or financial mutation is attached to
+either return route. Full return presentation and polling are deferred to M6.
+
+Deploy the updated web build with SPA fallback for this public path, and install
+the updated mobile build containing the route. Existing sugbogo custom-scheme
+registration is reused. No domain association or native configuration change is
+required for the explicit custom-scheme link. Opening the installed app from the
+deployed bridge still needs physical-device acceptance testing.
+
 ## M5 — paid Merchant Plus fulfilment
 
 M4 verifies Maya evidence and commits a financially paid Payment with fulfilment
@@ -517,3 +547,72 @@ git diff --check
 ```
 
 The Maya Sandbox migration superseded the planned PayMongo connectivity check.
+
+## M7 — Admin read-only payment inspection
+
+The Admin Web Payments directory (`/admin-panel/payments`) exposes stored Merchant
+Plus payment history through active Admin / Super Admin permissions:
+
+- `GET /api/admin/payments/` — standard server-paginated directory.
+- `GET /api/admin/payments/summary/` — global counts, independent of list filters.
+- `GET /api/admin/payments/<id>/` — safe, read-only inspection snapshot.
+
+Directory criteria: `search`, `financial_status`, `fulfilment_status`, `provider`,
+`mode`, `checkout_outcome`, `needs_review`, `start_date`, `end_date`, `ordering`,
+`page`, and `page_size`. Search covers public reference, purchaser name/email,
+business name, and provider payment ID. Creation dates are inclusive Philippine
+calendar dates. Ordering accepts `newest`, `oldest`, `amount_highest`, and
+`amount_lowest`, with stable ID tie-breakers. Pagination defaults to 10 and caps
+page size at 100.
+
+Global counts include both Test and Live history, regardless of the configured
+active provider/mode. Needs Review counts distinct purchases with stored
+fulfilment `needs_attention`, any `creation_unknown` checkout, or a provider event
+in `needs_attention`. It overlaps Pending and Paid; it is a projection, not a new
+financial state. Unlinked events are correlated only through stored checkout IDs
+within the same provider and mode. Event history is oldest-received first.
+
+The drawer separates financial verification from fulfilment and entitlement
+activation. Entitlement activity is labelled in its stored environment; Test
+activity never represents live revenue. It displays all stored checkout operations
+and safe event metadata. Verification references require a matching completed
+checkout; unavailable legacy evidence remains unavailable. Checkout lease timing
+is not represented as provider expiry. No inspection request contacts Maya.
+
+Only allowlisted fields leave the API. Hosted checkout URLs, normalized/raw event
+payloads, digests, dedupe keys, API credentials, signatures, card digits, and legacy
+intent IDs are withheld. Conflict indicators derive from stored controlled error
+codes without returning the underlying error strings.
+
+The API permits GET, HEAD, and OPTIONS only. The Web service has GET operations
+only and no financial or entitlement action controls. No schema migration,
+payment mutation, fulfilment dispatch, provider retry, or entitlement creation is
+part of M7.
+
+## Maya reconciliation fallback
+
+Merchants can request independent verification through
+`POST /api/merchant/plus/payment/reconcile/` with an empty JSON object.
+The endpoint resolves the current owned Merchant Plus purchase in Maya test mode.
+It retrieves the payment using the persisted checkout ID and the backend secret
+key, outside database locks. Purchases without a known provider identity remain
+unresolved.
+
+Webhook processing and reconciliation share the same purchase evidence checks,
+paid transition, and checkout observation functions. Under business, payment,
+and checkout locks, reconciliation rechecks ownership, provider, environment,
+product/version/duration, the exact PHP 100-centavo amount, checkout identity,
+and operation request reference. PAYMENT_SUCCESS also requires a provider paid
+timestamp. The transition dispatches the existing fulfilment task after commit.
+Repeated requests for paid or active purchases perform no additional transition.
+Existing fulfilment recovery handles missed broker dispatch.
+
+The mobile payment-status screen reconciles once per explicit check or return
+session, then performs bounded database-status polling. Return outcomes remain
+navigation hints. Temporary provider failures are recoverable, and pending
+provider observations preserve the unresolved purchase. Expired, failed, and
+cancelled checkouts are never replaced through this endpoint.
+
+Real signed webhook delivery and public HTTPS return-bridge reachability still
+require deployment-specific acceptance. This fallback needs the existing Celery
+fulfilment worker and recovery schedule to activate paid access.

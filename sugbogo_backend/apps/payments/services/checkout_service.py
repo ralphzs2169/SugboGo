@@ -318,6 +318,38 @@ class CheckoutService:
         return cls._response(payment, operation, created=True)
 
     @classmethod
+    def can_resume(
+        cls,
+        payment,
+        operation,
+    ):
+        """Apply the shared payment, checkout identity, and URL-release rules."""
+        if operation is None:
+            return False
+        try:
+            cls._assert_payable(payment)
+        except CheckoutConflict:
+            return False
+        return (
+            operation.PYMT_ID_id == payment.pk
+            and operation.PCHK_PROVIDER == payment.PYMT_PROVIDER
+            and operation.PCHK_MODE == payment.PYMT_MODE
+            and operation.PCHK_STATE == PaymentCheckoutSession.State.READY
+            and operation.PCHK_LAST_ERROR not in {
+                "provider_identity_conflict",
+                "ownership_requires_review",
+            }
+            and timezone.now() < operation.PCHK_CREATED_AT + cls.MAYA_CHECKOUT_LIFETIME
+            and operation.PCHK_PROVIDER_STATUS in {
+                "",
+                "PENDING_TOKEN",
+                "PENDING_PAYMENT",
+            }
+            and MayaCheckoutService.is_checkout_id(operation.PCHK_PROVIDER_SESSION_ID)
+            and MayaCheckoutService.is_safe_checkout_url(operation.PCHK_CHECKOUT_URL)
+        )
+
+    @classmethod
     def _response(
         cls,
         payment,
@@ -334,10 +366,7 @@ class CheckoutService:
         check_after_seconds = 5
         if ready:
             check_after_seconds = None
-            if (
-                timezone.now() < operation.PCHK_CREATED_AT + cls.MAYA_CHECKOUT_LIFETIME
-                and operation.PCHK_PROVIDER_STATUS in {"", "PENDING_TOKEN"}
-            ):
+            if cls.can_resume(payment, operation):
                 session_id = operation.PCHK_PROVIDER_SESSION_ID
                 checkout_url = operation.PCHK_CHECKOUT_URL
                 next_action = "open_checkout"

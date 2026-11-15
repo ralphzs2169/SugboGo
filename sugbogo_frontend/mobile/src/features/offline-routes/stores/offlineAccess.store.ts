@@ -1,8 +1,11 @@
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { create } from "zustand";
 import {
   getAuthSessionGeneration,
+  isAuthSessionGenerationCurrent,
   subscribeAuthSessionChanges,
 } from "@/shared/api/authSessionGeneration.service";
+import { getQueryPersistenceApiScope } from "@/shared/query/queryPersistencePolicies";
 
 export type RecentExploreGrant = {
   ownerId: number;
@@ -39,3 +42,15 @@ subscribeAuthSessionChanges((change) => {
     store.setRecentExplore(null);
   }
 });
+
+/** Verifies the in-memory grant against the current account boundary. */
+export function isRecentExploreCurrent(grant: RecentExploreGrant) {
+  const access = useOfflineAccessStore.getState();
+  return (
+    !useAuthStore.getState().isAuthenticated &&
+    access.recentExplore === grant &&
+    !access.isRevoking &&
+    isAuthSessionGenerationCurrent(grant.generation) &&
+    grant.apiScope === getQueryPersistenceApiScope()
+  );
+}

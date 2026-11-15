@@ -18,7 +18,8 @@ export type CorePlusDetailKind = "pocket" | "specialties" | "reviews";
 export type AdvancedPlusDetailKind =
   "peers" | "review-insights" | "timing" | "recommendations";
 export type PlusDetailKind = CorePlusDetailKind | AdvancedPlusDetailKind;
-export type PlusReportKind = "visibility" | PlusDetailKind;
+export type PlusReportKind =
+  "visibility" | Exclude<PlusDetailKind, "review-insights">;
 export type OwnedAnalyticsBusiness = MerchantStandardAnalytics["business"];
 
 /** Premium metadata retains the shared helper's prior-period boundaries. */
@@ -136,6 +137,34 @@ export type MerchantPlusStatus = {
   stored_demo_state: "not_created" | "inactive" | "active";
   effective_tier: "standard" | "plus";
   has_plus_access: boolean;
+  payment_mode?: "test" | "live";
+  checkout_enabled?: boolean;
+  checkout_can_resume?: boolean;
+  product?: {
+    code: string;
+    version: string;
+    name: string;
+    amount_centavos: number;
+    currency: string;
+    access_duration_days: number;
+    payment_type: string;
+  };
+  entitlement_starts_at?: string | null;
+  entitlement_expires_at?: string | null;
+  paid_payment_id?: number | null;
+  paid_payment_reference?: string | null;
+  unresolved_payment_id?: number | null;
+  unresolved_payment_reference?: string | null;
+  unresolved_payment_provider?: "maya" | "paymongo" | null;
+  unresolved_payment_mode?: "test" | "live" | null;
+  unresolved_payment_status?: "pending" | "paid" | null;
+  unresolved_fulfilment_status?:
+    "not_started" | "pending" | "fulfilled" | "needs_attention" | null;
+  unresolved_checkout_status?: string | null;
+  purchase_eligible?: boolean;
+  purchase_ineligibility_reason?: string | null;
+  checkout_outcome?:
+    "pending" | "cancelled" | "failed" | "expired" | "unknown" | null;
   access_source:
     | "none"
     | "preview"

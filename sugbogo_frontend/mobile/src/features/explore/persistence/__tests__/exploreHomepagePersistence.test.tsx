@@ -82,7 +82,7 @@ const metadataKeys = [
 
 it("versions the homepage Hidden Gems policy to reject old general-discovery snapshots", () => {
   const policy = QUERY_PERSISTENCE_POLICIES.find((candidate) =>
-    candidate.matches(keys.DISCOVERY_FEED_QUERY_KEY),
+    candidate.matches(keys.DISCOVERY_FEED_QUERY_KEY, { ownerId: 7, apiScope: "" }),
   );
 
   expect(policy?.version).toBe(2);
@@ -196,7 +196,7 @@ function context() {
 }
 
 async function seed(
-  key = keys.NEW_BUSINESSES_QUERY_KEY,
+  key: readonly [string] = keys.NEW_BUSINESSES_QUERY_KEY,
   data: unknown = feed(),
 ) {
   const original = context();
@@ -353,9 +353,9 @@ it("keeps the existing total byte budget across approved feeds", async () => {
   );
 });
 
-it("preserves twenty-hour fetch age across restoration and unrelated metadata writes", async () => {
+it("expires feeds seven days after the original fetch despite unrelated writes", async () => {
   await seed();
-  clock += 20 * 60 * 60 * 1000;
+  clock += keys.EXPLORE_BUSINESS_FEED_RETENTION_MS - 1;
   const restored = context();
   await restored.restore();
   expect(
@@ -370,7 +370,7 @@ it("preserves twenty-hour fetch age across restoration and unrelated metadata wr
     ).fetchedAt,
   ).toBe(100_000);
   cleanup.splice(0).forEach((stop) => stop());
-  clock += 4 * 60 * 60 * 1000;
+  clock += 1;
   const expired = context();
   await expired.restore();
   expect(
@@ -455,7 +455,7 @@ it("configures only approved query GC before hydration without changing global f
     next.client
       .getQueryCache()
       .find({ queryKey: keys.NEW_BUSINESSES_QUERY_KEY })?.gcTime,
-  ).toBe(keys.EXPLORE_HOMEPAGE_RETENTION_MS);
+  ).toBe(keys.EXPLORE_BUSINESS_FEED_RETENTION_MS);
   expect(
     next.client.getQueryDefaults(keys.EXPLORE_FILTER_OPTIONS_QUERY_KEY).gcTime,
   ).toBe(keys.EXPLORE_FILTER_RETENTION_MS);

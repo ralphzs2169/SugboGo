@@ -142,6 +142,10 @@ jest.mock("expo-router", () => {
   }
 
   MockTabs.Screen = MockTabScreen;
+  MockTabs.Protected = ({ guard, children }: {
+    guard: boolean;
+    children: React.ReactNode;
+  }) => guard ? children : null;
   return {
     Tabs: MockTabs,
     router: { navigate: jest.fn() },

@@ -8,6 +8,7 @@ from apps.business.services.discovery_source import DiscoverySource
 from apps.business.services.tests.discovery_source_fixtures import DiscoverySourceCollection
 from apps.business.services.visibility_event_service import VisibilityEventService
 from apps.users.models import User
+from ...services.discovery_sources_service import DiscoverySourcesService
 from ...services.tests.fixtures import MerchantAnalyticsFixtures
 
 
@@ -15,6 +16,12 @@ from ...services.tests.fixtures import MerchantAnalyticsFixtures
 class DiscoverySourcesApiTests(MerchantAnalyticsFixtures, APITestCase):
     def setUp(self):
         super().setUp()
+        access = patch(
+            "apps.merchant_operations.merchant_analytics.entitlements.merchant_has_plus_access",
+            return_value=True,
+        )
+        self.plus_access = access.start()
+        self.addCleanup(access.stop)
         self.source = DiscoverySourceCollection()
         target = patch.object(
             VisibilityEventService,
@@ -30,7 +37,7 @@ class DiscoverySourcesApiTests(MerchantAnalyticsFixtures, APITestCase):
         self.ingest = reverse("business-profile-visit", args=[self.business_a.pk])
         self.client.force_authenticate(user=self.merchant_a)
 
-    def test_standard_access_without_plus_and_owned_business_scope(self):
+    def test_plus_access_and_owned_business_scope(self):
         self.source.documents.append({
             "business_id": self.business_b.pk,
             "explorer_id": self.supporter_a.pk,
@@ -108,3 +115,11 @@ class DiscoverySourcesApiTests(MerchantAnalyticsFixtures, APITestCase):
         )
         for query in invalid_queries:
             self.assertEqual(self.client.get(self.url, query).status_code, 400)
+
+    def test_discovery_sources_require_plus_before_report_reads(self):
+        self.plus_access.return_value = False
+        with patch.object(DiscoverySourcesService, "get_report") as report:
+            response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["code"], "PLUS_REQUIRED")
+        report.assert_not_called()

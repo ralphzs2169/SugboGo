@@ -1,4 +1,9 @@
-import { create, isAxiosError, type InternalAxiosRequestConfig } from "axios";
+import {
+  create,
+  isAxiosError,
+  type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
+} from "axios";
 import { router } from "expo-router";
 import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
 import {
@@ -33,10 +38,15 @@ const apiClient = create({
   },
 });
 
-type AuthenticatedRequestConfig = InternalAxiosRequestConfig & {
-  _authSessionGeneration?: number;
-  _retry?: boolean;
+export type SessionValidationRequestConfig = AxiosRequestConfig & {
+  _validateSession?: boolean;
 };
+
+type AuthenticatedRequestConfig = InternalAxiosRequestConfig &
+  SessionValidationRequestConfig & {
+    _authSessionGeneration?: number;
+    _retry?: boolean;
+  };
 
 /**
  * REQUEST INTERCEPTOR
@@ -161,6 +171,17 @@ apiClient.interceptors.response.use(
         // Transport failures leave the current credentials available for retry.
         if (isTransportError(refreshError)) {
           return Promise.reject(createApiError(API_ERROR_CODE.NETWORK_ERROR));
+        }
+
+        if (originalRequest._validateSession) {
+          // Startup and reconnect own session cleanup and navigation.
+          const status = isAxiosError(refreshError)
+            ? refreshError.response?.status
+            : undefined;
+          if (status === 400 || status === 401 || status === 403) {
+            return Promise.reject(createApiError(API_ERROR_CODE.AUTH_ERROR));
+          }
+          return Promise.reject(refreshError);
         }
 
         if (
