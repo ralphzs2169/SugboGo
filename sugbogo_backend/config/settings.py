@@ -714,6 +714,11 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+if MAYA_WEBHOOK_ENABLED:
+    CELERY_BEAT_SCHEDULE["recover-maya-events"] = {
+        "task": "apps.payments.tasks.recover_maya_events",
+        "schedule": 30.0,
+    }
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/

@@ -1,5 +1,58 @@
 # Merchant Plus payment foundation
 
+## M4 — Maya Sandbox webhook and payment confirmation
+
+Enable `MAYA_WEBHOOK_ENABLED=True` only on a Sandbox deployment configured
+with `PAYMENT_PROVIDER=maya` and `PAYMENT_MODE=test`. Supply
+`MAYA_SANDBOX_SECRET_KEY` and both published RSA verification PEMs in
+`MAYA_SANDBOX_WEBHOOK_VERIFICATION_KEY_1` and
+`MAYA_SANDBOX_WEBHOOK_VERIFICATION_KEY_2`. Multiline PEMs and literal
+`\n` separators are supported. These keys are separate from the Checkout API
+keys. The webhook switch is independent of the switch for creating checkouts.
+
+Register the exact public HTTPS path `/api/payments/webhooks/maya/test/` for
+`PAYMENT_SUCCESS`, `PAYMENT_FAILED`, `PAYMENT_EXPIRED`, and
+`PAYMENT_CANCELLED` on a dedicated Sandbox account. The route accepts only
+JSON POSTs up to 64 KiB and authenticates Maya through its millisecond
+timestamp and RSA-SHA256 signature. The timestamp has an inclusive five-minute
+tolerance in either direction. The signature covers Maya's sorted flattened
+JSON entries and nonce. Both public keys are tried for rotation. IP
+allowlisting can be configured at a trusted edge where the actual origin is
+known. Django does not use client-supplied forwarded headers to authenticate
+the sender. [Maya webhook security](https://developers.maya.ph/reference/webhook-security)
+
+A verified delivery is committed to `PaymentProviderEvent` before HTTP 200.
+Deduplication uses provider, mode, payment UUID and event status. The inbox
+keeps a SHA-256 digest and the normalized reconciliation fields. A conflicting
+duplicate flags the original row for review, and unsupported signed statuses
+are recorded as ignored. The callback publishes after commit with broker
+retries disabled. Celery Beat recovers due and abandoned rows every 30
+seconds. The worker claims a 90-second lease, performs provider HTTP outside
+the transaction, and checks the attempt before writing. Transient failures use
+bounded backoff and eventually require review. Maya retries failed deliveries
+up to three times, after 5, 15, and 45 minutes from the preceding attempt.
+[Maya webhook delivery](https://developers.maya.ph/reference/configuring-your-webhook-for-maya-checkout)
+
+The worker uses the secret-key Retrieve Payment by ID endpoint and checks the
+persisted Maya Sandbox checkout UUID, operation reference, owner and business,
+product snapshot, currency and exact amount of 100 centavos PHP. A matching
+`PAYMENT_SUCCESS` can mark the Payment `paid` and fulfilment `pending`. It
+records provider payment and verification times, using the provider's update
+time when a successful payment lacks a distinct payment timestamp. It
+completes the local checkout. Verified unsuccessful events update checkout
+observations and never change a paid Payment. A verified expiry also marks
+the checkout expired. No entitlement is created in M4.
+[Maya Retrieve Payment by ID](https://developers.maya.ph/reference/getpaymentviapaymentid-1)
+
+Only shared published Sandbox credentials were available for the integration
+check. Retrieve Payment returned HTTP 200 for the existing M3 checkout. Its
+payment UUID, operation reference and 100 centavos PHP matched the local
+record. Maya reported `PENDING_TOKEN`. The local Payment stayed `pending`,
+with zero linked events and zero entitlements. Shared webhook subscriptions
+were left untouched, so real signed delivery and successful-payment
+confirmation remain unverified. Use a dedicated Sandbox merchant, stable
+public HTTPS endpoint, and running Celery worker and Beat to test real delivery.
+
 ## M3 — Maya Sandbox Create Checkout
 
 The active gateway for `PAYMENT_PROVIDER=maya` and `PAYMENT_MODE=test` is Maya
@@ -149,14 +202,9 @@ The Sandbox API host is fixed in backend code at
 are retired from Django startup. The PayMongo adapter, configuration parser and
 mocked contract tests remain in the tree. No Maya production settings are used.
 
-M4 should load both published Maya Sandbox webhook verification public keys
-from deployment-managed configuration in two slots so keys can overlap during
-rotation. Reserve `MAYA_SANDBOX_WEBHOOK_VERIFICATION_KEY_1` and
-`MAYA_SANDBOX_WEBHOOK_VERIFICATION_KEY_2` for that work. These RSA keys are
-separate from the Checkout API public key above. M4 will verify
-`X-Maya-Webhook-Timestamp` and
-`X-Maya-Webhook-Signature` before recording an event.
-[Maya webhook security](https://developers.maya.ph/reference/webhook-security)
+M4 adds separate RSA webhook verification key settings and verifies
+`X-Maya-Webhook-Timestamp` and `X-Maya-Webhook-Signature` before recording
+events, as described above.
 
 ## Historical Task 2 and Task 3A implementation
 

@@ -13,6 +13,9 @@ from requests.auth import HTTPBasicAuth
 
 from config.payments import MAYA_SANDBOX_API_BASE_URL, is_maya_api_key, parse_maya_return_url
 
+from .maya_payment_evidence import InvalidMayaPayment, normalize_maya_payment
+from .maya_webhook_security import load_maya_json
+
 
 class MayaConfigurationError(Exception):
     """Report a failure detected before sending Create Checkout."""
@@ -24,6 +27,14 @@ class MayaCreationRejected(Exception):
 
 class MayaCreationUnknown(Exception):
     """Report an outcome that requires reconciliation before another creation attempt."""
+
+
+class MayaPaymentUnavailable(Exception):
+    """Indicate a temporary payment lookup failure."""
+
+
+class MayaPaymentRejected(Exception):
+    """Indicate unusable authoritative payment evidence."""
 
 
 @dataclass(frozen=True)
@@ -107,6 +118,8 @@ class MayaCheckoutService:
     def _read_json(
         cls,
         response,
+        *,
+        authoritative=False,
     ):
         """Read a bounded JSON object while retaining no raw provider error details."""
         body = bytearray()
@@ -115,12 +128,49 @@ class MayaCheckoutService:
                 raise MayaCreationUnknown("provider_response_unusable")
             body.extend(chunk)
         try:
+            if authoritative:
+                return load_maya_json(body)
             payload = json.loads(body)
-        except (ValueError, RecursionError):
+        except (ValueError, ArithmeticError, RecursionError):
             raise MayaCreationUnknown("provider_response_unusable") from None
         if not isinstance(payload, dict):
             raise MayaCreationUnknown("provider_response_unusable")
         return payload
+
+    @classmethod
+    def retrieve_payment(
+        cls,
+        *,
+        mode,
+        payment_id,
+    ):
+        """Retrieve Checkout payment evidence by UUID with the Sandbox secret API key."""
+        key = settings.MAYA_SANDBOX_SECRET_KEY
+        if mode != "test" or not is_maya_api_key(key, "sk-"):
+            raise MayaConfigurationError("Payment configuration is unavailable.")
+        if not cls.is_checkout_id(payment_id):
+            raise MayaPaymentRejected()
+        try:
+            with requests.get(
+                f"{MAYA_SANDBOX_API_BASE_URL}/payments/v1/payments/{payment_id}",
+                auth=HTTPBasicAuth(key, ""),
+                headers={"Accept": "application/json"},
+                timeout=(cls.CONNECT_TIMEOUT_SECONDS, cls.READ_TIMEOUT_SECONDS),
+                verify=True,
+                allow_redirects=False,
+                stream=True,
+            ) as response:
+                status = response.status_code
+                if status in {404, 408, 429} or 500 <= status < 600:
+                    raise MayaPaymentUnavailable()
+                if status != 200:
+                    raise MayaPaymentRejected()
+                payload = cls._read_json(response, authoritative=True)
+            return normalize_maya_payment(payload, retrieved=True)
+        except requests.RequestException:
+            raise MayaPaymentUnavailable() from None
+        except (MayaCreationUnknown, InvalidMayaPayment, ArithmeticError):
+            raise MayaPaymentRejected() from None
 
     @classmethod
     def _raise_creation_failure(

@@ -1,11 +1,26 @@
 """Validate payment environment and Maya Sandbox configuration."""
 
+from functools import lru_cache
 from urllib.parse import urlsplit
 
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from django.core.exceptions import ImproperlyConfigured
 
 
 MAYA_SANDBOX_API_BASE_URL = "https://pg-sandbox.paymaya.com"
+
+
+@lru_cache(maxsize=4)
+def maya_webhook_public_key(pem):
+    """Load a dedicated Maya RSA verification key without exposing configuration values."""
+    try:
+        key = load_pem_public_key(pem.encode("ascii"))
+    except (AttributeError, TypeError, ValueError):
+        raise ImproperlyConfigured("Maya webhook verification requires RSA public keys.") from None
+    if not isinstance(key, RSAPublicKey):
+        raise ImproperlyConfigured("Maya webhook verification requires RSA public keys.")
+    return key
 
 
 def is_maya_api_key(
@@ -73,6 +88,14 @@ def load_payment_configuration(
     if enabled_value not in {"true", "false"}:
         raise ImproperlyConfigured("MAYA_CHECKOUT_ENABLED must be True or False.")
     enabled = enabled_value == "true"
+    webhook_value = environment.get("MAYA_WEBHOOK_ENABLED", "False").strip().lower()
+    if webhook_value not in {"true", "false"}:
+        raise ImproperlyConfigured("MAYA_WEBHOOK_ENABLED must be True or False.")
+    webhook_enabled = webhook_value == "true"
+    webhook_keys = tuple(
+        environment.get(f"MAYA_SANDBOX_WEBHOOK_VERIFICATION_KEY_{slot}", "").replace("\\n", "\n").strip()
+        for slot in (1, 2)
+    )
     configuration = {
         "PAYMENT_PROVIDER": provider,
         "PAYMENT_MODE": mode,
@@ -81,7 +104,18 @@ def load_payment_configuration(
         "MAYA_SANDBOX_PUBLIC_KEY": environment.get("MAYA_SANDBOX_PUBLIC_KEY", "").strip(),
         "MAYA_SANDBOX_SECRET_KEY": environment.get("MAYA_SANDBOX_SECRET_KEY", "").strip(),
         "MAYA_RETURN_BASE_URL": environment.get("MAYA_RETURN_BASE_URL", "").strip(),
+        "MAYA_WEBHOOK_ENABLED": webhook_enabled,
+        "MAYA_SANDBOX_WEBHOOK_VERIFICATION_KEYS": webhook_keys,
     }
+    if webhook_enabled:
+        if (
+            provider != "maya"
+            or mode != "test"
+            or not is_maya_api_key(configuration["MAYA_SANDBOX_SECRET_KEY"], "sk-")
+        ):
+            raise ImproperlyConfigured("Maya webhook processing requires Maya Sandbox and its secret API key.")
+        for pem in webhook_keys:
+            maya_webhook_public_key(pem)
     if not enabled:
         return configuration
     if provider != "maya":
