@@ -1,4 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -10,6 +11,7 @@ import { theme } from "@/constants/theme";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import EmailConfirmationLayout from "@/features/auth/components/EmailConfirmationLayout";
+import VerificationRecoverySheet from "@/features/auth/components/VerificationRecoverySheet";
 import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
 import { useVerifyEmail } from "@/features/auth/hooks/useVerifyEmail";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
@@ -20,6 +22,7 @@ import FormInput from "@/shared/components/form/FormInput";
 import PasswordInput from "@/shared/components/form/PasswordInput";
 import { getFieldError, handleSystemError } from "@/shared/utils/apiErrors";
 import { getRetryAfterMessage } from "@/shared/utils/retryAfterMessage";
+import { presentBottomSheet } from "@/shared/utils/presentBottomSheet.utils";
 
 const MASCOT_PASSWORD_CONFIRMATION = require("@/shared/assets/mascot/mascot-reset-password.webp");
 
@@ -56,6 +59,7 @@ function VerificationPasswordForm({
   const pendingEmail = useVerificationStore((state) => state.pendingEmail);
   const setPendingEmail = useVerificationStore((state) => state.setPendingEmail);
   const submitting = useRef(false);
+  const recoverySheetRef = useRef<BottomSheetModal | null>(null);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [error, setError] = useState("");
@@ -66,12 +70,22 @@ function VerificationPasswordForm({
   const [resendError, setResendError] = useState("");
   const busy = loading || resending;
 
+  function openRecoverySheet(address = pendingEmail ?? "") {
+    setEmail(address);
+    setEmailError("");
+    setResendError("");
+    setShowEmailInput(true);
+    if (!showEmailInput) {
+      presentBottomSheet(recoverySheetRef);
+    }
+  }
+
   async function requestNewLink() {
     if (submitting.current) {
       return;
     }
     if (!pendingEmail && !showEmailInput) {
-      setShowEmailInput(true);
+      openRecoverySheet();
       return;
     }
 
@@ -80,6 +94,7 @@ function VerificationPasswordForm({
       : (pendingEmail ?? "");
     const validation = validateForgotPasswordForm(address);
     if (validation.email) {
+      openRecoverySheet(address);
       setEmailError(validation.email);
       return;
     }
@@ -93,11 +108,13 @@ function VerificationPasswordForm({
         setPendingEmail(address);
         setPassword("");
         Toast.show({ type: "success", text1: "Verification email sent." });
+        recoverySheetRef.current?.dismiss();
         router.replace("/(auth)/verify-email");
         return;
       }
       if (response.code === "EMAIL_ALREADY_VERIFIED") {
         setPassword("");
+        recoverySheetRef.current?.dismiss();
         router.replace("/(auth)/email-verified");
         return;
       }
@@ -107,10 +124,12 @@ function VerificationPasswordForm({
         return;
       }
       const fieldError = getFieldError(response, "email");
-      if (fieldError) {
-        setShowEmailInput(true);
-        setEmail(address);
-        setEmailError(fieldError);
+      if (
+        fieldError ||
+        response.code === "USER_NOT_FOUND"
+      ) {
+        openRecoverySheet(address);
+        setEmailError(fieldError || response.message || "Check your email address.");
         return;
       }
       setResendError(response.message || "Unable to send verification email. Please try again.");
@@ -248,47 +267,12 @@ function VerificationPasswordForm({
         </>
       ) : null}
 
-      {/* Resend destination and inline fallback */}
-      {showEmailInput ? (
-        <FormInput
-          label="EMAIL ADDRESS"
-          accessibilityLabel="Email address"
-          placeholder="Enter your email"
-          keyboardType="email-address"
-          autoComplete="email"
-          autoCapitalize="none"
-          editable={!busy}
-          value={email}
-          onChangeText={(value) => {
-            setEmail(value);
-            setEmailError("");
-          }}
-          error={emailError}
-        />
-      ) : pendingEmail ? (
-        <View className="mb-3 items-center">
-          <AppText className="text-center text-sm text-text-secondary">
-            Resend to {pendingEmail}
-          </AppText>
-          <Pressable
-            onPress={() => {
-              setEmail(pendingEmail);
-              setShowEmailInput(true);
-            }}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: busy }}
-            className="min-h-12 cursor-pointer items-center justify-center px-3 active:opacity-60"
-          >
-            <AppText weight="semibold" className="text-sm text-brand">
-              Use another email
-            </AppText>
-          </Pressable>
-        </View>
+      {/* Resend action */}
+      {resendError && !showEmailInput ? (
+        <VerificationError message={resendError} />
       ) : null}
-      {resendError ? <VerificationError message={resendError} /> : null}
       <Button
-        title={showEmailInput ? "Send verification email" : "Resend email"}
+        title="Resend email"
         onPress={requestNewLink}
         loading={resending}
         disabled={busy}
@@ -317,6 +301,21 @@ function VerificationPasswordForm({
           Back to log in
         </AppText>
       </Pressable>
+
+      {/* Email-entry recovery stays outside the page composition */}
+      <VerificationRecoverySheet
+        sheetRef={recoverySheetRef}
+        email={email}
+        emailError={emailError}
+        error={resendError}
+        loading={busy}
+        onChangeEmail={(value) => {
+          setEmail(value);
+          setEmailError("");
+        }}
+        onSubmit={requestNewLink}
+        onDismiss={() => setShowEmailInput(false)}
+      />
     </AuthLayout>
   );
 }
