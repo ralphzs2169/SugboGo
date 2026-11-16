@@ -30,6 +30,7 @@ type SheetProps = ComponentProps<typeof BottomSheetModal>;
 let mockSheetProps: SheetProps;
 let mockHardwareBack: () => boolean | null | undefined;
 const mockNativeDismiss = jest.fn();
+let mockDeferredPresent: (() => void)[] | null = null;
 
 jest.mock("@gorhom/bottom-sheet", () => {
   const React = jest.requireActual<typeof import("react")>("react");
@@ -52,8 +53,15 @@ jest.mock("@gorhom/bottom-sheet", () => {
       mockSheetProps = props;
       React.useImperativeHandle(ref, () => ({
         present: () => {
-          setVisible(true);
-          props.onChange?.(0, 0, 0);
+          const show = () => {
+            setVisible(true);
+            props.onChange?.(0, 0, 0);
+          };
+          if (mockDeferredPresent) {
+            mockDeferredPresent.push(show);
+          } else {
+            show();
+          }
         },
         dismiss: () => {
           mockNativeDismiss(props.enableDismissOnClose);
@@ -160,6 +168,7 @@ describe("shared review composer dismissal and completion", () => {
   let client: QueryClient;
   beforeEach(() => {
     jest.clearAllMocks();
+    mockDeferredPresent = null;
     jest.mocked(createReview).mockReset();
     jest.mocked(updateReview).mockReset();
     jest.mocked(pickBusinessPhotos).mockReset();
@@ -237,6 +246,7 @@ describe("shared review composer dismissal and completion", () => {
     "Close",
     "backdrop",
     "pan down",
+    "native close",
     "Android Back",
     "dismiss",
     "close",
@@ -262,6 +272,8 @@ describe("shared review composer dismissal and completion", () => {
       } else if (path === "pan down") {
         expect(mockSheetProps.enableDismissOnClose).toBe(false);
         await gestureClose();
+      } else if (path === "native close") {
+        await act(async () => mockSheetProps.onChange?.(-1, 900, 0));
       } else {
         await act(async () => {
           if (path === "Android Back") {
@@ -405,6 +417,38 @@ describe("shared review composer dismissal and completion", () => {
       );
     },
   );
+
+  it("does not queue a reopening when a native close arrives during submission", async () => {
+    const request = deferred<Awaited<ReturnType<typeof createReview>>>();
+    jest.mocked(createReview).mockReturnValueOnce(request.promise);
+    const { screen, onDismiss } = await open();
+    await fireEvent.changeText(
+      screen.getByPlaceholderText("What stood out about your visit?"),
+      changedText,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Submit review" }),
+    );
+    await waitFor(() => expect(createReview).toHaveBeenCalledTimes(1));
+
+    // Gorhom defers present() to a frame; a layout close can skip onAnimate.
+    const pendingPresent: (() => void)[] = [];
+    mockDeferredPresent = pendingPresent;
+    await act(async () => mockSheetProps.onChange?.(-1, 900, 0));
+    await act(async () =>
+      request.resolve({
+        success: true,
+        message: "Received",
+        data: { ...received, status: "published" },
+      }),
+    );
+    await act(async () => pendingPresent.forEach((show) => show()));
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(pendingPresent).toHaveLength(0);
+    expect(screen.queryByText("Write a review")).toBeNull();
+    expect(mockNativeDismiss).toHaveBeenCalledTimes(1);
+  });
 
   it("keeps a failed photo submission retryable and only closes after acceptance", async () => {
     jest.mocked(createReview).mockResolvedValueOnce({
