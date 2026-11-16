@@ -893,9 +893,15 @@ export default function ReviewComposerSheet({
         const isOpen = index >= 0;
 
         if (!isOpen && !dismissalRequested.current) {
-          traceDismissal("present", { trigger: "onChange.unapproved_close", index });
-          nativeSheetRef.current?.present();
           requestDismiss();
+          // present() queues a frame that can remount an already dismissed sheet.
+          if (!dismissalRequested.current) {
+            traceDismissal("present", {
+              trigger: "onChange.unapproved_close",
+              index,
+            });
+            nativeSheetRef.current?.present();
+          }
           return;
         }
         setIsSheetOpen(isOpen);

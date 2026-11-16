@@ -74,6 +74,7 @@ it("serializes rapid taps into one checkout action and one browser session", asy
   expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(1);
   expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(
     checkout.checkout_url,
+    { createTask: false },
   );
   expect(router.replace).not.toHaveBeenCalled();
 });
@@ -115,10 +116,12 @@ it("reopens the returned existing URL only after another explicit Continue actio
   expect(WebBrowser.openBrowserAsync).toHaveBeenNthCalledWith(
     1,
     checkout.checkout_url,
+    { createTask: false },
   );
   expect(WebBrowser.openBrowserAsync).toHaveBeenNthCalledWith(
     2,
     checkout.checkout_url,
+    { createTask: false },
   );
   expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(2);
   expect(router.replace).not.toHaveBeenCalled();
@@ -196,11 +199,17 @@ it("refreshes again when Android returns from the opened custom tab", async () =
     .mocked(WebBrowser.openBrowserAsync)
     .mockResolvedValue({ type: "opened" } as WebBrowser.WebBrowserResult);
   try {
+    useAuthStore.setState({ isAuthenticated: true, sessionExpired: false });
+    const session = useAuthStore.getState();
     const hook = await renderHook(() => useMerchantPlusCheckout(), {
       wrapper: Wrapper,
     });
     await act(async () => hook.result.current.startCheckout());
     await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(
+      checkout.checkout_url,
+      { createTask: false },
+    );
     await act(async () => {
       onAppStateChange("background");
       onAppStateChange("active");
@@ -210,6 +219,9 @@ it("refreshes again when Android returns from the opened custom tab", async () =
     expect(router.back).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
     expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().user).toBe(session.user);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().sessionExpired).toBe(false);
   } finally {
     platform.restore();
     listener.mockRestore();

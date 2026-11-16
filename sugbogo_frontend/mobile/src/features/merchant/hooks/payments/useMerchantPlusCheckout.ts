@@ -93,7 +93,10 @@ export default function useMerchantPlusCheckout() {
             stopWatchingBrowser.current = stopWatching;
           }
           try {
-            await WebBrowser.openBrowserAsync(checkout.checkout_url);
+            // Resume the existing activity on Back instead of relaunching its intent.
+            await WebBrowser.openBrowserAsync(checkout.checkout_url, {
+              createTask: false,
+            });
           } catch (error) {
             stopWatchingBrowser.current?.();
             throw error;
