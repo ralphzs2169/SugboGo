@@ -21,6 +21,7 @@ type EmailConfirmationLayoutProps = {
   resendLoading?: boolean;
 
   children?: React.ReactNode;
+  paddingTop?: number;
 };
 
 /**
@@ -39,9 +40,10 @@ export default function EmailSentLayout({
   onResend,
   resendLoading = false,
   children,
+  paddingTop,
 }: EmailConfirmationLayoutProps) {
   return (
-    <AuthLayout>
+    <AuthLayout paddingTop={paddingTop}>
       {/* Email confirmation animation */}
       <View className="mb-6 items-center justify-center">
         <LottieView

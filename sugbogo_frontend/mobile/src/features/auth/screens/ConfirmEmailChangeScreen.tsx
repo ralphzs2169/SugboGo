@@ -66,7 +66,7 @@ export default function ConfirmEmailChangeScreen() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout paddingTop={24}>
       {/* Link confirmation is an explicit action, including for signed-out users */}
       <View className="mb-6 gap-3">
         <AppText weight="bold" className="text-xl text-text-primary">

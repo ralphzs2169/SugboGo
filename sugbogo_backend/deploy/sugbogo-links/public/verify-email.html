@@ -5,9 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Verify your email in SugboGo</title>
     <style>
-      body { margin: 0; color: #1f2937; font: 1rem/1.6 system-ui, sans-serif; }
-      main { max-width: 36rem; margin: 0 auto; padding: 3rem 1.25rem; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #fff; color: #1f2937; font: 1rem/1.6 system-ui, sans-serif; }
+      main { display: flex; flex-direction: column; justify-content: center; width: 100%; min-height: 100vh; min-height: 100svh; padding: 2rem 1.5rem; overflow-wrap: anywhere; }
       h1 { line-height: 1.2; }
+      @media (min-width: 640px) {
+        body { display: grid; place-items: center; min-height: 100vh; padding: 2.5rem 1.5rem; background: #f8fafc; }
+        main { max-width: 36rem; min-height: auto; padding: 3rem; border: 1px solid #e5e7eb; border-radius: 1.5rem; background: #fff; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); }
+      }
     </style>
   </head>
   <body>
