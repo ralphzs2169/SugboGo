@@ -130,8 +130,20 @@ for (const outcome of ["success", "failure", "cancel", "invalid", "success&outco
     assert.equal(sessionRestoration.restorationStarts, starts);
     assert.equal(container.querySelector("[data-admin-layout]"), null);
     assert.equal(container.querySelector("form"), null);
-    assert.equal(container.querySelector("main h1")?.textContent, "Return to SugboGo");
-    assert.match(container.textContent, /check your Merchant Plus status/);
+    const heading = outcome === "success"
+      ? "Payment submitted"
+      : ["failure", "cancel"].includes(outcome)
+        ? "Checkout not completed"
+        : "Return to SugboGo";
+    assert.equal(container.querySelector("main h1")?.textContent, heading);
+    assert.match(container.textContent, /Merchant Plus (access|status)/);
+    assert.doesNotMatch(container.textContent, /backend|API|reconciliation/i);
+    assert.ok(container.querySelector('main img[alt="SugboGo Logo"]'));
+    assert.match(container.textContent, /Having trouble\?/);
+    assert.match(container.textContent, /Secure payment verification/);
+    assert.equal(container.querySelectorAll("main a").length, 1);
+    assert.equal(link.textContent.trim(), "Open SugboGo");
+    assert.equal(link.getAttribute("referrerpolicy"), "no-referrer");
     assert.doesNotMatch(container.textContent, /Payment successful|Payment confirmed|Plus activated/);
   });
 }

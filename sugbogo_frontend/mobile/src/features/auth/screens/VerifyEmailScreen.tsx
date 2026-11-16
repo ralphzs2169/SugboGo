@@ -180,7 +180,7 @@ function VerificationPasswordForm({
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout paddingTop={24}>
       {/* Password confirmation introduction */}
       <View
         accessibilityElementsHidden
@@ -395,7 +395,7 @@ function VerificationEmailPrompt({ incompleteLink }: { incompleteLink: boolean }
 
   if (!pendingEmail || request === "new") {
     return (
-      <AuthLayout>
+      <AuthLayout paddingTop={24}>
         <AppText weight="bold" className="mb-4 text-xl text-text-primary">
           Request a verification email
         </AppText>
@@ -425,6 +425,7 @@ function VerificationEmailPrompt({ incompleteLink }: { incompleteLink: boolean }
 
   return (
     <EmailConfirmationLayout
+      paddingTop={24}
       title="Check your email"
       description="We've sent a verification link to"
       email={pendingEmail}

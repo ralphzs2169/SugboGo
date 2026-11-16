@@ -13,6 +13,7 @@ type AuthSuccessScreenProps = {
   buttonTitle: string;
   onPress: () => void;
   buttonIcon?: React.ReactNode;
+  paddingTop?: number;
 };
 
 /**
@@ -28,9 +29,10 @@ export default function AuthSuccessScreen({
   buttonTitle,
   onPress,
   buttonIcon,
+  paddingTop,
 }: AuthSuccessScreenProps) {
   return (
-    <AuthLayout>
+    <AuthLayout paddingTop={paddingTop}>
       {/* Success animation */}
       <View className="items-center justify-center">
         <LottieView
