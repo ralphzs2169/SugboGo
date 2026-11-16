@@ -173,7 +173,7 @@ it.each([
   },
 );
 
-it("lets a merchant resume an unconfirmed checkout or check its status", async () => {
+it("offers the existing Maya checkout without presenting it as an unconfirmed payment", async () => {
   mockStatus = {
     ...offer(),
     unresolved_payment_id: 1,
@@ -185,24 +185,102 @@ it("lets a merchant resume an unconfirmed checkout or check its status", async (
   };
   const screen = await render(<MerchantPlusScreen />);
 
-  expect(screen.getByText("Payment not confirmed")).toBeTruthy();
+  expect(screen.getByText("Finish your checkout")).toBeTruthy();
   expect(
-    screen.getByText("You can continue the existing checkout."),
+    screen.getByText(
+      "You can continue your existing Maya checkout when you're ready.",
+    ),
   ).toBeTruthy();
+  expect(screen.queryByText("Payment not confirmed")).toBeNull();
+  expect(screen.queryByText("Payment verification")).toBeNull();
   expect(screen.queryByText("Payment pending")).toBeNull();
   expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
   expect(mockStart).not.toHaveBeenCalled();
 
-  await fireEvent.press(
-    screen.getByRole("button", { name: "Check payment status" }),
-  );
-  expect(mockPush).toHaveBeenCalledWith("/(merchant)/merchant-plus/return");
-  expect(mockStart).not.toHaveBeenCalled();
+  expect(
+    screen.queryByRole("button", { name: "Check payment status" }),
+  ).toBeNull();
+  expect(mockPush).not.toHaveBeenCalled();
 
   await fireEvent.press(
     screen.getByRole("button", { name: "Continue checkout" }),
   );
   expect(mockStart).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a resumable Analytics entry as an offer and only navigates on Continue", async () => {
+  mockStatus = {
+    ...offer(),
+    checkout_can_resume: true,
+    unresolved_payment_id: 1,
+    unresolved_payment_status: "pending",
+    unresolved_checkout_status: "ready",
+    checkout_outcome: "pending",
+  };
+  const screen = await render(<MerchantPlusEntry discovery />);
+
+  expect(screen.getByText("Merchant Plus")).toBeTruthy();
+  expect(screen.getByText("Know how you compare")).toBeTruthy();
+  expect(screen.getByText("Checkout in progress")).toBeTruthy();
+  expect(screen.queryByText("Payment not confirmed")).toBeNull();
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Continue checkout" }),
+  );
+  expect(mockPush).toHaveBeenCalledWith("/(merchant)/merchant-plus");
+  expect(mockStart).not.toHaveBeenCalled();
+
+  await screen.rerender(<MerchantPlusEntry />);
+  expect(screen.getByText("Checkout in progress")).toBeTruthy();
+  expect(screen.queryByText("Payment not confirmed")).toBeNull();
+});
+
+it.each([
+  ["expired", "Checkout expired"],
+  ["cancelled", "Checkout cancelled"],
+  ["failed", "Payment wasn't completed"],
+] as const)(
+  "replaces resumable messaging with the backend %s outcome",
+  async (outcome, label) => {
+    mockStatus = {
+      ...offer(),
+      checkout_can_resume: true,
+      unresolved_payment_id: 1,
+      unresolved_payment_status: "pending",
+      unresolved_checkout_status: "ready",
+      checkout_outcome: "pending",
+    };
+    const screen = await render(<MerchantPlusEntry discovery />);
+    expect(screen.getByText("Checkout in progress")).toBeTruthy();
+
+    mockStatus = {
+      ...mockStatus,
+      checkout_can_resume: false,
+      checkout_outcome: outcome,
+    };
+    await screen.rerender(<MerchantPlusEntry discovery />);
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.queryByText("Payment not confirmed")).toBeNull();
+    expect(screen.queryByText("Checkout in progress")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Continue checkout" }),
+    ).toBeNull();
+    expect(mockStart).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps paid activation authoritative over checkout resumability", async () => {
+  mockStatus = {
+    ...offer(),
+    checkout_can_resume: true,
+    unresolved_payment_id: 1,
+    unresolved_payment_status: "paid",
+    unresolved_fulfilment_status: "pending",
+    checkout_outcome: "pending",
+  };
+  const screen = await render(<MerchantPlusEntry discovery />);
+  expect(screen.getByText("Activating access")).toBeTruthy();
+  expect(screen.queryByText("Checkout in progress")).toBeNull();
+  expect(mockStart).not.toHaveBeenCalled();
 });
 
 it.each(["ready", "creating", "creation_unknown"])(

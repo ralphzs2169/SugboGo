@@ -31,6 +31,16 @@ export function merchantPlusPaymentState(status?: MerchantPlusStatus) {
   return "inactive";
 }
 
+/** Identifies unfinished checkout presentation without changing payment verification state. */
+export function hasResumableMerchantPlusCheckout(status?: MerchantPlusStatus) {
+  return (
+    status?.checkout_can_resume === true &&
+    !!status.unresolved_payment_id &&
+    status.unresolved_payment_status === "pending" &&
+    merchantPlusPaymentState(status) === "checking"
+  );
+}
+
 /** Formats backend entitlement dates using the application's Manila reporting timezone. */
 export function merchantPlusExpiry(value?: string | null) {
   if (!value || !Number.isFinite(Date.parse(value))) return null;

@@ -17,7 +17,10 @@ import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 import useMerchantPlusCheckout from "../../hooks/payments/useMerchantPlusCheckout";
 import MerchantPlusFeatures from "../../components/merchant-plus/MerchantPlusFeatures";
 import MerchantPlusPaymentState from "../../components/merchant-plus/MerchantPlusPaymentState";
-import { hasPaidMerchantPlus } from "../../utils/merchantPlusPayment";
+import {
+  hasPaidMerchantPlus,
+  hasResumableMerchantPlusCheckout,
+} from "../../utils/merchantPlusPayment";
 
 const colors = theme.extends.colors;
 
@@ -201,7 +204,7 @@ export default function MerchantPlusScreen() {
   const status = access.status;
   const paidActive = !access.error && hasPaidMerchantPlus(status);
   const unresolved = !!status?.unresolved_payment_id;
-  const resume = unresolved && status?.checkout_can_resume === true;
+  const resume = hasResumableMerchantPlusCheckout(status);
   const product = status?.product;
   const offerValid =
     product?.code === "merchant_plus" &&
