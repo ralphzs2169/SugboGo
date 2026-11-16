@@ -12,6 +12,7 @@ import approvedAnimation from "../../assets/animations/approved-application.json
 import failedAnimation from "../../assets/animations/changes-required.json";
 import checkingAnimation from "../../assets/animations/under-review.json";
 import {
+  hasResumableMerchantPlusCheckout,
   merchantPlusExpiry,
   merchantPlusPaymentState,
 } from "../../utils/merchantPlusPayment";
@@ -41,6 +42,14 @@ const TONES = {
   },
 };
 const STATUS = {
+  resumable: {
+    badge: "Checkout in progress",
+    title: "Finish your checkout",
+    description:
+      "You can continue your existing Maya checkout when you're ready.",
+    icon: "clock-outline",
+    tone: "neutral",
+  },
   checking: {
     badge: "Verifying payment",
     title: "Checking your payment",
@@ -245,6 +254,7 @@ export default function MerchantPlusPaymentState({
   }
 
   const state = merchantPlusPaymentState(status);
+  const resumable = !returning && hasResumableMerchantPlusCheckout(status);
   const confirmed = status?.unresolved_payment_status === "paid";
   const unconfirmed =
     state === "checking" &&
@@ -252,7 +262,9 @@ export default function MerchantPlusPaymentState({
     (!returning || exhausted);
   const limited = exhausted && state === "checking";
   let presentation: keyof typeof STATUS = state;
-  if (confirmed && state === "unknown") {
+  if (resumable) {
+    presentation = "resumable";
+  } else if (confirmed && state === "unknown") {
     presentation = "activationReview";
   } else if (unconfirmed) {
     presentation = "unconfirmed";
@@ -268,12 +280,14 @@ export default function MerchantPlusPaymentState({
     ? merchantPlusExpiry(status?.entitlement_expires_at)
     : null;
   const showProgress =
-    state === "activating" ||
-    state === "unknown" ||
-    (state === "checking" && !!status?.unresolved_payment_id);
+    !resumable &&
+    (state === "activating" ||
+      state === "unknown" ||
+      (state === "checking" && !!status?.unresolved_payment_id));
   const canRecheck = exhausted || state === "unknown";
   const showCheck =
-    canRecheck || (!returning && (unconfirmed || state === "activating"));
+    !resumable &&
+    (canRecheck || (!returning && (unconfirmed || state === "activating")));
 
   return (
     <View className="gap-5">
@@ -323,9 +337,7 @@ export default function MerchantPlusPaymentState({
           {detail.title}
         </AppText>
         <AppText className="mt-2 max-w-sm text-center text-sm leading-6 text-text-secondary">
-          {presentation === "unconfirmed" && status?.checkout_can_resume === true
-            ? "You can continue the existing checkout."
-            : detail.description}
+          {detail.description}
         </AppText>
       </View>
       {showProgress && <PaymentProgress confirmed={confirmed} />}

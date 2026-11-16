@@ -9,6 +9,7 @@ import { theme } from "@/constants/theme";
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 import {
   hasPaidMerchantPlus,
+  hasResumableMerchantPlusCheckout,
   merchantPlusExpiry,
   merchantPlusPaymentState,
 } from "../../utils/merchantPlusPayment";
@@ -105,9 +106,10 @@ export default function MerchantPlusEntry({
   const preview = access.status?.access_source === "preview";
   const demo = access.status?.access_source === "mock";
   const unresolved = !!access.status?.unresolved_payment_id;
+  const resume = hasResumableMerchantPlusCheckout(access.status);
 
-  if (discovery && !active && !access.error && !unresolved) {
-    if (dismissed) return null;
+  if (discovery && !active && !access.error && (!unresolved || resume)) {
+    if (dismissed && !resume) return null;
 
     return (
       <View className="bg-surface px-5 pb-3 pt-4">
@@ -146,19 +148,21 @@ export default function MerchantPlusEntry({
           {/* Offer identity and dismiss */}
           <View className="flex-row items-center justify-between gap-2">
             <MerchantPlusBadge />
-            <SafePressable
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss Merchant Plus offer"
-              onPress={() => setDismissed(true)}
-              className="-my-2 -mr-2 h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full active:opacity-70"
-            >
-              <MaterialCommunityIcons
-                name="close"
-                size={18}
-                color={colors.surface}
-                accessible={false}
-              />
-            </SafePressable>
+            {!resume && (
+              <SafePressable
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss Merchant Plus offer"
+                onPress={() => setDismissed(true)}
+                className="-my-2 -mr-2 h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full active:opacity-70"
+              >
+                <MaterialCommunityIcons
+                  name="close"
+                  size={18}
+                  color={colors.surface}
+                  accessible={false}
+                />
+              </SafePressable>
+            )}
           </View>
 
           {/* Pitch and locked preview */}
@@ -254,9 +258,16 @@ export default function MerchantPlusEntry({
           </View>
 
           {/* Purchase action and terms */}
+          {resume && (
+            <AppText weight="semibold" className="mt-3 text-xs text-white">
+              Checkout in progress
+            </AppText>
+          )}
           <SafePressable
             accessibilityRole="button"
-            accessibilityLabel="Try 30 days for ₱1"
+            accessibilityLabel={
+              resume ? "Continue checkout" : "Try 30 days for ₱1"
+            }
             accessibilityHint="Opens Merchant Plus"
             onPress={onOpen}
             className="mt-4 min-h-12 cursor-pointer flex-row items-center justify-center gap-2 rounded-full bg-white px-3 py-2.5 active:opacity-80"
@@ -266,7 +277,7 @@ export default function MerchantPlusEntry({
               className="min-w-0 shrink text-center text-base"
               style={{ color: OFFER_SURFACE }}
             >
-              Try 30 days for ₱1
+              {resume ? "Continue checkout" : "Try 30 days for ₱1"}
             </AppText>
             <MaterialCommunityIcons
               name="arrow-right"
@@ -299,6 +310,8 @@ export default function MerchantPlusEntry({
     entryStatus = { label: "Check access status", tone: "neutral" };
   } else if (active && expiry) {
     entryStatus = { label: `Active until ${expiry}`, tone: "active" };
+  } else if (resume) {
+    entryStatus = { label: "Checkout in progress", tone: "neutral" };
   } else if (unresolved) {
     entryStatus = CHECKOUT_STATUS[merchantPlusPaymentState(access.status)];
   } else {

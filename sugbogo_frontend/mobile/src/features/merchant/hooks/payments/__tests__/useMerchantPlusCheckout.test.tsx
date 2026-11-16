@@ -3,7 +3,13 @@ import {
   QueryClientProvider,
   useQuery,
 } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react-native";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  waitFor,
+} from "@testing-library/react-native";
 import type { PropsWithChildren } from "react";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { analyticsMerchant } from "../../../__tests__/merchantAnalytics.fixtures";
@@ -12,24 +18,50 @@ import * as service from "../../../api/merchantPlusCheckout.service";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
 import { beginAuthSession } from "@/shared/api/authSessionGeneration.service";
-import { AppState, Platform } from "react-native";
+import { AppState, Platform, Pressable } from "react-native";
 import type { AppStateStatus } from "react-native";
 import { plusStatus } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 import { merchantPlusPaymentState } from "../../../utils/merchantPlusPayment";
 import { merchantPlusStatusKey } from "../../analytics/merchantPlusAnalyticsQueryKeys";
+import MerchantPlusEntry from "../../../components/merchant-plus/MerchantPlusEntry";
+import { getMerchantPlusStatus } from "../../../api/merchantPlusAnalytics.service";
 
 jest.mock("../../../api/merchantPlusCheckout.service", () => ({
   createMerchantPlusCheckout: jest.fn(),
+  reconcileMerchantPlusPayment: jest.fn(),
+}));
+jest.mock("../../../api/merchantPlusAnalytics.service", () => ({
+  getMerchantPlusStatus: jest.fn(),
 }));
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 jest.mock("expo-router", () => ({
-  router: { back: jest.fn(), replace: jest.fn(), canGoBack: jest.fn() },
+  router: {
+    back: jest.fn(),
+    replace: jest.fn(),
+    canGoBack: jest.fn(),
+    push: jest.fn(),
+  },
+  useNavigation: () => ({ isFocused: () => true }),
 }));
 const client = new QueryClient({
   defaultOptions: { mutations: { retry: false, gcTime: Infinity } },
 });
 function Wrapper({ children }: PropsWithChildren) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+function CheckoutEntry() {
+  const checkout = useMerchantPlusCheckout();
+  return (
+    <>
+      <MerchantPlusEntry discovery />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open Maya"
+        onPress={checkout.startCheckout}
+      />
+    </>
+  );
 }
 const checkout = {
   payment_id: 1,
@@ -125,6 +157,59 @@ it("reopens the returned existing URL only after another explicit Continue actio
   );
   expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(2);
   expect(router.replace).not.toHaveBeenCalled();
+});
+
+it("keeps the Analytics offer resumable after Maya is closed without payment", async () => {
+  let closeBrowser!: (result: WebBrowser.WebBrowserResult) => void;
+  jest.mocked(WebBrowser.openBrowserAsync).mockReturnValueOnce(
+    new Promise((resolve) => {
+      closeBrowser = resolve;
+    }),
+  );
+  jest.mocked(getMerchantPlusStatus).mockResolvedValueOnce({
+    success: true,
+    message: "Ready",
+    data: plusStatus(false),
+  });
+  const screen = await render(<CheckoutEntry />, { wrapper: Wrapper });
+  await screen.findByRole("button", { name: "Try 30 days for ₱1" });
+  expect(service.createMerchantPlusCheckout).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByRole("button", { name: "Open Maya" }));
+  await waitFor(() =>
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledTimes(1),
+  );
+
+  const resumable = {
+    ...plusStatus(false),
+    checkout_can_resume: true,
+    unresolved_payment_id: checkout.payment_id,
+    unresolved_payment_status: "pending" as const,
+    unresolved_checkout_status: "ready",
+    checkout_outcome: "pending" as const,
+  };
+  jest.mocked(getMerchantPlusStatus).mockResolvedValue({
+    success: true,
+    message: "Ready",
+    data: resumable,
+  });
+  await act(async () =>
+    closeBrowser({ type: "cancel" } as WebBrowser.WebBrowserResult),
+  );
+
+  await screen.findByRole("button", { name: "Continue checkout" });
+  expect(screen.getByText("Checkout in progress")).toBeTruthy();
+  expect(screen.queryByText("Payment not confirmed")).toBeNull();
+  expect(
+    client.getQueryData(merchantPlusStatusKey(analyticsMerchant().id)),
+  ).toEqual(resumable);
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Continue checkout" }),
+  );
+  expect(router.push).toHaveBeenCalledWith("/(merchant)/merchant-plus");
+  expect(router.replace).not.toHaveBeenCalled();
+  expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(1);
+  expect(service.reconcileMerchantPlusPayment).not.toHaveBeenCalled();
+  expect(WebBrowser.openBrowserAsync).toHaveBeenCalledTimes(1);
 });
 
 it.each([
