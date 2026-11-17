@@ -196,6 +196,33 @@ describe("merchant Reviews screen backlog integration", () => {
     useAuthStore.setState({ user: null });
   });
 
+  it("shows the collection footer when five reviews exhaust the feed", async () => {
+    getReviews.mockResolvedValue(response([1, 2, 3, 4, 5]));
+
+    const screen = await openScreen();
+
+    expect(
+      await screen.findByText("You've reached the end of this collection."),
+    ).toBeTruthy();
+  });
+
+  it.each([
+    { ids: [1, 2, 3, 4], hasNext: false },
+    { ids: [1, 2, 3, 4, 5], hasNext: true },
+  ])(
+    "hides the footer for $ids with hasNext=$hasNext",
+    async ({ ids, hasNext }) => {
+      getReviews.mockResolvedValue(response(ids, 1, hasNext));
+
+      const screen = await openScreen();
+
+      await screen.findByText("Review 1");
+      expect(
+        screen.queryByText("You've reached the end of this collection."),
+      ).toBeNull();
+    },
+  );
+
   it("opens an older notification review directly and permits loading newer reviews", async () => {
     mockParams = { reviewId: "82", filter: "all", ordering: "newest" };
     jest.mocked(getMerchantReviewLocation).mockResolvedValue({

@@ -247,6 +247,14 @@ export default function MerchantReviewsScreen() {
 
   const isInitialLoading = isBusinessLoading && !business;
   const sectionLoading = isReviewsInitialLoading || locatingReview;
+  const shouldShowEndMessage =
+    !sectionLoading &&
+    !reviewsError &&
+    !hasNextPage &&
+    !isFetchingNextPage &&
+    !isFetchNextPageError &&
+    reviews.length >= 5;
+  const bottomSpacing = TAB_BAR_HEIGHT + insets.bottom + 24;
   const needsReplyCount = unanswered.data?.total_unanswered;
   const hasContentFilters = !!(
     contentFilters.sentiment ||
@@ -386,6 +394,8 @@ export default function MerchantReviewsScreen() {
       <FlatList
         ref={feedRef}
         testID="merchant-reviews-feed"
+        className={shouldShowEndMessage ? "bg-background" : "bg-surface"}
+        contentContainerClassName="bg-surface"
         data={reviews}
         onEndReached={() => {
           if (
@@ -437,7 +447,7 @@ export default function MerchantReviewsScreen() {
         )}
         contentContainerStyle={{
           paddingHorizontal: 16,
-          paddingBottom: TAB_BAR_HEIGHT + insets.bottom + 24,
+          paddingBottom: shouldShowEndMessage ? 0 : bottomSpacing,
         }}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -642,11 +652,13 @@ export default function MerchantReviewsScreen() {
                 void fetchNextPage();
               }}
             />
-          ) : !hasNextPage && reviews.length > 0 ? (
-            <EndOfListMessage
-              title="End of reviews"
-              description="You've reached the end of this list."
-            />
+          ) : shouldShowEndMessage ? (
+            <View
+              className="-mx-4 bg-background"
+              style={{ paddingBottom: bottomSpacing }}
+            >
+              <EndOfListMessage />
+            </View>
           ) : null
         }
         ListEmptyComponent={
