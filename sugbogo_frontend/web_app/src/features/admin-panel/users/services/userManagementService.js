@@ -49,6 +49,15 @@ export async function reactivateUser(userId) {
   return response.data;
 }
 
+export async function verifyUserEmail(userId, attestation) {
+  const response = await apiClient.post(
+    `${BASE_URL}${userId}/verify-email/`,
+    attestation,
+  );
+
+  return response.data;
+}
+
 export async function createAdmin(payload) {
   const response = await apiClient.post(`${BASE_URL}create-admin/`, payload);
 

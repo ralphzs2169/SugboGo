@@ -21,6 +21,7 @@ from apps.admin_operations.user_management.serializers import (
     AdminUserListQuerySerializer,
     AdminUserListSerializer,
     AdminUserSuspendSerializer,
+    AdminUserVerifyEmailSerializer,
 )
 from apps.admin_operations.user_management.services import (
     UserManagementService,
@@ -172,10 +173,46 @@ class AdminUserDetailView(APIView):
         user = UserManagementService.get_user_detail(
             user_id,
         )
+        data = AdminUserDetailSerializer(user).data
+        snapshot = UserManagementService.manual_verification_snapshot(
+            request.user,
+            user,
+        )
+        if snapshot is not None:
+            data["verification_snapshot"] = snapshot
 
         return success_response(
-            data=AdminUserDetailSerializer(user).data,
+            data=data,
             message="User retrieved successfully.",
+        )
+
+
+class AdminUserVerifyEmailView(APIView):
+    """Accept a Super Admin's attestation for an eligible user's current email."""
+
+    permission_classes = SUPER_ADMIN_USER_PERMISSIONS
+
+    def post(
+        self,
+        request,
+        user_id,
+    ):
+        """Record and return the verification state for the reviewed account."""
+        serializer = AdminUserVerifyEmailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = UserManagementService.verify_user_email(
+            actor=request.user,
+            user_id=user_id,
+            **serializer.validated_data,
+        )
+        return success_response(
+            data={
+                "id": user.pk,
+                "email_verified": user.EMAIL_VERIFIED,
+                "email_verified_at": user.EMAIL_VERIFIED_AT,
+            },
+            message="Email verified successfully.",
         )
 
 

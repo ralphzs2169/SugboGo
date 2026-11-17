@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   reactivateUser,
   suspendUser,
+  verifyUserEmail,
 } from "../services/userManagementService";
 import { userQueryKeys } from "./userQueryKeys";
 import { dashboardQueryKeys } from "../../dashboard/queries/dashboardQueryKeys";
@@ -43,6 +44,24 @@ export default function useUserStatusMutations() {
     onSuccess: (_, { userId }) => invalidateUserQueries(userId),
   });
 
+  const verifyEmailMutation = useMutation({
+    mutationFn: ({ userId, attestation }) => verifyUserEmail(userId, attestation),
+    onSuccess: (response, { userId }) => {
+      const detailKey = userQueryKeys.detail(userId);
+      queryClient.setQueryData(detailKey, (user) => user && ({
+        ...user,
+        email_verified: response.data.email_verified,
+        email_verified_at: response.data.email_verified_at,
+        verification_snapshot: undefined,
+      }));
+
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: detailKey, exact: true }),
+        queryClient.invalidateQueries({ queryKey: userQueryKeys.historyForUser(userId) }),
+      ]);
+    },
+  });
+
   return {
     suspend: suspendMutation.mutateAsync,
     reactivate: reactivateMutation.mutateAsync,
@@ -50,5 +69,8 @@ export default function useUserStatusMutations() {
     isReactivating: reactivateMutation.isPending,
     suspendError: suspendMutation.error,
     reactivateError: reactivateMutation.error,
+    verifyEmail: verifyEmailMutation.mutateAsync,
+    isVerifyingEmail: verifyEmailMutation.isPending,
+    verifyEmailError: verifyEmailMutation.error,
   };
 }

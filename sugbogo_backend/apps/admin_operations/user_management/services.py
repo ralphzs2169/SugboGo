@@ -1,6 +1,9 @@
+import json
+
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Prefetch, Q, Value
 from django.db.models.functions import Concat
+from django.utils.crypto import constant_time_compare, salted_hmac
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.admin_operations.activity_management.models import AdminActivity
@@ -8,6 +11,7 @@ from apps.admin_operations.activity_management.services import (
     AdminActivityService,
 )
 from apps.authentication.services.session_service import SessionService
+from apps.authentication.services.verification_service import EmailVerificationService
 from apps.merchant_application.models import MerchantApplication
 from apps.users.models import User
 
@@ -270,6 +274,112 @@ class UserManagementService:
             raise NotFound(
                 "The requested user could not be found.",
             ) from None
+
+    @staticmethod
+    def _is_manual_verification_target(user: User) -> bool:
+        """Limit manual verification to active consumer accounts."""
+        return (
+            user.is_active
+            and user.USER_ROLE in (
+                User.UserRole.EXPLORER,
+                User.UserRole.MERCHANT,
+            )
+        )
+
+    @staticmethod
+    def _manual_verification_snapshot(
+        actor: User,
+        target: User,
+    ) -> str:
+        """Bind a review to the actor and current address and password without exposing the hash."""
+        state = json.dumps(
+            [
+                actor.pk,
+                target.pk,
+                target.USER_EMAIL,
+                target.password,
+                target.USER_ROLE,
+                target.USER_STATUS,
+            ],
+        )
+        return salted_hmac(
+            "admin-user-manual-email-verification",
+            state,
+            algorithm="sha256",
+        ).hexdigest()
+
+    @staticmethod
+    def manual_verification_snapshot(
+        actor: User,
+        target: User,
+    ) -> str | None:
+        """Expose a review snapshot only to the administrator who can perform the action."""
+        if (
+            actor.USER_ROLE != User.UserRole.SUPER_ADMIN
+            or not actor.is_active
+            or target.EMAIL_VERIFIED
+            or not UserManagementService._is_manual_verification_target(target)
+        ):
+            return None
+
+        return UserManagementService._manual_verification_snapshot(
+            actor,
+            target,
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def verify_user_email(
+        *,
+        actor: User,
+        user_id: int,
+        reason: str,
+        ownership_confirmed: bool,
+        verification_snapshot: str,
+    ) -> User:
+        """Apply an attested verification and record its decision in the same transaction."""
+        if (
+            actor.USER_ROLE != User.UserRole.SUPER_ADMIN
+            or not actor.is_active
+        ):
+            raise PermissionDenied(
+                "Only active Super Admins can verify email manually.",
+            )
+
+        if ownership_confirmed is not True:
+            raise ValidationError({
+                "ownership_confirmed": "Confirm email ownership and account control.",
+            })
+
+        target = UserManagementService._get_locked_user(user_id)
+        if not UserManagementService._is_manual_verification_target(target):
+            raise ValidationError(
+                "Only active Explorer and Merchant accounts can be verified manually.",
+            )
+
+        current_snapshot = UserManagementService._manual_verification_snapshot(
+            actor,
+            target,
+        )
+        if not constant_time_compare(verification_snapshot, current_snapshot):
+            raise ValidationError(
+                "The account details changed. Refresh User Details and review them again.",
+            )
+
+        if target.EMAIL_VERIFIED:
+            return target
+
+        EmailVerificationService.apply_verification(target)
+        AdminActivityService.record_user_action(
+            actor=actor,
+            target_user=target,
+            action=AdminActivity.Action.USER_EMAIL_MANUALLY_VERIFIED,
+            context={
+                "reason": reason,
+                "ownership_confirmed": ownership_confirmed,
+            },
+        )
+        return target
 
     @staticmethod
     @transaction.atomic
