@@ -321,14 +321,30 @@ test("workspace deep links isolate Operations errors and Retry", async () => {
   assert.match(section("Merchant Onboarding").textContent, /Unable to load/);
   failures.clear();
   await click([...section("Merchant Onboarding").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
-  await until(() => section("Merchant Onboarding").textContent.includes("8 pending · 2 overdue"));
+  await until(() => section("Merchant Onboarding").textContent.includes("2 overdue"));
   assert.equal(requests("onboarding/").length, 2);
   const onboarding = section("Merchant Onboarding");
-  assert.match(onboarding.textContent, /8 pending · 2 overdue/);
-  assert.match(onboarding.textContent, /Median turnaround3 min/);
-  assert.match(onboarding.querySelector('[aria-label="About application workload"]').getAttribute("data-tooltip-content"), /independent event counts/);
+  assert.equal(onboarding.querySelector("[data-chart]"), null);
+  const [performance, rejection] = onboarding.querySelector('[class~="lg:grid-cols-2"]').children;
+  assert.equal(performance.parentElement, rejection.parentElement);
+  assert.ok(performance.parentElement.classList.contains("grid-cols-1"));
+  assert.ok(performance.parentElement.classList.contains("lg:grid-cols-2"));
+  assert.deepEqual([performance, rejection].map((column) => column.querySelector("h3").textContent), ["Review performance", "Rejection breakdown"]);
+  const cards = performance.querySelector('[class~="grid-cols-2"]');
+  assert.deepEqual([...cards.querySelectorAll("h3")].map((heading) => heading.textContent), ["Pending & overdue", "SLA compliance", "Median turnaround", "Post-rejection recovery"]);
+  assert.deepEqual([...cards.children].map((card) => card.textContent), [
+    "Pending & overdue8 pending2 overdueCurrent queue",
+    "SLA compliance100%All-time",
+    "Median turnaround3 minSelected period",
+    "Post-rejection recovery50%All-time · as of now",
+  ]);
+  assert.match(performance.querySelector('[aria-label="About SLA compliance"]').getAttribute("data-tooltip-content"), /classified recorded reviews/);
+  assert.match(performance.querySelector('[aria-label="About Median turnaround"]').getAttribute("data-tooltip-content"), /selected period/);
+  assert.match(rejection.textContent, /Identity.*Location/);
+  assert.equal(onboarding.querySelector("header a").getAttribute("href"), "/admin-panel/businesses/applications");
   await click([...onboarding.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.querySelector('[aria-label="About application workload"]').getAttribute("data-tooltip-content"), /independent event counts/);
   assert.match(drawer.textContent, /Applications submitted/);
   assert.match(drawer.textContent, /Review decisions/);
   assert.doesNotMatch(drawer.textContent, /Completed reviews/);
