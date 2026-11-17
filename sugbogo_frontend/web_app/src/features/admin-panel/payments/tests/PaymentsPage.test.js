@@ -218,6 +218,10 @@ const summaryReads = () =>
 
 const dialog = () =>
   document.querySelector('[role="dialog"][aria-describedby]');
+const summary = () => dialog()?.querySelector('section[aria-label="Status summary"]');
+const field = (section, label) =>
+  [...section.querySelectorAll("dt")].find((term) => term.textContent === label)
+    ?.nextElementSibling.textContent;
 const inspect = (id = 1) => `Inspect payment ${paymentFixture(id).reference}`;
 const searchInput = () =>
   container.querySelector(
@@ -234,13 +238,24 @@ test("renders the protected directory, sidebar entry, standard columns and Test 
     /Maya.*Test.*₱1.00/,
   );
   assert.match(container.querySelector("tbody").textContent, /PayMongo/);
+  const [flagged, , fulfilled] = container.querySelectorAll("tbody tr");
+  const { business, merchant } = paymentFixture();
+  assert.deepEqual(
+    [...flagged.cells[1].querySelectorAll("p")].map((item) => item.textContent),
+    [business.name, merchant.name, merchant.email],
+  );
+  assert.doesNotMatch(flagged.cells[1].textContent, /Needs review/);
+  assert.match(flagged.cells[7].textContent, /Outcome undetermined.*Needs review/);
+  assert.doesNotMatch(flagged.textContent, /Checkout creation could not be confirmed/);
+  assert.match(fulfilled.textContent, /Paid.*Fulfilled.*Not applicable · Paid/);
+  assert.doesNotMatch(fulfilled.textContent, /Needs review/);
   assert.deepEqual(
     [...container.querySelectorAll("th")].map((cell) => cell.textContent),
     [
-      "Reference",
+      "No.",
       "Merchant / Business",
       "Provider",
-      "Mode",
+      "Environment",
       "Amount",
       "Financial",
       "Fulfilment",
@@ -249,6 +264,7 @@ test("renders the protected directory, sidebar entry, standard columns and Test 
       "Actions",
     ],
   );
+  assert.doesNotMatch(container.querySelector("tbody").textContent, /9b56c5b3/);
   const entry = navigation
     .flatMap((section) => section.items)
     .find((item) => item.label === "Payments");
@@ -263,6 +279,27 @@ test("renders the protected directory, sidebar entry, standard columns and Test 
     reads.filter((read) => /\/payments\/\d+\/$/.test(read.url)).length,
     0,
   );
+});
+
+test("leaves ordinary pending payments without a review indicator", async () => {
+  const originalTransport = transport;
+  transport = async (url, options) => {
+    if (url === "/admin/payments/") {
+      const pending = paymentFixture(1, {
+        checkout_state: "ready",
+        checkout_outcome: "pending",
+        needs_review: false,
+      });
+      return listFixture(options.params, [pending]);
+    }
+    return originalTransport(url, options);
+  };
+  await render();
+  await until(() => button(inspect()));
+  const row = button(inspect()).closest("tr");
+  assert.equal(row.cells[5].textContent, "Payment pending");
+  assert.equal(row.cells[7].textContent, "Checkout in progress");
+  assert.doesNotMatch(row.textContent, /Needs review/);
 });
 
 test("uses separate global summary metrics and clickable stored-evidence filters", async () => {
@@ -302,11 +339,11 @@ test("all filter dimensions send backend values, including false", async () => {
   await until(() => button(inspect()));
   for (const [dimension, choice, key, value] of [
     ["Financial status", "Paid", "financial_status", "paid"],
-    ["Fulfilment", "Fulfilled", "fulfilment_status", "fulfilled"],
+    ["Fulfilment status", "Fulfilled", "fulfilment_status", "fulfilled"],
     ["Provider", "PayMongo", "provider", "paymongo"],
-    ["Mode", "Test", "mode", "test"],
+    ["Environment", "Test", "mode", "test"],
     ["Checkout outcome", "Cancelled", "checkout_outcome", "cancelled"],
-    ["Review evidence", "No stored review flag", "needs_review", "false"],
+    ["Review flag", "No stored review flag", "needs_review", "false"],
   ]) {
     await click("Filter payments");
     await click(`Choose ${dimension} filter`);
@@ -338,8 +375,11 @@ test("dates validate before applying an inclusive Philippine calendar range", as
 test("ordering, page size, and pagination remain server-driven", async () => {
   await render();
   await until(() => button(inspect()));
+  const firstRowNumber = () => button(inspect())?.closest("tr").cells[0].textContent;
+  assert.equal(firstRowNumber(), "1");
   await click("Next page");
   await until(() => listReads().at(-1).params.page === 2);
+  await until(() => firstRowNumber() === "11");
   await click("Sort payments: Newest first");
   await click("Amount: highest first");
   await until(() => listReads().at(-1).params.ordering === "amount_highest");
@@ -348,6 +388,9 @@ test("ordering, page size, and pagination remain server-driven", async () => {
   await click("25");
   await until(() => listReads().at(-1).params.page_size === 25);
   assert.equal(listReads().at(-1).params.page, 1);
+  await until(() => firstRowNumber() === "1");
+  await click("Next page");
+  await until(() => firstRowNumber() === "26");
 });
 
 test("opens all safe drawer sections and chronological provider-event metadata on demand", async () => {
@@ -357,16 +400,25 @@ test("opens all safe drawer sections and chronological provider-event metadata o
   await click(inspect());
   await until(() => dialog()?.textContent.includes("PAYMENT_SUCCESS"));
   for (const label of [
+    "Status summary",
     "Payment",
     "Merchant & Business",
-    "Checkout",
+    "Checkout history",
     "Verification",
     "Fulfilment / Merchant Plus entitlement",
     "Provider events",
   ]) {
     assert.ok(dialog().querySelector(`section[aria-label="${label}"]`));
   }
-  assert.match(dialog().textContent, /Creation unknown/);
+  assert.equal(dialog().querySelector("section").getAttribute("aria-label"), "Status summary");
+  assert.match(dialog().textContent, /Creation unconfirmed/);
+  assert.equal(field(summary(), "Payment"), "Payment pending");
+  assert.equal(field(summary(), "Verification"), "Verification not recorded");
+  assert.equal(field(summary(), "Merchant Plus access"), "No entitlement recorded");
+  assert.match(field(summary(), "Attention"), /Checkout creation could not be confirmed/);
+  assert.match(field(summary(), "Attention"), /Provider events contain conflicting payment evidence/);
+  const attentionIcon = summary().querySelector("svg.lucide-flag");
+  assert.equal(attentionIcon?.getAttribute("aria-hidden"), "true");
   assert.match(dialog().textContent, /Conflicting provider evidence/);
   assert.match(dialog().textContent, /Oldest received first/);
   assert.match(dialog().textContent, /Sandbox \/ test activity/);
@@ -386,7 +438,9 @@ test("historical PayMongo and paid but unfinished fulfilment remain inspectable"
     dialog()?.textContent.includes("checkout_session.payment.paid"),
   );
   assert.match(dialog().textContent, /PayMongo/);
-  assert.match(dialog().textContent, /Paid · Fulfilment not completed/);
+  assert.equal(field(summary(), "Payment"), "Paid");
+  assert.equal(field(summary(), "Verification"), "Verified via PayMongo");
+  assert.equal(field(summary(), "Fulfilment"), "Activation pending");
   assert.match(dialog().textContent, /Entitlement createdNo/);
 });
 
@@ -396,7 +450,119 @@ test("fulfilled Maya entitlement shows its real source and access period", async
   assert.match(dialog().textContent, /Entitlement createdYes/);
   assert.match(dialog().textContent, /Active in stored environmentYes/);
   assert.match(dialog().textContent, /Dec 15, 2026/);
-  assert.doesNotMatch(dialog().textContent, /Paid · Fulfilment not completed/);
+  assert.equal(field(summary(), "Payment"), "Paid");
+  assert.equal(field(summary(), "Merchant Plus access"), "Active until Dec 15, 2026");
+  assert.equal(field(summary(), "Verification"), "Verified via Maya");
+  assert.equal(field(summary(), "Fulfilment"), "Fulfilled");
+  assert.equal(field(summary(), "Provider"), "Maya");
+  assert.equal(field(summary(), "Environment"), "Sandbox");
+  assert.equal(field(summary(), "Attention"), "No attention needed");
+  assert.equal(summary().querySelector("svg.lucide-flag"), null);
+  const checkout = dialog().querySelector('section[aria-label="Checkout history"]');
+  assert.equal(field(checkout, "Checkout outcome"), "Not applicable · Paid");
+  assert.equal(field(checkout, "Provider-reported status"), "PAYMENT_SUCCESS");
+  assert.match(field(checkout, "Provider checkout ID"), /provider-checkout-3/);
+});
+
+test("shows missing historical evidence without inferring verification or active access", async () => {
+  const originalTransport = transport;
+  transport = async (url, options) => {
+    if (url === "/admin/payments/3/") {
+      const detail = detailFixture(3);
+      return {
+        ...detail,
+        mode: "live",
+        verification: null,
+        entitlement: { ...detail.entitlement, active_in_stored_mode: null },
+        checkouts: [{
+          ...detail.checkouts[0],
+          state: "superseded",
+          provider_session_id: null,
+          provider_status: "",
+        }],
+      };
+    }
+    return originalTransport(url, options);
+  };
+  await render("/admin-panel/payments?payment_id=3");
+  await until(summary);
+  assert.equal(field(summary(), "Payment"), "Paid");
+  assert.equal(field(summary(), "Verification"), "Verification unavailable");
+  assert.equal(field(summary(), "Merchant Plus access"), "Access status unavailable");
+  assert.equal(field(summary(), "Provider"), "Maya");
+  assert.equal(field(summary(), "Environment"), "Live");
+  assert.doesNotMatch(summary().textContent, /Sandbox/);
+  const checkout = dialog().querySelector('section[aria-label="Checkout history"]');
+  assert.equal(field(checkout, "Checkout status"), "Replaced");
+  assert.equal(field(checkout, "Provider checkout ID"), "Unavailable");
+  assert.equal(field(checkout, "Provider-reported status"), "Unavailable");
+});
+
+test("shows one business thumbnail and falls back for missing or broken images", async () => {
+  await render();
+  await until(() => button(inspect(3)));
+  const firstIdentity = container.querySelector("tbody tr").cells[1];
+  assert.equal(firstIdentity.querySelector("img"), null);
+  assert.ok(firstIdentity.querySelector("svg.lucide-image"));
+
+  const paid = paymentFixture(3);
+  const row = button(inspect(3)).closest("tr");
+  const identity = row.cells[1];
+  const image = identity.querySelector("img");
+  assert.equal(image.getAttribute("src"), paid.business.cover_photo_url);
+  assert.equal(row.querySelectorAll("img").length, 1);
+  for (const name of [paid.business.name, paid.merchant.name]) {
+    const text = [...identity.querySelectorAll("p")].find((item) => item.title === name);
+    assert.equal(text.textContent, name);
+    assert.ok(text.classList.contains("truncate"));
+  }
+  await act(async () => image.dispatchEvent(new window.Event("error")));
+  assert.equal(identity.querySelector("img"), null);
+  assert.ok(identity.querySelector("svg.lucide-image"));
+
+  const action = button(inspect(3));
+  assert.equal(action.textContent.trim(), "");
+  assert.ok(action.querySelector("svg.lucide-eye"));
+  await click(inspect(3));
+  await until(summary);
+  const payment = dialog().querySelector('section[aria-label="Payment"]');
+  assert.equal(field(payment, "Payment reference"), paid.reference);
+  assert.equal(field(payment, "Payment record ID"), String(paid.id));
+  const identities = dialog().querySelector('section[aria-label="Merchant & Business"]');
+  assert.equal(identities.querySelector("img")?.getAttribute("src"), paid.business.cover_photo_url);
+});
+
+test("explains a provider-event review flag alongside incomplete paid verification evidence", async () => {
+  const originalTransport = transport;
+  transport = async (url, options) => {
+    if (url === "/admin/payments/") {
+      return listFixture(options.params, [paymentFixture(3, { needs_review: true })]);
+    }
+    if (url === "/admin/payments/3/") {
+      const detail = detailFixture(3);
+      return {
+        ...detail,
+        needs_review: true,
+        verification: { ...detail.verification, verified: false },
+        events: [{
+          ...detail.events[0],
+          state: "needs_attention",
+          needs_review: true,
+        }],
+      };
+    }
+    return originalTransport(url, options);
+  };
+
+  await render();
+  await until(() => button(inspect(3)));
+  assert.match(button(inspect(3)).closest("tr").cells[7].textContent, /Needs review/);
+
+  await click(inspect(3));
+  await until(summary);
+  assert.equal(field(summary(), "Payment"), "Paid");
+  assert.equal(field(summary(), "Verification"), "Verification evidence incomplete");
+  assert.match(field(summary(), "Attention"), /Provider event processing needs attention/);
 });
 
 test("no payment mutation, export, or hosted checkout actions are rendered", async () => {

@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.business.models import BusinessPhoto
 from apps.merchant_operations.merchant_analytics.models import PaidMerchantPlusEntitlement
 from apps.merchant_operations.merchant_analytics.services.tests.fixtures import MerchantAnalyticsFixtures
 from apps.payments.models import Payment, PaymentCheckoutSession, PaymentProviderEvent
@@ -174,6 +175,34 @@ class PaymentInspectionViewTests(MerchantAnalyticsFixtures, TestCase):
         })
         self.assertEqual(self.ids({"needs_review": "true"}), [self.payment.pk])
         self.assertEqual(self.ids({"needs_review": "false"}), [self.legacy.pk])
+
+    def test_list_and_detail_use_the_existing_business_display_cover(self):
+        """Expose a cover, the storefront fallback, or null for an unpictured business."""
+        cover_url = "https://example.com/payment-business-cover.jpg"
+        storefront_url = "https://example.com/payment-business-storefront.jpg"
+        self.business_a.BUSN_COVER_PHOTO_URL = cover_url
+        self.business_a.save(update_fields=["BUSN_COVER_PHOTO_URL"])
+        BusinessPhoto.objects.create(
+            BUSN_ID=self.business_a,
+            BPHO_CATEGORY=BusinessPhoto.PhotoCategory.STOREFRONT,
+            BPHO_PHOTO_URL=storefront_url,
+            BPHO_PHOTO_PUBLIC_ID="payment-business-storefront",
+        )
+
+        rows = self.client.get(self.list_url).data["data"]["items"]
+        photos = {
+            row["id"]: row["business"]["cover_photo_url"]
+            for row in rows
+        }
+        self.assertEqual(photos[self.payment.pk], cover_url)
+        self.assertIsNone(photos[self.legacy.pk])
+        detail = self.client.get(self.detail_url).data["data"]
+        self.assertEqual(detail["business"]["cover_photo_url"], cover_url)
+
+        self.business_a.BUSN_COVER_PHOTO_URL = None
+        self.business_a.save(update_fields=["BUSN_COVER_PHOTO_URL"])
+        detail = self.client.get(self.detail_url).data["data"]
+        self.assertEqual(detail["business"]["cover_photo_url"], storefront_url)
 
     def test_uncertain_checkout_and_fulfilment_attention_count_as_review(self):
         PaymentCheckoutSession.objects.filter(pk=self.checkout.pk).update(

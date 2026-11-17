@@ -244,6 +244,7 @@ class PaymentCheckoutSession(models.Model):
         CREATION_FAILED = "creation_failed", "Creation failed"
         COMPLETED = "completed", "Completed"
         EXPIRED = "expired", "Expired"
+        SUPERSEDED = "superseded", "Superseded"
 
     PCHK_ID = models.BigAutoField(primary_key=True)
     PYMT_ID = models.ForeignKey(
@@ -291,13 +292,19 @@ class PaymentCheckoutSession(models.Model):
             ),
             models.CheckConstraint(
                 condition=models.Q(PCHK_STATE__in=[
-                    "creating", "creation_unknown", "ready", "creation_failed", "completed", "expired",
+                    "creating",
+                    "creation_unknown",
+                    "ready",
+                    "creation_failed",
+                    "completed",
+                    "expired",
+                    "superseded",
                 ]),
                 name="checkout_valid_state",
             ),
             models.CheckConstraint(
                 condition=(
-                    ~models.Q(PCHK_STATE__in=["ready", "completed", "expired"])
+                    ~models.Q(PCHK_STATE__in=["ready", "completed", "expired", "superseded"])
                     | (
                         models.Q(PCHK_PROVIDER_SESSION_ID__isnull=False)
                         & ~models.Q(PCHK_PROVIDER_SESSION_ID="")

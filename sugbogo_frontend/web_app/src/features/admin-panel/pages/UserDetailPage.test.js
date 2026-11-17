@@ -30,6 +30,7 @@ let reads;
 let posts;
 let failures;
 let postFailure;
+let postWait;
 let notifications;
 let historyPages;
 
@@ -115,6 +116,7 @@ beforeEach(async () => {
   posts = [];
   failures = new Set();
   postFailure = false;
+  postWait = null;
   notifications = [];
   historyPages = 1;
   authStore.setState({ user: { id: 1, role: "super_admin" } });
@@ -139,7 +141,29 @@ beforeEach(async () => {
   };
   globalThis.__userDetailPost = async (url, payload) => {
     posts.push({ url, payload });
+    if (postWait) await postWait;
     if (postFailure) throw new Error("Action unavailable");
+    if (url.endsWith("/verify-email/")) {
+      account.email_verified = true;
+      account.email_verified_at = timestamp;
+      delete account.verification_snapshot;
+      history.unshift({
+        id: history.length + 1,
+        action: "user_email_manually_verified",
+        timestamp,
+        actor: { id: 1, name: "Sofia Admin", role: "super_admin" },
+        context: {
+          reason: payload.reason,
+          ownership_confirmed: payload.ownership_confirmed,
+        },
+      });
+      return {
+        data: {
+          success: true,
+          data: { id: 2, email_verified: true, email_verified_at: timestamp },
+        },
+      };
+    }
     if (url.endsWith("/suspend/") || url.endsWith("/reactivate/")) {
       const suspend = url.endsWith("/suspend/");
       account.status = suspend ? "suspended" : "active";
@@ -442,6 +466,143 @@ test("suspension and reactivation still refresh account state and recorded histo
   assert.deepEqual(posts.map((post) => post.url), [
     "/admin/users/2/suspend/", "/admin/users/2/reactivate/",
   ]);
+});
+
+function makeUnverified() {
+  account.email_verified = false;
+  account.email_verified_at = null;
+  account.verification_snapshot = "a".repeat(64);
+}
+
+async function enterVerificationInput(field, value) {
+  await act(async () => {
+    const prototype = Object.getPrototypeOf(field);
+    Object.getOwnPropertyDescriptor(prototype, "value").set.call(field, value);
+    field.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  });
+}
+
+test("manual verification is offered only to super admins for eligible consumer details", async () => {
+  makeUnverified();
+  await renderPage();
+  const actionText = () => section("Account actions").textContent;
+  assert.match(actionText(), /Mark as Verified/);
+  const verify = button("Mark as Verified", section("Account actions"));
+  const suspend = button("Suspend User", section("Account actions"));
+  for (const action of [verify, suspend]) {
+    assert.ok(action.classList.contains("ml-auto"));
+    assert.ok(action.parentElement.classList.contains("items-center"));
+    assert.ok(action.parentElement.classList.contains("flex-wrap"));
+    assert.equal(action.previousElementSibling.tagName, "DIV");
+  }
+  assert.ok(verify.parentElement.classList.contains("border-b"));
+  assert.ok(suspend.classList.contains("bg-red-600"));
+  await act(async () => {
+    client.setQueryData(keys.detail(2), { ...account, role: "explorer" });
+  });
+  assert.match(actionText(), /Mark as Verified/);
+
+  for (const change of [
+    { email_verified: true },
+    { status: "pending" },
+    { status: "suspended" },
+    { status: "disabled" },
+    { role: "admin" },
+    { role: "super_admin" },
+  ]) {
+    await act(async () => {
+      client.setQueryData(keys.detail(2), { ...account, ...change });
+    });
+    await until(() => !actionText().includes("Mark as Verified"));
+  }
+
+  await act(async () => {
+    client.setQueryData(keys.detail(2), account);
+    authStore.setState({ user: { id: 1, role: "admin" } });
+  });
+  assert.doesNotMatch(actionText(), /Mark as Verified/);
+  assert.match(actionText(), /Suspend User/);
+});
+
+test("manual verification validates the form, prevents duplicate posts and refreshes details and history", async () => {
+  makeUnverified();
+  await renderPage();
+  await act(async () => button("Mark as Verified", section("Account actions")).click());
+  const dialog = container.querySelector('[role="dialog"]');
+  assert.ok(dialog.textContent.includes(account.name));
+  assert.ok(dialog.textContent.includes(account.email));
+  assert.match(dialog.textContent, /bypasses the normal email verification link/);
+  const confirm = button("Confirm Verification", dialog);
+  const reason = dialog.querySelector("textarea");
+  const acknowledgment = dialog.querySelector('input[type="checkbox"]');
+  assert.equal(dialog.querySelectorAll("textarea, input").length, 2);
+  assert.match(reason.labels[0].textContent, /Reason for manual verification/);
+  assert.equal(reason.placeholder, "Explain why verification is necessary and how you confirmed account ownership.");
+  assert.equal(acknowledgment.required, true);
+
+  assert.equal(confirm.disabled, true);
+  await enterVerificationInput(reason, "  Normal link failed. Control confirmed in CASE-123.  ");
+  assert.equal(confirm.disabled, true);
+  await act(async () => acknowledgment.click());
+  assert.equal(confirm.disabled, false);
+  await enterVerificationInput(reason, "   ");
+  assert.equal(confirm.disabled, true);
+  await enterVerificationInput(reason, "  Normal link failed. Control confirmed in CASE-123.  ");
+
+  let finish;
+  postWait = new Promise((resolve) => { finish = resolve; });
+  const submit = () => dialog.querySelector("form").dispatchEvent(
+    new dom.window.Event("submit", { bubbles: true, cancelable: true }),
+  );
+  try {
+    await act(async () => {
+      submit();
+      submit();
+    });
+    await until(() => posts.length === 1 && confirm.disabled);
+    assert.equal(button("Cancel", dialog).disabled, true);
+    assert.deepEqual(posts, [{
+      url: "/admin/users/2/verify-email/",
+      payload: {
+        reason: "Normal link failed. Control confirmed in CASE-123.",
+        ownership_confirmed: true,
+        verification_snapshot: "a".repeat(64),
+      },
+    }]);
+  } finally {
+    await act(async () => finish());
+  }
+
+  await until(() => !container.querySelector('[role="dialog"]'));
+  assert.match(section("Account information").textContent, /Verified Nov 5, 2026/);
+  assert.doesNotMatch(section("Account actions").textContent, /Mark as Verified/);
+  assert.match(section("Administrative history").textContent, /Email manually verified/);
+  assert.match(section("Administrative history").textContent, /CASE-123/);
+  for (const resource of ["detail", "history"]) {
+    assert.equal(reads.filter((read) => read.resource === resource).length, 2);
+  }
+});
+
+test("manual verification failures use existing feedback and preserve the attestation", async () => {
+  makeUnverified();
+  postFailure = true;
+  await renderPage();
+  await act(async () => button("Mark as Verified", section("Account actions")).click());
+  const dialog = container.querySelector('[role="dialog"]');
+  const reason = dialog.querySelector("textarea");
+  await enterVerificationInput(reason, "Normal link failed.");
+  const acknowledgment = dialog.querySelector('input[type="checkbox"]');
+  await act(async () => acknowledgment.click());
+  const confirm = button("Confirm Verification", dialog);
+  await act(async () => confirm.click());
+  await until(() => notifications.some(([message]) => message.includes("Unable to verify")));
+
+  assert.equal(container.querySelector('[role="dialog"]'), dialog);
+  assert.equal(reason.value, "Normal link failed.");
+  assert.equal(acknowledgment.checked, true);
+  assert.equal(confirm.disabled, false);
+  assert.match(section("Account information").textContent, /Email not verified/);
+  assert.equal(posts.length, 1);
 });
 
 test("User Details loads live data without development preview controls", async () => {

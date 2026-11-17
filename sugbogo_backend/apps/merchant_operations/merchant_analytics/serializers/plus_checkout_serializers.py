@@ -6,7 +6,9 @@ from .mock_plus_serializers import EmptyPlusInputSerializer
 
 
 class MerchantPlusCheckoutInputSerializer(EmptyPlusInputSerializer):
-    """Require an explicitly empty JSON object with no purchase overrides."""
+    """Accept only an optional reference to the terminal attempt being retried."""
+
+    retry_checkout_reference = serializers.UUIDField(required=False)
 
     def to_internal_value(
         self,
@@ -15,7 +17,7 @@ class MerchantPlusCheckoutInputSerializer(EmptyPlusInputSerializer):
         """Reject JSON arrays, null, and all unsupported input fields."""
         if not isinstance(data, dict):
             raise serializers.ValidationError({
-                "non_field_errors": ["An empty JSON object is required."],
+                "non_field_errors": ["A JSON object is required."],
             })
         return super().to_internal_value(data)
 
@@ -39,7 +41,7 @@ class MerchantPlusCheckoutSerializer(serializers.Serializer):
     mode = serializers.CharField()
     payment_status = serializers.CharField()
     fulfilment_status = serializers.CharField()
-    checkout_status = serializers.CharField()
+    checkout_status = serializers.CharField(allow_null=True)
     checkout_session_id = serializers.CharField(allow_null=True)
     checkout_url = serializers.CharField(allow_null=True)
     next_action = serializers.CharField()

@@ -1,4 +1,4 @@
-import { Flag, Gavel, History, MessageSquareText, Store, UserCheck, UserPlus, UserX } from "lucide-react";
+import { Flag, Gavel, History, MailCheck, MessageSquareText, Store, UserCheck, UserPlus, UserX } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 
@@ -45,6 +45,11 @@ const ACTION_CONFIG = {
     label: "Account reactivated",
     iconClassName: "text-success",
   },
+  user_email_manually_verified: {
+    icon: MailCheck,
+    label: "Email manually verified",
+    iconClassName: "text-success",
+  },
 };
 
 /** Distinguishes the existing decision categories with dashboard-sized contextual icons. */
@@ -68,6 +73,7 @@ function HistoryContext({ entry }) {
   ];
   const notes = [
     ["Reason", context.reason],
+    ["Evidence reference", context.evidence_reference],
     ["Administrator notes", context.admin_notes],
     ["Moderation notes", context.moderation_notes],
   ];

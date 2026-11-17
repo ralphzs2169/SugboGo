@@ -31,7 +31,13 @@ export default function TableBody({ table, emptyState, onRowClick, compact = fal
                       : ""
                 }`}
               >
-                <div className="min-w-0 break-words">
+                <div
+                  className={`min-w-0 break-words ${
+                    cell.column.id === "rowNumber"
+                      ? "text-sm tabular-nums text-text-secondary"
+                      : ""
+                  }`}
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </div>
               </td>

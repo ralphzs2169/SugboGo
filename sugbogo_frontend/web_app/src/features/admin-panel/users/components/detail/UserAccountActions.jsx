@@ -12,7 +12,11 @@ import useResendAdminInvitation from "../../hooks/useResendAdminInvitation";
 import { canResendAdminInvitation } from "../../utils/adminInvitationUi";
 import ReactivateUserModal from "../ReactivateUserModal";
 import SuspendUserModal from "../SuspendUserModal";
+import VerifyUserEmailModal from "../VerifyUserEmailModal";
 import UserDetailHeading from "./UserDetailHeading";
+
+const ACCOUNT_ACTION_ROW = "flex flex-wrap items-center justify-between gap-3";
+const ACCOUNT_ACTION_COPY = "min-w-0 grow basis-44";
 
 function getUnavailableMessage(currentUser, user) {
   if (String(currentUser?.id) === String(user.id)) {
@@ -29,6 +33,7 @@ function getUnavailableMessage(currentUser, user) {
 export default function UserAccountActions({ user }) {
   const currentUser = useAuthStore((state) => state.user);
   const [activeAction, setActiveAction] = useState(null);
+  const [verificationTarget, setVerificationTarget] = useState(null);
   const {
     suspend,
     reactivate,
@@ -36,6 +41,9 @@ export default function UserAccountActions({ user }) {
     isReactivating,
     suspendError,
     reactivateError,
+    verifyEmail,
+    isVerifyingEmail,
+    verifyEmailError,
   } = useUserStatusMutations();
   const {
     resendInvitation,
@@ -55,8 +63,18 @@ export default function UserAccountActions({ user }) {
     toastId: `admin-user-${user.id}-invitation-error`,
     fallbackMessage: "Unable to resend the Admin invitation. Please try again.",
   });
+  useApiErrorNotification(verifyEmailError, {
+    toastId: `admin-user-${user.id}-verify-email-error`,
+    fallbackMessage: "Unable to verify this email. Please try again.",
+  });
 
   const canManage = canManageUserStatus(currentUser, user);
+  const canVerifyEmail =
+    currentUser?.role === "super_admin" &&
+    user.status === "active" &&
+    ["explorer", "merchant"].includes(user.role) &&
+    user.email_verified === false &&
+    Boolean(user.verification_snapshot);
 
   function closeAction(force = false) {
     if (force || (!isSuspending && !isReactivating)) {
@@ -85,6 +103,12 @@ export default function UserAccountActions({ user }) {
     }
   }
 
+  async function handleVerifyEmail(attestation) {
+    await verifyEmail({ userId: verificationTarget.id, attestation });
+    setVerificationTarget(null);
+    toast.success("Email verified successfully.");
+  }
+
   return (
     <>
       <section
@@ -93,6 +117,26 @@ export default function UserAccountActions({ user }) {
       >
       <UserDetailHeading icon={ShieldAlert} title="Account Actions" />
 
+      {canVerifyEmail && (
+        <div className={`${ACCOUNT_ACTION_ROW} mb-4 border-b border-stroke pb-4`}>
+          <div className={ACCOUNT_ACTION_COPY}>
+            <h3 className="text-sm font-semibold text-text-primary">
+              Verify email address
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-text-secondary">
+              Confirm email ownership and account control before verifying.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="ml-auto shrink-0"
+            onClick={() => setVerificationTarget(user)}
+          >
+            Mark as Verified
+          </Button>
+        </div>
+      )}
       <div>
         {canResendAdminInvitation(currentUser, user) ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -109,8 +153,8 @@ export default function UserAccountActions({ user }) {
             </Button>
           </div>
         ) : canManage && user.status === "active" ? (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+          <div className={ACCOUNT_ACTION_ROW}>
+            <div className={ACCOUNT_ACTION_COPY}>
               <h3 className="text-sm font-semibold text-text-primary">
                 Suspend account
               </h3>
@@ -122,6 +166,7 @@ export default function UserAccountActions({ user }) {
               variant="danger"
               size="sm"
               icon={UserX}
+              className="ml-auto shrink-0"
               onClick={() => setActiveAction("suspend")}
             >
               Suspend User
@@ -179,6 +224,14 @@ export default function UserAccountActions({ user }) {
         onConfirm={handleReactivate}
         loading={isReactivating}
       />
+      {verificationTarget && currentUser?.role === "super_admin" && (
+        <VerifyUserEmailModal
+          user={verificationTarget}
+          onClose={() => setVerificationTarget(null)}
+          onConfirm={handleVerifyEmail}
+          loading={isVerifyingEmail}
+        />
+      )}
     </>
   );
 }

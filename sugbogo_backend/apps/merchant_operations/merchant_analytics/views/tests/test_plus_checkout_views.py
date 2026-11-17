@@ -2,6 +2,7 @@ import json
 from datetime import timedelta
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
+from uuid import uuid4
 
 import requests
 from django.core.cache import cache
@@ -45,8 +46,14 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.addCleanup(patcher.stop)
         self.post.return_value = maya_response()
 
-    def checkout(self):
-        return self.client.post(self.url, {}, format="json")
+    def checkout(
+        self,
+        retry_reference=None,
+    ):
+        body = {}
+        if retry_reference is not None:
+            body["retry_checkout_reference"] = str(retry_reference)
+        return self.client.post(self.url, body, format="json")
 
     def grant_paid(self):
         now = timezone.now()
@@ -428,6 +435,126 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
                 PaymentCheckoutSession.objects.update(PCHK_STATE=state)
                 self.assertEqual(self.checkout().status_code, 409)
         self.post.assert_called_once()
+
+    def test_existing_terminal_checkouts_get_a_fresh_attempt_and_keep_history(self):
+        self.assertEqual(self.checkout().status_code, 201)
+        payment = Payment.objects.get()
+        before = PaymentCheckoutSession.objects.get()
+        for provider_status, state, outcome in (
+            ("PAYMENT_EXPIRED", "expired", "expired"),
+            ("PAYMENT_FAILED", "ready", "failed"),
+            ("PAYMENT_CANCELLED", "ready", "cancelled"),
+        ):
+            with self.subTest(outcome=outcome):
+                cache.clear()
+                before.PCHK_STATE = state
+                before.PCHK_PROVIDER_STATUS = provider_status
+                before.save()
+                reference = before.PCHK_OPERATION_REFERENCE
+                old_id = before.PCHK_PROVIDER_SESSION_ID
+                old_url = before.PCHK_CHECKOUT_URL
+                status = self.client.get(reverse("merchant-plus-status")).data["data"]
+                self.assertEqual(status["checkout_outcome"], outcome)
+                self.assertFalse(status["checkout_can_resume"])
+                self.assertEqual(status["checkout_retry_reference"], str(reference))
+
+                new_id = str(uuid4())
+                new_url = f"https://payments-web-sandbox.paymaya.com/v2/checkout?id={new_id}"
+                self.post.reset_mock()
+                self.post.return_value = maya_response({
+                    "checkoutId": new_id,
+                    "redirectUrl": new_url,
+                })
+                replacement = self.checkout(reference)
+                self.assertEqual(replacement.status_code, 201, replacement.data)
+                self.assertEqual(replacement.data["data"]["next_action"], "open_checkout")
+                self.assertEqual(replacement.data["data"]["checkout_url"], new_url)
+                self.assertEqual(replacement.data["data"]["payment_id"], payment.pk)
+                repeated = self.checkout(reference)
+                self.assertEqual(repeated.status_code, 200)
+                self.assertEqual(repeated.data["data"], replacement.data["data"])
+                self.post.assert_called_once()
+
+                before.refresh_from_db()
+                self.assertEqual(before.PCHK_PROVIDER_SESSION_ID, old_id)
+                self.assertEqual(before.PCHK_PROVIDER_STATUS, provider_status)
+                self.assertEqual(before.PCHK_CHECKOUT_URL, old_url)
+                self.assertEqual(before.PCHK_OPERATION_REFERENCE, reference)
+                self.assertEqual(before.PCHK_STATE, "expired" if state == "expired" else "superseded")
+                before = payment.checkout_sessions.get(PCHK_PROVIDER_SESSION_ID=new_id)
+                self.assertNotEqual(before.PCHK_OPERATION_REFERENCE, reference)
+                new_status = self.client.get(reverse("merchant-plus-status")).data["data"]
+                self.assertTrue(new_status["checkout_can_resume"])
+                self.assertIsNone(new_status["checkout_retry_reference"])
+
+        self.assertEqual(Payment.objects.count(), 1)
+        self.assertEqual(payment.checkout_sessions.count(), 4)
+        payment.refresh_from_db()
+        self.assertEqual(payment.PYMT_STATUS, "pending")
+
+    def test_retry_requires_stored_terminal_provider_evidence(self):
+        self.assertEqual(self.checkout().status_code, 201)
+        operation = PaymentCheckoutSession.objects.get()
+        for state, provider_status, next_action in (
+            ("ready", "PENDING_PAYMENT", "open_checkout"),
+            ("creation_unknown", "", "wait"),
+            ("expired", "", "wait"),
+        ):
+            with self.subTest(state=state):
+                cache.clear()
+                PaymentCheckoutSession.objects.filter(pk=operation.pk).update(
+                    PCHK_STATE=state,
+                    PCHK_PROVIDER_STATUS=provider_status,
+                )
+                status = self.client.get(reverse("merchant-plus-status")).data["data"]
+                self.assertIsNone(status["checkout_retry_reference"])
+                response = self.checkout(operation.PCHK_OPERATION_REFERENCE)
+                self.assertEqual(response.data["data"]["next_action"], next_action)
+                if next_action == "open_checkout":
+                    self.assertEqual(response.data["data"]["checkout_url"], CHECKOUT_URL)
+                else:
+                    self.assertIsNone(response.data["data"]["checkout_url"])
+        self.post.assert_called_once()
+        self.assertEqual(PaymentCheckoutSession.objects.count(), 1)
+
+    def test_retry_rechecks_paid_purchase_and_active_access(self):
+        self.assertEqual(self.checkout().status_code, 201)
+        operation = PaymentCheckoutSession.objects.get()
+        operation.PCHK_PROVIDER_STATUS = "PAYMENT_FAILED"
+        operation.save()
+        reference = self.client.get(reverse("merchant-plus-status")).data["data"][
+            "checkout_retry_reference"
+        ]
+        self.assertEqual(reference, str(operation.PCHK_OPERATION_REFERENCE))
+        now = timezone.now()
+        Payment.objects.filter(pk=operation.PYMT_ID_id).update(
+            PYMT_STATUS="paid",
+            PYMT_FULFILMENT_STATUS="pending",
+            PYMT_PROVIDER_PAYMENT_ID=CHECKOUT_ID,
+            PYMT_PAID_AT=now,
+            PYMT_VERIFIED_AT=now,
+        )
+        paid = self.checkout(reference)
+        self.assertEqual(paid.status_code, 202)
+        self.assertEqual(paid.data["data"]["payment_status"], "paid")
+        self.assertEqual(paid.data["data"]["fulfilment_status"], "pending")
+        self.assertIsNone(paid.data["data"]["checkout_url"])
+
+        self.grant_paid()
+        active = self.checkout(reference)
+        self.assertEqual(active.status_code, 202)
+        self.assertEqual(active.data["data"]["fulfilment_status"], "fulfilled")
+        self.assertIsNone(active.data["data"]["checkout_url"])
+        status = self.client.get(reverse("merchant-plus-status")).data["data"]
+        self.assertTrue(status["has_plus_access"])
+        self.assertIsNone(status["checkout_retry_reference"])
+        self.post.assert_called_once()
+        self.assertEqual(PaymentCheckoutSession.objects.count(), 1)
+
+    def test_stale_retry_reference_does_not_open_a_new_purchase(self):
+        self.assertEqual(self.checkout(uuid4()).status_code, 409)
+        self.assertFalse(Payment.objects.exists())
+        self.post.assert_not_called()
 
     def test_status_recovers_references_and_states_without_checkout_url(self):
         created = self.checkout().data["data"]

@@ -48,11 +48,16 @@ export default function useTableState({
   const sortParam = searchParams.get("sort");
   const sorting = useMemo(() => parseSorting(sortParam), [sortParam]);
   const requestedPage = Number(searchParams.get("page") || 1);
+  const requestedPageSize = Number(searchParams.get("page_size"));
   const pagination = {
     pageIndex: Number.isSafeInteger(requestedPage) && requestedPage > 0
       ? requestedPage - 1
       : 0,
-    pageSize,
+    pageSize: Number.isInteger(requestedPageSize) &&
+      requestedPageSize > 0 &&
+      requestedPageSize <= 100
+      ? requestedPageSize
+      : pageSize,
   };
 
   function setGlobalFilter(value) {
@@ -116,9 +121,12 @@ export default function useTableState({
       typeof updaterOrValue === "function"
         ? updaterOrValue(pagination)
         : updaterOrValue;
+    const nextPageSize = next.pageSize ?? pagination.pageSize;
+    const nextPageIndex = nextPageSize === pagination.pageSize ? next.pageIndex : 0;
 
     updateSearchParams({
-      page: next.pageIndex > 0 ? String(next.pageIndex + 1) : null,
+      page: nextPageIndex > 0 ? String(nextPageIndex + 1) : null,
+      page_size: nextPageSize === pageSize ? null : String(nextPageSize),
     });
   }
 

@@ -6,7 +6,7 @@ export default function PaymentBadge({ value }) {
   const state = PAYMENT_STATES[value];
   return (
     <StatusBadge variant={state?.variant || "mutedSoft"}>
-      {state?.label || "Not recorded"}
+      {state?.label ?? "Unavailable"}
     </StatusBadge>
   );
 }

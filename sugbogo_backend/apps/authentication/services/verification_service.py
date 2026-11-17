@@ -156,16 +156,36 @@ class EmailVerificationService:
         if user.EMAIL_VERIFIED and user.is_active:
             return False
 
+        EmailVerificationService.apply_verification(
+            user,
+            finish_setup=True,
+        )
+        return True
+
+    @staticmethod
+    def apply_verification(
+        user: User,
+        *,
+        finish_setup: bool = False,
+    ) -> None:
+        """Record verification and retire credentials while the caller holds the user lock."""
+        update_fields = [
+            "EMAIL_VERIFIED",
+            "EMAIL_VERIFIED_AT",
+        ]
         user.EMAIL_VERIFIED = True
         user.EMAIL_VERIFIED_AT = timezone.now()
-        user.USER_STATUS = User.UserStatus.ACTIVE
+        if finish_setup:
+            user.USER_STATUS = User.UserStatus.ACTIVE
+            update_fields.append("USER_STATUS")
+
         user.save(
-            update_fields=[
-                "EMAIL_VERIFIED",
-                "EMAIL_VERIFIED_AT",
-                "USER_STATUS",
-            ],
+            update_fields=update_fields,
         )
-        AccountLockoutService.clear(user)
-        SessionService.revoke_all_sessions(user, revoke_oauth_links=True)
-        return True
+        if finish_setup:
+            AccountLockoutService.clear(user)
+
+        SessionService.revoke_all_sessions(
+            user,
+            revoke_oauth_links=True,
+        )

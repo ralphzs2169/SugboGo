@@ -248,15 +248,9 @@ export default function ProfileScreen() {
             />
 
             <ProfileMenuItem
-              title="Privacy Policy"
-              icon="shield-lock-outline"
-              onPress={() => navigate(() => router.push("/privacy-policy"))}
-            />
-
-            <ProfileMenuItem
-              title="Contact Support"
-              icon="headset"
-              onPress={() => navigate(() => router.push("/contact-support"))}
+              title="FAQs"
+              icon="help-circle-outline"
+              onPress={() => navigate(() => router.push("/faqs"))}
             />
           </ProfileMenuSection>
 

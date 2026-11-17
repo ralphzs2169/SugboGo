@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, TouchableOpacity, View } from "react-native";
+import { TouchableOpacity, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import AuthHeader from "@/features/auth/components/AuthHeader";
@@ -317,38 +317,6 @@ export default function LoginScreen() {
           actionText="Create an account"
           onPress={() => router.push("/(auth)/register")}
         />
-      </View>
-
-      {/* Public privacy and support information */}
-      <View className="mt-3 flex-row flex-wrap items-center justify-center">
-        <Pressable
-          onPress={() => router.push("/privacy-policy")}
-          accessibilityRole="link"
-          accessibilityLabel="Read Privacy Policy"
-          className="min-h-12 max-w-full cursor-pointer items-center justify-center px-2 py-3 active:opacity-70"
-        >
-          <AppText weight="semibold" className="text-center text-sm text-brand">
-            Privacy Policy
-          </AppText>
-        </Pressable>
-        <AppText
-          accessible={false}
-          accessibilityElementsHidden
-          importantForAccessibility="no"
-          className="text-sm text-text-secondary"
-        >
-          |
-        </AppText>
-        <Pressable
-          onPress={() => router.push("/contact-support")}
-          accessibilityRole="link"
-          accessibilityLabel="Open Contact Support"
-          className="min-h-12 max-w-full cursor-pointer items-center justify-center px-2 py-3 active:opacity-70"
-        >
-          <AppText weight="semibold" className="text-center text-sm text-brand">
-            Contact Support
-          </AppText>
-        </Pressable>
       </View>
     </AuthLayout>
   );

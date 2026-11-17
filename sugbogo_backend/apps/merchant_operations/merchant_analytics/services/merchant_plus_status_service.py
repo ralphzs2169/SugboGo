@@ -23,6 +23,7 @@ class MerchantPlusStatusService:
             "payment_mode": PaymentService.current_mode(),
             "checkout_enabled": CheckoutService.is_enabled(),
             "checkout_can_resume": False,
+            "checkout_retry_reference": None,
             "product": PaymentService.get_product(),
             "entitlement_starts_at": None,
             "entitlement_expires_at": None,
@@ -58,6 +59,12 @@ class MerchantPlusStatusService:
                     paid is None
                     and CheckoutService.can_resume(unresolved, checkout)
                 )
+                if (
+                    status["checkout_enabled"]
+                    and paid is None
+                    and CheckoutService.can_retry(unresolved, checkout)
+                ):
+                    status["checkout_retry_reference"] = checkout.PCHK_OPERATION_REFERENCE
         if paid is not None:
             payment = paid.PYMT_ID
             status.update({
@@ -84,13 +91,11 @@ class MerchantPlusStatusService:
         if checkout is None:
             return "unknown"
         if checkout.PCHK_PROVIDER == PaymentProvider.MAYA:
-            terminal = {
-                "PAYMENT_CANCELLED": "cancelled",
-                "PAYMENT_FAILED": "failed",
-                "PAYMENT_EXPIRED": "expired",
-            }
-            if checkout.PCHK_PROVIDER_STATUS in terminal:
-                return terminal[checkout.PCHK_PROVIDER_STATUS]
+            terminal = CheckoutService.TERMINAL_MAYA_OUTCOMES.get(
+                checkout.PCHK_PROVIDER_STATUS,
+            )
+            if terminal is not None:
+                return terminal
         if checkout.PCHK_STATE == PaymentCheckoutSession.State.EXPIRED:
             return "expired"
         if (

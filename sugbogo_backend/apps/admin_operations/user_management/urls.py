@@ -24,6 +24,11 @@ urlpatterns = [
         name="admin-user-suspend",
     ),
     path(
+        "<int:user_id>/verify-email/",
+        views.AdminUserVerifyEmailView.as_view(),
+        name="admin-user-verify-email",
+    ),
+    path(
         "<int:user_id>/reactivate/",
         views.AdminUserReactivateView.as_view(),
         name="admin-user-reactivate",

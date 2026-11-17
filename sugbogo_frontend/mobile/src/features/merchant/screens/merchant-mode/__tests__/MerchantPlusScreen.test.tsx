@@ -99,6 +99,7 @@ it("replaces the offer with access and real backend expiry", async () => {
   expect(screen.getByText("Merchant Plus is active")).toBeTruthy();
   expect(screen.getByText("Dec 15, 2026")).toBeTruthy();
   expect(screen.getByRole("button", { name: "View Analytics" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   expect(screen.queryByText("30 days of Merchant Plus")).toBeNull();
   expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
 });
@@ -170,6 +171,34 @@ it.each([
       screen.queryByRole("button", { name: "Continue checkout" }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  },
+);
+
+it.each([
+  ["expired", "Checkout expired"],
+  ["failed", "Payment wasn't completed"],
+  ["cancelled", "Checkout cancelled"],
+] as const)(
+  "offers an explicit retry for backend-authorized %s checkouts",
+  async (outcome, title) => {
+    const retryReference = "87654321-4321-4321-8321-876543218765";
+    mockStatus = {
+      ...offer(),
+      purchase_eligible: false,
+      checkout_can_resume: false,
+      checkout_retry_reference: retryReference,
+      unresolved_payment_id: 1,
+      unresolved_payment_status: "pending",
+      checkout_outcome: outcome,
+    };
+    const screen = await render(<MerchantPlusScreen />);
+    expect(screen.getByText(title)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Continue checkout" })).toBeNull();
+    expect(mockStart).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "Try again" }));
+    expect(mockStart).toHaveBeenCalledTimes(1);
+    expect(mockStart).toHaveBeenCalledWith(retryReference);
   },
 );
 
@@ -195,6 +224,7 @@ it("offers the existing Maya checkout without presenting it as an unconfirmed pa
   expect(screen.queryByText("Payment verification")).toBeNull();
   expect(screen.queryByText("Payment pending")).toBeNull();
   expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   expect(mockStart).not.toHaveBeenCalled();
 
   expect(
@@ -300,6 +330,7 @@ it.each(["ready", "creating", "creation_unknown"])(
       screen.queryByRole("button", { name: "Continue checkout" }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: "Pay ₱1.00" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
     await fireEvent.press(
       screen.getByRole("button", { name: "Check payment status" }),
     );
@@ -315,6 +346,7 @@ it("shows confirmed payment awaiting activation", async () => {
     unresolved_payment_status: "paid",
     unresolved_fulfilment_status: "pending",
     checkout_outcome: "cancelled",
+    checkout_retry_reference: "87654321-4321-4321-8321-876543218765",
   } as typeof mockStatus;
   const screen = await render(<MerchantPlusScreen />);
   expect(screen.getByText("Payment confirmed")).toBeTruthy();
@@ -322,6 +354,7 @@ it("shows confirmed payment awaiting activation", async () => {
   expect(screen.getByText("Activation pending")).toBeTruthy();
   expect(screen.queryByText("Active until")).toBeNull();
   expect(screen.queryByText("Checkout cancelled")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
 });
 
 it("offers recovery when backend status fails", async () => {

@@ -23,6 +23,10 @@ class AdminActivity(models.Model):
         ADMIN_CREATED = "admin_created", "Admin created"
         USER_SUSPENDED = "user_suspended", "User suspended"
         USER_REACTIVATED = "user_reactivated", "User reactivated"
+        USER_EMAIL_MANUALLY_VERIFIED = (
+            "user_email_manually_verified",
+            "Email manually verified",
+        )
         BUSINESS_SUSPENDED = "business_suspended", "Business suspended"
         BUSINESS_REACTIVATED = "business_reactivated", "Business reactivated"
         REVIEW_DISPUTE_UPHELD = "review_dispute_upheld", "Review dispute upheld"
@@ -256,6 +260,7 @@ class AdminActivity(models.Model):
             cls.Action.ADMIN_CREATED: cls.Module.USER,
             cls.Action.USER_SUSPENDED: cls.Module.USER,
             cls.Action.USER_REACTIVATED: cls.Module.USER,
+            cls.Action.USER_EMAIL_MANUALLY_VERIFIED: cls.Module.USER,
             cls.Action.BUSINESS_SUSPENDED: cls.Module.BUSINESS,
             cls.Action.BUSINESS_REACTIVATED: cls.Module.BUSINESS,
             cls.Action.BUSINESS_NAME_CHANGE_APPROVED: cls.Module.BUSINESS,

@@ -4,11 +4,15 @@ import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import type { MerchantPlusCheckout } from "../types/merchantPlusCheckout.types";
 import type { MerchantPlusStatus } from "../types/merchantPlusAnalytics.types";
 
-/** Requests server-priced checkout with no client purchase overrides or automatic retry. */
+/** Requests server-priced checkout, optionally retrying a server-identified attempt. */
 export function createMerchantPlusCheckout(
   signal?: AbortSignal,
+  retryCheckoutReference?: string,
 ): Promise<ApiResponse<MerchantPlusCheckout>> {
-  return request(apiClient.post("/merchant/plus/checkout/", {}, { signal }));
+  const body = retryCheckoutReference
+    ? { retry_checkout_reference: retryCheckoutReference }
+    : {};
+  return request(apiClient.post("/merchant/plus/checkout/", body, { signal }));
 }
 
 /** Requests independent backend verification of the current owned purchase. */

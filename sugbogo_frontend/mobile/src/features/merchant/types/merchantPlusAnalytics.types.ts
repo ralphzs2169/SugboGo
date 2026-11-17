@@ -140,6 +140,7 @@ export type MerchantPlusStatus = {
   payment_mode?: "test" | "live";
   checkout_enabled?: boolean;
   checkout_can_resume?: boolean;
+  checkout_retry_reference?: string | null;
   product?: {
     code: string;
     version: string;

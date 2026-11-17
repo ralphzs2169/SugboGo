@@ -37,3 +37,19 @@ it("posts only an empty object to the server-owned checkout endpoint", async () 
     { signal: controller.signal },
   );
 });
+
+it("sends only the prior checkout reference when requesting a replacement", async () => {
+  jest.mocked(apiClient.post).mockResolvedValue({
+    data: { success: true, data: { next_action: "open_checkout" } },
+  });
+  const controller = new AbortController();
+  const reference = "87654321-4321-4321-8321-876543218765";
+
+  await createMerchantPlusCheckout(controller.signal, reference);
+
+  expect(apiClient.post).toHaveBeenLastCalledWith(
+    "/merchant/plus/checkout/",
+    { retry_checkout_reference: reference },
+    { signal: controller.signal },
+  );
+});

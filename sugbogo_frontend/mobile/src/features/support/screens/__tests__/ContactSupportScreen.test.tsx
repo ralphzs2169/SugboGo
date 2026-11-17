@@ -4,6 +4,7 @@ import Toast from "react-native-toast-message";
 
 import { SUPPORT_FAQS } from "../../constants/supportFaqDraft";
 import ContactSupportScreen from "../ContactSupportScreen";
+import FaqsScreen from "../FaqsScreen";
 
 // Expo's first native render may include cold module transforms.
 jest.setTimeout(15_000);
@@ -40,6 +41,23 @@ const expectedEmphasis: Record<string, readonly string[]> = {
   "my-pockets": ["Favorites", "Save changes", "My Pockets", "Create a new Pocket", "Profile → My Pockets"],
   "get-directions": ["Plan Your Visit", "Road Route", "Continue in Google Maps", "Jeepney", "Google Maps"],
 };
+
+describe("FAQs screen", () => {
+  it("shows all five questions with expandable answers and no concern form", async () => {
+    const screen = await render(<FaqsScreen />);
+    expect(
+      screen.getAllByRole("button", { expanded: false }).map(
+        (row) => row.props.accessibilityLabel,
+      ),
+    ).toEqual(SUPPORT_FAQS.map((faq) => faq.question));
+    expect(screen.queryByLabelText("Tell us your concern")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
+
+    const firstFaq = SUPPORT_FAQS[0];
+    await fireEvent.press(screen.getByRole("button", { name: firstFaq.question }));
+    expect(screen.getByText(firstFaq.paragraphs[0])).toBeTruthy();
+  });
+});
 
 describe("Contact Support Help Center", () => {
   beforeEach(() => {

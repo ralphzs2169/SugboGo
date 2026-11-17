@@ -1,3 +1,5 @@
+import re
+
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
@@ -266,6 +268,55 @@ class AdminUserSuspendSerializer(serializers.Serializer):
             "null": "Please provide a reason for suspending this user.",
         },
     )
+
+
+class AdminUserVerifyEmailSerializer(serializers.Serializer):
+    """Validate the attestation and non-secret context of a manual verification."""
+
+    reason = serializers.CharField(
+        max_length=1000,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
+    ownership_confirmed = serializers.BooleanField()
+    verification_snapshot = serializers.RegexField(
+        regex=r"\A[0-9a-f]{64}\Z",
+        max_length=64,
+    )
+
+    def validate_reason(
+        self,
+        value,
+    ) -> str:
+        """Reject obvious credentials accidentally pasted into the audit reason."""
+        if not isinstance(self.initial_data.get("reason"), str):
+            raise serializers.ValidationError(
+                "Enter a reason for manual verification.",
+            )
+        if re.search(
+            r"://|\b[0-9a-z]{1,13}-[0-9a-f]{32}\b|\A\d{6,8}\Z"
+            r"|\b(?:password|token|code)\s*[:=]",
+            value,
+            re.IGNORECASE,
+        ):
+            raise serializers.ValidationError(
+                "Omit passwords, links, codes, and tokens from the audit record.",
+            )
+        return value
+
+    def validate_ownership_confirmed(
+        self,
+        value,
+    ):
+        """Require explicit acknowledgment of ownership and account control."""
+        if (
+            value is not True
+            or self.initial_data.get("ownership_confirmed") is not True
+        ):
+            raise serializers.ValidationError(
+                "Confirm email ownership and account control.",
+            )
+        return value
 
 
 class AdminUserActivityQuerySerializer(serializers.Serializer):
