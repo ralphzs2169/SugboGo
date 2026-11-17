@@ -11,6 +11,7 @@ import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import AnalyticsExactTable from "../components/AnalyticsExactTable";
 import { formatCount, formatPercentage } from "../utils/presentation";
 
+const TITLE = "First Profile Visit Source";
 const LABELS = { EXPLORE_DISCOVERY: "Explore", SEARCH_RESULTS: "Search & Results", MAP: "Map", COLLECTION: "Collections", SIMILAR_BUSINESSES: "Similar Businesses", COMMUNITY: "Community", UNKNOWN: "Unknown" };
 
 /** Ranks observations with Unknown last, canonical tie ordering and administrator display labels. */
@@ -24,7 +25,7 @@ function sourceRows(sources) {
 export default function DiscoverySourcesSection({ period }) {
   const [mode, setMode] = useState(null);
   const query = useDiscoverySources(period);
-  const state = useAnalyticsSectionState(query, "discovery-sources", "discovery sources");
+  const state = useAnalyticsSectionState(query, "discovery-sources", "first profile visit sources");
   const data = query.data;
   const rows = sourceRows(data?.sources);
   const unavailable = data?.meta?.availability === "unavailable";
@@ -35,13 +36,16 @@ export default function DiscoverySourcesSection({ period }) {
   ]} />;
   return (
     <>
-      {/* Full-width comparison complements the existing two-column discovery reports. */}
       <AnalyticsSection
         titleIcon={Signpost}
-        onAbout={() => setMode("about")} aboutDisabled={!data} title="Discovery Sources" description="Where recorded business profile visits originate." {...state}
-        unavailable={unavailable} unavailableMessage="Discovery sources are unavailable. This does not mean zero visits."
+        onAbout={() => setMode("about")}
+        aboutDisabled={!data}
+        title={TITLE}
+        description="Shows the first recorded entry point for each account’s visit to a business profile per UTC calendar day. Later visits by the same account to that business on the same UTC day are deduplicated. This entry point may differ from where the visitor originally discovered the business."
+        {...state}
+        unavailable={unavailable} unavailableMessage="First profile visit sources are unavailable. This does not mean zero visits."
         isEmpty={data?.total_profile_visits === 0} emptyMessage="No profile visits were recorded during this period. View data includes all seven sources."
-        footer={<AnalyticsReportFooter title="Discovery Sources" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
+        footer={<AnalyticsReportFooter title={TITLE} meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
         <div className="mx-auto h-80 w-full xl:h-112 min-w-0 max-w-4xl" role="img" aria-label="Recorded visits ranked by source, with Unknown shown last. Exact counts and shares are available in View data.">
@@ -58,7 +62,7 @@ export default function DiscoverySourcesSection({ period }) {
         <p className="mt-2 text-sm text-text-secondary">{formatCount(data?.total_profile_visits)} recorded profile visits</p>
       </AnalyticsSection>
       {/* Existing drawer exposes exact observations and methodology without another modal system. */}
-      <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Discovery Sources" report={data} interval="Selected period" series={[]} showComparison={false}
+      <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title={TITLE} report={data} interval="Selected period" series={[]} showComparison={false}
         dataContent={<>{unavailable ? <p>Exact observations are unavailable.</p> : exact}<p>Total qualifying recorded profile visits: {formatCount(data?.total_profile_visits)}</p></>}
 
       />
