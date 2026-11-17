@@ -105,7 +105,7 @@ describe("establishSession", () => {
     const accountBLogin = establishSession(merchantSession);
 
     accountBWrite.resolve(true);
-    await expect(accountBLogin).resolves.toBeUndefined();
+    await expect(accountBLogin).resolves.toEqual(expect.any(Number));
     accountAWrite.resolve(true);
 
     await expect(accountALogin).rejects.toBeInstanceOf(StaleAuthSessionError);

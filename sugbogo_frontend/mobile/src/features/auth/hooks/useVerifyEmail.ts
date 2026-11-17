@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { verifyEmail } from "../api/auth.service";
-import { ApiMessageResponse } from "@/shared/types/apiResponse.types";
+import { ApiResponse } from "@/shared/types/apiResponse.types";
 
 /**
  * Hook for handling email verification.
@@ -17,11 +17,12 @@ export function useVerifyEmail() {
       uid: string,
       token: string,
       password: string,
-    ): Promise<ApiMessageResponse> => {
+      autoLogin: boolean,
+    ): Promise<ApiResponse<unknown>> => {
       setLoading(true);
 
       try {
-        return await verifyEmail(uid, token, password);
+        return await verifyEmail(uid, token, password, autoLogin);
       } finally {
         setLoading(false);
       }

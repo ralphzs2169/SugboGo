@@ -3,6 +3,7 @@ import { useState } from "react";
 import { login } from "../api/auth.service";
 import { establishSession } from "../utils/authSession";
 import { AuthResponse } from "../types/auth.types";
+import { useAuthStore } from "../store/auth.store";
 import { useVerificationStore } from "../store/verification.store";
 import { ApiResponse } from "@/shared/types/apiResponse.types";
 
@@ -24,6 +25,8 @@ export function useLogin() {
     email: string,
     password: string,
   ): Promise<ApiResponse<AuthResponse>> => {
+    const { setSigningIn } = useAuthStore.getState();
+    setSigningIn(true);
     setLoading(true);
 
     try {
@@ -42,6 +45,7 @@ export function useLogin() {
 
       return response;
     } finally {
+      setSigningIn(false);
       setLoading(false);
     }
   };

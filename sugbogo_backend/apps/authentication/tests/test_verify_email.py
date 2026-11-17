@@ -13,8 +13,8 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase, APITransactionTestCase
-from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from apps.authentication.models import OAuthAccount
 from apps.users.models import User
@@ -44,7 +44,12 @@ class VerifyEmailViewTests(APIResponseAssertionsMixin, APITestCase):
             "token": email_verification_token_generator.make_token(self.user),
         }
 
-    def submit(self, **overrides):
+    def submit(
+        self,
+        *,
+        client_ip="127.0.0.1",
+        **overrides,
+    ):
         """Submit both pieces of proof without setting a password."""
         return self.client.post(
             self.url,
@@ -54,6 +59,7 @@ class VerifyEmailViewTests(APIResponseAssertionsMixin, APITestCase):
                 **overrides,
             },
             format="json",
+            REMOTE_ADDR=client_ip,
         )
 
     def test_legacy_unsolicited_link_cannot_activate_an_attacker_password(self):
@@ -143,11 +149,175 @@ class VerifyEmailViewTests(APIResponseAssertionsMixin, APITestCase):
             OAUTH_PROVIDER_ID="legacy-facebook-subject",
         )
 
-        self.assertEqual(self.submit().status_code, 200)
+        response = self.submit()
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["data"])
         self.assertTrue(
             BlacklistedToken.objects.filter(token__jti=refresh["jti"]).exists(),
         )
         self.assertFalse(OAuthAccount.objects.filter(USER=self.user).exists())
+
+    def test_fresh_explorer_verification_issues_one_standard_session(self):
+        previous_refresh = RefreshToken.for_user(self.user)
+
+        response = self.submit(auto_login=True)
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response["Cache-Control"], "no-store")
+        session = response.data["data"]
+        access = AccessToken(session["access"])
+        refresh = RefreshToken(session["refresh"])
+        self.assertEqual(access["user_id"], str(self.user.pk))
+        self.assertEqual(refresh["user_id"], str(self.user.pk))
+        self.assertEqual(refresh["exp"] - refresh["iat"], 12 * 60 * 60)
+        self.assertEqual(session["user"]["id"], self.user.pk)
+        self.assertFalse(session["user"]["has_completed_interest_selection"])
+        self.assertTrue(
+            BlacklistedToken.objects.filter(token__jti=previous_refresh["jti"]).exists(),
+        )
+        self.assertEqual(self.submit(auto_login=True).data["code"], "INVALID_VERIFICATION_LINK")
+        self.assertEqual(OutstandingToken.objects.filter(user=self.user).count(), 2)
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {session['access']}")
+        self.assertEqual(self.client.get(reverse("me")).status_code, 200)
+
+        rotated = self.client.post(
+            reverse("token_refresh"),
+            {"refresh": session["refresh"]},
+            format="json",
+        )
+        self.assertEqual(rotated.status_code, 200, rotated.data)
+        self.assertEqual(RefreshToken(rotated.data["refresh"])["exp"], refresh["exp"])
+
+    def test_merchant_opt_in_verifies_without_issuing_tokens(self):
+        self.user.USER_ROLE = User.UserRole.MERCHANT
+        self.user.USER_STATUS = User.UserStatus.PENDING
+        self.user.save(update_fields=["USER_ROLE", "USER_STATUS"])
+
+        response = self.submit(auto_login=True)
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data["data"])
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.EMAIL_VERIFIED)
+        self.assertTrue(self.user.is_active)
+        self.assertFalse(OutstandingToken.objects.filter(user=self.user).exists())
+
+    def test_authenticated_request_can_verify_without_receiving_a_second_session(self):
+        current_user = User.objects.create_user(
+            email="signed-in@example.com",
+            password=self.original_password,
+            USER_ROLE=User.UserRole.EXPLORER,
+            USER_STATUS=User.UserStatus.ACTIVE,
+            EMAIL_VERIFIED=True,
+        )
+        self.client.force_authenticate(user=current_user)
+
+        response = self.submit(auto_login=True)
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data["data"])
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.EMAIL_VERIFIED)
+        self.assertFalse(OutstandingToken.objects.filter(user=self.user).exists())
+
+    def test_opt_in_rejects_disallowed_roles_and_statuses(self):
+        for role, account_status in (
+            (User.UserRole.ADMIN, User.UserStatus.ACTIVE),
+            (User.UserRole.SUPER_ADMIN, User.UserStatus.ACTIVE),
+            (User.UserRole.EXPLORER, User.UserStatus.SUSPENDED),
+            (User.UserRole.EXPLORER, User.UserStatus.DISABLED),
+        ):
+            with self.subTest(role=role, account_status=account_status):
+                self.user.USER_ROLE = role
+                self.user.USER_STATUS = account_status
+                self.user.save(update_fields=["USER_ROLE", "USER_STATUS"])
+
+                response = self.submit(auto_login=True)
+
+                self.assertEqual(response.data["code"], "INVALID_VERIFICATION_LINK")
+                self.assertFalse(OutstandingToken.objects.filter(user=self.user).exists())
+                self.user.refresh_from_db()
+                self.assertFalse(self.user.EMAIL_VERIFIED)
+                self.assertEqual(self.user.USER_STATUS, account_status)
+
+    def test_previously_verified_pending_explorer_can_activate_without_a_session(self):
+        self.user.EMAIL_VERIFIED = True
+        self.user.USER_STATUS = User.UserStatus.PENDING
+        self.user.save(update_fields=["EMAIL_VERIFIED", "USER_STATUS"])
+
+        response = self.submit(
+            token=email_verification_token_generator.make_token(self.user),
+            auto_login=True,
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data["data"])
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+        self.assertFalse(OutstandingToken.objects.filter(user=self.user).exists())
+
+    @override_settings(LOGIN_LOCKOUT_THRESHOLD=2)
+    def test_password_attempts_are_shared_across_modes_and_addresses(self):
+        invalid = self.submit(token="invalid", auto_login=True, password="wrong")
+        self.assertEqual(invalid.data["code"], "INVALID_VERIFICATION_LINK")
+
+        self.assertValidationError(
+            self.submit(
+                auto_login=True,
+                password="wrong",
+                client_ip="192.0.2.1",
+            ),
+            "password",
+        )
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.USER_LOGIN_FAILURE_COUNT, 1)
+
+        locked = self.submit(
+            password="wrong",
+            client_ip="192.0.2.2",
+        )
+        self.assertEqual(locked.status_code, 429)
+        self.assertEqual(locked.data["code"], "ACCOUNT_LOCKED")
+        self.assertGreater(int(locked["Retry-After"]), 0)
+
+        blocked = self.submit(auto_login=True)
+        self.assertEqual(blocked.data["code"], "ACCOUNT_LOCKED")
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.USER_LOGIN_FAILURE_COUNT, 2)
+        self.assertFalse(self.user.EMAIL_VERIFIED)
+        self.assertFalse(OutstandingToken.objects.filter(user=self.user).exists())
+
+        self.user.USER_PASSWORD_LOCKED_UNTIL = timezone.now() - timedelta(seconds=1)
+        self.user.save(update_fields=["USER_PASSWORD_LOCKED_UNTIL"])
+        self.assertEqual(self.submit(auto_login=True).status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.USER_LOGIN_FAILURE_COUNT, 0)
+
+    def test_issuance_failure_rolls_back_verification_revocation_and_token_creation(self):
+        previous = RefreshToken.for_user(self.user)
+
+        def fail_issuance(
+            user,
+            **kwargs,
+        ):
+            """Fail after creating an outstanding token to exercise transaction rollback."""
+            RefreshToken.for_user(user)
+            raise RuntimeError("JWT issuance failed")
+
+        with patch(
+            "apps.authentication.views.email_verification.issue_tokens",
+            side_effect=fail_issuance,
+        ):
+            with self.assertRaisesMessage(RuntimeError, "JWT issuance failed"):
+                self.submit(auto_login=True)
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.EMAIL_VERIFIED)
+        self.assertIsNone(self.user.EMAIL_VERIFIED_AT)
+        self.assertFalse(BlacklistedToken.objects.filter(token__jti=previous["jti"]).exists())
+        self.assertEqual(OutstandingToken.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(self.submit(auto_login=True).status_code, 200)
 
     def test_used_link_cannot_replace_password_or_timestamp(self):
         """Reject the consumed proof even with the matching password."""
@@ -166,9 +336,14 @@ class VerifyEmailViewTests(APIResponseAssertionsMixin, APITestCase):
         """Preserve the already-verified no-op for an otherwise valid proof."""
         self.user.EMAIL_VERIFIED = True
         self.user.save(update_fields=["EMAIL_VERIFIED"])
-        response = self.submit(token=email_verification_token_generator.make_token(self.user))
+        response = self.submit(
+            token=email_verification_token_generator.make_token(self.user),
+            auto_login=True,
+        )
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["message"], "Email is already verified.")
+        self.assertIsNone(response.data["data"])
+        self.assertFalse(OutstandingToken.objects.filter(user=self.user).exists())
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password(self.original_password))
 
@@ -208,13 +383,14 @@ class VerifyEmailViewTests(APIResponseAssertionsMixin, APITestCase):
             "_now",
             return_value=issued_at + timedelta(seconds=2),
         ):
-            response = self.submit(token=proof)
+            response = self.submit(token=proof, auto_login=True)
 
         self.assertEqual(response.status_code, 400, response.data)
         self.assertEqual(response.data["code"], "INVALID_VERIFICATION_LINK")
         self.user.refresh_from_db()
         self.assertFalse(self.user.EMAIL_VERIFIED)
         self.assertIsNone(self.user.EMAIL_VERIFIED_AT)
+        self.assertFalse(OutstandingToken.objects.filter(user=self.user).exists())
 
 
 @skipUnlessDBFeature("has_select_for_update_nowait")
@@ -225,6 +401,7 @@ class VerifyEmailConcurrencyTests(APITransactionTestCase):
         self.assert_concurrent_proof_redemption(
             ("verify_email", "verify_email"),
             expected_rejection="INVALID_VERIFICATION_LINK",
+            auto_login=True,
         )
 
     def test_verification_and_reset_cannot_both_use_preexisting_proofs(self):
@@ -242,6 +419,7 @@ class VerifyEmailConcurrencyTests(APITransactionTestCase):
         self,
         endpoints,
         expected_rejection=None,
+        auto_login=False,
     ):
         """Hold the first write open while a second valid proof races it."""
         cache.clear()
@@ -284,6 +462,8 @@ class VerifyEmailConcurrencyTests(APITransactionTestCase):
                         password=reset_password,
                         confirm_password=reset_password,
                     )
+                if endpoint == "verify_email":
+                    payload["auto_login"] = auto_login
                 return APIClient().post(
                     reverse(endpoint),
                     payload,
@@ -308,6 +488,16 @@ class VerifyEmailConcurrencyTests(APITransactionTestCase):
             [response.status_code for response in responses],
             [200, 400],
         )
+        if auto_login:
+            accepted = next(
+                response
+                for response in responses
+                if response.status_code == 200
+            )
+            self.assertEqual(accepted.data["data"]["user"]["id"], user.pk)
+            refresh = RefreshToken(accepted.data["data"]["refresh"])
+            self.assertEqual(refresh["user_id"], str(user.pk))
+            self.assertEqual(OutstandingToken.objects.filter(user=user).count(), 1)
         rejected = next(response for response in responses if response.status_code == 400)
         if expected_rejection:
             self.assertEqual(rejected.data["code"], expected_rejection)

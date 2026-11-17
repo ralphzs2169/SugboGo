@@ -1,41 +1,56 @@
+from django.db import transaction
 from core.responses import error_response, success_response
 from rest_framework import status
 from rest_framework.decorators import api_view, throttle_classes
+from rest_framework.response import Response
 
+from apps.authentication.models import LoginEvent
 from apps.authentication.serializers import (
+    LoginResponseSerializer,
     ResendVerificationSerializer,
     VerifyEmailSerializer,
 )
 from apps.authentication.services.email_service import EmailService
 from apps.authentication.services.verification_service import EmailVerificationService
 from apps.authentication.throttles import ResendVerificationThrottle
+from apps.authentication.utils.jwt import issue_tokens
 from apps.users.models import User
 
 
 @api_view(["POST"])
+@transaction.atomic
 def verify_email_view(request):
-    """Verify the address with the email link and the existing password."""
+    """Verify the address and optionally start a session for a newly verified Explorer."""
     serializer = VerifyEmailSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    verified = EmailVerificationService.verify_email(
+    result = EmailVerificationService.verify_email(
         uid=serializer.validated_data["uid"],
         token=serializer.validated_data["token"],
         password=serializer.validated_data["password"],
     )
 
-    if verified is None:
-        return error_response(
-            message=(
-                "This verification link is invalid or has expired. "
-                "Please request a new verification email."
-            ),
-            code="INVALID_VERIFICATION_LINK",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
+    if isinstance(result, Response):
+        return result
 
-    if not verified:
-        return success_response(message="Email is already verified.")
+    if (
+        serializer.validated_data["auto_login"]
+        and result.USER_ROLE == User.UserRole.EXPLORER
+        and not request.user.is_authenticated
+    ):
+        tokens = issue_tokens(
+            result,
+            remember_me=False,
+            request=request,
+            method=LoginEvent.Method.PASSWORD,
+        )
+        data = LoginResponseSerializer({"user": result, **tokens}).data
+        response = success_response(
+            message="Email verified successfully.",
+            data=data,
+        )
+        response["Cache-Control"] = "no-store"
+        return response
 
     return success_response(message="Email verified successfully.")
 
