@@ -161,6 +161,59 @@ class BusinessVouchViewTests(APITestCase):
             self.spicy_tag.TAG_ID,
         )
 
+    def test_business_detail_keeps_specialty_order_after_vouch_and_withdrawal(self):
+        """Keep specialties in assignment order while their vouch state changes."""
+        detail_url = f"/api/explorer/explore/businesses/{self.business.pk}/"
+        expected_order = [
+            self.spicy_tag.TAG_ID,
+            self.traditional_tag.TAG_ID,
+        ]
+
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        tags = response.data["data"]["specialty_tags"]
+        self.assertEqual(
+            [tag["id"] for tag in tags],
+            expected_order,
+        )
+
+        response = self.client.post(
+            self.url,
+            {
+                "tag_id": self.spicy_tag.TAG_ID,
+                "installation_id": "test-device-stable-order",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        tags = response.data["data"]["specialty_tags"]
+        self.assertEqual(
+            [tag["id"] for tag in tags],
+            expected_order,
+        )
+        self.assertTrue(tags[0]["is_vouched"])
+        self.assertEqual(tags[0]["vouch_count"], 1)
+
+        response = self.client.delete(
+            self.url,
+            {"tag_id": self.spicy_tag.TAG_ID},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        tags = response.data["data"]["specialty_tags"]
+        self.assertEqual(
+            [tag["id"] for tag in tags],
+            expected_order,
+        )
+        self.assertFalse(tags[0]["is_vouched"])
+        self.assertEqual(tags[0]["vouch_count"], 0)
+
     def test_legacy_device_id_is_accepted(self):
         """An older app can still vouch with its existing request key."""
         response = self.client.post(

@@ -43,6 +43,9 @@ class ExploreBusinessService:
                     user_vouch_exists,
                 ),
             )
+            .order_by(
+                "BST_ID",
+            )
         )
 
         try:

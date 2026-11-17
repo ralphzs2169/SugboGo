@@ -46,7 +46,7 @@ export default function ManageVouchBottomSheet({
   const detail = useExploreBusinessProfile(selectedBusiness.business_id);
   const business = detail.business;
   const photo = business
-    ? business.cover_photo_url
+    ? business.display_cover_photo_url
     : selectedBusiness.cover_photo_url;
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
 

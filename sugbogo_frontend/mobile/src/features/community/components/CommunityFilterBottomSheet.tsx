@@ -265,7 +265,6 @@ export default function CommunityFilterBottomSheet({
           <Button
             title="Apply"
             variant="primary"
-            textTone="primary"
             rounded="full"
             size="sm"
             onPress={() => {
