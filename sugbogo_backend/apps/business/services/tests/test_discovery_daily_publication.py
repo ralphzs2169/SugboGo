@@ -382,6 +382,88 @@ class DiscoveryDailyPublicationTests(TestCase):
         )
         self.assertEqual(DiscoveryScore.objects.values().get(), before_noop)
 
+    def test_stale_category_metadata_and_cluster_noop_preserve_revalidated_authority(self):
+        """An old view instance cannot undo a cluster move published by another request."""
+        self._publish_hidden_gem()
+        stale_category = CategoryService.get_category(self.category.pk)
+        new_cluster = Cluster.objects.create(CLUS_NAME="Revalidated comparison cluster")
+        CategoryService.update_category(
+            CategoryService.get_category(self.category.pk),
+            {"CLUS_ID": new_cluster},
+        )
+        score = DiscoveryScore.objects.get()
+        self.assertTrue(score.DSC_IS_PROVISIONAL)
+        self.assertTrue(score.DSC_REFRESH_DEFERRED)
+        self.assertEqual(self._batch().updated_count, 1)
+        before = DiscoveryScore.objects.values().get()
+        self.assertFalse(before["DSC_IS_PROVISIONAL"])
+        self.assertFalse(before["DSC_REFRESH_DEFERRED"])
+        self.assertEqual(stale_category.CLUS_ID_id, self.cluster.pk)
+
+        for changes in (
+            {"CTGRY_NAME": "  Updated category metadata  "},
+            {
+                "CLUS_ID": new_cluster,
+                "CTGRY_DESCRIPTION": "Updated description in the current cluster.",
+            },
+        ):
+            with self.subTest(fields=tuple(changes)):
+                with patch(
+                    "apps.business.tasks.recompute_discovery_scores.delay",
+                ) as batch, self.captureOnCommitCallbacks(execute=True):
+                    updated = CategoryService.update_category(
+                        stale_category,
+                        changes,
+                    )
+                batch.assert_not_called()
+                updated.refresh_from_db()
+                self.assertEqual(updated.CLUS_ID_id, new_cluster.pk)
+                self.assertEqual(updated.CTGRY_NAME, "Updated category metadata")
+                if "CTGRY_DESCRIPTION" in changes:
+                    self.assertEqual(
+                        updated.CTGRY_DESCRIPTION,
+                        changes["CTGRY_DESCRIPTION"],
+                    )
+                self.assertEqual(DiscoveryScore.objects.values().get(), before)
+                self.assertIn(
+                    self.business.pk,
+                    DiscoveryFeedService.list_global_hidden_gem_ids(),
+                )
+                ranked = DiscoveryFeedService.list_ranked_businesses().get(
+                    pk=self.business.pk,
+                )
+                self.assertEqual(ranked.discovery_rank_score, before["DSC_D_SCORE"])
+                self.assertEqual(DiscoveryScoreRefreshService.reconcile()["requested"], 0)
+                self.publish.assert_not_called()
+
+    def test_stale_category_explicit_reverse_move_invalidates_revalidated_authority(self):
+        """An intentional return to the old cluster compares against the locked current row."""
+        self._publish_hidden_gem()
+        stale_category = CategoryService.get_category(self.category.pk)
+        new_cluster = Cluster.objects.create(CLUS_NAME="Reverse move comparison cluster")
+        CategoryService.update_category(
+            CategoryService.get_category(self.category.pk),
+            {"CLUS_ID": new_cluster},
+        )
+        self.assertEqual(self._batch().updated_count, 1)
+        before = DiscoveryScore.objects.get()
+        self.assertFalse(before.DSC_IS_PROVISIONAL)
+        self.assertEqual(stale_category.CLUS_ID_id, self.cluster.pk)
+
+        with patch(
+            "apps.business.tasks.recompute_discovery_scores.delay",
+        ) as batch, self.captureOnCommitCallbacks(execute=True):
+            updated = CategoryService.update_category(
+                stale_category,
+                {"CLUS_ID": self.cluster},
+            )
+        batch.assert_not_called()
+        updated.refresh_from_db()
+        self.assertEqual(updated.CLUS_ID_id, self.cluster.pk)
+        self._assert_provisional_hidden_gem_exclusion(before)
+        score = DiscoveryScore.objects.get()
+        self.assertEqual(score.DSC_REFRESH_VERSION, before.DSC_REFRESH_VERSION + 1)
+
     def test_taxonomy_invalidation_keeps_failed_work_recoverable(self):
         """Provisional eligibility must not conceal a genuine dispatch failure."""
         before = self._publish_hidden_gem()

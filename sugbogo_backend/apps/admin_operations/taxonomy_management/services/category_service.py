@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import NotFound
 
 from apps.business.models import Category
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
@@ -81,7 +82,14 @@ class CategoryService:
         category,
         validated_data,
     ):
-        """Update an existing category with the provided validated data."""
+        """Apply validated changes to locked current state before invalidating scores."""
+        try:
+            category = Category.objects.select_for_update().get(
+                pk=category.pk,
+            )
+        except Category.DoesNotExist:
+            raise NotFound("The category could not be found.") from None
+
         previous_cluster_id = category.CLUS_ID_id
         for field, value in validated_data.items():
             if field == "CTGRY_NAME":
