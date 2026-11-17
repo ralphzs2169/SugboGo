@@ -116,6 +116,30 @@ const baseReview: CommunityReview = {
 };
 
 describe("CommunityReviewCard", () => {
+  it.each(["merchant", "explorer", "admin", "super_admin"] as const)(
+    "identifies only merchant authors when role is %s",
+    async (role) => {
+      const screen = await render(
+        <CommunityReviewCard
+          review={{
+            ...baseReview,
+            author: { ...baseReview.author, role },
+          }}
+        />,
+      );
+
+      const badge = screen.queryByLabelText(
+        "Reviewer has a merchant account on SugboGo",
+      );
+
+      if (role === "merchant") {
+        expect(badge).toBeTruthy();
+      } else {
+        expect(badge).toBeNull();
+      }
+    },
+  );
+
   beforeEach(() => {
     jest.clearAllMocks();
     (useReviewLike as jest.Mock).mockReturnValue({

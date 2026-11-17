@@ -21,6 +21,31 @@ const baseReview = businessReviewFixture({
 });
 
 describe("ReviewContent topic highlighting", () => {
+  it.each(["merchant", "explorer", "admin", "super_admin", undefined] as const)(
+    "identifies only merchant authors when role is %s",
+    async (role) => {
+      const screen = await render(
+        <ReviewContent
+          review={{
+            ...baseReview,
+            author: { ...baseReview.author, role },
+          }}
+          showEngagement={false}
+        />,
+      );
+
+      const badge = screen.queryByLabelText(
+        "Reviewer has a merchant account on SugboGo",
+      );
+
+      if (role === "merchant") {
+        expect(badge).toBeTruthy();
+      } else {
+        expect(badge).toBeNull();
+      }
+    },
+  );
+
   it("highlights every case-insensitive literal match with original casing", async () => {
     const screen = await render(
       <ReviewContent

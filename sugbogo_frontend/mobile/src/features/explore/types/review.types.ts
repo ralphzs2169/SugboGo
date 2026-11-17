@@ -12,6 +12,7 @@ export type ReviewPhoto = {
 
 export type ReviewAuthor = {
   id: number;
+  role?: "explorer" | "merchant" | "admin" | "super_admin";
   first_name: string;
   last_name: string;
   avatar_url: string | null;
