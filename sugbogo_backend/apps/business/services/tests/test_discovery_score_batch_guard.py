@@ -53,6 +53,7 @@ class DiscoveryScoreBatchGuardTests(SimpleTestCase):
     def test_success_releases_its_private_session(self):
         """Keep successful calculations scoped to one explicitly owned session."""
         DiscoveryScoreService.recompute_business_scores(business_ids=[1])
+        self.connections["default"].copy.assert_called_once_with()
         self.body.assert_called_once_with(
             business_ids=[1],
             reference_time=None,

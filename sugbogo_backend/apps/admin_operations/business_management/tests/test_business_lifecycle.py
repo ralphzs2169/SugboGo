@@ -1,12 +1,14 @@
 """Business lifecycle authorization, durable side effects, and PostgreSQL serialization."""
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from threading import Barrier, Event
 from unittest import skipUnless
 from unittest.mock import AsyncMock, patch
 
 from django.db import connection, connections, transaction
 from django.test import TestCase, TransactionTestCase
+from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.test import APITestCase
 
@@ -25,6 +27,7 @@ from apps.business.models import (
     PocketMembership,
     SpecialtyTag,
 )
+from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 from apps.explorer_operations.explore_businesses.services.discovery_feed_service import DiscoveryFeedService
 from apps.merchant_operations.business_profile.services.business_profile_service import BusinessProfileService
 from apps.merchant_operations.business_profile.models import (
@@ -70,6 +73,59 @@ class LifecycleFixtures(DashboardFixtures):
 
 
 class BusinessLifecycleServiceTests(LifecycleFixtures, TestCase):
+    def test_routine_reactivation_defers_scores_and_suspension_excludes_immediately(self):
+        """Keep trusted score values while applying live discovery eligibility."""
+        computed_at = timezone.now()
+        score = DiscoveryScore.objects.create(
+            BUSN_ID=self.business,
+            DSC_S_SCORE="0.70",
+            DSC_V_SCORE="0.80",
+            DSC_D_SCORE="0.72",
+            DSC_COMPUTED_AT=computed_at,
+        )
+        self.assertIn(self.business.pk, DiscoveryFeedService.list_global_hidden_gem_ids())
+        with patch(
+            "apps.business.tasks.recompute_business_discovery_score.delay",
+        ) as dispatch, self.captureOnCommitCallbacks(execute=True):
+            first = self.transition()
+            self.assertNotIn(
+                self.business.pk,
+                DiscoveryFeedService.list_eligible_businesses().values_list("pk", flat=True),
+            )
+            self.transition(False, first["transition_id"])
+            self.assertEqual(DiscoveryScoreRefreshService.reconcile()["requested"], 0)
+        dispatch.assert_not_called()
+        score.refresh_from_db()
+        self.assertTrue(score.DSC_REFRESH_DEFERRED)
+        self.assertTrue(score.DSC_IS_PROVISIONAL)
+        self.assertEqual(score.DSC_COMPUTED_AT, computed_at)
+        self.assertNotIn(self.business.pk, DiscoveryFeedService.list_global_hidden_gem_ids())
+
+    def test_overdue_reactivation_hides_untrusted_hidden_gem_until_recovery(self):
+        """Use existing provisional eligibility to guard a stale restored score."""
+        computed_at = timezone.now() - timedelta(hours=27)
+        score = DiscoveryScore.objects.create(
+            BUSN_ID=self.business,
+            DSC_S_SCORE="0.70",
+            DSC_V_SCORE="0.80",
+            DSC_D_SCORE="0.72",
+            DSC_COMPUTED_AT=computed_at,
+        )
+        first = self.transition()
+        with patch(
+            "apps.business.tasks.recompute_business_discovery_score.delay",
+        ) as dispatch, self.captureOnCommitCallbacks(execute=True):
+            self.transition(False, first["transition_id"])
+        dispatch.assert_not_called()
+        score.refresh_from_db()
+        self.assertTrue(score.DSC_IS_PROVISIONAL)
+        self.assertEqual(score.DSC_COMPUTED_AT, computed_at)
+        self.assertNotIn(self.business.pk, DiscoveryFeedService.list_global_hidden_gem_ids())
+        with patch(
+            "apps.business.tasks.recompute_business_discovery_score.delay",
+        ), self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(DiscoveryScoreRefreshService.reconcile()["requested"], 1)
+
     def test_complete_cycle_preserves_reason_history_and_notifies_once_per_transition(self):
         first = self.transition()
         self.assertEqual(first["status"], "suspended")
@@ -249,15 +305,21 @@ class BusinessLifecycleServiceTests(LifecycleFixtures, TestCase):
         changed = BusinessProfileService.update_information(self.business, {"BUSN_DESCRIPTION": "Restored"})
         self.assertEqual(changed.BUSN_DESCRIPTION, "Restored")
 
-    def test_reactivation_dispatch_failure_keeps_recoverable_refresh_state(self):
+    def test_reactivation_stays_deferred_during_broker_outage(self):
+        """Routine reactivation must not attempt broker publication."""
         first = self.transition()
-        with patch("apps.business.tasks.recompute_business_discovery_score.delay", side_effect=RuntimeError("Broker down")):
+        with patch(
+            "apps.business.tasks.recompute_business_discovery_score.delay",
+            side_effect=RuntimeError("Broker down"),
+        ) as dispatch:
             with self.captureOnCommitCallbacks(execute=True):
                 self.transition(False, first["transition_id"])
         self.business.refresh_from_db()
         self.assertEqual(self.business.BUSN_STATUS, "active")
         score = DiscoveryScore.objects.get(BUSN_ID=self.business)
-        self.assertEqual(score.DSC_LAST_ERROR, "DISPATCH_FAILED")
+        dispatch.assert_not_called()
+        self.assertEqual(score.DSC_LAST_ERROR, "")
+        self.assertTrue(score.DSC_REFRESH_DEFERRED)
         self.assertIsNotNone(score.DSC_REFRESH_REQUESTED_AT)
 
     def test_realtime_is_deferred_and_notification_failure_discards_callbacks(self):

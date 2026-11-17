@@ -94,6 +94,9 @@ class BusinessService:
         ):
             from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 
-            DiscoveryScoreRefreshService.request_refresh(business.pk)
+            DiscoveryScoreRefreshService.request_refresh(
+                business.pk,
+                defer_until_daily=True,
+            )
 
         return business

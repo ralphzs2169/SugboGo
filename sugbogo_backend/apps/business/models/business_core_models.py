@@ -170,6 +170,9 @@ class DiscoveryScore(models.Model):
     DSC_REFRESH_VERSION = models.PositiveBigIntegerField(
         default=0,
     )
+    DSC_REFRESH_DEFERRED = models.BooleanField(
+        default=False,
+    )
     DSC_REFRESH_REQUESTED_AT = models.DateTimeField(
         blank=True,
         null=True,

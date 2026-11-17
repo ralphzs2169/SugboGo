@@ -236,5 +236,14 @@ class BusinessLifecycleService:
             dedup_key=f"business-status:{business.pk}:{activity.pk}",
         )
         if not suspend:
-            DiscoveryScoreRefreshService.request_refresh(business.pk)
+            score = DiscoveryScoreRefreshService.initialize(business.pk)
+            # Suspended evidence may have changed; revalidate before Hidden Gems.
+            score.DSC_IS_PROVISIONAL = True
+            score.save(
+                update_fields=["DSC_IS_PROVISIONAL", "DSC_UPDATED_AT"],
+            )
+            DiscoveryScoreRefreshService.request_refresh(
+                business.pk,
+                defer_until_daily=True,
+            )
         return cls.snapshot(business, owner, activity)

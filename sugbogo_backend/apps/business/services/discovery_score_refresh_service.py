@@ -3,7 +3,7 @@ from datetime import timedelta
 from functools import partial
 
 from django.db import DatabaseError, transaction
-from django.db.models import DecimalField, F, Q, Subquery, Value
+from django.db.models import Case, DecimalField, F, Q, Subquery, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class DiscoveryScoreRefreshService:
-    """Retains lightweight pending state so scheduled reconciliation can recover work."""
+    """Separates deferred daily evidence from work requiring early recovery."""
 
     MAX_SCORE_AGE = timedelta(hours=26)
     RECONCILIATION_LIMIT = 100
@@ -35,15 +35,33 @@ class DiscoveryScoreRefreshService:
     )
 
     @staticmethod
-    def request_global_refresh():
-        """Marks existing active scores dirty when shared scoring configuration changes."""
+    def request_global_refresh(
+        defer_until_daily=False,
+    ):
+        """Invalidates shared inputs without deferring already recoverable work."""
         requested_at = timezone.now()
+        deferred = Value(False)
+        if defer_until_daily:
+            deferred = Case(
+                When(
+                    Q(
+                        DSC_REFRESH_REQUESTED_AT__isnull=False,
+                        DSC_REFRESH_DEFERRED=False,
+                    )
+                    | Q(DSC_LAST_ERROR__gt=""),
+                    then=Value(False),
+                ),
+                default=Value(True),
+            )
         DiscoveryScore.objects.filter(
             BUSN_ID__BUSN_STATUS=Business.BusinessStatus.ACTIVE,
         ).update(
             DSC_REFRESH_VERSION=F("DSC_REFRESH_VERSION") + 1,
             DSC_REFRESH_REQUESTED_AT=requested_at,
+            DSC_REFRESH_DEFERRED=deferred,
         )
+        if defer_until_daily:
+            return
         transaction.on_commit(
             partial(
                 DiscoveryScoreRefreshService._publish_global,
@@ -91,6 +109,7 @@ class DiscoveryScoreRefreshService:
     def initialize(
         business_id,
         configuration=None,
+        defer_until_daily=True,
     ):
         """Creates a provisional no-evidence baseline without asserting measured visibility."""
         from apps.business.services.discovery_score_service import DiscoveryScoreService
@@ -119,6 +138,7 @@ class DiscoveryScoreRefreshService:
                 "DSC_COMPUTED_AT": None,
                 "DSC_IS_PROVISIONAL": True,
                 "DSC_REFRESH_REQUESTED_AT": timezone.now(),
+                "DSC_REFRESH_DEFERRED": defer_until_daily,
             },
         )
         return score
@@ -129,12 +149,34 @@ class DiscoveryScoreRefreshService:
         business_id,
         publisher=None,
         invalidate=True,
+        defer_until_daily=False,
+        only_if_recoverable=False,
     ):
-        """Pairs each invalidation generation with its latest time before publishing work."""
+        """Versions each invalidation while publishing only immediately due work."""
         try:
-            score = DiscoveryScoreRefreshService.initialize(business_id)
+            score = DiscoveryScoreRefreshService.initialize(
+                business_id,
+                defer_until_daily=defer_until_daily,
+            )
         except NotFound:
             return
+        if (
+            only_if_recoverable
+            and not DiscoveryScoreRefreshService.needs_refresh(
+                score,
+                timezone.now(),
+            )
+        ):
+            return
+        recoverable_pending = (
+            score.DSC_REFRESH_REQUESTED_AT is not None
+            and not score.DSC_REFRESH_DEFERRED
+        )
+        score.DSC_REFRESH_DEFERRED = (
+            defer_until_daily
+            and not recoverable_pending
+            and not score.DSC_LAST_ERROR
+        )
         if invalidate:
             score.DSC_REFRESH_VERSION += 1
             # Keep the time paired with the latest generation, even while pending.
@@ -144,10 +186,13 @@ class DiscoveryScoreRefreshService:
         score.save(
             update_fields=[
                 "DSC_REFRESH_VERSION",
+                "DSC_REFRESH_DEFERRED",
                 "DSC_REFRESH_REQUESTED_AT",
                 "DSC_UPDATED_AT",
             ],
         )
+        if defer_until_daily:
+            return
         transaction.on_commit(
             partial(
                 DiscoveryScoreRefreshService._publish,
@@ -193,13 +238,26 @@ class DiscoveryScoreRefreshService:
         score,
         reference_time,
     ):
-        """Distinguishes pending/provisional/stale state from a recent successful score."""
+        """Allows due recovery while leaving healthy daily evidence deferred."""
+        cutoff = reference_time - DiscoveryScoreRefreshService.MAX_SCORE_AGE
         return (
-            score.DSC_IS_PROVISIONAL
-            or score.DSC_COMPUTED_AT is None
-            or score.DSC_REFRESH_REQUESTED_AT is not None
-            or bool(score.DSC_LAST_ERROR)
-            or score.DSC_COMPUTED_AT < reference_time - DiscoveryScoreRefreshService.MAX_SCORE_AGE
+            bool(score.DSC_LAST_ERROR)
+            or (
+                not score.DSC_REFRESH_DEFERRED
+                and (
+                    score.DSC_IS_PROVISIONAL
+                    or score.DSC_COMPUTED_AT is None
+                    or score.DSC_REFRESH_REQUESTED_AT is not None
+                )
+            )
+            or (
+                score.DSC_COMPUTED_AT is not None
+                and score.DSC_COMPUTED_AT < cutoff
+            )
+            or (
+                score.DSC_COMPUTED_AT is None
+                and score.DSC_CREATED_AT < cutoff
+            )
         )
 
     @staticmethod
@@ -210,6 +268,9 @@ class DiscoveryScoreRefreshService:
     ):
         """Leaves an observable pending marker when a worker dies during calculation."""
         return DiscoveryScore.objects.filter(
+            Q(DSC_REFRESH_VERSION=0)
+            | Q(DSC_REFRESH_REQUESTED_AT__isnull=True)
+            | Q(DSC_REFRESH_REQUESTED_AT__lte=reference_time),
             Q(DSC_LAST_ATTEMPT_AT__isnull=True)
             | Q(DSC_LAST_ATTEMPT_AT__lte=reference_time),
             Q(DSC_COMPUTED_AT__isnull=True)
@@ -219,6 +280,7 @@ class DiscoveryScoreRefreshService:
         ).update(
             DSC_LAST_ATTEMPT_AT=reference_time,
             DSC_LAST_ERROR="",
+            DSC_REFRESH_DEFERRED=False,
             DSC_REFRESH_REQUESTED_AT=Coalesce(
                 "DSC_REFRESH_REQUESTED_AT",
                 Value(reference_time),
@@ -234,6 +296,9 @@ class DiscoveryScoreRefreshService:
     ):
         """Records safe error codes without letting an older failure taint newer success."""
         DiscoveryScore.objects.filter(
+            Q(DSC_REFRESH_VERSION=0)
+            | Q(DSC_REFRESH_REQUESTED_AT__isnull=True)
+            | Q(DSC_REFRESH_REQUESTED_AT__lte=reference_time),
             Q(DSC_COMPUTED_AT__isnull=True)
             | Q(DSC_COMPUTED_AT__lt=reference_time),
             BUSN_ID_id=business_id,
@@ -248,11 +313,20 @@ class DiscoveryScoreRefreshService:
         ids = list(
             Business.objects.filter(
                 Q(discovery_score__isnull=True)
-                | Q(discovery_score__DSC_IS_PROVISIONAL=True)
-                | Q(discovery_score__DSC_COMPUTED_AT__isnull=True)
+                | (
+                    Q(discovery_score__DSC_REFRESH_DEFERRED=False)
+                    & (
+                        Q(discovery_score__DSC_IS_PROVISIONAL=True)
+                        | Q(discovery_score__DSC_COMPUTED_AT__isnull=True)
+                        | Q(discovery_score__DSC_REFRESH_REQUESTED_AT__isnull=False)
+                    )
+                )
+                | Q(
+                    discovery_score__DSC_COMPUTED_AT__isnull=True,
+                    discovery_score__DSC_CREATED_AT__lt=cutoff,
+                )
                 | Q(discovery_score__DSC_COMPUTED_AT__lt=cutoff)
-                | Q(discovery_score__DSC_LAST_ERROR__gt="")
-                | Q(discovery_score__DSC_REFRESH_REQUESTED_AT__isnull=False),
+                | Q(discovery_score__DSC_LAST_ERROR__gt=""),
                 BUSN_STATUS=Business.BusinessStatus.ACTIVE,
             ).order_by(
                 F("discovery_score__DSC_LAST_ATTEMPT_AT").asc(nulls_first=True),
@@ -263,6 +337,7 @@ class DiscoveryScoreRefreshService:
             DiscoveryScoreRefreshService.request_refresh(
                 business_id,
                 invalidate=False,
+                only_if_recoverable=True,
             )
         return {
             "requested": len(ids),

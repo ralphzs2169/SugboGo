@@ -53,7 +53,10 @@ class BusinessSpecialtyService:
                 "BST_UPDATED_AT",
             ],
         )
-        DiscoveryScoreRefreshService.request_refresh(business_id)
+        DiscoveryScoreRefreshService.request_refresh(
+            business_id,
+            defer_until_daily=True,
+        )
 
         return business_specialty
 
@@ -83,6 +86,9 @@ class BusinessSpecialtyService:
                 "BST_UPDATED_AT",
             ],
         )
-        DiscoveryScoreRefreshService.request_refresh(business_id)
+        DiscoveryScoreRefreshService.request_refresh(
+            business_id,
+            defer_until_daily=True,
+        )
 
         return business_specialty

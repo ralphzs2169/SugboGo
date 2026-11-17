@@ -384,6 +384,7 @@ class DiscoveryScoreService:
             score_record.DSC_D_SCORE = persisted_discovery_score
             score_record.DSC_COMPUTED_AT = reference_time
             score_record.DSC_IS_PROVISIONAL = False
+            score_record.DSC_REFRESH_DEFERRED = False
             score_record.DSC_REFRESH_REQUESTED_AT = None
             score_record.DSC_LAST_ATTEMPT_AT = reference_time
             score_record.DSC_LAST_ERROR = ""
@@ -394,6 +395,7 @@ class DiscoveryScoreService:
                     "DSC_D_SCORE",
                     "DSC_COMPUTED_AT",
                     "DSC_IS_PROVISIONAL",
+                    "DSC_REFRESH_DEFERRED",
                     "DSC_REFRESH_REQUESTED_AT",
                     "DSC_LAST_ATTEMPT_AT",
                     "DSC_LAST_ERROR",
@@ -427,6 +429,7 @@ class DiscoveryScoreService:
         score = DiscoveryScoreRefreshService.initialize(
             business_id,
             configuration,
+            defer_until_daily=False,
         )
         if (
             only_if_pending
@@ -488,9 +491,8 @@ class DiscoveryScoreService:
         """Run one cross-worker batch without extending per-business transactions."""
         # A private connection owns the session lock, independently of the ORM
         # connection used by per-business transactions and request/task cleanup.
-        lock_connection = connections["default"].copy(
-            alias="discovery-score-batch-lock",
-        )
+        # PostgreSQL connection signals resolve type metadata by registered alias.
+        lock_connection = connections["default"].copy()
         acquired = False
         lock_name = "sugbogo:discovery-score-batch"
         try:

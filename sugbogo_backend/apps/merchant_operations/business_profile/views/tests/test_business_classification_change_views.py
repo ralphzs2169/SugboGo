@@ -18,6 +18,7 @@ from apps.business.models import (
     BusinessVouch,
     Category,
     Cluster,
+    DiscoveryScore,
     Location,
     SpecialtyTag,
 )
@@ -552,12 +553,14 @@ class BusinessClassificationChangeViewTests(TestCase):
             with self.captureOnCommitCallbacks(execute=True) as callbacks:
                 response = self._approve(request_id)
 
-                # Celery dispatch must wait until the transaction commits.
+                # Routine classification evidence waits for daily publication.
                 dispatch.assert_not_called()
 
-            # Both callbacks should execute after commit.
-            self.assertEqual(len(callbacks), 2)
-            dispatch.assert_called_once_with(business_id=self.business.pk)
+            self.assertEqual(len(callbacks), 1)
+            dispatch.assert_not_called()
+            self.assertTrue(
+                DiscoveryScore.objects.get(BUSN_ID=self.business).DSC_REFRESH_DEFERRED,
+            )
             publish.assert_called_once_with(
                 self.merchant.pk,
                 notification_id=ANY,
@@ -783,8 +786,8 @@ class BusinessClassificationChangeViewTests(TestCase):
             "pending",
         )
 
-    def test_dispatch_failure_does_not_undo_committed_approval(self):
-        """Retain approved data when post-commit Celery dispatch fails."""
+    def test_broker_outage_does_not_make_routine_classification_a_failed_refresh(self):
+        """Retain approved data without dispatching ordinary score work."""
         from apps.notifications.models import Notification
 
         request_id = self._submit().data["data"]["id"]
@@ -796,13 +799,10 @@ class BusinessClassificationChangeViewTests(TestCase):
         ) as logged_error:
             with self.captureOnCommitCallbacks(execute=True):
                 response = self._approve(request_id)
-        logged_error.assert_called_once()
-        self.assertEqual(
-            logged_error.call_args.kwargs["extra"],
-            {
-                "business_id": self.business.pk,
-            },
-        )
+        logged_error.assert_not_called()
+        score = DiscoveryScore.objects.get(BUSN_ID=self.business)
+        self.assertTrue(score.DSC_REFRESH_DEFERRED)
+        self.assertEqual(score.DSC_LAST_ERROR, "")
         self.assertEqual(response.status_code, 200, response.data)
         self.business.refresh_from_db()
         self.assertEqual(self.business.CTGRY_ID_id, self.new_category.pk)
