@@ -63,8 +63,8 @@ export default function TransportationPlanningSection({ period }) {
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
         <div className="@container min-w-0">
-          <div className="grid min-w-0 items-center gap-3 @md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-            <div className="relative mx-auto h-44 w-full max-w-48" role="img" aria-label={`${formatCount(data?.total_requests)} recorded planning requests. Exact method counts and shares follow.`}>
+          <div className="grid min-w-0 grid-cols-1 items-center gap-3 @lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div className="relative mx-auto aspect-square w-full max-w-44" role="img" aria-label={`${formatCount(data?.total_requests)} recorded planning requests. Exact method counts and shares follow.`}>
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <PieChart>
                   <Pie data={methods} dataKey="count" nameKey="label" innerRadius="65%" outerRadius="85%" isAnimationActive={false} stroke="var(--color-background)">

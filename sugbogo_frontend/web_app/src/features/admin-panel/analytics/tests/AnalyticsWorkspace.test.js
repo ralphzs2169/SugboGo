@@ -610,7 +610,7 @@ test("transportation donut reconciles methods and drawer destinations with perio
   assert.equal(methods.find((row) => row.method === "OTHER").count, 0);
   assert.match(report.textContent, /Distinct requesting accounts: 2/);
   assert.match(report.textContent, /not completed journeys/);
-  assert.ok(report.querySelector('[class~="@md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"]').contains(report.querySelector("[data-pie]")));
+  assert.ok(report.querySelector('[class~="@lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"]').contains(report.querySelector("[data-pie]")));
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   assert.match(document.querySelector("dialog[open]").textContent, /Recorded planning activity/);
   assert.match(document.querySelector("dialog[open]").textContent, /36\.36%/);
@@ -970,10 +970,15 @@ test("growth reports follow the requested order in the responsive grid", async (
   const activity=section("Discovery Activity");
   const sources=section("First Profile Visit Source");
   const transportation = section("Transportation Planning");
-  const grid = growth.parentElement;
-  assert.deepEqual([...grid.children], [growth, activity, sources, transportation]);
-  assert.ok(grid.classList.contains("grid-cols-1"));
-  assert.ok(grid.classList.contains("xl:grid-cols-2"));
+  const topRow = growth.parentElement;
+  const bottomRow = sources.parentElement;
+  assert.deepEqual([...topRow.children], [growth, activity]);
+  assert.deepEqual([...bottomRow.children], [sources, transportation]);
+  assert.equal(topRow.nextElementSibling, bottomRow);
+  assert.ok(topRow.classList.contains("grid-cols-1"));
+  assert.ok(topRow.classList.contains("xl:grid-cols-2"));
+  assert.ok(bottomRow.classList.contains("grid-cols-1"));
+  assert.ok(bottomRow.classList.contains("xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"));
   await selectAccounts();
   assert.match(activity.textContent,/Participating Accounts/);
   assert.match(activity.textContent,/Accounts with recorded discovery activity during each interval/);

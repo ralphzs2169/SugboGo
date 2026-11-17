@@ -21,6 +21,21 @@ function sourceRows(sources) {
     .sort((left, right) => Number(left.source === "UNKNOWN") - Number(right.source === "UNKNOWN") || right.count - left.count || order.indexOf(left.source) - order.indexOf(right.source));
 }
 
+function SourceAxisTick({ x, y, payload }) {
+  return (
+    <text
+      x={x}
+      y={y}
+      dy="0.35em"
+      textAnchor="end"
+      fill="var(--color-text-primary)"
+      fontSize={12}
+    >
+      {payload.value}
+    </text>
+  );
+}
+
 /** Independently reports recorded opening origins using the shared reporting period. */
 export default function DiscoverySourcesSection({ period }) {
   const [mode, setMode] = useState(null);
@@ -50,13 +65,36 @@ export default function DiscoverySourcesSection({ period }) {
         footer={<AnalyticsReportFooter title={TITLE} meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
-        <div className="h-56 w-full min-w-0" role="img" aria-label="Recorded visits ranked by source, with Unknown shown last. Exact counts and shares are available in View data.">
+        <div className="h-64 w-full min-w-0" role="img" aria-label="Recorded visits ranked by source, with Unknown shown last. Exact counts and shares are available in View data.">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 56, bottom: 0, left: 0 }}>
               <XAxis type="number" domain={[0, "auto"]} allowDecimals={false} tick={{ fill: "var(--color-text-secondary)", fontSize: 11 }} />
-              <YAxis type="category" dataKey="label" width={120} interval={0} tick={{ fill: "var(--color-text-primary)", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis
+                type="category"
+                dataKey="label"
+                width={144}
+                interval={0}
+                tick={<SourceAxisTick />}
+                axisLine={false}
+                tickLine={false}
+              />
               <Tooltip content={<AnalyticsCategoryTooltip unit="visits" />} />
-              <Bar dataKey="count" fill="var(--color-primary)" maxBarSize={28} isAnimationActive={false}>{rows.map((row) => <Cell key={row.source} fill={row.color} />)}<LabelList dataKey="count" position="right" formatter={formatCount} fill="var(--color-text-primary)" fontSize={11} /></Bar>
+              <Bar
+                dataKey="count"
+                fill="var(--color-primary)"
+                barSize={16}
+                radius={[0, 3, 3, 0]}
+                isAnimationActive={false}
+              >
+                {rows.map((row) => <Cell key={row.source} fill={row.color} />)}
+                <LabelList
+                  dataKey="count"
+                  position="right"
+                  formatter={formatCount}
+                  fill="var(--color-text-primary)"
+                  fontSize={11}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
