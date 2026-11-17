@@ -21,6 +21,10 @@ import SubmittedApplicationSection from "../components/portal/SubmittedApplicati
 import useAcknowledgeMerchantMode from "../hooks/useAcknowledgeMerchantMode";
 import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
 
+type Props = {
+  continueToBusinessProfile?: boolean;
+};
+
 /**
  * Displays the merchant portal based on the user's current registration state.
  *
@@ -28,7 +32,9 @@ import { useMerchantPortalState } from "../hooks/useMerchantPortalState";
  * information while coordinating registration navigation and Merchant Mode
  * activation from the primary portal action.
  */
-export default function MerchantPortalScreen() {
+export default function MerchantPortalScreen({
+  continueToBusinessProfile = false,
+}: Props) {
   const [isNavigating, setIsNavigating] = useState(false);
 
   const { registrationStatus, config, application, isLoading, error, refetch } =
@@ -120,7 +126,11 @@ export default function MerchantPortalScreen() {
 
           setActiveMode("merchant");
 
-          router.replace("/(merchant)/(tabs)/dashboard");
+          router.replace(
+            continueToBusinessProfile
+              ? "/(merchant)/(tabs)/profile"
+              : "/(merchant)/(tabs)/dashboard",
+          );
         } catch (error) {
           const response = error as ApiResponse<unknown>;
 

@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { act, render } from "@testing-library/react-native";
 import { useEffect as mockUseEffect } from "react";
 
+import MerchantPortalPage from "@/app/(explorer)/profile/merchant-portal";
 import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import MerchantPortalScreen from "../MerchantPortalScreen";
@@ -9,6 +10,7 @@ import MerchantPortalScreen from "../MerchantPortalScreen";
 const mockRefetch = jest.fn();
 const mockAcknowledge = jest.fn();
 const mockSetMode = jest.fn();
+const mockSearchParams = jest.fn();
 
 let mockPortalState = {
   registrationStatus: "DRAFT",
@@ -35,6 +37,7 @@ let mockPortalState = {
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn(), push: jest.fn(), replace: jest.fn() },
+  useLocalSearchParams: () => mockSearchParams(),
   useFocusEffect: (callback: () => void) => {
     mockUseEffect(callback, [callback]);
   },
@@ -109,6 +112,32 @@ describe("MerchantPortalScreen current-application errors", () => {
     expect(mockAcknowledge).toHaveBeenCalledTimes(1);
     expect(mockSetMode).toHaveBeenCalledWith("merchant");
     expect(router.replace).toHaveBeenCalledWith("/(merchant)/(tabs)/dashboard");
+  });
+
+  it("continues to the business profile only after acknowledgement succeeds", async () => {
+    mockPortalState.registrationStatus = "APPROVED";
+    mockSearchParams.mockReturnValue({ continueTo: "business-profile" });
+    mockAcknowledge.mockRejectedValueOnce({
+      success: false,
+      code: "NETWORK_ERROR",
+    });
+
+    await render(<MerchantPortalPage />);
+    const enter = (Button as jest.Mock).mock.lastCall[0].onPress;
+    await act(async () => {
+      await enter();
+    });
+
+    expect(mockSetMode).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await enter();
+    });
+
+    expect(mockAcknowledge).toHaveBeenCalledTimes(2);
+    expect(mockSetMode).toHaveBeenCalledWith("merchant");
+    expect(router.replace).toHaveBeenCalledWith("/(merchant)/(tabs)/profile");
   });
 
   it("keeps the cached portal content and offers a non-blocking retry", async () => {
