@@ -2,20 +2,32 @@ import { MaterialIcons } from "@expo/vector-icons";
 import type { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import * as Linking from "expo-linking";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
+import { useAppModeStore } from "@/features/app-mode/store/appMode.store";
+import { resolvePostLoginRoute } from "@/features/app-mode/utils/resolveAppModeRoute";
 import AuthLayout from "@/features/auth/components/AuthLayout";
 import BottomAuthLink from "@/features/auth/components/BottomAuthLink";
 import EmailConfirmationLayout from "@/features/auth/components/EmailConfirmationLayout";
 import VerificationRecoverySheet from "@/features/auth/components/VerificationRecoverySheet";
 import { useResendVerification } from "@/features/auth/hooks/useResendVerification";
 import { useVerifyEmail } from "@/features/auth/hooks/useVerifyEmail";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { useVerificationStore } from "@/features/auth/store/verification.store";
+import { establishSession } from "@/features/auth/utils/authSession";
 import { validateForgotPasswordForm } from "@/features/auth/utils/forgotPasswordValidator";
+import { parseVerificationSession } from "@/features/auth/utils/verificationSession";
+import {
+  getAuthSessionGeneration,
+  isAuthSessionCurrent,
+  isAuthSessionGenerationCurrent,
+  isOfflineTransportSession,
+  isStaleAuthSessionError,
+} from "@/shared/api/authSessionGeneration.service";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 import FormInput from "@/shared/components/form/FormInput";
@@ -58,7 +70,9 @@ function VerificationPasswordForm({
   const { handleResendVerification, loading: resending } = useResendVerification();
   const pendingEmail = useVerificationStore((state) => state.pendingEmail);
   const setPendingEmail = useVerificationStore((state) => state.setPendingEmail);
+  const clearPendingEmail = useVerificationStore((state) => state.clearPendingEmail);
   const submitting = useRef(false);
+  const focusGeneration = useRef(0);
   const recoverySheetRef = useRef<BottomSheetModal | null>(null);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -68,7 +82,17 @@ function VerificationPasswordForm({
   const [email, setEmail] = useState(pendingEmail ?? "");
   const [emailError, setEmailError] = useState("");
   const [resendError, setResendError] = useState("");
-  const busy = loading || resending;
+  const [establishingSession, setEstablishingSession] = useState(false);
+  const verifying = loading || establishingSession;
+  const busy = verifying || resending;
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        focusGeneration.current += 1;
+      };
+    }, []),
+  );
 
   function openRecoverySheet(address = pendingEmail ?? "") {
     setEmail(address);
@@ -141,6 +165,7 @@ function VerificationPasswordForm({
     }
   }
 
+  /** Confirms verification and installs a session only for the current request. */
   async function verify() {
     if (submitting.current) return;
     setError("");
@@ -150,12 +175,58 @@ function VerificationPasswordForm({
     }
     setPasswordError("");
 
+    const generation = getAuthSessionGeneration();
+    const focus = focusGeneration.current;
+    const isCurrentForm = () => focusGeneration.current === focus;
+    const canInstall = () => {
+      const { isAuthenticated, isLoading, isSigningIn } = useAuthStore.getState();
+      return isCurrentForm() && !isAuthenticated && !isLoading && !isSigningIn;
+    };
+    const autoLogin =
+      canInstall() &&
+      !isAuthSessionCurrent(generation) &&
+      !isOfflineTransportSession(generation);
+
     submitting.current = true;
     try {
-      const response = await handleVerifyEmail(uid, token, password);
-      if (response.success) {
+      const response = await handleVerifyEmail(uid, token, password, autoLogin);
+      if (!isCurrentForm() || !isAuthSessionGenerationCurrent(generation)) {
+        return;
+      }
+
+      if (response.success === true) {
         setPassword("");
-        router.replace("/(auth)/email-verified");
+        const session = autoLogin ? parseVerificationSession(response.data) : null;
+        if (session) {
+          setEstablishingSession(true);
+
+          let installed: number;
+          try {
+            installed = await establishSession(session, canInstall);
+          } catch (error) {
+            if (canInstall() && !isStaleAuthSessionError(error)) {
+              router.replace("/(auth)/email-verified");
+            }
+            return;
+          }
+
+          if (!isCurrentForm() || !isAuthSessionCurrent(installed)) {
+            return;
+          }
+          clearPendingEmail();
+          router.replace(
+            resolvePostLoginRoute(
+              session.user,
+              useAppModeStore.getState().activeMode,
+            ),
+          );
+          return;
+        }
+
+        const { isAuthenticated, isLoading, isSigningIn } = useAuthStore.getState();
+        if (!isLoading && !isSigningIn) {
+          router.replace(isAuthenticated ? "/" : "/(auth)/email-verified");
+        }
         return;
       }
 
@@ -166,6 +237,18 @@ function VerificationPasswordForm({
         return;
       }
 
+      if (response.code === "ACCOUNT_LOCKED" || response.code === "RATE_LIMIT_EXCEEDED") {
+        setPassword("");
+        const retryAfter = Number(response.errors?.retry_after ?? response.retry_after);
+        setError(`${response.message} ${getRetryAfterMessage(retryAfter)}`);
+        return;
+      }
+
+      if (response.code === "NETWORK_ERROR" || response.code === "REQUEST_TIMEOUT") {
+        setError("Try again, or go back to log in if your email was already verified.");
+        return;
+      }
+
       const fieldError = getFieldError(response, "password");
       setPasswordError(fieldError ?? "");
       if (!fieldError) {
@@ -173,8 +256,11 @@ function VerificationPasswordForm({
         handleSystemError(response);
       }
     } catch {
-      setError("Unable to verify your email. Please try again.");
+      if (isCurrentForm() && isAuthSessionGenerationCurrent(generation)) {
+        setError("Try again, or go back to log in if your email was already verified.");
+      }
     } finally {
+      setEstablishingSession(false);
       submitting.current = false;
     }
   }
@@ -212,7 +298,7 @@ function VerificationPasswordForm({
           className="mt-2 text-center text-sm leading-5 text-text-secondary"
         >
           {invalidLink
-            ? "This link is invalid or has expired. Request a new link to verify your email."
+            ? "Request a new link, or log in if your email is already verified."
             : "Enter your current SugboGo password to finish verifying your email."}
         </AppText>
       </View>
@@ -258,7 +344,7 @@ function VerificationPasswordForm({
           <Button
             title="Verify email"
             onPress={verify}
-            loading={loading}
+            loading={verifying}
             disabled={busy}
             textWeight="bold"
             rounded="full"

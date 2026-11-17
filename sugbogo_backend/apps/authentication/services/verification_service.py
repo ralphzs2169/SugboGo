@@ -9,13 +9,15 @@ from django.utils.http import (
     urlsafe_base64_encode,
     urlsafe_base64_decode,
 )
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
 
 from apps.authentication.constants import Platform
 from apps.authentication.services.account_lockout_service import AccountLockoutService
 from apps.authentication.services.session_service import SessionService
 from apps.authentication.tokens import email_verification_token_generator
 from apps.users.models import User
+from core.responses import error_response, success_response
 import logging
 
 logger = logging.getLogger(__name__)
@@ -108,11 +110,8 @@ class EmailVerificationService:
             ValueError,
             OverflowError,
             User.DoesNotExist,
-        ) as exc:
-            logger.warning(
-                "Invalid email verification attempt: %s",
-                exc,
-            )
+        ):
+            logger.warning("Invalid email verification attempt.")
             return None
 
         if not EmailVerificationService.is_eligible(user):
@@ -132,35 +131,58 @@ class EmailVerificationService:
         uid: str,
         token: str,
         password: str,
-    ) -> bool | None:
-        """Return True on verification, False if already verified, or None for an invalid link."""
+    ) -> User | Response:
+        """Return the newly verified account or a response that completes the request."""
         user = EmailVerificationService.verify_token(
             uid,
             token,
             lock_user=True,
         )
         if user is None:
-            return None
+            return error_response(
+                message=(
+                    "This verification link is invalid or has expired. "
+                    "Please request a new verification email."
+                ),
+                code="INVALID_VERIFICATION_LINK",
+            )
+
+        now = timezone.now()
+        AccountLockoutService.prepare(user, now)
+        locked = AccountLockoutService.response(user, now)
+        if locked is not None:
+            return locked
 
         # Check the hash directly so verification never rewrites or upgrades it.
         if not check_password(password, user.password):
-            raise ValidationError(
-                {
-                    "password": (
-                        "Enter the password you used to register. "
-                        "If you reset it, use your updated password and a fresh verification link."
-                    ),
-                },
+            # Return the error so the transaction commits the failed attempt.
+            AccountLockoutService.failure(user, now)
+            locked = AccountLockoutService.response(user, now)
+            if locked is not None:
+                return locked
+
+            message = (
+                "Enter the password you used to register. "
+                "If you reset it, use your updated password and a fresh verification link."
+            )
+            return error_response(
+                message=message,
+                code="VALIDATION_ERROR",
+                errors={"password": [message]},
             )
 
-        if user.EMAIL_VERIFIED and user.is_active:
-            return False
+        was_verified = user.EMAIL_VERIFIED
+        if was_verified and user.is_active:
+            return success_response(message="Email is already verified.")
 
         EmailVerificationService.apply_verification(
             user,
             finish_setup=True,
         )
-        return True
+        if was_verified:
+            return success_response(message="Email verified successfully.")
+
+        return user
 
     @staticmethod
     def apply_verification(

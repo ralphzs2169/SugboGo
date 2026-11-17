@@ -52,7 +52,9 @@ export default function TransportationPlanningSection({ period }) {
       {/* Compact distribution keeps secondary trends and rankings out of the main workspace. */}
       <AnalyticsSection
         titleIcon={Route}
-        onAbout={() => setMode("about")} aboutDisabled={!data} title="Transportation Planning" description="Recorded road-route and Jeepney guidance planning requests." {...state}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Transportation Planning" description="Recorded requests for road routes and Jeepney guidance."
+        compact
+        {...state}
         unavailable={unavailable}
         unavailableMessage={data?.meta?.partial_reasons?.includes("tracking_not_started_in_period") ? "This period is before transportation tracking began." : "Transportation planning observations are unavailable, not zero."}
         isEmpty={data?.total_requests === 0}
@@ -60,22 +62,24 @@ export default function TransportationPlanningSection({ period }) {
         footer={<AnalyticsReportFooter title="Transportation Planning" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
-        <div className="grid min-w-0 items-center gap-4 sm:grid-cols-2">
-          <div className="relative mx-auto h-56 w-full max-w-xs" role="img" aria-label={`${formatCount(data?.total_requests)} recorded planning requests. Exact method counts and shares follow.`}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-              <PieChart>
-                <Pie data={methods} dataKey="count" nameKey="label" innerRadius="65%" outerRadius="85%" isAnimationActive={false} stroke="var(--color-background)">
-                  {methods.map((row) => <Cell key={row.method} fill={COLORS[row.method]} />)}
-                </Pie>
-                <Tooltip content={<PlanningMethodTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><span className="text-2xl font-semibold text-text-primary">{formatCount(data?.total_requests)}</span><span className="text-xs text-text-secondary">recorded requests</span></div>
-          </div>
-          <div className="min-w-0">
-            <dl className="space-y-3 text-sm">{legendMethods.map((row) => <div key={row.method} className="flex flex-wrap items-center justify-between gap-2"><dt className="flex items-center gap-2 text-text-secondary"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[row.method] }} />{row.label}</dt><dd className="tabular-nums"><span className="font-semibold text-text-primary">{formatCount(row.count)}</span><span className="text-text-secondary"> · {formatShare(row.share_percent)}</span></dd></div>)}</dl>
-            <p className="mt-5 text-sm text-text-secondary">Distinct requesting accounts: <span className="font-medium text-text-primary">{formatCount(data?.distinct_requesting_accounts)}</span></p>
-            <p className="mt-2 text-xs text-text-secondary">Planning intent, not completed journeys or physical visits.</p>
+        <div className="@container min-w-0">
+          <div className="grid min-w-0 grid-cols-1 items-center gap-3 @lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div className="relative mx-auto aspect-square w-full max-w-44" role="img" aria-label={`${formatCount(data?.total_requests)} recorded planning requests. Exact method counts and shares follow.`}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <PieChart>
+                  <Pie data={methods} dataKey="count" nameKey="label" innerRadius="65%" outerRadius="85%" isAnimationActive={false} stroke="var(--color-background)">
+                    {methods.map((row) => <Cell key={row.method} fill={COLORS[row.method]} />)}
+                  </Pie>
+                  <Tooltip content={<PlanningMethodTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><span className="text-2xl font-semibold text-text-primary">{formatCount(data?.total_requests)}</span><span className="text-xs text-text-secondary">recorded requests</span></div>
+            </div>
+            <div className="min-w-0">
+              <dl className="space-y-2 text-sm">{legendMethods.map((row) => <div key={row.method} className="flex flex-wrap items-center justify-between gap-2"><dt className="flex items-center gap-2 text-text-secondary"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[row.method] }} />{row.label}</dt><dd className="tabular-nums"><span className="font-semibold text-text-primary">{formatCount(row.count)}</span><span className="text-text-secondary"> · {formatShare(row.share_percent)}</span></dd></div>)}</dl>
+              <p className="mt-3 text-sm text-text-secondary">Distinct requesting accounts: <span className="font-medium text-text-primary">{formatCount(data?.distinct_requesting_accounts)}</span></p>
+              <p className="mt-2 text-xs text-text-secondary">Planning intent, not completed journeys or physical visits.</p>
+            </div>
           </div>
         </div>
       </AnalyticsSection>

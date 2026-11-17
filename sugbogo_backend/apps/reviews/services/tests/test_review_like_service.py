@@ -355,8 +355,9 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
             review.REVW_LIKE_COUNT,
             2,
         )
-    def test_merchant_own_business_like_preserves_records_and_count(self):
-        """Reject owner engagement without creating a like or changing counts."""
+
+    def test_merchant_can_like_and_unlike_review_on_own_business(self):
+        """Keep an owner's like and its count in sync through removal."""
         self.business_owner.USER_ROLE = User.UserRole.MERCHANT
         self.business_owner.save(update_fields=["USER_ROLE"])
         review = create_and_moderate_review(
@@ -364,32 +365,30 @@ class ReviewLikeServiceTests(SafeReviewModerationMixin, TestCase):
             business_id=self.business.pk,
             text="Great food.",
         )
+
+        like = ReviewLikeService.create_like(
+            user=self.business_owner,
+            review_id=review.pk,
+        )
+
         with self.assertRaisesMessage(
-            ValidationError, "You cannot like reviews on your own business.",
+            ValidationError,
+            "You have already liked this review.",
         ):
             ReviewLikeService.create_like(
-                user=self.business_owner, review_id=review.pk,
+                user=self.business_owner,
+                review_id=review.pk,
             )
-        review.refresh_from_db()
-        self.assertEqual(review.REVW_LIKE_COUNT, 0)
-        self.assertFalse(ReviewLike.objects.filter(REVW_ID=review).exists())
 
-    def test_merchant_can_remove_existing_own_business_like(self):
-        """Preserve legacy likes until their owner explicitly removes them."""
-        self.business_owner.USER_ROLE = User.UserRole.MERCHANT
-        self.business_owner.save(update_fields=["USER_ROLE"])
-        review = create_and_moderate_review(
-            user=self.second_user, business_id=self.business.pk, text="Great food.",
-        )
-        like = ReviewLike.objects.create(USER_ID=self.business_owner, REVW_ID=review)
-        review.REVW_LIKE_COUNT = 1
-        review.save(update_fields=["REVW_LIKE_COUNT"])
-        with self.assertRaises(ValidationError):
-            ReviewLikeService.create_like(user=self.business_owner, review_id=review.pk)
         self.assertTrue(ReviewLike.objects.filter(pk=like.pk).exists())
         review.refresh_from_db()
         self.assertEqual(review.REVW_LIKE_COUNT, 1)
-        ReviewLikeService.remove_like(user=self.business_owner, review_id=review.pk)
+
+        ReviewLikeService.remove_like(
+            user=self.business_owner,
+            review_id=review.pk,
+        )
+
         review.refresh_from_db()
         self.assertFalse(ReviewLike.objects.filter(pk=like.pk).exists())
         self.assertEqual(review.REVW_LIKE_COUNT, 0)

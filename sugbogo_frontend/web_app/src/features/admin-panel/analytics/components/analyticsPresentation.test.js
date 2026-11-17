@@ -50,8 +50,8 @@ test("tooltip zero, missing observations and unknown shares stay distinct", () =
 });
 
 test("shared footer uses named help and data actions, explicit partial coverage and update time", () => {
-  const html=render(Footer,{title:"Discovery Sources",meta:{generated_at:"2026-10-28T04:00:00Z",is_partial:true},hasData:true,onAbout:()=>{},onData:()=>{}});
-  assert.match(html,/aria-label="Discovery Sources data reliability"/);
+  const html=render(Footer,{title:"First Profile Visit Source",meta:{generated_at:"2026-10-28T04:00:00Z",is_partial:true},hasData:true,onAbout:()=>{},onData:()=>{}});
+  assert.match(html,/aria-label="First Profile Visit Source data reliability"/);
   assert.match(html,/Partial coverage/);
   assert.match(html,/View data/);
   assert.match(html,/cursor-pointer/);

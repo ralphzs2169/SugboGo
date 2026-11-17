@@ -1,4 +1,5 @@
 import { useContext, useLayoutEffect, useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 import { AppState, type AppStateStatus, type View } from "react-native";
 import { router } from "expo-router";
@@ -93,6 +94,7 @@ function Profile({
   isOwnBusiness?: boolean;
 }) {
   const [footerHeight, setFooterHeight] = useState(0);
+  const [queryClient] = useState(() => new QueryClient());
   return (
     <>
       <BusinessProfileScrollView
@@ -108,10 +110,12 @@ function Profile({
         <MeasurementProbe />
         <SimilarPlacesSection businessId={20} />
       </BusinessProfileScrollView>
-      <BusinessProfileFooter
-        isOwnBusiness={isOwnBusiness}
-        onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
-      />
+      <QueryClientProvider client={queryClient}>
+        <BusinessProfileFooter
+          isOwnBusiness={isOwnBusiness}
+          onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
+        />
+      </QueryClientProvider>
     </>
   );
 }

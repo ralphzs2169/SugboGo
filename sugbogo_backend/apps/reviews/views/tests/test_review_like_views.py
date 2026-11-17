@@ -354,7 +354,7 @@ class ReviewLikeViewTests(APITestCase):
             0,
         )
 
-    def test_authenticated_merchant_cannot_like_review_on_own_business(self):
+    def test_authenticated_merchant_can_like_review_on_own_business(self):
         self.client.force_authenticate(
             self.merchant,
         )
@@ -365,14 +365,23 @@ class ReviewLikeViewTests(APITestCase):
 
         self.assertEqual(
             response.status_code,
-            status.HTTP_400_BAD_REQUEST,
+            status.HTTP_200_OK,
         )
 
-        self.assertFalse(
+        self.assertTrue(response.data["data"]["is_liked"])
+
+        self.assertTrue(
             ReviewLike.objects.filter(
                 REVW_ID=self.review,
                 USER_ID=self.merchant,
             ).exists(),
+        )
+
+        self.review.refresh_from_db()
+
+        self.assertEqual(
+            self.review.REVW_LIKE_COUNT,
+            1,
         )
 
     def test_unauthenticated_user_cannot_like_review(self):

@@ -16,12 +16,11 @@ class ReviewLikeService:
         user: User,
         review_id: int,
     ) -> ReviewLike:
-        """Lock a published review before creating an allowed non-owner like."""
+        """Lock a published review before creating a like."""
         try:
             review = (
                 Review.objects
                 .select_for_update(of=("self",))
-                .select_related("BUSN_ID")
                 .get(
                     REVW_ID=review_id,
                     REVW_STATUS=Review.ReviewStatus.PUBLISHED,
@@ -36,14 +35,6 @@ class ReviewLikeService:
             review.BUSN_ID_id,
             lock=True,
         )
-
-        if (
-            user.USER_ROLE == User.UserRole.MERCHANT
-            and review.BUSN_ID.USER_ID_id == user.pk
-        ):
-            raise ValidationError(
-                "You cannot like reviews on your own business.",
-            )
 
         try:
             like = ReviewLike.objects.create(

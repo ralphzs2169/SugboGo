@@ -1,5 +1,9 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
-import { onlineManager } from "@tanstack/react-query";
+import {
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Share } from "react-native";
@@ -183,6 +187,7 @@ const business = {
   has_own_review: false,
 };
 const refetch = jest.fn();
+const queryClient = new QueryClient();
 function source(mode: "live" | "recent" | "offline-pocket" | "unavailable") {
   return {
     source: mode,
@@ -207,11 +212,13 @@ function source(mode: "live" | "recent" | "offline-pocket" | "unavailable") {
 }
 function profile() {
   return (
-    <ExploreBusinessProfileScreen
-      businessId={21}
-      distance={1.2}
-      distanceAccuracy={10}
-    />
+    <QueryClientProvider client={queryClient}>
+      <ExploreBusinessProfileScreen
+        businessId={21}
+        distance={1.2}
+        distanceAccuracy={10}
+      />
+    </QueryClientProvider>
   );
 }
 beforeEach(() => {

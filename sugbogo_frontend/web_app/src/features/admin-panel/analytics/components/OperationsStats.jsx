@@ -1,5 +1,6 @@
 import { Info } from "lucide-react";
 import Tooltip from "@/shared/components/actions/Tooltip";
+import MetricCard from "../../components/MetricCard";
 
 /** Keeps short Operations explanations available to pointer, touch and keyboard users. */
 export function OperationsHelp({ label, children }) {
@@ -17,20 +18,25 @@ export function OperationsHelp({ label, children }) {
   );
 }
 
-/** Gives operational values prominence without introducing cards or another KPI row. */
+/** Gives operational values prominence in a compact two-column grid. */
 export default function OperationsStats({ items }) {
   return (
-    <dl className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-3">
-      {/* Values lead visually; labels and optional scope explanations remain accessible. */}
+    <div className="grid min-w-0 grid-cols-2 gap-3">
       {items.map((item) => (
-        <div key={item.label} className="flex min-w-0 flex-col">
-          <dt className="flex min-h-8 items-center text-xs text-text-secondary">
-            {item.label}
-            {item.help && <OperationsHelp label={`About ${item.label}`}>{item.help}</OperationsHelp>}
-          </dt>
-          <dd className="order-first text-xl font-semibold tabular-nums tracking-tight text-text-primary">{item.value}</dd>
-        </div>
+        <MetricCard
+          key={item.label}
+          title={item.label}
+          value={item.value}
+          footerValue={item.footerValue}
+          measurementLabel={item.context}
+          compact
+          dense
+          wrapTitle
+          headerAction={item.help && (
+            <OperationsHelp label={`About ${item.label}`}>{item.help}</OperationsHelp>
+          )}
+        />
       ))}
-    </dl>
+    </div>
   );
 }

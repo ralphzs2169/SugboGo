@@ -333,7 +333,7 @@ Temporary cards and held reviews never increment public counts. The phone takes 
 
 **New likes and new merchant replies require a published review.** This keeps public interaction attached to content that has passed the publication decision.
 
-- Likes are limited to one per user per review. The current service prevents a merchant from liking reviews on their own business.
+- Likes are limited to one per user per review. Merchants can like reviews on their own business, and the public card identifies that reaction as “Liked by merchant.”
 - Only the business owner can reply to that business’s review. There is one merchant reply per review, which the owner can manage with text and optional photos.
 - The mobile card hides ordinary engagement controls for private reviews.
 

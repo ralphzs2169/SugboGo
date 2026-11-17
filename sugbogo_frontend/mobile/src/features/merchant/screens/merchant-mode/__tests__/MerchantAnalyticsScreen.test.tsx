@@ -23,7 +23,10 @@ import {
   getMerchantStandardAnalytics,
   getMerchantUnansweredReviews,
 } from "../../../api/merchantAnalytics.service";
-import { merchantPlusStatusKey } from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
+import {
+  merchantPlusReportScope,
+  merchantPlusStatusKey,
+} from "../../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
 import MerchantAnalyticsScreen from "../MerchantAnalyticsScreen";
 import { getMerchantRoutePlanning } from "../../../api/merchantRoutePlanning.service";
 import { routePlanningReport } from "../../../__tests__/routePlanningAnalytics.fixtures";
@@ -369,7 +372,7 @@ describe("MerchantAnalyticsScreen", () => {
     expect(screen.getByRole("header", { name: "Specialty vouches" })).toBeTruthy();
     expect(screen.getByRole("header", { name: "Route-planning activity" })).toBeTruthy();
     expect(getAnalytics).toHaveBeenCalled();
-    expect(plusService.getMerchantPlusVisibility).not.toHaveBeenCalled();
+    expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(1);
     expect(plusService.getMerchantPlusPocket).not.toHaveBeenCalled();
     const reviewInsights = await screen.findByRole("button", { name: "Open Review insights" });
     expect(plusService.getMerchantPlusStoredInsights).toHaveBeenCalledTimes(1);
@@ -400,27 +403,93 @@ describe("MerchantAnalyticsScreen", () => {
     await screen.findByText("Stored narrative from eligible reviews.");
   });
 
-  it("retries report failures directly without an entitlement guard", async () => {
-    jest
-      .mocked(plusService.getMerchantPlusPocket)
-      .mockResolvedValueOnce({
-        success: false,
-        code: "NETWORK_ERROR",
-        message: "Offline",
-      });
+  it.each([
+    { label: "Standard access", before: false, after: false },
+    { label: "confirmed Plus access", before: true, after: true },
+    { label: "a failed status read", before: true, after: null },
+    { label: "a new Plus grant", before: false, after: true },
+    { label: "revoked Plus access", before: true, after: false },
+  ])("refreshes Standard reports independently with $label", async ({
+    before,
+    after,
+  }) => {
+    const getStatus = jest.mocked(plusService.getMerchantPlusStatus);
+    const getPocket = jest.mocked(plusService.getMerchantPlusPocket);
+    client.setQueryData(merchantPlusStatusKey(42), plusStatus(before));
+    getStatus.mockResolvedValue(plusSuccess(plusStatus(before)));
     const screen = await renderScreen();
-    await screen.findByText("Pocket activity unavailable");
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    expect(getPocket).toHaveBeenCalledTimes(before ? 1 : 0);
+    getPocket.mockClear();
+    getStatus.mockClear();
+
+    type StatusResponse = Awaited<ReturnType<typeof getStatus>>;
+    let finishStatus!: (response: StatusResponse) => void;
+    getStatus.mockReturnValueOnce(new Promise((resolve) => {
+      finishStatus = resolve;
+    }));
+    const refreshControl = () =>
+      screen.getByTestId("merchant-analytics-scroll").props.refreshControl.props;
+    let refresh!: Promise<void>;
+    await act(async () => {
+      refresh = refreshControl().onRefresh();
+    });
+    await waitFor(() => {
+      expect(getAnalytics).toHaveBeenCalledTimes(2);
+      expect(getMerchantRoutePlanning).toHaveBeenCalledTimes(2);
+      expect(plusService.getMerchantPlusVisibility).toHaveBeenCalledTimes(2);
+      expect(plusService.getMerchantPlusStoredInsights).toHaveBeenCalledTimes(2);
+      expect(mockRefetchProfile).toHaveBeenCalledTimes(1);
+    });
+    expect(getStatus).toHaveBeenCalledTimes(1);
+    expect(getPocket).not.toHaveBeenCalled();
+    expect(refreshControl().refreshing).toBe(true);
+
+    await act(async () => {
+      finishStatus(after === null
+        ? { success: false, code: "NETWORK_ERROR", message: "Offline" }
+        : plusSuccess(plusStatus(after)));
+      await refresh;
+    });
+    await waitFor(() => {
+      expect(refreshControl().refreshing).toBe(false);
+      expect(getPocket).toHaveBeenCalledTimes(after ? 1 : 0);
+      if (!after) {
+        const cachedReports = client.getQueriesData({
+          queryKey: merchantPlusReportScope(42),
+        });
+        expect(cachedReports.every(([, data]) => data === undefined)).toBe(true);
+      }
+    });
+    expect(Toast.show).not.toHaveBeenCalled();
+  });
+
+  it("notifies and retries a genuine Pocket refresh failure", async () => {
+    const screen = await renderScreen();
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    jest.mocked(plusService.getMerchantPlusPocket).mockResolvedValueOnce({
+      success: false,
+      code: "SERVER_ERROR",
+      message: "Pocket report could not be loaded.",
+    });
+    await act(async () => screen
+      .getByTestId("merchant-analytics-scroll")
+      .props.refreshControl.props.onRefresh());
+    await screen.findByText("Unable to refresh Pocket activity");
+    expect(Toast.show).toHaveBeenCalledWith(
+      expect.objectContaining({ text2: "Pocket report could not be loaded." }),
+    );
     await fireEvent.press(
       screen.getByRole("button", {
-        name: /Pocket activity unavailable.*retry/i,
+        name: /Unable to refresh Pocket activity.*retry/i,
       }),
     );
     await waitFor(() =>
-      expect(plusService.getMerchantPlusPocket).toHaveBeenCalledTimes(2),
+      expect(plusService.getMerchantPlusPocket).toHaveBeenCalledTimes(3),
     );
     expect(plusService.getMerchantPlusStatus).toHaveBeenCalled();
     await waitFor(() =>
-      expect(screen.queryByText("Pocket activity unavailable")).toBeNull(),
+      expect(screen.queryByText("Unable to refresh Pocket activity")).toBeNull(),
     );
   });
 

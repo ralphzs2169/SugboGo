@@ -36,6 +36,7 @@ import AnalyticsSpecialtySupport from "../../components/analytics/AnalyticsSpeci
 import AnalyticsVisibilityTrends from "../../components/analytics/AnalyticsVisibilityTrends";
 
 import { merchantPlusReportScope } from "../../hooks/analytics/merchantPlusAnalyticsQueryKeys";
+import { merchantStandardAnalyticsScope } from "../../hooks/analytics/merchantAnalyticsQueryKeys";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 
 import useMerchantRoutePlanning from "../../hooks/analytics/useMerchantRoutePlanning";
@@ -81,7 +82,7 @@ export default function MerchantAnalyticsScreen() {
     useState<MerchantAnalyticsPeriod>("30");
   const [activePeriodSection, setActivePeriodSection] =
     useState<PeriodSection>("visibility");
-  const [isRefreshingPlus, setIsRefreshingPlus] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Standard Analytics
   const { report, isLoading, isRefetching, error, refetch } =
@@ -107,7 +108,7 @@ export default function MerchantAnalyticsScreen() {
       : [];
 
   useQueryErrorNotification({
-    error: focused ? pocket.error : null,
+    error: focused && plusAccess.allowed ? pocket.error : null,
     toastId: "merchant-pocket-analytics-error",
     title: "Unable to load Pocket activity",
     fallbackMessage: "Please retry this section.",
@@ -153,35 +154,47 @@ export default function MerchantAnalyticsScreen() {
     void refetch();
   };
 
-  // Refresh active detailed reports.
   const refreshPlus = async () => {
-    setIsRefreshingPlus(true);
-
-    try {
-      if (focused && accountId) {
-        await queryClient.refetchQueries({
-          queryKey: merchantPlusReportScope(accountId),
-          type: "active",
-          predicate: (query) =>
-            query.queryKey[7] === undefined && query.queryKey[2] !== "pocket",
-        });
-      }
-    } finally {
-      setIsRefreshingPlus(false);
+    const status = await plusAccess.refetch({ cancelRefetch: false });
+    if (!status.isSuccess || status.data?.has_plus_access !== true) {
+      return;
     }
+
+    await queryClient.refetchQueries(
+      {
+        queryKey: merchantPlusReportScope(accountId),
+        type: "active",
+        // A newly enabled Pocket query loads automatically.
+        predicate: (query) =>
+          query.queryKey[7] === undefined &&
+          (query.queryKey[2] !== "pocket" || plusAccess.allowed),
+      },
+      { cancelRefetch: false },
+    );
   };
 
   // Refresh analytics without reloading the entire screen.
-  const refresh = () => {
-    void Promise.all([
-      plusAccess.refetch(),
-      refetch(),
-      refetchProfile(),
-      reviewInsights.refetch(),
-      routePlanning.refetch(),
-      pocket.refetch(),
-      refreshPlus(),
-    ]);
+  const refresh = async () => {
+    if (!focused || !accountId || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refetch(),
+        refetchProfile(),
+        reviewInsights.refetch(),
+        routePlanning.refetch(),
+        queryClient.refetchQueries(
+          {
+            queryKey: [...merchantStandardAnalyticsScope(accountId), "visibility"],
+            type: "active",
+          },
+          { cancelRefetch: false },
+        ),
+        refreshPlus(),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Existing detail-report navigation
@@ -230,7 +243,7 @@ export default function MerchantAnalyticsScreen() {
           <RefreshControl
             refreshing={
               isRefetching ||
-              isRefreshingPlus ||
+              isRefreshing ||
               pocket.isRefetching ||
               reviewInsights.isRefetching ||
               routePlanning.isRefetching

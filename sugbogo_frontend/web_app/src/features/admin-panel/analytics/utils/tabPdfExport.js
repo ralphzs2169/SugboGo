@@ -55,14 +55,6 @@ export function populatePrintDocument(target, source, { tab, title, period, now 
   const clone = target.importNode(source, true);
   clone.setAttribute("data-pdf-workspace", "");
   clone.removeAttribute("tabindex");
-  // These clickable headings carry report values, rather than control-only actions.
-  clone.querySelectorAll('ul[aria-label="New businesses ranked by cluster"] button[aria-expanded], ol[aria-label="Median resolution time by request type"] button').forEach((button) => {
-    const content = target.createElement("div");
-    content.className = button.className;
-    content.append(...button.childNodes);
-    button.replaceWith(content);
-  });
-  clone.querySelectorAll('ul[aria-label="New businesses ranked by cluster"] div[id][aria-hidden="true"]').forEach((panel) => panel.remove());
   // Selected controls describe the captured state; no dropdowns or interactive UI are printed.
   for (const button of clone.querySelectorAll('button[aria-haspopup], button[aria-selected="true"], button[aria-pressed="true"]')) {
     if (button.getAttribute("aria-label")?.startsWith("About ")) continue;

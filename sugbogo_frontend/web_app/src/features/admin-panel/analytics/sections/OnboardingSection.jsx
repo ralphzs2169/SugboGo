@@ -3,34 +3,21 @@ import { ArrowRight, ClipboardCheck } from "lucide-react";
 import { useOnboardingAnalytics } from "../hooks/useAnalyticsReports";
 import useAnalyticsSectionState from "../hooks/useAnalyticsSectionState";
 import AnalyticsSection from "../components/AnalyticsSection";
-import AnalyticsTimeSeries from "../components/AnalyticsTimeSeries";
 import AnalyticsExactTable from "../components/AnalyticsExactTable";
 import AnalyticsRanking from "../components/AnalyticsRanking";
 import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import AnalyticsReportFooter from "../components/AnalyticsReportFooter";
-import AnalyticsTooltip from "../components/AnalyticsTooltip";
 import OperationsStats, { OperationsHelp } from "../components/OperationsStats";
 import { AnalyticsDrilldown, AnalyticsSummary } from "../components/AnalyticsReportContext";
 import { formatCount, formatDuration, formatPercentage } from "../utils/presentation";
 import { growthBucketLabel } from "../utils/growthPresentation";
 
 const LINES = [
-  { key: "submissions", label: "Applications submitted", color: "var(--color-primary)" },
-  { key: "completed_reviews", label: "Review decisions", color: "var(--color-info)" },
+  { key: "submissions", label: "Applications submitted" },
+  { key: "completed_reviews", label: "Review decisions" },
 ];
 
-/** Shows effective weekly bounds and both independent workload counts. */
-function WorkloadTooltip({ active, payload }) {
-  const row = payload?.[0]?.payload;
-  if (!active || !row) return null;
-  return <AnalyticsTooltip title={growthBucketLabel(row)} rows={LINES.map((line) => ({
-    label: line.label,
-    color: line.color,
-    value: formatCount(row[line.key]),
-  }))} />;
-}
-
-/** Makes paired event workloads primary while retaining current and cumulative scope distinctions. */
+/** Presents review performance and rejection patterns with their original reporting scopes. */
 export default function OnboardingSection({ period }) {
   const [mode, setMode] = useState(null);
   const query = useOnboardingAnalytics(period);
@@ -54,39 +41,55 @@ export default function OnboardingSection({ period }) {
     <>
       <AnalyticsSection
         titleIcon={ClipboardCheck}
-        onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant Onboarding" description="Application volume, processing efficiency, and rejection patterns." {...state}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant Onboarding" description="Application review performance and rejection patterns."
+        compact
+        {...state}
         action={<AnalyticsDrilldown to="/admin-panel/businesses/applications">View applications</AnalyticsDrilldown>}
         footer={<AnalyticsReportFooter title="Merchant Onboarding" meta={meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
-        {/* Paired analytical panels retain every rejection section and weekly bucket */}
-        <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-text-primary">Application workload</h3>
-            <div className="mt-1 flex items-center gap-1 text-xs text-text-secondary">
-              <p>Applications submitted vs. review decisions completed each week</p>
-              <OperationsHelp label="About application workload">Submissions and review decisions are independent event counts and may refer to different applications. Decisions can review earlier applications; new applications may be reviewed later. Their difference is not backlog change or conversion.</OperationsHelp>
-            </div>
-            <div className="mt-3 h-56 min-w-0"><AnalyticsTimeSeries chartType="bar" rows={data?.weekly_activity} lines={LINES} tooltipContent={<WorkloadTooltip />} /></div>
+            <h3 className="mb-3 text-sm font-semibold text-text-primary">Review performance</h3>
+            <OperationsStats
+              items={[
+                {
+                  label: "Pending & overdue",
+                  value: (
+                    <>
+                      {formatCount(data?.legacy_statistics?.pending_review)}
+                      <span className="ml-1 text-sm font-medium tracking-normal text-text-secondary"> pending</span>
+                    </>
+                  ),
+                  footerValue: `${formatCount(aging?.overdue)} overdue`,
+                  context: "Current queue",
+                },
+                {
+                  label: "SLA compliance",
+                  value: formatPercentage(data?.legacy_statistics?.sla_compliance_rate),
+                  context: "All-time",
+                  help: "All classified recorded reviews, regardless of the selected dates. Reviews without an SLA classification are excluded.",
+                },
+                {
+                  label: "Median turnaround",
+                  value: formatDuration(duration?.median_hours),
+                  context: "Selected period",
+                  help: "Valid review decisions during the selected period, linked to their corresponding application submissions.",
+                },
+                {
+                  label: "Post-rejection recovery",
+                  value: formatPercentage(data?.legacy_statistics?.resubmission_rate),
+                  context: "All-time · as of now",
+                  help: "Applications that resubmitted after rejection.",
+                },
+              ]}
+            />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 border-t border-stroke pt-4 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
             <h3 className="mb-3 text-sm font-semibold text-text-primary">Rejection breakdown</h3>
             <AnalyticsRanking label="Rejected application sections" rows={sections.map((row) => ({ id: row.section, name: row.label, value: row.rejection_decisions }))} />
             <p className="mt-3 text-xs text-text-secondary">Sections may overlap. One rejection decision can include multiple sections.</p>
             <button type="button" onClick={() => setMode("breakdown")} className={actionStyle}>View breakdown <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" /></button>
           </div>
-        </div>
-        {/* Unbordered statistics make their different populations explicit */}
-        <div className="mt-5 border-t border-stroke pt-4">
-          <OperationsStats items={[
-            { label: "Current workload", value: `${formatCount(data?.legacy_statistics?.pending_review)} pending · ${formatCount(aging?.overdue)} overdue` },
-            { label: "SLA compliance", value: formatPercentage(data?.legacy_statistics?.sla_compliance_rate), help: "All classified recorded reviews, regardless of the selected dates. Reviews without an SLA classification are excluded." },
-            { label: "Median turnaround", value: formatDuration(duration?.median_hours), help: "Valid review decisions during the selected period, linked to their corresponding application submissions." },
-          ]} />
-        </div>
-        {/* Recovery is cumulative, never presented as a period-filtered trend */}
-        <div className="mt-5 flex items-center justify-between gap-4 border-t border-stroke pt-4">
-          <div><h3 className="text-sm font-semibold text-text-primary">Post-rejection recovery</h3><p className="mt-1 text-xs text-text-secondary">Applications that resubmitted after rejection.</p><p className="mt-1 text-xs text-text-secondary">All-time · as of now</p></div>
-          <p className="text-xl font-semibold tabular-nums text-text-primary">{formatPercentage(data?.legacy_statistics?.resubmission_rate)}</p>
         </div>
       </AnalyticsSection>
       {/* The existing drawer owns exact data, full breakdown and report methodology */}
@@ -95,7 +98,10 @@ export default function OnboardingSection({ period }) {
         dataDescription="Independent weekly event counts, not a submission-to-decision funnel or a measure of backlog change. Applications submitted include resubmissions; review decisions include approvals and rejections."
         dateColumn={{ key: "date", label: "Effective dates", render: growthBucketLabel }}
         dataContent={<div className="space-y-4 border-t border-stroke pt-4 text-sm text-text-secondary">
-          {/* Exact weekly counts and operational breakdowns stay in View data. */}
+          <div className="flex items-center gap-1">
+            <h3 className="text-sm font-semibold text-text-primary">Application workload</h3>
+            <OperationsHelp label="About application workload">Submissions and review decisions are independent event counts and may refer to different applications. Decisions can review earlier applications; new applications may be reviewed later. Their difference is not backlog change or conversion.</OperationsHelp>
+          </div>
           <AnalyticsExactTable caption="Merchant Onboarding exact reporting buckets" rows={data?.weekly_activity} columns={[
             { key: "date", label: "Effective dates", render: growthBucketLabel },
             ...LINES.map((line) => ({ key: line.key, label: line.label, render: (row) => formatCount(row[line.key]) })),

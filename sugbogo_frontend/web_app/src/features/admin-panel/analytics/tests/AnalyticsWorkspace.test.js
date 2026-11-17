@@ -22,10 +22,16 @@ let reads;
 let failures;
 let overrides;
 let initialEntries;
+const originalResizeObserver = globalThis.ResizeObserver;
 
 before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost", pretendToBeVisual: true });
   globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, Node: dom.window.Node, Element: dom.window.Element, HTMLElement: dom.window.HTMLElement, CustomEvent: dom.window.CustomEvent, MutationObserver: dom.window.MutationObserver, IS_REACT_ACT_ENVIRONMENT: true });
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
@@ -95,6 +101,8 @@ after(async () => {
   dom.window.close();
   globalThis.CustomEvent = originalCustomEvent;
   globalThis.getComputedStyle = originalGetComputedStyle;
+  if (originalResizeObserver) globalThis.ResizeObserver = originalResizeObserver;
+  else delete globalThis.ResizeObserver;
   for (const key of ["window", "document", "Node", "Element", "HTMLElement", "MutationObserver", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
 });
 
@@ -121,11 +129,11 @@ async function choose(label, value, within = container) {
     await act(async () => new Promise((done) => setTimeout(done, 10)));
     return;
   }
-  const labels = { support: "Low specialty support", discovery: "Low discovery activity", profile_visits: "Recorded profile visits", eligible_businesses: "Business distribution", daily: "Daily", weekly: "Weekly", "2": "Cafes", "1": "Food" };
+  const labels = { profile_visits: "Recorded profile visits", eligible_businesses: "Business distribution", daily: "Daily", weekly: "Weekly", "2": "Cafes", "1": "Food" };
   const dimension = /category/i.test(label) ? "Category" : /cluster/i.test(label) ? "Cluster" : null;
   if (dimension) {
     const target = within === container
-      ? section(label.startsWith("Attention") ? "Businesses Needing Attention" : "Geographic Distribution")
+      ? section("Geographic Distribution")
       : within;
     await click(target.querySelector('[aria-haspopup="dialog"][aria-label$=" filters"]'));
     let panel = target.querySelector('[role="dialog"]');
@@ -164,7 +172,7 @@ async function tab(name) {
 
 test("workspace mounts only Growth reports and reuses cached queries with retained selections", async () => {
   await mount();
-  assert.equal(reads.length, 6);
+  assert.equal(reads.length, 5);
   assert.equal(requests("onboarding/").length, 0);
   assert.equal(requests("attention-queue/").length, 0);
   assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 0);
@@ -172,7 +180,7 @@ test("workspace mounts only Growth reports and reuses cached queries with retain
   const count = requests("discovery-trend/").length;
   await tab("Operations");
   assert.ok(section("Merchant Onboarding"));
-  assert.equal(requests("change-requests/").length, 1);
+  assert.equal(requests("change-requests/").length, 0);
   assert.equal(requests("attention-queue/").length, 0);
   assert.equal(section("Discovery Activity"), undefined);
   await tab("Growth & Discovery");
@@ -207,14 +215,14 @@ test("workspace sticky controls preserve global dates, URL parameters and browse
   assert.equal(requests("onboarding/").at(-1).params.period, "90");
   assert.match(container.querySelector("[data-url]").textContent, /campaign=keep.*tab=operations/);
   await tab("Community & Trust");
-  assert.equal(requests("attention-queue/").length, 1);
+  assert.equal(requests("attention-queue/").length, 0);
   assert.equal(requests("community-health/").at(-1).params.period, "90");
   await click(container.querySelector("[data-back]"));
   await until(() => Boolean(section("Merchant Onboarding")));
   assert.match(container.querySelector('[aria-label^="Reporting period:"]').textContent,/Last 90 days/);
   assert.equal(container.querySelector('[aria-label="Analytics workspace controls"]'), controls);
   await click(container.querySelector("[data-forward]"));
-  await until(() => Boolean(section("Reports & disputes")));
+  await until(() => Boolean(section("Community Health")));
 });
 
 test("an open custom range preserves its draft and focused input through both sticky transitions", async () => {
@@ -288,7 +296,7 @@ test("failed summary refresh identifies retained values and Retry leaves the suc
   assert.equal(requests("discovery-trend/").length, trends);
 });
 
-test("all scoped reports share complete paginated taxonomy options", async () => {
+test("geographic filters share complete paginated taxonomy options", async () => {
   initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
   overrides.set("/admin/taxonomy/clusters/", (report, params) => params.page === 1
     ? { ...report, pagination: { has_next: true } }
@@ -297,8 +305,6 @@ test("all scoped reports share complete paginated taxonomy options", async () =>
   const clusters = client.getQueryData(["admin", "analytics", "taxonomy", "clusters"]);
   assert.deepEqual(clusters.map((cluster) => cluster.name), ["Food", "Arts", "Later-page cluster"]);
   assert.ok(section("Geographic Distribution"));
-  assert.ok(section("Business Coverage"));
-  assert.ok(section("Businesses Needing Attention"));
   const optionReads = reads.filter(({ url }) => url === "/admin/taxonomy/clusters/");
   assert.deepEqual(optionReads.map(({ params }) => params.page), [1, 2]);
 });
@@ -309,104 +315,39 @@ test("workspace deep links isolate Operations errors and Retry", async () => {
     ...report,
     review_turnaround: { ...report.review_turnaround, median_hours: 0.05 },
   }));
-  overrides.set("/admin/analytics/change-requests/", (report) => ({
-    ...report,
-    turnaround: { ...report.turnaround, median_hours: 0.03 },
-    types: [
-      { type: "name", label: "Business name", backlog: report.backlog, turnaround: { median_hours: 1.5, sample_count: 2 }, period_outcomes: { approved: 2, rejected: 1, withdrawn: 3 } },
-      { type: "classification", label: "Classification", backlog: report.backlog, turnaround: { median_hours: 0, sample_count: 1 }, period_outcomes: { approved: 0, rejected: 1, withdrawn: 0 } },
-      { type: "location", label: "Location", backlog: report.backlog, turnaround: { median_hours: null, sample_count: 0 }, period_outcomes: { approved: 0, rejected: 0, withdrawn: 1 } },
-    ],
-  }));
-  failures.add("/admin/analytics/change-requests/");
+  failures.add("/admin/analytics/onboarding/");
   await mount();
-  assert.equal(reads.length, 2);
-  assert.ok(section("Merchant Onboarding"));
-  assert.match(section("Merchant change requests").textContent, /Unable to load/);
+  assert.equal(reads.length, 1);
+  assert.match(section("Merchant Onboarding").textContent, /Unable to load/);
   failures.clear();
-  await click([...section("Merchant change requests").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
-  await until(() => client.isFetching() === 0);
-  assert.equal(requests("onboarding/").length, 1);
-  assert.equal(requests("change-requests/").length, 2);
-  const changes = section("Merchant change requests");
-  assert.match(changes.textContent, /Median resolution time2 min/);
-  assert.doesNotMatch(changes.textContent, /0\.03 hours/);
-  assert.match(changes.textContent, /Administrator decisions/);
-  assert.match(changes.textContent, /Merchant action/);
-  const rows = changes.querySelectorAll("tbody tr");
-  const speed = changes.querySelector('[aria-label="Median resolution time by request type"]');
-  assert.match(speed.querySelector('[aria-label^="Business name:"]').getAttribute("data-tooltip-content"), /1 hr 30 min.*2 valid decisions/);
-  assert.deepEqual([...rows[0].querySelectorAll("td")].map((cell) => cell.querySelector("p, span").textContent), ["2", "1", "3"]);
-  assert.match(rows[0].cells[1].textContent, /67% of decisions/);
-  assert.match(rows[0].cells[2].textContent, /33% of decisions/);
-  assert.match(rows[1].cells[1].textContent, /0% of decisions/);
-  assert.match(rows[1].cells[2].textContent, /100% of decisions/);
-  assert.doesNotMatch(rows[2].textContent, /% of decisions/);
-  assert.match(speed.querySelector('[aria-label^="Classification:"]').textContent, /0 min/);
-  assert.match(speed.querySelector('[aria-label^="Location:"]').textContent, /Unavailable/);
-  assert.doesNotMatch(changes.textContent, /Unknown age/);
-  await click([...changes.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
-  let drawer = document.querySelector("dialog[open]");
-  assert.match(drawer.textContent, /Current queue aging/);
-  assert.match(drawer.textContent, /Unknown age/);
-  assert.match(drawer.textContent, /0\.03/);
-  assert.match(drawer.textContent, /Missing resolution dates \(all time\)/);
-  await click(drawer.querySelector('[aria-label="Close Merchant change requests details"]'));
+  await click([...section("Merchant Onboarding").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
+  await until(() => section("Merchant Onboarding").textContent.includes("2 overdue"));
+  assert.equal(requests("onboarding/").length, 2);
   const onboarding = section("Merchant Onboarding");
-  assert.match(onboarding.textContent, /8 pending · 2 overdue/);
-  assert.match(onboarding.textContent, /Median turnaround3 min/);
-  assert.match(onboarding.querySelector('[aria-label="About application workload"]').getAttribute("data-tooltip-content"), /independent event counts/);
+  assert.equal(onboarding.querySelector("[data-chart]"), null);
+  const [performance, rejection] = onboarding.querySelector('[class~="lg:grid-cols-2"]').children;
+  assert.equal(performance.parentElement, rejection.parentElement);
+  assert.ok(performance.parentElement.classList.contains("grid-cols-1"));
+  assert.ok(performance.parentElement.classList.contains("lg:grid-cols-2"));
+  assert.deepEqual([performance, rejection].map((column) => column.querySelector("h3").textContent), ["Review performance", "Rejection breakdown"]);
+  const cards = performance.querySelector('[class~="grid-cols-2"]');
+  assert.deepEqual([...cards.querySelectorAll("h3")].map((heading) => heading.textContent), ["Pending & overdue", "SLA compliance", "Median turnaround", "Post-rejection recovery"]);
+  assert.deepEqual([...cards.children].map((card) => card.textContent), [
+    "Pending & overdue8 pending2 overdueCurrent queue",
+    "SLA compliance100%All-time",
+    "Median turnaround3 minSelected period",
+    "Post-rejection recovery50%All-time · as of now",
+  ]);
+  assert.match(performance.querySelector('[aria-label="About SLA compliance"]').getAttribute("data-tooltip-content"), /classified recorded reviews/);
+  assert.match(performance.querySelector('[aria-label="About Median turnaround"]').getAttribute("data-tooltip-content"), /selected period/);
+  assert.match(rejection.textContent, /Identity.*Location/);
+  assert.equal(onboarding.querySelector("header a").getAttribute("href"), "/admin-panel/businesses/applications");
   await click([...onboarding.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
-  drawer = document.querySelector("dialog[open]");
+  const drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.querySelector('[aria-label="About application workload"]').getAttribute("data-tooltip-content"), /independent event counts/);
   assert.match(drawer.textContent, /Applications submitted/);
   assert.match(drawer.textContent, /Review decisions/);
   assert.doesNotMatch(drawer.textContent, /Completed reviews/);
-});
-
-test("change request outcomes exclude withdrawals from decision shares and preserve zero, missing and empty observations", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=operations"];
-  overrides.set("/admin/analytics/change-requests/", (report) => ({
-    ...report,
-    types: [
-      { type: "name", label: "Business name", period_outcomes: { approved: 1, rejected: 0, withdrawn: 3 } },
-      { type: "classification", label: "Classification", period_outcomes: { approved: 0, rejected: 0, withdrawn: 5 } },
-      { type: "location", label: "Location", period_outcomes: { approved: 2, rejected: null, withdrawn: null } },
-    ],
-  }));
-  await mount();
-  const changes = section("Merchant change requests");
-  const region = changes.querySelector('[role="region"]');
-  assert.equal(region.tabIndex, 0);
-  const table = region.querySelector("table");
-  assert.deepEqual([...table.querySelectorAll('th[scope="colgroup"]')].map((header) => header.textContent), ["Administrator decisions", "Merchant action"]);
-  assert.deepEqual([...table.querySelectorAll("thead tr:last-child th")].map((header) => header.textContent), ["Approved", "Rejected", "Withdrawn"]);
-  let rows = table.querySelectorAll("tbody tr");
-  assert.match(rows[0].cells[1].textContent, /1.*100% of decisions/);
-  assert.equal(rows[0].cells[1].querySelector('[aria-hidden="true"] > div').style.width, "100%");
-  assert.equal(rows[0].cells[2].querySelector('[aria-hidden="true"] > div').style.width, "0%");
-  assert.ok(rows[0].cells[3].querySelector("svg.lucide-clock-3"));
-  assert.doesNotMatch(rows[0].cells[3].textContent, /%/);
-  assert.doesNotMatch(rows[1].textContent, /%|NaN|Infinity/);
-  assert.equal(rows[1].cells[1].querySelector("p").textContent, "0");
-  assert.match(rows[2].cells[2].textContent, /Unavailable/);
-  assert.match(rows[2].cells[3].textContent, /Unavailable/);
-  assert.equal(rows[2].cells[1].querySelector('[aria-hidden="true"]'), null);
-  assert.doesNotMatch(rows[2].textContent, /%/);
-  assert.match(changes.querySelector('[aria-label="About administrator decisions"]').getAttribute("data-tooltip-content"), /approved \+ rejected/);
-  assert.match(changes.textContent, /Withdrawn reflects merchant action, not administrator review/);
-  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "changeRequests");
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, types: report.types.map((row) => ({ ...row, period_outcomes: { ...row.period_outcomes, withdrawn: 999 } })) }));
-  });
-  await until(() => table.querySelector("tbody tr").cells[3].textContent.includes("999"));
-  rows = table.querySelectorAll("tbody tr");
-  assert.match(rows[0].cells[1].textContent, /100% of decisions/);
-  assert.match(rows[0].cells[3].textContent, /999/);
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, types: [] }));
-  });
-  await until(() => table.textContent.includes("No request-type observations available"));
-  assert.match(table.textContent, /No request-type observations available/);
 });
 
 test("workspace invalid tabs fall back safely and arrow keys activate semantic panels", async () => {
@@ -519,161 +460,6 @@ test("geographic distribution clears selection for changed geometry or a removed
   assert.equal(requests("discovery-heatmap/").length, 1);
 });
 
-test("workspace ecosystem preserves low-activity ranking, support scope and distinct business identities", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  overrides.set("/admin/analytics/business-attention/", (report, params) => ({
-    ...report,
-    items: [9, 15].map((id, index) => ({
-      ...report.items[0],
-      business_id: id,
-      business_name: "Serenity Cove Resort & Spa",
-      cover_photo_url: index === 0 ? "https://example.com/storefront.jpg" : null,
-      profile_visits: params.ordering === "valid_vouches" ? null : index,
-      valid_vouches: index,
-      attention_reason: params.attention_mode === "support" ? "No valid specialty endorsements" : "No recorded profile visits",
-    })),
-  }));
-  await mount();
-  assert.equal(requests("low-exposure/").length, 0);
-  assert.equal(requests("business-attention/").at(-1).params.ordering, "profile_visits");
-  assert.equal(requests("platform-growth/").length, 0);
-  assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 2);
-  const attention = section("Businesses Needing Attention");
-  assert.match(attention.textContent, /No recorded profile visits/);
-  assert.match(attention.textContent, /Coverage unverified/);
-  assert.doesNotMatch(attention.textContent, /Required discovery observations are unavailable/);
-  assert.match(attention.textContent, /Business #9/);
-  assert.match(attention.textContent, /Business #15/);
-  assert.equal(attention.querySelectorAll('a[href^="/admin-panel/businesses/"]').length, 2);
-  assert.equal(attention.querySelector("img").getAttribute("src"), "https://example.com/storefront.jpg");
-  assert.equal(attention.querySelector("img").getAttribute("loading"), "lazy");
-  assert.ok(attention.querySelector('[aria-label="No cover photo available"]'));
-  await choose("Category", "2", section("Business Coverage"));
-  await choose("Attention mode", "support");
-  await choose("Attention category", "2");
-  assert.equal(requests("business-attention/").at(-1).params.ordering, "valid_vouches");
-  assert.equal(requests("business-attention/").at(-1).params.category, 2);
-  assert.match(section("Businesses Needing Attention").textContent, /No valid specialty endorsements/);
-  assert.match(section("Businesses Needing Attention").textContent, /Unavailable/);
-  assert.doesNotMatch(section("Businesses Needing Attention").textContent, /No recorded profile visits/);
-  const attentionCount = requests("business-attention/").length;
-  await tab("Community & Trust");
-  assert.ok(section("Reports & disputes"));
-  assert.equal(requests("change-requests/").length, 0);
-  await tab("Business Ecosystem");
-  assert.match(section("Business Coverage").textContent, /Category: Cafes/);
-  assert.equal(select("Attention mode").textContent, "Lowest specialty support");
-  assert.match(section("Businesses Needing Attention").textContent, /Category: Cafes/);
-  assert.equal(select("Order by"), undefined);
-  assert.equal(requests("business-attention/").length, attentionCount);
-  assert.equal(requests("low-exposure/").length, 0);
-  assert.equal(reads.filter(({url}) => url.includes("taxonomy")).length, 2);
-});
-
-
-test("business attention uses population scales across pages while preserving grouped metrics and ranks", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  overrides.set("/admin/analytics/business-attention/", (report, params) => ({
-    ...report,
-    metric_maxima: params.category
-      ? { profile_visits: 23, saves: 5, distinct_savers: 5 }
-      : { profile_visits: 69, saves: 11, distinct_savers: 11 },
-    items: (Number(params.page ?? 1) === 1 ? [0, 1, 1] : [1, 23, params.category ? 23 : 69]).map((visits, index) => ({
-      ...report.items[0],
-      business_id: Number(params.page ?? 1) * 10 + index,
-      profile_visits: visits,
-      saves: Math.max(0, index - 1),
-      distinct_savers: index,
-      attention_reason: ["No recorded profile visits", "No recorded saves", "Ranked by recorded discovery activity"][index],
-    })),
-  }));
-  await mount();
-  const attention = section("Businesses Needing Attention");
-  const table = attention.querySelector("table");
-  assert.equal(select("Attention mode").textContent, "Lowest activity");
-  assert.deepEqual([...table.querySelectorAll('th[scope="colgroup"]')].map((header) => header.colSpan), [3, 2]);
-  assert.deepEqual([...table.querySelectorAll("thead tr:last-child th")].map((header) => header.textContent), ["Profile visits", "Saves", "Distinct savers", "Valid vouches", "Supporters"]);
-  const rows = [...table.querySelectorAll("tbody tr")];
-  assert.deepEqual(rows.map((row) => row.cells[0].textContent), ["1", "2", "3"]);
-  assert.deepEqual(rows.map((row) => row.cells[2].querySelector("p").textContent), ["0", "1", "1"]);
-  const width = (row, column) => row.cells[column].querySelector('[aria-hidden="true"] > div').style.width;
-  assert.equal(width(rows[0], 2), "0%");
-  const oneVisitWidth = width(rows[1], 2);
-  assert.ok(Math.abs(Number.parseFloat(oneVisitWidth) - 1.449275) < 0.00001);
-  assert.notEqual(width(rows[2], 2), "100%");
-  assert.ok(Math.abs(Number.parseFloat(width(rows[2], 3)) - 9.090909) < 0.00001);
-  assert.ok(Math.abs(Number.parseFloat(width(rows[2], 4)) - 18.181818) < 0.00001);
-  assert.ok(rows[0].cells[5].querySelector("svg.lucide-heart"));
-  assert.ok(rows[0].cells[6].querySelector("svg.lucide-users"));
-  assert.equal(rows[0].cells[6].querySelector("svg.lucide-heart"), null);
-  assert.ok(rows[0].cells[7].querySelector(".text-danger"));
-  assert.ok(rows[1].cells[7].querySelector(".text-warning"));
-  assert.ok(rows[2].cells[7].querySelector(".text-text-secondary"));
-  assert.equal(attention.querySelector('[aria-label="Business attention rankings"]').tabIndex, 0);
-  await click(attention.querySelector('button[aria-label="Next page"]'));
-  await until(() => requests("business-attention/").at(-1).params.page === 2);
-  await until(() => attention.querySelector("tbody tr td")?.textContent === "11");
-  assert.deepEqual([...attention.querySelectorAll("tbody tr")].map((row) => row.cells[0].textContent), ["11", "12", "13"]);
-  const nextRows = [...attention.querySelectorAll("tbody tr")];
-  assert.equal(width(nextRows[0], 2), oneVisitWidth);
-  assert.equal(width(nextRows[2], 2), "100%");
-  await choose("Attention category", "2");
-  assert.equal(requests("business-attention/").at(-1).params.page, 1);
-  const filteredRows = [...attention.querySelectorAll("tbody tr")];
-  assert.equal(filteredRows[0].cells[0].textContent, "1");
-  assert.ok(Math.abs(Number.parseFloat(width(filteredRows[1], 2)) - 4.347826) < 0.00001);
-});
-
-test("business attention renders provisional rows but blocks unavailable observations", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  await mount();
-  const attention = section("Businesses Needing Attention");
-  assert.ok(attention.querySelector("table"));
-  assert.match(attention.textContent, /Coverage unverified/);
-  const unavailableSaves = attention.querySelector("tbody tr").cells[3];
-  assert.match(unavailableSaves.textContent, /Unavailable/);
-  assert.equal(unavailableSaves.querySelector('[aria-hidden="true"]'), null);
-  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention");
-  assert.equal(container.querySelector("select"), null);
-  assert.match(attention.textContent, /Businesses with the lowest recorded discovery activity during the selected period/);
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, items: [], pagination: { ...report.pagination, total_items: 0 } }));
-  });
-  await until(() => attention.textContent.includes("No businesses to rank for this selection."));
-  assert.match(attention.textContent, /No eligible businesses are available for the recorded discovery activity ranking/);
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({
-      ...report,
-      items: null,
-      pagination: null,
-      selection_status: "unavailable",
-      meta: { ...report.meta, availability: "unavailable" },
-    }));
-  });
-  await until(() => attention.textContent.includes("Required discovery observations are unavailable"));
-  assert.equal(attention.querySelector("table"), null);
-  await choose("Attention mode", "support");
-  const support = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "businessAttention" && row.queryKey[3].attention_mode === "support");
-  await act(async () => {
-    client.setQueryData(support.queryKey, (report) => ({ ...report, items: [], pagination: { ...report.pagination, total_items: 0 } }));
-  });
-  await until(() => section("Businesses Needing Attention").textContent.includes("No eligible businesses are available for the specialty support ranking."));
-});
-
-test("business attention request failures retain Error and Retry rather than an empty result", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  failures.add("/admin/analytics/business-attention/");
-  await mount();
-  const attention = section("Businesses Needing Attention");
-  assert.match(attention.textContent, /Unable to load/);
-  assert.doesNotMatch(attention.textContent, /No businesses currently need attention/);
-  const retry = [...attention.querySelectorAll("button")].find((button) => button.textContent.includes("Retry"));
-  assert.ok(retry);
-  failures.delete("/admin/analytics/business-attention/");
-  await click(retry);
-  await until(() => Boolean(attention.querySelector("table")));
-});
-
 test("shared table tabs retain their default click and count presentation without analytics semantics", async () => {
   const { default: TableTabs } = await server.ssrLoadModule("/src/features/admin-panel/components/data-table/TableTabs.jsx");
   let changed;
@@ -692,7 +478,7 @@ test("shared table tabs retain their default click and count presentation withou
 
  test("sources rank all categories, expose exact values, and reuse period cache", async () => {
   await mount();
-  const report = section("Discovery Sources");
+  const report = section("First Profile Visit Source");
   assert.ok(report);
   const rows = JSON.parse(report.querySelector("[data-chart]").getAttribute("data-chart"));
   assert.equal(rows.length, 7);
@@ -702,7 +488,7 @@ test("shared table tabs retain their default click and count presentation withou
   assert.equal(rows[1].label, "Explore");
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   assert.match(document.querySelector("dialog[open]").textContent, /66.67/);
-  await click(document.querySelector('[aria-label="Close Discovery Sources details"]'));
+  await click(document.querySelector('[aria-label="Close First Profile Visit Source details"]'));
   await tab("Operations");
   const count = requests("discovery-sources/").length;
   await tab("Growth & Discovery");
@@ -715,15 +501,15 @@ test("shared table tabs retain their default click and count presentation withou
  test("sources independently recover errors and distinguish zero from unavailable", async () => {
   failures.add("/admin/analytics/discovery-sources/");
   await mount();
-  assert.match(section("Discovery Sources").textContent, /Unable to load/);
+  assert.match(section("First Profile Visit Source").textContent, /Unable to load/);
   failures.clear();
   overrides.set("/admin/analytics/discovery-sources/", (report) => ({...report, total_profile_visits:0, sources:report.sources.map((row) => ({...row,count:0,share_percent:null}))}));
-  await click([...section("Discovery Sources").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
+  await click([...section("First Profile Visit Source").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
   await until(() => client.isFetching() === 0);
-  await until(() => section("Discovery Sources").textContent.includes("No profile visits were recorded"));
+  await until(() => section("First Profile Visit Source").textContent.includes("No profile visits were recorded"));
   overrides.set("/admin/analytics/discovery-sources/", (report) => ({...report, total_profile_visits:null, sources:null, meta:{...report.meta,availability:"unavailable"}}));
   await act(async () => { await client.invalidateQueries({queryKey:["admin","analytics","discoverySources"]}); });
-  await until(() => section("Discovery Sources").textContent.includes("does not mean zero visits"));
+  await until(() => section("First Profile Visit Source").textContent.includes("does not mean zero visits"));
  });
 
 test("sources remain dormant on other tabs and retain cached data after refresh failure", async () => {
@@ -733,12 +519,12 @@ test("sources remain dormant on other tabs and retain cached data after refresh 
   await tab("Growth & Discovery");
   failures.add("/admin/analytics/discovery-sources/");
   await act(async () => { await client.invalidateQueries({queryKey:["admin","analytics","discoverySources"]}); });
-  await until(() => section("Discovery Sources").textContent.includes("Previously loaded data"));
-  assert.ok(section("Discovery Sources").querySelector("[data-chart]"));
+  await until(() => section("First Profile Visit Source").textContent.includes("Previously loaded data"));
+  assert.ok(section("First Profile Visit Source").querySelector("[data-chart]"));
   failures.clear();
-  await click([...section("Discovery Sources").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
+  await click([...section("First Profile Visit Source").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
   await until(() => client.isFetching() === 0);
-  await until(() => !section("Discovery Sources").textContent.includes("Refresh failed"));
+  await until(() => !section("First Profile Visit Source").textContent.includes("Refresh failed"));
 });
 
 const accountTrendButton = () => container.querySelector("#discovery-trend-metrics-distinct_engaged_explorers");
@@ -840,7 +626,7 @@ test("transportation donut reconciles methods and drawer destinations with perio
   assert.equal(methods.find((row) => row.method === "OTHER").count, 0);
   assert.match(report.textContent, /Distinct requesting accounts: 2/);
   assert.match(report.textContent, /not completed journeys/);
-  assert.ok(report.querySelector(".sm\\:grid-cols-2"));
+  assert.ok(report.querySelector('[class~="@lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"]').contains(report.querySelector("[data-pie]")));
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   assert.match(document.querySelector("dialog[open]").textContent, /Recorded planning activity/);
   assert.match(document.querySelector("dialog[open]").textContent, /36\.36%/);
@@ -914,42 +700,21 @@ test("transportation keeps cached donut on refresh failure and discloses pretrac
   assert.equal(section("Transportation Planning").querySelector("[data-pie]"),null);
 });
 
-test("business acquisition expands its hierarchy without a request and preserves period/retry", async () => {
-  await mount();
-  assert.match(section("Business Acquisition").textContent,/Cafes/);
-  const count=requests("business-acquisition/").length;
-  const cluster = section("Business Acquisition").querySelector('button[aria-expanded]');
-  assert.equal(cluster.getAttribute("aria-expanded"), "false");
-  await click(cluster);
-  assert.equal(cluster.getAttribute("aria-expanded"), "true");
-  assert.match(section("Business Acquisition").textContent, /Breakdown within Food/);
-  assert.equal(requests("business-acquisition/").length,count);
-  await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent.includes("View data")));
-  assert.match(document.querySelector("dialog[open]").textContent,/Food/);
-  assert.match(document.querySelector("dialog[open]").textContent,/Cafes/);
-  assert.match(document.querySelector("dialog[open]").textContent,/New businesses/);
-  await click(document.querySelector('[aria-label="Close Business Acquisition details"]'));
-  failures.add("/admin/analytics/business-acquisition/");
-  await choosePeriod("7");
-  await until(()=>section("Business Acquisition").textContent.includes("Unable to load report"));
-  assert.equal(requests("business-acquisition/").at(-1).params.period,"7");
-  failures.clear();
-  overrides.set("/admin/analytics/business-acquisition/",(report)=>({...report,hierarchy:[],categories:[],clusters:[],totals:{created:0,approved:0}}));
-  await click([...section("Business Acquisition").querySelectorAll("button")].find((button)=>button.textContent === "Retry"));
-  await until(()=>section("Business Acquisition").textContent.includes("No new businesses were recorded"));
-});
-
 test("report titles open readable About drawers while footer reliability stays in a tooltip across Analytics", async () => {
   overrides.set("/admin/analytics/discovery-sources/", (report) => ({ ...report, meta: { ...report.meta, data_through: null, partial_reasons: ["best_effort_delivery", "current_day_incomplete", "coverage_unverified", "freshness_unverified"] } }));
   await mount();
   const groups = [
-    [null, ["Platform Growth", "Discovery Activity", "Discovery Sources", "Transportation Planning", "Business Acquisition"]],
-    ["Operations", ["Merchant Onboarding", "Merchant change requests"]],
-    ["Community & Trust", ["Community Health", "Specialty Support", "Reports & disputes"]],
-    ["Business Ecosystem", ["Geographic Distribution", "Business Coverage", "Discovery Score Health", "Businesses Needing Attention"]],
+    [null, ["Platform Growth", "Discovery Activity", "First Profile Visit Source", "Transportation Planning"]],
+    ["Operations", ["Merchant Onboarding"]],
+    ["Community & Trust", ["Community Health", "Specialty Support"]],
+    ["Business Ecosystem", ["Geographic Distribution"]],
   ];
   for (const [topic, titles] of groups) {
     if (topic) await tab(topic);
+    const panel = container.querySelector('[role="tabpanel"][id^="analytics-topics-panel-"]');
+    const reportHeadings = [...panel.querySelectorAll('section > header button[aria-label^="About "][aria-haspopup="dialog"]')]
+      .map((button) => button.parentElement.querySelector("h2").textContent);
+    assert.deepEqual(reportHeadings, titles);
     for (const title of titles) {
       const report = section(title);
       const trigger = report.querySelector('button[aria-label="About ' + title + '"]');
@@ -964,6 +729,9 @@ test("report titles open readable About drawers while footer reliability stays i
       await click(reliability);
       assert.equal(document.querySelector("dialog[open]"), null);
       await act(async () => trigger.focus());
+      if (title === "First Profile Visit Source") {
+        await until(() => document.querySelector('[role="tooltip"]')?.textContent.includes("Subsequent visits that day are deduplicated."));
+      }
       await click(trigger);
       const drawer = document.querySelector("dialog[open]");
       assert.match(drawer.textContent, /What this report shows/);
@@ -975,15 +743,23 @@ test("report titles open readable About drawers while footer reliability stays i
       assert.ok([...drawer.querySelectorAll("h3")].every((heading) => heading.querySelector('svg[aria-hidden="true"]')));
       assert.equal(drawer.querySelector("pre"), null);
       assert.doesNotMatch(drawer.textContent, /Technical details|best_effort_delivery|coverage_verified|partial_reasons|generated_at|end_exclusive|PROFILE_VISIT|MongoDB|half-open|Asia\/Manila/);
-      if (title === "Discovery Sources") {
+      if (title === "First Profile Visit Source") {
         assert.match(drawer.textContent, /latest fully captured date has not been confirmed/);
+        const description = document.getElementById(report.getAttribute("aria-describedby"));
+        assert.equal(description.textContent, "Where explorers first accessed business profiles each day.");
+        assert.equal(trigger.getAttribute("data-tooltip-content"), "Shows the first recorded source per explorer and business each UTC day. Subsequent visits that day are deduplicated.");
+        assert.match(drawer.textContent, /Explorer or Merchant account/);
         assert.match(drawer.textContent, /first recorded source/);
+        assert.match(drawer.textContent, /can differ from where the visitor originally discovered the business/);
         assert.match(drawer.textContent, /still in progress/);
       }
       await click(drawer.querySelector('button[aria-label="Close ' + title + ' details"]'));
       assert.equal(document.activeElement, trigger);
       assert.equal(reads.length, count);
     }
+  }
+  for (const path of ["business-acquisition/", "change-requests/", "attention-queue/", "coverage/", "discovery-scores/", "business-attention/"]) {
+    assert.equal(requests(path).length, 0, path);
   }
 });
 
@@ -1011,226 +787,11 @@ test("shared explanations preserve Operations, Community and Ecosystem report de
   assert.match(drawer.textContent,/still published today/);
   await click(drawer.querySelector('[aria-label="Close Community Health details"]'));
   await tab("Business Ecosystem");
-  await click(section("Discovery Score Health").querySelector('[aria-label="About Discovery Score Health"]'));
-  drawer=document.querySelector("dialog[open]");
-  assert.match(drawer.textContent,/should not be added together/);
-  assert.match(drawer.textContent,/Selected dates do not filter this snapshot/);
-  await click(drawer.querySelector('[aria-label="Close Discovery Score Health details"]'));
-  const coverage=section("Business Coverage");
-  await click(coverage.querySelector('[aria-label="About Business Coverage"]'));
-  drawer=document.querySelector("dialog[open]");
-  assert.match(drawer.textContent,/Profile-visit recording coverage is unverified/);
-  assert.match(drawer.textContent,/not geographic coverage/);
+  const geography = section("Geographic Distribution");
+  await click(geography.querySelector('[aria-label="About Geographic Distribution"]'));
+  drawer = document.querySelector("dialog[open]");
+  assert.match(drawer.textContent, /approved Cebu City grid/);
   assert.equal(drawer.querySelector("pre"), null);
-});
-
-test("business coverage compacts full coverage and keeps every classification in its drawer", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  overrides.set("/admin/analytics/coverage/", (report) => ({
-    ...report,
-    overall: { eligible_businesses: 15, visited_businesses: 11, zero_recorded_visit_businesses: 4, coverage_percentage: 73.33 },
-    categories: [
-      ...[[9, 100], [3, 50], [2, 100], [5, 0], [4, 75], [6, 100]].map(([id, percentage]) => ({
-        id,
-        name: `Category ${id}`,
-        eligible_businesses: 4,
-        visited_businesses: percentage / 25,
-        zero_recorded_visit_businesses: 4 - percentage / 25,
-        coverage_percentage: percentage,
-      })),
-      { id: 8, name: "Empty category", eligible_businesses: 0, visited_businesses: 0, zero_recorded_visit_businesses: 0, coverage_percentage: null },
-    ],
-  }));
-  await mount();
-  const coverage = section("Business Coverage");
-  assert.equal(coverage.querySelector("table"), null);
-  assert.equal(coverage.querySelector("details"), null);
-  assert.doesNotMatch(coverage.textContent, /Highest coverage|View full coverage|Empty category/);
-  assert.deepEqual([...coverage.querySelectorAll("h3")].map((heading) => heading.textContent), ["Coverage by category"]);
-  assert.match(coverage.textContent, /73.3% coverage/);
-  assert.doesNotMatch(coverage.textContent, /73.33%/);
-  assert.match(coverage.textContent, /11 of 15 eligible businesses received recorded profile visits/);
-  assert.deepEqual([...container.querySelectorAll("h2")].map((heading) => heading.textContent), ["Geographic Distribution", "Business Coverage", "Discovery Score Health", "Businesses Needing Attention"]);
-  assert.match(coverage.textContent, /4 businesses had no recorded profile visits/);
-  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Category 50%", "Category 350%", "Category 475%", "3 other categories100%"]);
-  assert.deepEqual([...coverage.querySelectorAll('ol [aria-hidden="true"] > div')].map((bar) => bar.style.width), ["0%", "50%", "75%", "100%"]);
-  assert.doesNotMatch(coverage.textContent, /Lowest coverage first|Showing 5 of|Compare clusters/);
-  assert.equal(coverage.querySelectorAll('[aria-label="About Business Coverage"]').length, 1);
-  assert.equal(coverage.textContent.match(/Coverage unverified/g).length, 1);
-  assert.ok(coverage.querySelector("ol").compareDocumentPosition([...coverage.querySelectorAll("p")].find((node) => node.textContent.includes("4 businesses had no recorded"))) & window.Node.DOCUMENT_POSITION_FOLLOWING);
-
-  const filters = coverage.querySelector('[aria-label="Coverage filters"]');
-  await click(filters);
-  assert.equal(filters.getAttribute("aria-haspopup"), "dialog");
-  let panel = coverage.querySelector('[role="dialog"]');
-  assert.deepEqual([...panel.querySelectorAll("button")].map((button) => button.getAttribute("aria-label")), ["Choose Cluster filter", "Choose Category filter"]);
-  await click(panel.querySelector('[aria-label="Choose Category filter"]'));
-  panel = coverage.querySelector('[role="dialog"]');
-  assert.equal(panel.querySelector('[role="menu"]'), null);
-  assert.equal(coverage.querySelectorAll('[role="dialog"]').length, 1);
-  await act(async () => panel.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-  assert.equal(filters.getAttribute("aria-expanded"), "false");
-  assert.equal(document.activeElement, filters);
-  const dimension = coverage.querySelector('[aria-label="Coverage dimension"]');
-  await click([...dimension.querySelectorAll('[role="tab"]')].find((button) => button.textContent === "Cluster"));
-  assert.match(coverage.textContent, /Coverage by cluster/);
-  await act(async () => dimension.querySelector('[aria-selected="true"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
-  assert.match(coverage.textContent, /Coverage by category/);
-  await act(async () => dimension.querySelector('[aria-selected="true"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
-  assert.match(coverage.textContent, /Coverage by cluster/);
-  assert.equal(requests("coverage/").length, 1);
-  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Food50%"]);
-  await choose("Cluster", "1", section("Business Coverage"));
-  await choose("Category", "2", section("Business Coverage"));
-  assert.deepEqual(requests("coverage/").at(-1).params, { period: "30", cluster: 1, category: 2 });
-  await choosePeriod("7");
-  await until(() => requests("coverage/").at(-1)?.params.period === "7" && client.isFetching() === 0 && coverage.textContent.includes("50%"));
-  assert.equal(requests("discovery-scores/").length, 1);
-  const action = [...coverage.querySelectorAll("button")].find((button) => button.textContent.includes("View data"));
-  await act(async () => action.focus());
-  await click(action);
-  const drawer = document.querySelector("dialog[open]");
-  assert.equal(drawer.querySelectorAll("table").length, 2);
-  assert.equal(drawer.querySelectorAll("tbody tr").length, 8);
-  assert.match(drawer.textContent, /Empty category000Unavailable/);
-  assert.match(drawer.textContent, /Category 9/);
-  assert.match(drawer.textContent, /Covered businesses/);
-  assert.match(drawer.textContent, /not an average of classification percentages/);
-  await click(drawer.querySelector('[aria-label="Close Business Coverage details"]'));
-  assert.equal(document.activeElement, action);
-});
-
-test("rounded 100 percent coverage does not hide classifications with an unvisited business", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  overrides.set("/admin/analytics/coverage/", (report) => ({
-    ...report,
-    categories: [
-      { id: 1, name: "Still incomplete", eligible_businesses: 100000, visited_businesses: 99999, zero_recorded_visit_businesses: 1, coverage_percentage: 100 },
-      ...[2, 3, 4].map((id) => ({ id, name: `Complete ${id}`, eligible_businesses: 1, visited_businesses: 1, zero_recorded_visit_businesses: 0, coverage_percentage: 100 })),
-    ],
-  }));
-  await mount();
-  const coverage = section("Business Coverage");
-  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), [
-    "Still incomplete100%", "3 other categories100%",
-  ]);
-  await click([...coverage.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
-  const drawer = document.querySelector("dialog[open]");
-  const row = [...drawer.querySelectorAll("tbody tr")].find((element) => element.textContent.includes("Still incomplete"));
-  assert.deepEqual([...row.querySelectorAll("td")].map((cell) => cell.textContent), ["Still incomplete", "100,000", "99,999", "1", "100%"]);
-});
-
-test("business coverage retains every incomplete classification and summarizes each dimension independently", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  overrides.set("/admin/analytics/coverage/", (report) => ({
-    ...report,
-    categories: [0, 25, 50, 75, 99, 99.99, 100, 100].map((percentage, index) => ({
-      id: index + 1, name: `Category ${index + 1}`, eligible_businesses: 10000,
-      visited_businesses: percentage * 100, zero_recorded_visit_businesses: 10000 - percentage * 100,
-      coverage_percentage: percentage,
-    })),
-    clusters: [3, 1, 2].map((id) => ({ id, name: `Cluster ${id}`, eligible_businesses: 1, visited_businesses: 1, zero_recorded_visit_businesses: 0, coverage_percentage: 100 })),
-  }));
-  await mount();
-  const coverage = section("Business Coverage");
-  assert.equal(coverage.querySelectorAll("ol li").length, 8);
-  assert.match(coverage.querySelector("ol").textContent, /Category 699.99%/);
-  assert.doesNotMatch(coverage.querySelector("ol").textContent, /other categories/);
-  const dimension = coverage.querySelector('[aria-label="Coverage dimension"]');
-  await click([...dimension.querySelectorAll('[role="tab"]')].find((button) => button.textContent === "Cluster"));
-  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["3 clusters100%"]);
-  assert.doesNotMatch(coverage.textContent, /No classified coverage is available/);
-  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "coverage");
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, clusters: report.clusters.slice(0, 2) }));
-  });
-  await until(() => coverage.querySelectorAll("ol li").length === 2);
-  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["Cluster 1100%", "Cluster 3100%"]);
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, categories: report.clusters.map((row) => ({ ...row, id: row.id + 10, name: `Category ${row.id}` })).concat([{ id: 99, name: "Category 99", eligible_businesses: 1, visited_businesses: 1, zero_recorded_visit_businesses: 0, coverage_percentage: 100 }]) }));
-  });
-  await click([...dimension.querySelectorAll('[role="tab"]')].find((button) => button.textContent === "Category"));
-  assert.deepEqual([...coverage.querySelectorAll("ol li")].map((row) => row.textContent), ["3 categories100%"]);
-  assert.equal(requests("coverage/").length, 1);
-});
-
-test("business coverage preserves unavailable visits and known empty eligibility", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  overrides.set("/admin/analytics/coverage/", (report) => ({
-    ...report,
-    overall: { ...report.overall, visited_businesses: null, zero_recorded_visit_businesses: null, coverage_percentage: null },
-    categories: report.categories.map((row) => ({ ...row, visited_businesses: null, zero_recorded_visit_businesses: null, coverage_percentage: null })),
-    clusters: report.clusters.map((row) => ({ ...row, visited_businesses: null, zero_recorded_visit_businesses: null, coverage_percentage: null })),
-    sources: { ...report.sources, visibility: { availability: "unavailable" } },
-  }));
-  await mount();
-  const coverage = section("Business Coverage");
-  assert.match(coverage.textContent, /Unavailable coverage/);
-  assert.match(coverage.textContent, /4 eligible businesses · recorded profile visits unavailable/);
-  assert.match(coverage.textContent, /Current eligible-business counts remain available/);
-  assert.equal(coverage.querySelectorAll("ol li").length, 0);
-  assert.doesNotMatch(coverage.textContent, /0 businesses had no recorded profile visits|0%/);
-  await click([...coverage.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
-  const drawer = document.querySelector("dialog[open]");
-  assert.match(drawer.textContent, /Covered businessesUnavailable/);
-  await click(drawer.querySelector('[aria-label="Close Business Coverage details"]'));
-  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "coverage");
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, overall: { ...report.overall, eligible_businesses: 0 } }));
-  });
-  await until(() => coverage.textContent.includes("No eligible active businesses match the selected scope."));
-});
-
-test("discovery score health distinguishes healthy, unhealthy, empty and unavailable snapshots", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  overrides.set("/admin/analytics/discovery-scores/", (report) => ({
-    ...report,
-    coverage: { ...report.coverage, active_businesses: 15, fresh: 15, stale: 0, pending: 0, failed: 0, missing: 0, provisional: 0 },
-  }));
-  await mount();
-  const health = section("Discovery Score Health");
-  assert.match(health.textContent, /15 \/ 15 active businesses have fresh scores/);
-  assert.ok(health.querySelector(".text-3xl").classList.contains("text-success"));
-  assert.match(health.textContent, /Fresh15Stale0Pending0Failed0/);
-  assert.match(health.textContent, /Missing 0 · Provisional 0/);
-  assert.equal(health.querySelector("a").getAttribute("href"), "/admin-panel/analytics/discovery-scores");
-  assert.equal(health.querySelector("table"), null);
-  const query = client.getQueryCache().findAll().find((row) => row.queryKey[2] === "discoveryScores");
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({
-      ...report,
-      coverage: { ...report.coverage, fresh: 10, stale: 3, pending: 1, failed: 1, missing: 1, provisional: 1 },
-    }));
-  });
-  await until(() => health.textContent.includes("10 / 15"));
-  const values = [...health.querySelectorAll("dl dd")];
-  assert.equal(values[1].textContent, "3");
-  assert.ok(values[1].classList.contains("text-warning"));
-  assert.ok(values[2].classList.contains("text-warning"));
-  assert.ok(values[3].classList.contains("text-danger"));
-  assert.ok(!health.querySelector(".text-3xl").classList.contains("text-success"));
-  await click([...health.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
-  const drawer = document.querySelector("dialog[open]");
-  assert.equal(drawer.querySelectorAll("tbody tr").length, 6);
-  assert.match(drawer.textContent, /Selected dates do not filter this snapshot/);
-  assert.match(drawer.textContent, /Freshness threshold: 24 hours/);
-  assert.match(drawer.textContent, /should not be added together/);
-  await click(drawer.querySelector('[aria-label="Close Discovery Score Health details"]'));
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, coverage: { ...report.coverage, fresh: null, failed: null } }));
-  });
-  await until(() => health.textContent.includes("Unavailable / 15"));
-  assert.equal(health.querySelectorAll("dl dd")[3].textContent, "Unavailable");
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, coverage: { ...report.coverage, active_businesses: 0 } }));
-  });
-  await until(() => health.textContent.includes("No active businesses to assess."));
-  await act(async () => {
-    client.setQueryData(query.queryKey, (report) => ({ ...report, coverage: null }));
-  });
-  await until(() => health.textContent.includes("Discovery Score health counts are unavailable."));
-  assert.equal(health.querySelector("dl"), null);
-  assert.equal(requests("discovery-scores/").length, 1);
 });
 
 test("community report drawers retain exact buckets, sentiment and the complete specialty breakdown", async () => {
@@ -1276,22 +837,6 @@ test("community report drawers retain exact buckets, sentiment and the complete 
   assert.doesNotMatch(drawer.textContent, /Reporting dates unavailable/);
 });
 
-test("acquisition loading is independent and inactive tabs do not fetch it", async () => {
-  let release;
-  overrides.set("/admin/analytics/business-acquisition/", (report) => new Promise((resolveReport) => { release=()=>resolveReport(report); }));
-  await act(async () => root.render(React.createElement(QueryClientProvider, {client}, React.createElement(MemoryRouter, {initialEntries}, React.createElement(Page)))));
-  await until(()=>release && section("Business Acquisition"));
-  assert.equal(section("Business Acquisition").getAttribute("aria-busy"),"true");
-  assert.ok(section("Platform Growth"));
-  await act(async()=>release());
-  await until(()=>section("Business Acquisition").textContent.includes("Cafes"));
-  await tab("Operations");
-  const count=requests("business-acquisition/").length;
-  await choosePeriod("90");
-  await until(()=>client.isFetching() === 0);
-  assert.equal(requests("business-acquisition/").length,count);
-});
-
 test("platform growth presents only accounts and businesses while preserving comparisons, exact data and interval cache reuse", async () => {
   overrides.set("/admin/analytics/platform-growth/", (report) => ({
     ...report,
@@ -1307,8 +852,7 @@ test("platform growth presents only accounts and businesses while preserving com
   assert.doesNotMatch(growth.textContent, /approvals/i);
   const summary = growth.querySelector("dl");
   assert.equal(summary.children.length, 2);
-  assert.ok(summary.classList.contains("max-w-2xl"));
-  assert.ok(summary.classList.contains("sm:grid-cols-2"));
+  assert.ok(summary.classList.contains("grid-cols-2"));
   assert.ok(summary.children[1].querySelector('svg[fill="currentColor"]'));
   assert.match(summary.children[0].textContent, /New accounts7No changePrevious period: 7/);
   assert.match(summary.children[1].textContent, /New businesses13 fewerPrevious period: 4/);
@@ -1401,36 +945,6 @@ test("PDF export menu prints only the mounted tab and blocks the unsupported geo
   assert.ok(disabledExport.getAttribute("data-tooltip-id"));
 });
 
-test("attention CSV downloads the complete population rather than the visible page", async () => {
-  initialEntries = ["/admin-panel/analytics?tab=business-ecosystem"];
-  overrides.set("/admin/analytics/business-attention/", (report, params) => {
-    const page = Number(params.page ?? 1);
-    const size = Number(params.page_size ?? 10);
-    const items = Array.from({ length: 20 }, (_, index) => ({ ...report.items[0], business_id: index + 1, business_name: `Export business ${index + 1}`, profile_visits: index, saves: 0, distinct_savers: 0 }));
-    return { ...report, items: items.slice((page - 1) * size, page * size), pagination: { page, page_size: size, total_items: 20, total_pages: Math.ceil(20 / size), has_next: page * size < 20 } };
-  });
-  await mount();
-  const report = section("Businesses Needing Attention");
-  assert.doesNotMatch(report.querySelector("tbody").textContent, /Export business 20/);
-  await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
-  const originalCreate = URL.createObjectURL;
-  const originalClick = dom.window.HTMLAnchorElement.prototype.click;
-  let blob;
-  try {
-    URL.createObjectURL = (value) => { blob = value; return "blob:attention-export"; };
-    dom.window.HTMLAnchorElement.prototype.click = function () {};
-    await click(document.querySelector('dialog[open] [aria-label="Export Businesses Needing Attention CSV"]'));
-    await until(() => Boolean(blob));
-    assert.match(await blob.text(), /Export business 20/);
-    assert.equal(requests("business-attention/").at(-1).params.page_size, 100);
-    assert.equal(requests("business-attention/").at(-1).params.attention_mode, "discovery");
-    assert.equal(report.querySelectorAll("tbody tr").length, 10);
-  } finally {
-    URL.createObjectURL = originalCreate;
-    dom.window.HTMLAnchorElement.prototype.click = originalClick;
-  }
-});
-
 test("platform growth keeps zero buckets when only operational approvals are nonzero", async () => {
   overrides.set("/admin/analytics/platform-growth/", (report) => ({
     ...report,
@@ -1466,14 +980,21 @@ test("platform growth tooltip retains counted dates, week progress and unknown v
   assert.match(growthCoverageDescription({ is_partial: true, partial_reasons: [] }), /additional reporting limitations/);
 });
 
-test("growth layout keeps full-width acquisition above paired discovery panels", async () => {
+test("growth reports follow the requested order in the responsive grid", async () => {
   await mount();
   const growth=section("Platform Growth");
   const activity=section("Discovery Activity");
-  const sources=section("Discovery Sources");
-  assert.equal(activity.parentElement,sources.parentElement);
-  assert.ok(activity.parentElement.classList.contains("xl:grid-cols-2"));
-  assert.equal(growth.parentElement,activity.parentElement.parentElement);
+  const sources=section("First Profile Visit Source");
+  const transportation = section("Transportation Planning");
+  const topRow = growth.parentElement;
+  const bottomRow = sources.parentElement;
+  assert.deepEqual([...topRow.children], [growth, activity]);
+  assert.deepEqual([...bottomRow.children], [sources, transportation]);
+  assert.equal(topRow.nextElementSibling, bottomRow);
+  assert.ok(topRow.classList.contains("grid-cols-1"));
+  assert.ok(topRow.classList.contains("xl:grid-cols-2"));
+  assert.ok(bottomRow.classList.contains("grid-cols-1"));
+  assert.ok(bottomRow.classList.contains("xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"));
   await selectAccounts();
   assert.match(activity.textContent,/Participating Accounts/);
   assert.match(activity.textContent,/Accounts with recorded discovery activity during each interval/);
@@ -1482,8 +1003,6 @@ test("growth layout keeps full-width acquisition above paired discovery panels",
     assert.equal(activity.querySelector(`#discovery-trend-metrics-${metric}`).getAttribute("aria-selected"),"true");
     assert.equal(accountTrendButton().getAttribute("aria-selected"),"false");
   }
-  assert.ok(section("Business Acquisition"));
-  assert.ok(section("Transportation Planning"));
 });
 
 test("overview is removed and its endpoint remains dormant", async () => {

@@ -169,6 +169,7 @@ class VerifyEmailSerializer(MailboxTokenSerializer):
         write_only=True,
         trim_whitespace=False,
     )
+    auto_login = serializers.BooleanField(default=False)
 
 
 class GoogleLoginSerializer(serializers.Serializer):

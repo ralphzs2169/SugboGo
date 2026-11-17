@@ -1,4 +1,11 @@
-import { fireEvent, render, waitFor, within } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import type { AuthResponse } from "@/features/auth/types/auth.types";
+import {
+  beginAuthSession,
+  invalidateAuthSession,
+} from "@/shared/api/authSessionGeneration.service";
+import { clearSessionTokens, saveSessionTokens } from "@/shared/api/storage.service";
 import VerifyEmailScreen from "../VerifyEmailScreen";
 
 const mockReplace = jest.fn();
@@ -9,11 +16,22 @@ let mockPendingEmail: string | null = null;
 const mockVerify = jest.fn();
 const mockResend = jest.fn();
 const mockSetPendingEmail = jest.fn();
+const mockClearPendingEmail = jest.fn();
 
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
   useIsFocused: () => true,
+  useFocusEffect: (effect: React.EffectCallback) =>
+    jest.requireActual("react").useEffect(effect, [effect]),
+}));
+jest.mock("@/shared/api/storage.service", () => ({
+  clearSessionTokens: jest.fn(),
+  saveSessionTokens: jest.fn(),
+}));
+jest.mock("@/features/offline-routes/services/offlineAccess.service", () => ({
+  clearOfflineAccess: jest.fn().mockResolvedValue(undefined),
+  rememberOfflineResources: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -65,7 +83,11 @@ jest.mock("../../hooks/useResendVerification", () => ({
 }));
 jest.mock("../../store/verification.store", () => ({
   useVerificationStore: (select: (state: unknown) => unknown) =>
-    select({ pendingEmail: mockPendingEmail, setPendingEmail: mockSetPendingEmail }),
+    select({
+      pendingEmail: mockPendingEmail,
+      setPendingEmail: mockSetPendingEmail,
+      clearPendingEmail: mockClearPendingEmail,
+    }),
 }));
 jest.mock("@/shared/utils/apiErrors", () => ({
   ...jest.requireActual("@/shared/utils/apiErrors"),
@@ -127,6 +149,31 @@ jest.mock("@/shared/components/form/FormInput", () => {
   return TextInput;
 });
 
+const session: AuthResponse = {
+  access: "header.access.signature",
+  refresh: "header.refresh.signature",
+  user: {
+    id: 123,
+    first_name: "Explorer",
+    last_name: "Account",
+    gender: null,
+    email: "explorer@example.com",
+    role: "explorer",
+    status: "active",
+    has_completed_interest_selection: false,
+    has_custom_profile_picture: false,
+    has_oauth_accounts: false,
+  },
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const result = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { result, resolve };
+}
+
 describe("email verification with the registration password", () => {
   const password = "Registration-password-546!";
   const submit = "Verify email";
@@ -136,6 +183,15 @@ describe("email verification with the registration password", () => {
     mockParams = { uid: "legacy-user-id", token: "legacy-token" };
     mockPendingEmail = null;
     mockResend.mockResolvedValue({ success: true });
+    invalidateAuthSession();
+    useAuthStore.setState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      isSigningIn: false,
+    });
+    jest.mocked(saveSessionTokens).mockResolvedValue(true);
+    jest.mocked(clearSessionTokens).mockResolvedValue(true);
   });
 
   it("does not redeem the link until the user enters their registration password", async () => {
@@ -150,8 +206,165 @@ describe("email verification with the registration password", () => {
     await fireEvent.changeText(screen.getByLabelText("Password"), password);
     await fireEvent.press(screen.getByRole("button", { name: submit }));
 
-    expect(mockVerify).toHaveBeenCalledWith("legacy-user-id", "legacy-token", password);
+    expect(mockVerify).toHaveBeenCalledWith("legacy-user-id", "legacy-token", password, true);
     expect(mockReplace).toHaveBeenCalledWith("/(auth)/email-verified");
+  });
+
+  it.each([
+    [false, "/(setup)/interests"],
+    [true, "/(explorer)/(tabs)/explore"],
+  ])("installs the session before routing with completed interests %s", async (completed, route) => {
+    const user = { ...session.user, has_completed_interest_selection: completed };
+    const write = deferred<boolean>();
+    jest.mocked(saveSessionTokens).mockReturnValueOnce(write.result);
+    mockVerify.mockResolvedValue({ success: true, data: { ...session, user } });
+
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await act(() => {
+      void fireEvent.press(screen.getByRole("button", { name: submit }));
+    });
+    expect(saveSessionTokens).toHaveBeenCalledWith(session.access, session.refresh, expect.any(Number));
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    await act(async () => write.resolve(true));
+    expect(useAuthStore.getState().user).toEqual(user);
+    expect(mockClearPendingEmail).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith(route);
+  });
+
+  it.each([
+    { ...session, refresh: undefined },
+    { ...session, user: { ...session.user, role: "merchant" } },
+    { ...session, user: { ...session.user, has_completed_interest_selection: undefined } },
+  ])("uses ordinary sign-in when the response cannot establish an Explorer session", async (data) => {
+    mockVerify.mockResolvedValue({ success: true, data });
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
+
+    expect(saveSessionTokens).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(mockReplace).toHaveBeenCalledWith("/(auth)/email-verified");
+  });
+
+  it("falls back to ordinary sign-in after a SecureStore failure", async () => {
+    jest.mocked(saveSessionTokens).mockRejectedValueOnce(new Error("SecureStore unavailable"));
+    mockVerify.mockResolvedValue({ success: true, data: session });
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
+
+    expect(clearSessionTokens).toHaveBeenCalledWith(expect.any(Number));
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(mockClearPendingEmail).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith("/(auth)/email-verified");
+  });
+
+  it.each([123, 456])("keeps the active session for account %i", async (id) => {
+    const currentUser = { ...session.user, id };
+    beginAuthSession();
+    useAuthStore.getState().setUser(currentUser);
+    mockVerify.mockResolvedValue({ success: true, data: session });
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
+
+    expect(mockVerify).toHaveBeenCalledWith("legacy-user-id", "legacy-token", password, false);
+    expect(saveSessionTokens).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().user).toEqual(currentUser);
+    expect(mockReplace).toHaveBeenCalledWith("/");
+  });
+
+  it.each([
+    ["sign-in", () => beginAuthSession()],
+    ["restoration", () => beginAuthSession("restore")],
+    ["sign-out", () => invalidateAuthSession()],
+  ])("ignores a response superseded by %s", async (_activity, changeSession) => {
+    const response = deferred<{ success: true; data: AuthResponse }>();
+    mockVerify.mockReturnValue(response.result);
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await act(() => {
+      void fireEvent.press(screen.getByRole("button", { name: submit }));
+    });
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
+
+    changeSession();
+    await act(async () => response.resolve({ success: true, data: session }));
+
+    expect(mockVerify).toHaveBeenCalledTimes(1);
+    expect(saveSessionTokens).not.toHaveBeenCalled();
+    expect(mockClearPendingEmail).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("yields to another sign-in that starts while SecureStore is writing", async () => {
+    const write = deferred<boolean>();
+    jest.mocked(saveSessionTokens).mockReturnValueOnce(write.result);
+    mockVerify.mockResolvedValue({ success: true, data: session });
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await act(() => {
+      void fireEvent.press(screen.getByRole("button", { name: submit }));
+    });
+
+    useAuthStore.getState().setSigningIn(true);
+    await act(async () => write.resolve(true));
+
+    expect(clearSessionTokens).toHaveBeenCalledWith(expect.any(Number));
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("discards a delayed response when a different verification link opens", async () => {
+    const response = deferred<{ success: true; data: AuthResponse }>();
+    mockVerify.mockReturnValue(response.result);
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await act(() => {
+      void fireEvent.press(screen.getByRole("button", { name: submit }));
+    });
+
+    mockParams = { uid: "different-user", token: "different-token" };
+    await screen.rerender(<VerifyEmailScreen />);
+    await act(async () => response.resolve({ success: true, data: session }));
+
+    expect(screen.getByLabelText("Password").props.value).toBe("");
+    expect(saveSessionTokens).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("shows a password field error without installing a session", async () => {
+    mockVerify.mockResolvedValue({
+      success: false,
+      code: "VALIDATION_ERROR",
+      errors: { password: ["Enter the password you used to register."] },
+    });
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
+
+    expect(screen.getByLabelText("Password").props.error).toMatch(/password you used to register/);
+    expect(saveSessionTokens).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("shows the retry interval when verification password attempts are locked", async () => {
+    mockVerify.mockResolvedValue({
+      success: false,
+      code: "ACCOUNT_LOCKED",
+      message: "Password sign-in is temporarily unavailable.",
+      errors: { retry_after: 60 },
+    });
+    const screen = await render(<VerifyEmailScreen />);
+    await fireEvent.changeText(screen.getByLabelText("Password"), password);
+    await fireEvent.press(screen.getByRole("button", { name: submit }));
+
+    expect(screen.getByText(/try again in 1 minute/i)).toBeTruthy();
+    expect(screen.getByLabelText("Password").props.value).toBe("");
+    expect(saveSessionTokens).not.toHaveBeenCalled();
   });
 
   it("permits retry after a transport error", async () => {
@@ -166,7 +379,7 @@ describe("email verification with the registration password", () => {
     await fireEvent.press(screen.getByRole("button", { name: submit }));
     expect(mockVerify).toHaveBeenCalledTimes(1);
 
-    expect(screen.getByText("Try again")).toBeTruthy();
+    expect(screen.getByText(/go back to log in if your email was already verified/i)).toBeTruthy();
     await fireEvent.press(screen.getByRole("button", { name: submit }));
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/(auth)/email-verified"));
   });

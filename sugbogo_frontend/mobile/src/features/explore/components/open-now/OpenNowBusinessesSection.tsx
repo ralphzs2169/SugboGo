@@ -12,7 +12,6 @@ import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpre
 import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
 import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
 import ExploreSectionHeader from "../ExploreSectionHeader";
-import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 
 type Props = {
   feed: ReturnType<typeof useOpenNowBusinesses>;
@@ -33,8 +32,7 @@ const SUBTITLE = "Discover places open within 3 km, based on listed hours.";
 /**
  * Presents up to six nearby open places using Explore's existing carousel.
  *
- * Explains empty results and retained location or availability
- * after refresh failures while preserving retry access.
+ * Hides empty results and preserves loading and recovery feedback.
  */
 export default function OpenNowBusinessesSection({
   feed,
@@ -60,6 +58,10 @@ export default function OpenNowBusinessesSection({
     return null;
   }
 
+  if (!showLoading && !hasContent && !hasError) {
+    return null;
+  }
+
   const locationNotice =
     hasContent && isUsingLastLocation && userLocation !== null ? (
       <View className="mb-3 px-4" accessibilityLiveRegion="polite">
@@ -81,12 +83,11 @@ export default function OpenNowBusinessesSection({
       <View className="py-6" testID="open-now-section">
         {/* Section identity and location context */}
         <ExploreSectionHeader title={TITLE} subtitle={SUBTITLE} />
-        {locationNotice}
 
-        {/* Initial loading, request recovery, and empty availability */}
+        {/* Initial loading and request recovery */}
         {showLoading ? (
           <ExploreBusinessCarouselSkeleton variant="default" />
-        ) : hasError ? (
+        ) : (
           <ErrorState
             title="Unable to load nearby open places"
             description="We couldn't check which places are open nearby."
@@ -94,12 +95,6 @@ export default function OpenNowBusinessesSection({
             onPrimaryAction={() => void feed.refetch()}
             size="section"
             icon="store-off-outline"
-          />
-        ) : (
-          <ExploreSectionEmptyState
-            title="No places listed as open nearby"
-            description="Check back later for places listed as open within 3 km."
-            icon="clock-outline"
           />
         )}
       </View>

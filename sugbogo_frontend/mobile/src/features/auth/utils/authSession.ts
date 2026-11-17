@@ -4,6 +4,7 @@ import {
   beginAuthSession,
   invalidateAuthSession,
   isAuthSessionCurrent,
+  isAuthSessionGenerationCurrent,
   StaleAuthSessionError,
 } from "@/shared/api/authSessionGeneration.service";
 import {
@@ -22,9 +23,17 @@ import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineA
  * Persists an authenticated session.
  *
  * Saves the issued JWT tokens to secure storage and updates the global
- * authentication state with the authenticated user.
+ * authentication state with the authenticated user. Returns the installed
+ * generation so callers can discard stale navigation.
  */
-export async function establishSession(response: AuthResponse): Promise<void> {
+export async function establishSession(
+  response: AuthResponse,
+  canInstall?: () => boolean,
+): Promise<number> {
+  if (canInstall && !canInstall()) {
+    throw new StaleAuthSessionError();
+  }
+
   const generation = beginAuthSession();
 
   queryClient.clear();
@@ -33,6 +42,9 @@ export async function establishSession(response: AuthResponse): Promise<void> {
 
   try {
     await clearOfflineAccess();
+    if (!isAuthSessionCurrent(generation) || (canInstall && !canInstall())) {
+      throw new StaleAuthSessionError();
+    }
 
     const didPersist = await saveSessionTokens(
       response.access,
@@ -40,7 +52,11 @@ export async function establishSession(response: AuthResponse): Promise<void> {
       generation,
     );
 
-    if (!didPersist || !isAuthSessionCurrent(generation)) {
+    if (
+      !didPersist ||
+      !isAuthSessionCurrent(generation) ||
+      (canInstall && !canInstall())
+    ) {
       throw new StaleAuthSessionError();
     }
 
@@ -49,18 +65,25 @@ export async function establishSession(response: AuthResponse): Promise<void> {
     void rememberOfflineResources(response.user.id, generation).catch(
       () => undefined,
     );
+    return generation;
   } catch (error) {
-    if (isAuthSessionCurrent(generation)) {
-      const cleanupGeneration = invalidateAuthSession();
+    if (!isAuthSessionCurrent(generation)) {
+      throw new StaleAuthSessionError();
+    }
 
-      useAuthStore.getState().clearUser();
-      useAppModeStore.getState().resetActiveMode();
+    const cleanupGeneration = invalidateAuthSession();
 
-      try {
-        await clearSessionTokens(cleanupGeneration);
-      } catch {
-        // Preserve the original authentication or SecureStore error.
-      }
+    useAuthStore.getState().clearUser();
+    useAppModeStore.getState().resetActiveMode();
+
+    try {
+      await clearSessionTokens(cleanupGeneration);
+    } catch {
+      // Preserve the original authentication or SecureStore error.
+    }
+
+    if (!isAuthSessionGenerationCurrent(cleanupGeneration)) {
+      throw new StaleAuthSessionError();
     }
 
     throw error;

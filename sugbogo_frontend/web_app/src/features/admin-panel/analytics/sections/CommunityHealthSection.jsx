@@ -29,14 +29,15 @@ export default function CommunityHealthSection({ period }) {
   return (
     <>
       <AnalyticsChartCard
+        compact
         titleIcon={HeartPulse}
         onAbout={() => setMode("about")} aboutDisabled={!data} title="Community Health" description="Published review activity and sentiment." {...state}
         controls={<AnalyticsIntervalControl value={interval} onChange={setInterval} />}
         summaryContent={<AnalyticsSummary items={[{ label: "Published reviews in period", value: formatCount(cohort?.published_review_count), context: comparisonText(data?.published_review_count_change) }]} />}
-        accessibleData={<div className="mt-3">
+        accessibleData={<div className="@container mt-3">
           {/* Backend classified shares set segment widths; unclassified is never treated as neutral */}
           <div aria-hidden="true" className="mb-3 flex h-2 overflow-hidden rounded-full bg-surface-muted">{rows.map((row) => row.percentage == null ? null : <div key={row.name} style={{ width: `${row.percentage}%`, backgroundColor: row.color }} />)}</div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4">{rows.map((row) => <div key={row.name}><dt className="text-text-secondary">{row.label}</dt><dd className="mt-1 font-semibold text-text-primary">{formatPercentage(row.percentage)} <span className="font-normal text-text-secondary">· {formatCount(row.count)}</span></dd></div>)}<div><dt className="text-text-secondary">Unclassified reviews</dt><dd className="mt-1 font-semibold text-text-primary">{formatCount(cohort?.unclassified_review_count)}</dd></div></dl>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs @lg:grid-cols-4">{rows.map((row) => <div key={row.name}><dt className="text-text-secondary">{row.label}</dt><dd className="mt-1 font-semibold text-text-primary">{formatPercentage(row.percentage)} <span className="font-normal text-text-secondary">· {formatCount(row.count)}</span></dd></div>)}<div><dt className="text-text-secondary">Unclassified reviews</dt><dd className="mt-1 font-semibold text-text-primary">{formatCount(cohort?.unclassified_review_count)}</dd></div></dl>
         </div>}
         footer={<AnalyticsReportFooter title="Community Health" meta={data?.meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >

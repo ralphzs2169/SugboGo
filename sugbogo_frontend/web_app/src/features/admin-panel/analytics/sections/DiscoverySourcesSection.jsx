@@ -11,6 +11,7 @@ import AnalyticsDetailDrawer from "../components/AnalyticsDetailDrawer";
 import AnalyticsExactTable from "../components/AnalyticsExactTable";
 import { formatCount, formatPercentage } from "../utils/presentation";
 
+const TITLE = "First Profile Visit Source";
 const LABELS = { EXPLORE_DISCOVERY: "Explore", SEARCH_RESULTS: "Search & Results", MAP: "Map", COLLECTION: "Collections", SIMILAR_BUSINESSES: "Similar Businesses", COMMUNITY: "Community", UNKNOWN: "Unknown" };
 
 /** Ranks observations with Unknown last, canonical tie ordering and administrator display labels. */
@@ -20,11 +21,26 @@ function sourceRows(sources) {
     .sort((left, right) => Number(left.source === "UNKNOWN") - Number(right.source === "UNKNOWN") || right.count - left.count || order.indexOf(left.source) - order.indexOf(right.source));
 }
 
+function SourceAxisTick({ x, y, payload }) {
+  return (
+    <text
+      x={x}
+      y={y}
+      dy="0.35em"
+      textAnchor="end"
+      fill="var(--color-text-primary)"
+      fontSize={12}
+    >
+      {payload.value}
+    </text>
+  );
+}
+
 /** Independently reports recorded opening origins using the shared reporting period. */
 export default function DiscoverySourcesSection({ period }) {
   const [mode, setMode] = useState(null);
   const query = useDiscoverySources(period);
-  const state = useAnalyticsSectionState(query, "discovery-sources", "discovery sources");
+  const state = useAnalyticsSectionState(query, "discovery-sources", "first profile visit sources");
   const data = query.data;
   const rows = sourceRows(data?.sources);
   const unavailable = data?.meta?.availability === "unavailable";
@@ -35,22 +51,50 @@ export default function DiscoverySourcesSection({ period }) {
   ]} />;
   return (
     <>
-      {/* Full-width comparison complements the existing two-column discovery reports. */}
       <AnalyticsSection
         titleIcon={Signpost}
-        onAbout={() => setMode("about")} aboutDisabled={!data} title="Discovery Sources" description="Where recorded business profile visits originate." {...state}
-        unavailable={unavailable} unavailableMessage="Discovery sources are unavailable. This does not mean zero visits."
+        onAbout={() => setMode("about")}
+        aboutDisabled={!data}
+        title={TITLE}
+        description="Where explorers first accessed business profiles each day."
+        aboutTooltip="Shows the first recorded source per explorer and business each UTC day. Subsequent visits that day are deduplicated."
+        compact
+        {...state}
+        unavailable={unavailable} unavailableMessage="First profile visit sources are unavailable. This does not mean zero visits."
         isEmpty={data?.total_profile_visits === 0} emptyMessage="No profile visits were recorded during this period. View data includes all seven sources."
-        footer={<AnalyticsReportFooter title="Discovery Sources" meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
+        footer={<AnalyticsReportFooter title={TITLE} meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
-        <div className="mx-auto h-80 w-full xl:h-112 min-w-0 max-w-4xl" role="img" aria-label="Recorded visits ranked by source, with Unknown shown last. Exact counts and shares are available in View data.">
+        <div className="h-64 w-full min-w-0" role="img" aria-label="Recorded visits ranked by source, with Unknown shown last. Exact counts and shares are available in View data.">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-            <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 64, bottom: 0, left: 0 }}>
+            <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 56, bottom: 0, left: 0 }}>
               <XAxis type="number" domain={[0, "auto"]} allowDecimals={false} tick={{ fill: "var(--color-text-secondary)", fontSize: 11 }} />
-              <YAxis type="category" dataKey="label" width={150} interval={0} tick={{ fill: "var(--color-text-primary)", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis
+                type="category"
+                dataKey="label"
+                width={144}
+                interval={0}
+                tick={<SourceAxisTick />}
+                axisLine={false}
+                tickLine={false}
+              />
               <Tooltip content={<AnalyticsCategoryTooltip unit="visits" />} />
-              <Bar dataKey="count" fill="var(--color-primary)" maxBarSize={28} isAnimationActive={false}>{rows.map((row) => <Cell key={row.source} fill={row.color} />)}<LabelList dataKey="count" position="right" formatter={formatCount} fill="var(--color-text-primary)" fontSize={11} /></Bar>
+              <Bar
+                dataKey="count"
+                fill="var(--color-primary)"
+                barSize={16}
+                radius={[0, 3, 3, 0]}
+                isAnimationActive={false}
+              >
+                {rows.map((row) => <Cell key={row.source} fill={row.color} />)}
+                <LabelList
+                  dataKey="count"
+                  position="right"
+                  formatter={formatCount}
+                  fill="var(--color-text-primary)"
+                  fontSize={11}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -58,7 +102,7 @@ export default function DiscoverySourcesSection({ period }) {
         <p className="mt-2 text-sm text-text-secondary">{formatCount(data?.total_profile_visits)} recorded profile visits</p>
       </AnalyticsSection>
       {/* Existing drawer exposes exact observations and methodology without another modal system. */}
-      <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Discovery Sources" report={data} interval="Selected period" series={[]} showComparison={false}
+      <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title={TITLE} report={data} interval="Selected period" series={[]} showComparison={false}
         dataContent={<>{unavailable ? <p>Exact observations are unavailable.</p> : exact}<p>Total qualifying recorded profile visits: {formatCount(data?.total_profile_visits)}</p></>}
 
       />

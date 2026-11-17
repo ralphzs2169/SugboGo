@@ -116,12 +116,14 @@ export function verifyEmail(
   uid: string,
   token: string,
   password: string,
-): Promise<ApiMessageResponse> {
+  autoLogin: boolean,
+): Promise<ApiResponse<unknown>> {
   return request(
-    authClient.post<ApiMessageResponse>("/auth/verify-email/", {
+    authClient.post<ApiResponse<unknown>>("/auth/verify-email/", {
       uid,
       token,
       password,
+      auto_login: autoLogin,
     }),
   );
 }

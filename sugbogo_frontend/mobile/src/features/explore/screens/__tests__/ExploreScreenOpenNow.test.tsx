@@ -89,12 +89,10 @@ jest.mock("../../components/open-now/OpenNowBusinessesSection", () => {
     userLocation,
     isUsingLastLocation,
     onBusinessPress,
-    onExploreMap,
   }: {
     userLocation: LocationObject | null;
     isUsingLastLocation: boolean;
     onBusinessPress: (id: number, distance: number, accuracy: number) => void;
-    onExploreMap: () => void;
   }) {
     return (
       <>
@@ -103,16 +101,9 @@ jest.mock("../../components/open-now/OpenNowBusinessesSection", () => {
         <Text onPress={() => onBusinessPress(42, 0.65, 15)}>
           Open nearby place
         </Text>
-        <Text onPress={onExploreMap}>Explore the map</Text>
       </>
     );
   };
-});
-
-it("opens the existing map from the empty-state action", async () => {
-  const screen = await render(<ExploreScreen />);
-  await fireEvent.press(screen.getByText("Explore the map"));
-  expect(mockPush).toHaveBeenCalledWith("/(explorer)/(tabs)/map");
 });
 
 it("waits for fresh coordinates before requesting nearby businesses", async () => {
