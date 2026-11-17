@@ -477,6 +477,7 @@ class BusinessClassificationChangeService:
         DiscoveryScoreRefreshService.request_refresh(
             change_request.BUSN_ID_id,
             defer_until_daily=True,
+            mark_provisional=True,
         )
         AdminActivityService.record_user_action(
             actor=reviewer,

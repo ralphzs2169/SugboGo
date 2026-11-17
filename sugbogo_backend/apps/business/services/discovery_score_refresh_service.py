@@ -37,8 +37,10 @@ class DiscoveryScoreRefreshService:
     @staticmethod
     def request_global_refresh(
         defer_until_daily=False,
+        business_ids=None,
+        mark_provisional=False,
     ):
-        """Invalidates shared inputs without deferring already recoverable work."""
+        """Invalidates selected active scores without deferring recoverable work."""
         requested_at = timezone.now()
         deferred = Value(False)
         if defer_until_daily:
@@ -53,13 +55,19 @@ class DiscoveryScoreRefreshService:
                 ),
                 default=Value(True),
             )
-        DiscoveryScore.objects.filter(
+        scores = DiscoveryScore.objects.filter(
             BUSN_ID__BUSN_STATUS=Business.BusinessStatus.ACTIVE,
-        ).update(
-            DSC_REFRESH_VERSION=F("DSC_REFRESH_VERSION") + 1,
-            DSC_REFRESH_REQUESTED_AT=requested_at,
-            DSC_REFRESH_DEFERRED=deferred,
         )
+        if business_ids is not None:
+            scores = scores.filter(BUSN_ID_id__in=business_ids)
+        updates = {
+            "DSC_REFRESH_VERSION": F("DSC_REFRESH_VERSION") + 1,
+            "DSC_REFRESH_REQUESTED_AT": requested_at,
+            "DSC_REFRESH_DEFERRED": deferred,
+        }
+        if mark_provisional:
+            updates["DSC_IS_PROVISIONAL"] = True
+        scores.update(**updates)
         if defer_until_daily:
             return
         transaction.on_commit(
@@ -129,7 +137,8 @@ class DiscoveryScoreRefreshService:
             specialty_weight=configuration.DAC_SPECIALTY_SCORE_WEIGHT,
             visibility_weight=configuration.DAC_VISIBILITY_GAP_WEIGHT,
         )
-        score, _ = DiscoveryScore.objects.get_or_create(
+        # Serialize individual invalidations with bulk taxonomy/configuration work.
+        score, _ = DiscoveryScore.objects.select_for_update().get_or_create(
             BUSN_ID_id=business_id,
             defaults={
                 "DSC_S_SCORE": 0,
@@ -151,6 +160,7 @@ class DiscoveryScoreRefreshService:
         invalidate=True,
         defer_until_daily=False,
         only_if_recoverable=False,
+        mark_provisional=False,
     ):
         """Versions each invalidation while publishing only immediately due work."""
         try:
@@ -183,14 +193,16 @@ class DiscoveryScoreRefreshService:
             score.DSC_REFRESH_REQUESTED_AT = timezone.now()
         elif score.DSC_REFRESH_REQUESTED_AT is None:
             score.DSC_REFRESH_REQUESTED_AT = timezone.now()
-        score.save(
-            update_fields=[
-                "DSC_REFRESH_VERSION",
-                "DSC_REFRESH_DEFERRED",
-                "DSC_REFRESH_REQUESTED_AT",
-                "DSC_UPDATED_AT",
-            ],
-        )
+        update_fields = [
+            "DSC_REFRESH_VERSION",
+            "DSC_REFRESH_DEFERRED",
+            "DSC_REFRESH_REQUESTED_AT",
+            "DSC_UPDATED_AT",
+        ]
+        if mark_provisional:
+            score.DSC_IS_PROVISIONAL = True
+            update_fields.append("DSC_IS_PROVISIONAL")
+        score.save(update_fields=update_fields)
         if defer_until_daily:
             return
         transaction.on_commit(

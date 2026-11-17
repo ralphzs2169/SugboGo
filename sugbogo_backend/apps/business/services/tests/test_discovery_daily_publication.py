@@ -8,7 +8,8 @@ from django.utils import timezone
 from apps.admin_operations.system_configuration.serializers import (
     DiscoveryAlgorithmConfigurationSerializer,
 )
-from apps.business.models import DiscoveryScore
+from apps.admin_operations.taxonomy_management.services.category_service import CategoryService
+from apps.business.models import BusinessSpecialtyTag, Cluster, DiscoveryScore, SpecialtyTag
 from apps.business.services.business_specialty_service import BusinessSpecialtyService
 from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 from apps.business.services.discovery_score_service import (
@@ -214,8 +215,213 @@ class DiscoveryDailyPublicationTests(TestCase):
             self.assertEqual(self.specialties[0].BST_IS_ACTIVE, active)
             score = DiscoveryScore.objects.get()
             self.assertEqual(score.DSC_D_SCORE, before.DSC_D_SCORE)
+            self.assertTrue(score.DSC_IS_PROVISIONAL)
             self.assertTrue(score.DSC_REFRESH_DEFERRED)
         self.publish.assert_not_called()
+
+    def _publish_hidden_gem(self):
+        """Compute qualifying scores from valid evidence on all three specialties."""
+        for specialty in self.specialties:
+            VouchService.create_vouch(
+                user=self.explorer,
+                business_id=self.business.pk,
+                tag_id=specialty.TAG_ID_id,
+            )
+        self._compute(
+            reference_time=self.reference_time + timedelta(seconds=1),
+        )
+        self.assertIn(
+            self.business.pk,
+            DiscoveryFeedService.list_global_hidden_gem_ids(),
+        )
+        return DiscoveryScore.objects.get()
+
+    @staticmethod
+    def _published_values(score):
+        """Capture values that a deferred taxonomy transition must retain."""
+        return (
+            score.DSC_S_SCORE,
+            score.DSC_V_SCORE,
+            score.DSC_D_SCORE,
+            score.DSC_COMPUTED_AT,
+        )
+
+    def _assert_provisional_hidden_gem_exclusion(
+        self,
+        before,
+    ):
+        """Check retained general ranking and immediate Hidden Gem exclusion."""
+        score = DiscoveryScore.objects.get()
+        self.assertEqual(self._published_values(score), self._published_values(before))
+        self.assertTrue(score.DSC_IS_PROVISIONAL)
+        self.assertTrue(score.DSC_REFRESH_DEFERRED)
+        self.assertGreater(score.DSC_REFRESH_VERSION, before.DSC_REFRESH_VERSION)
+        self.assertIsNotNone(score.DSC_REFRESH_REQUESTED_AT)
+        self.assertNotIn(
+            self.business.pk,
+            DiscoveryFeedService.list_global_hidden_gem_ids(),
+        )
+        ranked = DiscoveryFeedService.list_ranked_businesses().get(pk=self.business.pk)
+        self.assertEqual(ranked.discovery_rank_score, before.DSC_D_SCORE)
+        self.assertEqual(DiscoveryScoreRefreshService.reconcile()["requested"], 0)
+        self.publish.assert_not_called()
+
+    def test_specialty_removal_withholds_hidden_gem_until_current_evidence_is_computed(self):
+        """Retain published values while excluding materially stale qualification."""
+        before = self._publish_hidden_gem()
+        with self.captureOnCommitCallbacks(execute=True):
+            BusinessSpecialtyService.deactivate_specialty(
+                self.business.pk,
+                self.specialties[0].TAG_ID_id,
+            )
+        self.specialties[0].refresh_from_db()
+        self.assertFalse(self.specialties[0].BST_IS_ACTIVE)
+        self.assertFalse(
+            DiscoveryFeedService.list_discovery_businesses(
+                user=self.explorer,
+                specialty_tag_id=self.specialties[0].TAG_ID_id,
+            ).exists(),
+        )
+        self._assert_provisional_hidden_gem_exclusion(before)
+        self.assertEqual(self._batch().updated_count, 1)
+        score = DiscoveryScore.objects.get()
+        self.assertLess(score.DSC_S_SCORE, before.DSC_S_SCORE)
+        self.assertFalse(score.DSC_IS_PROVISIONAL)
+        self.assertFalse(score.DSC_REFRESH_DEFERRED)
+        self.assertIsNone(score.DSC_REFRESH_REQUESTED_AT)
+        self.assertIn(
+            self.business.pk,
+            DiscoveryFeedService.list_global_hidden_gem_ids(),
+        )
+        for specialty in self.specialties[1:]:
+            BusinessSpecialtyService.deactivate_specialty(
+                self.business.pk,
+                specialty.TAG_ID_id,
+            )
+        self.reference_time += timedelta(days=1)
+        self._batch()
+        self.assertEqual(DiscoveryScore.objects.get().DSC_S_SCORE, 0)
+        self.assertNotIn(
+            self.business.pk,
+            DiscoveryFeedService.list_global_hidden_gem_ids(),
+        )
+
+    def test_specialty_activation_requires_revalidation_even_after_removal_was_published(self):
+        """Restoring a specialty cannot reuse the last aggregate as authoritative."""
+        self._publish_hidden_gem()
+        BusinessSpecialtyService.deactivate_specialty(
+            self.business.pk,
+            self.specialties[0].TAG_ID_id,
+        )
+        self._batch()
+        before = DiscoveryScore.objects.get()
+        self.assertFalse(before.DSC_IS_PROVISIONAL)
+        with self.captureOnCommitCallbacks(execute=True):
+            BusinessSpecialtyService.reactivate_specialty(
+                self.business.pk,
+                self.specialties[0].TAG_ID_id,
+            )
+        self._assert_provisional_hidden_gem_exclusion(before)
+        self.assertTrue(
+            DiscoveryFeedService.list_discovery_businesses(
+                user=self.explorer,
+                specialty_tag_id=self.specialties[0].TAG_ID_id,
+            ).exists(),
+        )
+
+    def test_noop_specialty_transitions_preserve_published_authority(self):
+        """Already-active and already-inactive assignments cause no invalidation."""
+        self._publish_hidden_gem()
+        inactive_tag = SpecialtyTag.objects.create(TAG_NAME="Inactive no-op specialty")
+        BusinessSpecialtyTag.objects.create(
+            BUSN_ID=self.business,
+            TAG_ID=inactive_tag,
+            BST_IS_ACTIVE=False,
+        )
+        before = DiscoveryScore.objects.values().get()
+        with self.captureOnCommitCallbacks(execute=True):
+            BusinessSpecialtyService.reactivate_specialty(
+                self.business.pk,
+                self.specialties[0].TAG_ID_id,
+            )
+            BusinessSpecialtyService.deactivate_specialty(
+                self.business.pk,
+                inactive_tag.pk,
+            )
+        self.assertEqual(DiscoveryScore.objects.values().get(), before)
+        self.assertIn(self.business.pk, DiscoveryFeedService.list_global_hidden_gem_ids())
+        self.publish.assert_not_called()
+
+    def test_category_cluster_move_withholds_hidden_gems_and_noop_metadata_does_not(self):
+        """Admin reparenting invalidates comparison context without changing scores."""
+        before = self._publish_hidden_gem()
+        new_cluster = Cluster.objects.create(CLUS_NAME="Changed comparison cluster")
+        with patch(
+            "apps.business.tasks.recompute_discovery_scores.delay",
+        ) as batch, self.captureOnCommitCallbacks(execute=True):
+            CategoryService.update_category(
+                self.category,
+                {"CLUS_ID": new_cluster},
+            )
+        batch.assert_not_called()
+        self._assert_provisional_hidden_gem_exclusion(before)
+        self.assertTrue(
+            DiscoveryFeedService.list_discovery_businesses(
+                user=self.explorer,
+                cluster_id=new_cluster.pk,
+            ).exists(),
+        )
+        self._batch()
+        before_noop = DiscoveryScore.objects.values().get()
+        CategoryService.update_category(
+            self.category,
+            {
+                "CLUS_ID": new_cluster,
+                "CTGRY_DESCRIPTION": "Updated label metadata only.",
+            },
+        )
+        self.assertEqual(DiscoveryScore.objects.values().get(), before_noop)
+
+    def test_taxonomy_invalidation_keeps_failed_work_recoverable(self):
+        """Provisional eligibility must not conceal a genuine dispatch failure."""
+        before = self._publish_hidden_gem()
+        self.publish.side_effect = RuntimeError("broker unavailable")
+        with patch(
+            "apps.business.services.discovery_score_refresh_service.logger.exception",
+        ), self.captureOnCommitCallbacks(execute=True):
+            DiscoveryScoreRefreshService.request_refresh(self.business.pk)
+        self.publish.side_effect = None
+        with self.captureOnCommitCallbacks(execute=True):
+            BusinessSpecialtyService.deactivate_specialty(
+                self.business.pk,
+                self.specialties[0].TAG_ID_id,
+            )
+            CategoryService.update_category(
+                self.category,
+                {"CLUS_ID": Cluster.objects.create(CLUS_NAME="Recovery comparison cluster")},
+            )
+        score = DiscoveryScore.objects.get()
+        self.assertEqual(self._published_values(score), self._published_values(before))
+        self.assertTrue(score.DSC_IS_PROVISIONAL)
+        self.assertFalse(score.DSC_REFRESH_DEFERRED)
+        self.assertEqual(score.DSC_LAST_ERROR, "DISPATCH_FAILED")
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(DiscoveryScoreRefreshService.reconcile()["requested"], 1)
+
+    def test_ordinary_evidence_cannot_restore_provisional_taxonomy_authority(self):
+        """Further ordinary invalidations retain the existing eligibility safeguard."""
+        before = self._publish_hidden_gem()
+        BusinessSpecialtyService.deactivate_specialty(
+            self.business.pk,
+            self.specialties[0].TAG_ID_id,
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            VouchService.remove_vouch(
+                user=self.explorer,
+                business_id=self.business.pk,
+                tag_id=self.specialties[1].TAG_ID_id,
+            )
+        self._assert_provisional_hidden_gem_exclusion(before)
 
     def test_configuration_defers_computed_and_provisional_values_without_dispatch(self):
         """Configuration edits invalidate inputs without replacing either baseline."""

@@ -56,6 +56,7 @@ class BusinessSpecialtyService:
         DiscoveryScoreRefreshService.request_refresh(
             business_id,
             defer_until_daily=True,
+            mark_provisional=True,
         )
 
         return business_specialty
@@ -89,6 +90,7 @@ class BusinessSpecialtyService:
         DiscoveryScoreRefreshService.request_refresh(
             business_id,
             defer_until_daily=True,
+            mark_provisional=True,
         )
 
         return business_specialty
