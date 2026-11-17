@@ -58,6 +58,8 @@ jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
   router: { push: jest.fn() },
   useNavigation: () => ({ isFocused: () => true }),
+  useFocusEffect: (effect: React.EffectCallback) =>
+    jest.requireActual("react").useEffect(effect, [effect]),
 }));
 jest.mock("@/features/auth/store/auth.store", () => ({
   useAuthStore: (selector: (state: unknown) => unknown) =>
@@ -67,6 +69,13 @@ jest.mock("@/shared/api/storage.service", () => ({
   getInstallationId: jest.fn().mockResolvedValue("installation"),
 }));
 // Persistence is outside these screen interactions; keep detail API fetching real.
+jest.mock("@/features/business-availability/services/businessAvailability.service", () => ({
+  businessAvailability: { begin: jest.fn() },
+}));
+jest.mock("@/features/business-availability/hooks/useBusinessAvailability", () => ({
+  __esModule: true,
+  default: () => ({ get: () => undefined }),
+}));
 jest.mock("@/features/explore/services/recentBusinessDetails.service", () => ({
   recentBusinessDetails: {
     capture: () => ({
@@ -84,7 +93,12 @@ jest.mock("@/features/explore/api/exploreBusiness.service", () => ({
   removeBusinessSpecialtyVouch: jest.fn(),
 }));
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
-jest.mock("expo-image", () => ({ Image: () => null }));
+jest.mock("expo-image", () => ({
+  Image: (props: Record<string, unknown>) => {
+    const { Image } = jest.requireActual("react-native");
+    return <Image {...props} testID="vouch-image" />;
+  },
+}));
 jest.mock("lottie-react-native", () => () => null);
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -270,6 +284,34 @@ describe("production Vouch History screen", () => {
       expect(screen.getByLabelText("Toggle Specialty 1")).toBeTruthy(),
     );
   }
+
+  it("uses the resolved storefront in the list and after Manage Vouch loads", async () => {
+    const storefront = "https://example.com/storefront.jpg";
+    serverBusiness.cover_photo_url = storefront;
+    const detail = businessDetail(serverBusiness);
+    detail.cover_photo_url = null;
+    detail.display_cover_photo_url = storefront;
+    (getExploreBusinessDetail as jest.Mock).mockResolvedValue({
+      success: true,
+      data: detail,
+    });
+
+    const screen = await renderScreen();
+    await waitFor(() => {
+      expect(
+        screen.getAllByTestId("vouch-image").some(
+          (image) => image.props.source?.uri === storefront,
+        ),
+      ).toBe(true);
+    });
+    await openManage(screen);
+    await waitFor(() => {
+      const covers = screen.getAllByTestId("vouch-image").filter(
+        (image) => image.props.source?.uri === storefront,
+      );
+      expect(covers).toHaveLength(2);
+    });
+  });
 
   it("renders every grouped endorsement and full-history totals", async () => {
     serverItems = [historyBusiness(1, [1, 2, 3, 4])];

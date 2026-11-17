@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.business.models import (
     Business,
+    BusinessPhoto,
     BusinessSpecialtyTag,
     BusinessVouch,
     Category,
@@ -192,6 +193,45 @@ class VouchHistoryViewTests(APIResponseAssertionsMixin, APITestCase):
         Business.objects.filter(pk=self.business.pk).update(BUSN_COVER_PHOTO_URL=None)
         response = self.client.get(self.url)
         self.assertIsNone(response.data["data"]["items"][0]["cover_photo_url"])
+
+    def test_cover_uses_first_storefront_when_dedicated_cover_is_missing(self):
+        """Use the Explorer display cover without changing the history response key."""
+        self.create_vouch()
+        BusinessPhoto.objects.create(
+            BUSN_ID=self.business,
+            BPHO_CATEGORY=BusinessPhoto.PhotoCategory.INTERIOR,
+            BPHO_PHOTO_URL="https://example.com/interior.jpg",
+            BPHO_PHOTO_PUBLIC_ID="history-interior",
+        )
+        for index, url in enumerate((
+            "",
+            "https://example.com/first-storefront.jpg",
+            "https://example.com/second-storefront.jpg",
+        )):
+            BusinessPhoto.objects.create(
+                BUSN_ID=self.business,
+                BPHO_CATEGORY=BusinessPhoto.PhotoCategory.STOREFRONT,
+                BPHO_PHOTO_URL=url,
+                BPHO_PHOTO_PUBLIC_ID=f"history-storefront-{index}",
+            )
+
+        for dedicated_cover in (None, "", "https://example.com/cover.jpg"):
+            with self.subTest(dedicated_cover=dedicated_cover):
+                Business.objects.filter(pk=self.business.pk).update(
+                    BUSN_COVER_PHOTO_URL=dedicated_cover,
+                )
+                response = self.client.get(self.url)
+                self.assertEqual(response.status_code, 200)
+                if dedicated_cover:
+                    expected = dedicated_cover
+                else:
+                    expected = "https://example.com/first-storefront.jpg"
+                self.assertEqual(
+                    response.data["data"]["items"][0]["cover_photo_url"],
+                    expected,
+                )
+                self.business.refresh_from_db()
+                self.assertEqual(self.business.BUSN_COVER_PHOTO_URL, dedicated_cover)
 
     def test_preserves_multiple_specialty_vouches_and_duplicate_restriction(self):
         for tag in self.tags[:2]:

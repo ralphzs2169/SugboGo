@@ -57,7 +57,7 @@ class VouchHistorySerializer(serializers.ModelSerializer):
         read_only=True,
     )
     cover_photo_url = serializers.URLField(
-        source="BUSN_COVER_PHOTO_URL",
+        source="display_cover_photo_url",
         read_only=True,
         allow_null=True,
     )

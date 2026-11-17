@@ -1,6 +1,7 @@
 from django.db.models import Count, Exists, OuterRef, Prefetch, Subquery
 
 from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 
 
 class VouchHistoryService:
@@ -63,6 +64,7 @@ class VouchHistoryService:
             Business.objects
             .filter(BUSN_STATUS=Business.BusinessStatus.ACTIVE)
             .annotate(
+                display_cover_photo_url=display_cover_photo_expression(),
                 last_vouched_at=Subquery(
                     latest_vouch.values("VOUCH_CREATED_AT")[:1],
                 ),
