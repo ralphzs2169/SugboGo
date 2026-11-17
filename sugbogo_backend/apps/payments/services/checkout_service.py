@@ -54,6 +54,11 @@ class CheckoutService:
 
     CREATION_LEASE_SECONDS = 60
     MAYA_CHECKOUT_LIFETIME = timedelta(hours=1)
+    TERMINAL_MAYA_OUTCOMES = {
+        "PAYMENT_CANCELLED": "cancelled",
+        "PAYMENT_FAILED": "failed",
+        "PAYMENT_EXPIRED": "expired",
+    }
 
     @staticmethod
     def is_enabled():
@@ -88,6 +93,8 @@ class CheckoutService:
     def _reserve(
         cls,
         user,
+        *,
+        retry_checkout_reference=None,
     ):
         """Serialize purchases by business and commit one open operation before HTTP."""
         owned = PaymentService.get_owned_business(user)
@@ -110,13 +117,29 @@ class CheckoutService:
         if previous_owner_purchase.exists():
             raise CheckoutConflict()
         eligibility = PaymentService.get_purchase_eligibility(user, business=business)
-        if eligibility["active_entitlement"] is not None:
+        active = eligibility["active_entitlement"]
+        if active is not None:
+            if retry_checkout_reference is not None:
+                return active.PYMT_ID, None, False
             raise CheckoutConflict(
                 "Merchant Plus paid access is already active.",
                 code="paid_access_active",
             )
-        payment, _ = PaymentService.create_or_get_payment(user, business_id=business.pk)
+        if retry_checkout_reference is not None:
+            payment = eligibility["unresolved_payment"]
+            if payment is None:
+                raise CheckoutConflict()
+        else:
+            payment, _ = PaymentService.create_or_get_payment(
+                user,
+                business_id=business.pk,
+            )
         payment = Payment.objects.select_for_update().get(pk=payment.pk)
+        if (
+            retry_checkout_reference is not None
+            and payment.PYMT_STATUS == Payment.Status.PAID
+        ):
+            return payment, None, False
         cls._assert_payable(payment)
         operations = payment.checkout_sessions.select_for_update()
         operation = (
@@ -130,7 +153,22 @@ class CheckoutService:
         )
         if operation is None:
             operation = operations.order_by("-PCHK_ID").first()
-        if operation is not None:
+        if retry_checkout_reference is not None:
+            if (
+                operation is None
+                or operation.PCHK_OPERATION_REFERENCE != retry_checkout_reference
+                or not cls.can_retry(payment, operation)
+            ):
+                return payment, operation, False
+
+            # Retain Maya evidence while freeing the single open operation slot.
+            if operation.PCHK_STATE == PaymentCheckoutSession.State.READY:
+                operation.PCHK_STATE = PaymentCheckoutSession.State.SUPERSEDED
+                operation.save(update_fields=[
+                    "PCHK_STATE",
+                    "PCHK_UPDATED_AT",
+                ])
+        elif operation is not None:
             if (
                 operation.PCHK_PROVIDER != payment.PYMT_PROVIDER
                 or operation.PCHK_MODE != payment.PYMT_MODE
@@ -170,7 +208,6 @@ class CheckoutService:
                     "configuration_unavailable",
                 }
             ):
-                # Replacement after completion/expiry requires later authoritative recovery.
                 raise CheckoutConflict()
         operation = PaymentCheckoutSession.objects.create(
             PYMT_ID=payment,
@@ -253,12 +290,17 @@ class CheckoutService:
     def create_checkout(
         cls,
         user,
+        *,
+        retry_checkout_reference=None,
     ):
         """Create once or resume checkout while leaving payment and fulfilment untouched."""
         PaymentService.require_merchant(user)
         if not cls.is_enabled():
             raise PermissionDenied("Merchant Plus checkout is not enabled.")
-        payment, operation, reserved = cls._reserve(user)
+        payment, operation, reserved = cls._reserve(
+            user,
+            retry_checkout_reference=retry_checkout_reference,
+        )
         if not reserved:
             return cls._response(payment, operation, created=False)
         try:
@@ -315,6 +357,8 @@ class CheckoutService:
             or operation.PCHK_LAST_ERROR == "provider_identity_conflict"
         ):
             raise CheckoutConflict()
+        if retry_checkout_reference is not None:
+            payment.refresh_from_db()
         return cls._response(payment, operation, created=True)
 
     @classmethod
@@ -350,6 +394,36 @@ class CheckoutService:
         )
 
     @classmethod
+    def can_retry(
+        cls,
+        payment,
+        operation,
+    ):
+        """Require stored terminal Maya evidence on a matching, unpaid checkout."""
+        try:
+            cls._assert_payable(payment)
+        except CheckoutConflict:
+            return False
+        return (
+            operation.PYMT_ID_id == payment.pk
+            and operation.PCHK_PROVIDER == payment.PYMT_PROVIDER
+            and operation.PCHK_MODE == payment.PYMT_MODE
+            and operation.PCHK_STATE in {
+                PaymentCheckoutSession.State.READY,
+                PaymentCheckoutSession.State.EXPIRED,
+            }
+            and operation.PCHK_LAST_ERROR not in {
+                "provider_identity_conflict",
+                "ownership_requires_review",
+            }
+            and operation.PCHK_PROVIDER_STATUS in cls.TERMINAL_MAYA_OUTCOMES
+            and MayaCheckoutService.is_checkout_id(operation.PCHK_PROVIDER_SESSION_ID)
+            and not payment.PYMT_PROVIDER_PAYMENT_ID
+            and payment.PYMT_PAID_AT is None
+            and payment.PYMT_VERIFIED_AT is None
+        )
+
+    @classmethod
     def _response(
         cls,
         payment,
@@ -358,13 +432,13 @@ class CheckoutService:
         created,
     ):
         """Present only the owner's resumable checkout or safe waiting instructions."""
-        ready = operation.PCHK_STATE == PaymentCheckoutSession.State.READY
+        checkout_state = operation.PCHK_STATE if operation is not None else None
         status_code = 202
         session_id = None
         checkout_url = None
         next_action = "wait"
         check_after_seconds = 5
-        if ready:
+        if checkout_state == PaymentCheckoutSession.State.READY:
             check_after_seconds = None
             if cls.can_resume(payment, operation):
                 session_id = operation.PCHK_PROVIDER_SESSION_ID
@@ -384,7 +458,7 @@ class CheckoutService:
             "mode": payment.PYMT_MODE,
             "payment_status": payment.PYMT_STATUS,
             "fulfilment_status": payment.PYMT_FULFILMENT_STATUS,
-            "checkout_status": operation.PCHK_STATE,
+            "checkout_status": checkout_state,
             "checkout_session_id": session_id,
             "checkout_url": checkout_url,
             "next_action": next_action,

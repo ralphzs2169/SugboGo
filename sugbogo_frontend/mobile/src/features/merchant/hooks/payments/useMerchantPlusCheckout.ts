@@ -45,6 +45,7 @@ export default function useMerchantPlusCheckout() {
     mutationFn: async (operation: {
       accountId: number;
       generation: number;
+      retryCheckoutReference?: string;
     }) => {
       const operationScope = `${operation.accountId}:${operation.generation}`;
       const current = () =>
@@ -58,7 +59,10 @@ export default function useMerchantPlusCheckout() {
       controller.current = new AbortController();
       try {
         const checkout = throwOnApiError(
-          await createMerchantPlusCheckout(controller.current.signal),
+          await createMerchantPlusCheckout(
+            controller.current.signal,
+            operation.retryCheckoutReference,
+          ),
         );
         if (!current()) return;
         if (checkout.next_action === "open_checkout") {
@@ -115,7 +119,7 @@ export default function useMerchantPlusCheckout() {
       }
     },
   });
-  const startCheckout = () => {
+  const startCheckout = (retryCheckoutReference?: string) => {
     if (
       !accountId ||
       !active.current ||
@@ -125,7 +129,7 @@ export default function useMerchantPlusCheckout() {
       return;
     openingCheckout = true;
     setProgress({ scope, phase: "preparing" });
-    mutation.mutate({ accountId, generation });
+    mutation.mutate({ accountId, generation, retryCheckoutReference });
   };
   return {
     startCheckout,

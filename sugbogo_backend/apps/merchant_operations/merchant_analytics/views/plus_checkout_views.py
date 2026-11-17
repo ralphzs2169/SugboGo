@@ -13,6 +13,7 @@ from apps.payments.services.checkout_service import CheckoutService
 from apps.users.models import User
 from core.responses import success_response
 
+from ..serializers.mock_plus_serializers import EmptyPlusInputSerializer
 from ..serializers.plus_checkout_serializers import (
     MerchantPlusCheckoutInputSerializer,
     MerchantPlusCheckoutSerializer,
@@ -32,14 +33,17 @@ class MerchantPlusCheckoutView(APIView):
         self,
         request,
     ):
-        """Accept only an explicit empty JSON body and server-resolved purchase inputs."""
+        """Accept an optional retry reference without accepting purchase overrides."""
         if not request.body:
-            raise ValidationError("An empty JSON object is required.")
-        query = MerchantPlusCheckoutInputSerializer(data=request.query_params)
+            raise ValidationError("A JSON object is required.")
+        query = EmptyPlusInputSerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         serializer = MerchantPlusCheckoutInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data, status_code = CheckoutService.create_checkout(request.user)
+        data, status_code = CheckoutService.create_checkout(
+            request.user,
+            retry_checkout_reference=serializer.validated_data.get("retry_checkout_reference"),
+        )
         message = "Secure checkout is ready."
         if status_code == 202:
             message = "This checkout needs review before it can continue."

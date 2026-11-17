@@ -15,7 +15,8 @@ from apps.merchant_operations.merchant_analytics.views.tests.test_plus_checkout_
     CHECKOUT_TEST_SETTINGS,
 )
 from apps.payments.models import Payment, PaymentCheckoutSession
-from apps.shared.tests.test_maya_checkout_service import maya_response
+from apps.payments.services.payment_service import PaymentService
+from apps.shared.tests.test_maya_checkout_service import CHECKOUT_ID, CHECKOUT_URL, maya_response
 from apps.users.models import User
 
 
@@ -30,6 +31,7 @@ class CheckoutConcurrencyTests(MerchantAnalyticsFixtures, TransactionTestCase):
         self,
         *,
         uncertain=False,
+        retry_body=None,
     ):
         self.assertEqual(connection.vendor, "postgresql")
         barrier = Barrier(2)
@@ -43,7 +45,7 @@ class CheckoutConcurrencyTests(MerchantAnalyticsFixtures, TransactionTestCase):
             **kwargs,
         ):
             self.assertFalse(connection.in_atomic_block)
-            self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_STATE, "creating")
+            self.assertTrue(PaymentCheckoutSession.objects.filter(PCHK_STATE="creating").exists())
             provider_started.set()
             if not second_finished.wait(timeout=20):
                 raise AssertionError("Duplicate request waited behind provider I/O.")
@@ -58,7 +60,7 @@ class CheckoutConcurrencyTests(MerchantAnalyticsFixtures, TransactionTestCase):
                 client = APIClient()
                 client.force_authenticate(User.objects.get(pk=user_id))
                 barrier.wait(timeout=20)
-                response = client.post(url, {}, format="json")
+                response = client.post(url, retry_body or {}, format="json")
                 if response.status_code == 202:
                     self.assertTrue(provider_started.wait(timeout=20))
                     second_finished.set()
@@ -75,11 +77,11 @@ class CheckoutConcurrencyTests(MerchantAnalyticsFixtures, TransactionTestCase):
             post.assert_called_once()
             client = APIClient()
             client.force_authenticate(self.merchant_a)
-            resumed = client.post(url, {}, format="json")
+            resumed = client.post(url, retry_body or {}, format="json")
             post.assert_called_once()
         self.assertEqual(len({data["payment_id"] for _, data in results}), 1)
         self.assertEqual(Payment.objects.count(), 1)
-        self.assertEqual(PaymentCheckoutSession.objects.count(), 1)
+        self.assertEqual(PaymentCheckoutSession.objects.count(), 2 if retry_body else 1)
         self.assertEqual(Payment.objects.get().PYMT_STATUS, "pending")
         self.assertFalse(PaidMerchantPlusEntitlement.objects.exists())
         return results, resumed
@@ -95,3 +97,24 @@ class CheckoutConcurrencyTests(MerchantAnalyticsFixtures, TransactionTestCase):
         self.assertEqual([status for status, _ in results], [202, 202])
         self.assertEqual(resumed.status_code, 202)
         self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_STATE, "creation_unknown")
+
+    def test_concurrent_terminal_retries_reserve_one_replacement(self):
+        payment, _ = PaymentService.create_or_get_payment(self.merchant_a)
+        old_checkout = PaymentCheckoutSession.objects.create(
+            PYMT_ID=payment,
+            PCHK_PROVIDER="maya",
+            PCHK_MODE="test",
+            PCHK_STATE="ready",
+            PCHK_PROVIDER_STATUS="PAYMENT_CANCELLED",
+            PCHK_PROVIDER_SESSION_ID="87654321-4321-4321-8321-876543218765",
+            PCHK_CHECKOUT_URL=f"{CHECKOUT_URL}&previous=1",
+        )
+        results, resumed = self.race(retry_body={
+            "retry_checkout_reference": str(old_checkout.PCHK_OPERATION_REFERENCE),
+        })
+        self.assertEqual(sorted(status for status, _ in results), [201, 202])
+        self.assertEqual(resumed.status_code, 200)
+        self.assertEqual(resumed.data["data"]["checkout_session_id"], CHECKOUT_ID)
+        old_checkout.refresh_from_db()
+        self.assertEqual(old_checkout.PCHK_STATE, "superseded")
+        self.assertEqual(old_checkout.PCHK_PROVIDER_STATUS, "PAYMENT_CANCELLED")

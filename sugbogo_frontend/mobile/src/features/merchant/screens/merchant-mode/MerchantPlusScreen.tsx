@@ -20,6 +20,7 @@ import MerchantPlusPaymentState from "../../components/merchant-plus/MerchantPlu
 import {
   hasPaidMerchantPlus,
   hasResumableMerchantPlusCheckout,
+  merchantPlusPaymentState,
 } from "../../utils/merchantPlusPayment";
 
 const colors = theme.extends.colors;
@@ -205,6 +206,13 @@ export default function MerchantPlusScreen() {
   const paidActive = !access.error && hasPaidMerchantPlus(status);
   const unresolved = !!status?.unresolved_payment_id;
   const resume = hasResumableMerchantPlusCheckout(status);
+  const terminal = ["expired", "failed", "cancelled"].includes(
+    merchantPlusPaymentState(status),
+  );
+  const retryReference =
+    terminal && status?.unresolved_payment_status === "pending"
+      ? status.checkout_retry_reference ?? undefined
+      : undefined;
   const product = status?.product;
   const offerValid =
     product?.code === "merchant_plus" &&
@@ -217,7 +225,9 @@ export default function MerchantPlusScreen() {
     !access.error &&
     offerValid &&
     status?.checkout_enabled === true &&
-    ((!unresolved && status.purchase_eligible === true) || resume);
+    ((!unresolved && status.purchase_eligible === true) ||
+      resume ||
+      !!retryReference);
   const showOffer =
     access.state !== "loading" && !access.error && !paidActive && !unresolved;
   const checkoutProgress =
@@ -226,6 +236,12 @@ export default function MerchantPlusScreen() {
       : checkout.phase === "opening"
         ? "Opening Maya Checkout…"
         : null;
+  let checkoutTitle = "Pay ₱1.00";
+  if (resume) {
+    checkoutTitle = "Continue checkout";
+  } else if (retryReference) {
+    checkoutTitle = "Try again";
+  }
 
   return (
     <SafeAreaView
@@ -313,19 +329,16 @@ export default function MerchantPlusScreen() {
         )}
       </ScrollView>
       {/* Safe-area-aware checkout action */}
-      {(canPurchase || showOffer) && (
+      {(canPurchase || showOffer || (terminal && !access.error)) && (
         <View className="gap-2.5 border-t border-border-primary bg-surface px-4 py-3">
-          {!resume && <OfferPrice />}
+          {showOffer && <OfferPrice />}
           {canPurchase ? (
             <>
               <OfferButton
-                title={
-                  checkoutProgress ??
-                  (resume ? "Continue checkout" : "Pay ₱1.00")
-                }
+                title={checkoutProgress ?? checkoutTitle}
                 loading={checkout.busy}
                 disabled={checkout.busy}
-                onPress={checkout.startCheckout}
+                onPress={() => checkout.startCheckout(retryReference)}
               />
               {checkoutProgress && (
                 <AppText
@@ -336,6 +349,13 @@ export default function MerchantPlusScreen() {
                 </AppText>
               )}
             </>
+          ) : terminal ? (
+            <Button
+              title="Check payment status"
+              variant="soft"
+              rounded="full"
+              onPress={onCheckPayment}
+            />
           ) : (
             <>
               <View className="flex-row items-start gap-2 rounded-card bg-surface-muted px-3 py-2.5">

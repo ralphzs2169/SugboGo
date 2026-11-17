@@ -58,7 +58,7 @@ function CheckoutEntry() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Open Maya"
-        onPress={checkout.startCheckout}
+        onPress={() => checkout.startCheckout()}
       />
     </>
   );
@@ -106,6 +106,36 @@ it("serializes rapid taps into one checkout action and one browser session", asy
   expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(1);
   expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(
     checkout.checkout_url,
+    { createTask: false },
+  );
+  expect(router.replace).not.toHaveBeenCalled();
+});
+
+it("sends the terminal attempt reference only once and opens the replacement Maya URL", async () => {
+  const reference = "87654321-4321-4321-8321-876543218765";
+  const replacementUrl = "https://payments-web-sandbox.paymaya.com/checkout?id=replacement";
+  jest.mocked(service.createMerchantPlusCheckout).mockResolvedValueOnce({
+    success: true,
+    message: "ready",
+    data: { ...checkout, checkout_url: replacementUrl },
+  });
+  const hook = await renderHook(() => useMerchantPlusCheckout(), {
+    wrapper: Wrapper,
+  });
+
+  await act(async () => {
+    hook.result.current.startCheckout(reference);
+    hook.result.current.startCheckout(reference);
+  });
+
+  await waitFor(() => expect(WebBrowser.openBrowserAsync).toHaveBeenCalledTimes(1));
+  expect(service.createMerchantPlusCheckout).toHaveBeenCalledTimes(1);
+  expect(service.createMerchantPlusCheckout).toHaveBeenCalledWith(
+    expect.any(AbortSignal),
+    reference,
+  );
+  expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(
+    replacementUrl,
     { createTask: false },
   );
   expect(router.replace).not.toHaveBeenCalled();

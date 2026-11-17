@@ -8,7 +8,7 @@ export type MerchantPlusCheckout = {
   currency: string;
   payment_status: "pending" | "paid";
   fulfilment_status: string;
-  checkout_status: string;
+  checkout_status: string | null;
   checkout_session_id: string | null;
   checkout_url: string | null;
   next_action: "open_checkout" | "wait";
