@@ -92,23 +92,21 @@ function Analytics() {
         </StickyContextBar>
         {createPortal(<AnalyticsPeriodControl compact value={period} onChange={setPeriod} />, periodContainer)}
         {/* Conditional mounting keeps inactive reports and taxonomy requests dormant */}
-        <div role="tabpanel" id={`analytics-topics-panel-${active}`} aria-labelledby={`analytics-topics-${active}`} tabIndex={0} className="min-w-0 space-y-4 rounded focus-visible:outline-2 focus-visible:outline-info">
+        <div role="tabpanel" id={`analytics-topics-panel-${active}`} aria-labelledby={`analytics-topics-${active}`} tabIndex={0} className="min-w-0 rounded focus-visible:outline-2 focus-visible:outline-info">
           {active === "growth-discovery" && (
-            <>
+            <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
               <PlatformGrowthSection period={period} />
-              <div className="grid min-w-0 items-start gap-4 xl:grid-cols-2">
-                <DiscoveryActivitySection period={period} />
-                <DiscoverySourcesSection period={period} />
-              </div>
+              <DiscoveryActivitySection period={period} />
+              <DiscoverySourcesSection period={period} />
               <TransportationPlanningSection period={period} />
-            </>
+            </div>
           )}
           {active === "operations" && <OnboardingSection period={period} />}
           {active === "community-trust" && (
-            <>
+            <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
               <CommunityHealthSection period={period} />
               <SpecialtySupportSection />
-            </>
+            </div>
           )}
           {active === "business-ecosystem" && <GeographicDistributionSection period={period} />}
         </div>

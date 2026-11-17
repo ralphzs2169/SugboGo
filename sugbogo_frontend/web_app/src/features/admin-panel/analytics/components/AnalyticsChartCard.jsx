@@ -5,11 +5,11 @@ import AnalyticsSection from "./AnalyticsSection";
  */
 export default function AnalyticsChartCard({ children, summary, summaryContent, accessibleData, compact = false, ...section }) {
   return (
-    <AnalyticsSection {...section}>
+    <AnalyticsSection compact={compact} {...section}>
       {/* Chart and readable alternative */}
       {summaryContent}
       <figure className="min-w-0">
-        <div className={compact ? "h-56 min-w-0 2xl:h-60" : "h-56 min-w-0 sm:h-60"}>{children}</div>
+        <div className={compact ? "h-48 min-w-0 sm:h-52" : "h-56 min-w-0 sm:h-60"}>{children}</div>
         {summary && <figcaption className="mt-3 text-sm leading-relaxed text-text-secondary">{summary}</figcaption>}
       </figure>
       {accessibleData}

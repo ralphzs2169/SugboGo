@@ -23,13 +23,14 @@ export default function SpecialtySupportSection() {
   return (
     <>
       <AnalyticsSection
+        compact
         titleIcon={Tags}
-        onAbout={() => setMode("about")} aboutDisabled={!data} title="Specialty Support" description="Current specialty evidence and leading endorsements." {...state}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Specialty Support" description="Current endorsements and top-supported specialties." {...state}
         footer={<AnalyticsReportFooter title="Specialty Support" meta={data?.meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
         {/* Backend global totals stay independent of tag-level supporter counts */}
         <AnalyticsSummary compact items={[["valid_vouches", "Valid endorsements"], ["distinct_supporters", "Distinct supporters"], ["supported_businesses", "Supported businesses"], ["supported_specialties", "Supported specialties"]].map(([key, label]) => ({ label, value: formatCount(data?.summary?.[key]) }))} />
-        <div className="mt-5"><AnalyticsRanking label="Top-supported specialties" rows={rows.slice(0, 5).map((row) => ({ id: row.specialty_id, name: row.name, value: row.valid_vouches }))} emptyMessage="No specialties currently have valid support." /></div>
+        <div className="mt-3"><AnalyticsRanking label="Top-supported specialties" rows={rows.slice(0, 5).map((row) => ({ id: row.specialty_id, name: row.name, value: row.valid_vouches }))} emptyMessage="No specialties currently have valid support." /></div>
       </AnalyticsSection>
       {/* The complete supplied breakdown and methodology share the existing drawer. */}
       <AnalyticsDetailDrawer mode={mode} onClose={() => setMode(null)} title="Specialty Support"

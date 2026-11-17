@@ -74,7 +74,7 @@ export function GrowthTooltip({ active, payload, interval, inProgressDate }) {
 /** Keeps chart summaries at their natural width, wrapping on narrow screens. */
 function GrowthStatistics({ activity }) {
   return (
-    <dl className="mb-4 grid w-full min-w-0 max-w-2xl grid-cols-1 gap-y-4 sm:grid-cols-2">
+    <dl className="mb-2 grid w-full min-w-0 grid-cols-2 gap-2">
       {SERIES.map((series) => {
         const metric = activity?.[series.key];
         const change = metric?.change;
@@ -96,7 +96,7 @@ function GrowthStatistics({ activity }) {
         return (
           <div
             key={series.key}
-            className="min-w-0 sm:first:pr-8 sm:[&:not(:first-child)]:border-l sm:[&:not(:first-child)]:border-stroke sm:[&:not(:first-child)]:pl-8"
+            className="min-w-0 sm:[&:not(:first-child)]:border-l sm:[&:not(:first-child)]:border-stroke sm:[&:not(:first-child)]:pl-3"
           >
             <dt className="flex min-h-8 flex-wrap items-center gap-x-1 text-xs font-medium leading-5 text-text-secondary">
               <span className="text-sm text-text-primary">{series.title}</span>
@@ -125,14 +125,14 @@ function GrowthStatistics({ activity }) {
                 </Tooltip>
               )}
             </dt>
-            <dd className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-              <span className="text-3xl font-semibold tracking-tight text-text-primary tabular-nums">{formatCount(metric?.value)}</span>
+            <dd className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-2xl font-semibold tracking-tight text-text-primary tabular-nums">{formatCount(metric?.value)}</span>
               <span className={`inline-flex items-center gap-1 text-sm font-medium ${getMetricVariant(hasComparison ? variant : "neutral").text}`}>
                 {hasComparison && <TrendIcon aria-hidden="true" className="h-3 w-3 shrink-0" />}
                 <span>{hasComparison ? comparison : "Comparison unavailable"}</span>
               </span>
             </dd>
-            <dd className="mt-2 text-sm text-text-secondary">
+            <dd className="mt-1 text-xs text-text-secondary">
               Previous period: {formatCount(metric?.previous_value)}
             </dd>
           </div>
@@ -184,7 +184,7 @@ export default function PlatformGrowthSection({ period }) {
         onAbout={() => setMode("about")} aboutDisabled={!data}
         title="Platform Growth"
         description="New accounts and businesses joining SugboGo."
-        compactHeader
+        compact
         {...state}
         controls={<AnalyticsIntervalControl value={interval} onChange={setInterval} />}
         skeleton={
@@ -198,7 +198,7 @@ export default function PlatformGrowthSection({ period }) {
                 </div>
               ))}
             </div>
-            <div aria-hidden="true" className="h-56 rounded-lg bg-skeleton motion-safe:animate-pulse sm:h-60" />
+            <div aria-hidden="true" className="h-48 rounded-lg bg-skeleton motion-safe:animate-pulse sm:h-52" />
           </div>
         }
         footer={
@@ -235,7 +235,7 @@ export default function PlatformGrowthSection({ period }) {
             New accounts and businesses by {isWeekly ? "calendar week" : "day"}.
             Zero-activity buckets remain on the axis. View data provides exact counts and counted dates.
           </figcaption>
-          <div className="h-56 min-w-0 sm:h-60">
+          <div className="h-48 min-w-0 sm:h-52">
             <AnalyticsTimeSeries
               chartType="bar"
               rows={data?.series}

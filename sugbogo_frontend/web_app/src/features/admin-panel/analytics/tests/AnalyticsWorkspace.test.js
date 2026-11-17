@@ -22,10 +22,16 @@ let reads;
 let failures;
 let overrides;
 let initialEntries;
+const originalResizeObserver = globalThis.ResizeObserver;
 
 before(async () => {
   dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost", pretendToBeVisual: true });
   globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, Node: dom.window.Node, Element: dom.window.Element, HTMLElement: dom.window.HTMLElement, CustomEvent: dom.window.CustomEvent, MutationObserver: dom.window.MutationObserver, IS_REACT_ACT_ENVIRONMENT: true });
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
   dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
@@ -95,6 +101,8 @@ after(async () => {
   dom.window.close();
   globalThis.CustomEvent = originalCustomEvent;
   globalThis.getComputedStyle = originalGetComputedStyle;
+  if (originalResizeObserver) globalThis.ResizeObserver = originalResizeObserver;
+  else delete globalThis.ResizeObserver;
   for (const key of ["window", "document", "Node", "Element", "HTMLElement", "MutationObserver", "IS_REACT_ACT_ENVIRONMENT", "__dashboardTransport"]) delete globalThis[key];
 });
 
@@ -602,7 +610,7 @@ test("transportation donut reconciles methods and drawer destinations with perio
   assert.equal(methods.find((row) => row.method === "OTHER").count, 0);
   assert.match(report.textContent, /Distinct requesting accounts: 2/);
   assert.match(report.textContent, /not completed journeys/);
-  assert.ok(report.querySelector(".sm\\:grid-cols-2"));
+  assert.ok(report.querySelector('[class~="@md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"]').contains(report.querySelector("[data-pie]")));
   await click([...report.querySelectorAll("button")].find((button) => button.textContent.includes("View data")));
   assert.match(document.querySelector("dialog[open]").textContent, /Recorded planning activity/);
   assert.match(document.querySelector("dialog[open]").textContent, /36\.36%/);
@@ -705,6 +713,9 @@ test("report titles open readable About drawers while footer reliability stays i
       await click(reliability);
       assert.equal(document.querySelector("dialog[open]"), null);
       await act(async () => trigger.focus());
+      if (title === "First Profile Visit Source") {
+        await until(() => document.querySelector('[role="tooltip"]')?.textContent.includes("Subsequent visits that day are deduplicated."));
+      }
       await click(trigger);
       const drawer = document.querySelector("dialog[open]");
       assert.match(drawer.textContent, /What this report shows/);
@@ -718,8 +729,9 @@ test("report titles open readable About drawers while footer reliability stays i
       assert.doesNotMatch(drawer.textContent, /Technical details|best_effort_delivery|coverage_verified|partial_reasons|generated_at|end_exclusive|PROFILE_VISIT|MongoDB|half-open|Asia\/Manila/);
       if (title === "First Profile Visit Source") {
         assert.match(drawer.textContent, /latest fully captured date has not been confirmed/);
-        assert.match(report.textContent, /first recorded entry point.*UTC calendar day/);
-        assert.match(report.textContent, /same account to that business on the same UTC day are deduplicated/);
+        const description = document.getElementById(report.getAttribute("aria-describedby"));
+        assert.equal(description.textContent, "Where explorers first accessed business profiles each day.");
+        assert.equal(trigger.getAttribute("data-tooltip-content"), "Shows the first recorded source per explorer and business each UTC day. Subsequent visits that day are deduplicated.");
         assert.match(drawer.textContent, /Explorer or Merchant account/);
         assert.match(drawer.textContent, /first recorded source/);
         assert.match(drawer.textContent, /can differ from where the visitor originally discovered the business/);
@@ -824,8 +836,7 @@ test("platform growth presents only accounts and businesses while preserving com
   assert.doesNotMatch(growth.textContent, /approvals/i);
   const summary = growth.querySelector("dl");
   assert.equal(summary.children.length, 2);
-  assert.ok(summary.classList.contains("max-w-2xl"));
-  assert.ok(summary.classList.contains("sm:grid-cols-2"));
+  assert.ok(summary.classList.contains("grid-cols-2"));
   assert.ok(summary.children[1].querySelector('svg[fill="currentColor"]'));
   assert.match(summary.children[0].textContent, /New accounts7No changePrevious period: 7/);
   assert.match(summary.children[1].textContent, /New businesses13 fewerPrevious period: 4/);
@@ -953,14 +964,16 @@ test("platform growth tooltip retains counted dates, week progress and unknown v
   assert.match(growthCoverageDescription({ is_partial: true, partial_reasons: [] }), /additional reporting limitations/);
 });
 
-test("growth layout keeps paired discovery panels", async () => {
+test("growth reports follow the requested order in the responsive grid", async () => {
   await mount();
   const growth=section("Platform Growth");
   const activity=section("Discovery Activity");
   const sources=section("First Profile Visit Source");
-  assert.equal(activity.parentElement,sources.parentElement);
-  assert.ok(activity.parentElement.classList.contains("xl:grid-cols-2"));
-  assert.equal(growth.parentElement,activity.parentElement.parentElement);
+  const transportation = section("Transportation Planning");
+  const grid = growth.parentElement;
+  assert.deepEqual([...grid.children], [growth, activity, sources, transportation]);
+  assert.ok(grid.classList.contains("grid-cols-1"));
+  assert.ok(grid.classList.contains("xl:grid-cols-2"));
   await selectAccounts();
   assert.match(activity.textContent,/Participating Accounts/);
   assert.match(activity.textContent,/Accounts with recorded discovery activity during each interval/);
@@ -969,7 +982,6 @@ test("growth layout keeps paired discovery panels", async () => {
     assert.equal(activity.querySelector(`#discovery-trend-metrics-${metric}`).getAttribute("aria-selected"),"true");
     assert.equal(accountTrendButton().getAttribute("aria-selected"),"false");
   }
-  assert.ok(section("Transportation Planning"));
 });
 
 test("overview is removed and its endpoint remains dormant", async () => {

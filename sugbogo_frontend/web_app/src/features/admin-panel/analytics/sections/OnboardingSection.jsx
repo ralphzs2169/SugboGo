@@ -54,19 +54,21 @@ export default function OnboardingSection({ period }) {
     <>
       <AnalyticsSection
         titleIcon={ClipboardCheck}
-        onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant Onboarding" description="Application volume, processing efficiency, and rejection patterns." {...state}
+        onAbout={() => setMode("about")} aboutDisabled={!data} title="Merchant Onboarding" description="Merchant applications, review decisions, and rejection patterns."
+        compact
+        {...state}
         action={<AnalyticsDrilldown to="/admin-panel/businesses/applications">View applications</AnalyticsDrilldown>}
         footer={<AnalyticsReportFooter title="Merchant Onboarding" meta={meta} hasData={Boolean(data)} onData={() => setMode("data")} />}
       >
         {/* Paired analytical panels retain every rejection section and weekly bucket */}
-        <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-2">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-text-primary">Application workload</h3>
             <div className="mt-1 flex items-center gap-1 text-xs text-text-secondary">
               <p>Applications submitted vs. review decisions completed each week</p>
               <OperationsHelp label="About application workload">Submissions and review decisions are independent event counts and may refer to different applications. Decisions can review earlier applications; new applications may be reviewed later. Their difference is not backlog change or conversion.</OperationsHelp>
             </div>
-            <div className="mt-3 h-56 min-w-0"><AnalyticsTimeSeries chartType="bar" rows={data?.weekly_activity} lines={LINES} tooltipContent={<WorkloadTooltip />} /></div>
+            <div className="mt-2 h-48 sm:h-52 min-w-0"><AnalyticsTimeSeries chartType="bar" rows={data?.weekly_activity} lines={LINES} tooltipContent={<WorkloadTooltip />} /></div>
           </div>
           <div className="min-w-0">
             <h3 className="mb-3 text-sm font-semibold text-text-primary">Rejection breakdown</h3>
@@ -76,7 +78,7 @@ export default function OnboardingSection({ period }) {
           </div>
         </div>
         {/* Unbordered statistics make their different populations explicit */}
-        <div className="mt-5 border-t border-stroke pt-4">
+        <div className="mt-3 border-t border-stroke pt-3">
           <OperationsStats items={[
             { label: "Current workload", value: `${formatCount(data?.legacy_statistics?.pending_review)} pending · ${formatCount(aging?.overdue)} overdue` },
             { label: "SLA compliance", value: formatPercentage(data?.legacy_statistics?.sla_compliance_rate), help: "All classified recorded reviews, regardless of the selected dates. Reviews without an SLA classification are excluded." },
@@ -84,7 +86,7 @@ export default function OnboardingSection({ period }) {
           ]} />
         </div>
         {/* Recovery is cumulative, never presented as a period-filtered trend */}
-        <div className="mt-5 flex items-center justify-between gap-4 border-t border-stroke pt-4">
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-stroke pt-3">
           <div><h3 className="text-sm font-semibold text-text-primary">Post-rejection recovery</h3><p className="mt-1 text-xs text-text-secondary">Applications that resubmitted after rejection.</p><p className="mt-1 text-xs text-text-secondary">All-time · as of now</p></div>
           <p className="text-xl font-semibold tabular-nums text-text-primary">{formatPercentage(data?.legacy_statistics?.resubmission_rate)}</p>
         </div>

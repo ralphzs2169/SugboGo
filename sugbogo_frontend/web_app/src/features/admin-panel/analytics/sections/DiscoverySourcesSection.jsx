@@ -41,18 +41,20 @@ export default function DiscoverySourcesSection({ period }) {
         onAbout={() => setMode("about")}
         aboutDisabled={!data}
         title={TITLE}
-        description="Shows the first recorded entry point for each account’s visit to a business profile per UTC calendar day. Later visits by the same account to that business on the same UTC day are deduplicated. This entry point may differ from where the visitor originally discovered the business."
+        description="Where explorers first accessed business profiles each day."
+        aboutTooltip="Shows the first recorded source per explorer and business each UTC day. Subsequent visits that day are deduplicated."
+        compact
         {...state}
         unavailable={unavailable} unavailableMessage="First profile visit sources are unavailable. This does not mean zero visits."
         isEmpty={data?.total_profile_visits === 0} emptyMessage="No profile visits were recorded during this period. View data includes all seven sources."
         footer={<AnalyticsReportFooter title={TITLE} meta={data?.meta} hasData={Boolean(data)} hasDetails={Boolean(data)} onData={() => setMode("data")} />}
       >
         <AnalyticsPeriodLabel period={data?.meta?.period} />
-        <div className="mx-auto h-80 w-full xl:h-112 min-w-0 max-w-4xl" role="img" aria-label="Recorded visits ranked by source, with Unknown shown last. Exact counts and shares are available in View data.">
+        <div className="h-56 w-full min-w-0" role="img" aria-label="Recorded visits ranked by source, with Unknown shown last. Exact counts and shares are available in View data.">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-            <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 64, bottom: 0, left: 0 }}>
+            <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 56, bottom: 0, left: 0 }}>
               <XAxis type="number" domain={[0, "auto"]} allowDecimals={false} tick={{ fill: "var(--color-text-secondary)", fontSize: 11 }} />
-              <YAxis type="category" dataKey="label" width={150} interval={0} tick={{ fill: "var(--color-text-primary)", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="label" width={120} interval={0} tick={{ fill: "var(--color-text-primary)", fontSize: 12 }} axisLine={false} tickLine={false} />
               <Tooltip content={<AnalyticsCategoryTooltip unit="visits" />} />
               <Bar dataKey="count" fill="var(--color-primary)" maxBarSize={28} isAnimationActive={false}>{rows.map((row) => <Cell key={row.source} fill={row.color} />)}<LabelList dataKey="count" position="right" formatter={formatCount} fill="var(--color-text-primary)" fontSize={11} /></Bar>
             </BarChart>

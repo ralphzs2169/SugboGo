@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { Info, LoaderCircle } from "lucide-react";
 import Button from "@/shared/components/Button";
+import Tooltip from "@/shared/components/actions/Tooltip";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import AnalyticsDataNotice from "./AnalyticsDataNotice";
 import AnalyticsReportSkeleton from "./AnalyticsReportSkeleton";
@@ -18,6 +19,7 @@ export default function AnalyticsSection({
   footer,
   onAbout,
   aboutDisabled = false,
+  aboutTooltip,
   isLoading = false,
   isFetching = false,
   hasData = false,
@@ -34,6 +36,7 @@ export default function AnalyticsSection({
   skeleton = <AnalyticsReportSkeleton />,
   framed = true,
   compactHeader = false,
+  compact = false,
   titleIcon: TitleIcon,
 }) {
   const headingId = useId();
@@ -67,21 +70,47 @@ export default function AnalyticsSection({
     content = children;
   }
 
+  let frameClass = "min-w-0";
+  if (framed) {
+    frameClass += " rounded-xl border border-stroke bg-background";
+    frameClass += compact ? " flex flex-col p-3 sm:p-4" : " p-4 sm:p-5";
+  }
+
+  const aboutButton = onAbout && (
+    <button
+      type="button"
+      aria-label={`About ${title}`}
+      aria-haspopup="dialog"
+      disabled={aboutDisabled}
+      onClick={onAbout}
+      className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Info aria-hidden="true" className="h-4 w-4" />
+    </button>
+  );
+
   return (
     <section
       aria-labelledby={headingId}
       aria-describedby={description ? descriptionId : undefined}
       aria-busy={isLoading || isFetching}
-      className={framed ? "min-w-0 rounded-xl border border-stroke bg-background p-4 sm:p-5" : "min-w-0"}
+      className={frameClass}
     >
       {/* Report heading and independent controls */}
-      <header className={`${compactHeader ? "mb-2" : "mb-3"} flex flex-wrap items-start justify-between gap-3`}>
+      <header className={`${compact || compactHeader ? "mb-2" : "mb-3"} flex flex-wrap items-start justify-between gap-3`}>
         <div className="min-w-0 flex-1 basis-36">
           <div className="flex items-center gap-1">
             <h2 id={headingId} className="text-base font-semibold text-text-primary">{TitleIcon ? <span className="flex items-center gap-2"><TitleIcon aria-hidden="true" className="h-4 w-4 shrink-0" />{title}</span> : title}</h2>
-            {onAbout && <button type="button" aria-label={`About ${title}`} aria-haspopup="dialog" disabled={aboutDisabled} onClick={onAbout} className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info disabled:cursor-not-allowed disabled:opacity-50">
-              <Info aria-hidden="true" className="h-4 w-4" />
-            </button>}
+            {aboutTooltip && aboutButton ? (
+              <Tooltip
+                content={aboutTooltip}
+                place="top"
+                asChild
+                className="!z-50 max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal !px-3 !py-2 leading-relaxed"
+              >
+                {aboutButton}
+              </Tooltip>
+            ) : aboutButton}
           </div>
           {description && <p id={descriptionId} className="mt-1 text-xs leading-relaxed text-text-secondary">{description}</p>}
         </div>
@@ -106,7 +135,7 @@ export default function AnalyticsSection({
       )}
 
       {/* Report body and optional context */}
-      <div className="min-w-0">{content}</div>
+      <div className={compact && framed ? "min-w-0 flex-1" : "min-w-0"}>{content}</div>
       {footer && <footer className="mt-3 text-sm text-text-secondary">{footer}</footer>}
     </section>
   );

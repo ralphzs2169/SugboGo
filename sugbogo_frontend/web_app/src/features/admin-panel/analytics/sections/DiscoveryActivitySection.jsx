@@ -42,7 +42,7 @@ export function DiscoveryTooltip({ active, payload, interval, selected }) {
 function DiscoverySummary({ query }) {
   const state = useAnalyticsSectionState(query, "discovery-summary", "discovery summary");
   return (
-    <div className="mb-4" aria-busy={query.isFetching}>
+    <div className="mb-2" aria-busy={query.isFetching}>
       {/* An isolated failure never removes the trend or metric controls */}
       {query.error && <DataErrorState compact retainedData={query.data != null} title="Unable to load discovery summary" message={`${state.errorMessage}${query.data ? " Previously loaded summary values are shown." : ""}`} onRetry={state.onRetry} retrying={query.isFetching} retryLabel="Retry summary" />}
       {query.data?.meta?.availability === "unavailable" && <p className="mb-2 text-xs text-text-secondary">Discovery summary is currently unavailable.</p>}
@@ -88,6 +88,7 @@ export default function DiscoveryActivitySection({ period }) {
         titleIcon={MousePointerClick}
         onAbout={() => setMode("about")} aboutDisabled={!(data || summaryQuery.data)}
         title="Discovery Activity"
+        compact
         description="Recorded discovery activity and distinct accounts."
         hasData={Boolean(data || summaryQuery.data)}
         isFetching={Boolean((data || summaryQuery.data) && (query.isFetching || summaryQuery.isFetching))}
@@ -101,7 +102,7 @@ export default function DiscoveryActivitySection({ period }) {
         <AnalyticsPeriodLabel period={reporting}>{hasComparison && <> / compared with {growthPeriodLabel(reporting?.previous_start, reporting?.previous_end_exclusive, true)}</>}</AnalyticsPeriodLabel>
         <DiscoverySummary query={summaryQuery} />
         {/* Shared DataTable tabs select one trend without changing summary totals. */}
-        <div className="mb-4 min-w-0 border-t border-stroke pt-3">
+        <div className="mb-2 min-w-0 border-t border-stroke pt-2">
           <p className="text-xs font-medium text-text-secondary">Activity Trend</p>
           <div className="overflow-x-auto pb-1">
             <TableTabs
