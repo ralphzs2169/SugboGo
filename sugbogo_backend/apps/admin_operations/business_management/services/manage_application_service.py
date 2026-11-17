@@ -467,11 +467,12 @@ class ApplicationService:
             ]
         )
 
-        # Publish only after admission commits; initialization never reads telemetry.
+        # Admit with a provisional baseline until the daily publication.
         from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 
         DiscoveryScoreRefreshService.request_refresh(
             business.BUSN_ID,
+            defer_until_daily=True,
         )
 
         # Copy permanent business landmarks.

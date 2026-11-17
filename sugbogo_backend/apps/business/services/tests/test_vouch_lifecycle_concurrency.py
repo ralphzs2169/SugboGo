@@ -15,7 +15,6 @@ from apps.business.services.discovery_score_service import DiscoveryScoreService
 from apps.business.services.tests import test_discovery_score_service as discovery_fixtures
 from apps.business.services.tests.test_vouch_lifecycle import VouchLifecycleFixtures
 from apps.business.services.vouch_service import VouchService
-from apps.business.tasks import recompute_business_discovery_score
 from apps.users.models import ReputationEvent
 
 
@@ -110,7 +109,8 @@ class ConcurrentVouchLifecycleTests(VouchLifecycleFixtures, TransactionTestCase)
         self.assertEqual(BusinessVouch.objects.count(), 1)
         self.assertEqual(ReputationEvent.objects.count(), 1)
 
-    def test_withdrawal_and_score_refresh_converge_when_scoped_work_runs(self):
+    def test_withdrawal_and_score_refresh_converge_at_the_next_batch(self):
+        """Keep concurrent evidence correct when the next daily batch publishes."""
         self._create()
         visibility = discovery_fixtures.DiscoveryScoreServiceTests._visibility_result(
             SimpleNamespace(
@@ -125,9 +125,12 @@ class ConcurrentVouchLifecycleTests(VouchLifecycleFixtures, TransactionTestCase)
             return_value=visibility,
         ):
             results = self._compete(["withdraw", "score"])
-            recompute_business_discovery_score.run(
-                business_id=self.business.pk,
-            )
+            with patch(
+                "apps.business.services.discovery_score_service."
+                "VisibilityGapService.calculate_visibility_gaps",
+                return_value=(visibility,),
+            ):
+                DiscoveryScoreService.recompute_business_scores()
 
         self.assertCountEqual(results, ["withdrawn", "scored"])
         self.assertEqual(DiscoveryScore.objects.get().DSC_S_SCORE, 0)

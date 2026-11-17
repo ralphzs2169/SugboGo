@@ -236,5 +236,9 @@ class BusinessLifecycleService:
             dedup_key=f"business-status:{business.pk}:{activity.pk}",
         )
         if not suspend:
-            DiscoveryScoreRefreshService.request_refresh(business.pk)
+            DiscoveryScoreRefreshService.request_refresh(
+                business.pk,
+                defer_until_daily=True,
+                mark_provisional=True,
+            )
         return cls.snapshot(business, owner, activity)

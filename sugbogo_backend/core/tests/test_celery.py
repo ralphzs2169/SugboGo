@@ -42,7 +42,7 @@ class CeleryConfigurationTests(SimpleTestCase):
         )
 
     def test_daily_schedule_uses_django_timezone(self):
-        """Schedules one daily run at 02:00 in Django's timezone."""
+        """Schedules Discovery at 18:00 UTC, which is 02:00 the next Manila day."""
 
         schedule_entry = settings.CELERY_BEAT_SCHEDULE[
             "daily-discovery-score-recomputation"
@@ -72,7 +72,7 @@ class CeleryConfigurationTests(SimpleTestCase):
         self.assertEqual(
             schedule.hour,
             {
-                2,
+                18,
             },
         )
         self.assertEqual(
@@ -83,6 +83,38 @@ class CeleryConfigurationTests(SimpleTestCase):
                 ),
             ),
         )
+
+    def test_other_periodic_schedules_and_global_timezone_are_unchanged(self):
+        """Keep UTC and all unrelated daily and recovery job cadences."""
+        self.assertEqual(settings.TIME_ZONE, "UTC")
+        self.assertEqual(settings.CELERY_TIMEZONE, "UTC")
+        self.assertTrue(settings.USE_TZ)
+        self.assertTrue(settings.CELERY_ENABLE_UTC)
+        schedules = settings.CELERY_BEAT_SCHEDULE
+        hourly = schedules["hourly-discovery-score-reconciliation"]["schedule"]
+        self.assertEqual(hourly.minute, {15})
+        self.assertEqual(hourly.hour, set(range(24)))
+        for name, hour in (
+            ("daily-login-history-pruning", 4),
+            ("daily-review-summary-recomputation", 3),
+        ):
+            schedule = schedules[name]["schedule"]
+            self.assertEqual(schedule.hour, {hour})
+            self.assertEqual(schedule.minute, {0})
+        media = schedules["recover-review-media-cleanup"]["schedule"]
+        self.assertEqual(media.minute, set(range(0, 60, 5)))
+        self.assertEqual(media.hour, set(range(24)))
+        for name, interval in (
+            ("recover-merchant-plus-fulfilment", 30.0),
+            ("recover-gemini-sentiment-shadow", 60.0),
+            ("recover-business-ratings", 60.0),
+            ("reconcile-business-ratings", 300.0),
+            ("recover-review-moderation-retries", 30.0),
+            ("recover-review-insight-regeneration", 30.0),
+        ):
+            self.assertEqual(schedules[name]["schedule"], interval)
+        if "recover-maya-events" in schedules:
+            self.assertEqual(schedules["recover-maya-events"]["schedule"], 30.0)
 
     def test_celery_does_not_require_a_result_backend(self):
         """Ignores task results without configuring a persistent backend."""

@@ -69,24 +69,13 @@ class VouchService:
         vouch.VOUCH_RELIABILITY_EVIDENCE = evidence
 
     @staticmethod
-    def _dispatch_score_refresh(
-        business_id: int,
-    ) -> None:
-        """Queues a scoped score refresh without failing an already committed endorsement."""
-        from apps.business.tasks import recompute_business_discovery_score
-
-        recompute_business_discovery_score.delay(
-            business_id=business_id,
-        )
-
-    @staticmethod
     def _schedule_score_refresh(
         business_id: int,
     ) -> None:
-        """Dispatches score work only after the endorsement transaction commits."""
+        """Invalidates evidence while deferring score publication to the daily batch."""
         DiscoveryScoreRefreshService.request_refresh(
             business_id,
-            publisher=VouchService._dispatch_score_refresh,
+            defer_until_daily=True,
         )
 
     @staticmethod

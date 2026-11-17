@@ -7,6 +7,7 @@ import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
 import HighlightedText from "@/shared/components/HighlightedText";
 import Avatar from "@/shared/components/Avatar";
+import ReviewAuthorMerchantBadge from "@/shared/components/reviews/ReviewAuthorMerchantBadge";
 import FullScreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import { MAX_REVIEW_PHOTOS } from "@/shared/constants/media.constants";
@@ -138,7 +139,7 @@ export default function ReviewContent({
             size={36}
           />
 
-          <View className="ml-2.5 flex-1">
+          <View className="ml-2.5 min-w-0 flex-1">
             <View className="flex-row items-center">
               <AppText
                 weight="semibold"
@@ -157,9 +158,12 @@ export default function ReviewContent({
               )}
             </View>
 
-            <AppText className="mt-0.5 text-[11px] text-text-tertiary">
-              {relativeDate(review.created_at)}
-            </AppText>
+            <View className="mt-0.5 flex-row flex-wrap items-center gap-x-2 gap-y-1">
+              <AppText className="text-[11px] text-text-tertiary">
+                {relativeDate(review.created_at)}
+              </AppText>
+              <ReviewAuthorMerchantBadge role={review.author.role} />
+            </View>
           </View>
 
           {onActions && (

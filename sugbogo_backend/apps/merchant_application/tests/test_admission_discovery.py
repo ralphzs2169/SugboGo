@@ -15,6 +15,9 @@ from apps.business.models import (
     DiscoveryScore,
 )
 from apps.business.services.discovery_score_service import DiscoveryScoreService
+from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+from apps.business.services.visibility_event_service import VisibilityEventService
+from apps.explorer_operations.explore_businesses.services.discovery_feed_service import DiscoveryFeedService
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationReview,
@@ -90,6 +93,25 @@ class AdmissionDiscoveryTests(MerchantApplicationServiceMixin, APITestCase):
         self.assertTrue(initial_score.DSC_IS_PROVISIONAL)
         self.assertIsNone(initial_score.DSC_COMPUTED_AT)
         self.assertEqual(initial_score.DSC_D_SCORE, Decimal("0.20000"))
+        self.assertTrue(initial_score.DSC_REFRESH_DEFERRED)
+        self.assertNotIn(
+            business.pk,
+            DiscoveryFeedService.list_global_hidden_gem_ids(),
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(DiscoveryScoreRefreshService.reconcile()["requested"], 0)
+        initial_score.refresh_from_db()
+        self.assertTrue(initial_score.DSC_IS_PROVISIONAL)
+        with patch.object(
+            VisibilityEventService,
+            "get_recent_visibility_metrics",
+            return_value={},
+        ):
+            result = DiscoveryScoreService.recompute_business_scores()
+        self.assertEqual(result.updated_count, 1)
+        initial_score.refresh_from_db()
+        self.assertFalse(initial_score.DSC_IS_PROVISIONAL)
+        self.assertIsNotNone(initial_score.DSC_COMPUTED_AT)
         review = MerchantApplicationReview.objects.get(MAPP_ID=self.application)
         self.assertEqual(review.USER_ID_id, self.admin.pk)
         self.assertEqual(review.MASUB_ID.MASUB_SUBMISSION_NUMBER, 1)
@@ -139,13 +161,14 @@ class AdmissionDiscoveryTests(MerchantApplicationServiceMixin, APITestCase):
         self.application.refresh_from_db()
         self.assertIsNone(self.application.BUSN_ID_id)
 
-    def test_publish_failure_leaves_admission_provisional_and_recoverable(self):
+    def test_admission_stays_healthy_and_provisional_during_broker_outage(self):
+        """Admission no longer publishes authoritative score work to the broker."""
         self._submit()
         self.client.force_authenticate(self.admin)
         with patch(
             "apps.business.tasks.recompute_business_discovery_score.delay",
             side_effect=RuntimeError("broker unavailable"),
-        ), patch(
+        ) as dispatch, patch(
             "apps.business.services.discovery_score_refresh_service.logger.exception",
         ), patch(
             "apps.notifications.services.notification_realtime_service."
@@ -158,7 +181,9 @@ class AdmissionDiscoveryTests(MerchantApplicationServiceMixin, APITestCase):
         score = DiscoveryScore.objects.get(BUSN_ID=self.application.BUSN_ID)
         self.assertTrue(score.DSC_IS_PROVISIONAL)
         self.assertIsNone(score.DSC_COMPUTED_AT)
-        self.assertEqual(score.DSC_LAST_ERROR, "DISPATCH_FAILED")
+        self.assertEqual(score.DSC_LAST_ERROR, "")
+        self.assertTrue(score.DSC_REFRESH_DEFERRED)
+        dispatch.assert_not_called()
 
     def test_legacy_rejection_records_reviewer_and_feedback_without_publication(self):
         self._submit()

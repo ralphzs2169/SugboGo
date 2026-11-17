@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
-from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch
+from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch, DiscoveryScore
 from apps.business.services.specialty_score_service import SpecialtyScoreService
 from apps.business.services.tests import test_vouch_service as fixtures
 from apps.business.services.vouch_service import VouchService
@@ -211,30 +211,32 @@ class PersistentVouchTests(VouchLifecycleFixtures, TestCase):
         self.assertTrue(restored.VOUCH_EVIDENCE_IS_VALID)
         self.assertEqual(result.valid_evidence_count, 1)
 
-    def test_only_committed_transitions_dispatch_once_and_repeated_requests_do_not(self):
+    def test_committed_transitions_defer_without_dispatch_and_noops_do_not_invalidate(self):
+        """Keep each valid transition versioned without publishing targeted work."""
         with self.captureOnCommitCallbacks(execute=True):
             self._create()
             self.dispatch.assert_not_called()
-        self.assertEqual(self.dispatch.call_count, 1)
+        self.assertEqual(DiscoveryScore.objects.get().DSC_REFRESH_VERSION, 1)
 
         with self.captureOnCommitCallbacks(execute=True):
             with self.assertRaises(ValidationError):
                 self._create()
-        self.assertEqual(self.dispatch.call_count, 1)
+        self.assertEqual(DiscoveryScore.objects.get().DSC_REFRESH_VERSION, 1)
 
         with self.captureOnCommitCallbacks(execute=True):
             self._withdraw()
-        self.assertEqual(self.dispatch.call_count, 2)
+        self.assertEqual(DiscoveryScore.objects.get().DSC_REFRESH_VERSION, 2)
 
         with self.captureOnCommitCallbacks(execute=True):
             with self.assertRaises(NotFound):
                 self._withdraw()
-        self.assertEqual(self.dispatch.call_count, 2)
+        self.assertEqual(DiscoveryScore.objects.get().DSC_REFRESH_VERSION, 2)
 
         with self.captureOnCommitCallbacks(execute=True):
             self._create()
-        self.assertEqual(self.dispatch.call_count, 3)
-        self.dispatch.assert_called_with(business_id=self.business.pk)
+        self.assertEqual(DiscoveryScore.objects.get().DSC_REFRESH_VERSION, 3)
+        self.assertTrue(DiscoveryScore.objects.get().DSC_REFRESH_DEFERRED)
+        self.dispatch.assert_not_called()
         self._assert_counts(1)
 
     def test_counter_failure_rolls_back_withdrawal_and_reinstatement(self):
@@ -279,14 +281,17 @@ class PersistentVouchTests(VouchLifecycleFixtures, TestCase):
         self.assertFalse(Notification.objects.exists())
         self._assert_counts(0)
 
-    def test_dispatch_failure_keeps_the_committed_transition_successful(self):
+    def test_broker_outage_does_not_turn_ordinary_vouch_into_failed_work(self):
+        """Deferred evidence does not attempt dispatch or acquire a dispatch error."""
         self.dispatch.side_effect = RuntimeError("broker unavailable")
         with patch(
             "apps.business.services.discovery_score_refresh_service.logger.exception",
         ) as logger, self.captureOnCommitCallbacks(execute=True):
             self._create()
 
-        logger.assert_called_once()
+        logger.assert_not_called()
+        self.dispatch.assert_not_called()
+        self.assertEqual(DiscoveryScore.objects.get().DSC_LAST_ERROR, "")
         self._assert_counts(1)
 
     def test_inactive_assignment_cannot_restore_and_reactivation_keeps_identity(self):

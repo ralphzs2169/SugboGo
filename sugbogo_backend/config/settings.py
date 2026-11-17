@@ -709,7 +709,7 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.business.tasks.recompute_discovery_scores",
         "schedule": crontab(
             minute=0,
-            hour=2,
+            hour=18,
         ),
     },
     "hourly-discovery-score-reconciliation": {

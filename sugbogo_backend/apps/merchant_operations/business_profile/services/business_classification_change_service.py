@@ -473,9 +473,11 @@ class BusinessClassificationChangeService:
         )
         from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
 
-        # Target the changed business now; the daily run refreshes comparison peers.
+        # Publish the changed business and its comparison peers in the daily run.
         DiscoveryScoreRefreshService.request_refresh(
             change_request.BUSN_ID_id,
+            defer_until_daily=True,
+            mark_provisional=True,
         )
         AdminActivityService.record_user_action(
             actor=reviewer,

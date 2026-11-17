@@ -16,9 +16,8 @@ class DiscoveryAlgorithmConfigurationSerializer(serializers.ModelSerializer):
         instance,
         validated_data,
     ):
-        """Requests shared refresh only for changed inputs used by the scoring formula."""
+        """Defers changed scoring inputs to daily publication or explicit admin work."""
         from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
-        from apps.business.models import DiscoveryScore
 
         changed = any(
             field in validated_data
@@ -27,9 +26,8 @@ class DiscoveryAlgorithmConfigurationSerializer(serializers.ModelSerializer):
         )
         instance = super().update(instance, validated_data)
         if changed:
-            DiscoveryScoreRefreshService.request_global_refresh()
-            DiscoveryScore.objects.filter(DSC_IS_PROVISIONAL=True).update(
-                DSC_D_SCORE=instance.DAC_VISIBILITY_GAP_WEIGHT,
+            DiscoveryScoreRefreshService.request_global_refresh(
+                defer_until_daily=True,
             )
         return instance
 

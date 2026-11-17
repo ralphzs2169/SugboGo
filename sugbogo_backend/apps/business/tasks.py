@@ -77,7 +77,7 @@ def recompute_business_discovery_score(
     task,
     business_id: int,
 ) -> dict:
-    """Refreshes one business from current evidence after a committed vouch change."""
+    """Recovers one due business score without publishing healthy deferred evidence."""
     reference_time = timezone.now()
 
     try:

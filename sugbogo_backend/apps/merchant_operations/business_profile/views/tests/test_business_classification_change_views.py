@@ -18,10 +18,18 @@ from apps.business.models import (
     BusinessVouch,
     Category,
     Cluster,
+    DiscoveryScore,
     Location,
     SpecialtyTag,
 )
 from apps.business.services.vouch_service import VouchService
+from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
+from apps.business.services.discovery_score_service import DiscoveryScoreService
+from apps.business.services.visibility_event_service import VisibilityEventService
+from apps.business.services.visibility_gap_service import VisibilityGapService
+from apps.explorer_operations.explore_businesses.services.discovery_feed_service import (
+    DiscoveryFeedService,
+)
 from apps.merchant_application.models import MerchantApplication
 from apps.merchant_operations.business_profile.models import (
     BusinessClassificationChangeRequest,
@@ -386,6 +394,8 @@ class BusinessClassificationChangeViewTests(TestCase):
 
     def test_submission_rejects_invalid_taxonomy_and_unchanged_sets(self):
         """Validate count, uniqueness, existence, and unordered no-op sets."""
+        self._create_published_hidden_gem()
+        before = DiscoveryScore.objects.values().get()
         for ids in (
             [self.tags[0].pk, self.tags[1].pk],
             [self.tags[0].pk, self.tags[0].pk, self.tags[1].pk],
@@ -427,6 +437,155 @@ class BusinessClassificationChangeViewTests(TestCase):
         )
         self.assertEqual(independent_cluster.status_code, 400)
         self.assertEqual(BusinessClassificationChangeRequest.objects.count(), 0)
+        self.assertEqual(DiscoveryScore.objects.values().get(), before)
+
+    def _create_published_hidden_gem(self):
+        """Start lifecycle checks with a retained authoritative qualifying score."""
+        score = DiscoveryScore.objects.create(
+            BUSN_ID=self.business,
+            DSC_S_SCORE=Decimal("0.70"),
+            DSC_V_SCORE=Decimal("0.80"),
+            DSC_D_SCORE=Decimal("0.72"),
+            DSC_COMPUTED_AT=timezone.now(),
+        )
+        self.assertIn(self.business.pk, DiscoveryFeedService.list_global_hidden_gem_ids())
+        return score
+
+    def _assert_retained_provisional_score(
+        self,
+        before,
+    ):
+        """Retain published values while withdrawing authoritative qualification."""
+        score = DiscoveryScore.objects.get(BUSN_ID=self.business)
+        for field in (
+            "DSC_S_SCORE",
+            "DSC_V_SCORE",
+            "DSC_D_SCORE",
+            "DSC_COMPUTED_AT",
+        ):
+            self.assertEqual(getattr(score, field), getattr(before, field))
+        self.assertTrue(score.DSC_IS_PROVISIONAL)
+        self.assertTrue(score.DSC_REFRESH_DEFERRED)
+        self.assertEqual(score.DSC_REFRESH_VERSION, before.DSC_REFRESH_VERSION + 1)
+        self.assertIsNotNone(score.DSC_REFRESH_REQUESTED_AT)
+        self.assertNotIn(self.business.pk, DiscoveryFeedService.list_global_hidden_gem_ids())
+        ranked = DiscoveryFeedService.list_ranked_businesses().get(pk=self.business.pk)
+        self.assertEqual(ranked.discovery_rank_score, before.DSC_D_SCORE)
+
+    def test_replacement_excludes_stale_hidden_gem_under_new_specialty_until_batch(self):
+        """Use current assignments and comparison context when authority is restored."""
+        before = self._create_published_hidden_gem()
+        BusinessVouch.objects.create(
+            BUSN_ID=self.business,
+            USER_ID=self.explorer,
+            TAG_ID=self.tags[0],
+            VOUCH_REPUTATION_SNAPSHOT=Decimal("0.80"),
+        )
+        request_id = self._submit().data["data"]["id"]
+        with patch(
+            "apps.business.tasks.recompute_business_discovery_score.delay",
+        ) as dispatch, self.captureOnCommitCallbacks(execute=True):
+            response = self._approve(request_id)
+        self.assertEqual(response.status_code, 200, response.data)
+        dispatch.assert_not_called()
+        self._assert_retained_provisional_score(before)
+        self.assertTrue(
+            DiscoveryFeedService.list_discovery_businesses(
+                user=self.explorer,
+                category_ids=[self.new_category.pk],
+                cluster_id=self.new_cluster.pk,
+                specialty_tag_id=self.tags[3].pk,
+            ).filter(pk=self.business.pk).exists(),
+        )
+        self.assertFalse(
+            DiscoveryFeedService.list_hidden_gems(
+                user=self.explorer,
+                specialty_tag_id=self.tags[3].pk,
+            ).filter(pk=self.business.pk).exists(),
+        )
+        with patch(
+            "apps.business.tasks.recompute_business_discovery_score.delay",
+        ) as recovery, self.captureOnCommitCallbacks(execute=True):
+            DiscoveryScoreRefreshService.reconcile()
+        self.assertNotIn(
+            self.business.pk,
+            [call.kwargs["business_id"] for call in recovery.call_args_list],
+        )
+        reference_time = timezone.now() + timedelta(days=1)
+        with patch.object(
+            VisibilityEventService,
+            "get_recent_visibility_metrics",
+            return_value={},
+        ), patch.object(
+            VisibilityGapService,
+            "select_comparison_group",
+            wraps=VisibilityGapService.select_comparison_group,
+        ) as comparison:
+            result = DiscoveryScoreService.recompute_business_scores(
+                business_ids=[self.business.pk],
+                reference_time=reference_time,
+            )
+        self.assertEqual(result.updated_count, 1)
+        identity = comparison.call_args.kwargs["business"]
+        self.assertEqual(identity.category_id, self.new_category.pk)
+        self.assertEqual(identity.cluster_id, self.new_cluster.pk)
+        score = DiscoveryScore.objects.get(BUSN_ID=self.business)
+        self.assertEqual(score.DSC_S_SCORE, 0)
+        self.assertFalse(score.DSC_IS_PROVISIONAL)
+        self.assertFalse(score.DSC_REFRESH_DEFERRED)
+        self.assertIsNone(score.DSC_REFRESH_REQUESTED_AT)
+        self.assertNotIn(self.business.pk, DiscoveryFeedService.list_global_hidden_gem_ids())
+        for tag in self.tags[1:4]:
+            BusinessVouch.objects.create(
+                BUSN_ID=self.business,
+                USER_ID=self.explorer,
+                TAG_ID=tag,
+                VOUCH_REPUTATION_SNAPSHOT=Decimal("0.80"),
+            )
+        with patch.object(
+            VisibilityEventService,
+            "get_recent_visibility_metrics",
+            return_value={},
+        ):
+            result = DiscoveryScoreService.recompute_business_scores(
+                business_ids=[self.business.pk],
+                reference_time=reference_time + timedelta(days=1),
+            )
+        self.assertEqual(result.updated_count, 1)
+        self.assertIn(self.business.pk, DiscoveryFeedService.list_global_hidden_gem_ids())
+
+    def test_category_only_approval_withholds_hidden_gem_comparison_authority(self):
+        """A changed comparison group alone requires score revalidation."""
+        before = self._create_published_hidden_gem()
+        request_id = self._submit(
+            category=self.new_category,
+            tags=self.tags[:3],
+        ).data["data"]["id"]
+        with patch(
+            "apps.business.tasks.recompute_business_discovery_score.delay",
+        ) as dispatch, self.captureOnCommitCallbacks(execute=True):
+            response = self._approve(request_id)
+        self.assertEqual(response.status_code, 200, response.data)
+        dispatch.assert_not_called()
+        self._assert_retained_provisional_score(before)
+
+    def test_unchanged_approval_does_not_invalidate_published_score(self):
+        """Reject an effectively unchanged proposal without changing score state."""
+        self._create_published_hidden_gem()
+        before = DiscoveryScore.objects.values().get()
+        request_id = self._submit(
+            category=self.new_category,
+            tags=self.tags[:3],
+        ).data["data"]["id"]
+        BusinessClassificationChangeRequest.objects.filter(pk=request_id).update(
+            PROPOSED_CTGRY_ID=self.old_category,
+            BCCR_PROPOSED_CLUSTER_ID=self.old_cluster.pk,
+            BCCR_PROPOSED_CATEGORY_NAME=self.old_category.CTGRY_NAME,
+            BCCR_PROPOSED_CLUSTER_NAME=self.old_cluster.CLUS_NAME,
+        )
+        response = self._approve(request_id)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertEqual(DiscoveryScore.objects.values().get(), before)
 
     def test_snapshot_labels_survive_taxonomy_renames(self):
         """Show the submitted labels even when taxonomy names later change."""
@@ -552,12 +711,14 @@ class BusinessClassificationChangeViewTests(TestCase):
             with self.captureOnCommitCallbacks(execute=True) as callbacks:
                 response = self._approve(request_id)
 
-                # Celery dispatch must wait until the transaction commits.
+                # Routine classification evidence waits for daily publication.
                 dispatch.assert_not_called()
 
-            # Both callbacks should execute after commit.
-            self.assertEqual(len(callbacks), 2)
-            dispatch.assert_called_once_with(business_id=self.business.pk)
+            self.assertEqual(len(callbacks), 1)
+            dispatch.assert_not_called()
+            self.assertTrue(
+                DiscoveryScore.objects.get(BUSN_ID=self.business).DSC_REFRESH_DEFERRED,
+            )
             publish.assert_called_once_with(
                 self.merchant.pk,
                 notification_id=ANY,
@@ -783,8 +944,8 @@ class BusinessClassificationChangeViewTests(TestCase):
             "pending",
         )
 
-    def test_dispatch_failure_does_not_undo_committed_approval(self):
-        """Retain approved data when post-commit Celery dispatch fails."""
+    def test_broker_outage_does_not_make_routine_classification_a_failed_refresh(self):
+        """Retain approved data without dispatching ordinary score work."""
         from apps.notifications.models import Notification
 
         request_id = self._submit().data["data"]["id"]
@@ -796,13 +957,10 @@ class BusinessClassificationChangeViewTests(TestCase):
         ) as logged_error:
             with self.captureOnCommitCallbacks(execute=True):
                 response = self._approve(request_id)
-        logged_error.assert_called_once()
-        self.assertEqual(
-            logged_error.call_args.kwargs["extra"],
-            {
-                "business_id": self.business.pk,
-            },
-        )
+        logged_error.assert_not_called()
+        score = DiscoveryScore.objects.get(BUSN_ID=self.business)
+        self.assertTrue(score.DSC_REFRESH_DEFERRED)
+        self.assertEqual(score.DSC_LAST_ERROR, "")
         self.assertEqual(response.status_code, 200, response.data)
         self.business.refresh_from_db()
         self.assertEqual(self.business.CTGRY_ID_id, self.new_category.pk)

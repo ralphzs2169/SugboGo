@@ -8,6 +8,7 @@ import MerchantReviewResponse from "@/features/explore/components/business-profi
 import { useReviewLike } from "@/features/explore/hooks/useReviewLike";
 import AppText from "@/shared/components/AppText";
 import Avatar from "@/shared/components/Avatar";
+import ReviewAuthorMerchantBadge from "@/shared/components/reviews/ReviewAuthorMerchantBadge";
 import FullScreenPhotoViewer from "@/shared/components/modals/FullScreenPhotoViewer";
 import SpecialtyTagChip from "@/shared/components/SpecialtyTagChip";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
@@ -124,9 +125,12 @@ function CommunityReviewCard({
             )}
           </View>
 
-          <AppText className="mt-0.5 text-[11px] text-text-secondary">
-            {formatRelativeDate(review.created_at)}
-          </AppText>
+          <View className="mt-0.5 flex-row flex-wrap items-center gap-x-2 gap-y-1">
+            <AppText className="text-[11px] text-text-secondary">
+              {formatRelativeDate(review.created_at)}
+            </AppText>
+            <ReviewAuthorMerchantBadge role={review.author.role} />
+          </View>
         </View>
       </View>
 

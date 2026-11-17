@@ -532,7 +532,7 @@ class ConcurrentVouchRemovalTests(TransactionTestCase):
 
     def setUp(self):
         dispatch = patch(
-            "apps.business.services.vouch_service.VouchService._dispatch_score_refresh",
+            "apps.business.tasks.recompute_business_discovery_score.delay",
         )
         dispatch.start()
         self.addCleanup(dispatch.stop)
