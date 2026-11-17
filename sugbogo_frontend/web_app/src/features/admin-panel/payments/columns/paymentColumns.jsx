@@ -10,7 +10,6 @@ import {
   financialState,
   fulfilmentState,
   paymentAmount,
-  paymentReviewReasons,
 } from "../utils/paymentPresentation";
 
 const column = createColumnHelper();
@@ -24,8 +23,7 @@ export default function paymentColumns(onView) {
       size: 260,
       meta: { skeleton: "longText" },
       cell: ({ row }) => {
-        const payment = row.original;
-        const { business, merchant } = payment;
+        const { business, merchant } = row.original;
         return (
           <div className="flex min-w-0 items-start gap-2.5">
             <BusinessImage
@@ -44,14 +42,6 @@ export default function paymentColumns(onView) {
               <p className="truncate text-xs text-text-secondary" title={merchant.email}>
                 {merchant.email}
               </p>
-              {payment.needs_review && (
-                <div className="mt-1.5 space-y-1">
-                  <StatusBadge variant="dangerSoft">Needs review</StatusBadge>
-                  <p className="text-xs leading-4 text-text-secondary">
-                    {paymentReviewReasons(payment)[0] ?? "See payment details"}
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         );
@@ -83,13 +73,6 @@ export default function paymentColumns(onView) {
     ...[
       ["financial_status", "Financial", 125, financialState],
       ["fulfilment_status", "Fulfilment", 135, fulfilmentState],
-      [
-        "checkout_outcome",
-        "Checkout outcome",
-        160,
-        (outcome, payment) =>
-          checkoutOutcomeState(outcome, payment.financial_status, payment.checkout_state),
-      ],
     ].map(([key, header, size, status]) =>
       column.display({
         id: key,
@@ -101,6 +84,28 @@ export default function paymentColumns(onView) {
         ),
       }),
     ),
+    column.display({
+      id: "checkout_outcome",
+      header: "Checkout outcome",
+      size: 160,
+      meta: { skeleton: "text" },
+      cell: ({ row }) => {
+        const payment = row.original;
+        const outcome = checkoutOutcomeState(
+          payment.checkout_outcome,
+          payment.financial_status,
+          payment.checkout_state,
+        );
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <PaymentBadge value={outcome} />
+            {payment.needs_review === true && (
+              <StatusBadge variant="dangerSoft">Needs review</StatusBadge>
+            )}
+          </div>
+        );
+      },
+    }),
     column.display({
       id: "created",
       header: "Created",

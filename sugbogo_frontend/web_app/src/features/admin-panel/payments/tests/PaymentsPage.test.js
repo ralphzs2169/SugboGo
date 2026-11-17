@@ -238,9 +238,17 @@ test("renders the protected directory, sidebar entry, standard columns and Test 
     /Maya.*Test.*₱1.00/,
   );
   assert.match(container.querySelector("tbody").textContent, /PayMongo/);
-  const [pending, , fulfilled] = container.querySelectorAll("tbody tr");
-  assert.match(pending.textContent, /Needs review.*Checkout creation could not be confirmed/);
+  const [flagged, , fulfilled] = container.querySelectorAll("tbody tr");
+  const { business, merchant } = paymentFixture();
+  assert.deepEqual(
+    [...flagged.cells[0].querySelectorAll("p")].map((item) => item.textContent),
+    [business.name, merchant.name, merchant.email],
+  );
+  assert.doesNotMatch(flagged.cells[0].textContent, /Needs review/);
+  assert.match(flagged.cells[6].textContent, /Outcome undetermined.*Needs review/);
+  assert.doesNotMatch(flagged.textContent, /Checkout creation could not be confirmed/);
   assert.match(fulfilled.textContent, /Paid.*Fulfilled.*Not applicable · Paid/);
+  assert.doesNotMatch(fulfilled.textContent, /Needs review/);
   assert.deepEqual(
     [...container.querySelectorAll("th")].map((cell) => cell.textContent),
     [
@@ -270,6 +278,27 @@ test("renders the protected directory, sidebar entry, standard columns and Test 
     reads.filter((read) => /\/payments\/\d+\/$/.test(read.url)).length,
     0,
   );
+});
+
+test("leaves ordinary pending payments without a review indicator", async () => {
+  const originalTransport = transport;
+  transport = async (url, options) => {
+    if (url === "/admin/payments/") {
+      const pending = paymentFixture(1, {
+        checkout_state: "ready",
+        checkout_outcome: "pending",
+        needs_review: false,
+      });
+      return listFixture(options.params, [pending]);
+    }
+    return originalTransport(url, options);
+  };
+  await render();
+  await until(() => button(inspect()));
+  const row = button(inspect()).closest("tr");
+  assert.equal(row.cells[4].textContent, "Payment pending");
+  assert.equal(row.cells[6].textContent, "Checkout in progress");
+  assert.doesNotMatch(row.textContent, /Needs review/);
 });
 
 test("uses separate global summary metrics and clickable stored-evidence filters", async () => {
@@ -520,7 +549,7 @@ test("explains a provider-event review flag alongside incomplete paid verificati
 
   await render();
   await until(() => button(inspect(3)));
-  assert.match(container.querySelector("tbody").textContent, /Needs review.*See payment details/);
+  assert.match(button(inspect(3)).closest("tr").cells[6].textContent, /Needs review/);
 
   await click(inspect(3));
   await until(summary);
