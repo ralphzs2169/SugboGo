@@ -169,6 +169,28 @@ test("controls, reset and invalid page defaults remain functional", async () => 
   }
 });
 
+test("management tables keep the selected page size in controls, requests, and the URL", async () => {
+  await render("business", ["/?page=3&search=market"]);
+  for (const pageSize of [25, 50, 10]) {
+    await act(async () => table.setPagination({ pageIndex: 0, pageSize }));
+    assert.deepEqual(table.pagination, { pageIndex: 0, pageSize });
+    assert.equal(table.params.page_size, pageSize);
+    assert.equal(table.params.page, 1);
+    assert.equal(table.params.search, "market");
+    await act(async () => table.setPagination((previous) => ({
+      ...previous,
+      pageIndex: 1,
+    })));
+    assert.equal(table.params.page, 2);
+    assert.equal(table.params.page_size, pageSize);
+  }
+
+  await go("/?page=2&page_size=25");
+  assert.deepEqual(table.pagination, { pageIndex: 1, pageSize: 25 });
+  await go("/?page_size=1000");
+  assert.equal(table.params.page_size, 10);
+});
+
 test("Update Requests restores URL search, scope and page without stale debounce writes", async () => {
   await render("updates", ["/?search=first&type=all&status=pending&page=2&keep=yes"]);
   assert.equal(globalThis.__urlTable.state.globalFilter, "first");

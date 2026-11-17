@@ -18,6 +18,16 @@ const column = createColumnHelper();
 export default function paymentColumns(onView) {
   return [
     column.display({
+      id: "rowNumber",
+      header: "No.",
+      size: 60,
+      meta: { skeleton: "number" },
+      cell: ({ row, table }) => {
+        const { pageIndex, pageSize } = table.getState().pagination;
+        return pageIndex * pageSize + row.index + 1;
+      },
+    }),
+    column.display({
       id: "merchant",
       header: "Merchant / Business",
       size: 260,

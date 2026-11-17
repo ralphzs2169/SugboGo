@@ -19,11 +19,7 @@ export default function allReviewColumns(onView) {
       meta: { skeleton: "number" },
       cell: ({ row, table }) => {
         const { pageIndex, pageSize } = table.getState().pagination;
-        return (
-          <span className="text-sm tabular-nums text-text-secondary">
-            {pageIndex * pageSize + row.index + 1}
-          </span>
-        );
+        return pageIndex * pageSize + row.index + 1;
       },
     }),
     column.display({

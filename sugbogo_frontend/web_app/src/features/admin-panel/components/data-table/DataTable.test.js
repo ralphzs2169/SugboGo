@@ -165,6 +165,10 @@ test("utility columns keep their pixel widths while content columns share the re
   assert.equal(columns[4].style.width, "112px");
   assert.match(columns[1].style.width, /calc\(/);
   assert.match(columns[2].style.width, /calc\(/);
+  const [rowNumber, name] = container.querySelectorAll("tbody td > div");
+  assert.ok(rowNumber.classList.contains("text-text-secondary"));
+  assert.ok(rowNumber.classList.contains("tabular-nums"));
+  assert.equal(name.classList.contains("text-text-secondary"), false);
   assert.equal(container.querySelectorAll("th")[2].classList.contains("text-center"), true);
   assert.equal(container.querySelectorAll("td")[2].classList.contains("text-center"), true);
   assert.equal(container.querySelector("th").style.width, "");

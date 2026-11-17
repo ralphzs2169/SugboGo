@@ -241,17 +241,18 @@ test("renders the protected directory, sidebar entry, standard columns and Test 
   const [flagged, , fulfilled] = container.querySelectorAll("tbody tr");
   const { business, merchant } = paymentFixture();
   assert.deepEqual(
-    [...flagged.cells[0].querySelectorAll("p")].map((item) => item.textContent),
+    [...flagged.cells[1].querySelectorAll("p")].map((item) => item.textContent),
     [business.name, merchant.name, merchant.email],
   );
-  assert.doesNotMatch(flagged.cells[0].textContent, /Needs review/);
-  assert.match(flagged.cells[6].textContent, /Outcome undetermined.*Needs review/);
+  assert.doesNotMatch(flagged.cells[1].textContent, /Needs review/);
+  assert.match(flagged.cells[7].textContent, /Outcome undetermined.*Needs review/);
   assert.doesNotMatch(flagged.textContent, /Checkout creation could not be confirmed/);
   assert.match(fulfilled.textContent, /Paid.*Fulfilled.*Not applicable · Paid/);
   assert.doesNotMatch(fulfilled.textContent, /Needs review/);
   assert.deepEqual(
     [...container.querySelectorAll("th")].map((cell) => cell.textContent),
     [
+      "No.",
       "Merchant / Business",
       "Provider",
       "Environment",
@@ -296,8 +297,8 @@ test("leaves ordinary pending payments without a review indicator", async () => 
   await render();
   await until(() => button(inspect()));
   const row = button(inspect()).closest("tr");
-  assert.equal(row.cells[4].textContent, "Payment pending");
-  assert.equal(row.cells[6].textContent, "Checkout in progress");
+  assert.equal(row.cells[5].textContent, "Payment pending");
+  assert.equal(row.cells[7].textContent, "Checkout in progress");
   assert.doesNotMatch(row.textContent, /Needs review/);
 });
 
@@ -374,8 +375,11 @@ test("dates validate before applying an inclusive Philippine calendar range", as
 test("ordering, page size, and pagination remain server-driven", async () => {
   await render();
   await until(() => button(inspect()));
+  const firstRowNumber = () => button(inspect())?.closest("tr").cells[0].textContent;
+  assert.equal(firstRowNumber(), "1");
   await click("Next page");
   await until(() => listReads().at(-1).params.page === 2);
+  await until(() => firstRowNumber() === "11");
   await click("Sort payments: Newest first");
   await click("Amount: highest first");
   await until(() => listReads().at(-1).params.ordering === "amount_highest");
@@ -384,6 +388,9 @@ test("ordering, page size, and pagination remain server-driven", async () => {
   await click("25");
   await until(() => listReads().at(-1).params.page_size === 25);
   assert.equal(listReads().at(-1).params.page, 1);
+  await until(() => firstRowNumber() === "1");
+  await click("Next page");
+  await until(() => firstRowNumber() === "26");
 });
 
 test("opens all safe drawer sections and chronological provider-event metadata on demand", async () => {
@@ -494,13 +501,13 @@ test("shows missing historical evidence without inferring verification or active
 test("shows one business thumbnail and falls back for missing or broken images", async () => {
   await render();
   await until(() => button(inspect(3)));
-  const firstIdentity = container.querySelector("tbody tr").cells[0];
+  const firstIdentity = container.querySelector("tbody tr").cells[1];
   assert.equal(firstIdentity.querySelector("img"), null);
   assert.ok(firstIdentity.querySelector("svg.lucide-image"));
 
   const paid = paymentFixture(3);
   const row = button(inspect(3)).closest("tr");
-  const identity = row.cells[0];
+  const identity = row.cells[1];
   const image = identity.querySelector("img");
   assert.equal(image.getAttribute("src"), paid.business.cover_photo_url);
   assert.equal(row.querySelectorAll("img").length, 1);
@@ -549,7 +556,7 @@ test("explains a provider-event review flag alongside incomplete paid verificati
 
   await render();
   await until(() => button(inspect(3)));
-  assert.match(button(inspect(3)).closest("tr").cells[6].textContent, /Needs review/);
+  assert.match(button(inspect(3)).closest("tr").cells[7].textContent, /Needs review/);
 
   await click(inspect(3));
   await until(summary);
