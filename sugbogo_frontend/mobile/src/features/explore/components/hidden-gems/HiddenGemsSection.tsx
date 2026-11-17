@@ -8,7 +8,6 @@ import Skeleton from "@/shared/components/Skeleton";
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
-import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 import ExploreSectionHeader from "../ExploreSectionHeader";
 import HiddenGemSpotlight from "./HiddenGemSpotlight";
 import ExploreQueryNotice from "../ExploreQueryNotice";
@@ -33,8 +32,8 @@ type Props = {
 /**
  * Displays the primary backend-ranked Hidden Gems section.
  *
- * Handles loading, recovery, retry, and empty states while delegating
- * successful carousel presentation and impression tracking to shared UI.
+ * Preserves loading and retry feedback and hides the section when no gems
+ * qualify.
  */
 export default function HiddenGemsSection({
   offline = false,
@@ -105,24 +104,7 @@ export default function HiddenGemsSection({
     );
   }
 
-  if (businesses.length === 0) {
-    return (
-      <View className="py-6" testID="hidden-gems-empty">
-        {/* Section heading */}
-        <ExploreSectionHeader
-          title="Hidden Gems"
-          subtitle="Great local places that deserve more discovery."
-        />
-
-        {/* Empty discovery state */}
-        <ExploreSectionEmptyState
-          title="No Hidden Gems yet"
-          description="Check back as more places earn community recognition."
-          icon="compass-outline"
-        />
-      </View>
-    );
-  }
+  if (businesses.length === 0) return null;
 
   const firstBusiness = businesses[0];
   const spotlight =

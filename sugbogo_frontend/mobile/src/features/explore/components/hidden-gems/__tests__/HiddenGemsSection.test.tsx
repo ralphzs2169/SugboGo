@@ -198,30 +198,29 @@ describe("HiddenGemsSection", () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a compact non-error state after a successful empty response", async () => {
+  it("hides an empty feed and shows it again when a gem qualifies", async () => {
+    const props = {
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+      impressions: createImpressions(),
+      spotlightImpressions: createImpressions(),
+      userLocation: null,
+      onBusinessPress: jest.fn(),
+    };
+    const businesses = [createBusiness(1, "Qualifying gem", 10.31)];
     const screen = await render(
-      <HiddenGemsSection
-        businesses={[]}
-        isLoading={false}
-        error={null}
-        refetch={jest.fn()}
-        impressions={createImpressions()}
-        spotlightImpressions={createImpressions()}
-        userLocation={null}
-        onBusinessPress={jest.fn()}
-      />,
+      <HiddenGemsSection {...props} businesses={businesses} />,
     );
 
-    expect(screen.getByTestId("hidden-gems-empty")).toBeTruthy();
-    expect(screen.getByText("Hidden Gems")).toBeTruthy();
-    expect(
-      screen.getByText("Great local places that deserve more discovery."),
-    ).toBeTruthy();
-    expect(screen.getByText("No Hidden Gems yet")).toBeTruthy();
-    expect(
-      screen.getByText("Check back as more places earn community recognition."),
-    ).toBeTruthy();
+    await screen.rerender(<HiddenGemsSection {...props} businesses={[]} />);
+    expect(screen.queryByText("Hidden Gems")).toBeNull();
+    expect(screen.queryByText("Qualifying gem")).toBeNull();
     expect(screen.queryByTestId("discovery-retry")).toBeNull();
-    expect(screen.queryByTestId("hidden-gems-scroll")).toBeNull();
+
+    await screen.rerender(
+      <HiddenGemsSection {...props} businesses={businesses} />,
+    );
+    expect(screen.getByText("Qualifying gem")).toBeTruthy();
   });
 });
