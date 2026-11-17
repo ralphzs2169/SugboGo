@@ -97,10 +97,11 @@ class PaymentInspectionListSerializer(serializers.ModelSerializer):
         self,
         payment,
     ):
-        """Project only the business identity needed to inspect the purchase."""
+        """Project the business identity and its existing Admin display cover."""
         return {
             "id": payment.BUSN_ID_id,
             "name": payment.BUSN_ID.BUSN_NAME,
+            "cover_photo_url": payment.display_cover_photo_url,
         }
 
 

@@ -76,7 +76,7 @@ export default function PaymentsPage() {
           onResetFilters={table.resetFilters}
           config={{
             tableLabel: "All payments",
-            tableMinWidth: 1500,
+            tableMinWidth: 1185,
             scrollbarClassName: "themed-scrollbar",
             searchPlaceholder:
               "Search reference, merchant, business, or provider payment ID…",

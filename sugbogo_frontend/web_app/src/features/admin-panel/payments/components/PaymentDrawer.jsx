@@ -42,7 +42,7 @@ export default function PaymentDrawer({ paymentId, onClose }) {
     <Modal
       isOpen
       title="Payment Details"
-      description={`Inspect payment #${paymentId}`}
+      description="Read-only inspection of a Merchant Plus purchase"
       onClose={close}
       placement="right"
       maxWidth="max-w-3xl"
@@ -56,8 +56,10 @@ export default function PaymentDrawer({ paymentId, onClose }) {
           <ModerationDetailSkeleton
             label="Loading payment details"
             sections={[
+              "Status summary",
               "Payment",
-              "Checkout",
+              "Merchant & Business",
+              "Checkout history",
               "Verification",
               "Fulfilment / Merchant Plus entitlement",
               "Provider events",

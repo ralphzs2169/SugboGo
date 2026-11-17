@@ -23,13 +23,13 @@ const METRICS = [
     key: "paid",
     title: "Paid",
     icon: CheckCircle2,
-    description: "Verified successful payments",
+    description: "Payments recorded as paid",
   },
   {
     key: "needs_review",
     title: "Needs Review",
     icon: Flag,
-    description: "Stored attention or uncertainty",
+    description: "Records flagged for investigation",
   },
 ];
 const GRID = "grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4";
@@ -112,9 +112,8 @@ export default function PaymentMetrics({ filters, onFilterChange }) {
         </div>
       )}
       <p className="mt-2 text-xs text-text-secondary">
-        Global counts include Test and Live records. Needs Review overlaps other
-        counts: fulfilment needs attention, checkout creation unknown, or
-        provider events needing attention.
+        Global counts include Test and Live records. Records flagged for review
+        may also appear in the Paid or Pending counts.
         {hasData && query.isFetching && (
           <span role="status"> Refreshing metrics…</span>
         )}

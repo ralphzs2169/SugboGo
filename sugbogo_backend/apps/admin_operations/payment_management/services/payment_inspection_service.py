@@ -18,6 +18,7 @@ from django.db.models import (
 from django.db.models.functions import Cast, Concat
 from rest_framework.exceptions import NotFound
 
+from apps.business.services.display_cover_photo import display_cover_photo_expression
 from apps.payments.constants import MERCHANT_PLUS_PRODUCT
 from apps.payments.models import Payment, PaymentCheckoutSession, PaymentProviderEvent
 from apps.shared.analytics.date_ranges import MANILA
@@ -102,7 +103,9 @@ class PaymentInspectionService:
     @staticmethod
     def list_payments(filters):
         """Apply validated criteria and deterministic ordering before pagination."""
-        queryset = PaymentInspectionService.queryset()
+        queryset = PaymentInspectionService.queryset().annotate(
+            display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+        )
         search = filters.get("search")
         if search:
             queryset = queryset.annotate(
@@ -173,6 +176,9 @@ class PaymentInspectionService:
             payment = (
                 PaymentInspectionService.queryset()
                 .select_related("paid_plus_entitlement", "BUSN_ID__USER_ID")
+                .annotate(
+                    display_cover_photo_url=display_cover_photo_expression("BUSN_ID"),
+                )
                 .prefetch_related(
                     Prefetch(
                         "checkout_sessions",

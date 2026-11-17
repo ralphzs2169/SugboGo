@@ -14,6 +14,7 @@ export function paymentFixture(id = 1, overrides = {}) {
     business: {
       id: 20 + id,
       name: "Cebu Heritage Kitchen and Specialty Coffee",
+      cover_photo_url: id === 3 ? "https://example.test/business-cover.jpg" : null,
     },
     provider: id === 2 ? "paymongo" : "maya",
     mode: "test",
