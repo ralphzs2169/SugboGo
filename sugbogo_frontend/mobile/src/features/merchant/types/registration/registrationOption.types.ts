@@ -20,11 +20,9 @@ export interface CategoryOption {
 export type BusinessPhoto = BusinessPhotoDraft;
 
 export type BusinessDocument = {
-  id?: number;
-  uri: string;
   fileName?: string | null;
   mimeType?: string | null;
-};
+} & ({ id: number } | { id?: undefined; uri: string });
 
 export type SpecialtyTagOption = {
   id: number;

@@ -94,6 +94,19 @@ export async function saveApplicationDocuments(
   return request(apiClient.patch("/merchant/application/documents/", formData));
 }
 
+/** Requests a fresh preview link for a saved application document. */
+export async function getApplicationDocumentAccess(
+  documentId: number,
+  signal?: AbortSignal,
+): Promise<ApiResponse<{ url: string; expires_in: number }>> {
+  return request(
+    apiClient.get(
+      `/merchant/application/documents/${documentId}/access/`,
+      { signal },
+    ),
+  );
+}
+
 // Final submission
 
 export async function submitApplication(): Promise<

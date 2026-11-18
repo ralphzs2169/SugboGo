@@ -2,7 +2,7 @@ from pathlib import Path
 
 import requests
 from django.db import transaction
-from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import NotFound
 
 from apps.merchant_application.models import (
     MerchantApplication,
@@ -275,12 +275,20 @@ class DocumentService:
             )
 
     @staticmethod
-    def get_document_for_application(application, document_id):
-        return get_object_or_404(
-            MerchantApplicationDocument,
-            MDOC_ID=document_id,
-            MAPP_ID=application,
-        )
+    def get_document_for_applicant(
+        document_id,
+        applicant_id,
+    ):
+        """Retrieve an available document belonging to the given applicant."""
+        try:
+            return MerchantApplicationDocument.objects.exclude(
+                MDOC_DOCUMENT_PUBLIC_ID="",
+            ).get(
+                MDOC_ID=document_id,
+                MAPP_ID__USER_ID_id=applicant_id,
+            )
+        except MerchantApplicationDocument.DoesNotExist:
+            raise NotFound("The requested document is unavailable.")
 
     @staticmethod
     def get_document_content(document):

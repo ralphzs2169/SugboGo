@@ -10,12 +10,18 @@ const businessPhotoSchema = z.object({
   mimeType: z.string().nullable().optional(),
 });
 
-const businessDocumentSchema = z.object({
-  id: z.number().optional(),
-  uri: z.string(),
+const documentMetadataSchema = z.object({
   fileName: z.string().nullable().optional(),
   mimeType: z.string().nullable().optional(),
 });
+
+const businessDocumentSchema = z.union([
+  documentMetadataSchema.extend({ id: z.number() }),
+  documentMetadataSchema.extend({
+    id: z.undefined().optional(),
+    uri: z.string().min(1),
+  }),
+]);
 
 const verificationDocumentsSchema = z
   .object({

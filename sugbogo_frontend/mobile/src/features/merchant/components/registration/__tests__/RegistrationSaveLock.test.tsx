@@ -68,7 +68,7 @@ function Fields({ disabled }: { disabled: boolean }) {
           onPhotosChange={onPhotosChange}
         />
         <DocumentUploadCard
-          document={{ id: 1, uri: "https://example.com/existing.pdf" }}
+          document={{ id: 1, fileName: "existing.pdf" }}
           onDocumentChange={onDocumentChange}
           maxDocuments={2}
         />

@@ -56,11 +56,14 @@ before(async () => {
           if (file === "useRejectBusinessApplication.js") {
             return "export default () => ({rejectApplication: globalThis.__assessmentTestReject, isSubmitting: false})";
           }
+          if (file === "businessApplicationService.js") {
+            return "export const fetchBusinessApplicationDocumentPreview = (...args) => globalThis.__assessmentTestDocumentPreview(...args)";
+          }
           if (
             [
               "ApplicationReviewHeader.jsx",
               "ReviewContextBar.jsx",
-              "BusinessDocumentsReview.jsx",
+              "DocumentPreview.jsx",
               "BusinessHoursReview.jsx",
               "BusinessIdentityReview.jsx",
               "BusinessLocationReview.jsx",
@@ -147,6 +150,7 @@ after(async () => {
   delete globalThis.__assessmentTestDuplicates;
   delete globalThis.__assessmentTestApprove;
   delete globalThis.__assessmentTestReject;
+  delete globalThis.__assessmentTestDocumentPreview;
   delete globalThis.IS_REACT_ACT_ENVIRONMENT;
 });
 
@@ -169,6 +173,51 @@ function button(label) {
 async function click(element) {
   await act(async () => element.click());
 }
+
+test("document View fetches a fresh authenticated preview for a new tab", async (t) => {
+  application.documents = [
+    {
+      id: 23,
+      document_type: "business_registration",
+      file_name: "Permit.png",
+      document_url: "https://example.com/old-cloudinary-url",
+    },
+  ];
+  const requests = [];
+  globalThis.__assessmentTestDocumentPreview = async (...args) => {
+    requests.push(args);
+    return new Blob(["sample image"], { type: "image/png" });
+  };
+  const navigations = [];
+  const tab = {
+    opener: window,
+    document: { body: {} },
+    location: { replace: (url) => navigations.push(url) },
+    closed: false,
+    close() {
+      this.closed = true;
+    },
+  };
+  t.mock.method(window, "open", () => tab);
+  const interval = t.mock.method(window, "setInterval", () => 1);
+  t.mock.method(window, "clearInterval", () => {});
+
+  await renderPage();
+  assert.equal(requests.length, 1);
+  assert.equal(container.querySelector('a[href*="old-cloudinary-url"]'), null);
+
+  await click(button("View"));
+  assert.equal(tab.opener, null);
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1].slice(0, 2), [1, 23]);
+  assert.match(navigations[0], /^blob:/);
+  const copy = await fetch(navigations[0]);
+  assert.equal(copy.headers.get("content-type"), "image/png");
+
+  tab.close();
+  interval.mock.calls[0].arguments[0]();
+  await assert.rejects(fetch(navigations[0]));
+});
 async function editExplanation(text) {
   const input = container.querySelector("textarea");
   await act(async () => {

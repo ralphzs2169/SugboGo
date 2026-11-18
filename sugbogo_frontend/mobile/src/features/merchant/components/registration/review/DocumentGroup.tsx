@@ -33,7 +33,7 @@ export default function DocumentGroup({
         <View className="gap-2">
           {documents.map((item, index) => (
             <DocumentPreview
-              key={`${item.uri}-${index}`}
+              key={item.id ?? `${item.uri}-${index}`}
               document={item}
               showRemove={false}
               className="bg-surface"
@@ -42,6 +42,7 @@ export default function DocumentGroup({
         </View>
       ) : document ? (
         <DocumentPreview
+          key={document.id ?? document.uri}
           document={document}
           showRemove={false}
           className="bg-surface"
