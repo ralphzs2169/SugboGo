@@ -11,7 +11,11 @@ from .views.application_views import (
 )
 from .views.category_options_views import CategoryOptionsView
 from .views.cluster_options_views import ClusterOptionsView
-from .views.document_views import document_save_view
+from .views.document_views import (
+    ApplicationDocumentAccessView,
+    ApplicationDocumentPreviewView,
+    document_save_view,
+)
 from .views.identity_views import identity_save_view
 from .views.location_views import (
     nearby_landmarks_view,
@@ -51,6 +55,16 @@ urlpatterns = [
     path("operating-hours/", operating_hours_save_view,name="application-operating-hours",),
     path("photos/",name="application-photos",view=photo_save_view,),
     path("documents/",document_save_view,name="application-document-upload",),
+    path(
+        "documents/<int:document_id>/access/",
+        ApplicationDocumentAccessView.as_view(),
+        name="application-document-access",
+    ),
+    path(
+        "documents/preview/<str:token>/",
+        ApplicationDocumentPreviewView.as_view(),
+        name="application-document-preview",
+    ),
     path("<int:application_id>/review/", application_review_view, name="application-review"),
 
     path("status/", MerchantApplicationStatusView.as_view(), name="application-status"),

@@ -315,7 +315,6 @@ function application(highest = 5): ApplicationDetailResponse {
       {
         id: 1,
         document_type: "business_registration",
-        document_url: "https://example.com/permit.pdf",
         file_name: "permit.pdf",
       },
     ],

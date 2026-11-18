@@ -1,7 +1,6 @@
 
 from core.pagination import StandardPagination
 from core.responses import success_response
-from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
@@ -18,7 +17,7 @@ from apps.admin_operations.business_management.services.manage_application_servi
     ApplicationService,
 )
 from apps.authentication.permissions import HasRole
-from apps.merchant_application.services.document_service import DocumentService
+from apps.merchant_application.utils.document_preview import serve_document_preview
 from apps.users.models import User
 
 
@@ -197,11 +196,4 @@ class MerchantApplicationDocumentPreviewView(APIView):
             document_id=document_id,
         )
 
-        content, content_type = DocumentService.get_document_content(
-            document,
-        )
-
-        return HttpResponse(
-            content,
-            content_type=content_type,
-        )
+        return serve_document_preview(document)

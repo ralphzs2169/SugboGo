@@ -20,6 +20,7 @@ import FormSelect from "@/shared/components/form/FormSelect";
 import ConfirmModal from "@/shared/components/modals/ConfirmModal";
 import { handleSystemError } from "@/shared/utils/apiErrors";
 import type { AvatarKey } from "@/shared/constants/avatars";
+import { API_ERROR_CODE } from "@/shared/constants/errorCodes";
 
 import AvatarPickerBottomSheet from "../components/edit-profile/AvatarPickerBottomSheet";
 import EditProfileHeader from "../components/edit-profile/EditProfileHeader";
@@ -94,8 +95,6 @@ export default function EditProfileScreen() {
       ...prev,
       [field]: undefined,
     }));
-
-    setFormError("");
   };
 
   function handleSelectGender() {
@@ -220,12 +219,17 @@ export default function EditProfileScreen() {
           return;
         }
 
+        if (
+          response.code === API_ERROR_CODE.NETWORK_ERROR ||
+          response.code === API_ERROR_CODE.REQUEST_TIMEOUT
+        ) {
+          setFormError(
+            "Couldn’t confirm your changes. Check your connection and try again.",
+          );
+          return;
+        }
+
         if (handleSystemError(response)) {
-          Toast.show({
-            type: "error",
-            text1:
-              response.message || "Unable to update profile. Please try again.",
-          });
           return;
         }
 
@@ -327,7 +331,11 @@ export default function EditProfileScreen() {
           />
 
           {formError ? (
-            <AppText className="mt-4 text-center text-sm text-text-error">
+            <AppText
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              className="mt-4 text-center text-sm text-text-error"
+            >
               {formError}
             </AppText>
           ) : null}

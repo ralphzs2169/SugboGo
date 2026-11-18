@@ -192,9 +192,10 @@ export default function BusinessApplicationReview({
             document.id,
           );
 
-          const pdfBlob = new Blob([blob], { type: "application/pdf" });
-          const objectUrl = URL.createObjectURL(pdfBlob);
-          objectUrls.push(objectUrl); // also fixes the earlier cleanup-leak bug
+          if (cancelled) return null;
+
+          const objectUrl = URL.createObjectURL(blob);
+          objectUrls.push(objectUrl);
 
           return [document.id, objectUrl];
         }),
@@ -317,6 +318,8 @@ export default function BusinessApplicationReview({
 
           {/* Verification documents */}
           <BusinessDocumentsReview
+            key={application.id}
+            applicationId={application.id}
             documents={application.documents}
             documentPreviewUrls={documentPreviewUrls}
             feedback={getSectionFeedback("documents")}

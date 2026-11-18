@@ -4,7 +4,7 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 import useUserLocation from "@/shared/hooks/useUserLocation";
 
 import useDirectJourneyMap from "../../hooks/useDirectJourneyMap";
-import useExploreBusinessProfile from "../../hooks/useExploreBusinessProfile";
+import useBusinessDetailSource from "../../hooks/useBusinessDetailSource";
 import { useJourneyOriginStore } from "../../stores/journeyOrigin.store";
 import type { DirectJourneyMapGuidance } from "../../types/directJourney.types";
 import JeepneyRouteMapScreen from "../JeepneyRouteMapScreen";
@@ -42,7 +42,7 @@ jest.mock("@gorhom/bottom-sheet", () => {
     BottomSheetScrollView: ScrollView,
   };
 });
-jest.mock("../../hooks/useExploreBusinessProfile", () => ({
+jest.mock("../../hooks/useBusinessDetailSource", () => ({
   __esModule: true,
   default: jest.fn(),
 }));
@@ -135,7 +135,8 @@ describe("JeepneyRouteMapScreen", () => {
       isRefreshingLocation: false,
       refreshLocation: jest.fn(),
     });
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: { business_name: "Sugbo Cafe" },
       isLoading: false,
       error: null,
@@ -166,7 +167,8 @@ describe("JeepneyRouteMapScreen", () => {
       isLoading: false,
       error: null,
     });
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: {
         business_name: "Sugbo Cafe",
         access_directions: "There is a ramp at the entrance.",
@@ -193,7 +195,8 @@ describe("JeepneyRouteMapScreen", () => {
 
   it("keeps long multiline merchant context collapsed until requested", async () => {
     const directions = "Use the entrance behind the chapel.\n".repeat(25);
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: { business_name: "Sugbo Cafe", access_directions: directions },
     });
     const screen = await render(
@@ -232,10 +235,42 @@ describe("JeepneyRouteMapScreen", () => {
     expect(screen.queryByText(directions.trim())).toBeNull();
   });
 
+  it.each(["recent", "offline-pocket"])(
+    "shows access notes from a %s profile on a direct journey",
+    async (source) => {
+      const directions = "Walk past the market and enter through the blue gate.";
+      (useBusinessDetailSource as jest.Mock).mockReturnValue({
+        source,
+        business: null,
+        snapshot: {
+          business: {
+            business_name: "Sugbo Cafe",
+            access_directions: directions,
+          },
+        },
+      });
+
+      const screen = await render(
+        <JeepneyRouteMapScreen
+          businessId={21}
+          routeVariantId={8}
+          boardingTransitPointId={2}
+          alightingTransitPointId={4}
+        />,
+      );
+
+      await fireEvent.press(
+        screen.getByRole("button", { name: "Arrival details" }),
+      );
+      expect(screen.getByText(directions)).toBeTruthy();
+    },
+  );
+
   it.each([undefined, null, "", " \n "])(
     "hides the merchant disclosure for blank context (%s)",
     async (directions) => {
-      (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+      (useBusinessDetailSource as jest.Mock).mockReturnValue({
+        source: "live",
         business: {
           business_name: "Sugbo Cafe",
           access_directions: directions,
@@ -254,7 +289,8 @@ describe("JeepneyRouteMapScreen", () => {
   );
 
   it("dismisses revealed merchant context when the business note is cleared", async () => {
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: {
         business_name: "Sugbo Cafe",
         access_directions: "Use the gate.",
@@ -269,7 +305,8 @@ describe("JeepneyRouteMapScreen", () => {
       />,
     );
     await fireEvent.press(screen.getByRole("button", { name: "Arrival details" }));
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: { business_name: "Sugbo Cafe", access_directions: "" },
     });
     await screen.rerender(
@@ -282,7 +319,8 @@ describe("JeepneyRouteMapScreen", () => {
     );
     expect(screen.queryByText("Use the gate.")).toBeNull();
     expect(screen.queryByRole("button", { name: "Arrival details" })).toBeNull();
-    (useExploreBusinessProfile as jest.Mock).mockReturnValue({
+    (useBusinessDetailSource as jest.Mock).mockReturnValue({
+      source: "live",
       business: { business_name: "Sugbo Cafe", access_directions: "New gate." },
     });
     await screen.rerender(

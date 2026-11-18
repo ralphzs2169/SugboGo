@@ -19,13 +19,19 @@ export async function fetchBusinessApplication(applicationId) {
 export async function fetchBusinessApplicationDocumentPreview(
   applicationId,
   documentId,
+  signal,
 ) {
   const response = await apiClient.get(
     `/admin/businesses/applications/${applicationId}/documents/${documentId}/preview/`,
     {
       responseType: "blob",
+      signal,
     },
   );
+
+  if (!["application/pdf", "image/jpeg", "image/png"].includes(response.data.type)) {
+    throw new Error("Unsupported document preview format.");
+  }
 
   return response.data;
 }

@@ -7,6 +7,7 @@ import type { z } from "zod";
 
 import Button from "@/shared/components/Button";
 import ImagePreviewModal from "@/shared/components/modals/ImagePreviewModal";
+import { getApplicationDocumentAccess } from "../../../api/merchantApplication.service";
 import { MERCHANT_REGISTRATION_DEFAULT_VALUES } from "../../../constants/registration/defaultValues.constants";
 import type { BusinessDocument } from "../../../types/registration/registrationOption.types";
 import type { merchantRegistrationSchema } from "../../../validation/merchantRegistration.schema";
@@ -19,6 +20,9 @@ jest.mock("expo-sharing", () => ({
   shareAsync: jest.fn(),
 }));
 jest.mock("react-native-toast-message", () => ({ show: jest.fn() }));
+jest.mock("../../../api/merchantApplication.service", () => ({
+  getApplicationDocumentAccess: jest.fn(),
+}));
 jest.mock("../verification-documents/DocumentPicker", () => ({
   pickBusinessDocuments: jest.fn(),
 }));
@@ -129,13 +133,37 @@ describe("document preview recovery", () => {
     },
   );
 
-  it("keeps a persisted private URL on the existing remote-open path", async () => {
-    const uri = "https://example.com/private/document.pdf?token=existing";
+  it("requests fresh access each time a saved PDF is opened", async () => {
+    const firstUrl = "https://example.com/api/documents/preview/first/";
+    const secondUrl = "https://example.com/api/documents/preview/second/";
+    jest.mocked(getApplicationDocumentAccess)
+      .mockResolvedValueOnce({
+        success: true,
+        message: "",
+        data: { url: firstUrl, expires_in: 120 },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        message: "",
+        data: { url: secondUrl, expires_in: 120 },
+      });
     const screen = await render(
-      <DocumentPreview document={{ ...pdf, id: 8, uri }} showRemove={false} />,
+      <DocumentPreview
+        document={{ id: 8, fileName: pdf.fileName, mimeType: pdf.mimeType }}
+        showRemove={false}
+      />,
     );
+    expect(getApplicationDocumentAccess).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByText(pdf.fileName!));
-    expect(Linking.openURL).toHaveBeenCalledWith(uri);
+    await fireEvent.press(screen.getByText(pdf.fileName!));
+    expect(getApplicationDocumentAccess).toHaveBeenCalledTimes(2);
+    expect(getApplicationDocumentAccess).toHaveBeenNthCalledWith(
+      1,
+      8,
+      expect.any(AbortSignal),
+    );
+    expect(Linking.openURL).toHaveBeenNthCalledWith(1, firstUrl);
+    expect(Linking.openURL).toHaveBeenNthCalledWith(2, secondUrl);
     expect(Sharing.isAvailableAsync).not.toHaveBeenCalled();
     expect(Sharing.shareAsync).not.toHaveBeenCalled();
     expect(Toast.show).not.toHaveBeenCalled();

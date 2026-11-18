@@ -558,7 +558,7 @@ class MerchantApplicationViewTests(
         document_content = b"%PDF-1.4 test document"
 
         with patch(
-            "apps.admin_operations.business_management.views.manage_application_views.DocumentService.get_document_content"
+            "apps.merchant_application.services.document_service.DocumentService.get_document_content"
         ) as mock_content:
             mock_content.return_value = (
                 document_content,

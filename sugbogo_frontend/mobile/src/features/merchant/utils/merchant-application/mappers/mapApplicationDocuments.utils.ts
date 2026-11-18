@@ -21,7 +21,6 @@ export function mapApplicationDocuments(
     businessRegistration: businessRegistration
       ? {
           id: businessRegistration.id,
-          uri: businessRegistration.document_url,
           fileName: businessRegistration.file_name,
           mimeType: inferMimeType(businessRegistration.file_name),
         }
@@ -30,7 +29,6 @@ export function mapApplicationDocuments(
     authorizationDocument: authorizationDocument
       ? {
           id: authorizationDocument.id,
-          uri: authorizationDocument.document_url,
           fileName: authorizationDocument.file_name,
           mimeType: inferMimeType(authorizationDocument.file_name),
         }
@@ -40,7 +38,6 @@ export function mapApplicationDocuments(
       .filter((document) => document.document_type === "additional_documents")
       .map((document) => ({
         id: document.id,
-        uri: document.document_url,
         fileName: document.file_name,
         mimeType: inferMimeType(document.file_name),
       })),

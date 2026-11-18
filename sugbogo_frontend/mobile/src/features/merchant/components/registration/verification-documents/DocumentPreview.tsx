@@ -1,13 +1,21 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
-import { Image, Linking, Pressable, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Linking,
+  Pressable,
+  View,
+} from "react-native";
 import * as Sharing from "expo-sharing";
 import Toast from "react-native-toast-message";
 
 import { theme } from "@/constants/theme";
+import { getApplicationDocumentAccess } from "@/features/merchant/api/merchantApplication.service";
 import type { BusinessDocument } from "@/features/merchant/types/registration/registrationOption.types";
 import ImagePreviewModal from "@/shared/components/modals/ImagePreviewModal";
 import AppText from "@/shared/components/AppText";
+import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
 type DocumentPreviewProps = {
   document: BusinessDocument;
@@ -16,28 +24,50 @@ type DocumentPreviewProps = {
   className?: string;
 };
 
+/** Opens local files and requests temporary access when a saved document is tapped. */
 export default function DocumentPreview({
   document,
   onRemove,
   showRemove = true,
   className = "",
 }: DocumentPreviewProps) {
-  const [isPreviewVisible, setIsPreviewVisible] = useState(false);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [isOpening, setIsOpening] = useState(false);
+  const openingRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => openingRef.current?.abort(), []);
 
   const isImage = document.mimeType?.startsWith("image/");
 
   const handlePreview = async () => {
-    if (isImage) {
-      setIsPreviewVisible(true);
-      return;
-    }
+    if (openingRef.current) return;
+    const controller = new AbortController();
+    openingRef.current = controller;
+    setIsOpening(true);
 
     try {
-      if (/^file:\/\//i.test(document.uri)) {
+      if (document.id !== undefined) {
+        const { url } = throwOnApiError(
+          await getApplicationDocumentAccess(document.id, controller.signal),
+        );
+        if (controller.signal.aborted) return;
+
+        if (isImage) {
+          setPreviewUri(url);
+        } else {
+          await Linking.openURL(url);
+        }
+        return;
+      }
+
+      const { uri } = document;
+      if (isImage) {
+        setPreviewUri(uri);
+      } else if (/^file:\/\//i.test(uri)) {
         if (!(await Sharing.isAvailableAsync())) {
           throw new Error("Local document handoff is unavailable.");
         }
-        await Sharing.shareAsync(document.uri, {
+        await Sharing.shareAsync(uri, {
           mimeType: document.mimeType ?? undefined,
           UTI:
             document.mimeType === "application/pdf"
@@ -45,19 +75,25 @@ export default function DocumentPreview({
               : undefined,
           dialogTitle: "Open document with another app",
         });
-      } else if (/^(https?:\/\/|content:\/\/)/i.test(document.uri)) {
-        // Keep persisted URLs and provider URIs on their existing open path.
-        await Linking.openURL(document.uri);
+      } else if (/^(https?:\/\/|content:\/\/)/i.test(uri)) {
+        await Linking.openURL(uri);
       } else {
         throw new Error("Unsupported document URI.");
       }
     } catch {
+      if (controller.signal.aborted) return;
+
       Toast.show({
         type: "error",
         text1: "Unable to open document",
         text2:
-          "This device cannot open the document right now. Try again with a compatible viewer. Your document has not been changed.",
+          document.id === undefined
+            ? "This device cannot open the document right now. Try again with a compatible viewer. Your document has not been changed."
+            : "Try opening the document again.",
       });
+    } finally {
+      openingRef.current = null;
+      if (!controller.signal.aborted) setIsOpening(false);
     }
   };
 
@@ -68,9 +104,14 @@ export default function DocumentPreview({
       >
         <Pressable
           onPress={handlePreview}
+          disabled={isOpening}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${document.fileName || "document"}`}
+          accessibilityState={{ busy: isOpening, disabled: isOpening }}
           className="flex-row flex-1 items-center pressed:opacity-70"
         >
-          {isImage ? (
+          {/* Saved files use an icon until the owner opens the preview. */}
+          {isImage && document.id === undefined ? (
             <Image
               source={{ uri: document.uri }}
               className="h-16 w-16 rounded-md"
@@ -79,7 +120,7 @@ export default function DocumentPreview({
           ) : (
             <View className="h-16 w-16 items-center justify-center rounded-md bg-surface">
               <MaterialCommunityIcons
-                name="file-document-outline"
+                name={isImage ? "image-outline" : "file-document-outline"}
                 size={32}
                 color={theme.extends.colors.text.secondary}
               />
@@ -99,6 +140,7 @@ export default function DocumentPreview({
               {isImage ? "Image" : "PDF"}
             </AppText>
           </View>
+          {isOpening && <ActivityIndicator color={theme.extends.colors.brand} />}
         </Pressable>
 
         {showRemove && onRemove && (
@@ -118,9 +160,9 @@ export default function DocumentPreview({
 
       {isImage && (
         <ImagePreviewModal
-          uri={document.uri}
-          visible={isPreviewVisible}
-          onClose={() => setIsPreviewVisible(false)}
+          uri={previewUri}
+          visible={previewUri !== null}
+          onClose={() => setPreviewUri(null)}
         />
       )}
     </>

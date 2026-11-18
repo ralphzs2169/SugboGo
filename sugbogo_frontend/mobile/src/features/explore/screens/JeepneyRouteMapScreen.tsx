@@ -16,8 +16,8 @@ import JeepneyStopGuidanceCard from "../components/getting-there/jeepney-guidanc
 import JeepneyRouteMap from "../components/getting-there/JeepneyRouteMap";
 import LocationUnavailableState from "../components/getting-there/LocationUnavailableState";
 import JeepMapGuideSkeleton from "../components/getting-there/JeepMapGuideSkeleton";
+import useBusinessDetailSource from "../hooks/useBusinessDetailSource";
 import useDirectJourneyMap from "../hooks/useDirectJourneyMap";
-import useExploreBusinessProfile from "../hooks/useExploreBusinessProfile";
 import { useJourneyOriginStore } from "../stores/journeyOrigin.store";
 import { formatJourneyDistance } from "../utils/directJourney.utils";
 import SaveOfflineJourneyButton from "@/features/offline-routes/components/SaveOfflineJourneyButton";
@@ -52,7 +52,9 @@ export default function JeepneyRouteMapScreen({
     (state) => state.confirmedOrigin,
   );
 
-  const businessQuery = useExploreBusinessProfile(businessId);
+  const detail = useBusinessDetailSource(businessId);
+  const liveBusiness = detail.source === "live" ? detail.business : null;
+  const business = liveBusiness ?? detail.snapshot?.business ?? null;
 
   const mapQuery = useDirectJourneyMap(
     businessId,
@@ -69,9 +71,8 @@ export default function JeepneyRouteMapScreen({
     fallbackMessage: "We couldn't load this journey map right now.",
   });
 
-  const businessName = businessQuery.business?.business_name ?? "Destination";
-  const businessCoverPhotoUrl =
-    businessQuery.business?.display_cover_photo_url ?? null;
+  const businessName = business?.business_name ?? "Destination";
+  const businessCoverPhotoUrl = business?.display_cover_photo_url ?? null;
 
   const storedOrigin = originBusinessId === businessId ? confirmedOrigin : null;
 
@@ -178,13 +179,13 @@ export default function JeepneyRouteMapScreen({
         landmarkName={journey.landmark_context?.name}
         arrivalLandmark={journey.arrival_landmark}
         destinationName={businessName}
-        accessDirections={businessQuery.business?.access_directions}
+        accessDirections={business?.access_directions}
         headerAction={
           <SaveOfflineJourneyButton
             key={`${businessId}:${journey.boarding_transit_point.id}:${journey.alighting_transit_point.id}:${activeOrigin!.latitude}:${activeOrigin!.longitude}`}
             businessId={businessId}
-            businessName={businessQuery.business?.business_name ?? null}
-            accessDirections={businessQuery.business?.access_directions}
+            businessName={business?.business_name ?? null}
+            accessDirections={business?.access_directions}
             journey={journey}
             origin={activeOrigin!}
           />

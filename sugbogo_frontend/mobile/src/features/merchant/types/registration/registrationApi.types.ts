@@ -153,7 +153,6 @@ export interface ApplicationDocumentPayload {
 export interface ApplicationDocumentResponse {
   id: number;
   document_type: ApplicationDocumentType;
-  document_url: string;
   file_name: string | null;
 }
 

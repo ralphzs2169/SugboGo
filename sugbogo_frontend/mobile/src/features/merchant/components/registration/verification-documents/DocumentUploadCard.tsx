@@ -121,7 +121,7 @@ export default function DocumentUploadCard({
         <View className="gap-2">
           {currentDocuments.map((item, index) => (
             <DocumentPreview
-              key={`${item.uri}-${index}`}
+              key={item.id ?? `${item.uri}-${index}`}
               document={item}
               onRemove={
                 disabled ? undefined : () => handleRemoveDocument(index)
