@@ -5,6 +5,11 @@ import useBusinessImpressions from "../../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../../types/exploreBusiness.types";
 import ExploreBusinessCarousel from "../ExploreBusinessCarouselSection";
 
+jest.mock(
+  "@/features/explore/components/ExploreSection",
+  () => jest.requireActual("react-native").View,
+);
+
 const mockSubmit = jest.fn();
 
 jest.mock("expo-router", () => ({

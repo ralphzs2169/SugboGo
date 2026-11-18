@@ -13,6 +13,7 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import useExploreSpecialties from "../../hooks/useExploreSpecialties";
 import ExploreSectionHeader from "../ExploreSectionHeader";
+import ExploreSection from "../ExploreSection";
 import ExploreBySpecialtySkeleton from "./ExploreBySpecialtySkeleton";
 
 type Props = {
@@ -69,7 +70,7 @@ export default function ExploreBySpecialtySection({
   }
 
   return (
-    <View className="py-6">
+    <ExploreSection className="py-6">
       {/* Section heading */}
       <ExploreSectionHeader
         title="Explore by Specialty"
@@ -131,6 +132,6 @@ export default function ExploreBySpecialtySection({
           })}
         </View>
       )}
-    </View>
+    </ExploreSection>
   );
 }

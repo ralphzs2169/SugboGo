@@ -1,6 +1,5 @@
 import type { LocationObject } from "expo-location";
 import { useState } from "react";
-import { View } from "react-native";
 
 import ErrorState from "@/shared/components/ErrorState";
 
@@ -9,6 +8,7 @@ import useNewBusinesses from "../../hooks/useNewBusinesses";
 import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
 import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
 import ExploreSectionHeader from "../ExploreSectionHeader";
+import ExploreSection from "../ExploreSection";
 import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 import ExploreQueryNotice from "../ExploreQueryNotice";
 
@@ -55,7 +55,7 @@ export default function NewBusinessesSection({
 
   if ((isLoading || isRetrying) && !isPaused && businesses.length === 0) {
     return (
-      <View className="py-6">
+      <ExploreSection className="py-6">
         {/* Section heading */}
         <ExploreSectionHeader
           title="New to SugboGo"
@@ -64,13 +64,13 @@ export default function NewBusinessesSection({
 
         {/* Business placeholders */}
         <ExploreBusinessCarouselSkeleton variant="default" />
-      </View>
+      </ExploreSection>
     );
   }
 
   if ((error || isPaused) && businesses.length === 0) {
     return (
-      <View className="py-6">
+      <ExploreSection className="py-6">
         {/* Section heading */}
         <ExploreSectionHeader
           title="New to SugboGo"
@@ -86,13 +86,13 @@ export default function NewBusinessesSection({
           size="section"
           icon="store-off-outline"
         />
-      </View>
+      </ExploreSection>
     );
   }
 
   if (businesses.length === 0) {
     return (
-      <View className="py-6" testID="new-businesses-empty">
+      <ExploreSection className="py-6" testID="new-businesses-empty">
         {/* Section identity stays visible after loading completes. */}
         <ExploreSectionHeader
           title="New to SugboGo"
@@ -103,7 +103,7 @@ export default function NewBusinessesSection({
           description="Check back soon for the latest additions to SugboGo."
           icon="storefront-outline"
         />
-      </View>
+      </ExploreSection>
     );
   }
 

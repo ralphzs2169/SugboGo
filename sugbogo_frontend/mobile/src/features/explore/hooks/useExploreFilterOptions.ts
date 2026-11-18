@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useIsRestoring, useQuery } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
@@ -12,6 +12,7 @@ export { EXPLORE_FILTER_OPTIONS_QUERY_KEY } from "../constants/exploreHomepageQu
 
 /** Loads authoritative taxonomy choices for Explorer search and filtering. */
 export default function useExploreFilterOptions(enabled = true) {
+  const isRestoring = useIsRestoring();
   const query = useQuery({
     enabled,
     queryKey: EXPLORE_FILTER_OPTIONS_QUERY_KEY,
@@ -30,7 +31,13 @@ export default function useExploreFilterOptions(enabled = true) {
       categories: [],
       specialty_tags: [],
     },
-    isLoading: query.isLoading,
+    isLoading:
+      query.isLoading ||
+      (
+        enabled &&
+        isRestoring &&
+        query.isPending
+      ),
     hasOptions: query.data !== undefined,
     isPaused: query.fetchStatus === "paused",
     error: query.error,

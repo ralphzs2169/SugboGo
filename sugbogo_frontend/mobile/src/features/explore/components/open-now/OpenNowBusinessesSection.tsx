@@ -12,6 +12,7 @@ import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpre
 import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
 import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
 import ExploreSectionHeader from "../ExploreSectionHeader";
+import ExploreSection from "../ExploreSection";
 
 type Props = {
   feed: ReturnType<typeof useOpenNowBusinesses>;
@@ -80,7 +81,7 @@ export default function OpenNowBusinessesSection({
 
   if (showLoading || !hasContent) {
     return (
-      <View className="py-6" testID="open-now-section">
+      <ExploreSection className="py-6" testID="open-now-section">
         {/* Section identity and location context */}
         <ExploreSectionHeader title={TITLE} subtitle={SUBTITLE} />
 
@@ -97,7 +98,7 @@ export default function OpenNowBusinessesSection({
             icon="store-off-outline"
           />
         )}
-      </View>
+      </ExploreSection>
     );
   }
 

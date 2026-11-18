@@ -1,4 +1,4 @@
-import { hashKey, useQueryClient } from "@tanstack/react-query";
+import { hashKey, useIsRestoring, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import type { LocationObject } from "expo-location";
 import { useEffect, useRef, useState } from "react";
@@ -57,6 +57,7 @@ export default function ExploreScreen({
   hasDownloads?: boolean;
 } = {}) {
   const queryClient = useQueryClient();
+  const isRestoring = useIsRestoring();
   const navigate = useNavigationAction();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -294,7 +295,9 @@ export default function ExploreScreen({
           navigate(() => navigateToExploreResults({}, true))
         }
       />
-      {!offline && <ExploreFilterOptionsFeedback state={filterOptions} />}
+      {!offline && (
+        <ExploreFilterOptionsFeedback state={filterOptions} showLoading={false} />
+      )}
 
       {/* Discovery content */}
       <BookmarkTourSurfaceContext.Provider value={bookmarkTour.surface}>
@@ -338,7 +341,14 @@ export default function ExploreScreen({
             <OpenNowBusinessesSection
               feed={openNow}
               userLocation={nearbyLocation}
-              isLocating={locationStatus === "loading" && openNowLocation === null}
+              isLocating={
+                openNowLocation === null &&
+                (
+                  isRestoring ||
+                  locationStatus === "loading" ||
+                  userLocation !== null
+                )
+              }
               isUsingLastLocation={isUsingLastLocation}
               impressions={openNowImpressions}
               onBusinessPress={handleBusinessPress}

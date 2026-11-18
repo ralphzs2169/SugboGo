@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import type { LocationObject } from "expo-location";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import colors from "tailwindcss/colors";
 
@@ -26,12 +26,12 @@ import {
   hasDisplayableBusinessRating,
 } from "../../utils/businessRating.utils";
 import ExploreSectionHeader from "../ExploreSectionHeader";
+import ExploreSection from "../ExploreSection";
 
 type Props = {
   business: ExploreBusiness;
   impressions: BusinessImpressionObservation;
   userLocation: LocationObject | null;
-  onCoverError: () => void;
   onPress: (
     businessId: number,
     distance: number | null,
@@ -44,10 +44,11 @@ export default function HiddenGemSpotlight({
   business,
   impressions,
   userLocation,
-  onCoverError,
   onPress,
 }: Props) {
   const { retainBusinesses } = impressions;
+  const [failedCover, setFailedCover] = useState<string | null>(null);
+  const cover = business.display_cover_photo_url;
 
   useEffect(() => {
     retainBusinesses([business.id]);
@@ -89,7 +90,7 @@ export default function HiddenGemSpotlight({
     .join(". ");
 
   return (
-    <View
+    <ExploreSection
       className="bg-surface pb-2 pt-6"
       onLayout={impressions.onSectionLayout}
       testID="hidden-gem-spotlight"
@@ -113,13 +114,28 @@ export default function HiddenGemSpotlight({
             accessibilityLabel={accessibilityLabel}
             className="w-full cursor-pointer overflow-hidden rounded-card bg-surface-muted active:opacity-90"
           >
-            <Image
-              source={{ uri: business.display_cover_photo_url! }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              onError={onCoverError}
-              accessible={false}
-            />
+            {cover && cover !== failedCover ? (
+              <Image
+                testID="hidden-gem-spotlight-cover"
+                source={{ uri: cover }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                onError={() => setFailedCover(cover)}
+                accessible={false}
+              />
+            ) : (
+              <View
+                style={StyleSheet.absoluteFill}
+                className="items-center justify-center bg-brand/8"
+              >
+                <MaterialCommunityIcons
+                  name={CLUSTER_ICONS[business.cluster.icon] ?? "store"}
+                  size={48}
+                  color={theme.extends.colors.brand}
+                  accessible={false}
+                />
+              </View>
+            )}
 
             <LinearGradient
               colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.58)", "rgba(0,0,0,0.94)"]}
@@ -246,6 +262,6 @@ export default function HiddenGemSpotlight({
           <HiddenGemBadge />
         </View>
       </View>
-    </View>
+    </ExploreSection>
   );
 }

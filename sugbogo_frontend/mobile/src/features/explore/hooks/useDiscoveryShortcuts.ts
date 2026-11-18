@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useIsRestoring, useQuery } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 import { getDiscoveryShortcuts } from "../api/exploreBusiness.service";
@@ -10,6 +10,7 @@ import {
 export { DISCOVERY_SHORTCUTS_QUERY_KEY } from "../constants/exploreHomepageQueries";
 
 export default function useDiscoveryShortcuts(enabled = true) {
+  const isRestoring = useIsRestoring();
   const query = useQuery({
     enabled,
     queryKey: DISCOVERY_SHORTCUTS_QUERY_KEY,
@@ -24,7 +25,13 @@ export default function useDiscoveryShortcuts(enabled = true) {
 
   return {
     shortcuts: query.data ?? [],
-    isLoading: query.isLoading,
+    isLoading:
+      query.isLoading ||
+      (
+        enabled &&
+        isRestoring &&
+        query.isPending
+      ),
     isPaused: query.isPaused,
     error: query.error,
     refetch: query.refetch,

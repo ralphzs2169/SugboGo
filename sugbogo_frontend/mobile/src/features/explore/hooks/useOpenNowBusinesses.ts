@@ -1,6 +1,7 @@
 import {
   focusManager,
   hashKey,
+  keepPreviousData,
   onlineManager,
   useQuery,
   useQueryClient,
@@ -50,6 +51,7 @@ export default function useOpenNowBusinesses(
   const [failedRefresh, setFailedRefresh] = useState<string | null>(null);
   const query = useQuery({
     ...openNowQueryOptions(location),
+    placeholderData: location !== null ? keepPreviousData : undefined,
     enabled: (current) =>
       enabled &&
       isFocused &&
@@ -104,7 +106,8 @@ export default function useOpenNowBusinesses(
 
   return {
     businesses: query.data ?? [],
-    isLoading: query.isLoading,
+    // Remain pending while restoration, focus, or a location refresh delays fetching.
+    isLoading: location !== null && query.isPending,
     isFetching: query.isFetching,
     isPaused: query.isPaused,
     error: query.error,

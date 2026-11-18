@@ -17,6 +17,7 @@ import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpre
 import useRecommendations from "../../hooks/useRecommendations";
 import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
 import ExploreSectionHeader from "../ExploreSectionHeader";
+import ExploreSection from "../ExploreSection";
 import CompactBusinessListSkeleton from "../CompactBusinessListSkeleton";
 import ExploreSectionEmptyState from "../ExploreSectionEmptyState";
 
@@ -114,7 +115,7 @@ export default function UserInterestsSection({
   if (offline && visibleBusinesses.length === 0) return null;
 
   return (
-    <View
+    <ExploreSection
       className="py-6"
       testID="recommendations-section"
       onLayout={impressions.onSectionLayout}
@@ -258,6 +259,6 @@ export default function UserInterestsSection({
           })}
         </View>
       )}
-    </View>
+    </ExploreSection>
   );
 }

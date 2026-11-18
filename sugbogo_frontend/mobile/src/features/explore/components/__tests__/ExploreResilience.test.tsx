@@ -7,6 +7,11 @@ import useNewBusinesses from "../../hooks/useNewBusinesses";
 import useExploreSpecialties from "../../hooks/useExploreSpecialties";
 import useDiscoveryShortcuts from "../../hooks/useDiscoveryShortcuts";
 
+jest.mock(
+  "@/features/explore/components/ExploreSection",
+  () => jest.requireActual("react-native").View,
+);
+
 jest.mock("../../hooks/useNewBusinesses");
 jest.mock("../../hooks/useExploreSpecialties");
 jest.mock("../../hooks/useDiscoveryShortcuts");

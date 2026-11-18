@@ -4,6 +4,11 @@ import { Pressable as MockPressable } from "react-native";
 import DiscoveryShortcutsSection from "../DiscoveryShortcutsSection";
 import useDiscoveryShortcuts from "../../../hooks/useDiscoveryShortcuts";
 
+jest.mock(
+  "@/features/explore/components/ExploreSection",
+  () => jest.requireActual("react-native").View,
+);
+
 jest.mock("../../../hooks/useDiscoveryShortcuts");
 jest.mock("@/shared/utils/apiErrors", () => ({
   handleSystemError: jest.fn(() => true),

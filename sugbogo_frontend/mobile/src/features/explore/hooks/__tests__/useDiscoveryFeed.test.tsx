@@ -1,5 +1,9 @@
 import React, { type PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  IsRestoringProvider,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { getDiscoveryFeed } from "../../api/exploreBusiness.service";
@@ -17,7 +21,7 @@ afterEach(() => {
   clients.splice(0).forEach((client) => client.clear());
 });
 
-function setupClient() {
+function setupClient(restoration = { isRestoring: false }) {
   const client = new QueryClient({
     defaultOptions: {
       queries: {
@@ -31,7 +35,11 @@ function setupClient() {
   /** Supplies React Query state to the Discovery feed hook. */
   function Wrapper({ children }: PropsWithChildren) {
     return (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <IsRestoringProvider value={restoration.isRestoring}>
+          {children}
+        </IsRestoringProvider>
+      </QueryClientProvider>
     );
   }
 
@@ -42,6 +50,34 @@ function setupClient() {
 }
 
 describe("useDiscoveryFeed", () => {
+  it("shows initial loading during restoration and displays restored data immediately", async () => {
+    const restoration = { isRestoring: true };
+    const { client, wrapper } = setupClient(restoration);
+    const { result, rerender } = await renderHook(useDiscoveryFeed, { wrapper });
+
+    expect(result.current.isLoading).toBe(true);
+    expect(getDiscoveryFeed).not.toHaveBeenCalled();
+
+    const items = [{ id: 20, business_name: "Restored business" }];
+    await act(async () => {
+      client.setQueryData(DISCOVERY_FEED_QUERY_KEY, { items });
+    });
+    restoration.isRestoring = false;
+    await rerender();
+    await waitFor(() => expect(result.current.businesses).toEqual(items));
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("keeps disabled feeds out of initial loading during restoration", async () => {
+    const { wrapper } = setupClient({ isRestoring: true });
+    const { result } = await renderHook(() => useDiscoveryFeed(false), {
+      wrapper,
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(getDiscoveryFeed).not.toHaveBeenCalled();
+  });
+
   it("keeps the last successful feed after a background refresh fails", async () => {
     const items = [{ id: 20, business_name: "Loaded business" }];
     (getDiscoveryFeed as jest.Mock)

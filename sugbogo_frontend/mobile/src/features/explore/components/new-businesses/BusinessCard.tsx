@@ -48,7 +48,7 @@ const CARD_WIDTH = 226;
 const FEATURED_CARD_WIDTH_RATIO = 0.74;
 const FEATURED_CARD_MAX_WIDTH = 360;
 
-const HERO_HEIGHT = 200;
+export const BUSINESS_CARD_HERO_HEIGHT = 200;
 
 const COMPACT_PARENT_HORIZONTAL_PADDING = 32;
 const STANDARD_CONTENT_HORIZONTAL_PADDING = 12;
@@ -426,7 +426,7 @@ export default function BusinessCard({
         {/* Edge-to-edge business photo */}
         <View
           style={{
-            height: HERO_HEIGHT,
+            height: BUSINESS_CARD_HERO_HEIGHT,
           }}
           className="relative w-full bg-surface-secondary"
         >

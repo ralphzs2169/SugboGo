@@ -4,6 +4,15 @@ import { Pressable, Text } from "react-native";
 import HiddenGemsSection from "../HiddenGemsSection";
 import type { ExploreBusiness } from "../../../types/exploreBusiness.types";
 
+jest.mock(
+  "@/features/explore/components/ExploreSection",
+  () => jest.requireActual("react-native").View,
+);
+jest.mock(
+  "@/shared/components/SafePressable",
+  () => jest.requireActual("react-native").Pressable,
+);
+
 const mockBusinessCard = jest.fn(
   ({
     business,
@@ -21,6 +30,7 @@ const mockBusinessCard = jest.fn(
 jest.mock("../../new-businesses/BusinessCard", () => ({
   __esModule: true,
   getBusinessCardWidth: () => 240,
+  BUSINESS_CARD_HERO_HEIGHT: 200,
   default: (props: unknown) => mockBusinessCard(props as never),
 }));
 
@@ -174,8 +184,42 @@ describe("HiddenGemsSection", () => {
       />,
     );
 
-    expect(screen.getByText("Hidden Gems")).toBeTruthy();
+    expect(screen.getByText("Hidden Gem Spotlight")).toBeTruthy();
     expect(screen.queryByTestId("hidden-gems-scroll")).toBeNull();
+  });
+
+  it("preserves the spotlight and carousel membership after a cover fails", async () => {
+    const spotlight = {
+      ...createBusiness(1, "Spotlight gem", 10.31),
+      display_cover_photo_url: "https://example.com/gem.jpg",
+    };
+    const onBusinessPress = jest.fn();
+    const screen = await render(
+      <HiddenGemsSection
+        businesses={[spotlight, createBusiness(2, "Next gem", 10.32)]}
+        isLoading={false}
+        error={null}
+        refetch={jest.fn()}
+        impressions={createImpressions()}
+        spotlightImpressions={createImpressions()}
+        userLocation={null}
+        onBusinessPress={onBusinessPress}
+      />,
+    );
+
+    await fireEvent(
+      screen.getByTestId("hidden-gem-spotlight-cover"),
+      "error",
+      { nativeEvent: { error: "Image download failed" } },
+    );
+
+    expect(screen.getByTestId("hidden-gem-spotlight")).toBeTruthy();
+    expect(screen.queryByTestId("shared-business-card-1")).toBeNull();
+    expect(screen.getByTestId("shared-business-card-2")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Explore Spotlight gem. Cafe" }),
+    );
+    expect(onBusinessPress).toHaveBeenCalledWith(1, null, null);
   });
 
   it("renders a persistent error with a query retry action", async () => {

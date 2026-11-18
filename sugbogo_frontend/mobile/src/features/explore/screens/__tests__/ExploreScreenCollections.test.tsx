@@ -2,6 +2,11 @@ import { fireEvent, render } from "@testing-library/react-native";
 
 import ExploreScreen from "../ExploreScreen";
 
+jest.mock(
+  "@/features/explore/components/ExploreSection",
+  () => jest.requireActual("react-native").View,
+);
+
 const mockPush = jest.fn();
 
 jest.mock("../../api/exploreBusiness.service", () => ({}));
@@ -15,6 +20,7 @@ jest.mock("expo-router", () => ({
   },
 }));
 jest.mock("@tanstack/react-query", () => ({
+  useIsRestoring: () => false,
   useQueryClient: () => ({ refetchQueries: jest.fn() }),
 }));
 jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
