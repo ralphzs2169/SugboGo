@@ -17,11 +17,6 @@ import * as exploreApi from "../../api/exploreBusiness.service";
 import useBusinessImpressions from "../../hooks/useBusinessImpressions";
 import type { ExploreBusinessListResponse } from "../../types/exploreBusiness.types";
 
-jest.mock(
-  "@/features/explore/components/ExploreSection",
-  () => jest.requireActual("react-native").View,
-);
-
 jest.mock("expo-router", () => ({
   router: { push: jest.fn() },
   useIsFocused: () => true,

@@ -8,14 +8,10 @@ type Props = {
   state: Omit<ReturnType<typeof useExploreFilterOptions>, "refetch"> & {
     refetch: () => Promise<unknown>;
   };
-  showLoading?: boolean;
 };
 
 /** Distinguishes loading and empty taxonomy from failures without hiding cached options. */
-export default function ExploreFilterOptionsFeedback({
-  state,
-  showLoading = true,
-}: Props) {
+export default function ExploreFilterOptionsFeedback({ state }: Props) {
   if (state.error || state.isPaused) {
     return (
       <ExploreQueryNotice
@@ -29,7 +25,7 @@ export default function ExploreFilterOptionsFeedback({
       />
     );
   }
-  if (showLoading && !state.hasOptions && state.isLoading) {
+  if (!state.hasOptions && state.isLoading) {
     return (
       <View
         accessible

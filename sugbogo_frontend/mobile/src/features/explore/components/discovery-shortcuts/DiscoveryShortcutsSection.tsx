@@ -13,7 +13,6 @@ import { handleSystemError } from "@/shared/utils/apiErrors";
 
 import useDiscoveryShortcuts from "../../hooks/useDiscoveryShortcuts";
 import ExploreSectionHeader from "../ExploreSectionHeader";
-import ExploreSection from "../ExploreSection";
 import DiscoveryShortcutsSkeleton from "./DiscoveryShortcutSkeleton";
 
 type Props = {
@@ -71,7 +70,7 @@ export default function DiscoveryShortcutsSection({
   }
 
   return (
-    <ExploreSection className="py-6">
+    <View className="py-6">
       {/* Section heading */}
       <ExploreSectionHeader
         title="Not sure what to explore?"
@@ -164,6 +163,6 @@ export default function DiscoveryShortcutsSection({
           ))}
         </View>
       )}
-    </ExploreSection>
+    </View>
   );
 }

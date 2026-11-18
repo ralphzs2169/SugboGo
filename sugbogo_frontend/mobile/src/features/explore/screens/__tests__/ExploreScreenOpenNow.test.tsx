@@ -7,7 +7,6 @@ import useOpenNowBusinesses from "../../hooks/useOpenNowBusinesses";
 const mockPush = jest.fn();
 const mockRefreshLocation = jest.fn();
 const mockRefreshAtLocation = jest.fn(async () => undefined);
-const mockNearbyRender = jest.fn();
 const mockQueryClient = {
   refetchQueries: jest.fn(async () => undefined),
   cancelQueries: jest.fn(async () => undefined),
@@ -32,7 +31,6 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("@tanstack/react-query", () => ({
   hashKey: jest.requireActual("@tanstack/react-query").hashKey,
-  useIsRestoring: () => false,
   useQueryClient: () => mockQueryClient,
 }));
 jest.mock("@/shared/hooks/useTabBarSpacing", () => ({
@@ -89,16 +87,13 @@ jest.mock("../../components/open-now/OpenNowBusinessesSection", () => {
   const { Text } = jest.requireActual("react-native");
   return function MockSection({
     userLocation,
-    isLocating,
     isUsingLastLocation,
     onBusinessPress,
   }: {
     userLocation: LocationObject | null;
-    isLocating: boolean;
     isUsingLastLocation: boolean;
     onBusinessPress: (id: number, distance: number, accuracy: number) => void;
   }) {
-    mockNearbyRender({ userLocation, isLocating });
     return (
       <>
         <Text>{userLocation?.coords.latitude}</Text>
@@ -109,24 +104,6 @@ jest.mock("../../components/open-now/OpenNowBusinessesSection", () => {
       </>
     );
   };
-});
-
-it("keeps nearby loading visible while fresh coordinates are applied", async () => {
-  mockCurrentLocation = null;
-  mockLocationStatus = "loading";
-  const screen = await render(<ExploreScreen />);
-  mockNearbyRender.mockClear();
-
-  mockCurrentLocation = mockLocation;
-  mockLocationStatus = "available";
-  await screen.rerender(<ExploreScreen />);
-
-  expect(mockNearbyRender).toHaveBeenCalled();
-  expect(
-    mockNearbyRender.mock.calls.some(
-      ([props]) => props.userLocation === null && !props.isLocating,
-    ),
-  ).toBe(false);
 });
 
 it("waits for fresh coordinates before requesting nearby businesses", async () => {

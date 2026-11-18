@@ -1,4 +1,4 @@
-import { useIsRestoring, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { getDiscoveryFeed } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
@@ -11,7 +11,6 @@ export { DISCOVERY_FEED_QUERY_KEY } from "../constants/exploreHomepageQueries";
 
 /** Loads the first backend-ranked Discovery feed page with React Query. */
 export default function useDiscoveryFeed(enabled = true) {
-  const isRestoring = useIsRestoring();
   const query = useQuery({
     enabled,
     queryKey: DISCOVERY_FEED_QUERY_KEY,
@@ -27,13 +26,7 @@ export default function useDiscoveryFeed(enabled = true) {
   return {
     businesses: query.data?.items ?? [],
     pagination: query.data?.pagination ?? null,
-    isLoading:
-      query.isLoading ||
-      (
-        enabled &&
-        isRestoring &&
-        query.isPending
-      ),
+    isLoading: query.isLoading,
     isPaused: query.isPaused,
     isFetching: query.isFetching,
     isRefetching: query.isRefetching && !query.isPaused,

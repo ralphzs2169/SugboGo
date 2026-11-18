@@ -14,11 +14,6 @@ import type {
   RecommendationReason,
 } from "../../../types/exploreBusiness.types";
 
-jest.mock(
-  "@/features/explore/components/ExploreSection",
-  () => jest.requireActual("react-native").View,
-);
-
 const mockBusinessCard = jest.fn(
   ({
     business,

@@ -1,4 +1,4 @@
-import { useIsRestoring, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { getNewBusinesses } from "../api/exploreBusiness.service";
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
@@ -10,7 +10,6 @@ import {
 export { NEW_BUSINESSES_QUERY_KEY } from "../constants/exploreHomepageQueries";
 
 export default function useNewBusinesses(enabled = true) {
-  const isRestoring = useIsRestoring();
   const query = useQuery({
     enabled,
     queryKey: NEW_BUSINESSES_QUERY_KEY,
@@ -26,13 +25,7 @@ export default function useNewBusinesses(enabled = true) {
   return {
     businesses: query.data?.items ?? [],
     pagination: query.data?.pagination ?? null,
-    isLoading:
-      query.isLoading ||
-      (
-        enabled &&
-        isRestoring &&
-        query.isPending
-      ),
+    isLoading: query.isLoading,
     isPaused: query.isPaused,
     error: query.error,
     refetch: query.refetch,

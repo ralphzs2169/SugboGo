@@ -14,7 +14,6 @@ import {
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 import ExploreSectionHeader from "../ExploreSectionHeader";
-import ExploreSection from "../ExploreSection";
 import BusinessCard from "@/features/pockets/components/PocketBusinessCard";
 
 type Props = {
@@ -89,7 +88,7 @@ export default function ExploreBusinessCarousel({
   }, [retainBusinesses]);
 
   return (
-    <ExploreSection
+    <View
       testID={sectionTestID}
       className={`bg-surface ${showHeading ? "py-6" : "pb-6 pt-3"}`}
       onLayout={impressions.onSectionLayout}
@@ -177,6 +176,6 @@ export default function ExploreBusinessCarousel({
           })}
         </ScrollView>
       </BookmarkTourSurfaceContext.Provider>
-    </ExploreSection>
+    </View>
   );
 }

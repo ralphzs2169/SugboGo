@@ -4,14 +4,11 @@ import { View } from "react-native";
 
 import ErrorState from "@/shared/components/ErrorState";
 import Skeleton from "@/shared/components/Skeleton";
-import AppText from "@/shared/components/AppText";
 
 import type { BusinessImpressionObservation } from "../../hooks/useBusinessImpressions";
 import type { ExploreBusiness } from "../../types/exploreBusiness.types";
 import ExploreBusinessCarousel from "../business-carousel/ExploreBusinessCarouselSection";
 import ExploreSectionHeader from "../ExploreSectionHeader";
-import ExploreSection from "../ExploreSection";
-import ExploreBusinessCarouselSkeleton from "../business-carousel/ExploreBusinessCarouselSkeleton";
 import HiddenGemSpotlight from "./HiddenGemSpotlight";
 import ExploreQueryNotice from "../ExploreQueryNotice";
 
@@ -51,6 +48,7 @@ export default function HiddenGemsSection({
   onBusinessPress,
 }: Props) {
   const [isRetrying, setIsRetrying] = useState(false);
+  const [failedCover, setFailedCover] = useState<string | null>(null);
   const businesses = useMemo(
     () => rankedBusinesses.slice(0, 10),
     [rankedBusinesses],
@@ -70,38 +68,23 @@ export default function HiddenGemsSection({
 
   if ((isLoading || isRetrying) && !isPaused && businesses.length === 0) {
     return (
-      <ExploreSection>
-        {/* Spotlight placeholders match the loaded section's spacing. */}
-        <View className="pb-2 pt-6">
-          <ExploreSectionHeader
-            title="Hidden Gem Spotlight"
-            subtitle="Great local places that deserve more discovery."
-          />
+      <View className="py-6">
+        <ExploreSectionHeader
+          title="Hidden Gems"
+          subtitle="Great local places that deserve more discovery."
+        />
 
-          {/* Full-width spotlight placeholder */}
-          <View className="px-4">
-            <Skeleton className="h-72 w-full rounded-card" />
-          </View>
+        {/* Full-width spotlight placeholder */}
+        <View className="px-4">
+          <Skeleton className="h-72 w-full rounded-card" />
         </View>
-
-        {/* Ranked discovery preview */}
-        <View className="py-6">
-          <AppText
-            weight="semibold"
-            accessibilityRole="header"
-            className="mb-3 px-4 text-base text-text-primary"
-          >
-            More Hidden Gems
-          </AppText>
-          <ExploreBusinessCarouselSkeleton hiddenGemsOnly />
-        </View>
-      </ExploreSection>
+      </View>
     );
   }
 
   if ((error || isPaused) && businesses.length === 0) {
     return (
-      <ExploreSection className="py-6" testID="hidden-gems-error">
+      <View className="py-6" testID="hidden-gems-error">
         {/* Section heading */}
         <ExploreSectionHeader
           title="Hidden Gems"
@@ -117,14 +100,18 @@ export default function HiddenGemsSection({
           size="section"
           icon="compass-off-outline"
         />
-      </ExploreSection>
+      </View>
     );
   }
 
   if (businesses.length === 0) return null;
 
   const firstBusiness = businesses[0];
-  const spotlight = firstBusiness.display_cover_photo_url ? firstBusiness : null;
+  const spotlight =
+    firstBusiness.display_cover_photo_url &&
+    firstBusiness.display_cover_photo_url !== failedCover
+      ? firstBusiness
+      : null;
   const remainingBusinesses = spotlight ? businesses.slice(1) : businesses;
 
   return (
@@ -141,6 +128,7 @@ export default function HiddenGemsSection({
           business={offline ? { ...spotlight, sentiment_rating: undefined } : spotlight}
           impressions={spotlightImpressions}
           userLocation={userLocation}
+          onCoverError={() => setFailedCover(spotlight.display_cover_photo_url)}
           onPress={onBusinessPress}
         />
       )}

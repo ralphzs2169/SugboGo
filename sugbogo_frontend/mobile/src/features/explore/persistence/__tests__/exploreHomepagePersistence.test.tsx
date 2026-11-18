@@ -25,11 +25,6 @@ import { exploreBusinessDetailKey } from "../../hooks/reviewQueryKeys";
 import { configureExploreHomepageQueryRetention } from "../exploreHomepageQueryDefaults";
 import * as keys from "../../constants/exploreHomepageQueries";
 
-jest.mock(
-  "@/features/explore/components/ExploreSection",
-  () => jest.requireActual("react-native").View,
-);
-
 jest.mock("@react-native-async-storage/async-storage", () =>
   jest.requireActual(
     "@react-native-async-storage/async-storage/jest/async-storage-mock",

@@ -31,9 +31,6 @@ export default function ExploreClusterFilters({
       horizontal
       showsHorizontalScrollIndicator={false}
       className="flex-none"
-      accessibilityRole={isLoading ? "progressbar" : undefined}
-      accessibilityLabel={isLoading ? "Loading filters" : undefined}
-      accessibilityState={{ busy: isLoading }}
       contentContainerClassName={contentContainerClassName}
     >
       {isLoading ? (

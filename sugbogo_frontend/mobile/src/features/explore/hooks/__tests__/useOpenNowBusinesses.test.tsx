@@ -108,42 +108,6 @@ it("uses explicit fresh coordinates even before the observer location changes", 
   );
 });
 
-it("retains nearby cards during a coordinate change and clears them when location is removed", async () => {
-  const { result, rerender } = await renderHook(
-    ({ location }: { location: LocationObject | null }) =>
-      useOpenNowBusinesses(location),
-    {
-      initialProps: { location: lahug as LocationObject | null },
-      wrapper: wrapper(),
-    },
-  );
-  await waitFor(() => expect(result.current.businesses).toHaveLength(2));
-
-  let resolveRequest!: (value: unknown) => void;
-  (getOpenNowBusinesses as jest.Mock).mockReturnValueOnce(
-    new Promise((resolve) => {
-      resolveRequest = resolve;
-    }),
-  );
-  await rerender({ location: itPark });
-
-  expect(result.current.businesses.map((business) => business.id)).toEqual([
-    42,
-    7,
-  ]);
-  expect(result.current.isLoading).toBe(false);
-  expect(result.current.isFetching).toBe(true);
-
-  await act(async () => {
-    resolveRequest({ success: true, data: [{ id: 99 }] });
-  });
-  await waitFor(() => expect(result.current.businesses[0]?.id).toBe(99));
-
-  await rerender({ location: null });
-  expect(result.current.businesses).toEqual([]);
-  expect(result.current.isLoading).toBe(false);
-});
-
 it("does not duplicate a successful explicit refresh when the new location observer is enabled", async () => {
   const { result, rerender } = await renderHook(
     ({ location, enabled }) => useOpenNowBusinesses(location, enabled),

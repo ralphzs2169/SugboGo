@@ -1,4 +1,4 @@
-import { useIsRestoring, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
@@ -17,7 +17,6 @@ export { EXPLORE_SPECIALTIES_QUERY_KEY } from "../constants/exploreHomepageQueri
  * renders the discovery shortcuts exactly as returned.
  */
 export default function useExploreSpecialties(enabled = true) {
-  const isRestoring = useIsRestoring();
   const query = useQuery({
     enabled,
     queryKey: EXPLORE_SPECIALTIES_QUERY_KEY,
@@ -32,13 +31,7 @@ export default function useExploreSpecialties(enabled = true) {
 
   return {
     specialties: query.data ?? [],
-    isLoading:
-      query.isLoading ||
-      (
-        enabled &&
-        isRestoring &&
-        query.isPending
-      ),
+    isLoading: query.isLoading,
     isPaused: query.isPaused,
     isFetching: query.isFetching,
     isRefetching: query.isRefetching && !query.isPaused,

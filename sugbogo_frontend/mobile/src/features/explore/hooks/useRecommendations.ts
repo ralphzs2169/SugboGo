@@ -1,4 +1,4 @@
-import { useIsRestoring, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { throwOnApiError } from "@/shared/utils/throwOnApiError";
 
@@ -12,7 +12,6 @@ export { RECOMMENDATIONS_QUERY_KEY } from "../constants/exploreHomepageQueries";
 
 /** Loads the first server-ranked recommendation page without client sorting. */
 export default function useRecommendations(enabled = true) {
-  const isRestoring = useIsRestoring();
   const query = useQuery({
     enabled,
     queryKey: RECOMMENDATIONS_QUERY_KEY,
@@ -29,13 +28,7 @@ export default function useRecommendations(enabled = true) {
     businesses: query.data?.items ?? [],
     isPersonalized: query.data?.is_personalized,
     pagination: query.data?.pagination ?? null,
-    isLoading:
-      query.isLoading ||
-      (
-        enabled &&
-        isRestoring &&
-        query.isPending
-      ),
+    isLoading: query.isLoading,
     isPaused: query.isPaused,
     isFetching: query.isFetching,
     isRefetching: query.isRefetching && !query.isPaused,

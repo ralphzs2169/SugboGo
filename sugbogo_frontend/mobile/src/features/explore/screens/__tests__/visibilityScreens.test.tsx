@@ -13,11 +13,6 @@ import {
   recordBusinessProfileVisit,
 } from "../../api/exploreBusiness.service";
 
-jest.mock(
-  "@/features/explore/components/ExploreSection",
-  () => jest.requireActual("react-native").View,
-);
-
 // Native screen initialization can exceed the default timeout on Windows.
 jest.setTimeout(20000);
 

@@ -18,17 +18,6 @@ const state = {
   refetch,
 };
 
-it("leaves loading feedback to the header when requested", async () => {
-  const screen = await render(
-    <ExploreFilterOptionsFeedback
-      state={{ ...state, isLoading: true }}
-      showLoading={false}
-    />,
-  );
-
-  expect(screen.toJSON()).toBeNull();
-});
-
 it("distinguishes unresolved, successful empty, and failed taxonomy", async () => {
   const screen = await render(
     <ExploreFilterOptionsFeedback state={{ ...state, isLoading: true }} />,
