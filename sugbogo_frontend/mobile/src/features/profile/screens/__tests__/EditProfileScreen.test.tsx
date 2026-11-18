@@ -1,5 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
+import { Toast } from "react-native-toast-message/lib/src/Toast";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import type { User } from "@/features/users/types/user.types";
@@ -7,7 +8,9 @@ import {
   beginAuthSession,
   invalidateAuthSession,
 } from "@/shared/api/authSessionGeneration.service";
+import { request } from "@/shared/api/request.service";
 import type { ApiResponse } from "@/shared/types/apiResponse.types";
+import { createApiError } from "@/shared/utils/apiErrors";
 import { useImagePicker } from "../../hooks/useImagePicker";
 import { useRemoveProfilePicture } from "../../hooks/useRemoveProfilePicture";
 import { useUpdateProfile } from "../../hooks/useUpdateProfile";
@@ -410,6 +413,48 @@ describe("EditProfileScreen save integrity", () => {
       await waitFor(() =>
         expect(router.replace).toHaveBeenCalledWith("/profile"),
       );
+    },
+  );
+
+  it.each(["NETWORK_ERROR", "REQUEST_TIMEOUT"])(
+    "shows a recoverable inline error after %s and lets the user retry",
+    async (code) => {
+      updateUserProfile.mockImplementationOnce(() =>
+        request<ApiResponse<User>>(Promise.reject(createApiError(code))),
+      );
+      const screen = await render(<EditProfileScreen />);
+      const firstName = "Edited name";
+      await fireEvent.changeText(
+        screen.getByPlaceholderText("Enter your first name"),
+        firstName,
+      );
+      await startSave(screen);
+
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(
+        "Couldn’t confirm your changes. Check your connection and try again.",
+      );
+      expect(Toast.show).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(useAuthStore.getState().user?.first_name).toBe(user.first_name);
+      expect(screen.getByPlaceholderText("Enter your first name")).toHaveProp(
+        "value",
+        firstName,
+      );
+      expect(screen.getByPlaceholderText("Enter your first name")).toHaveProp(
+        "editable",
+        true,
+      );
+      expect(
+        screen.getByRole("button", { name: "Save Changes" }),
+      ).toBeEnabled();
+
+      await startSave(screen);
+      await waitFor(() =>
+        expect(router.replace).toHaveBeenCalledWith("/profile"),
+      );
+      expect(useAuthStore.getState().user?.first_name).toBe(firstName);
     },
   );
 

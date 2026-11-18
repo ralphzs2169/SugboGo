@@ -19,6 +19,7 @@ export default function ProfileStickyHeader({
 }: Props) {
   return (
     <Animated.View
+      pointerEvents="none"
       style={{
         position: "absolute",
         top: 0,

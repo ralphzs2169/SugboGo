@@ -31,7 +31,7 @@ export async function request<T>(promise: Promise<{ data: T }>): Promise<T> {
         case API_ERROR_CODE.AUTH_ERROR:
           return {
             success: false,
-            message: API_ERROR_MESSAGE.AUTH_ERROR,
+            message: API_ERROR_MESSAGE.AUTH_ERROR.text1,
             code: "SESSION_EXPIRED",
           } as T;
 
@@ -39,7 +39,7 @@ export async function request<T>(promise: Promise<{ data: T }>): Promise<T> {
         case API_ERROR_CODE.NETWORK_ERROR:
           return {
             success: false,
-            message: API_ERROR_MESSAGE.NETWORK_ERROR,
+            message: API_ERROR_MESSAGE.NETWORK_ERROR.text1,
             code: API_ERROR_CODE.NETWORK_ERROR,
           } as T;
 
@@ -47,7 +47,7 @@ export async function request<T>(promise: Promise<{ data: T }>): Promise<T> {
         case API_ERROR_CODE.REQUEST_TIMEOUT:
           return {
             success: false,
-            message: API_ERROR_MESSAGE.REQUEST_TIMEOUT,
+            message: API_ERROR_MESSAGE.REQUEST_TIMEOUT.text1,
             code: API_ERROR_CODE.REQUEST_TIMEOUT,
           } as T;
       }
@@ -61,7 +61,7 @@ export async function request<T>(promise: Promise<{ data: T }>): Promise<T> {
     // Fallback for any unexpected error that could not be classified.
     return {
       success: false,
-      message: API_ERROR_MESSAGE.UNKNOWN_ERROR,
+      message: API_ERROR_MESSAGE.UNKNOWN_ERROR.text1,
       code: API_ERROR_CODE.UNKNOWN_ERROR,
     } as T;
   }
