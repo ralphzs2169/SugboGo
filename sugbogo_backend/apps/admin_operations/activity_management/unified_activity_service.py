@@ -23,7 +23,6 @@ from django.db.models.functions import Cast, Coalesce, JSONObject, NullIf
 from rest_framework.exceptions import NotFound
 
 from apps.admin_operations.activity_management.models import AdminActivity
-from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
 from apps.authentication.models import LoginEvent
 from apps.authentication.services.login_history_service import LoginHistoryService
 from apps.business.models import BusinessPocket, BusinessVouch
@@ -104,7 +103,7 @@ class UnifiedActivityService:
     )
     SOURCE_TYPES = (
         "admin_activity",
-        "analytics_policy_change",
+        AdminActivity.POLICY_REVISION_SOURCE,
         "merchant_application_review",
         "login_event",
         *MERCHANT_SOURCES,
@@ -112,7 +111,6 @@ class UnifiedActivityService:
     )
     MODULES = (
         *AdminActivity.Module.values,
-        "system_configuration",
         "reviews",
         "pocket",
         "community",
@@ -125,7 +123,6 @@ class UnifiedActivityService:
     ACTIONS = (
         *AdminActivity.Action.values,
         *APPLICATION_DECISION_ACTIONS,
-        "analytics_policy_revision",
         "merchant_application_submitted",
         *[
             f"{source}_{occurrence}"
@@ -219,7 +216,9 @@ class UnifiedActivityService:
             AACT_CONTEXT__review_id__regex=r"^[1-9][0-9]{0,9}$",
         )
         return cls._project(
-            AdminActivity.objects.all(),
+            AdminActivity.objects.exclude(
+                AACT_SOURCE_TYPE=AdminActivity.POLICY_REVISION_SOURCE,
+            ),
             "admin_activity",
             "AACT_ID",
             "AACT_CREATED_AT",
@@ -297,26 +296,37 @@ class UnifiedActivityService:
 
     @classmethod
     def _policy_changes(cls):
-        """Represent each retained singleton policy revision without inventing its actor's role."""
+        """Project archived revisions using their original activity identities."""
         return cls._project(
-            AnalyticsPolicyChange.objects.all(),
-            "analytics_policy_change",
-            "APCH_ID",
-            "APCH_CREATED_AT",
-            occurrence=Value("analytics_policy_revision", output_field=CharField()),
-            module=Value("system_configuration", output_field=CharField()),
+            AdminActivity.objects.filter(
+                AACT_SOURCE_TYPE=AdminActivity.POLICY_REVISION_SOURCE,
+            ),
+            AdminActivity.POLICY_REVISION_SOURCE,
+            "AACT_SOURCE_ID",
+            "AACT_CREATED_AT",
+            occurrence=F("AACT_ACTION"),
+            module=F("AACT_MODULE"),
             actor_id=Coalesce(
-                Cast("APCH_ACTOR_ID_SNAPSHOT", output_field=BigIntegerField()),
-                Cast("APCH_ACTOR_id", output_field=BigIntegerField()),
+                Cast(
+                    KeyTextTransform("actor_id_snapshot", "AACT_CONTEXT"),
+                    output_field=BigIntegerField(),
+                ),
+                Cast(
+                    KeyTextTransform("actor_id", "AACT_CONTEXT"),
+                    output_field=BigIntegerField(),
+                ),
                 output_field=BigIntegerField(),
             ),
-            target_type=Value("analytics_policy", output_field=CharField()),
-            target_id=Value("1", output_field=CharField()),
-            new_state=F("APCH_AFTER"),
-            is_administrative=Value(True, output_field=BooleanField()),
+            target_type=F("AACT_TARGET_TYPE"),
+            target_id=F("AACT_TARGET_ID"),
+            new_state=F("AACT_NEW_STATE"),
+            is_administrative=F("AACT_IS_ADMINISTRATIVE"),
             provenance=JSONObject(
-                model=Value(AnalyticsPolicyChange._meta.label_lower),
-                version=F("APCH_VERSION"),
+                model=Value("system_configuration.analyticspolicychange"),
+                version=Cast(
+                    KeyTextTransform("version", "AACT_CONTEXT"),
+                    output_field=BigIntegerField(),
+                ),
             ),
         )
 
@@ -958,14 +968,18 @@ class UnifiedActivityService:
                 and isinstance(event["context"], dict)
             ):
                 event["reason"] = event["context"].get("reason")
-        elif source_type == "analytics_policy_change":
-            details = AnalyticsPolicyChange.objects.filter(pk=source_id).values(
-                "APCH_BEFORE",
-                "APCH_REASON",
-            ).first()
+        elif source_type == AdminActivity.POLICY_REVISION_SOURCE:
+            details = (
+                AdminActivity.objects.filter(
+                    AACT_SOURCE_TYPE=source_type,
+                    AACT_SOURCE_ID=source_id,
+                )
+                .values("AACT_PREVIOUS_STATE", "AACT_REASON")
+                .first()
+            )
             if details is None:
                 raise NotFound("Activity not found.")
-            event["previous_state"] = details["APCH_BEFORE"]
-            event["reason"] = details["APCH_REASON"]
+            event["previous_state"] = details["AACT_PREVIOUS_STATE"]
+            event["reason"] = details["AACT_REASON"]
         event["current_related_records"] = cls.current_vouch_records(event)
         return event

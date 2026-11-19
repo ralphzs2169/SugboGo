@@ -11,7 +11,6 @@ from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.activity_management.unified_activity_service import (
     UnifiedActivityService,
 )
-from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
 from apps.business.models import (
     Business,
     BusinessPocket,
@@ -35,7 +34,9 @@ class UnifiedExplorerActivityTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         """Create retained actions that remain historical despite current eligibility and visibility changes."""
-        AnalyticsPolicyChange.objects.all().delete()
+        AdminActivity.objects.filter(
+            AACT_SOURCE_TYPE=AdminActivity.POLICY_REVISION_SOURCE,
+        ).delete()
         cls.now = timezone.now().replace(microsecond=0) - timedelta(days=1)
         cls.actor = User.objects.create(
             USER_EMAIL="unified-explorer@example.com",

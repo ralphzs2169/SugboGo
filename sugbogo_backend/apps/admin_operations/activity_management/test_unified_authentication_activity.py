@@ -12,7 +12,6 @@ from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.activity_management.unified_activity_service import (
     UnifiedActivityService,
 )
-from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
 from apps.authentication.models import LoginEvent
 from apps.business.models import Business, Category, Cluster, Location
 from apps.merchant_application.models import (
@@ -29,7 +28,9 @@ class UnifiedAuthenticationActivityTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         """Create known accounts without producing authentication or unrelated activity records."""
-        AnalyticsPolicyChange.objects.all().delete()
+        AdminActivity.objects.filter(
+            AACT_SOURCE_TYPE=AdminActivity.POLICY_REVISION_SOURCE,
+        ).delete()
         cls.now = timezone.now().replace(microsecond=0)
         cls.user = User.objects.create(
             USER_EMAIL="unified-login@example.com",

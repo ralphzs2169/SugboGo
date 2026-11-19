@@ -4,7 +4,7 @@ import logging
 from datetime import timedelta
 
 from django.conf import settings
-from django.db import models, transaction
+from django.db import transaction
 from django.utils import timezone
 
 from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
@@ -193,23 +193,6 @@ class ReviewInsightSchedulingService:
                     ],
                 )
         return "queued"
-
-    @staticmethod
-    def policy_changed():
-        """Persist policy-driven demand in the configuration transaction's lock order."""
-        business_ids = (
-            Business.objects
-            .filter(
-                models.Q(review_summary__isnull=False)
-                | models.Q(reviews__REVW_STATUS=Review.ReviewStatus.PUBLISHED)
-                | models.Q(review_insight_regeneration__isnull=False),
-            )
-            .order_by("BUSN_ID")
-            .values_list("BUSN_ID", flat=True)
-            .distinct()
-        )
-        for business_id in business_ids:
-            ReviewInsightSchedulingService.reconcile(business_id)
 
     @staticmethod
     def lease_seconds():

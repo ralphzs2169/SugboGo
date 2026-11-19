@@ -9,8 +9,6 @@ from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
 from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
-from apps.admin_operations.system_configuration.services.analytics_policy_service import AnalyticsPolicyService
-from apps.admin_operations.system_configuration.services.tests.test_analytics_policy_service import create_policy_admin
 from apps.explorer_operations.explore_businesses.serializers.review_insights_serializers import (
     BusinessReviewInsightsSerializer,
 )
@@ -567,26 +565,23 @@ class ReviewInsightSchedulingServiceTests(SummaryFixtureMixin, TransactionTestCa
         self.assertEqual(self.state().RIRG_FIRST_CHANGED_AT, first)
         self.assertEqual(self.evaluate(), "updated")
 
-    def test_policy_update_records_demand_and_clears_incompatible_content_atomically(self):
+    def test_reconciliation_reads_review_rules_from_persisted_policy(self):
         ReviewInsightSchedulingService.reconcile(self.business.pk)
         self.evaluate()
-        actor = create_policy_admin()
-        AnalyticsPolicyService.update(
-            actor=actor,
-            expected_version=1,
-            reason="Require more supporting reviews.",
-            values={"mention_min_supporting_reviews": 3},
+        AnalyticsPolicyConfiguration.objects.filter(pk=1).update(
+            APC_MENTION_MIN_REVIEWS=3,
+            APC_VERSION=2,
         )
+        ReviewInsightSchedulingService.reconcile(self.business.pk)
         self.summary.refresh_from_db()
         self.assertEqual(self.summary.BRSU_NARRATIVE, "")
         self.assertEqual(self.state().RIRG_REQUESTED_REVISION, 2)
         first = self.state().RIRG_FIRST_CHANGED_AT
-        AnalyticsPolicyService.update(
-            actor=actor,
-            expected_version=2,
-            reason="Unrelated sentiment threshold.",
-            values={"sentiment_min_classified_reviews": 6},
+        AnalyticsPolicyConfiguration.objects.filter(pk=1).update(
+            APC_SENTIMENT_MIN_REVIEWS=6,
+            APC_VERSION=3,
         )
+        ReviewInsightSchedulingService.reconcile(self.business.pk)
         self.assertEqual(self.state().RIRG_REQUESTED_REVISION, 2)
         self.assertEqual(self.state().RIRG_FIRST_CHANGED_AT, first)
 

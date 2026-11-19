@@ -9,7 +9,7 @@ from django.test import TestCase
 from rest_framework.exceptions import ValidationError
 
 from apps.admin_operations.analytics import constants
-from apps.admin_operations.system_configuration.services.analytics_policy_service import AnalyticsPolicyService
+from apps.admin_operations.system_configuration.models import AnalyticsPolicyConfiguration
 from apps.admin_operations.analytics.services.business_attention_service import BusinessAttentionService
 from apps.business.models import Business, BusinessSpecialtyTag, BusinessVouch, Category, Cluster, Location, SpecialtyTag
 from apps.business.services.visibility_event_service import VisibilityEventService, VisibilityTrackingUnavailable
@@ -185,10 +185,9 @@ class BusinessAttentionServiceTests(AttentionFixtures, TestCase):
         self.assertEqual(report["selection_status"], "provisional")
 
     def test_configuration_is_consumed_from_admin_policy_and_reflected_in_response(self):
-        admin = self.user("policy-admin", User.UserRole.SUPER_ADMIN)
-        AnalyticsPolicyService.update(
-            actor=admin, expected_version=1, reason="Test configurable visit limit",
-            values={"low_exposure_max_profile_visits": 5},
+        AnalyticsPolicyConfiguration.objects.filter(pk=1).update(
+            APC_LOW_EXPOSURE_MAX_VISITS=5,
+            APC_VERSION=2,
         )
         report = self.report(low_exposure=True)
         self.assertEqual(len(report["items"]), 2)
