@@ -350,19 +350,16 @@ class ExploreCollectionViewTests(TestCase):
             [newer.BUSN_ID, older.BUSN_ID],
         )
 
-    def test_active_status_is_required_but_verification_is_not(self):
-        unverified = self._create_business("Unverified Active")
-        verified = self._create_business("Verified Active")
-        for business in (unverified, verified):
-            self._add_score(
-                business,
-                Decimal("0.50000"),
-            )
+    def test_hidden_gems_require_active_status(self):
+        active = self._create_business("Active")
+        self._add_score(
+            active,
+            Decimal("0.50000"),
+        )
         suspended = self._create_business("Suspended")
-        Business.objects.filter(
-            BUSN_ID=verified.BUSN_ID,
-        ).update(
-            BUSN_IS_VERIFIED=True,
+        self._add_score(
+            suspended,
+            Decimal("1.00000"),
         )
         Business.objects.filter(
             BUSN_ID=suspended.BUSN_ID,
@@ -376,8 +373,7 @@ class ExploreCollectionViewTests(TestCase):
             for item in response.data["data"]["items"]
         }
 
-        self.assertIn(unverified.BUSN_ID, returned_ids)
-        self.assertIn(verified.BUSN_ID, returned_ids)
+        self.assertIn(active.BUSN_ID, returned_ids)
         self.assertNotIn(suspended.BUSN_ID, returned_ids)
 
     def test_hidden_gems_page_query_count_does_not_scale_with_items(self):

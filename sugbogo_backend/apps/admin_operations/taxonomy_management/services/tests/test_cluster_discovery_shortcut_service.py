@@ -192,31 +192,6 @@ class ClusterDiscoveryShortcutAdminServiceTests(TestCase):
             1,
         )
 
-    def test_list_shortcuts_counts_active_business_even_when_not_verified(
-        self,
-    ):
-        business = self.create_business(
-            category=self.culinary_category,
-            name="Unverified Active Cafe",
-        )
-
-        self.assertFalse(
-            business.BUSN_IS_VERIFIED,
-        )
-
-        shortcut = (
-            ClusterDiscoveryShortcutAdminService
-            .list_shortcuts()
-            .get(
-                CDS_ID=self.culinary_shortcut.CDS_ID,
-            )
-        )
-
-        self.assertEqual(
-            shortcut.business_count,
-            1,
-        )
-
     def test_list_shortcuts_can_search_by_title(self):
         shortcuts = list(
             ClusterDiscoveryShortcutAdminService.list_shortcuts(

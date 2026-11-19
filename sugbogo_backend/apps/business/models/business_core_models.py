@@ -50,10 +50,6 @@ class Business(models.Model):
         default=BusinessStatus.ACTIVE,
     )
 
-    BUSN_IS_VERIFIED = models.BooleanField(
-        default=False,
-    )
-
     BUSN_VOUCH_COUNT = models.PositiveIntegerField(
         default=0,
     )

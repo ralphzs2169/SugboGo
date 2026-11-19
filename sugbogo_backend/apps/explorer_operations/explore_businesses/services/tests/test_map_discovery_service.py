@@ -77,7 +77,7 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
             expected_ids,
         )
 
-    def test_active_unverified_businesses_are_eligible_and_suspended_are_not(self):
+    def test_map_discovery_only_includes_active_businesses(self):
         active = self.create_business()
         self.create_business(
             status_value=Business.BusinessStatus.SUSPENDED,
@@ -93,7 +93,6 @@ class MapDiscoveryServiceTests(MapDiscoveryTestMixin, TestCase):
         self.assertEqual(len(businesses), 1)
         self.assertEqual(businesses[0].BUSN_ID, active.BUSN_ID)
         self.assertFalse(businesses[0].is_hidden_gem)
-        self.assertFalse(active.BUSN_IS_VERIFIED)
 
     def test_global_top_ten_matches_homepage_including_both_tie_breakers(self):
         businesses = []

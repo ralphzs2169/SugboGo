@@ -210,7 +210,6 @@ class DevelopmentTransitSeedService:
                 "BUSN_DESCRIPTION": f"{SEED_MARKER} Fictional venue; not official transit guidance.",
                 "BUSN_CONTACT_NUMBER": f"090000000{number:02d}",
                 "BUSN_STATUS": Business.BusinessStatus.ACTIVE,
-                "BUSN_IS_VERIFIED": False,
                 "CTGRY_ID": category,
                 "LOCT_ID": location,
             })

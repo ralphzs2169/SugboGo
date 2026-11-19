@@ -197,7 +197,6 @@ class DevelopmentBusinessSeederTests(DevelopmentSeedTestMixin, TestCase):
         self.assertEqual(Business.objects.values("USER_ID").distinct().count(), 15)
         for business in Business.objects.select_related("USER_ID", "CTGRY_ID__CLUS_ID"):
             self.assertEqual(business.BUSN_STATUS, Business.BusinessStatus.ACTIVE)
-            self.assertFalse(business.BUSN_IS_VERIFIED)
             self.assertTrue(business.BUSN_DESCRIPTION.startswith(SEED_MARKER))
             self.assertEqual(business.USER_ID.USER_ROLE, User.UserRole.MERCHANT)
             self.assertEqual(business.USER_ID.USER_STATUS, User.UserStatus.ACTIVE)

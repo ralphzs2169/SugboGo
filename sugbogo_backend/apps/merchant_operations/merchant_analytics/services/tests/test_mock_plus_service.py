@@ -118,12 +118,11 @@ class MockPlusServiceTests(MerchantAnalyticsFixtures, TestCase):
         owner = type(self.merchant_a).objects.get(pk=self.merchant_a.pk)
         self.assertTrue(merchant_has_plus_access(owner))
 
-    def test_suspended_listing_stays_suspended_and_does_not_become_verified(self):
+    def test_mock_plus_activation_preserves_suspended_listing(self):
         Business.objects.filter(pk=self.business_a.pk).update(BUSN_STATUS=Business.BusinessStatus.SUSPENDED)
         result = MockPlusService.activate(self.merchant_a, "success")
         self.business_a.refresh_from_db()
         self.assertEqual(result["status"]["business"]["status"], "suspended")
-        self.assertFalse(self.business_a.BUSN_IS_VERIFIED)
         self.assertEqual(self.business_a.BUSN_STATUS, "suspended")
 
     def test_invalid_direct_service_outcome_is_rejected_without_grant(self):
