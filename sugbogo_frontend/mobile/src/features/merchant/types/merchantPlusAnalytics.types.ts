@@ -131,10 +131,9 @@ export type PlusReviewPerformanceReport = {
   meta: PlusAnalyticsMeta;
 };
 
-/** Read-only server access; paid purchases remain distinct from preview and mock grants. */
+/** Read-only server access; paid purchases remain distinct from preview access. */
 export type MerchantPlusStatus = {
   business: OwnedAnalyticsBusiness;
-  stored_demo_state: "not_created" | "inactive" | "active";
   effective_tier: "standard" | "plus";
   has_plus_access: boolean;
   payment_mode?: "test" | "live";
@@ -169,15 +168,11 @@ export type MerchantPlusStatus = {
   access_source:
     | "none"
     | "preview"
-    | "mock"
     | "paymongo_test"
     | "paymongo_live"
     | "maya_test"
     | "maya_live";
   enforcement_enabled: boolean;
-  mock_enabled: boolean;
   is_simulation: boolean;
   activated_at: string | null;
-  reset_at: string | null;
-  updated_at: string | null;
 };

@@ -30,7 +30,6 @@ class FulfilmentFixtures(MerchantAnalyticsFixtures):
             PAYMENT_PROVIDER="maya",
             PAYMENT_MODE="test",
             MERCHANT_PLUS_ENFORCED=True,
-            MERCHANT_PLUS_MOCK_ENABLED=False,
         ))
         self.payment, _ = PaymentService.create_or_get_payment(self.merchant_a)
         self.paid_at = timezone.now() - timedelta(minutes=7)

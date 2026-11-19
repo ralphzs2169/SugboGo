@@ -29,7 +29,6 @@ CHECKOUT_TEST_SETTINGS = {
     "MAYA_SANDBOX_SECRET_KEY": "sk-checkout-fixture-only",
     "MAYA_RETURN_BASE_URL": "https://sugbogo.example/payment-return",
     "MERCHANT_PLUS_ENFORCED": True,
-    "MERCHANT_PLUS_MOCK_ENABLED": False,
     "CACHES": {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}},
 }
 
@@ -134,11 +133,10 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(response.status_code, 400)
         self.post.assert_not_called()
 
-    def test_checkout_disabled_and_preview_mock_configuration_block_creation(self):
+    def test_checkout_disabled_and_preview_configuration_block_creation(self):
         for configuration in (
             {"MAYA_CHECKOUT_ENABLED": False},
             {"MERCHANT_PLUS_ENFORCED": False},
-            {"MERCHANT_PLUS_MOCK_ENABLED": True},
         ):
             with self.subTest(configuration=configuration):
                 with override_settings(**configuration):

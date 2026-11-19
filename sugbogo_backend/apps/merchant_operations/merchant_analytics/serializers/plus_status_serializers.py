@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from apps.payments.models import PaymentMode, PaymentProvider
 
-from .mock_plus_serializers import MerchantPlusStatusSerializer
+from .standard_analytics_serializers import OwnedBusinessSerializer
 
 
 class MerchantPlusProductSerializer(serializers.Serializer):
@@ -19,12 +19,30 @@ class MerchantPlusProductSerializer(serializers.Serializer):
     payment_type = serializers.CharField()
 
 
-class MerchantPlusAccessStatusSerializer(MerchantPlusStatusSerializer):
-    """Keep legacy demo metadata while identifying independent paid purchases."""
+class MerchantPlusAccessStatusSerializer(serializers.Serializer):
+    """Expose paid and preview status with compatibility fields for older clients."""
 
+    business = OwnedBusinessSerializer()
+    effective_tier = serializers.ChoiceField(choices=("standard", "plus"))
+    has_plus_access = serializers.BooleanField()
     access_source = serializers.ChoiceField(
-        choices=("none", "preview", "mock", "paymongo_test", "paymongo_live", "maya_test", "maya_live"),
+        choices=(
+            "none",
+            "preview",
+            "paymongo_test",
+            "paymongo_live",
+            "maya_test",
+            "maya_live",
+        ),
     )
+    enforcement_enabled = serializers.BooleanField()
+    is_simulation = serializers.BooleanField()
+    activated_at = serializers.DateTimeField(allow_null=True)
+    # Older mobile clients may still expect these inert demo fields.
+    stored_demo_state = serializers.ChoiceField(choices=("not_created",))
+    mock_enabled = serializers.BooleanField()
+    reset_at = serializers.DateTimeField(allow_null=True)
+    updated_at = serializers.DateTimeField(allow_null=True)
     payment_mode = serializers.ChoiceField(choices=PaymentMode.values)
     checkout_enabled = serializers.BooleanField()
     checkout_can_resume = serializers.BooleanField()

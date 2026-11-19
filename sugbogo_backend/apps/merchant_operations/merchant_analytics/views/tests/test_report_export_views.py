@@ -56,7 +56,7 @@ class ReportExportViewTests(PeerAnalyticsFixtures, APIResponseAssertionsMixin, A
         self.assertIn(self.business_a.BUSN_NAME, "\n".join(page.extract_text() for page in PdfReader(BytesIO(content)).pages))
         self.assertNotIn(self.business_b.BUSN_NAME, content.decode("latin-1"))
 
-    @override_settings(MERCHANT_PLUS_ENFORCED=True, MERCHANT_PLUS_MOCK_ENABLED=False)
+    @override_settings(MERCHANT_PLUS_ENFORCED=True)
     def test_plus_denial_is_json_even_when_pdf_is_requested_and_precedes_calculation(self):
         with patch.object(ReportPDFService, "get_pdf") as export:
             response = self.client.get(self.url, HTTP_ACCEPT="application/pdf")

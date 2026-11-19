@@ -1,6 +1,6 @@
 import type { MerchantPlusStatus } from "../types/merchantPlusAnalytics.types";
 
-/** Identifies backend-issued paid access independently of preview or demo report access. */
+/** Identifies backend-issued paid access independently of preview access. */
 export function hasPaidMerchantPlus(status?: MerchantPlusStatus) {
   return (
     !!status?.has_plus_access &&

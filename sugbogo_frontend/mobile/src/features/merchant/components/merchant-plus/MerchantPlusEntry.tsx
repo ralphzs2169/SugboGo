@@ -104,7 +104,6 @@ export default function MerchantPlusEntry({
   }
   const active = !access.error && hasPaidMerchantPlus(access.status);
   const preview = access.status?.access_source === "preview";
-  const demo = access.status?.access_source === "mock";
   const unresolved = !!access.status?.unresolved_payment_id;
   const resume = hasResumableMerchantPlusCheckout(access.status);
 
@@ -318,9 +317,7 @@ export default function MerchantPlusEntry({
     entryStatus = {
       label: preview
         ? "Not active · Analytics preview"
-        : demo
-          ? "Not active · Demo access"
-          : "Not active",
+        : "Not active",
       tone: "neutral",
     };
   }

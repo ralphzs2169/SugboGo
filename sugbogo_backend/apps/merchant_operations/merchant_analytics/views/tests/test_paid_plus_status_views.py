@@ -8,16 +8,42 @@ from rest_framework.test import APITestCase
 from apps.payments.models import Payment, PaymentCheckoutSession
 from apps.payments.services.payment_service import PaymentService
 
-from ...models import DemoMerchantPlusEntitlement, PaidMerchantPlusEntitlement
-from ...services.mock_plus_service import MockPlusService
+from ...models import PaidMerchantPlusEntitlement
 from ...services.tests.fixtures import MerchantAnalyticsFixtures
+
+
+def grant_paid_plus(
+    user,
+    business,
+):
+    """Create fulfilled access in the configured provider and mode."""
+    now = timezone.now()
+    payment, _ = PaymentService.create_or_get_payment(user)
+    intent_id = None
+    if payment.PYMT_PROVIDER == "paymongo":
+        intent_id = "pi_status"
+    Payment.objects.filter(pk=payment.pk).update(
+        PYMT_STATUS="paid",
+        PYMT_FULFILMENT_STATUS="fulfilled",
+        PYMT_PROVIDER_PAYMENT_ID="pay_status",
+        PYMT_PROVIDER_INTENT_ID=intent_id,
+        PYMT_PAID_AT=now,
+        PYMT_VERIFIED_AT=now,
+        PYMT_FULFILLED_AT=now,
+    )
+    entitlement = PaidMerchantPlusEntitlement.objects.create(
+        BUSN_ID=business,
+        PYMT_ID=payment,
+        MPPE_STARTS_AT=now,
+        MPPE_EXPIRES_AT=now + timedelta(days=30),
+    )
+    return payment, entitlement
 
 
 @override_settings(
     PAYMENT_MODE="test",
     PAYMENT_PROVIDER="paymongo",
     MERCHANT_PLUS_ENFORCED=True,
-    MERCHANT_PLUS_MOCK_ENABLED=False,
 )
 class PaidPlusStatusViewTests(MerchantAnalyticsFixtures, APITestCase):
     def test_checkout_outcome_comes_only_from_stored_evidence(self):
@@ -68,27 +94,7 @@ class PaidPlusStatusViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.client.force_authenticate(self.merchant_a)
 
     def grant(self):
-        now = timezone.now()
-        payment, _ = PaymentService.create_or_get_payment(self.merchant_a)
-        intent_id = None
-        if payment.PYMT_PROVIDER == "paymongo":
-            intent_id = "pi_status"
-        Payment.objects.filter(pk=payment.pk).update(
-            PYMT_STATUS="paid",
-            PYMT_FULFILMENT_STATUS="fulfilled",
-            PYMT_PROVIDER_PAYMENT_ID="pay_status",
-            PYMT_PROVIDER_INTENT_ID=intent_id,
-            PYMT_PAID_AT=now,
-            PYMT_VERIFIED_AT=now,
-            PYMT_FULFILLED_AT=now,
-        )
-        entitlement = PaidMerchantPlusEntitlement.objects.create(
-            BUSN_ID=self.business_a,
-            PYMT_ID=payment,
-            MPPE_STARTS_AT=now,
-            MPPE_EXPIRES_AT=now + timedelta(days=30),
-        )
-        return payment, entitlement
+        return grant_paid_plus(self.merchant_a, self.business_a)
 
     def test_status_adds_fixed_product_without_creating_records(self):
         data = self.client.get(self.url).data["data"]
@@ -100,7 +106,6 @@ class PaidPlusStatusViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(data["product"]["access_duration_days"], 30)
         self.assertIsNone(data["paid_payment_reference"])
         self.assertFalse(Payment.objects.exists())
-        self.assertFalse(DemoMerchantPlusEntitlement.objects.exists())
 
     def test_paid_access_source_dates_and_reference_are_authoritative(self):
         payment, entitlement = self.grant()
@@ -119,7 +124,6 @@ class PaidPlusStatusViewTests(MerchantAnalyticsFixtures, APITestCase):
             entitlement.MPPE_EXPIRES_AT - entitlement.MPPE_STARTS_AT,
             timedelta(days=30),
         )
-        self.assertFalse(DemoMerchantPlusEntitlement.objects.exists())
 
     def test_mode_switch_never_reports_test_grant_as_live(self):
         self.grant()
@@ -172,14 +176,30 @@ class PaidPlusStatusViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertIsNone(data["unresolved_payment_id"])
         self.assertIsNone(data["unresolved_payment_provider"])
 
-    def test_demonstration_configuration_never_treats_mock_grant_as_paid(self):
-        with override_settings(MERCHANT_PLUS_MOCK_ENABLED=True):
-            MockPlusService.activate(self.merchant_a, "success")
+    @override_settings(MERCHANT_PLUS_ENFORCED=False)
+    def test_preview_and_legacy_status_fields_are_compatible(self):
         data = self.client.get(self.url).data["data"]
-        self.assertEqual(data["stored_demo_state"], "active")
-        self.assertFalse(data["has_plus_access"])
-        self.assertEqual(data["access_source"], "none")
+        self.assertTrue(data["has_plus_access"])
+        self.assertEqual(data["access_source"], "preview")
+        self.assertEqual(data["effective_tier"], "plus")
+        self.assertFalse(data["enforcement_enabled"])
+        self.assertEqual(data["stored_demo_state"], "not_created")
+        self.assertFalse(data["mock_enabled"])
+        self.assertIsNone(data["activated_at"])
+        self.assertIsNone(data["reset_at"])
+        self.assertIsNone(data["updated_at"])
         self.assertIsNone(data["paid_payment_id"])
+
+    def test_mock_mutations_are_unavailable(self):
+        base_url = self.url.removesuffix("status/")
+        for route in ("mock-activation/", "mock-reset/"):
+            with self.subTest(route=route):
+                response = self.client.post(
+                    f"{base_url}{route}",
+                    {},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, 404)
 
     def test_paid_access_reaches_existing_analytics_gate(self):
         self.grant()

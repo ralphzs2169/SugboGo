@@ -69,7 +69,6 @@ def load_payment_configuration(
     environment,
     *,
     plus_enforced,
-    mock_enabled,
 ):
     """Load backend-owned settings for the enabled checkout environment."""
     provider = environment.get("PAYMENT_PROVIDER", "maya").strip().lower()
@@ -120,12 +119,9 @@ def load_payment_configuration(
         return configuration
     if provider != "maya":
         raise ImproperlyConfigured("Enabled Maya settings require PAYMENT_PROVIDER=maya.")
-    if (
-        not plus_enforced
-        or mock_enabled
-    ):
+    if not plus_enforced:
         raise ImproperlyConfigured(
-            "Enabled checkout settings require Plus enforcement and disabled mock access.",
+            "Enabled checkout settings require Plus enforcement.",
         )
     for name, prefix in (
         ("MAYA_SANDBOX_PUBLIC_KEY", "pk-"),
