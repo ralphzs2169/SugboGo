@@ -11,7 +11,6 @@ from apps.transit.models import (
     JeepneyRouteVariant,
     RouteTransitPoint,
     TransitPoint,
-    TransitTransfer,
 )
 from apps.users.models import User
 
@@ -184,8 +183,6 @@ class DevelopmentTransitSeedService:
         if (
             RouteTransitPoint.objects.filter(TRPT_ID__in=points.values())
             .exclude(JRV_ID_id__in=variant_ids).exists()
-            or TransitTransfer.objects.filter(TTFR_FROM_VARIANT_ID_id__in=variant_ids).exists()
-            or TransitTransfer.objects.filter(TTFR_TO_VARIANT_ID_id__in=variant_ids).exists()
         ):
             raise ValidationError("Reserved baseline infrastructure is connected to other data.")
 

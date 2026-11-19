@@ -9,19 +9,12 @@ from rest_framework.exceptions import ValidationError
 
 from apps.admin_operations.transit_management.services.route_variant_service import RouteVariantService
 from apps.admin_operations.transit_management.services.transit_point_service import TransitPointService
-from apps.admin_operations.transit_management.services.transit_transfer_service import (
-    TransitTransferService,
-)
-from apps.admin_operations.transit_management.services.transfer_candidate_detection_service import (
-    TransferCandidateDetectionService,
-)
 from apps.business.models import ServiceableBoundary
 from apps.transit.models import (
     JeepneyRoute,
     JeepneyRouteVariant,
     RouteTransitPoint,
     TransitPoint,
-    TransitTransfer,
 )
 from apps.transit.services.transit_spatial_validation_service import (
     TransitSpatialValidationService,
@@ -105,7 +98,7 @@ class TransitSpatialConcurrencyTests(TransactionTestCase):
 
 
 class TransitPointDeletionConcurrencyTests(TransactionTestCase):
-    """Exercise deletion against the existing route, transfer and candidate writers."""
+    """Exercise deletion against existing route writers."""
 
     def setUp(self):
         """Create only the synthetic boundary needed by direction updates."""
@@ -233,14 +226,11 @@ class TransitPointDeletionConcurrencyTests(TransactionTestCase):
         return results["second"]
 
     def test_reference_writers_recheck_after_concurrent_detachment_and_deletion(self):
-        """Reject stale route and transfer references and scan candidates after deletion commits."""
+        """Reject stale route references after deletion commits."""
 
         for operation in (
             "route_create",
             "route_update",
-            "transfer_create",
-            "transfer_update",
-            "candidates",
         ):
             with self.subTest(operation=operation):
                 network = self._network()
@@ -249,7 +239,6 @@ class TransitPointDeletionConcurrencyTests(TransactionTestCase):
                 point = points[1]
                 point_id = point.pk
                 source = directions[0]
-                destination = directions[1]
                 route_data = {
                     "JRT_ID": source.JRT_ID,
                     "JRV_ORIGIN_ID": points[0],
@@ -263,21 +252,6 @@ class TransitPointDeletionConcurrencyTests(TransactionTestCase):
                         for item in points[:3]
                     ],
                 }
-                transfer_data = {
-                    "TTFR_FROM_VARIANT_ID": source,
-                    "TTFR_TO_VARIANT_ID": destination,
-                    "TTFR_FROM_TRANSIT_POINT_ID": point,
-                    "TTFR_TO_TRANSIT_POINT_ID": point,
-                }
-                existing_transfer = TransitTransferService.create_transfer(
-                    {
-                        **transfer_data,
-                        "TTFR_FROM_TRANSIT_POINT_ID": points[0],
-                        "TTFR_TO_TRANSIT_POINT_ID": points[3],
-                    },
-                )
-                transfer_count = TransitTransfer.objects.count()
-
                 def detach_and_delete():
                     """Detach the shared stop and delete it in the same transaction."""
 
@@ -299,81 +273,16 @@ class TransitPointDeletionConcurrencyTests(TransactionTestCase):
 
                     if operation == "route_create":
                         return RouteVariantService.create_variant(route_data)
-                    if operation == "route_update":
-                        return RouteVariantService.update_variant(
-                            source.pk,
-                            route_data,
-                        )
-                    if operation == "transfer_create":
-                        return TransitTransferService.create_transfer(transfer_data)
-                    if operation == "transfer_update":
-                        return TransitTransferService.update_transfer(
-                            existing_transfer.pk,
-                            transfer_data,
-                        )
-                    return TransferCandidateDetectionService.detect_candidates()
+                    return RouteVariantService.update_variant(
+                        source.pk,
+                        route_data,
+                    )
 
                 result = self._overlap(detach_and_delete, write_reference)
 
-                if operation == "candidates":
-                    self.assertIsInstance(result, dict)
-                    self.assertEqual(
-                        TransitTransfer.objects.count(),
-                        transfer_count + result["candidates_created"],
-                    )
-                else:
-                    self.assertIsInstance(result, ValidationError)
-                    self.assertIn("no longer exists", str(result))
-                    self.assertEqual(
-                        TransitTransfer.objects.count(),
-                        transfer_count,
-                    )
+                self.assertIsInstance(result, ValidationError)
+                self.assertIn("no longer exists", str(result))
                 self.assertFalse(TransitPoint.objects.filter(pk=point_id).exists())
                 self.assertFalse(
                     RouteTransitPoint.objects.filter(TRPT_ID=point_id).exists(),
                 )
-                self.assertFalse(
-                    TransitTransfer.objects.filter(
-                        TTFR_FROM_TRANSIT_POINT_ID=point_id,
-                    ).exists(),
-                )
-                self.assertFalse(
-                    TransitTransfer.objects.filter(
-                        TTFR_TO_TRANSIT_POINT_ID=point_id,
-                    ).exists(),
-                )
-                existing_transfer.refresh_from_db()
-                self.assertEqual(
-                    existing_transfer.TTFR_FROM_TRANSIT_POINT_ID_id,
-                    points[0].pk,
-                )
-                self.assertEqual(
-                    existing_transfer.TTFR_TO_TRANSIT_POINT_ID_id,
-                    points[3].pk,
-                )
-
-    def test_deletion_waits_for_candidate_persistence_and_rechecks_dependencies(self):
-        """Keep a shared stop and its newly committed candidates when deletion loses the lock."""
-
-        network = self._network()
-        points = network[0]
-        directions = network[1]
-        point_id = points[1].pk
-
-        def delete_point():
-            """Attempt deletion while candidate writes are still uncommitted."""
-
-            return TransitPointService.delete_transit_point(point_id)
-
-        result = self._overlap(
-            TransferCandidateDetectionService.detect_candidates,
-            delete_point,
-        )
-
-        self.assertIsInstance(result, ValidationError)
-        self.assertEqual(result.detail["deletion"]["counts"]["directions"], 2)
-        self.assertEqual(result.detail["deletion"]["counts"]["transfers"], 2)
-        self.assertTrue(TransitPoint.objects.filter(pk=point_id).exists())
-        self.assertEqual(JeepneyRouteVariant.objects.count(), len(directions))
-        self.assertEqual(RouteTransitPoint.objects.count(), 6)
-        self.assertEqual(TransitTransfer.objects.count(), 2)

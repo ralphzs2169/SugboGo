@@ -22,11 +22,6 @@ export default function TransitNetworkPage() {
 
       {/* Transit management workspace */}
       <section>
-        {/* <p className="mb-5 max-w-3xl text-sm leading-relaxed text-text-secondary">
-          Browse, author, and review jeepney routes, managed Transit Points, and
-          directed transfer connections without leaving their shared geographic
-          context.
-        </p> */}
         <TransitNetworkWorkspace />
       </section>
     </>

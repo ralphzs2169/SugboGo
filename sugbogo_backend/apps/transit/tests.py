@@ -7,7 +7,6 @@ from apps.transit.models import (
     JeepneyRouteVariant,
     RouteTransitPoint,
     TransitPoint,
-    TransitTransfer,
 )
 
 
@@ -95,26 +94,6 @@ class TransitPersistenceTests(TestCase):
                 destination.TRPT_POINT,
                 srid=4326,
             ),
-        )
-
-    def _create_transfer(
-        self,
-        status=None,
-    ):
-        """Creates a route-specific transfer between two variants."""
-
-        transfer_values = {
-            "TTFR_FROM_VARIANT_ID": self.variant_14d_outbound,
-            "TTFR_TO_VARIANT_ID": self.variant_08g_outbound,
-            "TTFR_FROM_TRANSIT_POINT_ID": self.colon,
-            "TTFR_TO_TRANSIT_POINT_ID": self.colon,
-        }
-
-        if status is not None:
-            transfer_values["TTFR_STATUS"] = status
-
-        return TransitTransfer.objects.create(
-            **transfer_values,
         )
 
     def test_creates_jeepney_route(self):
@@ -257,97 +236,4 @@ class TransitPersistenceTests(TestCase):
                     JRV_ID=self.variant_14d_outbound,
                     TRPT_ID=self.kamputhaw,
                     RVTP_SEQUENCE=2,
-                )
-
-    def test_creates_pending_transfer(self):
-        """Stores a newly discovered transfer as pending by default."""
-
-        transfer = self._create_transfer()
-
-        self.assertEqual(
-            transfer.TTFR_STATUS,
-            TransitTransfer.TransferStatus.PENDING,
-        )
-
-    def test_creates_confirmed_transfer(self):
-        """Stores an admin-confirmed transfer connection."""
-
-        transfer = self._create_transfer(
-            status=TransitTransfer.TransferStatus.CONFIRMED,
-        )
-
-        self.assertEqual(
-            transfer.TTFR_STATUS,
-            TransitTransfer.TransferStatus.CONFIRMED,
-        )
-
-    def test_creates_ignored_transfer(self):
-        """Stores an ignored transfer candidate for review history."""
-
-        transfer = self._create_transfer(
-            status=TransitTransfer.TransferStatus.IGNORED,
-        )
-
-        self.assertEqual(
-            transfer.TTFR_STATUS,
-            TransitTransfer.TransferStatus.IGNORED,
-        )
-
-    def test_creates_nearby_transfer_with_distinct_connection_points(self):
-        """Stores separate alighting and boarding points for a walking transfer."""
-
-        transfer = TransitTransfer.objects.create(
-            TTFR_FROM_VARIANT_ID=self.variant_14d_outbound,
-            TTFR_TO_VARIANT_ID=self.variant_08g_outbound,
-            TTFR_FROM_TRANSIT_POINT_ID=self.fuente,
-            TTFR_TO_TRANSIT_POINT_ID=self.colon,
-        )
-
-        self.assertNotEqual(
-            transfer.TTFR_FROM_TRANSIT_POINT_ID,
-            transfer.TTFR_TO_TRANSIT_POINT_ID,
-        )
-
-    def test_allows_reverse_directed_transfer(self):
-        """Treats the reverse direction as a separate transfer relationship."""
-
-        forward_transfer = self._create_transfer(
-            status=TransitTransfer.TransferStatus.CONFIRMED,
-        )
-        reverse_transfer = TransitTransfer.objects.create(
-            TTFR_FROM_VARIANT_ID=self.variant_08g_outbound,
-            TTFR_TO_VARIANT_ID=self.variant_14d_outbound,
-            TTFR_FROM_TRANSIT_POINT_ID=self.colon,
-            TTFR_TO_TRANSIT_POINT_ID=self.colon,
-            TTFR_STATUS=TransitTransfer.TransferStatus.CONFIRMED,
-        )
-
-        self.assertNotEqual(
-            forward_transfer.TTFR_ID,
-            reverse_transfer.TTFR_ID,
-        )
-
-    def test_rejects_transfer_to_same_route_variant(self):
-        """Rejects a transfer whose two sides use the same variant."""
-
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                TransitTransfer.objects.create(
-                    TTFR_FROM_VARIANT_ID=self.variant_14d_outbound,
-                    TTFR_TO_VARIANT_ID=self.variant_14d_outbound,
-                    TTFR_FROM_TRANSIT_POINT_ID=self.colon,
-                    TTFR_TO_TRANSIT_POINT_ID=self.kamputhaw,
-                )
-
-    def test_rejects_duplicate_transfer_connection(self):
-        """Rejects the same route-specific transfer connection twice."""
-
-        self._create_transfer(
-            status=TransitTransfer.TransferStatus.PENDING,
-        )
-
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                self._create_transfer(
-                    status=TransitTransfer.TransferStatus.CONFIRMED,
                 )

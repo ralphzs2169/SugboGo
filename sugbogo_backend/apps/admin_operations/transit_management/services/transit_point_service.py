@@ -8,7 +8,6 @@ from apps.transit.models import (
     JeepneyRoute,
     JeepneyRouteVariant,
     TransitPoint,
-    TransitTransfer,
 )
 from apps.transit.services.transit_spatial_validation_service import TransitSpatialValidationService
 
@@ -95,25 +94,6 @@ class TransitPointService:
             pk__in=directions.values("JRT_ID"),
         ).order_by("JRT_ID")
         counts["routes"] = routes.count()
-        transfers = TransitTransfer.objects.filter(
-            Q(TTFR_FROM_TRANSIT_POINT_ID=transit_point)
-            | Q(TTFR_TO_TRANSIT_POINT_ID=transit_point),
-        )
-        counts.update(
-            transfers.aggregate(
-                transfers=Count("pk", distinct=True),
-                alighting_transfers=Count(
-                    "pk",
-                    filter=Q(TTFR_FROM_TRANSIT_POINT_ID=transit_point),
-                    distinct=True,
-                ),
-                boarding_transfers=Count(
-                    "pk",
-                    filter=Q(TTFR_TO_TRANSIT_POINT_ID=transit_point),
-                    distinct=True,
-                ),
-            ),
-        )
         limit = TransitPointService.DEPENDENCY_EXAMPLE_LIMIT
         direction_examples = list(
             directions.order_by("JRV_ID").values(
@@ -124,22 +104,8 @@ class TransitPointService:
                 "JRV_DESTINATION_ID__TRPT_NAME",
             )[:limit],
         )
-        transfer_examples = list(
-            transfers.order_by("TTFR_ID").values(
-                "TTFR_ID",
-                "TTFR_STATUS",
-                "TTFR_FROM_VARIANT_ID",
-                "TTFR_FROM_VARIANT_ID__JRT_ID__JRT_CODE",
-                "TTFR_TO_VARIANT_ID",
-                "TTFR_TO_VARIANT_ID__JRT_ID__JRT_CODE",
-            )[:limit],
-        )
-
         return {
-            "can_delete": (
-                counts["directions"] == 0
-                and counts["transfers"] == 0
-            ),
+            "can_delete": counts["directions"] == 0,
             "counts": counts,
             "example_limit": limit,
             "examples": {
@@ -160,21 +126,6 @@ class TransitPointService:
                     }
                     for direction in direction_examples
                 ],
-                "transfers": [
-                    {
-                        "id": transfer["TTFR_ID"],
-                        "status": transfer["TTFR_STATUS"],
-                        "source_variant_id": transfer["TTFR_FROM_VARIANT_ID"],
-                        "source_route_code": transfer[
-                            "TTFR_FROM_VARIANT_ID__JRT_ID__JRT_CODE"
-                        ],
-                        "destination_variant_id": transfer["TTFR_TO_VARIANT_ID"],
-                        "destination_route_code": transfer[
-                            "TTFR_TO_VARIANT_ID__JRT_ID__JRT_CODE"
-                        ],
-                    }
-                    for transfer in transfer_examples
-                ],
             },
         }
 
@@ -188,7 +139,7 @@ class TransitPointService:
             {
                 "non_field_errors": [
                     "This Transit Point is still referenced. Reassign its route "
-                    "directions, stops, and transfers before deleting it.",
+                    "directions and stops before deleting it.",
                 ],
             },
         )

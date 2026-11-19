@@ -12,7 +12,6 @@ let originalGet;
 let originalPatch;
 let service;
 let StopSelector;
-let TransferForm;
 let Inspector;
 let useTransitMutations;
 
@@ -28,9 +27,6 @@ before(async () => {
   ));
   originalGet = apiClient.get;
   originalPatch = apiClient.patch;
-  ({ default: TransferForm } = await server.ssrLoadModule(
-    "/src/features/admin-panel/transit-network/components/transfers/TransferForm.jsx",
-  ));
   ({ default: Inspector } = await server.ssrLoadModule(
     "/src/features/admin-panel/transit-network/components/workspace/TransitNetworkInspector.jsx",
   ));
@@ -85,28 +81,6 @@ test("direction references request every page but ordinary browsing still reques
   calls.length = 0;
   await service.fetchTransitPoints({ page: 2, page_size: 10, search: "Church" });
   assert.deepEqual(calls, [["/admin/transit/transit-points/", { page: 2, page_size: 10, search: "Church" }]]);
-});
-
-test("transfer selectors can resolve a selected direction beyond the first 100", () => {
-  const client = new QueryClient();
-  const variants = Array.from({ length: 101 }, (_, i) => ({
-    id: i + 1, route_code: `R${i + 1}`,
-    origin: { name: `Origin ${i + 1}` }, destination: { name: `Destination ${i + 1}` },
-    transit_points: [{ transit_point: { id: (i + 1) * 10, name: `Stop ${i + 1}` } }],
-  }));
-  client.setQueryData(transitQueryKeys.variantReferences(), variants);
-  const html = renderToStaticMarkup(createElement(QueryClientProvider, { client },
-    createElement(TransferForm, {
-      transfer: {
-        source_variant: { id: 101 }, destination_variant: { id: 100 },
-        alighting_transit_point: { id: 1010 }, boarding_transit_point: { id: 1000 },
-      },
-    }),
-  ));
-  assert.match(html, /R101/);
-  assert.match(html, /Stop 101/);
-  assert.match(html, /value="101" selected/);
-  client.clear();
 });
 
 test("route editing waits for the complete stop list instead of offering an empty selector", () => {

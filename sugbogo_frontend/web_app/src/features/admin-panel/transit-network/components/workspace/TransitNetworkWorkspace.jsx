@@ -15,18 +15,13 @@ import {
   useJeepneyRoutes,
   useRouteVariantReferences,
   useTransitPointReferences,
-  useRouteVariant,
   useTransitPoint,
-  useTransitTransfer,
   useTransitPoints,
-  useTransitTransfers,
 } from "../../hooks/useTransitQueries";
 import useTransitTableState from "../../hooks/useTransitTableState";
 import useUnsavedChangesGuard from "../../hooks/useUnsavedChangesGuard";
 import EditorConfirmationModal from "../route-variant-editor/EditorConfirmationModal";
 import RouteBrowser from "../routes/RouteBrowser";
-import TransferBrowser from "../transfers/TransferBrowser";
-import TransferDecisionModal from "../transfers/TransferDecisionModal";
 import TransitPointList from "../transit-point-workspace/TransitPointList";
 import TransitPointDeleteModal from "../transit-point-workspace/TransitPointDeleteModal";
 import TransitNetworkContextActions from "./TransitNetworkContextActions";
@@ -81,18 +76,11 @@ export default function TransitNetworkWorkspace() {
   const client = useQueryClient();
   const [pointSelection, setPointSelection] = useState(null);
   const [deletingPointId, setDeletingPointId] = useState(null);
-  const [transferSelection, setTransferSelection] = useState(null);
   const [editingPoint, setEditingPoint] = useState(null);
-  const [editingTransfer, setEditingTransfer] = useState(null);
   function setSelectedPoint(record) {
     setPointSelection(record ? { id: record.id, fallback: record } : null);
   }
 
-  function setSelectedTransfer(record) {
-    setTransferSelection(record ? { id: record.id, fallback: record } : null);
-  }
-  const [transferDecision, setTransferDecision] = useState(null);
-  const [decisionTransfer, setDecisionTransfer] = useState(null);
   const [formDirty, setFormDirty] = useState(false);
   const [focusTarget, setFocusTarget] = useState(null);
   const [isLocalDiscardOpen, setIsLocalDiscardOpen] = useState(false);
@@ -113,11 +101,8 @@ export default function TransitNetworkWorkspace() {
     pagination,
     setPagination,
     isSearching,
-    statusFilter,
-    setStatusFilter,
     routeParams,
     pointParams,
-    transferParams,
     handleTabChange,
   } = useTransitTableState();
 
@@ -126,9 +111,6 @@ export default function TransitNetworkWorkspace() {
   });
   const pointsQuery = useTransitPoints(pointParams, {
     enabled: context === TRANSIT_CONTEXTS.POINTS,
-  });
-  const transfersQuery = useTransitTransfers(transferParams, {
-    enabled: context === TRANSIT_CONTEXTS.TRANSFERS,
   });
   const routeDetailQuery = useJeepneyRoute(
     context === TRANSIT_CONTEXTS.ROUTES ? expandedRouteId : null,
@@ -142,21 +124,12 @@ export default function TransitNetworkWorkspace() {
   const activePointId =
     context === TRANSIT_CONTEXTS.POINTS ? pointSelection?.id : null;
   const pointDetail = useTransitPoint(activePointId);
-  const transferDetail = useTransitTransfer(transferSelection?.id, {
-    enabled: context === TRANSIT_CONTEXTS.TRANSFERS,
-  });
   const pointSelectionState = useSelectedTransitRecord({
     id: activePointId, fallback: pointSelection?.fallback, list: pointsQuery,
     detail: pointDetail, field: "transitPoint",
     queryKey: transitQueryKeys.transitPointDetail(activePointId),
   });
-  const transferSelectionState = useSelectedTransitRecord({
-    id: transferSelection?.id, fallback: transferSelection?.fallback, list: transfersQuery,
-    detail: transferDetail, field: "transfer",
-    queryKey: transitQueryKeys.transferDetail(transferSelection?.id),
-  });
   const selectedPoint = pointSelectionState.record;
-  const selectedTransfer = transferSelectionState.record;
   const visiblePoints = pointsQuery.items
     .filter((point) => !(pointSelectionState.unavailable && String(point.id) === String(pointSelection?.id)))
     .map((point) => String(point.id) === String(selectedPoint?.id) ? selectedPoint : point);
@@ -167,25 +140,6 @@ export default function TransitNetworkWorkspace() {
       !pointsQuery.isPlaceholderData &&
       !visiblePoints.some((point) => String(point.id) === String(selectedPoint.id)),
   );
-  const visibleTransfers = transfersQuery.items
-    .filter((transfer) => !(transferSelectionState.unavailable && String(transfer.id) === String(transferSelection?.id)))
-    .map((transfer) => String(transfer.id) === String(selectedTransfer?.id) ? selectedTransfer : transfer);
-
-  const sourceVariantQuery = useRouteVariant(
-    selectedTransfer?.source_variant?.id,
-    {
-      enabled:
-        context === TRANSIT_CONTEXTS.TRANSFERS && Boolean(selectedTransfer),
-    },
-  );
-  const destinationVariantQuery = useRouteVariant(
-    selectedTransfer?.destination_variant?.id,
-    {
-      enabled:
-        context === TRANSIT_CONTEXTS.TRANSFERS && Boolean(selectedTransfer),
-    },
-  );
-
   const isEditing = mode !== TRANSIT_MODES.BROWSE;
   const routeUnavailable =
     !isEditing && routeDetailQuery.error?.response?.status === 404;
@@ -231,8 +185,7 @@ export default function TransitNetworkWorkspace() {
   const isOverlayOpen =
     isLocalDiscardOpen ||
     navigationGuard.isLeaveConfirmationOpen ||
-    Boolean(deletingPointId) ||
-    Boolean(transferDecision);
+    Boolean(deletingPointId);
 
   useTransitWorkspaceKeyboardShortcuts({
     isRouteGeometryMode: isVariantMode && !isRoutePointCreationMode,
@@ -243,11 +196,7 @@ export default function TransitNetworkWorkspace() {
     onRequestCancel: requestCancelActiveMode,
   });
   const activeQuery =
-    context === TRANSIT_CONTEXTS.ROUTES
-      ? routesQuery
-      : context === TRANSIT_CONTEXTS.POINTS
-        ? pointsQuery
-        : transfersQuery;
+    context === TRANSIT_CONTEXTS.ROUTES ? routesQuery : pointsQuery;
 
   useApiErrorNotification(activeQuery.error, {
     toastId: `transit-workspace-${context}-error`,
@@ -264,14 +213,6 @@ export default function TransitNetworkWorkspace() {
   useApiErrorNotification(pointReferenceVariantsQuery.error, {
     toastId: "transit-workspace-point-reference-routes-error",
     fallbackMessage: "Route reference lines could not be loaded.",
-  });
-  useApiErrorNotification(sourceVariantQuery.error, {
-    toastId: `transit-workspace-transfer-source-${selectedTransfer?.id}-error`,
-    fallbackMessage: "Unable to load the source route geometry.",
-  });
-  useApiErrorNotification(destinationVariantQuery.error, {
-    toastId: `transit-workspace-transfer-destination-${selectedTransfer?.id}-error`,
-    fallbackMessage: "Unable to load the destination route geometry.",
   });
 
   const focusRequest = useMemo(() => {
@@ -293,29 +234,15 @@ export default function TransitNetworkWorkspace() {
         ),
       };
     }
-    if (focusTarget.type === "variant") {
-      return {
-        key: focusTarget.key,
-        positions: geometryPositions([selectedVariant].filter(Boolean)),
-      };
-    }
-
     return {
       key: focusTarget.key,
-      positions: [
-        ...geometryPositions([sourceVariantQuery.variant].filter(Boolean)),
-        ...geometryPositions(
-          [destinationVariantQuery.variant].filter(Boolean),
-        ),
-      ],
+      positions: geometryPositions([selectedVariant].filter(Boolean)),
     };
   }, [
-    destinationVariantQuery.variant,
     focusTarget,
     routeDetailQuery.route?.variants,
     routeUnavailable,
     selectedVariant,
-    sourceVariantQuery.variant,
   ]);
 
   const handleFormDirtyChange = useCallback((nextDirty) => {
@@ -339,7 +266,6 @@ export default function TransitNetworkWorkspace() {
     }
 
     requestWorkspaceAction(() => {
-      setSelectedTransfer(null);
       setFocusTarget(null);
       setFormDirty(false);
       setMode(TRANSIT_MODES.BROWSE);
@@ -393,17 +319,6 @@ export default function TransitNetworkWorkspace() {
     });
   }
 
-  function selectTransfer(transfer) {
-    requestWorkspaceAction(() => {
-      setSelectedTransfer(transfer);
-      setMode(TRANSIT_MODES.BROWSE);
-      setFocusTarget({
-        type: "transfer",
-        key: `transfer-${transfer.id}-${Date.now()}`,
-      });
-    });
-  }
-
   function startAddPoint() {
     if (isEditing) return;
 
@@ -430,11 +345,6 @@ export default function TransitNetworkWorkspace() {
 
     setIsInspectorCollapsed(false);
     setMode(TRANSIT_MODES.EDIT_ROUTE);
-  }
-
-  function startCreateTransfer() {
-    setSelectedTransfer(null);
-    setMode(TRANSIT_MODES.CREATE_TRANSFER);
   }
 
   function startEditPoint() {
@@ -482,7 +392,6 @@ export default function TransitNetworkWorkspace() {
       }),
       client.invalidateQueries({ queryKey: transitQueryKeys.routes() }),
       client.invalidateQueries({ queryKey: transitQueryKeys.variants() }),
-      client.invalidateQueries({ queryKey: transitQueryKeys.transfers() }),
     ]);
   }
 
@@ -655,13 +564,6 @@ export default function TransitNetworkWorkspace() {
     setMode(TRANSIT_MODES.BROWSE);
   }
 
-  function handleTransferSaved(savedTransfer) {
-    setFormDirty(false);
-    client.setQueryData(transitQueryKeys.transferDetail(savedTransfer.id), savedTransfer);
-    setSelectedTransfer(savedTransfer);
-    setMode(TRANSIT_MODES.BROWSE);
-  }
-
   function discardLocalChanges() {
     setIsLocalDiscardOpen(false);
     setFormDirty(false);
@@ -722,14 +624,10 @@ export default function TransitNetworkWorkspace() {
     context === TRANSIT_CONTEXTS.ROUTES
       ? routeReferencePoints
       : visiblePoints;
-  const transferGeometryError =
-    sourceVariantQuery.error || destinationVariantQuery.error;
   const referenceLayerError =
     context === TRANSIT_CONTEXTS.ROUTES
       ? routeReferencePointsQuery.error
-      : context === TRANSIT_CONTEXTS.POINTS
-        ? pointReferenceVariantsQuery.error
-        : null;
+      : pointReferenceVariantsQuery.error;
   const retryReferenceLayer =
     context === TRANSIT_CONTEXTS.ROUTES
       ? routeReferencePointsQuery.refetch
@@ -754,18 +652,14 @@ export default function TransitNetworkWorkspace() {
         <TransitNetworkContextActions
           context={context}
           mode={mode}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
           onAddRoute={startCreateRoute}
           onAddPoint={startAddPoint}
-          onAddTransfer={startCreateTransfer}
         />
       </div>
 
       <TransitWorkspaceToolbar
         context={context}
         mode={mode}
-        hasSelectedTransfer={Boolean(selectedTransfer)}
         isSelectingTransitPoint={variantEditor.isSelectingTransitPoint}
         isCreatingRouteTransitPoint={isRoutePointCreationMode}
         isBrowserCollapsed={isBrowserCollapsed}
@@ -779,19 +673,17 @@ export default function TransitNetworkWorkspace() {
         onToggleFullscreen={fullscreen.toggleFullscreen}
       />
 
-      {[pointSelectionState, transferSelectionState].map((selection, index) => (
-        selection.error ? (
-          <DataErrorState
-            key={index}
-            compact framed
-            title={selection.unavailable ? "Selected record is no longer available" : "Unable to refresh selected record"}
-            message="Your draft is preserved. Retry to check availability before editing or saving."
-            onRetry={selection.refetch}
-          />
-        ) : null
-      ))}
-      {((mode === TRANSIT_MODES.EDIT_POINT && selectedPoint && JSON.stringify(selectedPoint) !== JSON.stringify(editingPoint)) ||
-        (mode === TRANSIT_MODES.EDIT_TRANSFER && selectedTransfer && JSON.stringify(selectedTransfer) !== JSON.stringify(editingTransfer))) && (
+      {pointSelectionState.error && (
+        <DataErrorState
+          compact framed
+          title={pointSelectionState.unavailable ? "Selected record is no longer available" : "Unable to refresh selected record"}
+          message="Your draft is preserved. Retry to check availability before editing or saving."
+          onRetry={pointSelectionState.refetch}
+        />
+      )}
+      {mode === TRANSIT_MODES.EDIT_POINT &&
+        selectedPoint &&
+        JSON.stringify(selectedPoint) !== JSON.stringify(editingPoint) && (
         <p role="status" className="mb-4 text-sm text-text-secondary">
           Server data changed while you were editing. Your draft is preserved; cancel to review the latest record before saving.
         </p>
@@ -864,23 +756,6 @@ export default function TransitNetworkWorkspace() {
               onStartAdd={startAddPoint}
             />
           )}
-          {context === TRANSIT_CONTEXTS.TRANSFERS && (
-            <TransferBrowser
-              transfers={visibleTransfers}
-              selectedTransferId={selectedTransfer?.id}
-              isLoading={transfersQuery.isLoading}
-              error={transfersQuery.error}
-              pagination={pagination}
-              pageCount={transfersQuery.pageCount}
-              totalItems={transfersQuery.totalItems}
-              interactionDisabled={mode !== TRANSIT_MODES.BROWSE}
-              onTransferSelect={selectTransfer}
-              onPageChange={(pageIndex) =>
-                setPagination({ ...pagination, pageIndex })
-              }
-              onRetry={transfersQuery.refetch}
-            />
-          )}
         </div>
 
         <TransitNetworkMapCanvas
@@ -896,9 +771,6 @@ export default function TransitNetworkWorkspace() {
           selectedPoint={selectedPoint}
           selectedPointOutsideResults={selectedPointOutsideResults}
           pointDraftPosition={pointEditor.draftPosition}
-          transfer={selectedTransfer}
-          transferSourceVariant={sourceVariantQuery.variant}
-          transferDestinationVariant={destinationVariantQuery.variant}
           focusRequest={focusRequest}
           referenceLayerError={referenceLayerError}
           referenceLayerLoading={
@@ -965,36 +837,6 @@ export default function TransitNetworkWorkspace() {
             onSave: savePoint,
             onCancel: cancelPointEdit,
           }}
-          transferState={{
-            selectedTransfer: mode === TRANSIT_MODES.EDIT_TRANSFER ? editingTransfer : selectedTransfer,
-            saveDisabled: mode === TRANSIT_MODES.EDIT_TRANSFER && !transferSelectionState.canAct,
-            actionsDisabled: !transferSelectionState.canAct,
-            geometryError: transferGeometryError,
-            onDirtyChange: handleFormDirtyChange,
-            onCancel: () => {
-              setFormDirty(false);
-              setMode(TRANSIT_MODES.BROWSE);
-            },
-            onSaved: handleTransferSaved,
-            onEdit: () => {
-              if (!transferSelectionState.canAct) return;
-              setEditingTransfer(selectedTransfer);
-              setMode(TRANSIT_MODES.EDIT_TRANSFER);
-            },
-            onConfirm: () => { if (transferSelectionState.canAct) {
-                setDecisionTransfer(selectedTransfer);
-                setTransferDecision("confirm");
-              } },
-            onIgnore: () => { if (transferSelectionState.canAct) {
-                setDecisionTransfer(selectedTransfer);
-                setTransferDecision("ignore");
-              } },
-            onGeometryRetry: () =>
-              Promise.all([
-                sourceVariantQuery.refetch(),
-                destinationVariantQuery.refetch(),
-              ]),
-          }}
         />
       </div>
 
@@ -1023,7 +865,7 @@ export default function TransitNetworkWorkspace() {
         onConfirm={navigationGuard.discardAndLeave}
       />
 
-      {/* Explicit transfer decision confirmation */}
+      {/* Transit point deletion confirmation */}
       {deletingPointId && (
         <TransitPointDeleteModal
           key={deletingPointId}
@@ -1032,18 +874,6 @@ export default function TransitNetworkWorkspace() {
           onDeleted={handlePointDeleted}
         />
       )}
-
-      <TransferDecisionModal
-        transfer={decisionTransfer}
-        reviewDisabled={!transferSelectionState.canAct || selectedTransfer?.status !== "pending" || JSON.stringify(selectedTransfer) !== JSON.stringify(decisionTransfer)}
-        action={transferDecision}
-        onClose={() => setTransferDecision(null)}
-        onSaved={(savedTransfer) => {
-          client.setQueryData(transitQueryKeys.transferDetail(savedTransfer.id), savedTransfer);
-          setSelectedTransfer(savedTransfer);
-          setTransferDecision(null);
-        }}
-      />
     </div>
   );
 }

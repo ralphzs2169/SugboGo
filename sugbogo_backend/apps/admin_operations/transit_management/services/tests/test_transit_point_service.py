@@ -14,7 +14,6 @@ from apps.transit.models import (
     JeepneyRouteVariant,
     RouteTransitPoint,
     TransitPoint,
-    TransitTransfer,
 )
 
 
@@ -117,28 +116,21 @@ class TransitPointServiceTests(TransitBoundaryTestMixin, TestCase):
             TransitPointService.delete_transit_point(point_id)
 
     def test_each_reference_role_blocks_deletion_without_changing_records(self):
-        """Protect every foreign-key role, including transfers in every review status."""
+        """Protect points used as route endpoints or ordered stops."""
 
-        cases = [
-            ("origin_directions", None),
-            ("destination_directions", None),
-            ("ordered_stops", None),
-        ]
-        cases.extend(
-            (role, transfer_status)
-            for role in ("alighting_transfers", "boarding_transfers")
-            for transfer_status in TransitTransfer.TransferStatus.values
-        )
         models = (
             TransitPoint,
             JeepneyRoute,
             JeepneyRouteVariant,
             RouteTransitPoint,
-            TransitTransfer,
-        )
+                )
 
-        for role, transfer_status in cases:
-            with self.subTest(role=role, transfer_status=transfer_status):
+        for role in (
+            "origin_directions",
+            "destination_directions",
+            "ordered_stops",
+        ):
+            with self.subTest(role=role):
                 point = self._point()
                 origin = self._point()
                 destination = self._point()
@@ -152,22 +144,6 @@ class TransitPointServiceTests(TransitBoundaryTestMixin, TestCase):
                         JRV_ID=direction,
                         TRPT_ID=point,
                         RVTP_SEQUENCE=1,
-                    )
-                if transfer_status is not None:
-                    other_direction = self._direction(origin, destination)
-                    alighting = origin
-                    boarding = destination
-                    if role == "alighting_transfers":
-                        alighting = point
-                    else:
-                        boarding = point
-                    # Isolate transfer-only references, including legacy memberships.
-                    TransitTransfer.objects.create(
-                        TTFR_FROM_VARIANT_ID=direction,
-                        TTFR_TO_VARIANT_ID=other_direction,
-                        TTFR_FROM_TRANSIT_POINT_ID=alighting,
-                        TTFR_TO_TRANSIT_POINT_ID=boarding,
-                        TTFR_STATUS=transfer_status,
                     )
                 before = {
                     model: list(model.objects.order_by("pk").values())
@@ -189,26 +165,17 @@ class TransitPointServiceTests(TransitBoundaryTestMixin, TestCase):
                 )
 
     def test_shared_point_totals_are_distinct_and_examples_are_bounded(self):
-        """Count each direction, route and transfer once across overlapping roles."""
+        """Count each direction, route once across overlapping roles."""
 
         point = self._point()
         destination = self._point()
         total = TransitPointService.DEPENDENCY_EXAMPLE_LIMIT + 2
-        directions = []
-        for index in range(total):
+        for _ in range(total):
             direction = self._direction(point, destination)
-            directions.append(direction)
             RouteTransitPoint.objects.create(
                 JRV_ID=direction,
                 TRPT_ID=point,
                 RVTP_SEQUENCE=1,
-            )
-        for index, direction in enumerate(directions):
-            TransitTransfer.objects.create(
-                TTFR_FROM_VARIANT_ID=direction,
-                TTFR_TO_VARIANT_ID=directions[(index + 1) % total],
-                TTFR_FROM_TRANSIT_POINT_ID=point,
-                TTFR_TO_TRANSIT_POINT_ID=point,
             )
 
         dependencies = TransitPointService.get_deletion_dependencies(point)
@@ -218,9 +185,6 @@ class TransitPointServiceTests(TransitBoundaryTestMixin, TestCase):
             "routes",
             "origin_directions",
             "ordered_stops",
-            "transfers",
-            "alighting_transfers",
-            "boarding_transfers",
         ):
             self.assertEqual(dependencies["counts"][key], total)
         for examples in dependencies["examples"].values():

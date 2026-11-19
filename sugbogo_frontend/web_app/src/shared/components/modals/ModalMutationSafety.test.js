@@ -31,7 +31,6 @@ let client;
 let Modal;
 let Table;
 let SpecialtyPanel;
-let TransferDecision;
 let writes;
 let reads;
 let mutation;
@@ -92,7 +91,6 @@ before(async () => {
   ({ default: Modal } = await server.ssrLoadModule("/src/shared/components/modals/Modal.jsx"));
   ({ default: Table } = await server.ssrLoadModule("/src/features/admin-panel/cluster-category/components/ClusterCategoryManagementTable.jsx"));
   ({ default: SpecialtyPanel } = await server.ssrLoadModule("/src/features/admin-panel/specialty-tags/components/SpecialtyTagManagementPanel.jsx"));
-  ({ default: TransferDecision } = await server.ssrLoadModule("/src/features/admin-panel/transit-network/components/transfers/TransferDecisionModal.jsx"));
 });
 
 beforeEach(async () => {
@@ -349,33 +347,6 @@ for (const outcome of ["success", "failure"]) {
     await attemptDismissal();
     await act(async () => second.resolve({}));
     await until(() => closed === 1);
-  });
-}
-
-for (const action of ["confirm", "ignore"]) {
-  test(`transfer ${action}: prevents dismissal and duplicates, and recovers from failure`, async () => {
-    let closed = 0;
-    let saved = 0;
-    let operation = deferred();
-    mutation = () => operation.promise;
-    await render(TransferDecision, {
-      transfer: { id: 4 }, action,
-      onClose: () => { closed += 1; }, onSaved: () => { saved += 1; },
-    });
-    const label = action === "confirm" ? "Confirm Transfer" : "Ignore Transfer";
-    const confirm = button(label, dialog());
-    await act(async () => { confirm.click(); confirm.click(); confirm.click(); });
-    assert.equal(writes.length, 1);
-    await attemptDismissal();
-    assert.equal(closed, 0);
-    await act(async () => operation.reject({ response: { data: { message: "Transfer rejected." } } }));
-    await until(() => !button("Cancel", dialog()).disabled);
-    assert.equal(toast.error.mock.calls.at(-1).arguments[0], "Transfer rejected.");
-    operation = deferred();
-    await act(async () => button(label, dialog()).click());
-    await act(async () => operation.resolve({ id: 4 }));
-    await until(() => saved === 1);
-    assert.match(toast.success.mock.calls.at(-1).arguments[0], /successfully/);
   });
 }
 

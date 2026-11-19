@@ -141,7 +141,7 @@ function MapWorkspaceResizeObserver() {
 
 /**
  * Hosts the single persistent Google Map and composes context-specific route,
- * Transit Point, transfer, draft, and selection layers.
+ * Transit Point, draft, and selection layers.
  */
 export default function TransitNetworkMapCanvas({
   context,
@@ -154,9 +154,6 @@ export default function TransitNetworkMapCanvas({
   selectedPoint,
   selectedPointOutsideResults,
   pointDraftPosition,
-  transfer,
-  transferSourceVariant,
-  transferDestinationVariant,
   focusRequest,
   referenceLayerError,
   referenceLayerLoading,
@@ -216,16 +213,6 @@ export default function TransitNetworkMapCanvas({
     () => toPath(variantEditor?.editorState.geometry ?? []),
     [variantEditor?.editorState.geometry],
   );
-  const sourceTransferPath = useMemo(
-    () => toPath(transferSourceVariant?.geometry),
-    [transferSourceVariant?.geometry],
-  );
-  const destinationTransferPath = useMemo(
-    () => toPath(transferDestinationVariant?.geometry),
-    [transferDestinationVariant?.geometry],
-  );
-  const alightingPosition = toPosition(transfer?.alighting_transit_point);
-  const boardingPosition = toPosition(transfer?.boarding_transit_point);
   const displayTransitPoints = useMemo(() => {
     if (
       context !== TRANSIT_CONTEXTS.POINTS ||
@@ -290,7 +277,6 @@ export default function TransitNetworkMapCanvas({
   const helpText = getMapHelpText(
     context,
     mode,
-    Boolean(transfer),
     isSelectingRouteTransitPoint,
   );
   const showMapHelp = isVariantEditing || isPointEditing;
@@ -503,49 +489,6 @@ export default function TransitNetworkMapCanvas({
             </AdvancedMarker>
           )}
 
-        {/* Transfer review layers */}
-        {context === TRANSIT_CONTEXTS.TRANSFERS && transfer && (
-          <>
-            {sourceTransferPath.length >= 2 && (
-              <Polyline
-                path={sourceTransferPath}
-                strokeColor="#F27F0D"
-                strokeOpacity={0.95}
-                strokeWeight={6}
-                clickable={false}
-              />
-            )}
-            {destinationTransferPath.length >= 2 && (
-              <Polyline
-                path={destinationTransferPath}
-                strokeColor="#3B82F6"
-                strokeOpacity={0.9}
-                strokeWeight={6}
-                clickable={false}
-              />
-            )}
-            {alightingPosition && boardingPosition && (
-              <Polyline
-                path={[alightingPosition, boardingPosition]}
-                strokeColor="#64748B"
-                strokeOpacity={0.9}
-                strokeWeight={3}
-                clickable={false}
-              />
-            )}
-            <TransferPointMarker
-              position={alightingPosition}
-              label={`Alight · ${transfer.alighting_transit_point?.name}`}
-              className="bg-primary"
-            />
-            <TransferPointMarker
-              position={boardingPosition}
-              label={`Board · ${transfer.boarding_transit_point?.name}`}
-              className="bg-info"
-            />
-          </>
-        )}
-
         {/* Contextual map guidance */}
         {showMapHelp && (
           <MapControl position={ControlPosition.TOP_LEFT}>
@@ -597,7 +540,6 @@ export default function TransitNetworkMapCanvas({
 function getMapHelpText(
   context,
   mode,
-  hasTransfer,
   isSelectingRouteTransitPoint,
 ) {
   if (isSelectingRouteTransitPoint) {
@@ -637,14 +579,6 @@ function getMapHelpText(
         "Drag numbered vertices, or use the inspector to add managed Transit Points.",
     };
   }
-  if (context === TRANSIT_CONTEXTS.TRANSFERS) {
-    return {
-      title: hasTransfer ? "Transfer review" : "Transfer network",
-      description: hasTransfer
-        ? "The connector is a geographic review aid, not a walking route."
-        : "Select a transfer to compare its route paths and connection points.",
-    };
-  }
   if (context === TRANSIT_CONTEXTS.POINTS) {
     return {
       title: "Transit Point network",
@@ -656,22 +590,4 @@ function getMapHelpText(
     title: "Jeepney route network",
     description: "Select a route or directional path before choosing an edit tool.",
   };
-}
-
-/** Displays one named endpoint for a selected transfer. */
-function TransferPointMarker({ position, label, className }) {
-  if (!position) {
-    return null;
-  }
-
-  return (
-    <AdvancedMarker position={position} title={label} zIndex={600}>
-      <div
-        className={`flex items-center gap-1.5 rounded-full border-2 border-background px-3 py-2 text-xs font-semibold text-white shadow-lg ${className}`}
-      >
-        <MapPin className="h-4 w-4" aria-hidden="true" />
-        <span>{label}</span>
-      </div>
-    </AdvancedMarker>
-  );
 }

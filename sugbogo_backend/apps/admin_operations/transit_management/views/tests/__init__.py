@@ -155,14 +155,3 @@ class TransitManagementViewTestMixin(TransitBoundaryTestMixin):
                 for transit_point in transit_points
             ],
         }
-
-    def _transfer_payload(self):
-        """Build a valid frontend transfer payload."""
-
-        return {
-            "source_variant_id": self.variant_14d.JRV_ID,
-            "destination_variant_id": self.variant_08g.JRV_ID,
-            "alighting_transit_point_id": self.colon.TRPT_ID,
-            "boarding_transit_point_id": self.carbon.TRPT_ID,
-        }
-
