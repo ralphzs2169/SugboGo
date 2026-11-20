@@ -40,8 +40,7 @@ export default function BusinessManagementMap({
   businesses = [],
   isLoading = false,
   isFetching = false,
-  error = null,
-  onRetry,
+  unavailable = false,
   onViewBusiness,
   hasActiveFilters = false,
   onResetFilters,
@@ -180,28 +179,10 @@ export default function BusinessManagementMap({
       </div>
     );
 
-  if (error) {
+  if (unavailable) {
     return (
-      <div
-        className={`flex items-center justify-center rounded-lg border border-stroke bg-surface-muted ${className}`}
-      >
-        <div className="text-center">
-          <p className="text-sm font-medium text-text-primary">
-            Unable to load business locations
-          </p>
-
-          <p className="mt-1 text-sm text-text-secondary">
-            The business location map could not be loaded.
-          </p>
-
-          <button
-            type="button"
-            onClick={onRetry}
-            className="mt-3 cursor-pointer text-sm font-semibold text-primary hover:underline"
-          >
-            Retry
-          </button>
-        </div>
+      <div className={`flex items-center justify-center bg-surface-muted ${className}`}>
+        <p className="text-sm text-text-secondary">Business locations unavailable</p>
       </div>
     );
   }

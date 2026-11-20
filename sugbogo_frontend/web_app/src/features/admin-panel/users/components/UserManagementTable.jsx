@@ -49,10 +49,6 @@ export default function UserManagementTable() {
     error: resendInvitationError,
   } = useResendAdminInvitation();
 
-  useApiErrorNotification(usersQuery.error, {
-    toastId: "admin-users-load-error",
-    fallbackMessage: "Unable to load users. Please try again.",
-  });
   useApiErrorNotification(suspendError, {
     toastId: "admin-user-suspend-error",
     fallbackMessage: "Unable to suspend the user. Please try again.",
@@ -172,6 +168,8 @@ export default function UserManagementTable() {
         isLoading={usersQuery.isLoading}
         isFetching={usersQuery.isFetching}
         error={usersQuery.error}
+        hasData={usersQuery.hasData}
+        loadSection="directory"
         onRetry={usersQuery.refetch}
         pagination={tableState.pagination}
         state={{

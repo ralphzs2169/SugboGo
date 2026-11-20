@@ -11,6 +11,7 @@ function TableControls({
   searchPlaceholder,
   showSearch = true,
   renderFilters,
+  renderFilterFeedback,
   renderHeaderActions,
   hasActiveFilters,
   onResetFilters,
@@ -59,6 +60,7 @@ function TableControls({
 
         {/* Filters */}
         {renderFilters && renderFilters()}
+        {renderFilterFeedback?.()}
 
         {hasActiveFilters && (
           <button

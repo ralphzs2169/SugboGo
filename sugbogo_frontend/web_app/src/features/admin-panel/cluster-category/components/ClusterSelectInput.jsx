@@ -303,7 +303,6 @@ export default function ClusterSelectInput({
         <div className="mt-2">
           <TaxonomyOptionFeedback
             query={optionsQuery}
-            resource="clusters"
             label="Cluster"
           />
         </div>

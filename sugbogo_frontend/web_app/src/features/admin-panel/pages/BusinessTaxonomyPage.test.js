@@ -403,7 +403,7 @@ test("an inventory failure preserves other cards and retries only its request", 
   assert.match(panel().textContent, /Food/);
   const before = reads.length;
   failures.delete(endpoint);
-  await click(button("Retry total categories", container));
+  await click(button("Retry taxonomy counts", container));
   assert.equal(reads.length, before + 1);
   assert.equal(reads.at(-1).url, endpoint);
   assert.match(card("Total Categories").textContent, /Total Categories2/);
@@ -595,7 +595,7 @@ for (const form of optionForms) {
     assert.doesNotMatch(container.textContent, /No clusters available/);
     assert.equal(container.querySelector(`[name="${form.field}"]`).value, "Preserved draft");
     assert.equal(container.querySelector('button[type="submit"]').disabled, true);
-    assert.equal(toast.error.mock.calls.at(-1).arguments[0], "clusters options unavailable.");
+    assert.equal(toast.error.mock.calls.length, 0);
     optionFailures.clear();
     const previousReads = reads.length;
     await click(button("Retry cluster options", container));
@@ -650,7 +650,7 @@ for (const [name, getComponent, entry] of [
     }
     optionFailures.add("clusters:2");
     await act(async () => client.invalidateQueries({ queryKey: keys.references("clusters"), exact: true }));
-    await waitForOptions(() => button("Retry cluster options", container));
+    await waitForOptions(() => button("Retry options", container));
     assert.match(container.textContent, /Cluster: Cluster 251/);
     assert.match(container.querySelector("tbody").textContent, /Healthy business/);
     await click(button("Filter", container));
@@ -658,7 +658,7 @@ for (const [name, getComponent, entry] of [
     assert.equal(button("Choose Category filter", container).disabled, false);
     optionFailures.clear();
     const previousReads = reads.length;
-    await click(button("Retry cluster options", container));
+    await click(button("Retry options", container));
     assert.deepEqual(reads.slice(previousReads).map((read) => [read.url, read.params.page]), [
       [`${API}clusters/`, 1], [`${API}clusters/`, 2], [`${API}clusters/`, 3],
     ]);
@@ -675,7 +675,7 @@ for (const [name, getComponent, entry] of [
       completeInventories(101);
       optionFailures.add(`${resource}:2`);
       await render(getComponent(), entry);
-      const retryLabel = `Retry ${label.toLowerCase()} options`;
+      const retryLabel = "Retry options";
       assert.ok(button(retryLabel, container));
       assert.match(container.querySelector("tbody").textContent, /Healthy business/);
       await click(button("Filter", container));
@@ -690,6 +690,30 @@ for (const [name, getComponent, entry] of [
     });
   }
 
+  test(`${name}: multiple option failures share one retry beside Filter`, async () => {
+    completeInventories(101);
+    optionFailures.add("clusters:2");
+    optionFailures.add("specialty-tags:2");
+    await render(getComponent(), entry);
+
+    const retries = [...container.querySelectorAll("button")].filter(
+      (item) => item.textContent === "Retry options",
+    );
+    assert.equal(retries.length, 1);
+    assert.ok(retries[0].parentElement.parentElement.contains(button("Filter", container)));
+    assert.match(container.querySelector("tbody").textContent, /Healthy business/);
+
+    optionFailures.clear();
+    const previousReads = reads.length;
+    await click(retries[0]);
+    const retriesByResource = reads.slice(previousReads).map((read) => read.url).sort();
+    assert.deepEqual(retriesByResource, [
+      `${API}clusters/`, `${API}clusters/`,
+      `${API}specialty-tags/`, `${API}specialty-tags/`,
+    ]);
+    assert.equal(button("Retry options", container), undefined);
+  });
+
   test(`${name}: pending and empty filter sources are distinct`, async () => {
     completeInventories(0);
     const pending = optionDeferred();
@@ -700,7 +724,7 @@ for (const [name, getComponent, entry] of [
         React.createElement(MemoryRouter, { initialEntries: [entry] }, React.createElement(Component)),
       ),
     ));
-    await waitForOptions(() => container.textContent.includes("Loading cluster options"));
+    await waitForOptions(() => container.textContent.includes("Loading filter options"));
     await act(async () => button("Filter", container).click());
     assert.equal(button("Choose Cluster filter", container).disabled, true);
     optionGates.delete("clusters:1");
@@ -709,6 +733,6 @@ for (const [name, getComponent, entry] of [
     assert.equal(button("Choose Cluster filter", container).disabled, false);
     await click(button("Choose Cluster filter", container));
     assert.match(container.textContent, /No cluster options available/);
-    assert.equal(button("Retry cluster options", container), undefined);
+    assert.equal(button("Retry options", container), undefined);
   });
 }

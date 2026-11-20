@@ -20,6 +20,7 @@ export default function useBusinessApplications(
     pageCount: query.data?.pagination?.total_pages ?? 0,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
+    hasData: query.data != null,
     error: query.error,
     refetch: query.refetch,
   };

@@ -1,3 +1,4 @@
+import { PageLoadScope } from "../components/PageLoadFeedback";
 import { useRef, useState } from "react";
 import { BarChart3, Layers, List, RotateCw, Tag, Tags, Gem } from "lucide-react";
 import toast from "react-hot-toast";
@@ -19,7 +20,6 @@ import DiscoveryScoreDetailsModal from "../discovery-scores/components/Discovery
 import DiscoveryScoreOverview from "../discovery-scores/components/DiscoveryScoreOverview";
 import DiscoveryScoringInfo from "../discovery-scores/components/DiscoveryScoringInfo";
 import useRecomputeDiscoveryScores from "../discovery-scores/hooks/useRecomputeDiscoveryScores";
-import DataErrorState from "@/shared/components/errors/DataErrorState";
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -65,6 +65,7 @@ export default function DiscoveryScoresPage() {
     pageCount,
     isLoading,
     isFetching,
+    data,
     error,
     refetch,
   } = useDiscoveryScores(params);
@@ -75,10 +76,6 @@ export default function DiscoveryScoresPage() {
   const categories = categoryOptionsQuery.data ?? [];
   const specialtyTags = specialtyOptionsQuery.data ?? [];
 
-  useApiErrorNotification(error, {
-    toastId: "discovery-scores-load-error",
-    fallbackMessage: "Unable to load Discovery Scores. Please try again.",
-  });
   useApiErrorNotification(recompute.error, {
     toastId: "discovery-score-recompute-error",
     fallbackMessage: "Unable to recompute Discovery Scores. Please try again.",
@@ -100,6 +97,14 @@ export default function DiscoveryScoresPage() {
     } finally {
       submitting.current = false;
     }
+  }
+
+  function renderFilterFeedback() {
+    return (
+      <TaxonomyOptionFeedback
+        queries={[clusterOptionsQuery, categoryOptionsQuery, specialtyOptionsQuery]}
+      />
+    );
   }
 
   function renderFilters() {
@@ -188,127 +193,114 @@ export default function DiscoveryScoresPage() {
         Monitor business discovery scores, calculation health, and visibility data for Hidden Gems.
       </p>
 
-      <section className="mb-6" aria-label="Discovery Score Overview">
-        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
-          <BarChart3 aria-hidden="true" className="h-4 w-4 shrink-0" />
-          Discovery Score Overview
-        </h2>
-        <p className="-mt-2 mb-3 text-xs text-text-secondary">Current scoring health and freshness · PHT</p>
-        <DiscoveryScoreOverview />
-      </section>
-      <DiscoveryScoringInfo />
+      <PageLoadScope>
+        <section className="mb-6" aria-label="Discovery Score Overview">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+            <BarChart3 aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Discovery Score Overview
+          </h2>
+          <p className="-mt-2 mb-3 text-xs text-text-secondary">Current scoring health and freshness · PHT</p>
+          <DiscoveryScoreOverview />
+        </section>
+        <DiscoveryScoringInfo />
 
-      <section aria-label="Business Discovery Scores">
-        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
-          <List aria-hidden="true" className="h-4 w-4 shrink-0" />
-          Business Discovery Scores
-        </h2>
-        {error && scores.length > 0 && (
-          <DataErrorState compact retainedData onRetry={() => refetch()} retrying={isFetching} retryLabel="Retry scores" />
+        <section aria-label="Business Discovery Scores">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+            <List aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Business Discovery Scores
+          </h2>
+
+          {/* The shared table owns search, skeleton, empty, error, and pagination UI. */}
+          <DataTable
+            data={scores}
+            columns={getDiscoveryScoreColumns(setSelectedBusiness)}
+            isLoading={isLoading}
+            isFetching={isFetching}
+            isSearching={isSearching}
+            error={error}
+            hasData={data != null}
+            loadSection="directory"
+            onRetry={refetch}
+            pagination={pagination}
+            state={{ globalFilter, sorting }}
+            pageCount={pageCount}
+            totalItems={totalItems}
+            onPaginationChange={setPagination}
+            onGlobalFilterChange={setGlobalFilter}
+            onSortingChange={setSorting}
+            hasActiveFilters={hasActiveFilters}
+            onResetFilters={handleResetFilters}
+            config={{
+              managementControls: true,
+              tableLabel: "Business Discovery Scores",
+              tableMinWidth: 1200,
+              searchPlaceholder: "Search businesses...",
+              emptyState: {
+                title: "No Discovery Scores yet",
+                description: "Scores appear after the first recomputation.",
+                icon: <Gem className="h-10 w-10 text-text-secondary" />,
+              },
+              noResultsState: { title: "No scored businesses found" },
+              errorState: {
+                title: "Unable to load Discovery Scores",
+                message: "The score records could not be loaded.",
+              },
+            }}
+            slots={{
+              renderFilters,
+              renderFilterFeedback,
+            }}
+          />
+        </section>
+
+        {selectedBusiness && (
+          <DiscoveryScoreDetailsModal
+            key={selectedBusiness.id}
+            business={selectedBusiness}
+            onClose={() => setSelectedBusiness(null)}
+          />
         )}
 
-      {/* The shared table owns search, skeleton, empty, error, and pagination UI. */}
-      <TaxonomyOptionFeedback
-        query={clusterOptionsQuery}
-        resource="clusters"
-        label="Cluster"
-      />
-      <TaxonomyOptionFeedback
-        query={categoryOptionsQuery}
-        resource="categories"
-        label="Category"
-      />
-      <TaxonomyOptionFeedback
-        query={specialtyOptionsQuery}
-        resource="specialty-tags"
-        label="Specialty Tag"
-      />
-      <DataTable
-        data={scores}
-        columns={getDiscoveryScoreColumns(setSelectedBusiness)}
-        isLoading={isLoading}
-        isFetching={isFetching}
-        isSearching={isSearching}
-        error={scores.length > 0 ? null : error}
-        onRetry={refetch}
-        pagination={pagination}
-        state={{ globalFilter, sorting }}
-        pageCount={pageCount}
-        totalItems={totalItems}
-        onPaginationChange={setPagination}
-        onGlobalFilterChange={setGlobalFilter}
-        onSortingChange={setSorting}
-        hasActiveFilters={hasActiveFilters}
-        onResetFilters={handleResetFilters}
-        config={{
-          managementControls: true,
-          tableLabel: "Business Discovery Scores",
-          tableMinWidth: 1200,
-          searchPlaceholder: "Search businesses...",
-          emptyState: {
-            title: "No Discovery Scores yet",
-            description: "Scores appear after the first recomputation.",
-            icon: <Gem className="h-10 w-10 text-text-secondary" />,
-          },
-          noResultsState: { title: "No scored businesses found" },
-          errorState: {
-            title: "Unable to load Discovery Scores",
-            message: "The score records could not be loaded.",
-          },
-        }}
-        slots={{
-          renderFilters,
-        }}
-      />
-      </section>
-
-      {selectedBusiness && (
-        <DiscoveryScoreDetailsModal
-          key={selectedBusiness.id}
-          business={selectedBusiness}
-          onClose={() => setSelectedBusiness(null)}
-        />
-      )}
-
-      {/* Confirmation keeps the batch action deliberate and prevents duplicates. */}
-      <Modal
-        isOpen={confirmOpen}
-        onClose={() => {
-          if (!isRecomputing) setConfirmOpen(false);
-        }}
-        title="Recompute Discovery Scores?"
-        description="This will recalculate Discovery Scores for all active businesses using the latest available specialty and visibility data."
-      >
-        {recompute.error && (
-          <div role="alert" className="mb-4 rounded-lg border border-danger/25 bg-danger/10 p-3 text-sm text-text-primary">
-            {recompute.error.response?.data?.message || recompute.error.message || "Recomputation failed. Please try again."}
-            {canRefreshScores && (
-              <div className="mt-3 space-y-2">
-                <p>Refreshing reads stored scores; it does not confirm whether this batch finished.</p>
-                <Button
-                  variant="secondary"
-                  loading={recompute.isRefreshing}
-                  onClick={recompute.refreshScores}
-                >
-                  Refresh score data
-                </Button>
-              </div>
-            )}
+        {/* Confirmation keeps the batch action deliberate and prevents duplicates. */}
+        <Modal
+          isOpen={confirmOpen}
+          onClose={() => {
+            if (!isRecomputing) setConfirmOpen(false);
+          }}
+          title="Recompute Discovery Scores?"
+          description="This will recalculate Discovery Scores for all active businesses using the latest available specialty and visibility data."
+        >
+          {recompute.error && (
+            <div role="alert" className="mb-4 rounded-lg border border-danger/25 bg-danger/10 p-3 text-sm text-text-primary">
+              {recompute.error.response?.data?.message || recompute.error.message || "Recomputation failed. Please try again."}
+              {canRefreshScores && (
+                <div className="mt-3 space-y-2">
+                  <p>Refreshing reads stored scores; it does not confirm whether this batch finished.</p>
+                  <Button
+                    variant="secondary"
+                    loading={recompute.isRefreshing}
+                    onClick={recompute.refreshScores}
+                  >
+                    Refresh score data
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setConfirmOpen(false)}
+              disabled={isRecomputing}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleRecompute} loading={isRecomputing}>
+              Recompute
+            </Button>
           </div>
-        )}
-        <div className="flex justify-end gap-3">
-          <Button
-            variant="secondary"
-            onClick={() => setConfirmOpen(false)}
-            disabled={isRecomputing}
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleRecompute} loading={isRecomputing}>
-            Recompute
-          </Button>
-        </div>
-      </Modal>
+        </Modal>
+      </PageLoadScope>
     </>
   );
 }

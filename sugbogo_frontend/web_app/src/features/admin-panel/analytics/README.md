@@ -57,10 +57,10 @@ React Query result:
 - `error`/`isError` identify request failure, including failed refresh with retained data.
 - `refetch()` retries that section only, without invalidating sibling reports.
 
-Pages own `useApiErrorNotification(error, { toastId, fallbackMessage })`. Each
-mounted section must also display its persistent error state and wire Retry to
-its own `refetch()`. Keep successful sibling sections mounted. A failed background
-refresh may show retained values alongside a refresh error; never clear them to zero.
+Keep report load errors with the affected section and wire Retry to that query's
+`refetch()`. The page groups connection failures across multiple sections into
+one retry notice. Keep successful sibling sections and previously loaded values
+visible during recovery.
 
 Queries use a one-minute stale time to reduce repeated reads on navigation. They
 inherit the global QueryClient's retry=1 and refetchOnWindowFocus=false settings.
@@ -129,7 +129,6 @@ Pass `isLoading`, `isFetching`, `error` and the section's `refetch` from its que
 Set `hasData={query.data !== undefined}` so background failures retain the last
 loaded report. Initial errors use the shared persistent error state; refresh
 errors display a compact explanation and Retry alongside retained content.
-Pages continue to own `useApiErrorNotification()`.
 
 `isEmpty` and `unavailable` are explicit report-level decisions. The containers
 never infer emptiness from zero, missing buckets, null percentages, or a single

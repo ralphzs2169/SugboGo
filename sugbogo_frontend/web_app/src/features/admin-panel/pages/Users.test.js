@@ -29,6 +29,7 @@ let posts;
 let notifications;
 let failedCounts;
 let tableFailure;
+let connectionFailure;
 let postFailure;
 let counts;
 let pendingReads;
@@ -84,6 +85,7 @@ beforeEach(async () => {
   notifications = [];
   failedCounts = new Set();
   tableFailure = false;
+  connectionFailure = false;
   postFailure = false;
   pendingReads = null;
   targetStatus = "disabled";
@@ -97,6 +99,12 @@ beforeEach(async () => {
 
     if (pendingReads) {
       await new Promise((done) => pendingReads.push(done));
+    }
+
+    if (connectionFailure) {
+      const error = new Error("Connection unavailable");
+      error.response = { data: { code: "NETWORK_ERROR" } };
+      throw error;
     }
 
     if (params.page_size === 1) {
@@ -247,19 +255,17 @@ test("count and directory failures retain independent data and retry only their 
   failedCounts.add("active");
   tableFailure = true;
   await renderPage();
-  await until(() => container.textContent.includes("Unable to load active users"));
+  await until(() => container.textContent.includes("Unable to load user counts"));
   assert.equal(card("Total Users").querySelector(".tabular-nums").textContent, "30");
   assert.equal(card("Suspended Users").querySelector(".tabular-nums").textContent, "0");
-  assert.equal(card("Active Users"), undefined);
+  assert.match(card("Active Users").textContent, /Unavailable/);
   assert.match(container.textContent, /Unable to load users/);
-  assert.ok(notifications.length >= 2);
+  assert.equal(notifications.length, 0);
 
   failedCounts.clear();
   reads.length = 0;
-  const activeError = [...container.querySelectorAll('[role="alert"]')]
-    .find((element) => element.textContent.includes("Unable to load active users"));
-  await click(button("Retry", activeError));
-  await until(() => Boolean(card("Active Users")));
+  await click(button("Retry user counts"));
+  await until(() => card("Active Users").textContent.includes("20"));
   assert.deepEqual(reads, [{ status: "active", page: 1, page_size: 1 }]);
   assert.match(container.textContent, /Unable to load users/);
 
@@ -278,16 +284,56 @@ test("failed count refresh keeps the last value and supports targeted recovery",
   await until(() => Boolean(card("Merchants")));
   failedCounts.add("merchants");
   await act(async () => client.invalidateQueries({ queryKey: userQueryKeys.lists() }));
-  await until(() => container.textContent.includes("Refresh failed"));
+  await until(() => container.textContent.includes("Showing previously loaded data"));
   assert.equal(card("Merchants").querySelector(".tabular-nums").textContent, "7");
   assert.match(container.textContent, /Showing previously loaded data/);
   assert.match(container.textContent, /Mara Merchant/);
   failedCounts.clear();
   counts.merchants = 8;
   reads.length = 0;
-  await click(button("Retry", container.querySelector('[role="alert"]')));
+  await click(button("Retry user counts"));
   await until(() => card("Merchants")?.querySelector(".tabular-nums").textContent === "8");
   assert.deepEqual(reads, [{ role: "merchant", page: 1, page_size: 1 }]);
+});
+
+test("a connection failure across the overview and directory has one retry", async () => {
+  connectionFailure = true;
+  await renderPage();
+  await until(() => button("Retry failed requests"));
+  assert.match(container.textContent, /Unable to reach SugboGo/);
+  assert.match(card("Total Users").textContent, /Unavailable/);
+  const retryLabels = [...container.querySelectorAll("button")].map((item) => item.textContent);
+  assert.ok(!retryLabels.includes("Retry user counts"));
+  assert.ok(!retryLabels.includes("Try Again"));
+  assert.equal(notifications.length, 0);
+
+  connectionFailure = false;
+  reads.length = 0;
+  await click(button("Retry failed requests"));
+  await until(() => container.textContent.includes("Mara Merchant"));
+  assert.deepEqual(
+    reads.map((params) => params.page_size).sort((left, right) => left - right),
+    [1, 1, 1, 1, 10],
+  );
+  assert.doesNotMatch(container.textContent, /Retry failed requests/);
+});
+
+test("directory refresh failure keeps the current rows and retries only the directory", async () => {
+  await renderPage();
+  await until(() => container.textContent.includes("Mara Merchant"));
+  tableFailure = true;
+  await act(async () => client.invalidateQueries({ queryKey: userQueryKeys.lists() }));
+  await until(() => container.textContent.includes("Showing previously loaded data"));
+  assert.match(container.querySelector("tbody").textContent, /Mara Merchant/);
+  assert.doesNotMatch(container.textContent, /Retry user counts/);
+  assert.equal(notifications.length, 0);
+
+  tableFailure = false;
+  reads.length = 0;
+  await click(button("Retry"));
+  await until(() => !container.textContent.includes("Showing previously loaded data"));
+  assert.equal(reads.length, 1);
+  assert.equal(reads[0].page_size, 10);
 });
 
 test("Admin creation and both status mutations refresh mounted overview counts", async () => {

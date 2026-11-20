@@ -173,15 +173,15 @@ test("a successful measured zero remains visible as zero", async () => {
   assert.match(metricCard("Approaching SLA").textContent, /Approaching SLA0/);
   assert.match(metricCard("Overdue").textContent, /Overdue0/);
   assert.match(metricCard("Oldest Pending").textContent, /Oldest Pending—/);
-  assert.doesNotMatch(container.textContent, /Unable to load application statistics/);
+  assert.doesNotMatch(container.textContent, /Unable to load application metrics/);
 });
 
 test("an initial failure displays a persistent error instead of a pending zero", async () => {
   failure = true;
   await renderPage();
-  assert.match(container.textContent, /Unable to load application statistics/);
-  assert.equal(pendingCard(), undefined);
-  assert.ok([...container.querySelectorAll("button")].some((item) => item.textContent === "Try Again"));
+  assert.match(container.textContent, /Unable to load application metrics/);
+  assert.match(pendingCard().textContent, /Pending Review—/);
+  assert.ok([...container.querySelectorAll("button")].some((item) => item.textContent === "Retry metrics"));
 });
 
 test("section Retry recovers values through the existing statistics hook", async () => {
@@ -189,11 +189,11 @@ test("section Retry recovers values through the existing statistics hook", async
   await renderPage();
   failure = false;
   pending = 7;
-  const retry = [...container.querySelectorAll("button")].find((item) => item.textContent === "Try Again");
+  const retry = [...container.querySelectorAll("button")].find((item) => item.textContent === "Retry metrics");
   await act(async () => retry.click());
   await settleQueries();
   assert.equal(reads.length, 2);
-  assert.doesNotMatch(container.textContent, /Unable to load application statistics/);
+  assert.doesNotMatch(container.textContent, /Unable to load application metrics/);
   assert.match(pendingCard().textContent, /Pending Review7/);
 });
 

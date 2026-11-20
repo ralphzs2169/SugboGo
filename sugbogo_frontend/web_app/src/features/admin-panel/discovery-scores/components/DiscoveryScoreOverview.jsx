@@ -1,8 +1,7 @@
 import { CircleCheck, ClipboardList, Store, TriangleAlert } from "lucide-react";
 import MetricCard from "../../components/MetricCard";
 import MetricCardsSkeleton from "../../components/MetricCardsSkeleton";
-import DataErrorState from "@/shared/components/errors/DataErrorState";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import { LoadGroupFeedback } from "../../components/PageLoadFeedback";
 import { useDiscoveryScoreAnalytics } from "../../analytics/hooks/useAnalyticsReports";
 import { formatCount, formatTimestamp } from "../../analytics/utils/presentation";
 
@@ -11,10 +10,6 @@ export default function DiscoveryScoreOverview() {
   const query = useDiscoveryScoreAnalytics({ page_size: 1 });
   const coverage = query.data?.coverage;
 
-  useApiErrorNotification(query.error, {
-    toastId: "discovery-score-overview-error",
-    fallbackMessage: "Unable to load Discovery Score overview. Please try again.",
-  });
 
   if (query.isLoading && !coverage) return <MetricCardsSkeleton count={4} />;
 
@@ -41,16 +36,14 @@ export default function DiscoveryScoreOverview() {
 
   return (
     <div aria-busy={query.isFetching}>
-      {query.error && (
-        <DataErrorState
-          compact framed retainedData={Boolean(coverage)}
-          title="Unable to load Discovery Score overview"
-          message="Current scoring metrics could not be retrieved."
-          onRetry={() => query.refetch()}
-          retrying={query.isFetching}
-          retryLabel="Retry"
+      <div className="[&:not(:empty)]:mb-3">
+        <LoadGroupFeedback
+          section="overview"
+          label="Discovery Score overview"
+          retryLabel="Retry overview"
+          queries={[query]}
         />
-      )}
+      </div>
       <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
           <MetricCard

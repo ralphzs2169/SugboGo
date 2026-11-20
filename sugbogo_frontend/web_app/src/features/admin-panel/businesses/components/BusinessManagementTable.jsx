@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, Map, Tag, Layers, Tags } from "lucide-react";
 
+import { LoadGroupFeedback } from "../../components/PageLoadFeedback";
+
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
-import DataErrorState from "@/shared/components/errors/DataErrorState";
 import FilterMenu from "../../../admin-panel/components/data-table/FilterMenu";
 import BusinessStatusDialog from "./BusinessStatusDialog";
 import BusinessColumns from "../columns/businessColumns";
@@ -55,17 +55,12 @@ export default function BusinessManagementTable() {
     pageCount,
     isLoading,
     isFetching,
+    hasData,
     error,
     refetch,
   } = useBusinesses(params, { enabled: currentTab === "businesses" });
 
-  const {
-    businesses: mapBusinesses,
-    isLoading: isMapLoading,
-    isFetching: isMapFetching,
-    error: mapError,
-    refetch: refetchMap,
-  } = useBusinessMap({
+  const map = useBusinessMap({
     enabled: currentTab === "map",
     search: params.search,
     status: statusFilter,
@@ -89,6 +84,14 @@ export default function BusinessManagementTable() {
   const columns = BusinessColumns(handleViewBusiness, (business, operation) => {
     setStatusAction({ business, operation });
   });
+
+  function renderFilterFeedback() {
+    return (
+      <TaxonomyOptionFeedback
+        queries={[clusterOptionsQuery, categoryOptionsQuery, specialtyOptionsQuery]}
+      />
+    );
+  }
 
   function renderFilters() {
     return (
@@ -155,50 +158,18 @@ export default function BusinessManagementTable() {
     );
   }
 
-  useApiErrorNotification(error, {
-    toastId: "businesses-load-error",
-    fallbackMessage: "Unable to load businesses. Please try again.",
-  });
 
-  useApiErrorNotification(mapError, {
-    toastId: "business-map-load-error",
-    fallbackMessage: "Unable to load business locations. Please try again.",
-  });
 
   return (
     <>
-      <TaxonomyOptionFeedback
-        query={clusterOptionsQuery}
-        resource="clusters"
-        label="Cluster"
-      />
-      <TaxonomyOptionFeedback
-        query={categoryOptionsQuery}
-        resource="categories"
-        label="Category"
-      />
-      <TaxonomyOptionFeedback
-        query={specialtyOptionsQuery}
-        resource="specialty-tags"
-        label="Specialty Tag"
-      />
-      {currentTab === "businesses" && error && businesses.length > 0 && (
-        <DataErrorState
-          compact
-          framed
-          retainedData
-          title="Unable to load businesses"
-          message="Previously loaded businesses remain visible. Retry to refresh them."
-          onRetry={refetch}
-          retrying={isFetching}
-        />
-      )}
       <DataTable
         data={businesses}
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
-        error={businesses.length > 0 ? null : error}
+        error={currentTab === "businesses" ? error : null}
+        hasData={hasData}
+        loadSection="directory"
         onRetry={refetch}
         pagination={pagination}
         state={{ globalFilter, sorting }}
@@ -233,21 +204,29 @@ export default function BusinessManagementTable() {
         }}
         slots={{
           renderFilters,
+          renderFilterFeedback,
           renderContent:
             currentTab === "map"
               ? () => (
-                  <div className="overflow-hidden rounded-lg border border-stroke bg-background">
-                    <BusinessManagementMap
-                      businesses={mapBusinesses}
-                      isLoading={isMapLoading}
-                      isFetching={isMapFetching}
-                      error={mapError}
-                      onRetry={refetchMap}
-                      hasActiveFilters={hasActiveFilters}
-                      onResetFilters={handleResetFilters}
-                      onViewBusiness={handleViewBusiness}
-                      className="h-[680px] rounded-none border-0"
+                  <div className="space-y-3">
+                    <LoadGroupFeedback
+                      section="directory"
+                      label="Business locations"
+                      retryLabel="Retry map"
+                      queries={[map]}
                     />
+                    <div className="overflow-hidden rounded-lg border border-stroke bg-background">
+                      <BusinessManagementMap
+                        businesses={map.data ?? []}
+                        isLoading={map.isLoading}
+                        isFetching={map.isFetching}
+                        unavailable={Boolean(map.error && map.data == null)}
+                        hasActiveFilters={hasActiveFilters}
+                        onResetFilters={handleResetFilters}
+                        onViewBusiness={handleViewBusiness}
+                        className="h-[680px] rounded-none border-0"
+                      />
+                    </div>
                   </div>
                 )
               : undefined,

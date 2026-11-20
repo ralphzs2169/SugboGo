@@ -451,7 +451,7 @@ test("missing historical fields stay unavailable without invented outcomes or st
   assert.doesNotMatch(dialog().textContent, /Previous state|Resulting state/);
 });
 
-test("list loading, persistent failure, notification, and Retry are scoped to the query", async () => {
+test("list loading, inline failure, and Retry are scoped to the query", async () => {
   let fail;
   transport = () => new Promise((resolve, reject) => { fail = reject; });
   await render("/admin-panel/activity-logs?module=user&page=2");
@@ -461,7 +461,7 @@ test("list loading, persistent failure, notification, and Retry are scoped to th
   await act(async () => fail({ response: { status: 503, data: { message: "Activity service unavailable." } } }));
   await until(() => container.textContent.includes("Unable to load activity logs"));
   assert.ok(button("Try Again"));
-  assert.equal(notifications.at(-1).message, "Activity service unavailable.");
+  assert.equal(notifications.length, 0);
   transport = async (url, options) => pageData(options.params);
   await click("Try Again");
   await until(() => container.textContent.includes("Recorded Administrator"));

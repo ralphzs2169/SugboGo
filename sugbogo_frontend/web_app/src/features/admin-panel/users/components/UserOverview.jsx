@@ -1,9 +1,8 @@
 import { Store, UserCheck, UsersRound, UserX } from "lucide-react";
 
-import DataErrorState from "@/shared/components/errors/DataErrorState";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 import { formatCount } from "../../analytics/utils/presentation";
+import { LoadGroupFeedback } from "../../components/PageLoadFeedback";
 import MetricCard from "../../components/MetricCard";
 import DashboardSkeleton from "../../dashboard/components/DashboardSkeleton";
 import useUserOverview from "../hooks/useUserOverview";
@@ -35,48 +34,23 @@ const METRICS = [
   },
 ];
 
-/** Preserves each count independently with request-specific error recovery. */
 function UserOverviewCard({ metric, query }) {
-  const hasData = query.data !== undefined;
-
-  useApiErrorNotification(query.error, {
-    toastId: `admin-users-overview-${metric.key}-error`,
-    fallbackMessage: `Unable to load ${metric.title.toLowerCase()}. Please try again.`,
-  });
+  if (query.isLoading && query.data === undefined) {
+    return <DashboardSkeleton label={metric.title} variant="activity" />;
+  }
 
   return (
-    <div className="min-w-0" aria-busy={query.isFetching}>
-      {query.error && (
-        <DataErrorState
-          compact
-          framed
-          detectOffline
-          retainedData={hasData}
-          refreshLabel={metric.title}
-          title={`Unable to load ${metric.title.toLowerCase()}`}
-          message="This account count could not be loaded. Please try again."
-          onRetry={() => query.refetch()}
-          retrying={query.isFetching}
-          retryLabel="Retry"
-        />
+    <MetricCard
+      wrapTitle
+      title={metric.title}
+      icon={metric.icon}
+      value={query.data === undefined ? undefined : (
+        <span className="text-4xl tabular-nums">
+          {formatCount(query.data)}
+        </span>
       )}
-      {query.isLoading && !hasData && (
-        <DashboardSkeleton label={metric.title} variant="activity" />
-      )}
-      {hasData && (
-        <MetricCard
-          wrapTitle
-          title={metric.title}
-          icon={metric.icon}
-          value={(
-            <span className="text-4xl tabular-nums">
-              {formatCount(query.data)}
-            </span>
-          )}
-          footerValue={metric.description}
-        />
-      )}
-    </div>
+      footerValue={metric.description}
+    />
   );
 }
 
@@ -85,14 +59,20 @@ export default function UserOverview() {
   const overview = useUserOverview();
 
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {METRICS.map((metric) => (
-        <UserOverviewCard
-          key={metric.key}
-          metric={metric}
-          query={overview[metric.key]}
-        />
-      ))}
+    <div className="space-y-3">
+      <LoadGroupFeedback
+        section="overview"
+        label="User counts"
+        retryLabel="Retry user counts"
+        queries={Object.values(overview)}
+      />
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {METRICS.map((metric) => (
+          <div key={metric.key} className="min-w-0">
+            <UserOverviewCard metric={metric} query={overview[metric.key]} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

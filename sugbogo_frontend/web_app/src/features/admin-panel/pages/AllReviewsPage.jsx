@@ -1,4 +1,4 @@
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import { PageLoadScope } from "../components/PageLoadFeedback";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MessageSquareText, List } from "lucide-react";
@@ -28,10 +28,6 @@ export default function AllReviewsPage() {
     () => allReviewColumns(table.selectReview),
     [table.selectReview],
   );
-  useApiErrorNotification(list.error, {
-    toastId: "admin-all-reviews-list-load-error",
-    fallbackMessage: "Unable to load reviews. Please try again.",
-  });
 
   const metadata = list.data?.pagination;
   const pagination = {
@@ -65,115 +61,119 @@ export default function AllReviewsPage() {
           Inspect reviews submitted across SugboGo.
         </p>
       )}
-      <AllReviewMetrics filters={state} onFilterChange={table.changeFilters} />
-      <section aria-label="Reviews directory" className="min-w-0">
-        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
-          <List aria-hidden="true" className="h-4 w-4 shrink-0" />
-          Reviews directory
-        </h2>
-        <DataTable
-          data={list.data?.items ?? []}
-          columns={columns}
-          isLoading={list.isLoading || table.isSearching}
-          isFetching={list.isFetching}
-          isSearching={table.isSearching}
-          error={list.error}
-          onRetry={() => list.refetch()}
-          state={{ globalFilter: state.search, sorting: [] }}
-          pagination={pagination}
-          pageCount={metadata?.total_pages ?? 0}
-          totalItems={metadata?.total_items ?? 0}
-          onPaginationChange={table.changePagination}
-          onGlobalFilterChange={(search) => table.changeFilters({ search })}
-          hasActiveFilters={table.hasActiveFilters}
-          onResetFilters={table.resetFilters}
-          config={{
-            tableLabel: "All reviews",
-            tableMinWidth: 1430,
-            scrollbarClassName: "themed-scrollbar",
-            searchPlaceholder: "Search reviews, reviewers, or businesses…",
-            emptyState: {
-              title: "No reviews yet",
-              description: "Reviews submitted across SugboGo will appear here.",
-              icon: (
-                <MessageSquareText
-                  aria-hidden="true"
-                  className="h-10 w-10 text-text-secondary"
+      <PageLoadScope>
+        <AllReviewMetrics filters={state} onFilterChange={table.changeFilters} />
+        <section aria-label="Reviews directory" className="min-w-0">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+            <List aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Reviews directory
+          </h2>
+          <DataTable
+            data={list.data?.items ?? []}
+            columns={columns}
+            isLoading={list.isLoading || table.isSearching}
+            isFetching={list.isFetching}
+            isSearching={table.isSearching}
+            error={list.error}
+            hasData={list.data != null && list.error?.response?.status !== 404}
+            loadSection="directory"
+            onRetry={list.refetch}
+            state={{ globalFilter: state.search, sorting: [] }}
+            pagination={pagination}
+            pageCount={metadata?.total_pages ?? 0}
+            totalItems={metadata?.total_items ?? 0}
+            onPaginationChange={table.changePagination}
+            onGlobalFilterChange={(search) => table.changeFilters({ search })}
+            hasActiveFilters={table.hasActiveFilters}
+            onResetFilters={table.resetFilters}
+            config={{
+              tableLabel: "All reviews",
+              tableMinWidth: 1430,
+              scrollbarClassName: "themed-scrollbar",
+              searchPlaceholder: "Search reviews, reviewers, or businesses…",
+              emptyState: {
+                title: "No reviews yet",
+                description: "Reviews submitted across SugboGo will appear here.",
+                icon: (
+                  <MessageSquareText
+                    aria-hidden="true"
+                    className="h-10 w-10 text-text-secondary"
+                  />
+                ),
+              },
+              noResultsState: {
+                title: "No reviews match your criteria",
+                description: (
+                  <span>
+                    Try another search or date range.{" "}
+                    <button
+                      type="button"
+                      onClick={table.resetFilters}
+                      className="rounded font-medium text-primary underline focus-visible:outline-2 focus-visible:outline-info"
+                    >
+                      Clear review filters
+                    </button>
+                  </span>
+                ),
+              },
+              errorState: {
+                title: "Unable to load reviews",
+                message:
+                  "The reviews could not be loaded. Your search and filters are preserved.",
+              },
+            }}
+            slots={{
+              renderFilters: () => (
+                <AllReviewFilters
+                  filters={state}
+                  onChange={table.changeFilters}
                 />
               ),
-            },
-            noResultsState: {
-              title: "No reviews match your criteria",
-              description: (
-                <span>
-                  Try another search or date range.{" "}
-                  <button
-                    type="button"
-                    onClick={table.resetFilters}
-                    className="rounded font-medium text-primary underline focus-visible:outline-2 focus-visible:outline-info"
-                  >
-                    Clear review filters
-                  </button>
-                </span>
-              ),
-            },
-            errorState: {
-              title: "Unable to load reviews",
-              message:
-                "The reviews could not be loaded. Your search and filters are preserved.",
-            },
-          }}
-          slots={{
-            renderFilters: () => (
-              <AllReviewFilters
-                filters={state}
-                onChange={table.changeFilters}
-              />
-            ),
-            renderHeaderActions: () => (
-              <div className="flex flex-wrap items-center gap-2">
-                {list.error?.response?.status === 404 && state.page > 1 && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() =>
-                      table.changePagination({
-                        pageIndex: 0,
-                        pageSize: state.page_size,
-                      })
+              renderHeaderActions: () => (
+                <div className="flex flex-wrap items-center gap-2">
+                  {list.error?.response?.status === 404 && state.page > 1 && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        table.changePagination({
+                          pageIndex: 0,
+                          pageSize: state.page_size,
+                        })
+                      }
+                    >
+                      Return to first page
+                    </Button>
+                  )}
+                  <SortMenu
+                    value={state.ordering}
+                    options={[
+                      { value: "newest", label: "Newest first" },
+                      { value: "oldest", label: "Oldest first" },
+                    ]}
+                    ariaLabel="Sort reviews"
+                    onChange={(ordering) => table.changeFilters({ ordering })}
+                  />
+                  <RowsPerPageMenu
+                    ariaLabel="Reviews per page"
+                    value={state.page_size}
+                    onChange={(pageSize) =>
+                      table.changePagination({ pageIndex: 0, pageSize })
                     }
-                  >
-                    Return to first page
-                  </Button>
-                )}
-                <SortMenu
-                  value={state.ordering}
-                  options={[
-                    { value: "newest", label: "Newest first" },
-                    { value: "oldest", label: "Oldest first" },
-                  ]}
-                  ariaLabel="Sort reviews"
-                  onChange={(ordering) => table.changeFilters({ ordering })}
-                />
-                <RowsPerPageMenu
-                  ariaLabel="Reviews per page"
-                  value={state.page_size}
-                  onChange={(pageSize) =>
-                    table.changePagination({ pageIndex: 0, pageSize })
-                  }
-                />
-              </div>
-            ),
-          }}
-        />
-      </section>
-      {state.reviewId && (
-        <AllReviewDrawer
-          key={state.reviewId}
-          reviewId={state.reviewId}
-          onClose={() => table.selectReview(null)}
-        />
-      )}
+                  />
+                </div>
+              ),
+            }}
+          />
+        </section>
+        {state.reviewId && (
+          <AllReviewDrawer
+            key={state.reviewId}
+            reviewId={state.reviewId}
+            onClose={() => table.selectReview(null)}
+          />
+        )}
+      </PageLoadScope>
     </div>
   );
 }

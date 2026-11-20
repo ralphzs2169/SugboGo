@@ -35,6 +35,8 @@ export default function useBusinessApplicationStatistics({ enabled = true } = {}
   return {
     statistics: query.data ?? emptyStatistics,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    data: query.data,
     error: query.error,
     refetch: query.refetch,
   };

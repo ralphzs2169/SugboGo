@@ -1,32 +1,7 @@
-import DataErrorState from "@/shared/components/errors/DataErrorState";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import { LoadGroupFeedback } from "../../components/PageLoadFeedback";
 
-/** Keep reference failures independent of the form or directory using them. */
-export default function TaxonomyOptionFeedback({
-  query,
-  resource,
-  label,
-}) {
-  useApiErrorNotification(query.error, {
-    toastId: `taxonomy-${resource}-options-error`,
-    fallbackMessage: `Unable to load ${label.toLowerCase()} options.`,
-  });
-
-  if (query.error) {
-    return (
-      <DataErrorState
-        compact
-        framed
-        title={`Unable to load ${label.toLowerCase()} options`}
-        message="Your current values are preserved. Retry to load these choices."
-        onRetry={() => query.refetch()}
-        retrying={query.isFetching}
-        retryLabel={`Retry ${label.toLowerCase()} options`}
-      />
-    );
-  }
-
-  if (query.isPending) {
+export default function TaxonomyOptionFeedback({ query, label, queries = [] }) {
+  if (query?.isPending && !query.error) {
     return (
       <p role="status" className="text-xs text-text-secondary">
         Loading {label.toLowerCase()} options…
@@ -34,5 +9,35 @@ export default function TaxonomyOptionFeedback({
     );
   }
 
-  return null;
+  if (query) {
+    const options = `${label.toLowerCase()} options`;
+
+    return (
+      <LoadGroupFeedback
+        queries={[query]}
+        label={`${label} options`}
+        retryLabel={`Retry ${options}`}
+        errorMessage={`Unable to load ${options}.`}
+        refreshMessage={`Unable to refresh ${options}. Showing previously loaded choices.`}
+      />
+    );
+  }
+
+  if (!queries.some((option) => option.error) && queries.some((option) => option.isPending)) {
+    return (
+      <p role="status" className="text-xs text-text-secondary">
+        Loading filter options…
+      </p>
+    );
+  }
+
+  return (
+    <LoadGroupFeedback
+      queries={queries}
+      label="Filter options"
+      errorMessage="Some filter options couldn’t load."
+      refreshMessage="Some filter options couldn’t refresh. Showing previously loaded choices."
+      retryLabel="Retry options"
+    />
+  );
 }

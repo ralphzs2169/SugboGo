@@ -1,8 +1,7 @@
 import { Ban, Building2, ClipboardList, Minus, Store, TrendingDown, TrendingUp } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
-import DataErrorState from "@/shared/components/errors/DataErrorState";
+import { LoadGroupFeedback } from "../../components/PageLoadFeedback";
 import MetricCard from "../../components/MetricCard";
 import DashboardSkeleton from "../../dashboard/components/DashboardSkeleton";
 import { formatCount, formatTimestamp } from "../../analytics/utils/presentation";
@@ -64,10 +63,6 @@ export default function BusinessMetrics() {
   suspendedParams.delete("page");
   suspendedParams.delete("tab");
 
-  useApiErrorNotification(overview.error, {
-    toastId: "business-overview-load-error",
-    fallbackMessage: "Unable to load business overview. Please try again.",
-  });
 
   const data = overview.data;
   const metrics = hasData ? [
@@ -104,19 +99,14 @@ export default function BusinessMetrics() {
 
   return (
     <div aria-busy={overview.isFetching}>
-      {overview.error && (
-        <DataErrorState
-          compact
-          framed
-          detectOffline
-          retainedData={hasData}
-          title="Unable to load business overview"
-          message="We couldn't retrieve the latest business metrics."
-          onRetry={() => overview.refetch()}
-          retrying={overview.isFetching}
-          retryLabel="Retry"
+      <div className="[&:not(:empty)]:mb-3">
+        <LoadGroupFeedback
+          section="overview"
+          label="Business overview"
+          retryLabel="Retry overview"
+          queries={[overview]}
         />
-      )}
+      </div>
       {overview.isLoading && !hasData && (
         <div className={GRID}>
           {TITLES.map((title) => (

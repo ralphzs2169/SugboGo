@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { CreditCard, Clock3, CheckCircle2, Flag } from "lucide-react";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
-import DataErrorState from "@/shared/components/errors/DataErrorState";
+import { LoadGroupFeedback } from "../../components/PageLoadFeedback";
 import MetricCard from "../../components/MetricCard";
 import DashboardSkeleton from "../../dashboard/components/DashboardSkeleton";
 import { paymentSummaryOptions } from "../queries/paymentQueries";
@@ -37,10 +36,6 @@ const GRID = "grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4";
 /** Reuse the All Reviews summary-card interaction and global-count semantics. */
 export default function PaymentMetrics({ filters, onFilterChange }) {
   const query = useQuery(paymentSummaryOptions());
-  useApiErrorNotification(query.error, {
-    toastId: "admin-payments-metrics-load-error",
-    fallbackMessage: "Unable to load payment metrics. Please try again.",
-  });
   const hasData = query.data != null;
 
   function updates(key) {
@@ -63,17 +58,14 @@ export default function PaymentMetrics({ filters, onFilterChange }) {
       aria-label="Global payment metrics"
       aria-busy={query.isFetching}
     >
-      {query.error && (
-        <DataErrorState
-          compact
-          framed
-          retainedData={hasData}
-          title="Unable to load payment metrics"
-          message="The payments table is still available. Retry to load the global counts."
-          onRetry={() => query.refetch()}
-          retrying={query.isFetching}
+      <div className="[&:not(:empty)]:mb-3">
+        <LoadGroupFeedback
+          section="overview"
+          label="Payment metrics"
+          retryLabel="Retry metrics"
+          queries={[query]}
         />
-      )}
+      </div>
       {query.isLoading && !hasData && (
         <div className={GRID}>
           {METRICS.map((metric) => (

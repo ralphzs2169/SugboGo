@@ -212,14 +212,14 @@ test("zero counts remain zero and comparison is omitted when unavailable", async
   assert.doesNotMatch(container.textContent, /Prev\.|more|fewer|No change|Unavailable/);
 });
 
-test("failure shows persistent Retry and toast, never zero, then recovers without reload", async () => {
+test("failure shows one persistent Retry, never zero, then recovers without reload", async () => {
   transport = async () => { throw new Error("Offline"); };
   await render(React.createElement(Metrics));
   await until(() => container.textContent.includes("Unable to load business overview"));
   assert.equal(container.querySelectorAll(".tabular-nums").length, 0);
-  assert.equal(notifications.length, 1);
+  assert.equal(notifications.length, 0);
   transport = async () => ({ data: { data: fixture() } });
-  const retry = [...container.querySelectorAll("button")].find((button) => button.textContent === "Retry");
+  const retry = [...container.querySelectorAll("button")].find((button) => button.textContent === "Retry overview");
   await act(async () => retry.click());
   await until(() => Boolean(card("Total Businesses")));
   assert.equal(reads.length, 2);

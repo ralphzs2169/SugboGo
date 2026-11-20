@@ -85,7 +85,7 @@ test("loading, failure, and retained refresh states do not invent counts", () =>
   assert.match(renderMetrics(), /aria-busy="true"/);
   const failure = renderMetrics({ error: true });
   assert.match(failure, /Unable to load update request metrics/);
-  assert.match(failure, /Try Again/);
+  assert.match(failure, /Retry metrics/);
   assert.equal((failure.match(/>Unavailable</g) ?? []).length, 4);
   const retained = renderMetrics({ data: summary, error: true });
   assert.match(retained, /Showing previously loaded data/);

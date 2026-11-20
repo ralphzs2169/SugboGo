@@ -1,3 +1,4 @@
+import { PageLoadScope } from "../components/PageLoadFeedback";
 import { Layers, List } from "lucide-react";
 
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
@@ -23,27 +24,29 @@ export default function BusinessTaxonomyPage() {
         Manage business clusters, categories, and specialty tags used throughout SugboGo.
       </p>
 
-      <section className="mb-6" aria-labelledby="taxonomy-overview-heading">
-        <h2
-          id="taxonomy-overview-heading"
-          className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary"
-        >
-          <Layers aria-hidden="true" className="h-4 w-4 shrink-0" />
-          Taxonomy Overview
-        </h2>
-        <TaxonomyOverview />
-      </section>
+      <PageLoadScope>
+        <section className="mb-6" aria-labelledby="taxonomy-overview-heading">
+          <h2
+            id="taxonomy-overview-heading"
+            className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary"
+          >
+            <Layers aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Taxonomy Overview
+          </h2>
+          <TaxonomyOverview />
+        </section>
 
-      <section aria-labelledby="taxonomy-management-heading">
-        <h2
-          id="taxonomy-management-heading"
-          className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary"
-        >
-          <List aria-hidden="true" className="h-4 w-4 shrink-0" />
-          Taxonomy Management
-        </h2>
-        <TaxonomyManagementWorkspace />
-      </section>
+        <section aria-labelledby="taxonomy-management-heading">
+          <h2
+            id="taxonomy-management-heading"
+            className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary"
+          >
+            <List aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Taxonomy Management
+          </h2>
+          <TaxonomyManagementWorkspace />
+        </section>
+      </PageLoadScope>
     </>
   );
 }

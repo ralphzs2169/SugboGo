@@ -287,12 +287,12 @@ test("failed summary refresh identifies retained values and Retry leaves the suc
     await client.invalidateQueries({ queryKey: ["admin", "analytics", "discoverySummary"] });
   });
   const activity = section("Discovery Activity");
-  await until(() => activity.textContent.includes("Previously loaded summary values are shown."));
+  await until(() => activity.textContent.includes("Showing previously loaded data."));
   assert.equal(requests("discovery-trend/").length, trends);
   assert.ok(activity.querySelector("[data-chart]"));
   failures.clear();
   await click([...activity.querySelectorAll("button")].find((button) => button.textContent === "Retry summary"));
-  await until(() => !activity.textContent.includes("Previously loaded summary values"));
+  await until(() => !activity.textContent.includes("Showing previously loaded data."));
   assert.equal(requests("discovery-trend/").length, trends);
 });
 
@@ -519,7 +519,7 @@ test("sources remain dormant on other tabs and retain cached data after refresh 
   await tab("Growth & Discovery");
   failures.add("/admin/analytics/discovery-sources/");
   await act(async () => { await client.invalidateQueries({queryKey:["admin","analytics","discoverySources"]}); });
-  await until(() => section("First Profile Visit Source").textContent.includes("Previously loaded data"));
+  await until(() => section("First Profile Visit Source").textContent.includes("Showing previously loaded data."));
   assert.ok(section("First Profile Visit Source").querySelector("[data-chart]"));
   failures.clear();
   await click([...section("First Profile Visit Source").querySelectorAll("button")].find((button) => button.textContent === "Retry"));
@@ -599,7 +599,7 @@ test("account trend retry is independent and retains cached observations on refr
   await until(() => section("Discovery Activity").querySelector("[data-chart]"));
   failures.add("/admin/analytics/discovery-trend/");
   await act(async () => { await client.invalidateQueries({queryKey:["admin","analytics","discoveryTrend"]}); });
-  await until(() => section("Discovery Activity").textContent.includes("Previously loaded data"));
+  await until(() => section("Discovery Activity").textContent.includes("Showing previously loaded data."));
   assert.ok(section("Discovery Activity").querySelector("[data-chart]"));
   assert.equal(requests("discovery-sources/").length, sourceCount);
 });
@@ -691,7 +691,7 @@ test("transportation keeps cached donut on refresh failure and discloses pretrac
   await mount();
   failures.add("/admin/analytics/transportation-planning/");
   await act(async () => { await client.invalidateQueries({queryKey:["admin","analytics","transportationPlanning"]}); });
-  await until(()=>section("Transportation Planning").textContent.includes("Previously loaded data"));
+  await until(()=>section("Transportation Planning").textContent.includes("Showing previously loaded data."));
   assert.ok(section("Transportation Planning").querySelector("[data-pie]"));
   failures.clear();
   overrides.set("/admin/analytics/transportation-planning/", (report) => ({...report,total_requests:null,methods:null,meta:{...report.meta,availability:"unavailable",partial_reasons:["tracking_not_started_in_period"]}}));
