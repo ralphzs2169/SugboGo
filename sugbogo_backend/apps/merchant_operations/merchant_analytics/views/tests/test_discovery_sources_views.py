@@ -12,7 +12,7 @@ from ...services.discovery_sources_service import DiscoverySourcesService
 from ...services.tests.fixtures import MerchantAnalyticsFixtures
 
 
-@override_settings(MERCHANT_PLUS_ENFORCED=True, MERCHANT_PLUS_MOCK_ENABLED=False)
+@override_settings(MERCHANT_PLUS_ENFORCED=True)
 class DiscoverySourcesApiTests(MerchantAnalyticsFixtures, APITestCase):
     def setUp(self):
         super().setUp()

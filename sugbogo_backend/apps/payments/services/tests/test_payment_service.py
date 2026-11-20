@@ -22,7 +22,6 @@ from apps.users.models import User
     PAYMENT_MODE="test",
     PAYMENT_PROVIDER="paymongo",
     MERCHANT_PLUS_ENFORCED=True,
-    MERCHANT_PLUS_MOCK_ENABLED=False,
 )
 class PaymentFoundationTests(MerchantAnalyticsFixtures, TestCase):
     def setUp(self):

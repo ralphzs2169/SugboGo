@@ -6,6 +6,8 @@ from apps.users.models import User
 class AdminActivity(models.Model):
     """Records administrative decisions and author-triggered moderation removal."""
 
+    POLICY_REVISION_SOURCE = "analytics_policy_change"
+
     class Module(models.TextChoices):
         MERCHANT_APPLICATION = "merchant_application", "Merchant applications"
         BUSINESS = "business", "Business management"
@@ -14,12 +16,17 @@ class AdminActivity(models.Model):
         TAXONOMY = "taxonomy", "Taxonomy management"
         DISCOVERY = "discovery", "Discovery configuration"
         TRANSIT = "transit", "Transit management"
+        SYSTEM_CONFIGURATION = "system_configuration", "System configuration"
 
     class Outcome(models.TextChoices):
         SUCCEEDED = "succeeded", "Operation completed"
         ACCEPTED = "accepted", "Accepted for asynchronous processing"
 
     class Action(models.TextChoices):
+        ANALYTICS_POLICY_REVISION = (
+            "analytics_policy_revision",
+            "Analytics policy revision",
+        )
         ADMIN_CREATED = "admin_created", "Admin created"
         USER_SUSPENDED = "user_suspended", "User suspended"
         USER_REACTIVATED = "user_reactivated", "User reactivated"
@@ -84,6 +91,8 @@ class AdminActivity(models.Model):
         on_delete=models.PROTECT,
         db_column="ACTOR_USER_ID",
         related_name="admin_actions_performed",
+        null=True,
+        blank=True,
     )
 
     TARGET_USER_ID = models.ForeignKey(
@@ -212,6 +221,16 @@ class AdminActivity(models.Model):
             ),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(ACTOR_ID__isnull=False)
+                    | models.Q(
+                        AACT_SOURCE_TYPE__isnull=False,
+                        AACT_SOURCE_TYPE="analytics_policy_change",
+                    )
+                ),
+                name="admin_activity_actor_or_policy_revision",
+            ),
             models.CheckConstraint(
                 condition=(
                     models.Q(

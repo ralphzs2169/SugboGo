@@ -29,16 +29,12 @@ export function plusMeta(): PlusAnalyticsMeta {
 export function plusStatus(allowed = true): MerchantPlusStatus {
   return {
     business: standardAnalyticsReport().business,
-    stored_demo_state: "not_created",
     effective_tier: allowed ? "plus" : "standard",
     has_plus_access: allowed,
     access_source: allowed ? "preview" : "none",
     enforcement_enabled: !allowed,
-    mock_enabled: false,
     is_simulation: true,
     activated_at: null,
-    reset_at: null,
-    updated_at: null,
   };
 }
 

@@ -101,7 +101,6 @@ class ClusterDiscoveryShortcutAdminViewTests(APITestCase):
             BUSN_DESCRIPTION="Discovery Shortcut test business.",
             BUSN_CONTACT_NUMBER="09171234567",
             BUSN_STATUS=status,
-            BUSN_IS_VERIFIED=False,
         )
 
     def test_admin_can_create_discovery_shortcut(self):

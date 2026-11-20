@@ -119,11 +119,10 @@ function PointDependencies({ deletion }) {
       <ul className="list-inside list-disc space-y-1">
         <li>{counts.directions} directions across {counts.routes} routes</li>
         <li>{counts.origin_directions} origins, {counts.destination_directions} destinations, {counts.ordered_stops} ordered stops</li>
-        <li>{counts.transfers} transfers ({counts.alighting_transfers} alighting, {counts.boarding_transfers} boarding)</li>
       </ul>
       <p>
-        Reassign transfer connections first, then update each affected direction’s
-        endpoints and stops. Pending and ignored transfers also block deletion.
+        Update the affected directions to remove this point from their endpoints
+        and ordered stops before deleting it.
       </p>
       <p className="text-xs">Showing up to {deletion.example_limit} examples per type.</p>
       {examples.routes.length > 0 && (
@@ -134,16 +133,6 @@ function PointDependencies({ deletion }) {
           {examples.directions.map((direction) => (
             <li key={direction.id} className="break-words">
               {direction.route_code} · Direction #{direction.id}: {direction.origin} → {direction.destination}
-            </li>
-          ))}
-        </ul>
-      )}
-      {examples.transfers.length > 0 && (
-        <ul aria-label="Affected transfers" className="space-y-1">
-          {examples.transfers.map((transfer) => (
-            <li key={transfer.id} className="break-words">
-              Transfer #{transfer.id} ({transfer.status}): {transfer.source_route_code} direction #{transfer.source_variant_id}
-              {" → "}{transfer.destination_route_code} direction #{transfer.destination_variant_id}
             </li>
           ))}
         </ul>

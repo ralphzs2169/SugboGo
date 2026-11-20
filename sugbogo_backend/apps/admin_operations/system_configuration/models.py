@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
-from .analytics_policy_models import AnalyticsPolicyChange, AnalyticsPolicyConfiguration  # noqa: F401
+from .analytics_policy_models import AnalyticsPolicyConfiguration  # noqa: F401
 
 ZERO = Decimal("0.00")
 ONE = Decimal("1.00")

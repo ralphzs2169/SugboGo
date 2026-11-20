@@ -1,25 +1,36 @@
-"""Read paid access alongside preserved preview and demo metadata."""
+"""Resolve Merchant Plus status from paid purchases and preview settings."""
+
+from django.conf import settings
 
 from apps.payments.models import Payment, PaymentCheckoutSession, PaymentMode, PaymentProvider
 from apps.payments.services.checkout_service import CheckoutService
 from apps.payments.services.payment_service import PaymentService
 
-from ..models import DemoMerchantPlusEntitlement
-from .mock_plus_service import MockPlusService
+from .premium_common import owned_business_data
 
 
 class MerchantPlusStatusService:
-    """Compose the existing status contract without creating financial or demo records."""
+    """Compose read-only Merchant Plus status for the owned business."""
 
     @staticmethod
     def get_status(user):
         """Expose product, eligibility, and explicit paid access with no provider side effects."""
         business = PaymentService.get_owned_business(user)
-        demo = DemoMerchantPlusEntitlement.objects.filter(BUSN_ID=business).first()
-        status = MockPlusService.build_status(business, demo)
         eligibility = PaymentService.get_purchase_eligibility(user, business=business)
         paid = eligibility["active_entitlement"]
-        status.update({
+        preview = not settings.MERCHANT_PLUS_ENFORCED
+        status = {
+            "business": owned_business_data(business),
+            "effective_tier": "plus" if preview else "standard",
+            "has_plus_access": preview,
+            "access_source": "preview" if preview else "none",
+            "enforcement_enabled": settings.MERCHANT_PLUS_ENFORCED,
+            "is_simulation": True,
+            "activated_at": None,
+            "stored_demo_state": "not_created",
+            "mock_enabled": False,
+            "reset_at": None,
+            "updated_at": None,
             "payment_mode": PaymentService.current_mode(),
             "checkout_enabled": CheckoutService.is_enabled(),
             "checkout_can_resume": False,
@@ -39,7 +50,7 @@ class MerchantPlusStatusService:
             "checkout_outcome": None,
             "purchase_eligible": eligibility["eligible"],
             "purchase_ineligibility_reason": eligibility["reason"],
-        })
+        }
         unresolved = eligibility["unresolved_payment"]
         if unresolved is not None:
             status["unresolved_payment_id"] = unresolved.pk

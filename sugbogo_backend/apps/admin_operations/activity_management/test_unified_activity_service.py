@@ -10,12 +10,41 @@ from apps.admin_operations.activity_management.models import AdminActivity
 from apps.admin_operations.activity_management.unified_activity_service import (
     UnifiedActivityService,
 )
-from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationSubmission,
 )
 from apps.users.models import User
+
+
+def create_archived_policy_revision(
+    *,
+    source_id,
+    version,
+    reason,
+    after,
+    before=None,
+    actor_id=None,
+    actor_id_snapshot=None,
+):
+    """Create a revision in the shape populated by the archival migration."""
+    return AdminActivity.objects.create(
+        AACT_ACTION=AdminActivity.Action.ANALYTICS_POLICY_REVISION,
+        AACT_MODULE=AdminActivity.Module.SYSTEM_CONFIGURATION,
+        AACT_IS_ADMINISTRATIVE=True,
+        AACT_SOURCE_TYPE=AdminActivity.POLICY_REVISION_SOURCE,
+        AACT_SOURCE_ID=str(source_id),
+        AACT_TARGET_TYPE="analytics_policy",
+        AACT_TARGET_ID="1",
+        AACT_CONTEXT={
+            "version": version,
+            "actor_id": actor_id,
+            "actor_id_snapshot": actor_id_snapshot,
+        },
+        AACT_REASON=reason,
+        AACT_PREVIOUS_STATE=before if before is not None else {},
+        AACT_NEW_STATE=after,
+    )
 
 
 class UnifiedActivityServiceTests(TestCase):
@@ -24,7 +53,9 @@ class UnifiedActivityServiceTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         """Create three source receipts with colliding source IDs and different event times."""
-        AnalyticsPolicyChange.objects.all().delete()
+        AdminActivity.objects.filter(
+            AACT_SOURCE_TYPE=AdminActivity.POLICY_REVISION_SOURCE,
+        ).delete()
         cls.now = timezone.now().replace(microsecond=0)
         cls.admin = User.objects.create(
             USER_EMAIL="unified-admin@example.com",
@@ -63,17 +94,17 @@ class UnifiedActivityServiceTests(TestCase):
         AdminActivity.objects.filter(pk=cls.activity.pk).update(
             AACT_CREATED_AT=cls.now - timedelta(hours=3),
         )
-        cls.policy_change = AnalyticsPolicyChange.objects.create(
-            APCH_ID=42,
-            APCH_VERSION=2,
-            APCH_ACTOR=cls.admin,
-            APCH_ACTOR_ID_SNAPSHOT=cls.admin.pk,
-            APCH_REASON="Adjust the narrative threshold.",
-            APCH_BEFORE={"narrative_min_eligible_reviews": 3},
-            APCH_AFTER={"narrative_min_eligible_reviews": 5},
+        cls.policy_change = create_archived_policy_revision(
+            source_id=42,
+            version=2,
+            actor_id=cls.admin.pk,
+            actor_id_snapshot=cls.admin.pk,
+            reason="Adjust the narrative threshold.",
+            before={"narrative_min_eligible_reviews": 3},
+            after={"narrative_min_eligible_reviews": 5},
         )
-        AnalyticsPolicyChange.objects.filter(pk=cls.policy_change.pk).update(
-            APCH_CREATED_AT=cls.now - timedelta(hours=2),
+        AdminActivity.objects.filter(pk=cls.policy_change.pk).update(
+            AACT_CREATED_AT=cls.now - timedelta(hours=2),
         )
         cls.application = MerchantApplication.objects.create(
             USER_ID=cls.applicant,
@@ -90,7 +121,7 @@ class UnifiedActivityServiceTests(TestCase):
     def test_sources_share_one_typed_contract_and_read_authoritative_records_once(self):
         before_counts = (
             AdminActivity.objects.count(),
-            AnalyticsPolicyChange.objects.count(),
+
             MerchantApplicationSubmission.objects.count(),
         )
 
@@ -161,7 +192,7 @@ class UnifiedActivityServiceTests(TestCase):
             before_counts,
             (
                 AdminActivity.objects.count(),
-                AnalyticsPolicyChange.objects.count(),
+
                 MerchantApplicationSubmission.objects.count(),
             ),
         )
@@ -206,14 +237,18 @@ class UnifiedActivityServiceTests(TestCase):
         self.assertIsNone(legacy_row["new_state"])
 
     def test_policy_actor_snapshot_survives_missing_relationship_and_unknown_actor_stays_null(self):
-        AnalyticsPolicyChange.objects.filter(pk=self.policy_change.pk).update(
-            APCH_ACTOR=None,
+        AdminActivity.objects.filter(pk=self.policy_change.pk).update(
+            AACT_CONTEXT={
+                **self.policy_change.AACT_CONTEXT,
+                "actor_id": None,
+            },
         )
-        unknown_actor_revision = AnalyticsPolicyChange.objects.create(
-            APCH_VERSION=1,
-            APCH_REASON="Initial approved analytics defaults.",
-            APCH_BEFORE={},
-            APCH_AFTER={"narrative_min_eligible_reviews": 3},
+        unknown_actor_revision = create_archived_policy_revision(
+            source_id=41,
+            version=1,
+            reason="Initial approved analytics defaults.",
+            before={},
+            after={"narrative_min_eligible_reviews": 3},
         )
         rows = {
             row["source_id"]: row
@@ -221,9 +256,9 @@ class UnifiedActivityServiceTests(TestCase):
             if row["source_type"] == "analytics_policy_change"
         }
 
-        self.assertEqual(rows[str(self.policy_change.pk)]["actor_id"], self.admin.pk)
-        self.assertIsNone(rows[str(unknown_actor_revision.pk)]["actor_id"])
-        self.assertIsNone(rows[str(unknown_actor_revision.pk)]["actor_role_snapshot"])
+        self.assertEqual(rows[self.policy_change.AACT_SOURCE_ID]["actor_id"], self.admin.pk)
+        self.assertIsNone(rows[unknown_actor_revision.AACT_SOURCE_ID]["actor_id"])
+        self.assertIsNone(rows[unknown_actor_revision.AACT_SOURCE_ID]["actor_role_snapshot"])
 
     def test_admin_classification_matches_explicit_flags_and_known_legacy_meanings(self):
         cases = (
@@ -278,7 +313,9 @@ class UnifiedActivityServiceTests(TestCase):
 
     def test_tied_timestamps_paginate_in_stable_source_and_text_identity_order(self):
         AdminActivity.objects.update(AACT_CREATED_AT=self.now)
-        AnalyticsPolicyChange.objects.update(APCH_CREATED_AT=self.now)
+        AdminActivity.objects.filter(
+            AACT_SOURCE_TYPE=AdminActivity.POLICY_REVISION_SOURCE,
+        ).update(AACT_CREATED_AT=self.now)
         MerchantApplicationSubmission.objects.update(MASUB_SUBMITTED_AT=self.now)
         for source_id in (9, 100):
             event = AdminActivity.objects.create(

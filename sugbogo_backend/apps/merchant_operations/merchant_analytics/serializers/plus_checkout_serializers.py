@@ -2,7 +2,19 @@
 
 from rest_framework import serializers
 
-from .mock_plus_serializers import EmptyPlusInputSerializer
+
+class EmptyPlusInputSerializer(serializers.Serializer):
+    """Accept no client ownership, entitlement, payment, or policy overrides."""
+
+    def validate(self, attrs):
+        """Reject fields that the declared API does not accept."""
+        unknown = set(self.initial_data) - set(self.fields)
+        if unknown:
+            raise serializers.ValidationError({
+                key: "Unsupported Merchant Plus parameter."
+                for key in sorted(unknown)
+            })
+        return attrs
 
 
 class MerchantPlusCheckoutInputSerializer(EmptyPlusInputSerializer):

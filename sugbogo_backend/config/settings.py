@@ -110,21 +110,15 @@ def _environment_origins(
     return origins
 
 
-# Enforcement-off preserves previews; demo grants count only under explicit mock mode.
+# Enforcement-off preserves previews for eligible merchants.
 _merchant_plus_enforced = os.getenv("MERCHANT_PLUS_ENFORCED", "False").strip().lower()
 if _merchant_plus_enforced not in {"true", "false"}:
     raise ImproperlyConfigured("MERCHANT_PLUS_ENFORCED must be True or False.")
 MERCHANT_PLUS_ENFORCED = _merchant_plus_enforced == "true"
 
-_merchant_plus_mock_enabled = os.getenv("MERCHANT_PLUS_MOCK_ENABLED", "False").strip().lower()
-if _merchant_plus_mock_enabled not in {"true", "false"}:
-    raise ImproperlyConfigured("MERCHANT_PLUS_MOCK_ENABLED must be True or False.")
-MERCHANT_PLUS_MOCK_ENABLED = _merchant_plus_mock_enabled == "true"
-
 _payment_configuration = load_payment_configuration(
     os.environ,
     plus_enforced=MERCHANT_PLUS_ENFORCED,
-    mock_enabled=MERCHANT_PLUS_MOCK_ENABLED,
 )
 globals().update(_payment_configuration)
 MAYA_WEBHOOK_ENABLED = _payment_configuration["MAYA_WEBHOOK_ENABLED"]

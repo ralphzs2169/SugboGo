@@ -10,12 +10,10 @@ class PaymentConfigurationTests(SimpleTestCase):
         environment,
         *,
         plus_enforced=True,
-        mock_enabled=False,
     ):
         return load_payment_configuration(
             environment,
             plus_enforced=plus_enforced,
-            mock_enabled=mock_enabled,
         )
 
     def enabled_configuration(self):
@@ -60,13 +58,11 @@ class PaymentConfigurationTests(SimpleTestCase):
                 with self.assertRaises(ImproperlyConfigured):
                     self.parse(overrides)
 
-    def test_enabled_settings_require_plus_enforcement_and_disabled_mock(self):
+    def test_enabled_settings_require_plus_enforcement(self):
         values = self.enabled_configuration()
         self.assertTrue(self.parse(values)["MAYA_CHECKOUT_ENABLED"])
         with self.assertRaises(ImproperlyConfigured):
             self.parse(values, plus_enforced=False)
-        with self.assertRaises(ImproperlyConfigured):
-            self.parse(values, mock_enabled=True)
 
     def test_enabled_settings_require_both_api_keys_and_safe_https_return(self):
         for field, value in (

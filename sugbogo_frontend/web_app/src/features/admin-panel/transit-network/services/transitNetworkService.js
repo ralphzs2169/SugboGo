@@ -80,7 +80,7 @@ export function fetchTransitPointReferences(options = {}) {
   return loadTransitReferences(fetchTransitPoints, options);
 }
 
-/** Load every direction page for map reference layers and transfer selectors. */
+/** Load every direction page for the map reference layer. */
 export function fetchRouteVariantReferences(options = {}) {
   return loadTransitReferences(fetchRouteVariants, options);
 }
@@ -112,57 +112,6 @@ export async function updateTransitPoint(transitPointId, data) {
 export async function deleteTransitPoint(transitPointId) {
   const response = await apiClient.delete(
     `${BASE_URL}transit-points/${transitPointId}/`,
-  );
-
-  return unwrapData(response);
-}
-
-export async function fetchTransitTransfers(params = {}) {
-  const response = await apiClient.get(`${BASE_URL}transfers/`, { params });
-
-  return unwrapData(response);
-}
-
-export async function fetchTransitTransfer(transferId) {
-  const response = await apiClient.get(`${BASE_URL}transfers/${transferId}/`);
-
-  return unwrapData(response);
-}
-
-export async function createTransitTransfer(data) {
-  const response = await apiClient.post(`${BASE_URL}transfers/`, data);
-
-  return unwrapData(response);
-}
-
-export async function updateTransitTransfer(transferId, data) {
-  const response = await apiClient.patch(
-    `${BASE_URL}transfers/${transferId}/`,
-    data,
-  );
-
-  return unwrapData(response);
-}
-
-export async function confirmTransitTransfer(transferId) {
-  const response = await apiClient.post(
-    `${BASE_URL}transfers/${transferId}/confirm/`,
-  );
-
-  return unwrapData(response);
-}
-
-export async function ignoreTransitTransfer(transferId) {
-  const response = await apiClient.post(
-    `${BASE_URL}transfers/${transferId}/ignore/`,
-  );
-
-  return unwrapData(response);
-}
-
-export async function detectTransitTransferCandidates() {
-  const response = await apiClient.post(
-    `${BASE_URL}transfers/detect-candidates/`,
   );
 
   return unwrapData(response);

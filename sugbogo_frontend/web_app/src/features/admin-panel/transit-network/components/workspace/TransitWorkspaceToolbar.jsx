@@ -14,7 +14,6 @@ import { TRANSIT_CONTEXTS, TRANSIT_MODES } from "./transitWorkspaceModes";
 function getModePresentation(
   context,
   mode,
-  hasSelectedTransfer,
   isSelectingTransitPoint,
   isCreatingRouteTransitPoint,
 ) {
@@ -65,25 +64,10 @@ function getModePresentation(
       label: "Editing Transit Point",
       hint: "Drag the selected marker or click a new map location.",
     },
-    [TRANSIT_MODES.CREATE_TRANSFER]: {
-      label: "Creating Transfer",
-      hint: "Choose the directed connection in the inspector.",
-    },
-    [TRANSIT_MODES.EDIT_TRANSFER]: {
-      label: "Editing Transfer",
-      hint: "Adjust the selected transfer connection in the inspector.",
-    },
   };
 
   if (mode !== TRANSIT_MODES.BROWSE) {
     return presentations[mode];
-  }
-
-  if (context === TRANSIT_CONTEXTS.TRANSFERS && hasSelectedTransfer) {
-    return {
-      label: "Reviewing Transfer",
-      hint: "Compare both routes and the proposed connection on the map.",
-    };
   }
 
   return {
@@ -91,9 +75,7 @@ function getModePresentation(
     hint:
       context === TRANSIT_CONTEXTS.ROUTES
         ? "Select a route or travel direction to inspect it."
-        : context === TRANSIT_CONTEXTS.POINTS
-          ? "Select a Transit Point marker or list item to inspect it."
-          : "Select a directed transfer to review it.",
+        : "Select a Transit Point marker or list item to inspect it.",
   };
 }
 
@@ -104,7 +86,6 @@ function getModePresentation(
 export default function TransitWorkspaceToolbar({
   context,
   mode,
-  hasSelectedTransfer,
   isSelectingTransitPoint,
   isCreatingRouteTransitPoint,
   isBrowserCollapsed,
@@ -118,7 +99,6 @@ export default function TransitWorkspaceToolbar({
   const presentation = getModePresentation(
     context,
     mode,
-    hasSelectedTransfer,
     isSelectingTransitPoint,
     isCreatingRouteTransitPoint,
   );

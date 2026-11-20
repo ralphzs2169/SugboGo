@@ -25,16 +25,28 @@ class PlatformAnalyticsServiceTests(TestCase):
         cluster = Cluster.objects.create(CLUS_NAME="Analytics cluster")
         category = Category.objects.create(CTGRY_NAME="Analytics category", CLUS_ID=cluster)
         location = Location.objects.create(LOCT_POINT=Point(123.88, 10.31, srid=4326), LOCT_ADDRESS="Cebu City")
-        for index, status, application_status, verified in (
-            (1, Business.BusinessStatus.ACTIVE, MerchantApplication.ApplicationStatus.APPROVED, False),
-            (2, Business.BusinessStatus.SUSPENDED, MerchantApplication.ApplicationStatus.APPROVED, False),
-            (3, Business.BusinessStatus.ACTIVE, None, True),
-            (4, Business.BusinessStatus.SUSPENDED, MerchantApplication.ApplicationStatus.REJECTED, False),
+        for index, status, application_status in (
+            (
+                1,
+                Business.BusinessStatus.ACTIVE,
+                MerchantApplication.ApplicationStatus.APPROVED,
+            ),
+            (
+                2,
+                Business.BusinessStatus.SUSPENDED,
+                MerchantApplication.ApplicationStatus.APPROVED,
+            ),
+            (3, Business.BusinessStatus.ACTIVE, None),
+            (
+                4,
+                Business.BusinessStatus.SUSPENDED,
+                MerchantApplication.ApplicationStatus.REJECTED,
+            ),
         ):
             owner = cls.create_user(f"owner-{index}", User.UserRole.MERCHANT, User.UserStatus.SUSPENDED)
             business = Business.objects.create(
                 BUSN_NAME=f"Analytics business {index}", BUSN_CONTACT_NUMBER="09170000000",
-                BUSN_STATUS=status, BUSN_IS_VERIFIED=verified,
+                BUSN_STATUS=status,
                 USER_ID=owner, CTGRY_ID=category, LOCT_ID=location,
             )
             if application_status is not None:
@@ -67,7 +79,7 @@ class PlatformAnalyticsServiceTests(TestCase):
         with patch.object(VisibilityEventService, "count_analytics_explorers", **options):
             return PlatformAnalyticsService.get_overview(self.period)
 
-    def test_inventory_uses_status_and_approved_link_not_legacy_verified_flag(self):
+    def test_inventory_uses_status_and_approved_application_link(self):
         report = self.overview()
         self.assertEqual(report["kpis"]["active_businesses"]["value"], 2)
         self.assertEqual(report["kpis"]["approved_businesses"]["value"], 2)

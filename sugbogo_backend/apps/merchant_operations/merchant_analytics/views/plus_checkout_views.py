@@ -13,8 +13,8 @@ from apps.payments.services.checkout_service import CheckoutService
 from apps.users.models import User
 from core.responses import success_response
 
-from ..serializers.mock_plus_serializers import EmptyPlusInputSerializer
 from ..serializers.plus_checkout_serializers import (
+    EmptyPlusInputSerializer,
     MerchantPlusCheckoutInputSerializer,
     MerchantPlusCheckoutSerializer,
 )

@@ -9,7 +9,6 @@ def load_paymongo_configuration(
     environment,
     *,
     plus_enforced,
-    mock_enabled,
 ):
     """Validate enabled checkout while allowing credential-free foundation work."""
     enabled_value = environment.get("PAYMONGO_CHECKOUT_ENABLED", "False").strip().lower()
@@ -43,12 +42,9 @@ def load_paymongo_configuration(
             configuration[name] = environment.get(name, "").strip()
     if not configuration["PAYMONGO_CHECKOUT_ENABLED"]:
         return configuration
-    if (
-        not plus_enforced
-        or mock_enabled
-    ):
+    if not plus_enforced:
         raise ImproperlyConfigured(
-            "Enabled checkout requires Plus enforcement and disabled mock access.",
+            "Enabled checkout requires Plus enforcement.",
         )
     for prefix in ("TEST", "LIVE"):
         name = f"PAYMONGO_{prefix}_SECRET_KEY"

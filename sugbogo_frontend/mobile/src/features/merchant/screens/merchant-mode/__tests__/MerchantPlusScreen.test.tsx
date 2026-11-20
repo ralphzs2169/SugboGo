@@ -121,33 +121,27 @@ it("checks availability again without starting checkout when it is unavailable",
   expect(mockStart).not.toHaveBeenCalled();
 });
 
-it.each([
-  ["preview", "Not active · Analytics preview"],
-  ["mock", "Not active · Demo access"],
-] as const)(
-  "keeps %s report access separate from a paid Merchant Plus entitlement",
-  async (source, label) => {
-    mockStatus = {
-      ...offer(),
-      has_plus_access: true,
-      access_source: source,
-    } as typeof mockStatus;
-    const screen = await render(<MerchantPlusEntry />);
-    expect(screen.getByText(label)).toBeTruthy();
-    expect(screen.queryByText("Access enabled")).toBeNull();
+it("keeps preview access separate from a paid Merchant Plus entitlement", async () => {
+  mockStatus = {
+    ...offer(),
+    has_plus_access: true,
+    access_source: "preview",
+  };
+  const screen = await render(<MerchantPlusEntry />);
+  expect(screen.getByText("Not active · Analytics preview")).toBeTruthy();
+  expect(screen.queryByText("Access enabled")).toBeNull();
 
-    await screen.rerender(<MerchantPlusEntry discovery />);
-    expect(
-      screen.getByRole("button", { name: "Try 30 days for ₱1" }),
-    ).toBeTruthy();
+  await screen.rerender(<MerchantPlusEntry discovery />);
+  expect(
+    screen.getByRole("button", { name: "Try 30 days for ₱1" }),
+  ).toBeTruthy();
 
-    await screen.rerender(<MerchantPlusScreen />);
-    expect(screen.queryByText("Merchant Plus is active")).toBeNull();
-    expect(screen.queryByText("Active until")).toBeNull();
-    expect(screen.getByRole("button", { name: "Pay ₱1.00" })).toBeTruthy();
-    expect(mockStart).not.toHaveBeenCalled();
-  },
-);
+  await screen.rerender(<MerchantPlusScreen />);
+  expect(screen.queryByText("Merchant Plus is active")).toBeNull();
+  expect(screen.queryByText("Active until")).toBeNull();
+  expect(screen.getByRole("button", { name: "Pay ₱1.00" })).toBeTruthy();
+  expect(mockStart).not.toHaveBeenCalled();
+});
 
 it.each([
   ["pending", "Payment not confirmed"],

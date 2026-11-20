@@ -141,7 +141,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     USER_LNAME = models.CharField(max_length=50)
     USER_MI = models.CharField(max_length=1, blank=True, null=True)
     USER_GENDER = models.CharField(max_length=20, choices=Gender.choices, blank=True, null=True)
-    USER_IS_VERIFIED = models.BooleanField(default=False)
     HAS_COMPLETED_INTEREST_SELECTION = models.BooleanField(default=False)
     USER_REPUTATION = models.DecimalField(
         max_digits=6,

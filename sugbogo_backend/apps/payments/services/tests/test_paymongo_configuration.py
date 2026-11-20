@@ -10,12 +10,10 @@ class PayMongoConfigurationTests(SimpleTestCase):
         values,
         *,
         enforced=True,
-        mock=False,
     ):
         return load_paymongo_configuration(
             values,
             plus_enforced=enforced,
-            mock_enabled=mock,
         )
 
     def enabled_values(self):
@@ -45,11 +43,9 @@ class PayMongoConfigurationTests(SimpleTestCase):
                 with self.assertRaises(ImproperlyConfigured):
                     self.parse(values)
 
-    def test_enabled_checkout_requires_enforcement_and_disables_mock_bypass(self):
-        for enforced, mock in ((False, False), (True, True)):
-            with self.subTest(enforced=enforced, mock=mock):
-                with self.assertRaises(ImproperlyConfigured):
-                    self.parse(self.enabled_values(), enforced=enforced, mock=mock)
+    def test_enabled_checkout_requires_enforcement(self):
+        with self.assertRaises(ImproperlyConfigured):
+            self.parse(self.enabled_values(), enforced=False)
 
     def test_enabled_mode_requires_its_own_credentials(self):
         values = self.enabled_values()

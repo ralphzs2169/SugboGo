@@ -1,18 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
-  confirmTransitTransfer,
   createRouteVariant,
   createJeepneyRoute,
   createTransitPoint,
-  createTransitTransfer,
-  detectTransitTransferCandidates,
   deleteTransitPoint,
-  ignoreTransitTransfer,
   updateJeepneyRoute,
   updateRouteVariant,
   updateTransitPoint,
-  updateTransitTransfer,
 } from "../services/transitNetworkService";
 import { transitQueryKeys } from "./transitQueryKeys";
 
@@ -37,7 +32,6 @@ export default function useTransitMutations() {
         queryKey: transitQueryKeys.transitPoints(),
       }),
       queryClient.invalidateQueries({ queryKey: transitQueryKeys.variants() }),
-      queryClient.invalidateQueries({ queryKey: transitQueryKeys.transfers() }),
       transitPointId
         ? queryClient.invalidateQueries({
             queryKey: transitQueryKeys.transitPointDetail(transitPointId),
@@ -50,7 +44,6 @@ export default function useTransitMutations() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: transitQueryKeys.routes() }),
       queryClient.invalidateQueries({ queryKey: transitQueryKeys.variants() }),
-      queryClient.invalidateQueries({ queryKey: transitQueryKeys.transfers() }),
       routeId
         ? queryClient.invalidateQueries({
             queryKey: transitQueryKeys.routeDetail(routeId),
@@ -59,17 +52,6 @@ export default function useTransitMutations() {
       variantId
         ? queryClient.invalidateQueries({
             queryKey: transitQueryKeys.variantDetail(variantId),
-          })
-        : Promise.resolve(),
-    ]);
-  }
-
-  async function invalidateTransferQueries(transferId) {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: transitQueryKeys.transfers() }),
-      transferId
-        ? queryClient.invalidateQueries({
-            queryKey: transitQueryKeys.transferDetail(transferId),
           })
         : Promise.resolve(),
     ]);
@@ -144,35 +126,12 @@ export default function useTransitMutations() {
         transitQueryKeys.transitPoints(),
         transitQueryKeys.routes(),
         transitQueryKeys.variants(),
-        transitQueryKeys.transfers(),
       ].map((queryKey) => queryClient.invalidateQueries({
         queryKey,
         refetchType: "none",
       })));
     },
   });
-  const createTransferMutation = useMutation({
-    mutationFn: createTransitTransfer,
-    onSuccess: () => invalidateTransferQueries(),
-  });
-  const updateTransferMutation = useMutation({
-    mutationFn: ({ transferId, data }) =>
-      updateTransitTransfer(transferId, data),
-    onSuccess: (_, { transferId }) => invalidateTransferQueries(transferId),
-  });
-  const confirmTransferMutation = useMutation({
-    mutationFn: confirmTransitTransfer,
-    onSuccess: (_, transferId) => invalidateTransferQueries(transferId),
-  });
-  const ignoreTransferMutation = useMutation({
-    mutationFn: ignoreTransitTransfer,
-    onSuccess: (_, transferId) => invalidateTransferQueries(transferId),
-  });
-  const detectCandidatesMutation = useMutation({
-    mutationFn: detectTransitTransferCandidates,
-    onSuccess: () => invalidateTransferQueries(),
-  });
-
   return {
     createRoute: createRouteMutation.mutateAsync,
     updateRoute: updateRouteMutation.mutateAsync,
@@ -181,11 +140,6 @@ export default function useTransitMutations() {
     createPoint: createPointMutation.mutateAsync,
     updatePoint: updatePointMutation.mutateAsync,
     deletePoint: deletePointMutation.mutateAsync,
-    createTransfer: createTransferMutation.mutateAsync,
-    updateTransfer: updateTransferMutation.mutateAsync,
-    confirmTransfer: confirmTransferMutation.mutateAsync,
-    ignoreTransfer: ignoreTransferMutation.mutateAsync,
-    detectTransferCandidates: detectCandidatesMutation.mutateAsync,
     isCreatingRoute: createRouteMutation.isPending,
     isUpdatingRoute: updateRouteMutation.isPending,
     isCreatingVariant: createVariantMutation.isPending,
@@ -193,10 +147,5 @@ export default function useTransitMutations() {
     isCreatingPoint: createPointMutation.isPending,
     isUpdatingPoint: updatePointMutation.isPending,
     isDeletingPoint: deletePointMutation.isPending,
-    isCreatingTransfer: createTransferMutation.isPending,
-    isUpdatingTransfer: updateTransferMutation.isPending,
-    isConfirmingTransfer: confirmTransferMutation.isPending,
-    isIgnoringTransfer: ignoreTransferMutation.isPending,
-    isDetectingTransferCandidates: detectCandidatesMutation.isPending,
   };
 }

@@ -6,7 +6,6 @@ from rest_framework.exceptions import ValidationError
 from apps.merchant_application.models import (
     MerchantApplication,
     MerchantApplicationDuplicateAssessment,
-    MerchantApplicationDuplicateReconsideration,
 )
 from apps.merchant_application.services.duplicate_detection_service import (
     DuplicateDetectionService,
@@ -24,7 +23,7 @@ class DuplicateReviewService:
 
     @staticmethod
     def current_submission(application):
-        """Return the latest saved submission, including while its rejection is reconsidered."""
+        """Return the latest saved submission."""
         return application.submissions.order_by("-MASUB_SUBMISSION_NUMBER").first()
 
     @staticmethod
@@ -68,13 +67,13 @@ class DuplicateReviewService:
         review = application.reviews.order_by("-MAREV_REVIEWED_AT", "-MAREV_ID").first()
         if review is None or not review.MAREV_DUPLICATE_REJECTION:
             return None
-        clearance = getattr(review, "duplicate_reconsideration", None)
+        clearance = review.MAREV_LEGACY_RECONSIDERATION
         return {
             "review_id": review.pk,
             "explanation": review.MAREV_DUPLICATE_EXPLANATION,
             "reconsidered": clearance is not None,
             "reconsideration_explanation": (
-                clearance.MDRC_EXPLANATION if clearance is not None else None
+                clearance["explanation"] if clearance is not None else None
             ),
         }
 
@@ -142,35 +141,5 @@ class DuplicateReviewService:
             MDAS_DECISION=validated_data["decision"],
             MDAS_EXPLANATION=validated_data.get("explanation", ""),
             USER_ID=reviewer,
-        )
-        return DuplicateReviewService.review_state(application)
-
-    @staticmethod
-    @transaction.atomic
-    def reconsider(
-        application_id,
-        reviewer,
-        review_id,
-        explanation,
-    ):
-        """Support deprecated admin clients; resubmission no longer requires this record."""
-        from apps.admin_operations.business_management.services.manage_application_service import (
-            ApplicationService,
-        )
-
-        application, _ = ApplicationService._get_locked_application(application_id)
-        disposition = DuplicateReviewService.disposition(application)
-        if (
-            application.MAPP_STATUS != MerchantApplication.ApplicationStatus.REJECTED
-            or disposition is None
-            or disposition["review_id"] != review_id
-        ):
-            raise ValidationError("Only the current duplicate rejection can be reconsidered.")
-        if disposition["reconsidered"]:
-            raise ValidationError("This rejection has already been reconsidered.")
-        MerchantApplicationDuplicateReconsideration.objects.create(
-            MAREV_ID_id=review_id,
-            USER_ID=reviewer,
-            MDRC_EXPLANATION=explanation,
         )
         return DuplicateReviewService.review_state(application)

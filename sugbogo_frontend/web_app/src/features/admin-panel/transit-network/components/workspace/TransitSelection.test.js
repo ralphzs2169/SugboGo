@@ -19,7 +19,6 @@ let Layout;
 let DataErrorState;
 let keys;
 let point;
-let transfer;
 let variants;
 let excluded;
 let detailFailure;
@@ -34,25 +33,21 @@ const unusedDeletion = () => ({
   can_delete: true,
   counts: {
     directions: 0, routes: 0, origin_directions: 0, destination_directions: 0,
-    ordered_stops: 0, transfers: 0, alighting_transfers: 0, boarding_transfers: 0,
+    ordered_stops: 0,
   },
   example_limit: 5,
-  examples: { routes: [], directions: [], transfers: [] },
+  examples: { routes: [], directions: [] },
 });
 const referencedDeletion = () => ({
   can_delete: false,
   counts: {
     directions: 2, routes: 1, origin_directions: 1, destination_directions: 1,
-    ordered_stops: 2, transfers: 1, alighting_transfers: 1, boarding_transfers: 1,
+    ordered_stops: 2,
   },
   example_limit: 5,
   examples: {
     routes: [{ id: 1, code: "14D" }],
     directions: [{ id: 10, route_id: 1, route_code: "14D", origin: "Colon", destination: "Capitol" }],
-    transfers: [{
-      id: 20, status: "ignored", source_variant_id: 10, source_route_code: "14D",
-      destination_variant_id: 11, destination_route_code: "08G",
-    }],
   },
 });
 const base = "/src/features/admin-panel/";
@@ -105,9 +100,6 @@ beforeEach(async () => {
     transit_points: [{ transit_point: point }, { transit_point: { ...point, id: 2 } }],
     geometry: [],
   }));
-  transfer = { id: 3, status: "pending", source_variant: variants[0], destination_variant: variants[1],
-    alighting_transit_point: point, boarding_transit_point: { ...point, id: 2 },
-    connection_distance_meters: 25, route_separation_meters: 40 };
   excluded = false;
   detailFailure = null;
   patches = [];
@@ -120,7 +112,7 @@ beforeEach(async () => {
   globalThis.__selectionGet = async (url, options = {}) => {
     reads.push({ url, options });
     if (gates[url]) return gates[url];
-    if (/\/(transit-points|transfers)\/\d+\/$/.test(url) && detailFailure) throw detailFailure;
+    if (/\/transit-points\/\d+\/$/.test(url) && detailFailure) throw detailFailure;
     if (url.endsWith(`transit-points/${point.id}/`)) return response(structuredClone(point));
     if (url.endsWith("transit-points/1/")) return response(structuredClone(point));
     if (url.endsWith("transit-points/2/")) return response({ ...point, id: 2, name: "Second stop" });
@@ -130,8 +122,6 @@ beforeEach(async () => {
       delete listedPoint.deletion;
       return response(page(excluded ? [] : [listedPoint]));
     }
-    if (url.endsWith("transfers/3/")) return response(structuredClone(transfer));
-    if (url.endsWith("transfers/")) return response(page(excluded ? [] : [structuredClone(transfer)]));
     if (url.endsWith("route-variants/")) return response(page(variants));
     const route = { id: 1, code: "R1", variants: [variants[0]], variant_count: 1 };
     if (url.endsWith("routes/")) return response(page([route]));
@@ -142,9 +132,9 @@ beforeEach(async () => {
   };
   globalThis.__selectionPatch = async (url, data) => {
     patches.push({ url, data });
-    if (url.includes("transit-points")) point = { ...point, ...data };
-    else transfer = { ...transfer, ...data };
-    return response(url.includes("transit-points") ? point : transfer);
+    assert.match(url, /\/transit-points\/\d+\/$/);
+    point = { ...point, ...data };
+    return response(point);
   };
   globalThis.__selectionDelete = async (url) => {
     deletes.push(url);
@@ -218,6 +208,11 @@ async function refresh(key) {
 
 test("adding or editing a route opens the collapsed inspector", async () => {
   await open("routes");
+  const navigation = container.querySelector('[aria-label="Transit Network sections"]');
+  assert.deepEqual(
+    [...navigation.querySelectorAll("button")].map((tab) => tab.textContent.trim()),
+    ["Routes", "Transit Points"],
+  );
   await collapseInspector();
   await click(button("Edit"));
   assert.equal(inspector().getAttribute("aria-hidden"), "false");
@@ -549,16 +544,6 @@ test("point list refetch reconciles the inspector, map and off-page selection", 
   assert.match(container.textContent, /The selected map marker is outside the current results/);
 });
 
-test("transfer refetch changes status and removes obsolete decision actions", async () => {
-  await open("transfers");
-  assert.ok(button("Confirm"));
-  transfer = { ...transfer, status: "confirmed" };
-  await refresh(keys.transfers());
-  assert.match(inspector().textContent, /confirmed/);
-  assert.equal(button("Confirm"), undefined);
-  assert.equal(globalThis.__selectionMap.transfer.status, "confirmed");
-});
-
 test("temporary errors retain selections while a detail 404 removes actionable records", async () => {
   await open();
   detailFailure = { response: { status: 503 } };
@@ -624,26 +609,6 @@ test("local point save updates browsing selection and map", async () => {
   assert.equal(patches.length, 1);
 });
 
-test("transfer draft and dirty baseline survive refreshed props and unavailability", async () => {
-  await open("transfers");
-  await click(button("Edit"));
-  assert.equal(button("Delete Point"), undefined);
-  const select = inspector().querySelector('select[name="boarding_transit_point_id"]');
-  await act(async () => {
-    select.value = "1";
-    select.dispatchEvent(new window.Event("change", { bubbles: true }));
-  });
-  await until(() => !button("Save Connection").disabled);
-  transfer = { ...transfer, boarding_transit_point: point, status: "confirmed" };
-  await refresh(keys.transfers());
-  assert.equal(select.value, "1");
-  assert.equal(button("Save Connection").disabled, false);
-  detailFailure = { response: { status: 404 } };
-  await refresh(keys.transferDetail(3));
-  assert.equal(select.value, "1");
-  assert.equal(button("Save Connection").disabled, true);
-});
-
 test("late detail response cannot restore a previous point selection", async () => {
   await open();
   let release;
@@ -690,10 +655,8 @@ test("referenced point shows backend counts and examples and cannot submit delet
   await openDelete();
   assert.match(dialog().textContent, /2 directions across 1 routes/);
   assert.match(dialog().textContent, /1 origins, 1 destinations, 2 ordered stops/);
-  assert.match(dialog().textContent, /1 transfers \(1 alighting, 1 boarding\)/);
   assert.match(dialog().textContent, /14D · Direction #10: Colon → Capitol/);
-  assert.match(dialog().textContent, /Transfer #20 \(ignored\)/);
-  assert.match(dialog().textContent, /Reassign transfer connections first/);
+  assert.match(dialog().textContent, /Update the affected directions/);
   assert.equal(dialogButton("Delete Point").disabled, true);
   await click(dialogButton("Delete Point"));
   assert.deepEqual(deletes, []);
@@ -758,7 +721,7 @@ test("failed deletion retains selection and server dependency rejection override
   await click(dialogButton("Delete Point"));
   await until(() => dialog().textContent.includes("References were added"));
   assert.equal(dialogButton("Delete Point").disabled, true);
-  assert.match(dialog().textContent, /Transfer #20/);
+  assert.match(dialog().textContent, /14D · Direction #10: Colon → Capitol/);
   assert.equal(globalThis.__selectionMap.selectedPoint.id, 1);
   assert.ok(client.getQueryData(keys.transitPointDetail(1)));
   assert.deepEqual(successes, []);
@@ -774,7 +737,7 @@ test("successful deletion prunes point caches and markers without restoring late
   const otherList = keys.transitPointList({ page: 1, page_size: 10, search: "stop" });
   client.setQueryData(otherList, page([point, other]));
   client.setQueryData(keys.routeList({}), page([]));
-  client.setQueryData(keys.transferList({}), page([]));
+  client.setQueryData(keys.variantList({}), page([]));
   let release;
   gates["/admin/transit/transit-points/"] = new Promise((done) => { release = done; });
   await act(async () => { void client.invalidateQueries({ queryKey: keys.transitPointList({ page: 1, page_size: 10 }) }); });
@@ -789,7 +752,7 @@ test("successful deletion prunes point caches and markers without restoring late
   assert.deepEqual(client.getQueryData(keys.transitPointReferences()).map((item) => item.id), [2]);
   assert.deepEqual(client.getQueryData(otherList).items.map((item) => item.id), [2]);
   assert.equal(client.getQueryState(keys.routeList({})).isInvalidated, true);
-  assert.equal(client.getQueryState(keys.transferList({})).isInvalidated, true);
+  assert.equal(client.getQueryState(keys.variantList({})).isInvalidated, true);
 });
 
 test("deleting the final record on a later page moves to the remaining valid page", async () => {

@@ -30,11 +30,4 @@ export const transitQueryKeys = {
     ...transitQueryKeys.transitPointDetails(),
     String(transitPointId),
   ],
-  transfers: () => [...transitQueryKeys.all, "transfers"],
-  transferList: (params) => [...transitQueryKeys.transfers(), "list", params],
-  transferDetails: () => [...transitQueryKeys.transfers(), "detail"],
-  transferDetail: (transferId) => [
-    ...transitQueryKeys.transferDetails(),
-    String(transferId),
-  ],
 };

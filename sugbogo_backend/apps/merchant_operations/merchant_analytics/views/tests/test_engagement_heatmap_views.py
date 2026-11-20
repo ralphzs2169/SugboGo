@@ -35,7 +35,7 @@ class EngagementHeatmapViewTests(MerchantAnalyticsFixtures, APIResponseAssertion
         self.assertEqual(len(data["cells"]), 168)
         self.assertEqual(data["timezone"], "Asia/Manila")
 
-    @override_settings(MERCHANT_PLUS_ENFORCED=True, MERCHANT_PLUS_MOCK_ENABLED=False)
+    @override_settings(MERCHANT_PLUS_ENFORCED=True)
     def test_enforcement_denies_before_ownership_or_event_reads(self):
         with patch("apps.merchant_operations.business_profile.services.business_profile_service.BusinessProfileService.get_business_for_merchant") as owner, \
              patch.object(VisibilityEventService, "get_profile_visit_timing") as timing:

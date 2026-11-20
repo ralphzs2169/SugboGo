@@ -1,4 +1,3 @@
-from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
@@ -55,48 +54,3 @@ class BusinessService:
             Business.objects.select_related("CTGRY_ID", "CTGRY_ID__CLUS_ID", "LOC_ID"),
             BUSN_ID=business_id,
         )
-
-    @staticmethod
-    @transaction.atomic
-    def verify_business(
-        business: Business,
-        action: str,
-        reason: str = "",
-    ):
-        """
-        UC-12 Review Merchant Registrations (stub) — binary Approve/Reject.
-        Approve sets BUSN_STATUS=active AND BUSN_IS_VERIFIED=True together,
-        per the manuscript's treatment of these as one verification event.
-
-        NOTE: `reason` is accepted but not yet persisted anywhere — no
-        admin-notes field exists on Business. Flagged per UC-12 Alternative
-        Flow A1, to revisit once the full registration/audit trail exists.
-        """
-        try:
-            business = Business.objects.select_for_update().get(pk=business.pk)
-        except Business.DoesNotExist:
-            from rest_framework.exceptions import NotFound
-
-            raise NotFound("The business could not be found.") from None
-        previous_status = business.BUSN_STATUS
-        if action == "approve":
-            business.BUSN_STATUS = Business.BusinessStatus.ACTIVE
-            business.BUSN_IS_VERIFIED = True
-        else:  # reject
-            business.BUSN_STATUS = Business.BusinessStatus.REJECTED
-            business.BUSN_IS_VERIFIED = False
-
-        business.save()
-
-        if (
-            previous_status != business.BUSN_STATUS
-            and business.BUSN_STATUS == Business.BusinessStatus.ACTIVE
-        ):
-            from apps.business.services.discovery_score_refresh_service import DiscoveryScoreRefreshService
-
-            DiscoveryScoreRefreshService.request_refresh(
-                business.pk,
-                defer_until_daily=True,
-            )
-
-        return business

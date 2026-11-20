@@ -8,7 +8,6 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework.test import APITestCase
 
-from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
 from apps.authentication.models import LoginEvent
 from apps.business.models import Business, BusinessVouch, Category, Cluster, Location, SpecialtyTag
 from apps.merchant_application.models import (
@@ -23,13 +22,16 @@ from apps.users.models import User
 from core.tests.assertions import APIResponseAssertionsMixin
 
 from .models import AdminActivity
+from .test_unified_activity_service import create_archived_policy_revision
 from .unified_activity_service import UnifiedActivityService
 
 
 class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
     @classmethod
     def setUpTestData(cls):
-        AnalyticsPolicyChange.objects.all().delete()
+        AdminActivity.objects.filter(
+            AACT_SOURCE_TYPE=AdminActivity.POLICY_REVISION_SOURCE,
+        ).delete()
         cls.now = timezone.now().replace(microsecond=0)
         cls.users = {}
         for role in User.UserRole.values:
@@ -74,16 +76,16 @@ class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
             },
         )
         AdminActivity.objects.filter(pk=42).update(AACT_CREATED_AT=cls.now)
-        cls.policy = AnalyticsPolicyChange.objects.create(
-            APCH_ID=42,
-            APCH_VERSION=2,
-            APCH_ACTOR=cls.admin,
-            APCH_ACTOR_ID_SNAPSHOT=cls.admin.pk,
-            APCH_REASON="Recorded policy reason.",
-            APCH_BEFORE={"peer_min_businesses": 5, "private": "private-secret"},
-            APCH_AFTER={"peer_min_businesses": 6, "private": "private-secret"},
+        cls.policy = create_archived_policy_revision(
+            source_id=42,
+            version=2,
+            actor_id=cls.admin.pk,
+            actor_id_snapshot=cls.admin.pk,
+            reason="Recorded policy reason.",
+            before={"peer_min_businesses": 5, "private": "private-secret"},
+            after={"peer_min_businesses": 6, "private": "private-secret"},
         )
-        AnalyticsPolicyChange.objects.filter(pk=42).update(APCH_CREATED_AT=cls.now)
+        AdminActivity.objects.filter(pk=cls.policy.pk).update(AACT_CREATED_AT=cls.now)
         application = MerchantApplication.objects.create(USER_ID=cls.merchant)
         cls.submission = MerchantApplicationSubmission.objects.create(
             MASUB_ID=42,
@@ -834,24 +836,27 @@ class UnifiedActivityAPITests(APIResponseAssertionsMixin, APITestCase):
             password="!",
         )
         original_id = deleted.pk
-        revision = AnalyticsPolicyChange.objects.create(
-            APCH_VERSION=99,
-            APCH_ACTOR=deleted,
-            APCH_ACTOR_ID_SNAPSHOT=original_id,
-            APCH_REASON="Retained decision reason.",
-            APCH_BEFORE={"peer_min_businesses": 5},
-            APCH_AFTER={"peer_min_businesses": 6},
+        revision = create_archived_policy_revision(
+            source_id=99,
+            version=99,
+            actor_id_snapshot=original_id,
+            reason="Retained decision reason.",
+            before={"peer_min_businesses": 5},
+            after={"peer_min_businesses": 6},
         )
         deleted.delete()
-        identity = f"analytics_policy_change:{revision.pk}:analytics_policy_revision"
+        identity = f"analytics_policy_change:{revision.AACT_SOURCE_ID}:analytics_policy_revision"
         response = self.client.get(self.detail_url(identity))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["actor_id"], original_id)
         self.assertIsNone(response.data["data"]["current_actor"])
         self.assertIsNone(response.data["data"]["actor_display_snapshot"])
         self.assertIsNone(response.data["data"]["actor_role_snapshot"])
-        AnalyticsPolicyChange.objects.filter(pk=revision.pk).update(
-            APCH_ACTOR_ID_SNAPSHOT=None,
+        AdminActivity.objects.filter(pk=revision.pk).update(
+            AACT_CONTEXT={
+                **revision.AACT_CONTEXT,
+                "actor_id_snapshot": None,
+            },
         )
         with CaptureQueriesContext(connection) as queries:
             response = self.client.get(self.detail_url(identity))

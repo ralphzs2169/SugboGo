@@ -21,8 +21,9 @@ from apps.reviews.services.tests.test_business_review_summary_service import Sum
 from apps.shared.analytics.date_ranges import resolve_period
 from apps.shared.analytics.policy import with_policy_snapshot
 
+from ...analytics_policy_definitions import POLICY_FIELDS
+from ...models import AnalyticsPolicyConfiguration
 from ..analytics_policy_service import AnalyticsPolicyService
-from .test_analytics_policy_service import create_policy_admin
 
 
 @override_settings(GEMINI_API_KEY="test-only-key", GEMINI_KEYWORD_MODEL="test-model")
@@ -37,11 +38,19 @@ class AnalyticsPolicyConsumerTests(SummaryFixtureMixin, TestCase):
             BRSU_NARRATIVE="Stored friendly service summary.",
             BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
             BRSU_KEYWORD_TAGS=[{"text": "friendly service", "count": 2, "review_ids": []}])
-        cls.actor = create_policy_admin()
 
-    def update(self, values):
-        return AnalyticsPolicyService.update(actor=self.actor, expected_version=1,
-            reason="Consumer policy acceptance.", values=values)
+    def update(
+        self,
+        values,
+    ):
+        """Set a persisted revision for the consumer fixture."""
+        AnalyticsPolicyConfiguration.objects.filter(pk=1).update(
+            APC_VERSION=2,
+            **{
+                POLICY_FIELDS[name].model_field: value
+                for name, value in values.items()
+            },
+        )
 
     def provider_response(self):
         ids = [review.pk for review in self.reviews[:2]]
@@ -67,7 +76,7 @@ class AnalyticsPolicyConsumerTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(data["policy"]["provenance"], "legacy_unknown")
         self.assertTrue(all(query["sql"].lstrip().upper().startswith("SELECT") for query in queries))
         self.summary.refresh_from_db()
-        self.assertEqual(self.summary.BRSU_NARRATIVE, "")
+        self.assertEqual(self.summary.BRSU_NARRATIVE, "Stored friendly service summary.")
         self.assertIsNone(self.summary.BRSU_GENERATION_POLICY_VERSION)
 
     def test_higher_mention_rule_filters_stored_mentions_and_labels_original_content(self):

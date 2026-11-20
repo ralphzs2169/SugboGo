@@ -644,7 +644,7 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
             self.assertIsNone(state["candidates"][0]["assessment"])
             self.assertTrue(self.application.submissions.last().MASUB_DUPLICATE_EVIDENCE)
             self.assertFalse(self.application.reviews.filter(
-                duplicate_reconsideration__isnull=False,
+                MAREV_LEGACY_RECONSIDERATION__isnull=False,
             ).exists())
 
     def test_prior_legitimate_assessment_does_not_clear_resubmission(self):
@@ -726,12 +726,39 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
             explanation="Same establishment.",
         )
         review = self.application.reviews.first()
-        DuplicateReviewService.reconsider(
-            self.application.pk,
-            self.admin,
-            review.pk,
+        review.MAREV_LEGACY_RECONSIDERATION = {
+            "id": 31,
+            "explanation": "Legacy clearance.",
+            "created_at": review.MAREV_REVIEWED_AT.isoformat(),
+        }
+        review.MAREV_LEGACY_RECONSIDERED_BY = self.admin
+        review.save(
+            update_fields=[
+                "MAREV_LEGACY_RECONSIDERATION",
+                "MAREV_LEGACY_RECONSIDERED_BY",
+            ],
+        )
+        self.client.force_authenticate(self.admin)
+        duplicate_url = reverse(
+            "merchant-application-duplicates",
+            args=[self.application.pk],
+        )
+        response = self.client.get(duplicate_url)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            response.data["data"]["disposition"]["reconsideration_explanation"],
             "Legacy clearance.",
         )
+        response = self.client.post(
+            duplicate_url,
+            {
+                "action": "reconsider",
+                "review_id": review.pk,
+                "explanation": "New legacy request.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
         self.assertTrue(DuplicateReviewService.disposition(self.application)["reconsidered"])
         self.client.force_authenticate(self.user)
         response = self.client.get(reverse("application-detail"))
@@ -742,7 +769,9 @@ class DuplicateBusinessReviewTests(MerchantApplicationServiceMixin, APITestCase)
         )
         ApplicationService.submit_application(self.application)
         self.assertTrue(DuplicateReviewService.review_state(self.application)["approval_blocked"])
-        self.assertTrue(review.duplicate_reconsideration.pk)
+        review.refresh_from_db()
+        self.assertEqual(review.MAREV_LEGACY_RECONSIDERATION["id"], 31)
+        self.assertEqual(review.MAREV_LEGACY_RECONSIDERED_BY, self.admin)
 
     def test_clearance_cannot_override_account_eligibility(self):
         self.assess()

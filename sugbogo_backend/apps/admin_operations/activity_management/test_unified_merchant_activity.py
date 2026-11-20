@@ -8,10 +8,10 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.admin_operations.activity_management.models import AdminActivity
+from .test_unified_activity_service import create_archived_policy_revision
 from apps.admin_operations.activity_management.unified_activity_service import (
     UnifiedActivityService,
 )
-from apps.admin_operations.system_configuration.models import AnalyticsPolicyChange
 from apps.business.models import Business, Category, Cluster, Location
 from apps.merchant_application.models import (
     MerchantApplication,
@@ -40,7 +40,9 @@ class UnifiedMerchantActivityTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         """Build source identities without invoking unrelated domain write side effects."""
-        AnalyticsPolicyChange.objects.all().delete()
+        AdminActivity.objects.filter(
+            AACT_SOURCE_TYPE=AdminActivity.POLICY_REVISION_SOURCE,
+        ).delete()
         cls.now = timezone.now().replace(microsecond=0)
         cls.merchant = User.objects.create(
             USER_EMAIL="unified-requester@example.com",
@@ -400,13 +402,13 @@ class UnifiedMerchantActivityTests(TestCase):
             AACT_ACTION=AdminActivity.Action.USER_SUSPENDED,
         )
         AdminActivity.objects.filter(pk=activity.pk).update(AACT_CREATED_AT=self.now)
-        policy = AnalyticsPolicyChange.objects.create(
-            APCH_ID=42,
-            APCH_VERSION=2,
-            APCH_REASON="Retained policy revision.",
-            APCH_AFTER={},
+        policy = create_archived_policy_revision(
+            source_id=42,
+            version=2,
+            reason="Retained policy revision.",
+            after={},
         )
-        AnalyticsPolicyChange.objects.filter(pk=policy.pk).update(APCH_CREATED_AT=self.now)
+        AdminActivity.objects.filter(pk=policy.pk).update(AACT_CREATED_AT=self.now)
         application = MerchantApplication.objects.create(USER_ID=self.merchant)
         MerchantApplicationSubmission.objects.create(
             MASUB_ID=42,

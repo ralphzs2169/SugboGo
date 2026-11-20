@@ -126,7 +126,7 @@ export default function TransitPointList({
             <p className="mt-1 text-xs leading-relaxed text-text-secondary">
               {search
                 ? "Try a different search term."
-                : "Add boarding, alighting, and transfer locations to begin building the network."}
+                : "Add boarding and alighting locations to begin building the network."}
             </p>
             {!search && !interactionDisabled && (
               <Button className="mt-4" size="sm" onClick={onStartAdd}>

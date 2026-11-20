@@ -92,7 +92,6 @@ class DashboardFixtures:
         status=Business.BusinessStatus.ACTIVE,
         owner_status=User.UserStatus.ACTIVE,
         owner_role=User.UserRole.MERCHANT,
-        verified=False,
     ):
         return Business.objects.create(
             USER_ID=self.create_user(
@@ -104,7 +103,6 @@ class DashboardFixtures:
             BUSN_NAME="Dashboard business",
             BUSN_CONTACT_NUMBER="09170000000",
             BUSN_STATUS=status,
-            BUSN_IS_VERIFIED=verified,
         )
 
     def create_application(
@@ -472,18 +470,16 @@ class DashboardSummaryServiceTests(DashboardFixtures, TestCase):
         self.assertEqual(result["pending_disputes"], 1)
         self.assertEqual(result["moderation_actionable_reviews"], 1)
 
-    def test_active_businesses_ignore_owner_status_role_and_verification(self):
+    def test_active_businesses_ignore_owner_status_and_role(self):
         for owner_status in User.UserStatus.values:
             self.create_business(
                 owner_status=owner_status,
             )
         self.create_business(
             owner_role=User.UserRole.EXPLORER,
-            verified=True,
         )
         self.create_business(
             status=Business.BusinessStatus.SUSPENDED,
-            verified=True,
         )
 
         result = DashboardSummaryService.get_summary()

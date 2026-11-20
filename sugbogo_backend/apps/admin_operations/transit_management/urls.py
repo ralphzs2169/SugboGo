@@ -12,13 +12,6 @@ from apps.admin_operations.transit_management.views.transit_point_views import (
     TransitPointDetailView,
     TransitPointListView,
 )
-from apps.admin_operations.transit_management.views.transit_transfer_views import (
-    TransitTransferCandidateDetectionView,
-    TransitTransferConfirmView,
-    TransitTransferDetailView,
-    TransitTransferIgnoreView,
-    TransitTransferListView,
-)
 
 
 urlpatterns = [
@@ -45,25 +38,5 @@ urlpatterns = [
     path(
         "route-variants/<int:variant_id>/",
         JeepneyRouteVariantDetailView.as_view(),
-    ),
-    path(
-        "transfers/",
-        TransitTransferListView.as_view(),
-    ),
-    path(
-        "transfers/detect-candidates/",
-        TransitTransferCandidateDetectionView.as_view(),
-    ),
-    path(
-        "transfers/<int:transfer_id>/",
-        TransitTransferDetailView.as_view(),
-    ),
-    path(
-        "transfers/<int:transfer_id>/confirm/",
-        TransitTransferConfirmView.as_view(),
-    ),
-    path(
-        "transfers/<int:transfer_id>/ignore/",
-        TransitTransferIgnoreView.as_view(),
     ),
 ]

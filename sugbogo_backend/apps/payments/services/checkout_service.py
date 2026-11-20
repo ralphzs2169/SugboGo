@@ -68,7 +68,6 @@ class CheckoutService:
             and settings.PAYMENT_MODE == PaymentMode.TEST
             and settings.MAYA_CHECKOUT_ENABLED
             and settings.MERCHANT_PLUS_ENFORCED
-            and not settings.MERCHANT_PLUS_MOCK_ENABLED
         )
 
     @staticmethod

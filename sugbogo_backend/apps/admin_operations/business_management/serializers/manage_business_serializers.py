@@ -514,11 +514,6 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
         read_only=True,
     )
 
-    is_verified = serializers.BooleanField(
-        source="BUSN_IS_VERIFIED",
-        read_only=True,
-    )
-
     vouch_count = serializers.IntegerField(
         source="current_specialty_vouch_count",
         read_only=True,
@@ -655,7 +650,6 @@ class AdminBusinessDetailSerializer(serializers.ModelSerializer):
             "email",
             "website",
             "status",
-            "is_verified",
             "vouch_count",
             "current_specialty_vouch_count",
             "current_specialty_support",

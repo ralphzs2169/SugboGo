@@ -7,8 +7,6 @@ import {
   fetchRouteVariant,
   fetchTransitPoint,
   fetchTransitPoints,
-  fetchTransitTransfer,
-  fetchTransitTransfers,
   fetchTransitPointReferences,
   fetchRouteVariantReferences,
 } from "../services/transitNetworkService";
@@ -129,31 +127,6 @@ export function useTransitPoint(transitPointId, options = {}) {
   return {
     transitPoint: query.data ?? null,
     isFetchedAfterMount: query.isFetchedAfterMount,
-    dataUpdatedAt: query.dataUpdatedAt,
-    isFetching: query.isFetching,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
-  };
-}
-
-export function useTransitTransfers(params = {}, options = {}) {
-  return usePaginatedTransitQuery({
-    queryKey: transitQueryKeys.transferList(params),
-    queryFn: () => fetchTransitTransfers(params),
-    enabled: options.enabled,
-  });
-}
-
-export function useTransitTransfer(transferId, options = {}) {
-  const query = useQuery({
-    queryKey: transitQueryKeys.transferDetail(transferId),
-    queryFn: () => fetchTransitTransfer(transferId),
-    enabled: options.enabled !== false && Boolean(transferId),
-  });
-
-  return {
-    transfer: query.data ?? null,
     dataUpdatedAt: query.dataUpdatedAt,
     isFetching: query.isFetching,
     isLoading: query.isLoading,

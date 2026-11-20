@@ -1,11 +1,10 @@
-import { ArrowRightLeft, BusFront, MapPin } from "lucide-react";
+import { BusFront, MapPin } from "lucide-react";
 
 import TableTabs from "@/features/admin-panel/components/data-table/TableTabs";
 
 const CONTEXT_TABS = [
   { id: "routes", label: "Routes", icon: BusFront },
   { id: "transit-points", label: "Transit Points", icon: MapPin },
-  { id: "transfers", label: "Transfers", icon: ArrowRightLeft },
 ];
 
 /**

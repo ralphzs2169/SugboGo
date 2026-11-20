@@ -4,8 +4,6 @@ import Button from "@/shared/components/Button";
 import RouteForm from "../routes/RouteForm";
 import RouteInspector from "../routes/RouteInspector";
 import RouteVariantEditorPanel from "../routes/RouteVariantEditorPanel";
-import TransferForm from "../transfers/TransferForm";
-import TransferInspector from "../transfers/TransferInspector";
 import TransitPointEditorPanel from "../transit-point-workspace/TransitPointEditorPanel";
 import {
   isRouteDrawingMode,
@@ -17,7 +15,7 @@ import {
 
 /**
  * Composes the context-sensitive inspector, switching between browse details
- * and explicit route, point, variant, or transfer editing surfaces.
+ * and explicit route, point, and variant editing surfaces.
  */
 export default function TransitNetworkInspector({
   context,
@@ -26,7 +24,6 @@ export default function TransitNetworkInspector({
   isFullscreen,
   routeState,
   pointState,
-  transferState,
 }) {
   return (
     <aside
@@ -43,9 +40,6 @@ export default function TransitNetworkInspector({
       )}
       {context === TRANSIT_CONTEXTS.POINTS && (
         <TransitPointEditorPanel mode={mode} {...pointState} />
-      )}
-      {context === TRANSIT_CONTEXTS.TRANSFERS && (
-        <TransferContextInspector mode={mode} {...transferState} />
       )}
     </aside>
   );
@@ -172,58 +166,5 @@ function RouteContextInspector({
       onAddVariant={onStartCreateVariant}
       onEditVariant={onStartEditVariant}
     />
-  );
-}
-
-/** Shows transfer details or the active directed-connection form. */
-function TransferContextInspector({
-  mode,
-  selectedTransfer,
-  saveDisabled,
-  actionsDisabled,
-  geometryError,
-  onDirtyChange,
-  onCancel,
-  onSaved,
-  onEdit,
-  onConfirm,
-  onIgnore,
-  onGeometryRetry,
-}) {
-  if (
-    mode === TRANSIT_MODES.CREATE_TRANSFER ||
-    mode === TRANSIT_MODES.EDIT_TRANSFER
-  ) {
-    return (
-      <TransferForm
-        key={`${mode}-${selectedTransfer?.id ?? "new"}`}
-        transfer={
-          mode === TRANSIT_MODES.EDIT_TRANSFER ? selectedTransfer : null
-        }
-        saveDisabled={saveDisabled}
-        onDirtyChange={onDirtyChange}
-        onCancel={onCancel}
-        onSaved={onSaved}
-      />
-    );
-  }
-
-  return (
-    <>
-      <TransferInspector
-        transfer={selectedTransfer}
-        actionsDisabled={actionsDisabled}
-        onEdit={onEdit}
-        onConfirm={onConfirm}
-        onIgnore={onIgnore}
-      />
-      {geometryError && selectedTransfer && (
-        <DataErrorState
-          title="Unable to load transfer map"
-          message="The transfer remains reviewable while its route geometries reload."
-          onRetry={onGeometryRetry}
-        />
-      )}
-    </>
   );
 }

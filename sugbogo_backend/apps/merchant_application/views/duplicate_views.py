@@ -73,23 +73,14 @@ class AdminDuplicateReviewView(APIView):
         request,
         application_id,
     ):
-        """Save an assessment or handle the deprecated reconsideration compatibility command."""
+        """Save a submission-specific duplicate assessment."""
         serializer = DuplicateReviewCommandSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        if data["action"] == "reconsider":
-            state = DuplicateReviewService.reconsider(
-                application_id,
-                request.user,
-                data["review_id"],
-                data["explanation"],
-            )
-        else:
-            state = DuplicateReviewService.assess(
-                application_id,
-                request.user,
-                data,
-            )
+        state = DuplicateReviewService.assess(
+            application_id,
+            request.user,
+            serializer.validated_data,
+        )
         return success_response(
             data=add_duplicate_display_context(state),
             message="Duplicate review saved.",

@@ -77,7 +77,6 @@ class DevelopmentTransitSeedTests(TestCase):
         self.assertEqual(Business.objects.count(), 3)
         self.assertEqual(BusinessLandmark.objects.count(), 1)
         self.assertTrue(all(not owner.has_usable_password() for owner in User.objects.all()))
-        self.assertFalse(Business.objects.filter(BUSN_IS_VERIFIED=True).exists())
 
     def test_repeat_run_preserves_ids_values_and_timestamps(self):
         first = self.seed()

@@ -101,7 +101,6 @@ class SimilarBusinessServiceTests(TestCase):
         name,
         category,
         status_value=Business.BusinessStatus.ACTIVE,
-        is_verified=False,
     ):
         owner = User.objects.create_user(
             email=f"{name.lower().replace(' ', '-')}@example.com",
@@ -117,7 +116,6 @@ class SimilarBusinessServiceTests(TestCase):
             BUSN_DESCRIPTION="Similarity test business.",
             BUSN_CONTACT_NUMBER="09171234567",
             BUSN_STATUS=status_value,
-            BUSN_IS_VERIFIED=is_verified,
             USER_ID=owner,
             CTGRY_ID=category,
             LOCT_ID=self.location,
@@ -184,17 +182,14 @@ class SimilarBusinessServiceTests(TestCase):
         identical_low_score = self._create_business(
             "Identical Low Score",
             self.category,
-            is_verified=False,
         )
         identical_high_id = self._create_business(
             "Identical High ID",
             self.category,
-            is_verified=True,
         )
         identical_low_id = self._create_business(
             "Identical Low ID",
             self.category,
-            is_verified=False,
         )
         weaker = self._create_business(
             "Weaker Category Match",

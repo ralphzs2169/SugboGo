@@ -6,7 +6,7 @@ from django.test.utils import CaptureQueriesContext
 from apps.admin_operations.transit_management.views.tests import (
     TransitManagementViewTestMixin,
 )
-from apps.transit.models import TransitPoint, TransitTransfer
+from apps.transit.models import TransitPoint
 from apps.users.models import User
 
 
@@ -79,9 +79,20 @@ class TransitPointViewTests(
         )
         deletion = detail.data["data"]["deletion"]
         self.assertFalse(deletion["can_delete"])
-        self.assertEqual(deletion["counts"]["directions"], 2)
-        self.assertEqual(deletion["counts"]["destination_directions"], 2)
-        self.assertEqual(deletion["counts"]["ordered_stops"], 2)
+        self.assertEqual(
+            deletion["counts"],
+            {
+                "routes": 2,
+                "directions": 2,
+                "origin_directions": 0,
+                "destination_directions": 2,
+                "ordered_stops": 2,
+            },
+        )
+        self.assertEqual(
+            set(deletion["examples"]),
+            {"routes", "directions"},
+        )
 
         with CaptureQueriesContext(connection) as queries:
             listing = self.client.get("/api/admin/transit/transit-points/")
@@ -92,7 +103,6 @@ class TransitPointViewTests(
         for query in queries:
             self.assertNotIn('"JEEPNEY_ROUTE_VARIANT"', query["sql"])
             self.assertNotIn('"ROUTE_TRANSIT_POINT"', query["sql"])
-            self.assertNotIn('"TRANSIT_TRANSFER"', query["sql"])
 
     def test_admin_and_super_admin_can_delete_unused_points(self):
         """Use the existing success envelope for both permitted administrator roles."""
@@ -138,12 +148,11 @@ class TransitPointViewTests(
         url = f"/api/admin/transit/transit-points/{point.pk}/"
         detail = self.client.get(url)
         self.assertTrue(detail.data["data"]["deletion"]["can_delete"])
-        transfer = TransitTransfer.objects.create(
-            TTFR_FROM_VARIANT_ID=self.variant_14d,
-            TTFR_TO_VARIANT_ID=self.variant_08g,
-            TTFR_FROM_TRANSIT_POINT_ID=point,
-            TTFR_TO_TRANSIT_POINT_ID=point,
-            TTFR_STATUS=TransitTransfer.TransferStatus.IGNORED,
+        direction = self._create_variant(
+            self.route_14d,
+            self.kamputhaw,
+            self.carbon,
+            [self.kamputhaw, point, self.carbon],
         )
 
         response = self.client.delete(url)
@@ -154,10 +163,10 @@ class TransitPointViewTests(
         self.assertIn("Reassign", response.data["message"])
         deletion = response.data["errors"]["deletion"]
         self.assertIs(deletion["can_delete"], False)
-        self.assertEqual(deletion["counts"]["transfers"], 1)
-        self.assertEqual(deletion["examples"]["transfers"][0]["id"], transfer.pk)
+        self.assertEqual(deletion["counts"]["directions"], 1)
+        self.assertEqual(deletion["counts"]["ordered_stops"], 1)
+        self.assertEqual(deletion["examples"]["directions"][0]["id"], direction.pk)
         self.assertTrue(TransitPoint.objects.filter(pk=point.pk).exists())
-        self.assertTrue(TransitTransfer.objects.filter(pk=transfer.pk).exists())
 
     def test_delete_rejects_anonymous_non_admin_and_inactive_users(self):
         """Retain authentication, role and active-user restrictions on DELETE."""

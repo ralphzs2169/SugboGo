@@ -74,7 +74,6 @@ class RecommendationViewTests(TestCase):
             BUSN_DESCRIPTION="Recommendation test business.",
             BUSN_CONTACT_NUMBER="09171234567",
             BUSN_STATUS=status_value,
-            BUSN_IS_VERIFIED=False,
             USER_ID=owner,
             CTGRY_ID=self.category,
             LOCT_ID=self.location,

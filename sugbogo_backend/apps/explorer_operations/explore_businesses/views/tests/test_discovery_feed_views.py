@@ -91,7 +91,6 @@ class DiscoveryFeedTests(TestCase):
         self,
         name,
         status=Business.BusinessStatus.ACTIVE,
-        is_verified=False,
         category=None,
         created_at=None,
     ):
@@ -110,7 +109,6 @@ class DiscoveryFeedTests(TestCase):
             BUSN_DESCRIPTION="A business used by the discovery feed tests.",
             BUSN_CONTACT_NUMBER="09171234567",
             BUSN_STATUS=status,
-            BUSN_IS_VERIFIED=is_verified,
             USER_ID=owner,
             CTGRY_ID=category or self.category,
             LOCT_ID=self.location,
@@ -149,17 +147,15 @@ class DiscoveryFeedTests(TestCase):
             for item in response.data["data"]["items"]
         ]
 
-    def test_feed_only_returns_active_businesses_and_ignores_verification(self):
-        """Active unverified businesses remain eligible while inactive ones do not."""
+    def test_feed_only_returns_active_businesses(self):
+        """Exclude suspended businesses even when they have a high score."""
 
-        active_unverified = self._create_business(
-            "Active Unverified",
-            is_verified=False,
+        active = self._create_business(
+            "Active Business",
         )
         inactive = self._create_business(
             "Inactive High Score",
             status=Business.BusinessStatus.SUSPENDED,
-            is_verified=True,
         )
         self._create_score(
             inactive,
@@ -176,7 +172,7 @@ class DiscoveryFeedTests(TestCase):
         )
         self.assertEqual(
             self._response_ids(response),
-            [active_unverified.BUSN_ID],
+            [active.BUSN_ID],
         )
 
     def test_feed_orders_positive_scores_and_keeps_missing_scores(self):

@@ -1,7 +1,6 @@
 export const TRANSIT_CONTEXTS = {
   ROUTES: "routes",
   POINTS: "transit-points",
-  TRANSFERS: "transfers",
 };
 
 export const TRANSIT_MODES = {
@@ -16,8 +15,6 @@ export const TRANSIT_MODES = {
   EDIT_VARIANT_POINT: "edit-variant-transit-point",
   ADD_POINT: "add-transit-point",
   EDIT_POINT: "edit-transit-point",
-  CREATE_TRANSFER: "create-transfer",
-  EDIT_TRANSFER: "edit-transfer",
 };
 
 export function isVariantEditingMode(mode) {

@@ -289,7 +289,7 @@ describe("advanced Plus detail integration", () => {
     const screen = await renderDetail("timing");
     await screen.findByLabelText("Timing profile visits: 3");
     expect(
-      screen.queryByText(/Plus preview access|Plus demo access/),
+      screen.queryByText(/Plus preview access/),
     ).toBeNull();
     expect(screen.getByLabelText("Monday, 09:00–10:00: 2")).toBeTruthy();
     expect(screen.getByLabelText("Monday, 08:00–09:00: 0")).toBeTruthy();

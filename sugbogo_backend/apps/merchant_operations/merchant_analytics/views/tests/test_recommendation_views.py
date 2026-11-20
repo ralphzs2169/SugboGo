@@ -1,5 +1,6 @@
 """Verify Premium boundaries, date-only refreshes, and side-effect-free recommendation reads."""
 
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -14,6 +15,7 @@ from ...models import MerchantRecommendation
 from ...services.recommendation_service import RecommendationService
 from ...services.recommendation_provider_service import RecommendationProviderService
 from ...services.tests.peer_fixtures import PeerAnalyticsFixtures
+from .test_paid_plus_status_views import grant_paid_plus
 
 
 @override_settings(MERCHANT_PLUS_ENFORCED=False)
@@ -124,11 +126,14 @@ class RecommendationViewTests(PeerAnalyticsFixtures, APIResponseAssertionsMixin,
         self.assertEqual(self.client.get(self.read_url).status_code, 404)
         self.assertEqual(self.client.post(self.refresh_url, {}, format="json").status_code, 404)
 
-    @override_settings(MERCHANT_PLUS_ENFORCED=True, MERCHANT_PLUS_MOCK_ENABLED=True)
-    def test_real_demo_activation_allows_generation_and_reset_revokes_recommendation_access(self):
+    @override_settings(
+        MERCHANT_PLUS_ENFORCED=True,
+        PAYMENT_PROVIDER="maya",
+        PAYMENT_MODE="test",
+    )
+    def test_paid_entitlement_allows_generation_until_expiry(self):
         self.assertEqual(self.client.get(self.read_url).status_code, 403)
-        activation = self.client.post(reverse("merchant-plus-mock-activation"), {"outcome": "success"}, format="json")
-        self.assertEqual(activation.status_code, 200)
+        _, entitlement = grant_paid_plus(self.merchant_a, self.business_a)
         response = self.client.post(self.refresh_url, {}, format="json")
         self.assertEqual(response.status_code, 202)
 
@@ -143,17 +148,28 @@ class RecommendationViewTests(PeerAnalyticsFixtures, APIResponseAssertionsMixin,
         with patch.object(RecommendationProviderService, "generate", side_effect=output):
             self.assertEqual(RecommendationService.generate(response.data["data"]["request_id"]), "ready")
         self.assertTrue(self.client.get(self.read_url).data["data"]["content_available"])
-        self.assertEqual(self.client.post(reverse("merchant-plus-mock-reset"), {}, format="json").status_code, 200)
-        self.assertEqual(self.client.get(self.read_url).status_code, 403)
-        self.assertEqual(self.client.post(self.refresh_url, {}, format="json").status_code, 403)
-        self.assertEqual(self.client.get(reverse("merchant-analytics-standard")).status_code, 200)
+        with patch("django.utils.timezone.now", return_value=entitlement.MPPE_EXPIRES_AT):
+            self.assertEqual(self.client.get(self.read_url).status_code, 403)
+            self.assertEqual(self.client.post(self.refresh_url, {}, format="json").status_code, 403)
+            self.assertEqual(self.client.get(reverse("merchant-analytics-standard")).status_code, 200)
 
-    @override_settings(MERCHANT_PLUS_ENFORCED=True, MERCHANT_PLUS_MOCK_ENABLED=True)
-    def test_demo_reset_before_worker_prevents_provider_request(self):
-        self.client.post(reverse("merchant-plus-mock-activation"), {"outcome": "success"}, format="json")
+    @override_settings(
+        MERCHANT_PLUS_ENFORCED=True,
+        PAYMENT_PROVIDER="maya",
+        PAYMENT_MODE="test",
+    )
+    def test_expiry_before_worker_prevents_provider_request(self):
+        _, entitlement = grant_paid_plus(self.merchant_a, self.business_a)
+        entitlement.MPPE_EXPIRES_AT = self.NOW + timedelta(seconds=1)
+        entitlement.save(update_fields=["MPPE_EXPIRES_AT"])
         response = self.client.post(self.refresh_url, {}, format="json")
         self.assertEqual(response.status_code, 202)
-        self.client.post(reverse("merchant-plus-mock-reset"), {}, format="json")
-        with patch.object(RecommendationProviderService, "generate") as provider:
-            self.assertEqual(RecommendationService.generate(response.data["data"]["request_id"]), "invalidated")
+        with (
+            patch("django.utils.timezone.now", return_value=entitlement.MPPE_EXPIRES_AT),
+            patch.object(RecommendationProviderService, "generate") as provider,
+        ):
+            self.assertEqual(
+                RecommendationService.generate(response.data["data"]["request_id"]),
+                "invalidated",
+            )
         provider.assert_not_called()

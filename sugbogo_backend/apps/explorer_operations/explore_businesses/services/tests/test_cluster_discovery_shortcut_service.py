@@ -164,14 +164,10 @@ class ClusterDiscoveryShortcutServiceTests(TestCase):
             [],
         )
 
-    def test_active_unverified_businesses_still_count(self):
-        business = self.create_business(
+    def test_active_business_makes_shortcut_available(self):
+        self.create_business(
             category=self.culinary_category,
-            name="Unverified Active Business",
-        )
-
-        self.assertFalse(
-            business.BUSN_IS_VERIFIED,
+            name="Active Business",
         )
 
         shortcuts = list(
