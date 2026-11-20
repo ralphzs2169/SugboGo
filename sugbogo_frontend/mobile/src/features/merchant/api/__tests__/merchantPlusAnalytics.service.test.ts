@@ -8,8 +8,6 @@ import {
   getMerchantPlusPeers,
   getMerchantPlusStoredInsights,
   getMerchantPlusProfileTiming,
-  getMerchantPlusRecommendations,
-  refreshMerchantPlusRecommendations,
 } from "../merchantPlusAnalytics.service";
 import {
   plusStatus,
@@ -71,7 +69,6 @@ describe("Core Plus analytics transport", () => {
     [getMerchantPlusSpecialties, "specialties"],
     [getMerchantPlusReviewPerformance, "review-performance"],
     [getMerchantPlusPeers, "peers"],
-    [getMerchantPlusRecommendations, "recommendations"],
   ] as const)(
     "requests only the selected detail endpoint %s",
     async (read, path) => {
@@ -106,28 +103,6 @@ describe("Core Plus analytics transport", () => {
     expect(apiClient.get).toHaveBeenCalledWith(
       "/merchant/analytics/premium/engagement-heatmap/",
       { params: { period: "7", metric: "profile_visits" }, signal: undefined },
-    );
-  });
-
-  it("posts explicit recommendation refresh dates in JSON and preserves a queued acknowledgement", async () => {
-    const acknowledgement = {
-      success: true,
-      data: {
-        request_id: "job",
-        state: "pending",
-        created: true,
-        source_period: {},
-      },
-    };
-    jest
-      .mocked(apiClient.post)
-      .mockResolvedValue({ status: 202, data: acknowledgement });
-    await expect(
-      refreshMerchantPlusRecommendations({ period: "90" }),
-    ).resolves.toEqual(acknowledgement);
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/merchant/analytics/premium/recommendations/refresh/",
-      { period: "90" },
     );
   });
 });

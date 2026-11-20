@@ -41,7 +41,6 @@ export const PLUS_DETAIL_TITLES: Record<PlusDetailKind, string> = {
   peers: "Peer comparisons",
   "review-insights": "Review insights",
   timing: "Profile visit timing",
-  recommendations: "Business recommendations",
 };
 
 export function isPlusDetailKind(value: unknown): value is PlusDetailKind {

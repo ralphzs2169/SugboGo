@@ -78,7 +78,6 @@ it("presents the fixed offer and four benefits with an explicit Pay action", asy
     "Peer comparisons",
     "Specialty trends",
     "Visit timing",
-    "Business recommendations",
   ]) {
     expect(screen.getByText(benefit)).toBeTruthy();
   }
@@ -410,6 +409,9 @@ it("routes locked Further insights to Plus and restores report navigation after 
     screen.getByRole("button", { name: "Open Peer comparisons" }),
   );
   expect(open).toHaveBeenCalledWith("peers");
+  expect(
+    screen.queryByRole("button", { name: /business recommendations/i }),
+  ).toBeNull();
 });
 
 it.each([

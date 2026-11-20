@@ -65,12 +65,6 @@ const REPORTS: ReportItem[] = [
     icon: "store-outline",
     kind: "peers",
   },
-  {
-    title: "Business recommendations",
-    description: "Suggestions based on available activity and reviews",
-    icon: "lightbulb-outline",
-    kind: "recommendations",
-  },
 ];
 
 /** Places report destinations beside the measurements they explain. */
@@ -102,7 +96,7 @@ export function AnalyticsReportLinks({
     if (group === "reviews") {
       return report.kind === "reviews";
     }
-    return report.kind === "peers" || report.kind === "recommendations";
+    return report.kind === "peers";
   });
   return (
     <View>
@@ -159,13 +153,10 @@ export function AnalyticsReportLinks({
   );
 }
 
-/** Groups broader comparison and recommendation tools. */
+/** Groups peer comparisons under further insights. */
 export default function AnalyticsMoreInsights(props: Props) {
   return (
-    <AnalyticsOverviewSection
-      title="Further insights"
-      description="Compare your business and explore suggested improvements."
-    >
+    <AnalyticsOverviewSection title="Further insights">
       <AnalyticsReportLinks {...props} group="further" />
     </AnalyticsOverviewSection>
   );

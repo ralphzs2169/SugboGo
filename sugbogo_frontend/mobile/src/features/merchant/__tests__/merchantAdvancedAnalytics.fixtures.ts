@@ -2,9 +2,6 @@ import type {
   PlusPeerReport,
   PlusStoredInsightsReport,
   PlusProfileTimingReport,
-  PlusRecommendationsReport,
-  RecommendationState,
-  RecommendationRefreshResult,
 } from "../types/merchantAdvancedAnalytics.types";
 import { plusMeta } from "./merchantPlusAnalytics.fixtures";
 import { standardAnalyticsReport } from "./merchantAnalytics.fixtures";
@@ -186,92 +183,5 @@ export function timingReport(): PlusProfileTimingReport {
       "Selected calendar occurrences are not verified tracking coverage.",
     sources: { visibility: plusMeta() },
     meta: plusMeta(),
-  };
-}
-
-export function recommendationsReport(
-  state: RecommendationState = "not_requested",
-): PlusRecommendationsReport {
-  return {
-    business: standardAnalyticsReport().business,
-    state,
-    stored_state: state === "not_requested" ? null : state,
-    request_id:
-      state === "not_requested" ? null : "00000000-0000-4000-8000-000000000001",
-    source_period:
-      state === "not_requested"
-        ? null
-        : {
-            ...plusMeta().period,
-            snapshot_as_of: plusMeta().generated_at,
-            includes_partial_day: true,
-          },
-    requested_selection: {
-      start_date: plusMeta().period.start_date,
-      end_date: plusMeta().period.end_date,
-    },
-    requested_at: state === "not_requested" ? null : plusMeta().generated_at,
-    generated_at: state === "ready" ? plusMeta().generated_at : null,
-    checked_at: plusMeta().generated_at,
-    evidence_matches: state !== "invalidated" && state !== "not_requested",
-    snapshot_only: true,
-    content_available: state === "ready",
-    ai_recommendations:
-      state === "ready"
-        ? [
-            {
-              action_code: "UNANSWERED_REVIEWS",
-              evidence_codes: ["UNANSWERED_REVIEWS"],
-              explanation_code: "review_backlog",
-              message:
-                "Review the unanswered published-review backlog and respond where appropriate.",
-            },
-          ]
-        : [],
-    generation_policy:
-      state === "not_requested"
-        ? null
-        : {
-            original_version: 1,
-            current_version: 1,
-            relevant_rules_match: true,
-            original_rules: {},
-          },
-    provenance:
-      state === "not_requested"
-        ? null
-        : {
-            provider: "gemini",
-            model: "test-model",
-            prompt_version: "restricted-actions-1",
-            schema_version: "merchant-recommendations-1",
-            mode: "restricted_selection",
-          },
-    error_code: state === "failed" ? "queue_unavailable" : null,
-    key_findings: [
-      {
-        code: "UNANSWERED_REVIEWS",
-        message: "Published reviews are awaiting a reply.",
-      },
-    ],
-    recommended_actions: [
-      {
-        code: "UNANSWERED_REVIEWS",
-        message: "Review unanswered feedback where appropriate.",
-      },
-    ],
-    meta: plusMeta(),
-    measurement_note:
-      "Stored recommendations cover their exact source snapshot, not later activity. Fallback findings use current retained evidence within those bounds.",
-  };
-}
-
-export function refreshAcknowledgement(): RecommendationRefreshResult {
-  const pending = recommendationsReport("pending");
-  return {
-    request_id: pending.request_id!,
-    state: "pending",
-    created: true,
-    source_period: pending.source_period!,
   };
 }

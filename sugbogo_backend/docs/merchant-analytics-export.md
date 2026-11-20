@@ -19,9 +19,8 @@ discovery sources, route-planning activity, profile timing and actionable review
 age counts. The JSON report endpoint's response contract is unchanged. The PDF
 also includes retained vouch additions and their absolute comparison, reviews,
 replies, specialty support, anonymous peers, deterministic findings and actions,
-and source/freshness notes. It does not generate AI content or request new
-Business recommendations. Stored review content retains its eligibility gate,
-original coverage, generation date and sampling disclosure.
+and source/freshness notes. The PDF uses existing stored review content subject to
+its eligibility gate, original coverage, generation date and sampling disclosure.
 
 Null values remain unavailable. Unknown source attribution remains visible.
 Timing distinguishes outside-period cells, recorded zeros, unavailable values,

@@ -50,10 +50,9 @@ from ..premium_review_performance_service import PremiumReviewPerformanceService
 from ..premium_specialty_service import PremiumSpecialtyService
 from ..premium_visibility_service import PremiumVisibilityService
 from ..standard_analytics_service import StandardAnalyticsService
-from ..recommendation_service import RecommendationService
+from ..merchant_report_service import MerchantReportService
 from ..route_planning_analytics_service import RoutePlanningAnalyticsService
 from ..discovery_sources_service import DiscoverySourcesService
-from ...models import MerchantRecommendation
 
 
 class MemoryCollection(DiscoverySourceCollection):
@@ -1644,7 +1643,6 @@ class MerchantAnalyticsDemoSeedTests(TestCase):
         self.assertEqual(ReputationEvent.objects.count(), 0)
         self.assertEqual(BusinessReviewSummary.objects.count(), 0)
         self.assertEqual(Notification.objects.count(), 0)
-        self.assertEqual(MerchantRecommendation.objects.count(), 0)
 
     def test_period_switching_preserves_snapshots_and_deterministic_findings(self):
         self.run_seed(apply=True)
@@ -1665,11 +1663,8 @@ class MerchantAnalyticsDemoSeedTests(TestCase):
                 self.assertEqual(standard["current_pocket_holders"], 14)
                 self.assertEqual(standard["saves_in_period"], saves)
                 self.assertEqual(pocket["metrics"]["saves"]["value"], saves)
-            recommendations = RecommendationService.read(self.owner, period)
-        self.assertTrue(recommendations["key_findings"])
-        self.assertEqual(recommendations["state"], "not_requested")
-        self.assertEqual(recommendations["ai_recommendations"], [])
-        self.assertEqual(MerchantRecommendation.objects.count(), 0)
+            report = MerchantReportService.get_report(self.owner, period)
+        self.assertTrue(report["key_findings"])
 
     def test_dedupe_uses_utc_days_while_reporting_uses_manila_calendar_dates(self):
         one = datetime(2026, 10, 12, 17, tzinfo=UTC)

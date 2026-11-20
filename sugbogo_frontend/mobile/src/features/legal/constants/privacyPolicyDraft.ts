@@ -221,7 +221,7 @@ export const PRIVACY_POLICY_DRAFT: readonly PrivacyPolicyDraftSection[] = [
           "Cloudinary for uploaded media and some documents with restricted access.",
           "Resend for account-related emails.",
           "OpenAI for automatically checking review text and photos for potentially unsuitable content.",
-          "Google Gemini for some review analysis, summaries, and merchant recommendations.",
+          "Google Gemini for some review analysis and summaries.",
         ],
       },
       {

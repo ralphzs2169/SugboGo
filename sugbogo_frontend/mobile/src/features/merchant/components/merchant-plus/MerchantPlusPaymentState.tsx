@@ -96,7 +96,7 @@ const STATUS = {
     badge: "Access active",
     title: "Merchant Plus is active",
     description:
-      "Peer comparisons, specialty trends, visit timing, and recommendations are ready in Analytics.",
+      "Peer comparisons, specialty trends, and visit timing are ready in Analytics.",
     icon: "check-circle-outline",
     tone: "success",
     animation: approvedAnimation,

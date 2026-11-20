@@ -117,38 +117,6 @@ export function AnalyticsHeatmapSkeleton() {
   );
 }
 
-export function AnalyticsRecommendationSkeleton() {
-  return (
-    <View
-      accessibilityLabel="Loading recommendations"
-      accessibilityState={{ busy: true }}
-      className="gap-4"
-    >
-      {[0, 1].map((index) => (
-        <View
-          key={index}
-          className="gap-4 rounded-card border border-border-primary/60 bg-surface-muted p-4"
-        >
-          <View className="flex-row items-center gap-2">
-            <Skeleton className="h-4 w-4 rounded" />
-            <Skeleton className="h-3 w-24 rounded" />
-          </View>
-          <Skeleton className="h-6 w-48 max-w-full rounded" />
-          <View className="gap-2">
-            <Skeleton className="h-3 w-full rounded" />
-            <Skeleton className="h-3 w-4/5 rounded" />
-          </View>
-          <View className="gap-2 border-t border-border-primary/60 pt-3">
-            <Skeleton className="h-3 w-24 rounded" />
-            <Skeleton className="h-3 w-full rounded" />
-          </View>
-          <Skeleton className="h-4 w-32 rounded" />
-        </View>
-      ))}
-    </View>
-  );
-}
-
 export function AnalyticsInsightsSkeleton() {
   return (
     <View

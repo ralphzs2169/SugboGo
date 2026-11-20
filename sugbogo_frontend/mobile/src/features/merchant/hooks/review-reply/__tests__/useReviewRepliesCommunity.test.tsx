@@ -123,7 +123,6 @@ describe("merchant reply Community synchronization", () => {
         businessReviewsKey(20),
         exploreBusinessDetailKey(20),
         merchantPlusReportFamily(42, "reviews"),
-        merchantPlusReportFamily(42, "recommendations"),
       ]) {
         expect(invalidate).toHaveBeenCalledWith({ queryKey });
       }

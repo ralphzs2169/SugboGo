@@ -18,12 +18,9 @@ import {
   peerReport,
   storedInsightsReport,
   timingReport,
-  recommendationsReport,
-  refreshAcknowledgement,
 } from "../../../__tests__/merchantAdvancedAnalytics.fixtures";
 import MerchantAnalyticsDetailScreen from "../MerchantAnalyticsDetailScreen";
 import type { AdvancedPlusDetailKind } from "../../../types/merchantPlusAnalytics.types";
-import type { RecommendationState } from "../../../types/merchantAdvancedAnalytics.types";
 
 jest.mock("@gorhom/bottom-sheet", () =>
   jest
@@ -40,8 +37,6 @@ jest.mock("../../../api/merchantPlusAnalytics.service", () => ({
   getMerchantPlusPeers: jest.fn(),
   getMerchantPlusStoredInsights: jest.fn(),
   getMerchantPlusProfileTiming: jest.fn(),
-  getMerchantPlusRecommendations: jest.fn(),
-  refreshMerchantPlusRecommendations: jest.fn(),
 }));
 jest.mock("react-native-toast-message", () => ({
   __esModule: true,
@@ -89,14 +84,6 @@ describe("advanced Plus detail integration", () => {
       .mocked(service.getMerchantPlusProfileTiming)
       .mockReset()
       .mockResolvedValue(plusSuccess(timingReport()));
-    jest
-      .mocked(service.getMerchantPlusRecommendations)
-      .mockReset()
-      .mockResolvedValue(plusSuccess(recommendationsReport()));
-    jest
-      .mocked(service.refreshMerchantPlusRecommendations)
-      .mockReset()
-      .mockResolvedValue(plusSuccess(refreshAcknowledgement()));
   });
   afterEach(async () => {
     await cleanup();
@@ -127,7 +114,6 @@ describe("advanced Plus detail integration", () => {
     );
     expect(screen.getByText(/broader business group is used/)).toBeTruthy();
     expect(service.getMerchantPlusStoredInsights).not.toHaveBeenCalled();
-    expect(service.getMerchantPlusRecommendations).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByRole("button", { name: "Last 7 days" }));
     await waitFor(() =>
       expect(service.getMerchantPlusPeers).toHaveBeenLastCalledWith(
@@ -170,7 +156,7 @@ describe("advanced Plus detail integration", () => {
     await screen.findByLabelText("Recorded profile visits, your business: 0");
   });
 
-  it("uses stored insights' own coverage without a date selector or generation request", async () => {
+  it("uses stored insights' own coverage without a date selector", async () => {
     const screen = await renderDetail("review-insights");
     await screen.findByText("Stored narrative from eligible reviews.");
     expect(screen.queryByText("Mixed")).toBeNull();
@@ -181,7 +167,6 @@ describe("advanced Plus detail integration", () => {
     expect(service.getMerchantPlusStoredInsights).toHaveBeenCalledWith(
       expect.anything(),
     );
-    expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
     expect(
       screen.getAllByText(/Coffee|Service/).map((item) => item.props.children),
     ).toEqual(["Service", "Coffee"]);
@@ -195,7 +180,6 @@ describe("advanced Plus detail integration", () => {
       screen.getByRole("button", { name: "Close review summary information" }),
     );
     expect(screen.queryByText(/rolling 30-day generation window/)).toBeNull();
-    expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
   });
 
   it("keeps the review insights header and sheet available during loading", async () => {
@@ -251,7 +235,6 @@ describe("advanced Plus detail integration", () => {
     expect(
       screen.getByText("Stored narrative from eligible reviews."),
     ).toBeTruthy();
-    expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
   });
 
   it("handles a missing stored summary without fabricating content", async () => {
@@ -262,7 +245,6 @@ describe("advanced Plus detail integration", () => {
       .mockResolvedValueOnce(plusSuccess(report));
     const screen = await renderDetail("review-insights");
     await screen.findByText("No review summary yet");
-    expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
   });
 
   it("withholds gated stored content while retaining sample metadata", async () => {
@@ -516,147 +498,14 @@ describe("advanced Plus detail integration", () => {
     expect(screen.getByLabelText("Monday, 09:00–10:00: 2")).toBeTruthy();
   });
 
-  it.each(["NETWORK_ERROR", "RECOMMENDATION_REFRESH_IN_PROGRESS"])(
-    "keeps fallback findings after refresh error %s without automatic retry",
-    async (code) => {
-      jest
-        .mocked(service.refreshMerchantPlusRecommendations)
-        .mockResolvedValueOnce({
-          success: false,
-          code,
-          message: "Please check the current request state.",
-        });
-      const screen = await renderDetail("recommendations");
-      await screen.findByText("Recommendations not requested");
-      await fireEvent.press(
-        screen.getByRole("button", { name: "Get recommendations" }),
-      );
-      await screen.findByText(
-        code === "NETWORK_ERROR"
-          ? "Unable to request recommendations"
-          : "Another request is in progress",
-      );
-      expect(
-        screen.getByText("Published reviews are awaiting a reply."),
-      ).toBeTruthy();
-      expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(
-        1,
-      );
-      await fireEvent.press(
-        screen.getByRole("button", { name: /Tap to check status/i }),
-      );
-      await waitFor(() =>
-        expect(service.getMerchantPlusRecommendations).toHaveBeenCalledTimes(2),
-      );
-      expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(
-        1,
-      );
-    },
-  );
-
-  it.each([
-    "pending",
-    "running",
-    "ready",
-    "insufficient_data",
-    "failed",
-    "invalidated",
-  ] as RecommendationState[])(
-    "renders the backend recommendation lifecycle state %s without auto generation",
-    async (state) => {
-      jest
-        .mocked(service.getMerchantPlusRecommendations)
-        .mockResolvedValueOnce(plusSuccess(recommendationsReport(state)));
-      const screen = await renderDetail("recommendations");
-      const button = await screen.findByRole("button", {
-        name: "Update recommendations",
-      });
-      expect(button.props.accessibilityState.disabled).toBe(
-        state === "pending" || state === "running",
-      );
-      expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
-      expect(
-        screen.getByText("Published reviews are awaiting a reply."),
-      ).toBeTruthy();
-      if (state === "ready")
-        expect(
-          screen.getByText(
-            "Review the unanswered published-review backlog and respond where appropriate.",
-          ),
-        ).toBeTruthy();
-      else
-        expect(
-          screen.queryByText(
-            "Review the unanswered published-review backlog and respond where appropriate.",
-          ),
-        ).toBeNull();
-    },
-  );
-
-  it("generates only on request, then supports manual status checks and read-only pull refresh", async () => {
-    const screen = await renderDetail("recommendations");
-    await screen.findByText("Recommendations not requested");
-    expect(service.refreshMerchantPlusRecommendations).not.toHaveBeenCalled();
-    jest
-      .mocked(service.getMerchantPlusRecommendations)
-      .mockResolvedValueOnce(plusSuccess(recommendationsReport("pending")));
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Get recommendations" }),
-    );
-    await screen.findByText("Recommendations are queued");
-    expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledWith({
-      period: "90",
-    });
-    jest
-      .mocked(service.getMerchantPlusRecommendations)
-      .mockResolvedValue(plusSuccess(recommendationsReport("ready")));
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Check recommendation status" }),
-    );
-    await screen.findByText("Recommendations ready");
-    await act(async () => {
-      await screen
-        .getByTestId("advanced-plus-detail-scroll")
-        .props.refreshControl.props.onRefresh();
-    });
-    expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(1);
-  });
-
-  it("explains throttling, blocks immediate refresh retries and retains stored findings", async () => {
-    jest
-      .mocked(service.refreshMerchantPlusRecommendations)
-      .mockResolvedValueOnce({
-        success: false,
-        code: "RATE_LIMIT_EXCEEDED",
-        message: "Too many requests.",
-        errors: { retry_after: 60 },
-      } as never);
-    const screen = await renderDetail("recommendations");
-    await screen.findByText("Recommendations not requested");
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Get recommendations" }),
-    );
-    await screen.findByText("Update limit reached");
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Get recommendations" }).props
-          .accessibilityState.disabled,
-      ).toBe(true),
-    );
-    expect(
-      screen.getByText("Published reviews are awaiting a reply."),
-    ).toBeTruthy();
-    expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(1);
-  });
-
   it("blocks advanced reports when backend access is restricted", async () => {
     client.setQueryData(merchantPlusStatusKey(42), plusStatus(false));
     jest
       .mocked(service.getMerchantPlusStatus)
       .mockResolvedValueOnce(plusSuccess(plusStatus(false)));
-    const screen = await renderDetail("recommendations");
+    const screen = await renderDetail("peers");
     await screen.findByText("Merchant Plus required");
-    expect(service.getMerchantPlusRecommendations).not.toHaveBeenCalled();
+    expect(service.getMerchantPlusPeers).not.toHaveBeenCalled();
     expect(service.getMerchantPlusStatus).toHaveBeenCalled();
   });
 });

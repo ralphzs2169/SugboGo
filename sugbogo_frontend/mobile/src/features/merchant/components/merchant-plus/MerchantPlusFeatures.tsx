@@ -1,7 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useWindowDimensions, View } from "react-native";
 import AppText from "@/shared/components/AppText";
-import { theme } from "@/constants/theme";
 
 /**
  * Brand orange (#F27F0D) shades used for icon tiles. The icon shade is the
@@ -30,13 +29,6 @@ const PLUS_FEATURES = [
     icon: "clock-outline",
     detail: "See when explorers are most interested",
   },
-  {
-    title: "Business recommendations",
-    compactTitle: "Recommendations",
-    shortTitle: "Business tips",
-    icon: "lightbulb-outline",
-    detail: "Get suggestions based on your activity",
-  },
 ] as const;
 
 /** Presents the same benefits as a discovery grid or a grouped offer section. */
@@ -46,7 +38,6 @@ export default function MerchantPlusFeatures({
   compact?: boolean;
 }) {
   const { width, fontScale } = useWindowDimensions();
-  const useShortLabel = width < 375 || width / fontScale < 370;
   const stackTileContents = width / fontScale < 280;
 
   if (compact) {
@@ -57,9 +48,6 @@ export default function MerchantPlusFeatures({
             {row.map((feature) => (
               <View
                 key={feature.title}
-                accessibilityLabel={
-                  "shortTitle" in feature ? feature.title : undefined
-                }
                 className={`min-h-12 min-w-0 flex-1 gap-1.5 rounded-card bg-background px-2 py-1.5 ${stackTileContents ? "items-start" : "flex-row items-center"}`}
               >
                 <View
@@ -81,11 +69,7 @@ export default function MerchantPlusFeatures({
                   weight="semibold"
                   className={`min-w-0 text-small text-text-primary ${stackTileContents ? "self-stretch" : "flex-1"}`}
                 >
-                  {"compactTitle" in feature
-                    ? useShortLabel
-                      ? feature.shortTitle
-                      : feature.compactTitle
-                    : feature.title}
+                  {feature.title}
                 </AppText>
               </View>
             ))}

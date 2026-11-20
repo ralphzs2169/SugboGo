@@ -31,7 +31,6 @@ describe("scoped Merchant analytics dependencies", () => {
             "reviews",
             "peers",
             "timing",
-            "recommendations",
           ] as const
         ).flatMap((kind) => [
           merchantPlusReportKey(42, kind, { period: "30" }),
@@ -55,8 +54,8 @@ describe("scoped Merchant analytics dependencies", () => {
               !["discovery-sources", "route-planning"].includes(kind)) ||
             (key[0] === "merchant-plus-analytics" &&
               (change === "reply"
-                ? ["reviews", "recommendations"]
-                : ["specialties", "peers", "recommendations"]
+                ? ["reviews"]
+                : ["specialties", "peers"]
               ).includes(kind)));
         expect({
           key,

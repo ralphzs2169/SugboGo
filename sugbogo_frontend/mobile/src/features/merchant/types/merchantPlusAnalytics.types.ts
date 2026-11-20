@@ -16,7 +16,7 @@ export type VisibilityMetric =
   "impressions" | "profile_visits" | "distinct_profile_visitors";
 export type CorePlusDetailKind = "pocket" | "specialties" | "reviews";
 export type AdvancedPlusDetailKind =
-  "peers" | "review-insights" | "timing" | "recommendations";
+  "peers" | "review-insights" | "timing";
 export type PlusDetailKind = CorePlusDetailKind | AdvancedPlusDetailKind;
 export type PlusReportKind =
   "visibility" | Exclude<PlusDetailKind, "review-insights">;
