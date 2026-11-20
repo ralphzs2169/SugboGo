@@ -1,9 +1,13 @@
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
+import usePageLoadFailures from "../../components/usePageLoadFailures";
 import { sectionQueryState } from "../utils/presentation";
 
-/** Section-owned notifications supplement persistent report errors; no request coordination. */
+/** Keeps report recovery local unless connectivity affects multiple page sections. */
 export default function useAnalyticsSectionState(query, id, name) {
-  const message = `Unable to load ${name}. Please try again.`;
-  useApiErrorNotification(query.error, { toastId: `analytics-${id}-error`, fallbackMessage: message });
-  return { ...sectionQueryState(query), errorMessage: message };
+  const localFailures = usePageLoadFailures(id, [query]);
+
+  return {
+    ...sectionQueryState(query),
+    pageLoadHandled: Boolean(query.error && !localFailures.length),
+    errorMessage: `Unable to load ${name}. Please try again.`,
+  };
 }

@@ -1,10 +1,10 @@
+import { PageLoadScope } from "../components/PageLoadFeedback";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileText, List, Tag } from "lucide-react";
 
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import FilterMenu from "@/features/admin-panel/components/data-table/FilterMenu";
 import PageHeader from "@/features/admin-panel/components/PageHeader";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import useTableState from "@/shared/hooks/useTableState";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 
@@ -97,10 +97,6 @@ export default function UpdateRequestsPage() {
         location: locationQuery,
       }[requestType];
 
-  useApiErrorNotification(query.error, {
-    toastId: `admin-update-requests-${requestType}-load-error`,
-    fallbackMessage: "Unable to load update requests. Please try again.",
-  });
 
   function selectStatus(nextStatus) {
     updateSearchParams({
@@ -189,131 +185,120 @@ export default function UpdateRequestsPage() {
         title="Update Requests"
       />
 
-      {businessId && (
-        <div className="mb-4 flex items-center gap-3 text-sm text-text-secondary">
-          <span>Update requests for business #{businessId}</span>
-          <button type="button" className="cursor-pointer text-primary underline focus-visible:outline-2 focus-visible:outline-info"
-            onClick={() => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("business_id");
-              next.delete("page");
-              setSearchParams(next);
-            }}>Show all businesses</button>
-        </div>
-      )}
-      <UpdateRequestMetrics
-        requestType={requestType}
-        typeLabel={UPDATE_REQUEST_TYPE_OPTIONS.find((type) => type.id === requestType)?.label ?? "All request types"}
-        businessId={businessId}
-        onFilterQueue={filterMetricQueue}
-        onOpenRequest={openRequest}
-      />
+      <PageLoadScope>
+        {businessId && (
+          <div className="mb-4 flex items-center gap-3 text-sm text-text-secondary">
+            <span>Update requests for business #{businessId}</span>
+            <button type="button" className="cursor-pointer text-primary underline focus-visible:outline-2 focus-visible:outline-info"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete("business_id");
+                next.delete("page");
+                setSearchParams(next);
+              }}>Show all businesses</button>
+          </div>
+        )}
+        <UpdateRequestMetrics
+          requestType={requestType}
+          typeLabel={UPDATE_REQUEST_TYPE_OPTIONS.find((type) => type.id === requestType)?.label ?? "All request types"}
+          businessId={businessId}
+          onFilterQueue={filterMetricQueue}
+          onOpenRequest={openRequest}
+        />
 
-      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
-        <List aria-hidden="true" className="h-4 w-4 shrink-0" />
-        Update Request Queue
-      </h2>
-      {queueView && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
-          <span>{queueView === "aging" ? "Aging Requests: 48+ elapsed hours pending" : "Resolved Today: Approved or rejected · PHT"}</span>
-          <button
-            type="button"
-            onClick={() => filterMetricQueue("pending")}
-            className="cursor-pointer rounded-md px-2 py-1 font-medium text-text-primary hover:bg-sidebar-active focus-visible:outline-2 focus-visible:outline-info"
-          >
-            Clear Metric Filter
-          </button>
-        </div>
-      )}
-      {/* Request queue */}
-      {query.error && query.hasData && (
-        <div
-          role="alert"
-          className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
-        >
-          The latest request queue could not be loaded.
-          <button
-            type="button"
-            className="ml-2 cursor-pointer font-semibold underline"
-            onClick={() => query.refetch()}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      <DataTable
-        data={query.requests}
-        columns={businessUpdateRequestColumns(openRequest)}
-        isLoading={query.isLoading}
-        isFetching={query.isFetching}
-        error={query.hasData ? null : query.error}
-        onRetry={query.refetch}
-        state={{ globalFilter, sorting: [] }}
-        pagination={pagination}
-        pageCount={query.pageCount}
-        totalItems={query.totalItems}
-        onPaginationChange={changePagination}
-        onGlobalFilterChange={changeSearch}
-        hasActiveFilters={
-          status !== "all" || requestType !== "all" || Boolean(globalFilter) || Boolean(queueView)
-        }
-        onResetFilters={resetFilters}
-        isSearching={globalFilter !== debouncedGlobalFilter}
-        slots={{
-          renderFilters: () => (
-            <FilterMenu
-              filters={[
-                {
-                  key: "status",
-                  label: "Status",
-                  icon: Tag,
-                  options: [
-                    { value: "", label: "All statuses" },
-                    ...UPDATE_REQUEST_STATUS_TABS.filter(
-                      (option) => option.id !== "all",
-                    ).map((option) => ({
-                      value: option.id,
-                      label: option.label,
-                    })),
-                  ],
-                  value: status === "all" ? "" : status,
-                  onChange: selectStatus,
-                },
-                {
-                  key: "type",
-                  label: "Request Type",
-                  icon: FileText,
-                  options: [
-                    { value: "", label: "All request types" },
-                    ...UPDATE_REQUEST_TYPE_OPTIONS.map((option) => ({
-                      value: option.id,
-                      label: option.label,
-                    })),
-                  ],
-                  value: requestType === "all" ? "" : requestType,
-                  onChange: selectRequestType,
-                },
-              ]}
-            />
-          ),
-        }}
-        config={{
-          scrollbarClassName: "themed-scrollbar",
-          searchPlaceholder: "Search update requests...",
-          emptyState: {
-            title: emptyLabel,
-            description: "Requests in this state will appear here.",
-            icon: <FileText className="h-10 w-10 text-text-secondary" />,
-          },
-          noResultsState: {
-            title: "No update requests found",
-          },
-          errorState: {
-            title: "Unable to load update requests",
-            message: "The request queue could not be loaded.",
-          },
-        }}
-      />
+        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+          <List aria-hidden="true" className="h-4 w-4 shrink-0" />
+          Update Request Queue
+        </h2>
+        {queueView && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+            <span>{queueView === "aging" ? "Aging Requests: 48+ elapsed hours pending" : "Resolved Today: Approved or rejected · PHT"}</span>
+            <button
+              type="button"
+              onClick={() => filterMetricQueue("pending")}
+              className="cursor-pointer rounded-md px-2 py-1 font-medium text-text-primary hover:bg-sidebar-active focus-visible:outline-2 focus-visible:outline-info"
+            >
+              Clear Metric Filter
+            </button>
+          </div>
+        )}
+        {/* Request queue */}
+        <DataTable
+          data={query.requests}
+          columns={businessUpdateRequestColumns(openRequest)}
+          isLoading={query.isLoading}
+          isFetching={query.isFetching}
+          error={query.error}
+          hasData={query.hasData}
+          loadSection="directory"
+          onRetry={query.refetch}
+          state={{ globalFilter, sorting: [] }}
+          pagination={pagination}
+          pageCount={query.pageCount}
+          totalItems={query.totalItems}
+          onPaginationChange={changePagination}
+          onGlobalFilterChange={changeSearch}
+          hasActiveFilters={
+            status !== "all" || requestType !== "all" || Boolean(globalFilter) || Boolean(queueView)
+          }
+          onResetFilters={resetFilters}
+          isSearching={globalFilter !== debouncedGlobalFilter}
+          slots={{
+            renderFilters: () => (
+              <FilterMenu
+                filters={[
+                  {
+                    key: "status",
+                    label: "Status",
+                    icon: Tag,
+                    options: [
+                      { value: "", label: "All statuses" },
+                      ...UPDATE_REQUEST_STATUS_TABS.filter(
+                        (option) => option.id !== "all",
+                      ).map((option) => ({
+                        value: option.id,
+                        label: option.label,
+                      })),
+                    ],
+                    value: status === "all" ? "" : status,
+                    onChange: selectStatus,
+                  },
+                  {
+                    key: "type",
+                    label: "Request Type",
+                    icon: FileText,
+                    options: [
+                      { value: "", label: "All request types" },
+                      ...UPDATE_REQUEST_TYPE_OPTIONS.map((option) => ({
+                        value: option.id,
+                        label: option.label,
+                      })),
+                    ],
+                    value: requestType === "all" ? "" : requestType,
+                    onChange: selectRequestType,
+                  },
+                ]}
+              />
+            ),
+          }}
+          config={{
+            scrollbarClassName: "themed-scrollbar",
+            searchPlaceholder: "Search update requests...",
+            emptyState: {
+              title: emptyLabel,
+              description: "Requests in this state will appear here.",
+              icon: <FileText className="h-10 w-10 text-text-secondary" />,
+            },
+            noResultsState: {
+              title: "No update requests found",
+            },
+            errorState: {
+              title: "Unable to load update requests",
+              message: "The request queue could not be loaded.",
+            },
+          }}
+        />
+      </PageLoadScope>
     </>
   );
 }

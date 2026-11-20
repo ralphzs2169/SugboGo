@@ -7,7 +7,6 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import { useAuthStore } from "@/features/auth/store/auth.store";
-import type { ApiResponse } from "@/shared/types/apiResponse.types";
 import * as service from "../../../api/merchantPlusAnalytics.service";
 import { analyticsMerchant } from "../../../__tests__/merchantAnalytics.fixtures";
 import {
@@ -16,16 +15,12 @@ import {
 } from "../../../__tests__/merchantPlusAnalytics.fixtures";
 import {
   peerReport,
-  recommendationsReport,
-  refreshAcknowledgement,
   storedInsightsReport,
 } from "../../../__tests__/merchantAdvancedAnalytics.fixtures";
-import type { RecommendationRefreshResult } from "../../../types/merchantAdvancedAnalytics.types";
 import type { MerchantAnalyticsPeriod } from "../../../types/merchantAnalytics.types";
 import useMerchantPlusAccess from "../useMerchantPlusAccess";
 import {
   useMerchantPlusPeers,
-  useMerchantPlusRecommendations,
   useMerchantReviewInsights,
 } from "../useMerchantAdvancedAnalytics";
 import {
@@ -36,12 +31,10 @@ import {
 jest.mock("../../../api/merchantPlusAnalytics.service", () => ({
   getMerchantPlusStatus: jest.fn(),
   getMerchantPlusPeers: jest.fn(),
-  getMerchantPlusRecommendations: jest.fn(),
-  refreshMerchantPlusRecommendations: jest.fn(),
   getMerchantPlusStoredInsights: jest.fn(),
 }));
 
-describe("advanced report cache and mutation isolation", () => {
+describe("advanced report cache isolation", () => {
   let client: QueryClient;
   function Wrapper({ children }: PropsWithChildren) {
     return (
@@ -51,18 +44,13 @@ describe("advanced report cache and mutation isolation", () => {
   function useReports(period: MerchantAnalyticsPeriod = "30") {
     const access = useMerchantPlusAccess();
     const peers = useMerchantPlusPeers({ period }, access.allowed);
-    const recommendations = useMerchantPlusRecommendations(
-      { period },
-      access.allowed,
-    );
     const insights = useMerchantReviewInsights(true);
-    return { access, peers, recommendations, insights };
+    return { access, peers, insights };
   }
   beforeEach(() => {
     client = new QueryClient({
       defaultOptions: {
         queries: { retry: false, gcTime: Infinity },
-        mutations: { gcTime: Infinity },
       },
     });
     useAuthStore.setState({ user: analyticsMerchant() });
@@ -75,17 +63,9 @@ describe("advanced report cache and mutation isolation", () => {
       .mockReset()
       .mockResolvedValue(plusSuccess(peerReport()));
     jest
-      .mocked(service.getMerchantPlusRecommendations)
-      .mockReset()
-      .mockResolvedValue(plusSuccess(recommendationsReport()));
-    jest
       .mocked(service.getMerchantPlusStoredInsights)
       .mockReset()
       .mockResolvedValue(plusSuccess(storedInsightsReport()));
-    jest
-      .mocked(service.refreshMerchantPlusRecommendations)
-      .mockReset()
-      .mockResolvedValue(plusSuccess(refreshAcknowledgement()));
   });
   afterEach(async () => {
     await cleanup();
@@ -138,27 +118,11 @@ describe("advanced report cache and mutation isolation", () => {
     ).toBe(true);
   });
 
-  it("does not expose old account data or late mutation acknowledgements after switching", async () => {
-    let finish!: (value: ApiResponse<RecommendationRefreshResult>) => void;
-    jest.mocked(service.refreshMerchantPlusRecommendations).mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-    );
+  it("loads peers for the new account after switching", async () => {
     const { result } = await renderHook(() => useReports(), {
       wrapper: Wrapper,
     });
-    await waitFor(() =>
-      expect(result.current.recommendations.data).toBeDefined(),
-    );
-    await act(async () => {
-      result.current.recommendations.requestRefresh();
-    });
-    await waitFor(() =>
-      expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(
-        1,
-      ),
-    );
+    await waitFor(() => expect(result.current.peers.data).toBeDefined());
     const other = peerReport();
     other.business = { ...other.business, id: 99, name: "Other business" };
     jest
@@ -170,89 +134,8 @@ describe("advanced report cache and mutation isolation", () => {
     await waitFor(() =>
       expect(result.current.peers.data?.business.id).toBe(99),
     );
-    await act(async () => finish(plusSuccess(refreshAcknowledgement())));
-    expect(result.current.recommendations.refreshResult).toBeUndefined();
-    expect(result.current.recommendations.refreshError).toBeNull();
     expect(
       client.getQueryData(merchantPlusReportKey(99, "peers", { period: "30" })),
     ).toEqual(other);
-  });
-
-  it("applies Plus denial from explicit refresh without retrying the mutation", async () => {
-    jest
-      .mocked(service.refreshMerchantPlusRecommendations)
-      .mockResolvedValueOnce({
-        success: false,
-        code: "PLUS_REQUIRED",
-        message: "Plus required",
-      });
-    const { result } = await renderHook(() => useReports(), {
-      wrapper: Wrapper,
-    });
-    await waitFor(() =>
-      expect(result.current.recommendations.data).toBeDefined(),
-    );
-    await act(async () => result.current.recommendations.requestRefresh());
-    await waitFor(() => expect(result.current.access.allowed).toBe(false));
-    expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(1);
-  });
-
-  it("coalesces rapid refresh taps without submitting duplicate POST requests", async () => {
-    const { result } = await renderHook(() => useReports(), {
-      wrapper: Wrapper,
-    });
-    await waitFor(() =>
-      expect(result.current.recommendations.data).toBeDefined(),
-    );
-    await act(async () => {
-      result.current.recommendations.requestRefresh();
-      result.current.recommendations.requestRefresh();
-    });
-    await waitFor(() =>
-      expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(
-        1,
-      ),
-    );
-  });
-
-  it("expires the server cooldown locally without another generation request", async () => {
-    const { result, rerender } = await renderHook(
-      ({ period }: { period: MerchantAnalyticsPeriod }) => useReports(period),
-      { wrapper: Wrapper, initialProps: { period: "30" } },
-    );
-    await waitFor(() =>
-      expect(result.current.recommendations.data).toBeDefined(),
-    );
-    jest.useFakeTimers();
-    try {
-      jest
-        .mocked(service.refreshMerchantPlusRecommendations)
-        .mockResolvedValueOnce({
-          success: false,
-          code: "RATE_LIMIT_EXCEEDED",
-          message: "Too many requests.",
-          errors: { retry_after: 30 },
-        } as never);
-      await act(async () => result.current.recommendations.requestRefresh());
-      await waitFor(() =>
-        expect(result.current.recommendations.isThrottled).toBe(true),
-      );
-      await rerender({ period: "7" });
-      await waitFor(() =>
-        expect(result.current.recommendations.data).toBeDefined(),
-      );
-      expect(result.current.recommendations.isThrottled).toBe(true);
-      await act(async () => result.current.recommendations.requestRefresh());
-      expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(
-        1,
-      );
-      await act(async () => jest.advanceTimersByTime(30_000));
-      expect(result.current.recommendations.isThrottled).toBe(false);
-      expect(service.refreshMerchantPlusRecommendations).toHaveBeenCalledTimes(
-        1,
-      );
-    } finally {
-      jest.useRealTimers();
-    }
   });
 });

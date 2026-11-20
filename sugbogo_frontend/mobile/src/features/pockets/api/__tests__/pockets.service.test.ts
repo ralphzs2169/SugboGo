@@ -412,7 +412,6 @@ describe("Pocket collection business transport", () => {
       cover_photo_url: null,
       display_cover_photo_url: "https://example.com/storefront.jpg",
       review_count: 3,
-      overall_vibe: null,
       is_pocketed: true,
       cluster: { id: 1, name: "Food and Drink", icon: "food" },
       category: { id: 2, name: "Cafe" },

@@ -38,7 +38,6 @@ class ReviewPhotoCleanupTests(TransactionTestCase):
         self.retained = self._photo("retained")
         self.summary = BusinessReviewSummary.objects.create(
             BUSN_ID=self.business,
-            BRSU_POSITIVE_COUNT=1,
             BRSU_REVIEW_COUNT=1,
             BRSU_CLASSIFIED_REVIEW_COUNT=1,
             BRSU_NARRATIVE="Visitors mention friendly staff.",

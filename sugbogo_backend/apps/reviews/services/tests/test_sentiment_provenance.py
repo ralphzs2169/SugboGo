@@ -103,7 +103,6 @@ class SentimentProvenanceTests(SummaryFixtureMixin, TestCase):
             BUSN_ID=self.business,
             BRSU_REVIEW_COUNT=1,
             BRSU_CLASSIFIED_REVIEW_COUNT=1,
-            BRSU_POSITIVE_COUNT=1,
             BRSU_SENTIMENT_COMPUTED_AT=timezone.now(),
         )
         self.assertFalse(self.included(review))
@@ -187,6 +186,5 @@ class SentimentProvenanceTests(SummaryFixtureMixin, TestCase):
                 BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
         stored = BusinessReviewSummary.objects.get(pk=original.pk)
         self.assertEqual(stored.BRSU_SENTIMENT_SOURCES, original.BRSU_SENTIMENT_SOURCES)
-        self.assertEqual(stored.BRSU_POSITIVE_COUNT, 1)
-        self.assertEqual(stored.BRSU_NEGATIVE_COUNT, 0)
+        self.assertEqual(stored.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         self.assertFalse(self.included(review))

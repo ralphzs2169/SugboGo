@@ -38,8 +38,8 @@ class PremiumReviewServicesTests(MerchantAnalyticsFixtures, TestCase):
     def summary(self, state="ready", narrative="Stored review narrative."):
         return BusinessReviewSummary.objects.create(
             BUSN_ID=self.business_a, BRSU_GENERATION_STATE=state, BRSU_NARRATIVE=narrative,
-            BRSU_REVIEW_COUNT=10, BRSU_POSITIVE_COUNT=4, BRSU_NEUTRAL_COUNT=1,
-            BRSU_NEGATIVE_COUNT=1, BRSU_CLASSIFIED_REVIEW_COUNT=6,
+            BRSU_REVIEW_COUNT=10,
+            BRSU_CLASSIFIED_REVIEW_COUNT=6,
             BRSU_ELIGIBLE_REVIEW_COUNT=10, BRSU_ANALYZED_REVIEW_COUNT=5,
             BRSU_KEYWORD_TAGS=[{"text": "friendly staff", "count": 3, "review_ids": [999], "polarity": "praise"}],
             BRSU_SUPPORTING_REVIEW_REFERENCES={"private": [999]},
@@ -93,14 +93,13 @@ class PremiumReviewServicesTests(MerchantAnalyticsFixtures, TestCase):
     def test_outdated_retained_content_and_insufficient_sentiment_follow_existing_gate(self):
         summary = self.summary("outdated")
         BusinessReviewSummary.objects.filter(pk=summary.pk).update(
-            BRSU_POSITIVE_COUNT=1, BRSU_NEUTRAL_COUNT=0, BRSU_NEGATIVE_COUNT=0, BRSU_CLASSIFIED_REVIEW_COUNT=1,
+            BRSU_CLASSIFIED_REVIEW_COUNT=1,
         )
         report = PremiumReviewInsightsService.get_report(self.merchant_a, self.period)
         insights = report["stored_summary"]
         self.assertTrue(insights["content_available"])
         self.assertFalse(insights["has_sufficient_sentiment_data"])
-        self.assertIsNone(insights["overall_vibe"])
-        self.assertEqual(insights["sentiment"]["positive"]["percentage"], 100)
+        self.assertEqual(insights["classified_review_count"], 1)
         self.assertIn("stored_content_outdated", report["meta"]["partial_reasons"])
 
     def test_empty_review_period_has_null_rates_and_median_not_fake_zero(self):

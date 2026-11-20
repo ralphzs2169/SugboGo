@@ -1,4 +1,4 @@
-import { router, useIsFocused } from "expo-router";
+import { useIsFocused } from "expo-router";
 import { useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import {
@@ -10,19 +10,17 @@ import useQueryErrorNotification from "@/shared/hooks/useQueryErrorNotification"
 import AnalyticsPeerComparisons from "../../components/analytics/AnalyticsPeerComparisons";
 import AnalyticsStoredReviewInsights from "../../components/analytics/AnalyticsStoredReviewInsights";
 import AnalyticsProfileVisitTiming from "../../components/analytics/AnalyticsProfileVisitTiming";
-import AnalyticsBusinessRecommendations from "../../components/analytics/AnalyticsBusinessRecommendations";
 import {
   useMerchantPlusPeers,
   useMerchantReviewInsights,
   useMerchantPlusTiming,
-  useMerchantPlusRecommendations,
 } from "../../hooks/analytics/useMerchantAdvancedAnalytics";
 import type { MerchantAnalyticsPeriod } from "../../types/merchantAnalytics.types";
 import type { AdvancedPlusDetailKind } from "../../types/merchantPlusAnalytics.types";
 import useMerchantPlusAccess from "../../hooks/analytics/useMerchantPlusAccess";
 import { PlusAccessGate } from "../../components/analytics/AnalyticsPlusStates";
 
-/** Lazily loads one advanced report and keeps generation separate from all read/refresh actions. */
+/** Lazily loads the selected advanced analytics report. */
 export default function MerchantAdvancedAnalyticsDetailScreen({
   kind,
   initialPeriod,
@@ -43,34 +41,18 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
     focused && kind === "review-insights",
   );
   const timing = useMerchantPlusTiming(selection, enabled && kind === "timing");
-  const recommendations = useMerchantPlusRecommendations(
-    { period: "30" },
-    enabled && kind === "recommendations",
-  );
   const query =
     kind === "peers"
       ? peers
       : kind === "review-insights"
         ? insights
-        : kind === "timing"
-          ? timing
-          : recommendations;
+        : timing;
   useQueryErrorNotification({
     error: focused ? query.error : null,
     toastId: `advanced-plus-${kind}`,
     title: "Unable to load analytics",
     fallbackMessage: "Please retry this report.",
   });
-  useQueryErrorNotification({
-    error:
-      focused && enabled && kind === "recommendations"
-        ? recommendations.refreshError
-        : null,
-    toastId: "plus-recommendation-refresh",
-    title: "Unable to refresh recommendations",
-    fallbackMessage: "Please check status before requesting again.",
-  });
-
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -120,7 +102,7 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
                 error={insights.error}
                 retry={() => void insights.refetch()}
               />
-            ) : kind === "peers" ? (
+            ) : (
               <AnalyticsPeerComparisons
                 report={peers.data}
                 retry={() => void peers.refetch()}
@@ -128,39 +110,6 @@ export default function MerchantAdvancedAnalyticsDetailScreen({
                 onPeriodChange={setPeriod}
                 loading={peers.isPending}
                 error={peers.error}
-              />
-            ) : (
-              <AnalyticsBusinessRecommendations
-                report={recommendations.data}
-                refreshResult={recommendations.refreshResult}
-                refreshError={recommendations.refreshError}
-                requesting={recommendations.isRequestingRefresh}
-                checking={recommendations.isFetching}
-                throttled={recommendations.isThrottled}
-                cooldownRemainingSeconds={
-                  recommendations.cooldownRemainingSeconds
-                }
-                requestRefresh={recommendations.requestRefresh}
-                checkStatus={() => void recommendations.refetch()}
-                loading={recommendations.isPending}
-                error={recommendations.error}
-                onOpenAction={(code) => {
-                  if (code === "UNANSWERED_REVIEWS") {
-                    router.push({
-                      pathname: "/(merchant)/(tabs)/reviews",
-                      params: {
-                        filter: "needs-reply",
-                        ordering: "oldest",
-                        reviewIntent: String(Date.now()),
-                      },
-                    });
-                  } else if (code === "STORED_INSIGHTS_OUTDATED") {
-                    router.push({
-                      pathname: "/(merchant)/analytics/[report]",
-                      params: { report: "review-insights", period },
-                    });
-                  }
-                }}
               />
             )}
           </View>

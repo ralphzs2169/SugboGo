@@ -19,13 +19,7 @@ const insights: BusinessReviewInsights = {
   analyzed_review_count: 5,
   classified_review_count: 5,
   has_sufficient_sentiment_data: true,
-  overall_vibe: "mostly_positive",
   is_sampled: false,
-  sentiment: {
-    positive: { count: 5, percentage: 100 },
-    neutral: { count: 0, percentage: 0 },
-    negative: { count: 0, percentage: 0 },
-  },
   frequent_mentions: [{ label: "friendly service", count: 3 }],
   coverage_start: null,
   coverage_end: null,
@@ -61,11 +55,6 @@ describe("RecentReviewInsightsSection", () => {
             eligible_review_count: 0,
             content_available: false,
             narrative: null,
-            sentiment: {
-              positive: { count: 3, percentage: 60 },
-              neutral: { count: 1, percentage: 20 },
-              negative: { count: 1, percentage: 20 },
-            },
           }}
           regeneration={{ ...scheduled, status, content_available: false }}
         />,
@@ -138,7 +127,6 @@ describe("RecentReviewInsightsSection", () => {
           narrative: null,
           classified_review_count: 0,
           has_sufficient_sentiment_data: false,
-          overall_vibe: null,
         }}
         regeneration={{
           ...scheduled,
@@ -240,7 +228,6 @@ describe("RecentReviewInsightsSection", () => {
   it.each([
     "no-classifications",
     "below-threshold",
-    "empty-distribution",
   ] as const)(
     "does not fabricate sentiment for %s when narrative is unavailable",
     async (reason) => {
@@ -254,14 +241,6 @@ describe("RecentReviewInsightsSection", () => {
             has_sufficient_sentiment_data: reason !== "below-threshold",
             content_available: false,
             narrative: null,
-            sentiment:
-              reason === "empty-distribution"
-                ? {
-                    positive: { count: 0, percentage: 0 },
-                    neutral: { count: 0, percentage: 0 },
-                    negative: { count: 0, percentage: 0 },
-                  }
-                : insights.sentiment,
           }}
           regeneration={{
             ...scheduled,
@@ -287,7 +266,6 @@ describe("RecentReviewInsightsSection", () => {
         insights={{
           ...insights,
           has_sufficient_sentiment_data: false,
-          overall_vibe: null,
         }}
       />,
     );

@@ -167,7 +167,7 @@ class ManageReviewDisputeServiceTests(TestCase):
         self.review.REVW_SENTIMENT_SCORE = 0.75
         self.review.save()
         summary = BusinessReviewSummary.objects.create(
-            BUSN_ID=self.business, BRSU_POSITIVE_COUNT=1,
+            BUSN_ID=self.business,
             BRSU_REVIEW_COUNT=1, BRSU_CLASSIFIED_REVIEW_COUNT=1,
             BRSU_NARRATIVE="Visitors mention friendly staff.",
             BRSU_SUPPORTING_REVIEW_REFERENCES={"narrative_review_ids": [self.review.pk]},
@@ -193,7 +193,6 @@ class ManageReviewDisputeServiceTests(TestCase):
                 1,
             )
         summary.refresh_from_db()
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
         self.assertEqual(summary.BRSU_NARRATIVE, "")
         event = AdminActivity.objects.get()

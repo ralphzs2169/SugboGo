@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import DataErrorState from "@/shared/components/errors/DataErrorState";
 import { invalidateTaxonomyQueries } from "../../taxonomy/queries/taxonomyQueries";
 import { Plus } from "lucide-react";
 import { FiTag } from "react-icons/fi";
@@ -18,7 +17,6 @@ import useDeleteSpecialtyTag from "../hooks/useDeleteSpecialtyTag";
 
 import CreateSpecialtyTagModal from "./CreateSpecialtyTagModal";
 import EditSpecialtyTagModal from "./EditSpecialtyTagModal";
-import useApiErrorNotification from "../../../../shared/hooks/useApiErrorNotification";
 
 /**
  * Management panel for specialty tags.
@@ -64,6 +62,7 @@ export default function SpecialtyTagManagementPanel({
     pageCount,
     isLoading,
     isFetching,
+    hasData,
     error,
     refetch,
   } = useSpecialtyTags(params, { enabled });
@@ -137,30 +136,18 @@ export default function SpecialtyTagManagementPanel({
     handleDeleteSpecialtyTag,
   );
 
-  useApiErrorNotification(enabled ? error : null, {
-    toastId: "specialty-tags-error",
-    fallbackMessage: "Unable to load specialty tags. Please try again.",
-  });
 
   return (
     <>
-      {error && specialtyTags.length > 0 && (
-        <DataErrorState
-          compact
-          retainedData
-          refreshLabel="Specialty Tags"
-          onRetry={() => refetch()}
-          retrying={isFetching}
-          retryLabel="Retry"
-        />
-      )}
       <DataTable
         data={specialtyTags}
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
         pagination={pagination}
-        error={specialtyTags.length > 0 ? null : error}
+        error={enabled ? error : null}
+        hasData={hasData}
+        loadSection="directory"
         onRetry={refetch}
         state={{
           globalFilter,

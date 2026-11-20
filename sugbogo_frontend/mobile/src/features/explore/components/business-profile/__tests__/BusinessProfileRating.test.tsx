@@ -35,7 +35,7 @@ afterEach(() => onlineManager.setOnline(true));
 
 it("keeps review counts without a vibe label or sentiment announcement", async () => {
   const screen = await render(
-    <BusinessProfileQuickInfo {...stats} overallVibe="mostly_positive" />,
+    <BusinessProfileQuickInfo {...stats} />,
   );
   expect(screen.getByText("28 reviews")).toBeTruthy();
   expect(screen.queryByText("Mostly positive")).toBeNull();

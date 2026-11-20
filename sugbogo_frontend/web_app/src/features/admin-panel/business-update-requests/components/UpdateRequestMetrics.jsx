@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ClipboardList, Clock3, FilePenLine, Hourglass } from "lucide-react";
 
-import DataErrorState from "@/shared/components/errors/DataErrorState";
+import { LoadGroupFeedback } from "../../components/PageLoadFeedback";
 import MetricCard from "../../components/MetricCard";
 import MetricCardsSkeleton from "../../components/MetricCardsSkeleton";
 import {
@@ -86,17 +86,14 @@ export default function UpdateRequestMetrics({
       <p className="-mt-2 mb-3 text-xs text-text-secondary">
         {typeLabel}{businessId ? ` · Business #${businessId}` : " · All businesses"} · PHT
       </p>
-      {query.error && (
-        <DataErrorState
-          compact
-          framed
-          retainedData={Boolean(data)}
-          title="Unable to load update request metrics"
-          message="The request queue is still available. Retry to load its summary."
-          onRetry={() => query.refetch()}
-          retrying={query.isFetching}
+      <div className="[&:not(:empty)]:mb-3">
+        <LoadGroupFeedback
+          section="overview"
+          label="Update request metrics"
+          retryLabel="Retry metrics"
+          queries={[query]}
         />
-      )}
+      </div>
       {query.isPending && !query.isError ? <MetricCardsSkeleton /> : (
         <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => {

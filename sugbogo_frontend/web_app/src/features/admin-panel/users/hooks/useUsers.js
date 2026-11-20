@@ -17,6 +17,7 @@ export default function useUsers(params = {}, { enabled = true } = {}) {
     pageCount: query.data?.pagination?.total_pages ?? 0,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
+    hasData: query.data != null,
     error: query.error,
     refetch: query.refetch,
   };

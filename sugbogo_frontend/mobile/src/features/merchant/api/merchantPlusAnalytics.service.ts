@@ -5,8 +5,6 @@ import type {
   PlusPeerReport,
   PlusStoredInsightsReport,
   PlusProfileTimingReport,
-  PlusRecommendationsReport,
-  RecommendationRefreshResult,
 } from "../types/merchantAdvancedAnalytics.types";
 import type {
   AnalyticsInterval,
@@ -110,30 +108,5 @@ export function getMerchantPlusProfileTiming(
       params: { ...selection, metric: "profile_visits" },
       signal,
     }),
-  );
-}
-
-/** Reads stored state and deterministic evidence; never starts generation. */
-export function getMerchantPlusRecommendations(
-  selection: AnalyticsSelection,
-  signal?: AbortSignal,
-): Promise<ApiResponse<PlusRecommendationsReport>> {
-  return request(
-    apiClient.get("/merchant/analytics/premium/recommendations/", {
-      params: selection,
-      signal,
-    }),
-  );
-}
-
-/** Explicitly requests background generation using the existing JSON-body contract. */
-export function refreshMerchantPlusRecommendations(
-  selection: AnalyticsSelection,
-): Promise<ApiResponse<RecommendationRefreshResult>> {
-  return request(
-    apiClient.post(
-      "/merchant/analytics/premium/recommendations/refresh/",
-      selection,
-    ),
   );
 }

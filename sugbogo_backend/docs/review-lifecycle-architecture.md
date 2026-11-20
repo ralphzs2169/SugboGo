@@ -11,7 +11,7 @@ A SugboGo review moves through three separate kinds of processing:
 | Job | Plain-language question | Result |
 | --- | --- | --- |
 | AI moderation | “Does this content need a safety review before it appears publicly?” | Automatic publication when safe, or a private hold for another check or a team decision. |
-| Sentiment analysis | “Does the review sound positive, neutral, or negative?” | A tone label and score, used in business sentiment totals. |
+| Sentiment analysis | “Does the review sound positive, neutral, or negative?” | A tone label and score used in review filters and analytics. |
 | Review Insights | “What experiences keep appearing across this business’s recent reviews?” | A short generated summary and frequent mentions, supported by review evidence. |
 
 **Moderation is not sentiment analysis. Sentiment analysis is not Review Insights.** A negative review can pass moderation and become public. A published review can appear before its sentiment is ready. Review Insights can refresh later still.
@@ -155,11 +155,9 @@ Only published reviews are scored by this workflow. Before saving a result, Sugb
 
 ### Building a business sentiment summary
 
-The business summary counts positive, neutral, and negative published reviews **created within the past 30 days**. The window uses submission/creation time, not publication or edit time. Approving an old review does not restart its 30-day eligibility window.
+The business summary tracks published reviews **created within the past 30 days** and how many have a recognized sentiment label. The window uses submission/creation time, not publication or edit time. Approving an old review does not restart its 30-day eligibility window.
 
-The system stores both the number of eligible reviews and the number with recognized sentiment labels. Percentages use only the classified reviews. For example, six positive, two neutral, and two negative classifications produce 60%, 20%, and 20%; unclassified reviews do not become neutral votes.
-
-The overall vibe needs enough classified reviews. The code’s default minimum is five, but the live threshold comes from administrator-managed analytics settings. Once sufficient, a category is “mostly” dominant when it has at least 55% and leads the next category by at least 15 percentage points; otherwise the vibe is “mixed.”
+Explorer and merchant review filters become available when the classified total reaches the threshold set in analytics policy. The default threshold is five.
 
 These recent-review sentiment totals differ from the business’s all-time public review count.
 
@@ -435,7 +433,7 @@ These links identify the current implementation used for this guide. They are an
 | --- | --- |
 | Submission, publication, edits, deletion, photo compensation, public/author separation, and attached vouches | [Review service](../apps/reviews/services/review_service.py), [review views](../apps/reviews/views/review_views.py), [review validation and author progress](../apps/reviews/serializers/review_serializers.py). |
 | Safety checks and automatic recovery | [Moderation service](../apps/reviews/services/review_moderation_service.py), [Cebuano fallback](../apps/reviews/services/review_cebuano_safety_fallback.py), [moderation retry service](../apps/reviews/services/review_moderation_retry_service.py). |
-| Sentiment and exact aggregate inclusion | [Sentiment processing](../apps/reviews/services/review_sentiment_service.py), [local classifier](../apps/reviews/services/sentiment.py), [business sentiment summaries](../apps/reviews/services/business_review_summary_service.py), [vibe calculation](../apps/shared/analytics/review_vibe.py). |
+| Sentiment and exact aggregate inclusion | [Sentiment processing](../apps/reviews/services/review_sentiment_service.py), [local classifier](../apps/reviews/services/sentiment.py), [business sentiment summaries](../apps/reviews/services/business_review_summary_service.py). |
 | Insights timing, ownership, generation, and public display | [Scheduling](../apps/reviews/services/review_insight_scheduling_service.py), [regeneration coordination](../apps/reviews/services/review_insight_regeneration_service.py), [claimed generation](../apps/reviews/services/business_review_insights_service.py), [Gemini input/output and evidence](../apps/reviews/services/review_keyword_service.py), [public Insights serialization](../apps/explorer_operations/explore_businesses/serializers/review_insights_serializers.py). |
 | Background jobs and policy defaults | [Review tasks](../apps/reviews/tasks.py), [daily reconciliation](../apps/reviews/services/review_summary_batch_service.py), [configured schedules](../config/settings.py), [timing constants](../apps/reviews/constants.py), [analytics policy defaults](../apps/admin_operations/system_configuration/analytics_policy_definitions.py). |
 | Admin decisions and engagement | [Held-review decisions](../apps/admin_operations/moderation/services/manage_under_review_service.py), [rejection consistency](../apps/reviews/services/review_moderation_consistency_service.py), [likes](../apps/reviews/services/review_like_service.py), [merchant replies](../apps/reviews/services/review_reply_service.py), [notification events](../apps/notifications/services/notification_event_service.py). |

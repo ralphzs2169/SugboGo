@@ -358,7 +358,7 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
             REVW_SENTIMENT_SCORE=0.75, REVW_SENTIMENT_LABEL="positive",
         )
         summary = BusinessReviewSummary.objects.create(
-            BUSN_ID=self.business, BRSU_POSITIVE_COUNT=1,
+            BUSN_ID=self.business,
             BRSU_REVIEW_COUNT=1, BRSU_CLASSIFIED_REVIEW_COUNT=1,
             BRSU_NARRATIVE="Visitors mention friendly staff.",
             BRSU_SUPPORTING_REVIEW_REFERENCES={"narrative_review_ids": [review.pk]},
@@ -386,7 +386,6 @@ class ReviewReportServiceTests(SafeReviewModerationMixin, TestCase):
         review.refresh_from_db()
         summary.refresh_from_db()
         self.assertTrue(review.REVW_IS_REPORT_FLAGGED)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         self.assertEqual(summary.BRSU_NARRATIVE, "Visitors mention friendly staff.")
         self.assertEqual(summary.BRSU_GENERATION_STATE, "ready")

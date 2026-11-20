@@ -35,8 +35,8 @@ export function invalidateMerchantAnalytics(
   }
   const kinds =
     change === "reply"
-      ? (["reviews", "recommendations"] as const)
-      : (["specialties", "peers", "recommendations"] as const);
+      ? (["reviews"] as const)
+      : (["specialties", "peers"] as const);
   return Promise.all([
     standard,
     ...kinds.map((kind) =>

@@ -37,7 +37,7 @@ Acceptance: evaluate sparse data, unavailable tracking, stale summaries, unanswe
 |---|---|
 | Recorded impressions, visits, saves, current holders/support | Show successful counts, including zero; failures remain null/unavailable |
 | Reply rate | Show numerator, denominator, cutoff, and rate when defined; distinguish small samples before recommendations |
-| Sentiment conclusion / overall vibe | Retain the existing five-classified-review threshold initially |
+| Sentiment filter availability | Apply the configured classified-review threshold, five by default |
 | Generated review narrative | Retain five eligible nonblank reviews initially |
 | Frequent mentions | Retain support from at least two analyzed reviews and existing sampling disclosure |
 | Peer inventory | Retain five other eligible businesses initially |

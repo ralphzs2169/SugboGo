@@ -187,19 +187,14 @@ describe("lazy Core Plus detail reports", () => {
     ).toBeTruthy();
   });
 
-  it("keeps reporting periods working without rendering supplied vibe labels", async () => {
+  it("loads the selected reporting period", async () => {
     const current = reviewReport();
-    current.current.overall_vibe = "mostly_positive";
-    current.previous.overall_vibe = "mostly_negative";
     jest
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(current));
     const screen = await renderDetail("reviews");
     await screen.findByLabelText("New reviews: 4");
-    expect(screen.queryByText("Mostly positive")).toBeNull();
-    expect(screen.queryByText("Mostly negative")).toBeNull();
     const next = reviewReport();
-    next.current.overall_vibe = "mixed";
     jest
       .mocked(service.getMerchantPlusReviewPerformance)
       .mockResolvedValueOnce(plusSuccess(next));
@@ -212,32 +207,12 @@ describe("lazy Core Plus detail reports", () => {
     await waitFor(() =>
       expect(service.getMerchantPlusReviewPerformance).toHaveBeenCalledTimes(2),
     );
-    expect(screen.queryByText("Mixed")).toBeNull();
-    expect(screen.queryByText("Mostly positive")).toBeNull();
     expect(
       jest
         .mocked(service.getMerchantPlusReviewPerformance)
         .mock.calls.map(([selection]) => selection.period),
     ).toEqual(["90", "7"]);
   });
-
-  it.each(["missing", "null", "insufficient"])(
-    "withholds a vibe when %s, without guessing from percentages",
-    async (state) => {
-      const report = reviewReport();
-      if (state === "null") report.current.overall_vibe = null;
-      if (state === "insufficient") {
-        report.current.overall_vibe = "mostly_positive";
-        report.current.has_sufficient_sentiment_data = false;
-      }
-      jest
-        .mocked(service.getMerchantPlusReviewPerformance)
-        .mockResolvedValueOnce(plusSuccess(report));
-      const screen = await renderDetail("reviews");
-      await screen.findByLabelText("New reviews: 4");
-      expect(screen.queryByTestId("analytics-review-vibe")).toBeNull();
-    },
-  );
 
   it("preserves reply comparisons without sentiment distributions", async () => {
     const screen = await renderDetail("reviews");

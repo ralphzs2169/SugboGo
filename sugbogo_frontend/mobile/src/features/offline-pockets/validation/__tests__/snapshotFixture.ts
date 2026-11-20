@@ -49,7 +49,6 @@ export function businessFixture(id = 21): ExploreBusinessDetail {
       },
     ],
     review_count: 10,
-    overall_vibe: null,
     is_pocketed: true,
     is_own_business: false,
     has_own_review: false,

@@ -219,7 +219,6 @@ function business(id: number): ExploreBusiness {
     cover_photo_url: null,
     display_cover_photo_url: null,
     review_count: 0,
-    overall_vibe: null,
     is_pocketed: true,
     cluster: { id: 1, name: "Culinary", icon: "utensils" },
     category: { id: 8, name: "Cafe" },

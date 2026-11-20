@@ -52,9 +52,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         "analyzed_review_count",
         "classified_review_count",
         "has_sufficient_sentiment_data",
-        "overall_vibe",
         "is_sampled",
-        "sentiment",
         "frequent_mentions",
         "coverage_start",
         "coverage_end",
@@ -311,9 +309,6 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             BRSU_ELIGIBLE_REVIEW_COUNT=8,
             BRSU_ANALYZED_REVIEW_COUNT=8,
             BRSU_CLASSIFIED_REVIEW_COUNT=6,
-            BRSU_POSITIVE_COUNT=4,
-            BRSU_NEUTRAL_COUNT=1,
-            BRSU_NEGATIVE_COUNT=1,
             BRSU_NARRATIVE="Visitors often praise the friendly service.",
             BRSU_KEYWORD_TAGS=[{
                 "text": "friendly service",
@@ -375,13 +370,9 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         self.assertEqual(insights["analyzed_review_count"], 8)
         self.assertEqual(insights["classified_review_count"], 6)
         self.assertTrue(insights["has_sufficient_sentiment_data"])
-        self.assertEqual(insights["overall_vibe"], "mostly_positive")
         self.assertFalse(insights["is_sampled"])
         self.assertEqual(response.data["data"]["review_count"], 9)
-        self.assertEqual(
-            response.data["data"]["overall_vibe"],
-            "mostly_positive",
-        )
+        self.assertNotIn("overall_vibe", response.data["data"])
         self.assertEqual(
             insights["frequent_mentions"],
             [{"label": "friendly service", "count": 3}],
@@ -397,11 +388,8 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         self.assertIsNotNone(insights["updated_at"])
         self.assertNotIn("supporting_review_references", insights)
         self.assertNotIn("keywords_fingerprint", insights)
-        for label, count in [("positive", 4), ("neutral", 1), ("negative", 1)]:
-            self.assertEqual(insights["sentiment"][label], {
-                "count": count,
-                "percentage": summary.sentiment_percentages[label],
-            })
+        self.assertNotIn("sentiment", insights)
+        self.assertNotIn("overall_vibe", insights)
         recompute.assert_not_called()
         keywords.assert_not_called()
         generate.assert_not_called()
@@ -466,7 +454,7 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         list_data = ExploreBusinessSerializer(list_business).data
 
         self.assertEqual(list_data["review_count"], 2)
-        self.assertIsNone(list_data["overall_vibe"])
+        self.assertNotIn("overall_vibe", list_data)
 
     def test_pending_and_insufficient_states_hide_generated_content(self):
         summary = BusinessReviewSummary.objects.create(
@@ -505,7 +493,6 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             ),
             BRSU_REVIEW_COUNT=5,
             BRSU_CLASSIFIED_REVIEW_COUNT=5,
-            BRSU_POSITIVE_COUNT=5,
         )
 
         insights = self.client.get(self.url).data["data"]["review_insights"]
@@ -514,7 +501,6 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         self.assertIsNone(insights["narrative"])
         self.assertEqual(insights["frequent_mentions"], [])
         self.assertTrue(insights["has_sufficient_sentiment_data"])
-        self.assertEqual(insights["overall_vibe"], "mostly_positive")
 
     def test_generated_content_ready_while_sentiment_is_insufficient(self):
         BusinessReviewSummary.objects.create(
@@ -530,7 +516,6 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             BRSU_ELIGIBLE_REVIEW_COUNT=5,
             BRSU_ANALYZED_REVIEW_COUNT=5,
             BRSU_CLASSIFIED_REVIEW_COUNT=4,
-            BRSU_POSITIVE_COUNT=4,
         )
 
         insights = self.client.get(self.url).data["data"]["review_insights"]
@@ -545,7 +530,6 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
             [{"label": "friendly service", "count": 2}],
         )
         self.assertFalse(insights["has_sufficient_sentiment_data"])
-        self.assertIsNone(insights["overall_vibe"])
 
     def test_outdated_state_distinguishes_retained_and_invalidated_content(self):
         summary = BusinessReviewSummary.objects.create(
@@ -613,17 +597,13 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
                 insights = response.data["data"]["review_insights"]
                 self.assertEqual(insights["review_count"], review_count)
                 self.assertFalse(insights["has_sufficient_sentiment_data"])
-                self.assertIsNone(insights["overall_vibe"])
                 self.assertEqual(insights["frequent_mentions"], [])
-                for value in insights["sentiment"].values():
-                    self.assertEqual(value, {"count": 0, "percentage": 0.0})
 
     def test_sentiment_sufficiency_uses_existing_classified_threshold(self):
         summary = BusinessReviewSummary.objects.create(
             BUSN_ID=self.business,
             BRSU_REVIEW_COUNT=5,
             BRSU_CLASSIFIED_REVIEW_COUNT=4,
-            BRSU_POSITIVE_COUNT=4,
         )
 
         below = self.client.get(self.url)
@@ -634,11 +614,9 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         )
 
         summary.BRSU_CLASSIFIED_REVIEW_COUNT = 5
-        summary.BRSU_POSITIVE_COUNT = 5
         summary.save(
             update_fields=[
                 "BRSU_CLASSIFIED_REVIEW_COUNT",
-                "BRSU_POSITIVE_COUNT",
                 "BRSU_UPDATED_AT",
             ],
         )
@@ -658,14 +636,8 @@ class BusinessDetailInsightsTests(SummaryFixtureMixin, APITestCase):
         self.assertEqual(response.status_code, 200)
         insights = response.data["data"]["review_insights"]
         self.assertEqual(insights["review_count"], 4)
-        self.assertEqual(
-            insights["sentiment"]["positive"],
-            {"count": 1, "percentage": 50.0},
-        )
-        self.assertEqual(
-            insights["sentiment"]["neutral"],
-            {"count": 1, "percentage": 50.0},
-        )
+        self.assertEqual(insights["classified_review_count"], 2)
+        self.assertFalse(insights["has_sufficient_sentiment_data"])
 
     def test_summary_relation_is_eager_loaded_including_missing_summary(self):
         for exists in [False, True]:

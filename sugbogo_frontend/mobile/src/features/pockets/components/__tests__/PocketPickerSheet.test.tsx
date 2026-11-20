@@ -189,7 +189,6 @@ const cardBusiness: ExploreBusiness = {
   cover_photo_url: null,
   display_cover_photo_url: null,
   review_count: 0,
-  overall_vibe: null,
   cluster: { id: 1, name: "Culinary", icon: "utensils" },
   category: { id: 1, name: "Cafe" },
   specialty_tags: [],

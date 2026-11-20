@@ -17,13 +17,7 @@ const insights: BusinessReviewInsights = {
   analyzed_review_count: 5,
   classified_review_count: 5,
   has_sufficient_sentiment_data: true,
-  overall_vibe: "mostly_positive",
   is_sampled: false,
-  sentiment: {
-    positive: { count: 5, percentage: 100 },
-    neutral: { count: 0, percentage: 0 },
-    negative: { count: 0, percentage: 0 },
-  },
   frequent_mentions: [],
   coverage_start: null,
   coverage_end: null,
@@ -43,17 +37,10 @@ describe("ReviewInsightsPreview", () => {
     content_is_current: false,
   };
 
-  it.each(["mostly_positive", "mostly_negative", "mixed"] as const)(
-    "keeps the narrative without the %s label",
-    async (overall_vibe) => {
-      const screen = await render(
-        <ReviewInsightsPreview insights={{ ...insights, overall_vibe }} />,
-      );
-      expect(screen.getByText(insights.narrative!)).toBeTruthy();
-      expect(screen.queryByText(/Mostly positive|Mostly negative|Mixed/)).toBeNull();
-      expect(screen.queryByTestId("summary-overall-review-vibe")).toBeNull();
-    },
-  );
+  it("renders a generated narrative", async () => {
+    const screen = await render(<ReviewInsightsPreview insights={insights} />);
+    expect(screen.getByText(insights.narrative!)).toBeTruthy();
+  });
 
   it.each([
     ["scheduled", /refresh shortly/],

@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { Activity } from "lucide-react";
 import Button from "@/shared/components/Button";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import PageHeader from "../components/PageHeader";
 import DataTable from "../components/data-table/DataTable";
 import TableTabs from "../components/data-table/TableTabs";
@@ -30,10 +29,6 @@ export default function ActivityLogsPage() {
     pageSize: metadata?.page_size ?? state.page_size,
   };
 
-  useApiErrorNotification(list.error, {
-    toastId: "admin-activity-list-load-error",
-    fallbackMessage: "Unable to load activity logs. Please try again.",
-  });
 
   return (
     <div className="min-w-0">
@@ -75,7 +70,9 @@ export default function ActivityLogsPage() {
             isLoading={list.isLoading}
             isFetching={list.isFetching}
             error={list.error}
-            onRetry={() => list.refetch()}
+            hasData={list.data != null && list.error?.response?.status !== 404}
+            loadSection="directory"
+            onRetry={list.refetch}
             state={{ sorting: [] }}
             pagination={pagination}
             pageCount={metadata?.total_pages ?? 0}

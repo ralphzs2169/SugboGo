@@ -33,7 +33,6 @@ const business: ExploreBusiness = {
   cover_photo_url: null,
   display_cover_photo_url: null,
   review_count: 12,
-  overall_vibe: "mostly_positive",
   is_pocketed: false,
   cluster: { id: 2, name: "Culinary", icon: "utensils" },
   category: { id: 8, name: "Cafe" },

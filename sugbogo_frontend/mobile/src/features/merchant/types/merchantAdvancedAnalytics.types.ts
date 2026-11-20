@@ -2,7 +2,6 @@ import type { BusinessReviewInsights } from "@/features/explore/types/exploreBus
 import type {
   OwnedAnalyticsBusiness,
   PlusAnalyticsMeta,
-  SentimentLabel,
 } from "./merchantPlusAnalytics.types";
 
 export type PeerMetric = {
@@ -38,12 +37,8 @@ export type PlusPeerReport = {
   meta: PlusAnalyticsMeta;
 };
 
-/** Reuses public stored content while retaining the serializer's policy and nullable shares. */
-export type StoredReviewInsights = Omit<BusinessReviewInsights, "sentiment"> & {
-  sentiment: Record<
-    SentimentLabel,
-    { count: number; percentage: number | null }
-  >;
+/** Reuses the public stored insights with generation policy metadata. */
+export type StoredReviewInsights = BusinessReviewInsights & {
   policy: {
     current_version: number;
     generated_version: number | null;
@@ -104,63 +99,4 @@ export type PlusProfileTimingReport = {
   period_occurrences_note: string;
   sources: { visibility: PlusAnalyticsMeta };
   meta: PlusAnalyticsMeta;
-};
-
-export type RecommendationState =
-  | "not_requested"
-  | "pending"
-  | "running"
-  | "ready"
-  | "insufficient_data"
-  | "failed"
-  | "invalidated";
-export type RecommendationSourcePeriod = PlusAnalyticsMeta["period"] & {
-  snapshot_as_of: string;
-  includes_partial_day: boolean;
-};
-export type RecommendationFinding = { code: string; message: string };
-export type PlusRecommendationsReport = {
-  business: OwnedAnalyticsBusiness;
-  state: RecommendationState;
-  stored_state: Exclude<RecommendationState, "not_requested"> | null;
-  request_id: string | null;
-  source_period: RecommendationSourcePeriod | null;
-  requested_selection: { start_date: string; end_date: string };
-  requested_at: string | null;
-  generated_at: string | null;
-  checked_at: string;
-  evidence_matches: boolean;
-  snapshot_only: boolean;
-  content_available: boolean;
-  ai_recommendations: {
-    action_code: string;
-    evidence_codes: string[];
-    explanation_code: string;
-    message: string;
-  }[];
-  generation_policy: {
-    original_version: number;
-    current_version: number;
-    relevant_rules_match: boolean;
-    original_rules: Record<string, unknown>;
-  } | null;
-  provenance: {
-    provider: string;
-    model: string;
-    prompt_version: string;
-    schema_version: string;
-    mode: string;
-  } | null;
-  error_code: string | null;
-  key_findings: RecommendationFinding[];
-  recommended_actions: RecommendationFinding[];
-  meta: PlusAnalyticsMeta;
-  measurement_note: string;
-};
-
-export type RecommendationRefreshResult = {
-  request_id: string;
-  state: Exclude<RecommendationState, "not_requested">;
-  created: boolean;
-  source_period: RecommendationSourcePeriod;
 };

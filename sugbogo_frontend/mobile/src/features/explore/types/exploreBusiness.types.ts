@@ -1,4 +1,3 @@
-import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
 import type { BusinessSentimentRating } from "./businessRating.types";
 import type {
   SpecialtyTagColor,
@@ -41,7 +40,6 @@ export type ExploreBusiness = {
   cover_photo_url: string | null;
   display_cover_photo_url: string | null;
   review_count: number;
-  overall_vibe: OverallReviewVibe | null;
   is_pocketed: boolean;
   cluster: ExploreBusinessCluster;
   category: ExploreBusinessCategory;
@@ -172,17 +170,10 @@ export type ExploreBusinessDetail = ExploreBusiness & {
   has_own_review: boolean;
 };
 
-export type SentimentBreakdown = {
-  count: number;
-  percentage: number;
-};
-
 export type FrequentMention = {
   label: string;
   count: number;
 };
-
-export type OverallReviewVibe = ReviewVibe;
 
 export type ReviewInsightRegeneration = {
   status: "untracked" | "idle" | "scheduled" | "processing" | "retry_wait";
@@ -206,13 +197,7 @@ export type BusinessReviewInsights = {
   analyzed_review_count: number;
   classified_review_count: number;
   has_sufficient_sentiment_data: boolean;
-  overall_vibe: OverallReviewVibe | null;
   is_sampled: boolean;
-  sentiment: {
-    positive: SentimentBreakdown;
-    neutral: SentimentBreakdown;
-    negative: SentimentBreakdown;
-  };
   frequent_mentions: FrequentMention[];
   coverage_start: string | null;
   coverage_end: string | null;

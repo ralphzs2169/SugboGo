@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import DataErrorState from "@/shared/components/errors/DataErrorState";
+import { LoadGroupFeedback } from "../../components/PageLoadFeedback";
 import { invalidateTaxonomyQueries } from "../../taxonomy/queries/taxonomyQueries";
 import { discoveryShortcutQueryKey } from "../../explore-configuration/queries/discoveryShortcutQueries";
 import DataTable from "@/features/admin-panel/components/data-table/DataTable";
@@ -33,7 +33,6 @@ import EditCategoryModal from "./EditCategoryModal";
 import CreateDiscoveryShortcutModal from "./CreateDiscoveryShortcutModal";
 import EditDiscoveryShortcutModal from "./EditDiscoveryShortcutModal";
 
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 
 /**
  * Combined data table for managing MSME clusters and categories.
@@ -117,6 +116,7 @@ export default function ClusterCategoryManagementTable({
     pageCount: clusterPageCount,
     isLoading: isLoadingClusters,
     isFetching: isFetchingClusters,
+    hasData: hasClusters,
     error: clusterError,
     refetch: refetchClusters,
   } = useClusters(params, {
@@ -129,6 +129,7 @@ export default function ClusterCategoryManagementTable({
     pageCount: categoryPageCount,
     isLoading: isLoadingCategories,
     isFetching: isFetchingCategories,
+    hasData: hasCategories,
     error: categoryError,
     refetch: refetchCategories,
   } = useCategories(params, {
@@ -141,6 +142,7 @@ export default function ClusterCategoryManagementTable({
     pageCount: shortcutPageCount,
     isLoading: isLoadingShortcuts,
     isFetching: isFetchingShortcuts,
+    hasData: hasShortcuts,
     error: shortcutError,
     refetch: refetchShortcuts,
   } = useDiscoveryShortcuts(params, {
@@ -173,6 +175,11 @@ export default function ClusterCategoryManagementTable({
     : isCategoryTab
       ? isFetchingCategories
       : isFetchingShortcuts;
+  const hasData = isClusterTab
+    ? hasClusters
+    : isCategoryTab
+      ? hasCategories
+      : hasShortcuts;
   const totalItems = isClusterTab
     ? clusterTotalItems
     : isCategoryTab
@@ -192,6 +199,7 @@ export default function ClusterCategoryManagementTable({
   // Fetch clusters for the category filter dropdown.
   const {
     clusters: filterClusters,
+    hasData: hasFilterClusters,
     error: filterError,
     refetch: refetchFilterClusters,
     isFetching: isFetchingFilterClusters,
@@ -327,53 +335,22 @@ export default function ClusterCategoryManagementTable({
       ? "categories"
       : "Discovery shortcuts";
 
-  function onRetry() {
-    if (isClusterTab) {
-      refetchClusters();
-    } else if (isCategoryTab) {
-      refetchCategories();
-    } else {
-      refetchShortcuts();
-    }
-  }
+  const onRetry = isClusterTab
+    ? refetchClusters
+    : isCategoryTab
+      ? refetchCategories
+      : refetchShortcuts;
 
-  useApiErrorNotification(enabled ? activeError : null, {
-    toastId: `taxonomy-${currentTab}-load-error`,
-    fallbackMessage: "Unable to load the requested data. Please try again.",
-  });
-  useApiErrorNotification(enabled && isCategoryTab ? filterError : null, {
-    toastId: "taxonomy-cluster-filter-error",
-    fallbackMessage: "Unable to load the cluster filter. Please try again.",
-  });
   return (
     <>
-      {activeError && data.length > 0 && (
-        <DataErrorState
-          compact
-          retainedData
-          refreshLabel={resourcePlural}
-          onRetry={onRetry}
-          retrying={isFetching}
-          retryLabel="Retry"
-        />
-      )}
-      {isCategoryTab && filterError && (
-        <DataErrorState
-          compact
-          framed
-          retainedData={filterClusters.length > 0}
-          title="Unable to load the cluster filter"
-          onRetry={() => refetchFilterClusters()}
-          retrying={isFetchingFilterClusters}
-          retryLabel="Retry cluster filter"
-        />
-      )}
       <DataTable
         data={data}
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
-        error={data.length > 0 ? null : activeError}
+        error={enabled ? activeError : null}
+        hasData={hasData}
+        loadSection="directory"
         onRetry={onRetry}
         pagination={pagination}
         state={{
@@ -439,6 +416,20 @@ export default function ClusterCategoryManagementTable({
           },
         }}
         slots={{
+          renderFilterFeedback: enabled && isCategoryTab
+            ? () => (
+                <LoadGroupFeedback
+                  label="Cluster filter"
+                  retryLabel="Retry cluster filter"
+                  queries={[{
+                    data: hasFilterClusters ? filterClusters : undefined,
+                    error: filterError,
+                    isFetching: isFetchingFilterClusters,
+                    refetch: refetchFilterClusters,
+                  }]}
+                />
+              )
+            : undefined,
           renderHeaderActions: () => (
             <Button
               icon={Plus}

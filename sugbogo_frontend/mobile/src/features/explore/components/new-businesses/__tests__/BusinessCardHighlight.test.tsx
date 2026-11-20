@@ -14,7 +14,6 @@ const business: ExploreBusiness = {
   cover_photo_url: null,
   display_cover_photo_url: null,
   review_count: 0,
-  overall_vibe: null,
   is_pocketed: false,
   cluster: { id: 1, name: "Coffee District", icon: "coffee" },
   category: { id: 2, name: "Coffee Shops" },

@@ -63,7 +63,7 @@ class GeminiCutoverTests(SummaryFixtureMixin, TestCase):
         aggregate = BusinessRating.objects.get(BUSN_ID=self.business)
         self.assertEqual(float(aggregate.BRAT_VALUE), 5)
         self.assertEqual(aggregate.BRAT_SCORING_VERSION, contract_version("gemini-test"))
-        self.assertEqual(BusinessReviewSummary.objects.get(BUSN_ID=self.business).BRSU_POSITIVE_COUNT, 5)
+        self.assertEqual(BusinessReviewSummary.objects.get(BUSN_ID=self.business).BRSU_CLASSIFIED_REVIEW_COUNT, 5)
         self.assertEqual(Snapshot.objects.first().RLSS_SCORE, 0.75)
         self.assertEqual(self.activate(), "already_active")
 
@@ -131,7 +131,12 @@ class GeminiCutoverTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(review.rating_result.RRSR_SOURCE_TEXT, "Terrible service.")
         BusinessRatingWorkService.process(self.business.pk)
         self.assertAlmostEqual(float(BusinessRating.objects.get(BUSN_ID=self.business).BRAT_VALUE), 4.2)
-        self.assertEqual(BusinessReviewSummary.objects.get(BUSN_ID=self.business).BRSU_NEGATIVE_COUNT, 1)
+        summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 5)
+        self.assertEqual(
+            summary.BRSU_SENTIMENT_SOURCES[str(review.pk)],
+            BusinessReviewSummaryService.sentiment_source(review),
+        )
 
     def test_failure_keeps_review_published_and_never_falls_back(self):
         self.activate()

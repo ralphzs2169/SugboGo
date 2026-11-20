@@ -56,7 +56,7 @@ const representativeContent = [
   "The code review did not confirm collection of an ID tied to the device's hardware.",
   "Support account management and security features.",
   "OpenAI for automatically checking review text and photos for potentially unsuitable content.",
-  "Google Gemini for some review analysis, summaries, and merchant recommendations.",
+  "Google Gemini for some review analysis and summaries.",
   "You can report concerns about a review, and merchants can dispute reviews. These reporting and dispute features are separate from general customer support.",
   "These measures do not mean that all information is encrypted or protected from every security risk.",
   "Login history has a 90-day setting, measured from when each sign-in record is created. An automated cleanup task is configured to delete older login records, but its operation in the final release still needs confirmation. This period does not apply to all personal information.",

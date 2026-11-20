@@ -175,7 +175,7 @@ export default function MerchantPlusEntry({
                 Know how you compare
               </AppText>
               <AppText className="text-sm leading-5 text-white">
-                Peer benchmarks, trends, and tips to get more visits.
+                Peer comparisons, specialty trends, and profile visit timing.
               </AppText>
             </View>
 

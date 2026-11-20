@@ -879,7 +879,7 @@ class MerchantAnalyticsDemoSeedService:
             "extension_phase": data.get("reporting_extension", {}).get("phase"),
             "route_plan_anchor": route_plan["anchor"] if route_plan else None,
             "skipped": [
-                "No peers, stored summaries, recommendation jobs or new event types are created.",
+                "No peers, stored summaries or new event types are created.",
                 "All existing counters, business fields and discovery scores remain unchanged.",
                 "Activity before business/specialty eligibility is omitted; at most three active specialties are used.",
             ],

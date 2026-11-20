@@ -1,4 +1,3 @@
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2,
@@ -6,7 +5,7 @@ import {
   MessageSquareText,
   ShieldCheck,
 } from "lucide-react";
-import DataErrorState from "@/shared/components/errors/DataErrorState";
+import { LoadGroupFeedback } from "../../components/PageLoadFeedback";
 import MetricCard from "../../components/MetricCard";
 import DashboardSkeleton from "../../dashboard/components/DashboardSkeleton";
 import { formatCount } from "../../analytics/utils/presentation";
@@ -43,10 +42,6 @@ const GRID = "grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4";
 /** Display global review counts with the same shared cards as Business Management. */
 export default function AllReviewMetrics({ filters, onFilterChange }) {
   const query = useQuery(allReviewSummaryOptions());
-  useApiErrorNotification(query.error, {
-    toastId: "admin-all-reviews-metrics-load-error",
-    fallbackMessage: "Unable to load review metrics. Please try again.",
-  });
 
   const hasData = query.data != null;
 
@@ -68,17 +63,14 @@ export default function AllReviewMetrics({ filters, onFilterChange }) {
       aria-label="Global review metrics"
       aria-busy={query.isFetching}
     >
-      {query.error && (
-        <DataErrorState
-          compact
-          framed
-          retainedData={hasData}
-          title="Unable to load review metrics"
-          message="The reviews table is still available. Retry to load the global counts."
-          onRetry={() => query.refetch()}
-          retrying={query.isFetching}
+      <div className="[&:not(:empty)]:mb-3">
+        <LoadGroupFeedback
+          section="overview"
+          label="Review metrics"
+          retryLabel="Retry metrics"
+          queries={[query]}
         />
-      )}
+      </div>
       {query.isLoading && !hasData && (
         <div className={GRID}>
           {METRICS.map((metric) => (

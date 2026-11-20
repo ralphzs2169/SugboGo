@@ -112,9 +112,6 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
             BRSU_ELIGIBLE_REVIEW_COUNT=5,
             BRSU_ANALYZED_REVIEW_COUNT=5,
             BRSU_CLASSIFIED_REVIEW_COUNT=4,
-            BRSU_POSITIVE_COUNT=2,
-            BRSU_NEUTRAL_COUNT=1,
-            BRSU_NEGATIVE_COUNT=1,
             BRSU_NARRATIVE="Visitors consistently mention friendly service.",
             BRSU_KEYWORD_TAGS=[{"text": "friendly service", "count": 3}],
             BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
@@ -145,9 +142,7 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
                 "analyzed_review_count",
                 "classified_review_count",
                 "has_sufficient_sentiment_data",
-                "overall_vibe",
                 "is_sampled",
-                "sentiment",
                 "frequent_mentions",
                 "coverage_start",
                 "coverage_end",
@@ -164,11 +159,7 @@ class AdminReviewInsightsViewsTests(SummaryFixtureMixin, APITestCase):
             "Visitors consistently mention friendly service.",
         )
         self.assertEqual(insights["review_count"], 5)
-        self.assertEqual(insights["sentiment"], {
-            "positive": {"count": 2, "percentage": 50.0},
-            "neutral": {"count": 1, "percentage": 25.0},
-            "negative": {"count": 1, "percentage": 25.0},
-        })
+        self.assertEqual(insights["classified_review_count"], 4)
         self.assertEqual(
             insights["frequent_mentions"],
             [{"label": "friendly service", "count": 3}],

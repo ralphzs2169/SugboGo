@@ -44,13 +44,7 @@ const reviewInsights: BusinessReviewInsights = {
   analyzed_review_count: 5,
   classified_review_count: 5,
   has_sufficient_sentiment_data: true,
-  overall_vibe: "mostly_negative",
   is_sampled: false,
-  sentiment: {
-    positive: { count: 1, percentage: 20 },
-    neutral: { count: 1, percentage: 20 },
-    negative: { count: 3, percentage: 60 },
-  },
   frequent_mentions: [{ label: "Slow service", count: 3 }],
   coverage_start: null,
   coverage_end: null,

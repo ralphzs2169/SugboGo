@@ -24,6 +24,7 @@ export default function AnalyticsSection({
   isFetching = false,
   hasData = false,
   refreshErrorHandled = false,
+  pageLoadHandled = false,
   error,
   onRetry,
   detectOffline = false,
@@ -45,6 +46,12 @@ export default function AnalyticsSection({
 
   if (isLoading && !hasData) {
     content = skeleton;
+  } else if (pageLoadHandled && !hasData) {
+    content = (
+      <p className="px-4 py-8 text-center text-sm text-text-secondary">
+        Report data unavailable
+      </p>
+    );
   } else if (error && !hasData) {
     content = (
       <DataErrorState
@@ -127,7 +134,7 @@ export default function AnalyticsSection({
       </header>
 
       {/* Source limitations and recoverable refresh errors */}
-      {error && hasData && !refreshErrorHandled && (
+      {error && hasData && !refreshErrorHandled && !pageLoadHandled && (
         <DataErrorState retainedData onRetry={onRetry} retrying={isFetching} retryLabel="Retry" />
       )}
       {partialNotice && !unavailable && !isLoading && !(error && !hasData) && (

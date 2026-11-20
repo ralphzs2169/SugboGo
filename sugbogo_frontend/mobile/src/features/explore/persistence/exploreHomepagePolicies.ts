@@ -37,9 +37,6 @@ const business = z.object({
   cover_photo_url: z.string().nullable(),
   display_cover_photo_url: z.string().nullable(),
   review_count: count,
-  overall_vibe: z
-    .enum(["mostly_positive", "mostly_neutral", "mostly_negative", "mixed"])
-    .nullable(),
   is_pocketed: z.boolean(),
   cluster,
   category,

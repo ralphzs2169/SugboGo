@@ -5,7 +5,6 @@ import DataTable from "@/features/admin-panel/components/data-table/DataTable";
 import getBusinessApplicationColumns from "../columns/businessApplicationColumns";
 import useBusinessApplications from "../hooks/useBusinessApplications";
 import FilterMenu from "../../../admin-panel/components/data-table/FilterMenu";
-import useApiErrorNotification from "@/shared/hooks/useApiErrorNotification";
 import useClusters from "../../cluster-category/hooks/useClusters";
 import useCategories from "../../cluster-category/hooks/useCategories";
 
@@ -59,6 +58,7 @@ export default function BusinessApplicationManagementTable({ tableState }) {
     pageCount,
     isLoading,
     isFetching,
+    hasData,
     error,
     refetch,
   } = useBusinessApplications(params);
@@ -120,10 +120,6 @@ export default function BusinessApplicationManagementTable({ tableState }) {
     );
   }
 
-  useApiErrorNotification(error, {
-    toastId: "business-applications-load-error",
-    fallbackMessage: "Unable to load business applications. Please try again.",
-  });
 
   return (
     <DataTable
@@ -132,6 +128,8 @@ export default function BusinessApplicationManagementTable({ tableState }) {
       isLoading={isLoading}
       isFetching={isFetching}
       error={error}
+      hasData={hasData}
+      loadSection="directory"
       onRetry={refetch}
       pagination={pagination}
       state={{

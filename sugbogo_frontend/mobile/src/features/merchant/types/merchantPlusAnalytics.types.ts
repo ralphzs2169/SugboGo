@@ -1,4 +1,3 @@
-import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
 import type {
   MerchantAnalyticsPeriod,
   MerchantStandardAnalytics,
@@ -16,7 +15,7 @@ export type VisibilityMetric =
   "impressions" | "profile_visits" | "distinct_profile_visitors";
 export type CorePlusDetailKind = "pocket" | "specialties" | "reviews";
 export type AdvancedPlusDetailKind =
-  "peers" | "review-insights" | "timing" | "recommendations";
+  "peers" | "review-insights" | "timing";
 export type PlusDetailKind = CorePlusDetailKind | AdvancedPlusDetailKind;
 export type PlusReportKind =
   "visibility" | Exclude<PlusDetailKind, "review-insights">;
@@ -108,8 +107,6 @@ export type ReviewMeasures = {
 };
 
 export type ReviewCohort = ReviewMeasures & {
-  /** Optional while older API responses or cached reports are still in use. */
-  overall_vibe?: ReviewVibe | null;
   median_first_reply_seconds: number | null;
   median_replied_sample_size: number;
 };

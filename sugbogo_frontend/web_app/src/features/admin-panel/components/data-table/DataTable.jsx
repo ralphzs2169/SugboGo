@@ -8,6 +8,7 @@ import { useReactTable, getCoreRowModel } from "@tanstack/react-table";
 import TableSkeletonBody from "./TableSkeletonBody";
 import DataErrorState from "@/shared/components/errors/DataErrorState";
 import { SearchX } from "lucide-react";
+import usePageLoadFailures from "../usePageLoadFailures";
 /**
  * Reusable server-side capable data table powered by TanStack Table.
  *
@@ -27,6 +28,8 @@ function DataTable({
   isFetching = false,
   isSearching = false,
   error = null,
+  hasData,
+  loadSection,
   onRetry,
 
   // Controlled table state
@@ -50,6 +53,20 @@ function DataTable({
   config = {},
   slots = {},
 }) {
+  const localFailures = usePageLoadFailures(
+    loadSection,
+    loadSection ? [{
+      data: hasData ? data : undefined,
+      error,
+      refetch: onRetry,
+      isFetching,
+    }] : [],
+  );
+  const showLocalError = !loadSection || localFailures.length > 0;
+  const status = error?.response?.status;
+  const accessBlocked = status === 401 || status === 403;
+  const hasRetainedData = Boolean(hasData && error && !accessBlocked);
+
   const defaultNoResultsState = {
     title: "No results found",
     description: "Try adjusting your search or filters.",
@@ -82,6 +99,7 @@ function DataTable({
 
   const {
     renderFilters,
+    renderFilterFeedback,
     renderHeaderActions,
     renderFloatingAction,
     renderContent,
@@ -148,6 +166,7 @@ function DataTable({
     !compact ||
     showSearch ||
     renderFilters ||
+    renderFilterFeedback ||
     renderTableActions ||
     hasActiveFilters;
 
@@ -174,10 +193,20 @@ function DataTable({
           searchPlaceholder={searchPlaceholder}
           showSearch={showSearch}
           renderFilters={renderFilters}
+          renderFilterFeedback={renderFilterFeedback}
           renderHeaderActions={renderTableActions}
           hasActiveFilters={hasActiveFilters}
           onResetFilters={onResetFilters}
           isSearching={isSearching}
+        />
+      )}
+
+      {hasRetainedData && showLocalError && !renderContent && (
+        <DataErrorState
+          retainedData
+          onRetry={onRetry}
+          retrying={isFetching}
+          retryLabel="Retry"
         />
       )}
 
@@ -209,19 +238,29 @@ function DataTable({
                 columns={table.getVisibleLeafColumns()}
                 rowCount={pagination.pageSize}
               />
-            ) : error ? (
+            ) : error && !hasRetainedData ? (
               <tbody>
                 <tr>
                   <td
                     colSpan={table.getVisibleLeafColumns().length}
                     className="p-0"
                   >
-                    <DataErrorState
-                      title={errorState.title}
-                      message={errorState.message}
-                      onRetry={onRetry}
-                      fullHeight
-                    />
+                    {showLocalError ? (
+                      <DataErrorState
+                        title={errorState.title}
+                        message={accessBlocked
+                          ? error.response?.data?.message || errorState.message
+                          : errorState.message}
+                        onRetry={onRetry}
+                        retrying={isFetching}
+                        compact={Boolean(loadSection)}
+                        fullHeight={!loadSection}
+                      />
+                    ) : (
+                      <p className="px-4 py-8 text-center text-sm text-text-secondary">
+                        Records unavailable
+                      </p>
+                    )}
                   </td>
                 </tr>
               </tbody>

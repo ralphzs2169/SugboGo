@@ -116,3 +116,52 @@ class BusinessReviewSummaryMigrationTests(SummaryFixtureMixin, TransactionTestCa
             pk=original.pk,
         )
         self.assertEqual(restored.BRSU_KEYWORD_TAGS, original.BRSU_KEYWORD_TAGS)
+
+    def test_removing_sentiment_breakdown_preserves_summary_and_reviews(self):
+        """Drop only the label counts from a populated summary."""
+        business = self.create_business()
+        review = self.create_review(business)
+        previous = self.migrate(
+            ("reviews", "0033_gemini_rating_eligibility_constraint"),
+        )
+        summary_model = previous.get_model("reviews", "BusinessReviewSummary")
+        summary = summary_model.objects.create(
+            BUSN_ID_id=business.pk,
+            BRSU_REVIEW_COUNT=1,
+            BRSU_CLASSIFIED_REVIEW_COUNT=1,
+            BRSU_POSITIVE_COUNT=1,
+            BRSU_NARRATIVE="Visitors mention friendly service.",
+            BRSU_SENTIMENT_SOURCES={str(review.pk): "source-fingerprint"},
+        )
+
+        migrated = self.migrate(
+            ("reviews", "0034_remove_review_summary_sentiment_breakdown"),
+        )
+        stored_model = migrated.get_model("reviews", "BusinessReviewSummary")
+        stored = stored_model.objects.get(pk=summary.pk)
+        self.assertEqual(stored.BRSU_REVIEW_COUNT, 1)
+        self.assertEqual(stored.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
+        self.assertEqual(stored.BRSU_NARRATIVE, summary.BRSU_NARRATIVE)
+        self.assertEqual(
+            stored.BRSU_SENTIMENT_SOURCES,
+            summary.BRSU_SENTIMENT_SOURCES,
+        )
+        review_model = migrated.get_model("reviews", "Review")
+        self.assertTrue(review_model.objects.filter(pk=review.pk).exists())
+        with connection.cursor() as cursor:
+            columns = connection.introspection.get_table_description(
+                cursor,
+                "BUSINESS_REVIEW_SUMMARY",
+            )
+            constraints = connection.introspection.get_constraints(
+                cursor,
+                "BUSINESS_REVIEW_SUMMARY",
+            )
+        removed_columns = {
+            "BRSU_POSITIVE_COUNT",
+            "BRSU_NEUTRAL_COUNT",
+            "BRSU_NEGATIVE_COUNT",
+        }
+        self.assertTrue(removed_columns.isdisjoint(column.name for column in columns))
+        self.assertNotIn("brsu_classified_matches_counts", constraints)
+        self.assertIn("brsu_classified_lte_reviews", constraints)

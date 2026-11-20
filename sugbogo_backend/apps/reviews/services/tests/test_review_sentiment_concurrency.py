@@ -99,8 +99,6 @@ class ReviewSentimentConcurrencyTests(SummaryFixtureMixin, TransactionTestCase):
         self.assertEqual(self.review.REVW_SENTIMENT_LABEL, "positive")
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
-        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 0)
         self.assertEqual(summary.BRSU_SENTIMENT_SOURCES, {
             str(self.review.pk): BusinessReviewSummaryService.sentiment_source(
                 self.review,
@@ -159,8 +157,6 @@ class ReviewSentimentConcurrencyTests(SummaryFixtureMixin, TransactionTestCase):
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 2)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 2)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
-        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
         self.assertEqual(BusinessReviewSummary.objects.count(), 1)
         for review in (self.review, second_review):
             current = BusinessReviewSummaryService.annotate_sentiment_source(
@@ -221,11 +217,10 @@ class ReviewSentimentConcurrencyTests(SummaryFixtureMixin, TransactionTestCase):
             self.assertEqual(pending.result(timeout=10), expected)
 
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
         if mutation == "edit":
             self.review.refresh_from_db()
             self.assertEqual(self.review.REVW_SENTIMENT_LABEL, "negative")
-            self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
+            self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         else:
             self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
             self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)

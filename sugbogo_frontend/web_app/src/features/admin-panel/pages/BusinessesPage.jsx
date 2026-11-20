@@ -1,3 +1,4 @@
+import { PageLoadScope } from "../components/PageLoadFeedback";
 import useDocumentTitle from "@/shared/hooks/useDocumentTitle";
 import { Building2, List } from "lucide-react";
 
@@ -28,27 +29,29 @@ export default function BusinessesPage() {
       />
 
       {/* Business overview */}
-      <section className="mb-8">
-        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
-          <Building2 aria-hidden="true" className="h-4 w-4 shrink-0" />
-          Business Overview
-        </h2>
-        <p className="-mt-2 mb-3 text-xs text-text-secondary">
-          Current business state and month-to-date activity · PHT
-        </p>
+      <PageLoadScope>
+        <section className="mb-8">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+            <Building2 aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Business Overview
+          </h2>
+          <p className="-mt-2 mb-3 text-xs text-text-secondary">
+            Current business state and month-to-date activity · PHT
+          </p>
 
-        <BusinessMetrics />
-      </section>
+          <BusinessMetrics />
+        </section>
 
-      {/* Business directory */}
-      <section>
-        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
-          <List aria-hidden="true" className="h-4 w-4 shrink-0" />
-          Business Directory
-        </h2>
+        {/* Business directory */}
+        <section>
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-text-primary">
+            <List aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Business Directory
+          </h2>
 
-        <BusinessManagementTable />
-      </section>
+          <BusinessManagementTable />
+        </section>
+      </PageLoadScope>
     </>
   );
 }

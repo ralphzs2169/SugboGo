@@ -487,14 +487,13 @@ test("list error retries without losing filters or disabling the metric cards", 
   await render("/admin-panel/reviews?status=published");
   await until(() => container.textContent.includes("Unable to load reviews"));
   assert.ok(button("Total Reviews: 32. Clear status and reported filters"));
-  assert.deepEqual(notifications.map((entry) => entry[1].id), ["admin-all-reviews-list-load-error"]);
+  assert.equal(notifications.length, 0);
   await render();
-  assert.equal(notifications.length, 1);
+  assert.equal(notifications.length, 0);
   fail = false;
   await click("Try Again");
   await until(() => container.textContent.includes("Ana Cruz"));
   assert.equal(listReads().at(-1).params.status, "published");
-  assert.ok(dismissed.includes("admin-all-reviews-list-load-error"));
 });
 
 test("summary error remains contained and retries without refetching the list", async () => {
@@ -509,11 +508,11 @@ test("summary error remains contained and retries without refetching the list", 
     container.textContent.includes("Unable to load review metrics"),
   );
   assert.match(container.textContent, /Ana Cruz/);
-  assert.deepEqual(notifications.map((entry) => entry[1].id), ["admin-all-reviews-metrics-load-error"]);
+  assert.equal(notifications.length, 0);
   await render();
-  assert.equal(notifications.length, 1);
+  assert.equal(notifications.length, 0);
   fail = false;
-  await click("Try Again");
+  await click("Retry metrics");
   await until(() =>
     button("Total Reviews: 32. Clear status and reported filters"),
   );

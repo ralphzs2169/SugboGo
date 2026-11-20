@@ -91,5 +91,4 @@ export const ANALYTICS_DETAIL_DESCRIPTIONS = {
   peers: "Your activity alongside anonymous similar businesses.",
   "review-insights": "A prepared review summary using its own review dates.",
   timing: "Recorded online profile visits by weekday and hour.",
-  recommendations: "Available findings and suggestions for your business.",
 } as const;

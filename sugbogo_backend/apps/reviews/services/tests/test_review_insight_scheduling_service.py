@@ -378,7 +378,7 @@ class ReviewInsightSchedulingServiceTests(SummaryFixtureMixin, TransactionTestCa
         )
         self.summary.refresh_from_db()
         self.assertEqual(self.summary.BRSU_CLASSIFIED_REVIEW_COUNT, 5)
-        self.assertEqual(self.summary.BRSU_NEGATIVE_COUNT, 1)
+        self.assertEqual(len(self.summary.BRSU_SENTIMENT_SOURCES), 5)
 
     def test_daily_reconciliation_recovers_missed_changes_without_resetting_pending_inputs(self):
         ReviewInsightSchedulingService.reconcile(self.business.pk)

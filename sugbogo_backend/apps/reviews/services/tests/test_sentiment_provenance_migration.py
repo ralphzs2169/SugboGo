@@ -2,7 +2,6 @@ from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 
-from apps.reviews.models import BusinessReviewSummary
 from apps.reviews.services.tests.test_business_review_summary_service import (
     SummaryFixtureMixin,
 )
@@ -26,19 +25,19 @@ class SentimentProvenanceMigrationTests(SummaryFixtureMixin, TransactionTestCase
     def test_forward_reverse_and_forward_leave_legacy_sources_unverified(self):
         business = self.create_business()
         review = self.create_review(business)
-        summary = BusinessReviewSummary.objects.create(
-            BUSN_ID=business,
+        old_target = ("reviews", "0026_review_insight_publication_fence")
+        new_target = ("reviews", "0027_business_review_summary_sentiment_sources")
+        old_apps = self.migrate(old_target)
+        summary_model = old_apps.get_model("reviews", "BusinessReviewSummary")
+        summary = summary_model.objects.create(
+            BUSN_ID_id=business.pk,
             BRSU_REVIEW_COUNT=1,
             BRSU_CLASSIFIED_REVIEW_COUNT=1,
             BRSU_POSITIVE_COUNT=1,
             BRSU_NARRATIVE="Preserve existing narrative.",
             BRSU_KEYWORDS_FINGERPRINT="independent-narrative-source",
         )
-        before = BusinessReviewSummary.objects.values().get(pk=summary.pk)
-        before.pop("BRSU_SENTIMENT_SOURCES")
-        old_target = ("reviews", "0026_review_insight_publication_fence")
-        new_target = ("reviews", "0027_business_review_summary_sentiment_sources")
-        self.migrate(old_target)
+        before = summary_model.objects.values().get(pk=summary.pk)
         for target in (new_target, old_target, new_target):
             apps = self.migrate(target)
             stored = apps.get_model("reviews", "BusinessReviewSummary").objects.values().get(
