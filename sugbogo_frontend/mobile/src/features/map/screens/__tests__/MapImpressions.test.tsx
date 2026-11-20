@@ -31,7 +31,6 @@ const mockBusinesses = [1, 2].map((id) => ({
   cover_photo_url: null,
   display_cover_photo_url: null,
   review_count: 0,
-  overall_vibe: null,
   is_pocketed: false,
   is_hidden_gem: false,
   category: { id: 1, name: "Cafe" },

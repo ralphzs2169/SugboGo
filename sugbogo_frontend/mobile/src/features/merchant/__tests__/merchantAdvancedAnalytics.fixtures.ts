@@ -89,13 +89,7 @@ export function storedInsightsReport(): PlusStoredInsightsReport {
       analyzed_review_count: 6,
       classified_review_count: 5,
       has_sufficient_sentiment_data: true,
-      overall_vibe: "mixed",
       is_sampled: true,
-      sentiment: {
-        positive: { count: 3, percentage: 60 },
-        neutral: { count: 1, percentage: 20 },
-        negative: { count: 1, percentage: 20 },
-      },
       frequent_mentions: [
         { label: "Coffee", count: 3 },
         { label: "Service", count: 4 },

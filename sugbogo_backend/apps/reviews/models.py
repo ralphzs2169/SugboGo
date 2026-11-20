@@ -745,15 +745,6 @@ class BusinessReviewSummary(models.Model):
         related_name="review_summary",
     )
 
-    BRSU_POSITIVE_COUNT = models.PositiveIntegerField(
-        default=0,
-    )
-    BRSU_NEUTRAL_COUNT = models.PositiveIntegerField(
-        default=0,
-    )
-    BRSU_NEGATIVE_COUNT = models.PositiveIntegerField(
-        default=0,
-    )
     BRSU_REVIEW_COUNT = models.PositiveIntegerField(
         default=0,
     )
@@ -841,16 +832,6 @@ class BusinessReviewSummary(models.Model):
         constraints = [  # noqa: RUF012
             models.CheckConstraint(
                 condition=models.Q(
-                    BRSU_CLASSIFIED_REVIEW_COUNT=(
-                        models.F("BRSU_POSITIVE_COUNT")
-                        + models.F("BRSU_NEUTRAL_COUNT")
-                        + models.F("BRSU_NEGATIVE_COUNT")
-                    ),
-                ),
-                name="brsu_classified_matches_counts",
-            ),
-            models.CheckConstraint(
-                condition=models.Q(
                     BRSU_CLASSIFIED_REVIEW_COUNT__lte=models.F(
                         "BRSU_REVIEW_COUNT",
                     ),
@@ -858,33 +839,3 @@ class BusinessReviewSummary(models.Model):
                 name="brsu_classified_lte_reviews",
             ),
         ]
-
-    @property
-    def sentiment_percentages(self):
-        """Calculates sentiment percentages using only classified reviews."""
-        counts = {
-            "positive": self.BRSU_POSITIVE_COUNT,
-            "neutral": self.BRSU_NEUTRAL_COUNT,
-            "negative": self.BRSU_NEGATIVE_COUNT,
-        }
-        if not self.BRSU_CLASSIFIED_REVIEW_COUNT:
-            return dict.fromkeys(counts, 0.0)
-
-        return {
-            label: count / self.BRSU_CLASSIFIED_REVIEW_COUNT * 100
-            for label, count in counts.items()
-        }
-
-    @property
-    def overall_vibe(self):
-        """Derives the dominant review vibe when classified data is sufficient."""
-        from apps.shared.analytics.review_vibe import classify_review_vibe
-
-        return classify_review_vibe(
-            counts={
-                "positive": self.BRSU_POSITIVE_COUNT,
-                "neutral": self.BRSU_NEUTRAL_COUNT,
-                "negative": self.BRSU_NEGATIVE_COUNT,
-            },
-            classified_count=self.BRSU_CLASSIFIED_REVIEW_COUNT,
-        )

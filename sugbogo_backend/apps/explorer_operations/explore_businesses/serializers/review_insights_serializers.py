@@ -144,11 +144,7 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     has_sufficient_sentiment_data = serializers.SerializerMethodField()
-    overall_vibe = serializers.CharField(
-        read_only=True,
-    )
     is_sampled = serializers.SerializerMethodField()
-    sentiment = serializers.SerializerMethodField()
     frequent_mentions = serializers.SerializerMethodField()
     coverage_start = serializers.DateTimeField(
         source="BRSU_COVERAGE_START",
@@ -323,19 +319,8 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
             < instance.BRSU_ELIGIBLE_REVIEW_COUNT
         )
 
-    def get_sentiment(self, instance):
-        """Preserves the model's percentages based on stored classified counts."""
-        percentages = instance.sentiment_percentages
-        return {
-            label: {
-                "count": getattr(instance, f"BRSU_{label.upper()}_COUNT"),
-                "percentage": percentage,
-            }
-            for label, percentage in percentages.items()
-        }
-
     def get_has_sufficient_sentiment_data(self, instance):
-        """Reports whether the stored classified count meets the display threshold."""
+        """Report whether the classified count meets the sentiment filter threshold."""
         return (
             instance.BRSU_CLASSIFIED_REVIEW_COUNT
             >= current_policy()["sentiment_min_classified_reviews"]
@@ -361,9 +346,7 @@ class BusinessReviewInsightsSerializer(serializers.ModelSerializer):
             "analyzed_review_count",
             "classified_review_count",
             "has_sufficient_sentiment_data",
-            "overall_vibe",
             "is_sampled",
-            "sentiment",
             "frequent_mentions",
             "coverage_start",
             "coverage_end",

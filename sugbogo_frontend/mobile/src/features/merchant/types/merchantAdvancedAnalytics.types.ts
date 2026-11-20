@@ -2,7 +2,6 @@ import type { BusinessReviewInsights } from "@/features/explore/types/exploreBus
 import type {
   OwnedAnalyticsBusiness,
   PlusAnalyticsMeta,
-  SentimentLabel,
 } from "./merchantPlusAnalytics.types";
 
 export type PeerMetric = {
@@ -38,12 +37,8 @@ export type PlusPeerReport = {
   meta: PlusAnalyticsMeta;
 };
 
-/** Reuses public stored content while retaining the serializer's policy and nullable shares. */
-export type StoredReviewInsights = Omit<BusinessReviewInsights, "sentiment"> & {
-  sentiment: Record<
-    SentimentLabel,
-    { count: number; percentage: number | null }
-  >;
+/** Reuses the public stored insights with generation policy metadata. */
+export type StoredReviewInsights = BusinessReviewInsights & {
   policy: {
     current_version: number;
     generated_version: number | null;

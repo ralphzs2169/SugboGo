@@ -80,7 +80,6 @@ export function LiveBusinessQuickInfo({
         businessId={business.id}
         rating={business.sentiment_rating}
         reviewCount={totalCount ?? business.review_count}
-        overallVibe={business.overall_vibe}
         statusLabel={status.statusLabel}
         statusDetail={status.statusDetail}
         isOpenNow={status.isOpen}

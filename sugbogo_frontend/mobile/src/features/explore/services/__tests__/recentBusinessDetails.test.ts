@@ -94,7 +94,7 @@ it("projects only validated presentation fields and strips nested live/unknown s
     icon: "coffee",
   });
   expect(JSON.stringify(projected)).not.toMatch(
-    /is_pocketed|is_own_business|has_own_review|is_vouched|vouch_count|review_count|overall_vibe|review_insights|private_review/,
+    /is_pocketed|is_own_business|has_own_review|is_vouched|vouch_count|review_count|review_insights|private_review/,
   );
   expect(projected.business.operating_hours).toEqual(raw.operating_hours);
   expect(projected.business.photos).toEqual(raw.photos);

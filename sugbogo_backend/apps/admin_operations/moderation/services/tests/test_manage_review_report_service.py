@@ -76,7 +76,7 @@ class ManageReviewReportServiceTests(ReportFixtures, TestCase):
         siblings = self.add_pending_reports(2)
         self.assertTrue(self.review.REVW_IS_REPORT_FLAGGED)
         summary = BusinessReviewSummary.objects.create(
-            BUSN_ID=self.business, BRSU_POSITIVE_COUNT=1,
+            BUSN_ID=self.business,
             BRSU_REVIEW_COUNT=1, BRSU_CLASSIFIED_REVIEW_COUNT=1,
             BRSU_NARRATIVE="Visitors mention friendly staff.",
             BRSU_SUPPORTING_REVIEW_REFERENCES={"narrative_review_ids": [self.review.pk]},
@@ -109,7 +109,7 @@ class ManageReviewReportServiceTests(ReportFixtures, TestCase):
         for sibling in siblings:
             sibling.refresh_from_db()
             self.assertEqual(sibling.RREP_STATUS, "pending")
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
         self.assertEqual(summary.BRSU_NARRATIVE, "")
         self.assertEqual(ReputationEvent.objects.count(), 2)
         event = AdminActivity.objects.get()

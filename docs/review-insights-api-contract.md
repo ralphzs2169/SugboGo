@@ -16,11 +16,9 @@ insights during a request.
 | `review_count` | All eligible reviews in the sentiment window, including blank-text reviews |
 | `eligible_review_count` | Nonblank reviews eligible for narrative generation |
 | `analyzed_review_count` | Eligible reviews included in the generation sample |
-| `classified_review_count` | Reviews included in the sentiment percentage denominator |
-| `has_sufficient_sentiment_data` | Whether the classified-review count meets the Review Vibe display threshold |
-| `overall_vibe` | Derived Review Vibe label, or `null` below the sentiment threshold |
+| `classified_review_count` | Reviews with a recognized sentiment label |
+| `has_sufficient_sentiment_data` | Whether the classified-review count meets the threshold for sentiment filters |
 | `is_sampled` | `true` when only part of the eligible nonblank set was analyzed |
-| `sentiment` | Positive, neutral, and negative counts and percentages |
 | `frequent_mentions` | Generated keyword labels and counts; evidence review IDs are private |
 | `coverage_start`, `coverage_end` | Time window represented by the generated content |
 | `generated_at` | When narrative and mentions were generated successfully |
@@ -42,13 +40,7 @@ Administrator detail responses also include `sentiment_computed_at` and
   "analyzed_review_count": 100,
   "classified_review_count": 232,
   "has_sufficient_sentiment_data": true,
-  "overall_vibe": "mostly_positive",
   "is_sampled": true,
-  "sentiment": {
-    "positive": {"count": 180, "percentage": 77.59},
-    "neutral": {"count": 32, "percentage": 13.79},
-    "negative": {"count": 20, "percentage": 8.62}
-  },
   "frequent_mentions": [
     {"label": "friendly service", "count": 38},
     {"label": "local dishes", "count": 27}
@@ -73,12 +65,7 @@ When `is_sampled` is true, the frontend can render a disclosure such as
 | `outdated`, content available | Retained content is returned | Display it only with the supplied outdated message |
 | `outdated`, content unavailable | Narrative is `null`; mentions are empty | Show the supplied invalidation message |
 
-Use `content_available` as the rendering gate. Do not infer availability from
-counts, timestamps, or the presence of sentiment data. Sentiment remains
-available independently because it is computed locally and may be newer than
-the generated narrative. Likewise, `has_sufficient_sentiment_data` and
-`overall_vibe` describe sentiment readiness independently of the generated
-content state.
+Use `content_available` to decide when to show the narrative and mentions. The `has_sufficient_sentiment_data` flag controls sentiment filter availability independently of the narrative state.
 
 ## Frontend acceptance checks
 

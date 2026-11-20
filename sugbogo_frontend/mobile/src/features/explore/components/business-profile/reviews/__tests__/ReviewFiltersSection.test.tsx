@@ -24,13 +24,7 @@ const insights = {
   analyzed_review_count: 8,
   classified_review_count: 8,
   has_sufficient_sentiment_data: true,
-  overall_vibe: "mostly_positive",
   is_sampled: false,
-  sentiment: {
-    positive: { count: 5, percentage: 63 },
-    neutral: { count: 2, percentage: 25 },
-    negative: { count: 1, percentage: 12 },
-  },
   frequent_mentions: [
     { label: "Friendly service", count: 8 },
     { label: "Affordable", count: 6 },

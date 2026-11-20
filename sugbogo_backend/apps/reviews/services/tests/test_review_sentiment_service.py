@@ -58,7 +58,6 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
             )
             scorer.assert_called_once()
         summary.refresh_from_db()
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
 
     def test_duplicate_scored_deliveries_preserve_scores_and_current_aggregate(self):
@@ -73,7 +72,6 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
                         "already_scored",
                     )
                     summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
-                    self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
                     self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
             scorer.assert_not_called()
         review.refresh_from_db()
@@ -182,8 +180,6 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 2)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
-        self.assertIsNone(summary.overall_vibe)
 
     def test_daily_reconciliation_repairs_aggregates_with_only_stored_scores(self):
         self.create_review(self.business)
@@ -203,7 +199,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
         summary.refresh_from_db()
         self.assertEqual(result["sentiment_updated"], 1)
         self.assertEqual(result["failed_business_ids"], [])
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         self.assertEqual(len(summary.BRSU_SENTIMENT_SOURCES), 1)
 
     def test_scores_review_and_recomputes_summary_without_keywords(self):
@@ -229,7 +225,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(review.REVW_SENTIMENT_SCORE, -0.6)
         self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
-        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
 
     def test_missing_review_exits_without_scoring(self):
         with patch(
@@ -342,7 +338,6 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(recovered.REVW_SENTIMENT_LABEL, "negative")
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 3)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 2)
-        self.assertEqual(summary.sentiment_percentages["positive"], 50.0)
 
     def test_manual_refresh_task_reconciles_before_aggregation(self):
         review = self.create_review(
@@ -369,7 +364,6 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
 
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
         self.assertEqual(result["generation_outcome"], "queued")
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         review.refresh_from_db()
         self.assertEqual(review.REVW_SENTIMENT_LABEL, "positive")
@@ -394,7 +388,7 @@ class ReviewSentimentServiceTests(SummaryFixtureMixin, TestCase):
         review.refresh_from_db()
         self.assertEqual(review.REVW_SENTIMENT_LABEL, "positive")
         summary = BusinessReviewSummary.objects.get(BUSN_ID=self.business)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
 
     def test_failed_review_does_not_block_another_business(self):
         other_business = self.create_business(2)

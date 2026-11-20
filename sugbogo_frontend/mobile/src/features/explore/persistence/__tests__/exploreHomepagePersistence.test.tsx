@@ -98,7 +98,6 @@ function feed(length = 1, name = "Previously loaded cafe") {
       cover_photo_url: "https://example.test/cover.jpg",
       display_cover_photo_url: null,
       review_count: 2,
-      overall_vibe: "mostly_positive",
       is_pocketed: true,
       cluster,
       category: { id: 1, name: "Cafe" },

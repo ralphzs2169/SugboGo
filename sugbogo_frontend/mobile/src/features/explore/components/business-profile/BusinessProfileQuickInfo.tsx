@@ -3,7 +3,6 @@ import { View } from "react-native";
 
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import type { ReviewVibe } from "@/shared/types/reviewVibe.types";
 import type { BusinessSentimentRating as Rating } from "../../types/businessRating.types";
 import { usePresentedBusinessRating } from "../../hooks/businessRatingSync";
 import { hasDisplayableBusinessRating } from "../../utils/businessRating.utils";
@@ -12,7 +11,6 @@ type Props = {
   businessId?: number;
   rating?: Rating | null;
   reviewCount: number | null;
-  overallVibe?: ReviewVibe | null;
   statusLabel: string;
   statusDetail: string;
   distance: string | null;

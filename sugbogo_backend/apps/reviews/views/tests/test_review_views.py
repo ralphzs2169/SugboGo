@@ -1971,7 +1971,6 @@ class ReviewDetailViewTests(APITestCase):
         )
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
 
     def test_delete_review_rejects_non_owner(self):
         self.client.force_authenticate(self.other_explorer)

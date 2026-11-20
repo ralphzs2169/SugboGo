@@ -58,7 +58,6 @@ class NewBusinessesService:
                 "CTGRY_ID",
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
-                "review_summary",
                 "business_rating",
             )
             .annotate(

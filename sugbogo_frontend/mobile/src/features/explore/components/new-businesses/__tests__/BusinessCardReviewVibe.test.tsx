@@ -15,7 +15,6 @@ const business = {
   cover_photo_url: null,
   display_cover_photo_url: null,
   review_count: 12,
-  overall_vibe: "mostly_positive",
   is_pocketed: false,
   cluster: { id: 2, name: "Culinary", icon: "utensils" },
   category: { id: 8, name: "Cafe" },
@@ -66,7 +65,6 @@ describe("BusinessCard review vibe", () => {
   it("shows only the review count when vibe is unavailable", async () => {
     const screen = await renderBusiness({
       review_count: 3,
-      overall_vibe: null,
     });
     expect(screen.getByText("3 reviews")).toBeTruthy();
   });
@@ -74,7 +72,6 @@ describe("BusinessCard review vibe", () => {
   it("shows the no-review state", async () => {
     const screen = await renderBusiness({
       review_count: 0,
-      overall_vibe: null,
     });
     expect(screen.getByText("No reviews yet")).toBeTruthy();
   });

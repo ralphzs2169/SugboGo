@@ -121,7 +121,6 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     review_count = serializers.SerializerMethodField()
-    overall_vibe = serializers.SerializerMethodField()
     sentiment_rating = serializers.SerializerMethodField()
 
     cluster = ExploreClusterSerializer(
@@ -182,12 +181,6 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
 
         return instance.BUSN_ID in self._hidden_gem_ids
 
-    @staticmethod
-    def get_overall_vibe(instance):
-        """Returns the derived overall vibe when the summary has enough data."""
-        summary = getattr(instance, "review_summary", None)
-        return summary.overall_vibe if summary is not None else None
-
     class Meta:
         model = Business
         fields = (
@@ -198,7 +191,6 @@ class ExploreBusinessSerializer(serializers.ModelSerializer):
             "display_cover_photo_url",
             "is_pocketed",
             "review_count",
-            "overall_vibe",
             "sentiment_rating",
             "cluster",
             "category",

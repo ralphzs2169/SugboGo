@@ -33,7 +33,7 @@ class AnalyticsPolicyConsumerTests(SummaryFixtureMixin, TestCase):
         cls.business = cls.create_business()
         cls.reviews = [cls.create_review(cls.business, index) for index in range(5)]
         cls.summary = BusinessReviewSummary.objects.create(BUSN_ID=cls.business,
-            BRSU_POSITIVE_COUNT=5, BRSU_CLASSIFIED_REVIEW_COUNT=5, BRSU_REVIEW_COUNT=5,
+            BRSU_CLASSIFIED_REVIEW_COUNT=5, BRSU_REVIEW_COUNT=5,
             BRSU_ELIGIBLE_REVIEW_COUNT=5, BRSU_ANALYZED_REVIEW_COUNT=5,
             BRSU_NARRATIVE="Stored friendly service summary.",
             BRSU_GENERATION_STATE=BusinessReviewSummary.GenerationState.READY,
@@ -57,13 +57,13 @@ class AnalyticsPolicyConsumerTests(SummaryFixtureMixin, TestCase):
         return json.dumps({"narrative": "Visitors mention friendly service.", "narrative_review_ids": ids,
                            "tags": [{"text": "friendly service", "count": 2, "review_ids": ids}]})
 
-    def test_sentiment_rule_changes_conclusion_not_classified_counts_or_shares(self):
-        self.assertEqual(self.summary.overall_vibe, "mostly_positive")
+    def test_sentiment_rule_changes_filter_availability(self):
+        data = BusinessReviewInsightsSerializer(self.summary).data
+        self.assertTrue(data["has_sufficient_sentiment_data"])
         self.update({"sentiment_min_classified_reviews": 6})
         data = BusinessReviewInsightsSerializer(self.summary).data
         self.assertFalse(data["has_sufficient_sentiment_data"])
-        self.assertIsNone(data["overall_vibe"])
-        self.assertEqual(data["sentiment"]["positive"], {"count": 5, "percentage": 100.0})
+        self.assertEqual(data["classified_review_count"], 5)
 
     def test_narrative_gate_is_read_only_and_legacy_version_is_not_backfilled(self):
         self.update({"narrative_min_eligible_reviews": 6})

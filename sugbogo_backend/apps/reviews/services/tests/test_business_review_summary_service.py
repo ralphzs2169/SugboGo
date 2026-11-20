@@ -81,12 +81,6 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
         summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 7)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 4)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 2)
-        self.assertEqual(summary.BRSU_NEUTRAL_COUNT, 1)
-        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
-        self.assertEqual(summary.sentiment_percentages, {
-            "positive": 50.0, "neutral": 25.0, "negative": 25.0,
-        })
 
     def test_sentiment_uses_the_same_rolling_thirty_day_window(self):
         reference_time = timezone.now()
@@ -105,34 +99,7 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
         )
 
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
-
-    def test_overall_vibe_uses_dominance_and_existing_minimum_threshold(self):
-        cases = [
-            (4, 4, 0, 0, None),
-            (10, 7, 2, 1, "mostly_positive"),
-            (11, 2, 7, 2, "mostly_neutral"),
-            (20, 4, 3, 13, "mostly_negative"),
-            (100, 48, 27, 25, "mixed"),
-            (20, 11, 8, 1, "mostly_positive"),
-            (100, 54, 30, 16, "mixed"),
-            (100, 55, 41, 4, "mixed"),
-        ]
-
-        for classified, positive, neutral, negative, expected in cases:
-            with self.subTest(
-                classified=classified,
-                positive=positive,
-                neutral=neutral,
-                negative=negative,
-            ):
-                summary = BusinessReviewSummary(
-                    BRSU_CLASSIFIED_REVIEW_COUNT=classified,
-                    BRSU_POSITIVE_COUNT=positive,
-                    BRSU_NEUTRAL_COUNT=neutral,
-                    BRSU_NEGATIVE_COUNT=negative,
-                )
-                self.assertEqual(summary.overall_vibe, expected)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
 
     def test_each_moderation_exclusion_leaves_only_clean_review(self):
         self.create_review(self.business)
@@ -150,14 +117,13 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
                     self.business.pk,
                 )
                 self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
-                self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
-                self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 0)
+                self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
                 excluded.delete()
 
     def test_outlier_is_included(self):
         self.create_review(self.business, REVW_IS_OUTLIER_SENTIMENT=True)
         summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
 
     def test_published_reliability_signals_remain_eligible(self):
         """All three advisory reasons retain normal published eligibility."""
@@ -175,7 +141,7 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
             self.business.pk,
         )
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 3)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 3)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 3)
 
     def test_published_report_flag_remains_eligible(self):
         """Pending community concerns do not remove published insight evidence."""
@@ -187,7 +153,7 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
             self.business.pk,
         )
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
 
     def test_other_business_reviews_are_not_counted(self):
         self.create_review(self.create_business(1))
@@ -199,9 +165,6 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
         summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
-        self.assertEqual(summary.sentiment_percentages, {
-            "positive": 0.0, "neutral": 0.0, "negative": 0.0,
-        })
         self.assertGreaterEqual(summary.BRSU_SENTIMENT_COMPUTED_AT, before)
         self.assertIsNone(summary.BRSU_KEYWORDS_PROCESSED_AT)
 
@@ -210,7 +173,6 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
         summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
-        self.assertTrue(all(value == 0 for value in summary.sentiment_percentages.values()))
 
     def test_recomputation_reflects_moderation_without_updated_timestamp(self):
         review = self.create_review(self.business)
@@ -228,15 +190,19 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
                 updated = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
                 self.assertEqual(updated.pk, summary.pk)
                 self.assertEqual(updated.BRSU_REVIEW_COUNT, 0)
-                self.assertEqual(updated.BRSU_POSITIVE_COUNT, 0)
+                self.assertEqual(updated.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
 
     def test_recomputation_reflects_label_edits_and_deletion(self):
         review = self.create_review(self.business)
         BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
         Review.objects.filter(pk=review.pk).update(REVW_SENTIMENT_LABEL="negative")
         summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
-        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
+        review.refresh_from_db()
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
+        self.assertEqual(
+            summary.BRSU_SENTIMENT_SOURCES[str(review.pk)],
+            BusinessReviewSummaryService.sentiment_source(review),
+        )
         review.delete()
         summary = BusinessReviewSummaryService.recompute_sentiment(self.business.pk)
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
@@ -255,7 +221,7 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
         self.assertEqual(fetched.pk, stored.pk)
         self.assertEqual(fetched.BRSU_KEYWORD_TAGS, tags)
         self.assertEqual(fetched.BRSU_KEYWORDS_PROCESSED_AT, processed_at)
-        self.assertEqual(fetched.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(fetched.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
 
     def test_missing_summary_returns_not_found_without_creating(self):
         with self.assertRaises(NotFound):
@@ -274,13 +240,9 @@ class BusinessReviewSummaryServiceTests(SummaryFixtureMixin, TestCase):
 
     def test_database_rejects_invalid_counts(self):
         invalid_values = [
-            {"BRSU_POSITIVE_COUNT": -1},
-            {"BRSU_NEUTRAL_COUNT": -1},
-            {"BRSU_NEGATIVE_COUNT": -1},
             {"BRSU_REVIEW_COUNT": -1},
             {"BRSU_CLASSIFIED_REVIEW_COUNT": -1},
-            {"BRSU_POSITIVE_COUNT": 1, "BRSU_REVIEW_COUNT": 1},
-            {"BRSU_POSITIVE_COUNT": 1, "BRSU_CLASSIFIED_REVIEW_COUNT": 1},
+            {"BRSU_CLASSIFIED_REVIEW_COUNT": 1},
         ]
         for values in invalid_values:
             with self.subTest(values=values):

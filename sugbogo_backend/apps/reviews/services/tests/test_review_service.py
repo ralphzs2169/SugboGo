@@ -2022,7 +2022,7 @@ class ReviewServiceTests(TestCase):
             REVW_SENTIMENT_SCORE=0.8,
             REVW_SENTIMENT_LABEL="positive",
         )
-        Review.objects.create(
+        negative = Review.objects.create(
             USER_ID=self.second_user,
             BUSN_ID=self.business,
             REVW_TEXT="Slow service.",
@@ -2043,9 +2043,7 @@ class ReviewServiceTests(TestCase):
         )
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 1)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
-        self.assertEqual(summary.BRSU_NEUTRAL_COUNT, 0)
-        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
+        self.assertEqual(set(summary.BRSU_SENTIMENT_SOURCES), {str(negative.pk)})
 
     def test_delete_last_eligible_review_zeros_sentiment_summary(self):
         """Keep the existing summary row with zero counts after the last review."""
@@ -2070,17 +2068,7 @@ class ReviewServiceTests(TestCase):
         )
         self.assertEqual(summary.BRSU_REVIEW_COUNT, 0)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
-        self.assertEqual(summary.BRSU_NEUTRAL_COUNT, 0)
-        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 0)
-        self.assertEqual(
-            summary.sentiment_percentages,
-            {
-                "positive": 0.0,
-                "neutral": 0.0,
-                "negative": 0.0,
-            },
-        )
+        self.assertEqual(summary.BRSU_SENTIMENT_SOURCES, {})
 
     def test_delete_review_invalidates_generated_bundle_without_generation(self):
         """Invalidate the complete generated bundle without invoking Gemini."""
@@ -2682,7 +2670,6 @@ class ReviewServiceTests(TestCase):
         )
         summary = BusinessReviewSummary.objects.create(
             BUSN_ID=self.business,
-            BRSU_POSITIVE_COUNT=1,
             BRSU_REVIEW_COUNT=1,
             BRSU_CLASSIFIED_REVIEW_COUNT=1,
             BRSU_NARRATIVE="Visitors mention friendly staff.",
@@ -2698,7 +2685,6 @@ class ReviewServiceTests(TestCase):
             with self.captureOnCommitCallbacks(execute=True):
                 ReviewService.update_review(self.user, review.pk, text="Unfriendly staff.")
                 summary.refresh_from_db()
-                self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
                 self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 0)
                 self.assertEqual(summary.BRSU_NARRATIVE, "")
                 self.assertEqual(summary.BRSU_KEYWORD_TAGS, [])
@@ -2718,7 +2704,7 @@ class ReviewServiceTests(TestCase):
         review.refresh_from_db()
         summary.refresh_from_db()
         self.assertEqual(review.REVW_TEXT, "Friendly staff.")
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         self.assertEqual(summary.BRSU_NARRATIVE, "Visitors mention friendly staff.")
 
     def test_unchanged_text_preserves_generated_insights(self):
@@ -2746,7 +2732,7 @@ class ReviewServiceTests(TestCase):
                 ReviewService.update_review(self.user, review.pk, keep_photo_ids=[])
             enqueue.assert_not_called()
         summary.refresh_from_db()
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 1)
+        self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
         self.assertEqual(summary.BRSU_NARRATIVE, "Visitors mention friendly staff.")
         self.assertEqual(summary.BRSU_GENERATION_STATE, "ready")
 
@@ -2756,9 +2742,13 @@ class ReviewServiceTests(TestCase):
         self.score_review.return_value = (-0.6, "Negative", "vader")
         self.assertEqual(ReviewSentimentService.process_review(review.pk), "updated")
         summary.refresh_from_db()
-        self.assertEqual(summary.BRSU_POSITIVE_COUNT, 0)
-        self.assertEqual(summary.BRSU_NEGATIVE_COUNT, 1)
         self.assertEqual(summary.BRSU_CLASSIFIED_REVIEW_COUNT, 1)
+        review.refresh_from_db()
+        self.assertEqual(review.REVW_SENTIMENT_LABEL, "negative")
+        self.assertEqual(
+            summary.BRSU_SENTIMENT_SOURCES[str(review.pk)],
+            BusinessReviewSummaryService.sentiment_source(review),
+        )
 
     def test_text_edit_clears_sentiment_and_queues_after_commit(self):
         review = Review.objects.create(

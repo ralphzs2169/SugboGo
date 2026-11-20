@@ -81,7 +81,6 @@ function createBusiness(id: number): ExploreBusiness {
     cover_photo_url: null,
     display_cover_photo_url: null,
     review_count: 0,
-    overall_vibe: null,
     is_pocketed: id === 1,
     cluster: {
       id: 1,

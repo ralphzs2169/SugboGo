@@ -76,7 +76,6 @@ class SentimentCompletionViewTests(SummaryFixtureMixin, APITestCase):
             f"/api/explorer/explore/businesses/{self.business.pk}/",
         ).data["data"]["review_insights"]
         self.assertFalse(insights["has_sufficient_sentiment_data"])
-        self.assertIsNone(insights["overall_vibe"])
         self.assertNotIn("sentiment_sources", insights)
         self.assertNotIn("BRSU_SENTIMENT_SOURCES", insights)
 

@@ -107,7 +107,6 @@ class SimilarBusinessService:
                 "CTGRY_ID__CLUS_ID",
                 "LOCT_ID",
                 "discovery_score",
-                "review_summary",
                 "business_rating",
             )
             .annotate(

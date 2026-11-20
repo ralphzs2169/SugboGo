@@ -163,29 +163,19 @@ class BusinessReviewSummaryService:
             .only(*BusinessReviewSummaryService.SENTIMENT_SOURCE_FIELDS)
             .order_by("REVW_ID"),
         )
-        counts = dict.fromkeys(BusinessReviewSummaryService.SENTIMENT_LABELS, 0)
         sources = {}
         for review in reviews:
             label = review.REVW_SENTIMENT_LABEL
-            if label in counts:
-                counts[label] += 1
+            if label in BusinessReviewSummaryService.SENTIMENT_LABELS:
                 sources[str(review.pk)] = BusinessReviewSummaryService.sentiment_source(
                     review,
                 )
-        summary.BRSU_POSITIVE_COUNT = counts["positive"]
-        summary.BRSU_NEUTRAL_COUNT = counts["neutral"]
-        summary.BRSU_NEGATIVE_COUNT = counts["negative"]
         summary.BRSU_REVIEW_COUNT = len(reviews)
-        summary.BRSU_CLASSIFIED_REVIEW_COUNT = (
-            counts["positive"] + counts["neutral"] + counts["negative"]
-        )
+        summary.BRSU_CLASSIFIED_REVIEW_COUNT = len(sources)
         summary.BRSU_SENTIMENT_COMPUTED_AT = timezone.now()
         summary.BRSU_SENTIMENT_SOURCES = sources
         summary.save(
             update_fields=[
-                "BRSU_POSITIVE_COUNT",
-                "BRSU_NEUTRAL_COUNT",
-                "BRSU_NEGATIVE_COUNT",
                 "BRSU_REVIEW_COUNT",
                 "BRSU_CLASSIFIED_REVIEW_COUNT",
                 "BRSU_SENTIMENT_COMPUTED_AT",

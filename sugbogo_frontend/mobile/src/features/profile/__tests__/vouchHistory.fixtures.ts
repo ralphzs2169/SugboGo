@@ -53,7 +53,6 @@ export function businessDetail(
     category: business.category,
     specialty_tags: business.specialty_tags,
     review_count: 0,
-    overall_vibe: null,
     is_pocketed: false,
     cluster: { id: 1, name: "Food", icon: "store" },
     location: {
