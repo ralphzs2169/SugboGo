@@ -10,13 +10,15 @@ import {
 } from "@/shared/navigation/stackOptions";
 import { Redirect, Stack } from "expo-router";
 
-/** Admits the Explore tab from a local grant while protecting the rest of Explorer. */
+/** Admits read-only Explore while a saved session waits for validation. */
 export default function ExplorerLayout() {
   const authenticated = useAuthStore((state) => state.isAuthenticated);
   const recentExplore = useOfflineAccessStore((state) => state.recentExplore);
   const offlineOwnerId = useOfflineAccessStore((state) => state.ownerId);
+  const sessionSuspended = useOfflineAccessStore((state) => state.sessionSuspended);
 
-  const offlineExplore = recentExplore && isRecentExploreCurrent(recentExplore);
+  const offlineExplore =
+    sessionSuspended || (recentExplore && isRecentExploreCurrent(recentExplore));
 
   if (!authenticated && !offlineExplore) {
     return (

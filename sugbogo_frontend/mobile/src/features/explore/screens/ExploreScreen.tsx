@@ -20,6 +20,7 @@ import {
 } from "@/features/guided-tour/hooks/useBookmarkTourSurface";
 
 import ExploreBySpecialtySection from "../components/explore-by-specialty/ExploreBySpecialtySection";
+import ExploreSectionEmptyState from "../components/ExploreSectionEmptyState";
 import ExploreTopBar from "../components/ExploreTopBar";
 import UserInterestsSection from "../components/interests/UserInterestsSection";
 import NewBusinessesSection from "../components/new-businesses/NewBusinessesSection";
@@ -51,9 +52,11 @@ import type { ExploreCollectionType } from "../types/exploreBusiness.types";
  */
 export default function ExploreScreen({
   offline = false,
+  offlineWithoutCache = false,
   hasDownloads = false,
 }: {
   offline?: boolean;
+  offlineWithoutCache?: boolean;
   hasDownloads?: boolean;
 } = {}) {
   const queryClient = useQueryClient();
@@ -274,14 +277,15 @@ export default function ExploreScreen({
       {/* Discovery controls */}
       <ExploreTopBar
         offline={offline}
+        offlineWithoutCache={offlineWithoutCache}
         onOpenOfflineStorage={
           offline && hasDownloads
             ? () => navigate(() => router.push("/offline-storage"))
             : undefined
         }
-        clusters={filterOptions.options.clusters}
+        clusters={offlineWithoutCache ? [] : filterOptions.options.clusters}
         selectedClusterId={null}
-        isLoadingClusters={filterOptions.isLoading}
+        isLoadingClusters={!offlineWithoutCache && filterOptions.isLoading}
         onSelectCluster={(clusterId) => {
           if (clusterId !== null) {
             navigate(() => navigateToExploreResults({ clusterId }));
@@ -319,69 +323,81 @@ export default function ExploreScreen({
             ) : undefined
           }
         >
-          {/* Curated discovery */}
-          <HiddenGemsSection
-            offline={offline}
-            businesses={discoveryFeed.businesses}
-            isLoading={discoveryFeed.isLoading}
-            isPaused={discoveryFeed.isPaused}
-            error={discoveryFeed.error}
-            refetch={discoveryFeed.refetch}
-            impressions={discoveryImpressions}
-            spotlightImpressions={spotlightImpressions}
-            userLocation={userLocation}
-            onBusinessPress={handleBusinessPress}
-          />
-
-          {/* Nearby businesses open according to their listed hours */}
-          {!offline && (
-            <OpenNowBusinessesSection
-              feed={openNow}
-              userLocation={nearbyLocation}
-              isLocating={locationStatus === "loading" && openNowLocation === null}
-              isUsingLastLocation={isUsingLastLocation}
-              impressions={openNowImpressions}
-              onBusinessPress={handleBusinessPress}
+          {offlineWithoutCache ? (
+            <ExploreSectionEmptyState
+              icon="cloud-off-outline"
+              title="No saved Explore content"
+              description="Reconnect to load businesses and recommendations."
             />
+          ) : (
+            <>
+              {/* Curated discovery */}
+              <HiddenGemsSection
+                offline={offline}
+                businesses={discoveryFeed.businesses}
+                isLoading={discoveryFeed.isLoading}
+                isPaused={discoveryFeed.isPaused}
+                error={discoveryFeed.error}
+                refetch={discoveryFeed.refetch}
+                impressions={discoveryImpressions}
+                spotlightImpressions={spotlightImpressions}
+                userLocation={userLocation}
+                onBusinessPress={handleBusinessPress}
+              />
+
+              {/* Nearby businesses open according to their listed hours */}
+              {!offline && (
+                <OpenNowBusinessesSection
+                  feed={openNow}
+                  userLocation={nearbyLocation}
+                  isLocating={
+                    locationStatus === "loading" && openNowLocation === null
+                  }
+                  isUsingLastLocation={isUsingLastLocation}
+                  impressions={openNowImpressions}
+                  onBusinessPress={handleBusinessPress}
+                />
+              )}
+
+              {/* Specialty discovery preview */}
+              <ExploreBySpecialtySection
+                offline={offline}
+                onSpecialtyPress={
+                  offline ? undefined : (specialtyTagId) =>
+                    navigate(() => navigateToExploreResults({ specialtyTagId }))
+                }
+              />
+
+              {/* Personalized discovery */}
+              <UserInterestsSection
+                offline={offline}
+                impressions={recommendationImpressions}
+                userLocation={userLocation}
+                onBusinessPress={handleBusinessPress}
+                onSeeAll={
+                  offline ? undefined : (source) => openCollection("interests", source)
+                }
+              />
+
+              {/* Recently added businesses */}
+              <NewBusinessesSection
+                offline={offline}
+                impressions={newBusinessImpressions}
+                userLocation={userLocation}
+                onBusinessPress={handleBusinessPress}
+                onSeeAll={offline ? undefined : () => openCollection("new-businesses")}
+              />
+
+              {/* Intent-based discovery shortcuts */}
+              <DiscoveryShortcutsSection
+                offline={offline}
+                onShortcutPress={
+                  offline ? undefined : (clusterId) =>
+                    navigate(() => navigateToExploreResults({ clusterId }))
+                }
+              />
+            </>
           )}
-
-          {/* Specialty discovery preview */}
-          <ExploreBySpecialtySection
-            offline={offline}
-            onSpecialtyPress={
-              offline ? undefined : (specialtyTagId) =>
-                navigate(() => navigateToExploreResults({ specialtyTagId }))
-            }
-          />
-
-          {/* Personalized discovery */}
-          <UserInterestsSection
-            offline={offline}
-            impressions={recommendationImpressions}
-            userLocation={userLocation}
-            onBusinessPress={handleBusinessPress}
-            onSeeAll={
-              offline ? undefined : (source) => openCollection("interests", source)
-            }
-          />
-
-          {/* Recently added businesses */}
-          <NewBusinessesSection
-            offline={offline}
-            impressions={newBusinessImpressions}
-            userLocation={userLocation}
-            onBusinessPress={handleBusinessPress}
-            onSeeAll={offline ? undefined : () => openCollection("new-businesses")}
-          />
-
-          {/* Intent-based discovery shortcuts */}
-          <DiscoveryShortcutsSection
-            offline={offline}
-            onShortcutPress={
-              offline ? undefined : (clusterId) =>
-                navigate(() => navigateToExploreResults({ clusterId }))
-            }
-          />
         </ScrollView>
       </BookmarkTourSurfaceContext.Provider>
     </View>

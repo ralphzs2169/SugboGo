@@ -67,9 +67,12 @@ export async function restoreSession() {
       queryClient.clear();
     }
     useAuthStore.getState().setUser(user);
-    useOfflineAccessStore.getState().setOwnerId(null);
-    useOfflineAccessStore.getState().setRecentExplore(null);
-    useOfflineAccessStore.getState().setRevoking(false);
+    useOfflineAccessStore.setState({
+      ownerId: null,
+      recentExplore: null,
+      sessionSuspended: false,
+      isRevoking: false,
+    });
     void rememberOfflineResources(user.id, restoreGeneration).catch(
       () => undefined,
     );
@@ -108,15 +111,10 @@ export async function restoreSession() {
       ) {
         queryClient.clear();
       }
-      useOfflineAccessStore.getState().setOwnerId(ownerId);
-      useOfflineAccessStore.getState().setRecentExplore(recentGrant);
-      if (
-        !ownerId &&
-        !recentGrant &&
-        (owner.status === "rejected" || recent.status === "rejected")
-      ) {
-        return "recovery";
-      }
+      useOfflineAccessStore.setState({
+        ownerId,
+        recentExplore: recentGrant,
+      });
       return "offline";
     }
     useOfflineAccessStore.getState().setOwnerId(null);

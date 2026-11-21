@@ -61,6 +61,7 @@ describe("offline startup boundary", () => {
     useOfflineAccessStore.setState({
       ownerId: null,
       isRevoking: false,
+      sessionSuspended: false,
       recentExplore: null,
     });
     jest.mocked(restoreRecentExploreAccess).mockResolvedValue(null);
@@ -144,7 +145,7 @@ describe("offline startup boundary", () => {
     await hook.unmount();
   });
 
-  it("continues to sign-in when offline without eligible local data", async () => {
+  it("suspends the saved session even when no offline content is available", async () => {
     jest
       .mocked(getCurrentUser)
       .mockRejectedValueOnce(createApiError("NETWORK_ERROR"));
@@ -156,6 +157,8 @@ describe("offline startup boundary", () => {
     expect(hook.result.current.recoveryRequired).toBe(false);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+    expect(useOfflineAccessStore.getState().recentExplore).toBeNull();
+    expect(useOfflineAccessStore.getState().sessionSuspended).toBe(true);
     expect(clearSessionTokens).not.toHaveBeenCalled();
     await hook.unmount();
   });
@@ -207,6 +210,7 @@ describe("offline startup boundary", () => {
   });
 
   it("fails closed when the server rejects the session", async () => {
+    useOfflineAccessStore.setState({ sessionSuspended: true });
     (getCurrentUser as jest.Mock).mockRejectedValue(
       createApiError("AUTH_ERROR"),
     );
@@ -215,6 +219,7 @@ describe("offline startup boundary", () => {
     expect(clearSessionTokens).toHaveBeenCalled();
     expect(getRestorableOfflineOwner).not.toHaveBeenCalled();
     expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+    expect(useOfflineAccessStore.getState().sessionSuspended).toBe(false);
     hook.unmount();
   });
 
@@ -226,10 +231,11 @@ describe("offline startup boundary", () => {
       new Error("storage unavailable"),
     );
     const hook = await renderHook(() => useRestoreSession());
-    await waitFor(() =>
-      expect(hook.result.current.recoveryRequired).toBe(true),
-    );
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    expect(hook.result.current.recoveryRequired).toBe(false);
     expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+    expect(useOfflineAccessStore.getState().recentExplore).toBeNull();
+    expect(useOfflineAccessStore.getState().sessionSuspended).toBe(true);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(clearSessionTokens).not.toHaveBeenCalled();
     hook.unmount();
