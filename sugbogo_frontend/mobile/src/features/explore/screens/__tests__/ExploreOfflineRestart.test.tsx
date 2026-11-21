@@ -112,6 +112,23 @@ afterEach(async () => {
   jest.restoreAllMocks();
 });
 
+it("shows an offline empty state on Explore when the saved session has no cache grant", async () => {
+  useOfflineAccessStore.setState({ recentExplore: null });
+  queryClient.setQueryData(["explore-discovery"], page("Unscoped cached place"));
+  const view = await render(
+    <QueryPersistenceProvider>
+      <Explore />
+    </QueryPersistenceProvider>,
+  );
+
+  expect(view.getByText("Offline")).toBeTruthy();
+  expect(view.getByText("No saved Explore content")).toBeTruthy();
+  expect(view.queryByText("Unscoped cached place")).toBeNull();
+  expect(view.queryByRole("button", { name: "Sign in" })).toBeNull();
+  expect(exploreApi.getDiscoveryFeed).not.toHaveBeenCalled();
+  await view.unmount();
+});
+
 it("hydrates the regular Explore scroll view, then refreshes its feeds in place after validation", async () => {
   const fetchedAt = Date.now() - 6 * 24 * 60 * 60 * 1000;
   const localRead = jest.spyOn(queryPersistence, "readLocal").mockResolvedValue([

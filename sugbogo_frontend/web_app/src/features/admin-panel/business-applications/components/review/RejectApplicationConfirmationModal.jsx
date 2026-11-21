@@ -33,10 +33,10 @@ export default function RejectApplicationConfirmationModal({
           <div className="space-y-4">
             {duplicateExplanation && (
               <section className="rounded-lg border border-stroke bg-surface p-4">
-                <h3 className="text-sm font-semibold">
+                <h3 className="text-sm font-semibold text-text-primary">
                   Duplicate Registration: explanation shown to merchant
                 </h3>
-                <p className="mt-2 whitespace-pre-wrap text-sm">
+                <p className="mt-2 whitespace-pre-wrap text-sm text-text-primary">
                   {duplicateExplanation}
                 </p>
                 <p className="mt-2 text-xs text-text-secondary">

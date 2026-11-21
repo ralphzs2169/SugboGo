@@ -54,7 +54,8 @@ export default function OfflineSessionReconnect({
         if (result === "authenticated" && current.isAuthenticated) {
           if (
             currentPath.current !== "/explore" ||
-            current.user?.id !== cachedOwnerId
+            !current.user?.has_completed_interest_selection ||
+            (cachedOwnerId !== null && current.user.id !== cachedOwnerId)
           ) {
             router.replace("/");
           }

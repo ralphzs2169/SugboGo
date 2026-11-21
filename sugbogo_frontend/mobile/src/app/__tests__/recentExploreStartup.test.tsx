@@ -20,19 +20,22 @@ jest.mock("@/shared/api/onboardingStorage.service", () => ({
 }));
 
 it.each([
-  [true, true, "/(explorer)/(tabs)/explore"],
-  [false, true, "/(explorer)/(tabs)/explore"],
-  [true, false, "/offline-storage"],
-  [false, false, "/(auth)/login"],
+  [true, true, true, "/(explorer)/(tabs)/explore"],
+  [true, false, true, "/(explorer)/(tabs)/explore"],
+  [true, true, false, "/(explorer)/(tabs)/explore"],
+  [true, false, false, "/(explorer)/(tabs)/explore"],
+  [false, true, false, "/offline-storage"],
+  [false, false, false, "/(auth)/login"],
 ] as const)(
-  "routes durable=%s recent=%s to %s",
-  async (durable, recent, destination) => {
+  "routes suspended=%s durable=%s recent=%s to %s",
+  async (sessionSuspended, durable, recent, destination) => {
     useAuthStore.setState({
       user: null,
       isAuthenticated: false,
       isLoading: false,
     });
     useOfflineAccessStore.setState({
+      sessionSuspended,
       ownerId: durable ? 7 : null,
       recentExplore: recent
         ? { ownerId: 7, apiScope: "", generation: 1 }
@@ -56,6 +59,7 @@ it("keeps validated authentication above all local access routes", async () => {
     isLoading: false,
   });
   useOfflineAccessStore.setState({
+    sessionSuspended: true,
     ownerId: 7,
     recentExplore: { ownerId: 7, apiScope: "", generation: 1 },
   });

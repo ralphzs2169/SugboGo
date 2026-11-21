@@ -6,21 +6,23 @@ import {
   useOfflineAccessStore,
 } from "@/features/offline-routes/stores/offlineAccess.store";
 
-/** Keeps the same Explore screen mounted while the current account reconnects. */
+/** Opens read-only Explore while the saved session waits for validation. */
 export default function Explore() {
   const user = useAuthStore((state) => state.isAuthenticated ? state.user : null);
   const grant = useOfflineAccessStore((state) => state.recentExplore);
   const hasDownloads = useOfflineAccessStore((state) => state.ownerId !== null);
-  const isRevoking = useOfflineAccessStore((state) => state.isRevoking);
-  const cached = grant && !isRevoking && isRecentExploreCurrent(grant) ? grant : null;
+  const sessionSuspended = useOfflineAccessStore((state) => state.sessionSuspended);
+  const cached = grant && isRecentExploreCurrent(grant) ? grant : null;
+  const offline = !user && (sessionSuspended || !!cached);
   useOfflineExploreCache(cached);
 
-  if (!user && !cached) return null;
+  if (!user && !offline) return null;
 
   return (
     <ExploreScreen
       key={user?.id ?? cached?.ownerId}
-      offline={!!cached}
+      offline={offline}
+      offlineWithoutCache={offline && !cached}
       hasDownloads={hasDownloads}
     />
   );

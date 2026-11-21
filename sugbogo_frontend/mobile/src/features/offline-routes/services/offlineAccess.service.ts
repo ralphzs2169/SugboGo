@@ -147,8 +147,11 @@ export function releaseOfflineAccessIfEmpty(
 
 /** Revokes local access immediately and removes its persisted marker in operation order. */
 export function clearOfflineAccess(): Promise<void> {
-  useOfflineAccessStore.getState().setRecentExplore(null);
-  useOfflineAccessStore.getState().setOwnerId(null);
-  useOfflineAccessStore.getState().setRevoking(true);
+  useOfflineAccessStore.setState({
+    recentExplore: null,
+    ownerId: null,
+    sessionSuspended: false,
+    isRevoking: true,
+  });
   return serializeAccess(() => SecureStore.deleteItemAsync(OFFLINE_OWNER_KEY));
 }

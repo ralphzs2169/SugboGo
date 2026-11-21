@@ -51,7 +51,7 @@ before(async () => {
             return "export default () => globalThis.__assessmentTestDuplicates";
           }
           if (file === "useApproveBusinessApplication.js") {
-            return "export default () => ({approveApplication: globalThis.__assessmentTestApprove, isSubmitting: false})";
+            return "export default () => ({approveApplication: globalThis.__assessmentTestApprove, isSubmitting: globalThis.__assessmentTestApprovalPending})";
           }
           if (file === "useRejectBusinessApplication.js") {
             return "export default () => ({rejectApplication: globalThis.__assessmentTestReject, isSubmitting: false})";
@@ -86,6 +86,7 @@ beforeEach(() => {
   approvals = [];
   rejections = [];
   globalThis.__assessmentTestApprove = async (...args) => approvals.push(args);
+  globalThis.__assessmentTestApprovalPending = false;
   globalThis.__assessmentTestReject = async (...args) => rejections.push(args);
   application = {
     id: 1,
@@ -149,6 +150,7 @@ after(async () => {
   dom.window.close();
   delete globalThis.__assessmentTestDuplicates;
   delete globalThis.__assessmentTestApprove;
+  delete globalThis.__assessmentTestApprovalPending;
   delete globalThis.__assessmentTestReject;
   delete globalThis.__assessmentTestDocumentPreview;
   delete globalThis.IS_REACT_ACT_ENVIRONMENT;
@@ -358,6 +360,45 @@ test("an already open approval confirmation is blocked by new assessment edits",
   assert.equal(confirm.disabled, true);
   await click(confirm);
   assert.equal(approvals.length, 0);
+});
+
+test("duplicate refresh does not interrupt an approval in progress", async () => {
+  let finishApproval;
+  globalThis.__assessmentTestApprove = (...args) => {
+    approvals.push(args);
+    globalThis.__assessmentTestApprovalPending = true;
+    return new Promise((resolveApproval) => {
+      finishApproval = resolveApproval;
+    });
+  };
+
+  await renderPage();
+  await click(button("Approve Application"));
+  const dialog = container.querySelector('[role="dialog"]');
+  const confirm = [...dialog.querySelectorAll("button")].find(
+    (element) => element.textContent.trim() === "Approve Application",
+  );
+  await click(confirm);
+  assert.deepEqual(approvals, [[application.id, application.latest_submission_id]]);
+
+  // The successful mutation refreshes duplicate evidence before navigation.
+  globalThis.__assessmentTestDuplicates.query.isFetching = true;
+  await renderPage();
+  const footer = [...container.querySelectorAll("h2")]
+    .find((heading) => heading.textContent === "Review Decision")
+    .closest("section");
+  assert.doesNotMatch(dialog.textContent, /Checking possible duplicates/);
+  assert.match(
+    footer.querySelector('[role="status"]').textContent,
+    /Approving application/,
+  );
+  assert.equal(confirm.disabled, true);
+
+  application = { ...application, status: "approved" };
+  await renderPage();
+  assert.equal(container.querySelector('[role="dialog"]'), null);
+  assert.equal(footer.isConnected, false);
+  await act(async () => finishApproval());
 });
 
 test("an already open rejection drawer is blocked by new assessment edits", async () => {

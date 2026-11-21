@@ -280,6 +280,30 @@ it.each([7, null])(
   },
 );
 
+it("stays on Explore throughout validation when no cached feed exists", async () => {
+  mockPathname = "/explore";
+  useOfflineAccessStore.setState({ recentExplore: null });
+  const validation = deferred<Awaited<ReturnType<typeof getCurrentUser>>>();
+  jest.mocked(getCurrentUser).mockReturnValueOnce(validation.promise);
+  const view = await render(
+    <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
+  );
+
+  await act(async () => onlineManager.setOnline(true));
+  expect(getCurrentUser).toHaveBeenCalledTimes(1);
+  expect(useOfflineAccessStore.getState().sessionSuspended).toBe(true);
+  expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  expect(router.replace).not.toHaveBeenCalled();
+
+  await act(async () => {
+    validation.resolve({ id: 7, has_completed_interest_selection: true } as never);
+  });
+  await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+  expect(useOfflineAccessStore.getState().sessionSuspended).toBe(false);
+  expect(router.replace).not.toHaveBeenCalled();
+  await view.unmount();
+});
+
 it.each([7, 8])(
   "keeps the Explore route and cache only for the validated owner %s",
   async (userId) => {
@@ -287,7 +311,10 @@ it.each([7, 8])(
     const key = ["explore-discovery"];
     const cached = { items: [{ id: 3 }] };
     queryClient.setQueryData(key, cached);
-    jest.mocked(getCurrentUser).mockResolvedValueOnce({ id: userId } as never);
+    jest.mocked(getCurrentUser).mockResolvedValueOnce({
+      id: userId,
+      has_completed_interest_selection: true,
+    } as never);
     const view = await render(
       <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
     );

@@ -13,10 +13,11 @@ export type RecentExploreGrant = {
   generation: number;
 };
 
-/** Holds local guidance access only; this state never authenticates API requests. */
+/** Holds local access and suspended-session state without granting API authentication. */
 export const useOfflineAccessStore = create<{
   ownerId: number | null;
   isRevoking: boolean;
+  sessionSuspended: boolean;
   recentExplore: RecentExploreGrant | null;
   setRecentExplore: (grant: RecentExploreGrant | null) => void;
   setOwnerId: (ownerId: number | null) => void;
@@ -24,6 +25,7 @@ export const useOfflineAccessStore = create<{
 }>((set) => ({
   ownerId: null,
   isRevoking: false,
+  sessionSuspended: false,
   recentExplore: null,
   setRecentExplore: (recentExplore) => set({ recentExplore }),
   setOwnerId: (ownerId) => set({ ownerId }),
@@ -31,15 +33,19 @@ export const useOfflineAccessStore = create<{
 }));
 
 subscribeAuthSessionChanges((change) => {
-  const store = useOfflineAccessStore.getState();
   if (change === "restore" || change === "offline") {
-    if (store.recentExplore)
-      store.setRecentExplore({
-        ...store.recentExplore,
+    useOfflineAccessStore.setState((state) => ({
+      sessionSuspended: change === "offline" || state.sessionSuspended,
+      recentExplore: state.recentExplore && {
+        ...state.recentExplore,
         generation: getAuthSessionGeneration(),
-      });
+      },
+    }));
   } else {
-    store.setRecentExplore(null);
+    useOfflineAccessStore.setState({
+      sessionSuspended: false,
+      recentExplore: null,
+    });
   }
 });
 

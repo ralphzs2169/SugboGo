@@ -16,6 +16,7 @@ export default function Index() {
   const { user, isAuthenticated } = useAuthStore();
   const offlineOwnerId = useOfflineAccessStore((state) => state.ownerId);
   const recentExplore = useOfflineAccessStore((state) => state.recentExplore);
+  const sessionSuspended = useOfflineAccessStore((state) => state.sessionSuspended);
 
   const activeMode = useAppModeStore((state) => state.activeMode);
 
@@ -40,7 +41,7 @@ export default function Index() {
   }
 
   if (!isAuthenticated) {
-    if (recentExplore) {
+    if (sessionSuspended || recentExplore) {
       return <Redirect href="/(explorer)/(tabs)/explore" />;
     }
     if (offlineOwnerId) return <Redirect href="/offline-storage" />;
