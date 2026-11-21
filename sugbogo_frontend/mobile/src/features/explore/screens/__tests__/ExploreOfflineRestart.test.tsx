@@ -1,24 +1,28 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
-import { onlineManager } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { focusManager, onlineManager } from "@tanstack/react-query";
+import { AxiosError } from "axios";
 import { router } from "expo-router";
 
 import Explore from "@/app/(explorer)/(tabs)/explore";
 import { getCurrentUser } from "@/features/auth/api/auth.service";
-import { restoreSession } from "@/features/auth/services/restoreSession.service";
+import OfflineSessionReconnect from "@/features/auth/components/OfflineSessionReconnect";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { businessFixture } from "@/features/offline-pockets/validation/__tests__/snapshotFixture";
+import * as offlineAccess from "@/features/offline-routes/services/offlineAccess.service";
 import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import { suspendAuthSession } from "@/shared/api/authSessionGeneration.service";
 import QueryPersistenceProvider from "@/shared/query/QueryPersistenceProvider";
 import { queryClient } from "@/shared/query/queryClient";
-import { queryPersistence } from "@/shared/query/queryPersistence.service";
+import { QUERY_PERSISTENCE_STORAGE_KEY } from "@/shared/query/queryPersistencePolicies";
 
 import * as exploreApi from "../../api/exploreBusiness.service";
 import useBusinessImpressions from "../../hooks/useBusinessImpressions";
 import type { ExploreBusinessListResponse } from "../../types/exploreBusiness.types";
 
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn() },
+  router: { push: jest.fn(), replace: jest.fn() },
+  usePathname: () => "/explore",
   useIsFocused: () => true,
   useNavigation: () => ({ isFocused: () => true }),
   useFocusEffect: (effect: () => void | (() => void)) => {
@@ -93,6 +97,7 @@ function deferred<T>() {
 beforeEach(() => {
   queryClient.clear();
   onlineManager.setOnline(false);
+  focusManager.setFocused(true);
   useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
   useOfflineAccessStore.setState({
     ownerId: null,
@@ -108,8 +113,11 @@ beforeEach(() => {
 afterEach(async () => {
   await queryClient.cancelQueries();
   queryClient.clear();
+  await AsyncStorage.clear();
   onlineManager.setOnline(true);
+  focusManager.setFocused(undefined);
   jest.restoreAllMocks();
+  jest.useRealTimers();
 });
 
 it("shows an offline empty state on Explore when the saved session has no cache grant", async () => {
@@ -129,24 +137,46 @@ it("shows an offline empty state on Explore when the saved session has no cache 
   await view.unmount();
 });
 
-it("hydrates the regular Explore scroll view, then refreshes its feeds in place after validation", async () => {
-  const fetchedAt = Date.now() - 6 * 24 * 60 * 60 * 1000;
-  const localRead = jest.spyOn(queryPersistence, "readLocal").mockResolvedValue([
-    {
-      queryKey: ["explore-discovery"],
-      data: page("Cached Hidden Gem"),
-      fetchedAt,
-      expiresAt: fetchedAt + 7 * 24 * 60 * 60 * 1000,
-    },
-    {
-      queryKey: ["explore-new-businesses"],
-      data: page("Cached New Place"),
-      fetchedAt,
-      expiresAt: fetchedAt + 7 * 24 * 60 * 60 * 1000,
-    },
-  ]);
+it("keeps fresh cached Explore after a 503 and refreshes all three feeds in place after retry", async () => {
+  jest.useFakeTimers();
+  jest.spyOn(offlineAccess, "getOfflineOwner").mockResolvedValue(7);
+  jest.spyOn(offlineAccess, "getRestorableOfflineOwner").mockResolvedValue(null);
+  jest.spyOn(offlineAccess, "rememberOfflineResources").mockResolvedValue(undefined);
+  const fetchedAt = Date.now() - 60_000;
+  const recommendationPage = page("Cached Recommendation");
+  const cachedFeeds = [
+    ["explore-discovery", 2, page("Cached Hidden Gem")],
+    ["explore-new-businesses", 1, page("Cached New Place")],
+    ["explore-recommendations", 1, {
+      ...recommendationPage,
+      items: recommendationPage.items.map((item) => ({
+        ...item,
+        recommendation_reason: null,
+      })),
+    }],
+  ] as const;
+  await AsyncStorage.setItem(
+    QUERY_PERSISTENCE_STORAGE_KEY,
+    JSON.stringify({
+      formatVersion: 1,
+      policyVersion: 1,
+      ownerId: 7,
+      apiScope: process.env.EXPO_PUBLIC_API_URL ?? "",
+      entries: cachedFeeds.map(([key, policyVersion, data]) => ({
+        queryKey: [key],
+        policyId: key,
+        policyVersion,
+        fetchedAt,
+        data,
+      })),
+    }),
+  );
   const validation = deferred<Awaited<ReturnType<typeof getCurrentUser>>>();
-  jest.mocked(getCurrentUser).mockReturnValueOnce(validation.promise);
+  jest.mocked(getCurrentUser)
+    .mockRejectedValueOnce(Object.assign(new AxiosError("Unavailable"), {
+      response: { status: 503 },
+    }))
+    .mockReturnValueOnce(validation.promise);
   const live = deferred<Awaited<ReturnType<typeof exploreApi.getDiscoveryFeed>>>();
   jest.mocked(exploreApi.getDiscoveryFeed).mockReturnValueOnce(live.promise);
   jest.mocked(exploreApi.getNewBusinesses).mockResolvedValue(
@@ -161,8 +191,10 @@ it("hydrates the regular Explore scroll view, then refreshes its feeds in place 
     success({ clusters: [], categories: [], specialty_tags: [] }),
   );
 
+  const onRecoveryRequired = jest.fn();
   const view = await render(
     <QueryPersistenceProvider>
+      <OfflineSessionReconnect onRecoveryRequired={onRecoveryRequired} />
       <Explore />
     </QueryPersistenceProvider>,
   );
@@ -170,7 +202,6 @@ it("hydrates the regular Explore scroll view, then refreshes its feeds in place 
   await waitFor(() => expect(view.getByText("Cached Hidden Gem")).toBeTruthy());
   expect(view.getByText("Cached New Place")).toBeTruthy();
   expect(view.getByText(/Offline.*Previously loaded/)).toBeTruthy();
-  expect(localRead).toHaveBeenCalledWith(expect.objectContaining({ ownerId: 7 }), expect.any(Function));
   expect(useBusinessImpressions).toHaveBeenCalledWith(0, 0, false);
   expect(view.queryByRole("button", { name: /Pocket/i })).toBeNull();
   await fireEvent.press(view.getByRole("button", { name: "Search businesses or places" }));
@@ -181,12 +212,15 @@ it("hydrates the regular Explore scroll view, then refreshes its feeds in place 
     params: { businessId: "17" },
   });
 
-  let restoration!: ReturnType<typeof restoreSession>;
-  await act(async () => {
-    onlineManager.setOnline(true);
-    restoration = restoreSession();
-  });
+  await act(async () => onlineManager.setOnline(true));
+  await waitFor(() => expect(offlineAccess.getOfflineOwner).toHaveBeenCalled());
   expect(getCurrentUser).toHaveBeenCalledTimes(1);
+  expect(onRecoveryRequired).not.toHaveBeenCalled();
+  expect(await AsyncStorage.getItem(QUERY_PERSISTENCE_STORAGE_KEY)).toContain("Cached Hidden Gem");
+  expect(view.getByText(/Offline.*Previously loaded/)).toBeTruthy();
+
+  await act(async () => jest.advanceTimersByTimeAsync(5_000));
+  expect(getCurrentUser).toHaveBeenCalledTimes(2);
   expect(exploreApi.getDiscoveryFeed).not.toHaveBeenCalled();
   expect(exploreApi.getNewBusinesses).not.toHaveBeenCalled();
   expect(exploreApi.getRecommendations).not.toHaveBeenCalled();
@@ -197,8 +231,10 @@ it("hydrates the regular Explore scroll view, then refreshes its feeds in place 
   expect(view.getByText("Cached Hidden Gem")).toBeTruthy();
 
   await act(async () => {
-    validation.resolve({ id: 7 } as Awaited<ReturnType<typeof getCurrentUser>>);
-    await restoration;
+    validation.resolve({
+      id: 7,
+      has_completed_interest_selection: true,
+    } as Awaited<ReturnType<typeof getCurrentUser>>);
   });
   await waitFor(() => expect(exploreApi.getDiscoveryFeed).toHaveBeenCalledTimes(1));
   expect(view.getByText("Cached Hidden Gem")).toBeTruthy();
@@ -209,6 +245,10 @@ it("hydrates the regular Explore scroll view, then refreshes its feeds in place 
     live.resolve(success(page("Fresh Hidden Gem")));
   });
   await waitFor(() => expect(view.getByText("Fresh Hidden Gem")).toBeTruthy());
+  expect(exploreApi.getDiscoveryFeed).toHaveBeenCalledTimes(1);
+  expect(exploreApi.getNewBusinesses).toHaveBeenCalledTimes(1);
+  expect(exploreApi.getRecommendations).toHaveBeenCalledTimes(1);
+  expect(router.replace).not.toHaveBeenCalled();
   expect(view.getByTestId("explore-discovery-scroll")).toBe(scroll);
   await view.unmount();
 });

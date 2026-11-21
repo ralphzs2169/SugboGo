@@ -27,9 +27,22 @@ import { getCurrentUser } from "../api/auth.service";
 import { useAuthStore } from "../store/auth.store";
 import { isAxiosError } from "axios";
 
+/** Converts a server retry hint to an absolute deadline. */
+function getRetryAfterDeadline(value: unknown) {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+
+  const now = Date.now();
+  const seconds = Number(value);
+  const deadline = Number.isFinite(seconds)
+    ? now + seconds * 1_000
+    : Date.parse(String(value));
+  return Number.isFinite(deadline) && deadline > now ? deadline : null;
+}
+
 /** Shared startup/reconnect validation. Local data never establishes API authentication. */
 export async function restoreSession() {
-  const grant = useOfflineAccessStore.getState().recentExplore;
+  const { recentExplore: grant, sessionSuspended } =
+    useOfflineAccessStore.getState();
   const cachedOwnerId =
     grant && isRecentExploreCurrent(grant) ? grant.ownerId : null;
   const restoreGeneration = beginAuthSession("restore");
@@ -71,6 +84,8 @@ export async function restoreSession() {
       ownerId: null,
       recentExplore: null,
       sessionSuspended: false,
+      retrySessionAfter: null,
+      reconnectRefreshGeneration: sessionSuspended ? restoreGeneration : null,
       isRevoking: false,
     });
     void rememberOfflineResources(user.id, restoreGeneration).catch(
@@ -81,20 +96,26 @@ export async function restoreSession() {
     if (!isAuthSessionCurrent(restoreGeneration)) {
       return "stale";
     }
-    const transport = hasStoredToken && isTransportError(error);
+    const response = isAxiosError(error) ? error.response : undefined;
+    const status = response?.status;
+    const retryable =
+      hasStoredToken &&
+      (isTransportError(error) ||
+        status === 429 ||
+        (status !== undefined && status >= 500 && status < 600));
     const authenticationRejected =
       (error instanceof Error && error.name === API_ERROR_CODE.AUTH_ERROR) ||
-      (isAxiosError(error) &&
-        (error.response?.status === 401 || error.response?.status === 403));
-    const cleanupGeneration = transport
+      status === 401 ||
+      status === 403;
+    const cleanupGeneration = retryable
       ? suspendAuthSession()
       : invalidateAuthSession();
     useAuthStore.getState().clearUser();
-    if (!transport || cachedOwnerId === null) {
+    if (!retryable || cachedOwnerId === null) {
       queryClient.clear();
     }
     useAppModeStore.getState().resetActiveMode();
-    if (transport) {
+    if (retryable) {
       const [owner, recent] = await Promise.allSettled([
         getRestorableOfflineOwner(cleanupGeneration),
         restoreRecentExploreAccess(cleanupGeneration),
@@ -114,6 +135,7 @@ export async function restoreSession() {
       useOfflineAccessStore.setState({
         ownerId,
         recentExplore: recentGrant,
+        retrySessionAfter: getRetryAfterDeadline(response?.headers?.["retry-after"]),
       });
       return "offline";
     }

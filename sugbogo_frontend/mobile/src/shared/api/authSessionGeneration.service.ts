@@ -61,7 +61,7 @@ export function invalidateAuthSession() {
   return authSessionGeneration;
 }
 
-/** Withdraws API authority after startup transport failure, preserving temporary disk data. */
+/** Withdraws API authority after retryable session validation failures, preserving disk data. */
 export function suspendAuthSession() {
   authSessionGeneration += 1;
   hasActiveAuthSession = false;
@@ -70,7 +70,7 @@ export function suspendAuthSession() {
   return authSessionGeneration;
 }
 
-/** Eligibility probes are allowed only after the current startup transport failure. */
+/** Eligibility probes are allowed only after the current session entered suspended mode. */
 export function isOfflineTransportSession(generation: number) {
   return offlineTransportSession && isAuthSessionGenerationCurrent(generation);
 }
