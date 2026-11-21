@@ -109,6 +109,19 @@ export default function BusinessApplicationReview({
 
   const { approveApplication, isSubmitting: isApproving } =
     useApproveBusinessApplication();
+  // Approval refreshes duplicate evidence before the decision flow closes.
+  const showDuplicateBlock = !isApproving && duplicateApprovalBlocked;
+  const decisionStatusTone = isApproving
+    ? "text-text-secondary"
+    : showDuplicateBlock
+      ? "text-danger"
+      : "text-success";
+  const approvalConfirmationBlockReason = isApproving
+    ? null
+    : duplicateBlockReason ||
+      (approvalSubmissionId !== application.latest_submission_id
+        ? "Submission changed. Refresh the application."
+        : null);
 
   const businessName =
     application.identity?.business_name || "Unnamed Business";
@@ -360,11 +373,8 @@ export default function BusinessApplicationReview({
             lg:left-[var(--admin-sidebar-width)]
           "
           >
-            <p
-              role="status"
-              className={`mb-3 text-sm ${duplicateApprovalBlocked ? "text-danger" : "text-success"}`}
-            >
-              {duplicateApprovalBlocked ? (
+            <p role="status" className={`mb-3 text-sm ${decisionStatusTone}`}>
+              {showDuplicateBlock ? (
                 <a
                   href="#duplicate-review"
                   onClick={scrollToDuplicateReview}
@@ -379,6 +389,8 @@ export default function BusinessApplicationReview({
                     {duplicateBlockReason || duplicateSummary.message}
                   </span>
                 </a>
+              ) : isApproving ? (
+                "Approving application…"
               ) : (
                 duplicateSummary.message
               )}
@@ -413,7 +425,7 @@ export default function BusinessApplicationReview({
                 <Button
                   type="button"
                   variant="success"
-                  disabled={duplicateApprovalBlocked}
+                  disabled={isApproving || duplicateApprovalBlocked}
                   onClick={() => {
                     setApprovalSubmissionId(application.latest_submission_id);
                     setIsApproveConfirmationOpen(true);
@@ -444,19 +456,14 @@ export default function BusinessApplicationReview({
 
       {/* Approval Confirmation */}
       <ApproveApplicationConfirmationModal
-        isOpen={isApproveConfirmationOpen}
+        isOpen={isApproveConfirmationOpen && !isResolved}
         applicationId={application.id}
         identity={application.identity}
         storefrontPhoto={application.photos?.[0]?.photo_url}
         onClose={() => setIsApproveConfirmationOpen(false)}
         onConfirm={handleConfirmApproval}
         loading={isApproving}
-        blockedReason={
-          duplicateBlockReason ||
-          (approvalSubmissionId !== application.latest_submission_id
-            ? "Submission changed. Refresh the application."
-            : null)
-        }
+        blockedReason={approvalConfirmationBlockReason}
       />
     </div>
   );
