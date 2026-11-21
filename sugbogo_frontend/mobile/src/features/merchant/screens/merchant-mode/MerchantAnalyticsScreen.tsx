@@ -410,9 +410,11 @@ export default function MerchantAnalyticsScreen() {
 
           {/* Additional analytics detail reports */}
           <AnalyticsMoreInsights onOpen={openPlusDetail} />
-          <View className="mt-2 bg-surface px-5 py-4">
-            {plusAccess.allowed && <AnalyticsExport enabled={focused} />}
-          </View>
+          {plusAccess.allowed && (
+            <View className="mt-2 bg-surface px-5 py-4">
+              <AnalyticsExport enabled={focused} />
+            </View>
+          )}
         </View>
       </ScrollView>
 
