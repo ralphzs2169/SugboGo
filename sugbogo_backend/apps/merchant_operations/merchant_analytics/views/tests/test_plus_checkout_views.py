@@ -371,6 +371,33 @@ class MerchantPlusCheckoutViewTests(MerchantAnalyticsFixtures, APITestCase):
         self.assertEqual(self.checkout().status_code, 202)
         self.assertEqual(PaymentCheckoutSession.objects.get().PCHK_STATE, "creation_unknown")
 
+    def test_html_service_unavailable_is_reported_without_releasing_the_purchase(self):
+        self.post.return_value = maya_response(
+            body=b"<html><body>Service temporarily unavailable</body></html>",
+            status_code=503,
+        )
+        self.post.return_value.headers = {"Content-Type": "text/html"}
+
+        response = self.checkout()
+
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn("<html>", str(response.data))
+        self.assertNotIn("fixture-only", str(response.data))
+        operation = PaymentCheckoutSession.objects.get()
+        self.assertEqual(operation.PCHK_STATE, "creation_unknown")
+        self.assertEqual(operation.PCHK_LAST_ERROR, "provider_service_unavailable")
+        self.assertEqual(Payment.objects.get().PYMT_STATUS, "pending")
+        self.assertEqual(Payment.objects.get().PYMT_FULFILMENT_STATUS, "not_started")
+        self.assertFalse(PaidMerchantPlusEntitlement.objects.exists())
+
+        # Even an explicit repeat must not submit another uncertain provider request.
+        repeated = self.checkout()
+        self.assertEqual(repeated.status_code, 202)
+        self.assertEqual(repeated.data["data"]["next_action"], "wait")
+        self.assertEqual(Payment.objects.count(), 1)
+        self.assertEqual(PaymentCheckoutSession.objects.count(), 1)
+        self.post.assert_called_once()
+
     def test_in_progress_and_expired_lease_never_create_again(self):
         payment, _ = PaymentService.create_or_get_payment(self.merchant_a)
         operation = PaymentCheckoutSession.objects.create(
