@@ -219,3 +219,68 @@ class MayaCheckoutServiceTests(SimpleTestCase):
         with self.assertRaises(MayaCreationUnknown):
             MayaCheckoutService.create_checkout(**self.arguments)
         self.post.assert_called_once()
+
+    def test_unusable_response_diagnostics_distinguish_body_shapes_without_leaking_content(self):
+        cases = (
+            (b"", "empty_body", "text/plain", 502),
+            (b"<!DOCTYPE html><html>private pk-fixture-only</html>", "html_body", "text/html", 403),
+            (b"private sk-fixture-only", "invalid_json", "text/plain", 200),
+            (b"[]", "json_non_object", "application/json", 200),
+            (b"x" * 65537, "response_too_large", "application/json", 200),
+        )
+        for body, classification, content_type, status in cases:
+            with self.subTest(classification=classification):
+                self.post.reset_mock()
+                response = maya_response(body=body, status_code=status)
+                response.headers = {"Content-Type": content_type}
+                self.post.return_value = response
+                with self.assertLogs(
+                    "apps.shared.services.maya_checkout_service",
+                    level="WARNING",
+                ) as logs:
+                    expected_error = "provider_response_unusable"
+                    if status in {429, 502, 503, 504}:
+                        expected_error = "provider_service_unavailable"
+                    with self.assertRaisesMessage(MayaCreationUnknown, expected_error):
+                        MayaCheckoutService.create_checkout(**self.arguments)
+                diagnostic = json.loads(logs.records[0].args[0])
+                self.assertEqual(diagnostic["classification"], classification)
+                self.assertEqual(diagnostic["http_status"], status)
+                self.assertEqual(diagnostic["content_type"], content_type)
+                self.assertEqual(diagnostic["operation_reference"], str(self.reference))
+                self.assertNotIn("private", str(logs.output))
+                self.assertNotIn("fixture-only", str(logs.output))
+                self.post.assert_called_once()
+
+    def test_observed_html_503_is_unavailable_without_post_retry(self):
+        self.post.return_value = maya_response(
+            body=b"<html><body>Service temporarily unavailable</body></html>",
+            status_code=503,
+        )
+        self.post.return_value.headers = {"Content-Type": "text/html"}
+        with self.assertRaisesMessage(MayaCreationUnknown, "provider_service_unavailable"):
+            MayaCheckoutService.create_checkout(**self.arguments)
+        self.post.assert_called_once()
+
+    def test_json_diagnostics_allowlist_structure_and_known_error_codes_only(self):
+        payload = {
+            "checkoutId": CHECKOUT_ID,
+            "redirectUrl": CHECKOUT_URL,
+            "buyer": {"email": "private@example.invalid"},
+            "sk-fixture-only": "private",
+        }
+        response = maya_response(payload)
+        response.headers = {"Content-Type": "application/json; charset=utf-8"}
+        self.post.return_value = response
+        with self.assertLogs(
+            "apps.shared.services.maya_checkout_service",
+            level="INFO",
+        ) as logs:
+            result = MayaCheckoutService.create_checkout(**self.arguments)
+        diagnostic = json.loads(logs.records[0].args[0])
+        self.assertEqual(diagnostic["known_fields"], ["checkoutId", "redirectUrl"])
+        self.assertTrue(diagnostic["checkout_id_valid"])
+        self.assertTrue(diagnostic["redirect_url_valid"])
+        self.assertEqual(result.checkout_url, CHECKOUT_URL)
+        for sensitive in (CHECKOUT_URL, CHECKOUT_ID, "sk-fixture-only", "private", "opaque"):
+            self.assertNotIn(sensitive, str(logs.output))

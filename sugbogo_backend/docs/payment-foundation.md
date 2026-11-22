@@ -616,3 +616,43 @@ cancelled checkouts are never replaced through this endpoint.
 Real signed webhook delivery and public HTTPS return-bridge reachability still
 require deployment-specific acceptance. This fallback needs the existing Celery
 fulfilment worker and recovery schedule to activate paid access.
+
+## Maya Create Checkout availability diagnostics
+
+Create Checkout records only bounded structural diagnostics: local operation
+reference, HTTP status, allowlisted content type, observed byte count, body-shape
+classification, known field names, and checkout identity/URL validity booleans.
+Only recognized validation/authentication error codes are logged. Response bodies,
+arbitrary JSON keys, buyer details, credentials, and tokenized URLs are excluded.
+Retrieve Payment payloads are not logged by this diagnostic path.
+
+HTTP 429, 502, 503, and 504 remain uncertain creation outcomes. The local checkout
+is retained as `creation_unknown` with `provider_service_unavailable`; the first
+request returns a controlled checkout-unavailable error instead of directing the
+merchant straight into payment-status waiting. Repeated requests never issue a
+second provider POST for that operation. No financial evidence or entitlement is
+created from a provider availability error.
+
+On November 22, 2026, one isolated test from the deployed Railway runtime
+reproduced HTTP 503, `text/html`, with a 162-byte HTML response from the configured
+Maya Sandbox Create Checkout URL. No checkout ID or URL could be recovered.
+The synthetic payment stayed pending with fulfilment not started and zero
+entitlements. Its disabled synthetic account and suspended business retain the
+diagnostic history. Siyam and Kanta payment/checkout records were verified
+unchanged. No second provider request was made. This establishes the current
+upstream response, not the exact historical response bodies for those merchants.
+
+The diagnostic and controlled availability handling were deployed to the API as
+Railway deployment `701c61e9-ea80-43f7-8519-44edbce59534`, using deployed baseline
+`6efd49ca8fdbd30f175074e232883fc7173297d9` plus only the two changed production
+service files. Deployment succeeded with no migrations to apply; running file
+hashes matched the tested files and the public status endpoint retained its
+unauthenticated HTTP 401 response. No additional Maya POST was used for rollout
+verification. These source changes must be included in a later repository
+deployment to retain the fix; this task did not create a commit.
+
+The provider must resume returning valid Checkout responses before successful
+gateway opening can be accepted. Do not reset uncertain purchases or switch
+hosts/credentials to bypass the failure. Existing reconciliation requires a
+known provider identity; reference-based recovery for unknown creations remains
+a separate gap.

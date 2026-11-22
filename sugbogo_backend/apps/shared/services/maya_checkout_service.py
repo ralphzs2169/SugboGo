@@ -1,6 +1,7 @@
 """Create one hosted Maya Sandbox checkout with bounded HTTP handling."""
 
 import json
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from urllib.parse import urlsplit
@@ -15,6 +16,9 @@ from config.payments import MAYA_SANDBOX_API_BASE_URL, is_maya_api_key, parse_ma
 
 from .maya_payment_evidence import InvalidMayaPayment, normalize_maya_payment
 from .maya_webhook_security import load_maya_json
+
+
+logger = logging.getLogger(__name__)
 
 
 class MayaConfigurationError(Exception):
@@ -115,16 +119,81 @@ class MayaCheckoutService:
         )
 
     @classmethod
+    def _log_checkout_response(
+        cls,
+        response,
+        *,
+        operation_reference,
+        body,
+        classification,
+        payload=None,
+    ):
+        """Log bounded structural evidence without provider content or credential values."""
+        content_type = (
+            response.headers.get("Content-Type", "")
+            .split(";", 1)[0]
+            .strip()
+            .lower()
+        )
+        if content_type not in {"application/json", "text/html", "text/plain", ""}:
+            content_type = "other"
+        details = {
+            "operation_reference": str(operation_reference),
+            "http_status": response.status_code,
+            "content_type": content_type,
+            "observed_bytes": len(body),
+            "classification": classification,
+        }
+        if isinstance(payload, dict):
+            # Report only known field names; arbitrary keys can contain personal data.
+            details["known_fields"] = [
+                name
+                for name in (
+                    "checkoutId", "redirectUrl", "paymentStatus",
+                    "status", "code", "message", "data",
+                )
+                if name in payload
+            ]
+            details["checkout_id_valid"] = cls.is_checkout_id(payload.get("checkoutId"))
+            details["redirect_url_valid"] = cls.is_safe_checkout_url(payload.get("redirectUrl"))
+            code = payload.get("code")
+            if isinstance(code, (str, int)):
+                if str(code) in cls.AUTH_REJECTION_CODES | {"2553"}:
+                    details["known_error_code"] = str(code)
+        if classification == "json_object" and response.status_code < 400:
+            log = logger.info
+        else:
+            log = logger.warning
+        log("Maya checkout response diagnostic %s", json.dumps(details, sort_keys=True))
+
+    @classmethod
     def _read_json(
         cls,
         response,
         *,
         authoritative=False,
+        diagnostic_reference=None,
     ):
         """Read a bounded JSON object while retaining no raw provider error details."""
         body = bytearray()
+
+        def diagnose(
+            classification,
+            payload=None,
+        ):
+            """Restrict diagnostics to Create Checkout, never retrieved payment bodies."""
+            if diagnostic_reference is not None:
+                cls._log_checkout_response(
+                    response,
+                    operation_reference=diagnostic_reference,
+                    body=body,
+                    classification=classification,
+                    payload=payload,
+                )
+
         for chunk in response.iter_content(chunk_size=8192):
             if len(body) + len(chunk) > cls.MAX_RESPONSE_BYTES:
+                diagnose("response_too_large")
                 raise MayaCreationUnknown("provider_response_unusable")
             body.extend(chunk)
         try:
@@ -132,9 +201,17 @@ class MayaCheckoutService:
                 return load_maya_json(body)
             payload = json.loads(body)
         except (ValueError, ArithmeticError, RecursionError):
+            if not body:
+                diagnose("empty_body")
+            elif body.lstrip().lower().startswith((b"<!doctype html", b"<html")):
+                diagnose("html_body")
+            else:
+                diagnose("invalid_json")
             raise MayaCreationUnknown("provider_response_unusable") from None
         if not isinstance(payload, dict):
+            diagnose("json_non_object")
             raise MayaCreationUnknown("provider_response_unusable")
+        diagnose("json_object", payload)
         return payload
 
     @classmethod
@@ -255,7 +332,17 @@ class MayaCheckoutService:
                 allow_redirects=False,
                 stream=True,
             ) as response:
-                payload = cls._read_json(response)
+                try:
+                    payload = cls._read_json(
+                        response,
+                        diagnostic_reference=operation_reference,
+                    )
+                except MayaCreationUnknown:
+                    if response.status_code in {429, 502, 503, 504}:
+                        raise MayaCreationUnknown("provider_service_unavailable") from None
+                    raise
+                if response.status_code in {429, 502, 503, 504}:
+                    raise MayaCreationUnknown("provider_service_unavailable")
                 if response.status_code != 200:
                     cls._raise_creation_failure(response.status_code, payload)
         except requests.RequestException:

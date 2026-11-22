@@ -336,6 +336,8 @@ class CheckoutService:
                 state=PaymentCheckoutSession.State.CREATION_UNKNOWN,
                 error=str(error),
             )
+            if str(error) == "provider_service_unavailable":
+                raise CheckoutUnavailable() from None
         else:
             try:
                 operation, valid = cls._record_outcome(
