@@ -9,6 +9,7 @@ import {
   isRecentExploreCurrent,
   useOfflineAccessStore,
 } from "@/features/offline-routes/stores/offlineAccess.store";
+import { useDeviceConnectivity } from "@/shared/network/deviceConnectivity";
 
 import { restoreSession } from "../services/restoreSession.service";
 import { useAuthStore } from "../store/auth.store";
@@ -42,22 +43,33 @@ export default function OfflineSessionReconnect({
       retryTimer = undefined;
     }
 
-    function queueReconnect(delay: number) {
+    function queueReconnect(
+      delay: number,
+      allowUnknown = false,
+    ) {
       const generation = getAuthSessionGeneration();
       cancelRetry();
       retryTimer = setTimeout(() => {
         retryTimer = undefined;
         if (isOfflineTransportSession(generation)) {
-          void reconnect();
+          void reconnect(allowUnknown);
         }
       }, Math.min(delay, MAX_TIMER_DELAY_MS));
+    }
+
+    function canVerifySession(allowUnknown = false) {
+      const { status } = useDeviceConnectivity.getState();
+      if (status !== "unknown") {
+        return status === "online";
+      }
+      return allowUnknown || onlineManager.isOnline();
     }
 
     function scheduleRetry() {
       const delay = RECONNECT_RETRY_DELAYS_MS[retryIndex];
       if (
         delay === undefined ||
-        !onlineManager.isOnline() ||
+        !canVerifySession() ||
         !focusManager.isFocused()
       ) {
         return;
@@ -68,7 +80,7 @@ export default function OfflineSessionReconnect({
       queueReconnect(Math.max(delay, (retryAfter ?? 0) - Date.now()));
     }
 
-    async function reconnect() {
+    async function reconnect(allowUnknown = false) {
       const auth = useAuthStore.getState();
       if (
         disposed ||
@@ -76,7 +88,7 @@ export default function OfflineSessionReconnect({
         auth.isLoading ||
         auth.isSigningIn ||
         auth.isAuthenticated ||
-        !onlineManager.isOnline() ||
+        !canVerifySession(allowUnknown) ||
         !focusManager.isFocused() ||
         !isOfflineTransportSession(getAuthSessionGeneration())
       ) {
@@ -86,7 +98,7 @@ export default function OfflineSessionReconnect({
       const retryAfter = useOfflineAccessStore.getState().retrySessionAfter;
       const remaining = (retryAfter ?? 0) - Date.now();
       if (remaining > 0) {
-        queueReconnect(remaining);
+        queueReconnect(remaining, allowUnknown);
         return;
       }
 
@@ -131,9 +143,29 @@ export default function OfflineSessionReconnect({
     const stopOnline = onlineManager.subscribe((online) => {
       if (online === wasOnline) return;
       wasOnline = online;
+      // Confirmed device transitions are handled by the connectivity subscription.
+      if (useDeviceConnectivity.getState().status !== "unknown") {
+        return;
+      }
       cancelRetry();
       retryIndex = 0;
       if (online) void reconnect();
+    });
+    const stopConnectivity = useDeviceConnectivity.subscribe((
+      state,
+      previous,
+    ) => {
+      if (
+        state.status === previous.status ||
+        state.status === "unknown"
+      ) {
+        return;
+      }
+      cancelRetry();
+      retryIndex = 0;
+      if (state.status === "online") {
+        void reconnect();
+      }
     });
     const stopFocus = focusManager.subscribe((focused) => {
       // Native listener re-registration can emit the same effective focus.
@@ -145,13 +177,21 @@ export default function OfflineSessionReconnect({
         void reconnect();
       }
     });
+    const stopRequests = useOfflineAccessStore.subscribe((state, previous) => {
+      if (state.reconnectRequest === previous.reconnectRequest) return;
+      cancelRetry();
+      retryIndex = 0;
+      void reconnect(true);
+    });
     // Connectivity may have returned while startup was checking local data.
     void reconnect();
     return () => {
       disposed = true;
       cancelRetry();
       stopOnline();
+      stopConnectivity();
       stopFocus();
+      stopRequests();
     };
   }, [onRecoveryRequired]);
   return null;

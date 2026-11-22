@@ -20,6 +20,7 @@ import { useAuthStore } from "@/features/auth/store/auth.store";
 import { createApiError } from "@/shared/utils/apiErrors";
 import { API_ERROR_CODE } from "@/shared/constants/errorCodes";
 import NetInfo from "@react-native-community/netinfo";
+import { classifyDeviceConnectivity } from "@/shared/network/deviceConnectivity";
 import { isTransportError } from "@/shared/utils/isTransportError";
 import { queryClient } from "@/shared/query/queryClient";
 
@@ -52,7 +53,7 @@ type AuthenticatedRequestConfig = InternalAxiosRequestConfig &
  * REQUEST INTERCEPTOR
  * Runs before every outgoing request.
  *
- * 1. Verifies that the device has an active internet connection.
+ * 1. Applies the device connectivity preflight.
  * 2. Attaches the stored JWT access token, if one exists.
  *
  * If the device is offline, the request is rejected immediately with a
@@ -73,8 +74,18 @@ apiClient.interceptors.request.use(
 
     const netState = await NetInfo.fetch();
 
-    // Verify network connectivity before sending the request.
-    if (!netState.isConnected || netState.isInternetReachable === false) {
+    const connectivity = classifyDeviceConnectivity(netState);
+    const method = config.method ?? "get";
+    const isRead = method === "get" || method === "head" || method === "options";
+    const hasNetworkForWrite =
+      netState.isConnected === true &&
+      netState.isInternetReachable !== false;
+
+    // Writes still require an attached network without a negative reachability result.
+    if (
+      connectivity === "offline" ||
+      (!isRead && !hasNetworkForWrite)
+    ) {
       return Promise.reject(createApiError(API_ERROR_CODE.NETWORK_ERROR));
     }
 

@@ -1,7 +1,10 @@
 import { beginAuthSession } from "../authSessionGeneration.service";
 import MockAdapter from "axios-mock-adapter";
 import { AxiosError } from "axios";
-import NetInfo from "@react-native-community/netinfo";
+import NetInfo, {
+  NetInfoStateType,
+  type NetInfoState,
+} from "@react-native-community/netinfo";
 
 import { getCurrentUser } from "@/features/auth/api/auth.service";
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -16,14 +19,17 @@ jest.mock("../storage.service", () => ({
 }));
 jest.mock("../refresh.service", () => ({ refreshSession: jest.fn() }));
 jest.mock("expo-router", () => ({ router: { replace: jest.fn() } }));
-jest.mock("@react-native-community/netinfo", () => ({
-  fetch: jest.fn(async () => ({
-    isConnected: true,
-    isInternetReachable: true,
-  })),
-}));
+jest.mock("@react-native-community/netinfo", () =>
+  jest.requireActual("@react-native-community/netinfo/jest/netinfo-mock"),
+);
 
 const adapter = new MockAdapter(apiClient);
+const unknownConnectivity: NetInfoState = {
+  type: NetInfoStateType.unknown,
+  isConnected: null,
+  isInternetReachable: null,
+  details: null,
+};
 
 describe("refresh failure classification", () => {
   beforeEach(() => {
@@ -40,15 +46,38 @@ describe("refresh failure classification", () => {
     adapter.onGet("/users/me/").reply(401);
   });
 
-  it("rejects an offline write before sending it to the server", async () => {
-    jest.mocked(NetInfo.fetch).mockResolvedValueOnce({
-      isConnected: false,
-      isInternetReachable: false,
-    } as never);
+  it.each(["none", "unknown"])(
+    "keeps blocking an authenticated write when %s has negative native flags",
+    async (type) => {
+      jest.mocked(NetInfo.fetch).mockResolvedValueOnce({
+        type,
+        isConnected: false,
+        isInternetReachable: false,
+      } as never);
+      await expect(apiClient.post("/offline-write/", {})).rejects.toMatchObject({
+        name: "NETWORK_ERROR",
+      });
+      expect(adapter.history.post).toHaveLength(0);
+    },
+  );
+
+  it("blocks an authenticated write when connection and reachability are unknown", async () => {
+    jest.mocked(NetInfo.fetch).mockResolvedValueOnce(unknownConnectivity);
+    adapter.onPost("/offline-write/").reply(200);
+
     await expect(apiClient.post("/offline-write/", {})).rejects.toMatchObject({
       name: "NETWORK_ERROR",
     });
     expect(adapter.history.post).toHaveLength(0);
+  });
+
+  it("validates the saved session while native connectivity is still unknown", async () => {
+    jest.mocked(NetInfo.fetch).mockResolvedValueOnce(unknownConnectivity);
+    adapter.resetHandlers();
+    adapter.onGet("/users/me/").reply(200, { success: true, data: { id: 7 } });
+
+    await expect(getCurrentUser()).resolves.toMatchObject({ id: 7 });
+    expect(adapter.history.get).toHaveLength(1);
   });
 
   it.each(["NETWORK_ERROR", "REQUEST_TIMEOUT"])(

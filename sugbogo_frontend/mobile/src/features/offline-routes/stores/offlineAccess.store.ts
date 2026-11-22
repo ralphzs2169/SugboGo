@@ -19,6 +19,8 @@ export const useOfflineAccessStore = create<{
   isRevoking: boolean;
   sessionSuspended: boolean;
   retrySessionAfter: number | null;
+  reconnectRequest: number;
+  requestReconnect: () => void;
   reconnectRefreshGeneration: number | null;
   recentExplore: RecentExploreGrant | null;
   setRecentExplore: (grant: RecentExploreGrant | null) => void;
@@ -29,6 +31,8 @@ export const useOfflineAccessStore = create<{
   isRevoking: false,
   sessionSuspended: false,
   retrySessionAfter: null,
+  reconnectRequest: 0,
+  requestReconnect: () => set((state) => ({ reconnectRequest: state.reconnectRequest + 1 })),
   reconnectRefreshGeneration: null,
   recentExplore: null,
   setRecentExplore: (recentExplore) => set({ recentExplore }),
