@@ -30,6 +30,7 @@ jest.mock("expo-router", () => ({
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 jest.mock("@tanstack/react-query", () => ({
+  ...jest.requireActual("@tanstack/react-query"),
   hashKey: jest.requireActual("@tanstack/react-query").hashKey,
   useQueryClient: () => mockQueryClient,
 }));

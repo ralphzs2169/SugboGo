@@ -9,9 +9,13 @@ import {
   isRecentExploreCurrent,
   useOfflineAccessStore,
 } from "@/features/offline-routes/stores/offlineAccess.store";
+import { useDeviceConnectivity } from "@/shared/network/deviceConnectivity";
 
 import { restoreSession } from "../services/restoreSession.service";
 import { useAuthStore } from "../store/auth.store";
+
+const RECONNECT_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 let reconnecting = false;
 
@@ -30,17 +34,71 @@ export default function OfflineSessionReconnect({
   useEffect(() => {
     let wasOnline = onlineManager.isOnline();
     let wasFocused = focusManager.isFocused();
+    let disposed = false;
+    let retryIndex = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    async function reconnect() {
+    function cancelRetry() {
+      clearTimeout(retryTimer);
+      retryTimer = undefined;
+    }
+
+    function queueReconnect(
+      delay: number,
+      allowUnknown = false,
+    ) {
+      const generation = getAuthSessionGeneration();
+      cancelRetry();
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined;
+        if (isOfflineTransportSession(generation)) {
+          void reconnect(allowUnknown);
+        }
+      }, Math.min(delay, MAX_TIMER_DELAY_MS));
+    }
+
+    function canVerifySession(allowUnknown = false) {
+      const { status } = useDeviceConnectivity.getState();
+      if (status !== "unknown") {
+        return status === "online";
+      }
+      return allowUnknown || onlineManager.isOnline();
+    }
+
+    function scheduleRetry() {
+      const delay = RECONNECT_RETRY_DELAYS_MS[retryIndex];
+      if (
+        delay === undefined ||
+        !canVerifySession() ||
+        !focusManager.isFocused()
+      ) {
+        return;
+      }
+
+      const retryAfter = useOfflineAccessStore.getState().retrySessionAfter;
+      retryIndex += 1;
+      queueReconnect(Math.max(delay, (retryAfter ?? 0) - Date.now()));
+    }
+
+    async function reconnect(allowUnknown = false) {
       const auth = useAuthStore.getState();
       if (
+        disposed ||
         reconnecting ||
         auth.isLoading ||
         auth.isSigningIn ||
         auth.isAuthenticated ||
-        !onlineManager.isOnline() ||
+        !canVerifySession(allowUnknown) ||
+        !focusManager.isFocused() ||
         !isOfflineTransportSession(getAuthSessionGeneration())
       ) {
+        return;
+      }
+
+      const retryAfter = useOfflineAccessStore.getState().retrySessionAfter;
+      const remaining = (retryAfter ?? 0) - Date.now();
+      if (remaining > 0) {
+        queueReconnect(remaining, allowUnknown);
         return;
       }
 
@@ -50,6 +108,8 @@ export default function OfflineSessionReconnect({
         const cachedOwnerId =
           grant && isRecentExploreCurrent(grant) ? grant.ownerId : null;
         const result = await restoreSession();
+        if (disposed) return;
+
         const current = useAuthStore.getState();
         if (result === "authenticated" && current.isAuthenticated) {
           if (
@@ -67,10 +127,12 @@ export default function OfflineSessionReconnect({
             }
           } else if (result === "recovery") {
             onRecoveryRequired();
+          } else if (result === "offline") {
+            scheduleRetry();
           }
         }
       } catch {
-        if (!useAuthStore.getState().isAuthenticated) {
+        if (!disposed && !useAuthStore.getState().isAuthenticated) {
           onRecoveryRequired();
         }
       } finally {
@@ -81,21 +143,55 @@ export default function OfflineSessionReconnect({
     const stopOnline = onlineManager.subscribe((online) => {
       if (online === wasOnline) return;
       wasOnline = online;
+      // Confirmed device transitions are handled by the connectivity subscription.
+      if (useDeviceConnectivity.getState().status !== "unknown") {
+        return;
+      }
+      cancelRetry();
+      retryIndex = 0;
       if (online) void reconnect();
+    });
+    const stopConnectivity = useDeviceConnectivity.subscribe((
+      state,
+      previous,
+    ) => {
+      if (
+        state.status === previous.status ||
+        state.status === "unknown"
+      ) {
+        return;
+      }
+      cancelRetry();
+      retryIndex = 0;
+      if (state.status === "online") {
+        void reconnect();
+      }
     });
     const stopFocus = focusManager.subscribe((focused) => {
       // Native listener re-registration can emit the same effective focus.
       if (focused === wasFocused) return;
       wasFocused = focused;
+      cancelRetry();
+      retryIndex = 0;
       if (focused) {
         void reconnect();
       }
     });
+    const stopRequests = useOfflineAccessStore.subscribe((state, previous) => {
+      if (state.reconnectRequest === previous.reconnectRequest) return;
+      cancelRetry();
+      retryIndex = 0;
+      void reconnect(true);
+    });
     // Connectivity may have returned while startup was checking local data.
     void reconnect();
     return () => {
+      disposed = true;
+      cancelRetry();
       stopOnline();
+      stopConnectivity();
       stopFocus();
+      stopRequests();
     };
   }, [onRecoveryRequired]);
   return null;

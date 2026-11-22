@@ -12,6 +12,9 @@ import {
 } from "react-native";
 
 import { useTabBarSpacing } from "@/shared/hooks/useTabBarSpacing";
+import ErrorState from "@/shared/components/ErrorState";
+import { useDeviceConnectivity } from "@/shared/network/deviceConnectivity";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import useNavigationAction from "@/shared/hooks/useNavigationAction";
 import { useExplorerTour } from "@/features/guided-tour/hooks/useExplorerTour";
 import {
@@ -60,6 +63,15 @@ export default function ExploreScreen({
   hasDownloads?: boolean;
 } = {}) {
   const queryClient = useQueryClient();
+  const deviceOffline = useDeviceConnectivity((state) => state.status === "offline");
+  const requestReconnect = useOfflineAccessStore((state) => state.requestReconnect);
+  const showConnectionError = offlineWithoutCache && !deviceOffline;
+  let offlineStatus: string | null | undefined;
+  if (!deviceOffline) {
+    offlineStatus = offlineWithoutCache ? null : "Previously loaded content";
+  } else if (offlineWithoutCache) {
+    offlineStatus = "Offline";
+  }
   const navigate = useNavigationAction();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -277,7 +289,7 @@ export default function ExploreScreen({
       {/* Discovery controls */}
       <ExploreTopBar
         offline={offline}
-        offlineWithoutCache={offlineWithoutCache}
+        offlineStatus={offlineStatus}
         onOpenOfflineStorage={
           offline && hasDownloads
             ? () => navigate(() => router.push("/offline-storage"))
@@ -323,7 +335,15 @@ export default function ExploreScreen({
             ) : undefined
           }
         >
-          {offlineWithoutCache ? (
+          {showConnectionError ? (
+            <ErrorState
+              size="section"
+              title="Unable to connect to SugboGo"
+              description="Try reconnecting to load Explore."
+              primaryActionTitle="Retry"
+              onPrimaryAction={requestReconnect}
+            />
+          ) : offlineWithoutCache ? (
             <ExploreSectionEmptyState
               icon="cloud-off-outline"
               title="No saved Explore content"

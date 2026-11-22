@@ -72,7 +72,7 @@ describe("offline startup boundary", () => {
   });
 
   it.each([429, 500, 503])(
-    "preserves credentials and offers recovery on HTTP %s",
+    "preserves credentials and local access on temporary HTTP %s",
     async (status) => {
       const error = Object.assign(new AxiosError("Temporarily unavailable"), {
         response: { status },
@@ -80,12 +80,12 @@ describe("offline startup boundary", () => {
       jest.mocked(getCurrentUser).mockRejectedValueOnce(error);
       const hook = await renderHook(() => useRestoreSession());
       await waitFor(() =>
-        expect(hook.result.current.recoveryRequired).toBe(true),
+        expect(useOfflineAccessStore.getState().ownerId).toBe(7),
       );
+      expect(hook.result.current.recoveryRequired).toBe(false);
       expect(clearSessionTokens).not.toHaveBeenCalled();
-      expect(getRestorableOfflineOwner).not.toHaveBeenCalled();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
-      expect(useOfflineAccessStore.getState().ownerId).toBeNull();
+      expect(useOfflineAccessStore.getState().sessionSuspended).toBe(true);
       await hook.unmount();
     },
   );

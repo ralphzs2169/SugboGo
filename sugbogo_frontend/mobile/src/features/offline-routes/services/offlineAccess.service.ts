@@ -151,6 +151,8 @@ export function clearOfflineAccess(): Promise<void> {
     recentExplore: null,
     ownerId: null,
     sessionSuspended: false,
+    retrySessionAfter: null,
+    reconnectRefreshGeneration: null,
     isRevoking: true,
   });
   return serializeAccess(() => SecureStore.deleteItemAsync(OFFLINE_OWNER_KEY));

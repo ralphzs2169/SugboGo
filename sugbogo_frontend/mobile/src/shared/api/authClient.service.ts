@@ -1,5 +1,6 @@
 import axios from "axios";
 import NetInfo from "@react-native-community/netinfo";
+import { classifyDeviceConnectivity } from "@/shared/network/deviceConnectivity";
 import { API_ERROR_CODE } from "../constants/errorCodes";
 import { createApiError } from "../utils/apiErrors";
 
@@ -23,15 +24,13 @@ const authClient = axios.create({
  * REQUEST INTERCEPTOR
  * Runs before every outgoing request.
  *
- * Verifies that the device has an active internet connection before sending
- * the request. If no connection is available, the request is rejected
- * immediately with a standardized API error instead of waiting for the
- * request to fail or time out.
+ * Rejects confirmed disconnection immediately. An undetermined native state
+ * still allows authentication requests, including refresh.
  */
 authClient.interceptors.request.use(async (config) => {
   const netState = await NetInfo.fetch();
 
-  if (!netState.isConnected || netState.isInternetReachable === false) {
+  if (classifyDeviceConnectivity(netState) === "offline") {
     return Promise.reject(createApiError(API_ERROR_CODE.NETWORK_ERROR));
   }
 

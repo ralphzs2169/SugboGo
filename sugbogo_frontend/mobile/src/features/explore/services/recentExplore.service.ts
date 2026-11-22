@@ -79,7 +79,7 @@ export async function readRecentExploreFeeds(
   });
 }
 
-/** Called only after startup's transport-failure branch has withdrawn API authority. */
+/** Checks local Explore after retryable session validation has withdrawn API authority. */
 export async function restoreRecentExploreAccess(generation: number) {
   const ownerId = await getOfflineOwner().catch(() => null);
   if (!ownerId) return null;

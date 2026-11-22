@@ -1,5 +1,6 @@
 import { act, render, waitFor } from "@testing-library/react-native";
 import { focusManager, onlineManager } from "@tanstack/react-query";
+import { AxiosError } from "axios";
 import { router } from "expo-router";
 import { useEffect } from "react";
 import { Text } from "react-native";
@@ -123,6 +124,7 @@ afterEach(() => {
   onlineManager.setOnline(true);
   focusManager.setFocused(undefined);
   jest.restoreAllMocks();
+  jest.useRealTimers();
 });
 
 it("validates on reconnect, preserves local access while pending, and routes only after success", async () => {
@@ -225,7 +227,7 @@ it("keeps one restoration pending across a query scope change and a focus event"
   await view.unmount();
 });
 
-it("does not retry a transport failure until a distinct focus transition", async () => {
+it("does not retry immediately for duplicate focus notifications", async () => {
   const first = deferred<Awaited<ReturnType<typeof getCurrentUser>>>();
   const second = deferred<Awaited<ReturnType<typeof getCurrentUser>>>();
   jest
@@ -259,6 +261,56 @@ it("does not retry a transport failure until a distinct focus transition", async
   await act(async () => second.resolve({ id: 7 } as never));
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
   expect(router.replace).toHaveBeenCalledTimes(1);
+  await view.unmount();
+});
+
+it("limits retries and cancels the pending retry when the app goes to the background", async () => {
+  jest.useFakeTimers();
+  jest.mocked(getCurrentUser).mockRejectedValue(createApiError("NETWORK_ERROR"));
+  const view = await render(
+    <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
+  );
+
+  await act(async () => onlineManager.setOnline(true));
+  expect(getCurrentUser).toHaveBeenCalledTimes(1);
+  await act(async () => focusManager.setFocused(false));
+  await act(async () => jest.advanceTimersByTimeAsync(60_000));
+  expect(getCurrentUser).toHaveBeenCalledTimes(1);
+
+  await act(async () => focusManager.setFocused(true));
+  expect(getCurrentUser).toHaveBeenCalledTimes(2);
+  await act(async () => jest.advanceTimersByTimeAsync(60_000));
+  expect(getCurrentUser).toHaveBeenCalledTimes(5);
+  await act(async () => jest.advanceTimersByTimeAsync(60_000));
+  expect(getCurrentUser).toHaveBeenCalledTimes(5);
+  expect(useOfflineAccessStore.getState().sessionSuspended).toBe(true);
+  await view.unmount();
+});
+
+it("honors Retry-After even when connectivity changes again", async () => {
+  jest.useFakeTimers();
+  jest.mocked(getCurrentUser)
+    .mockRejectedValueOnce(Object.assign(new AxiosError("Rate limited"), {
+      response: { status: 429, headers: { "retry-after": "60" } },
+    }))
+    .mockResolvedValueOnce({ id: 7 } as never);
+  const view = await render(
+    <OfflineSessionReconnect onRecoveryRequired={requireRecovery} />,
+  );
+
+  await act(async () => onlineManager.setOnline(true));
+  await act(async () => jest.advanceTimersByTimeAsync(10_000));
+  await act(async () => {
+    onlineManager.setOnline(false);
+    onlineManager.setOnline(true);
+  });
+  await act(async () => jest.advanceTimersByTimeAsync(49_999));
+  expect(getCurrentUser).toHaveBeenCalledTimes(1);
+  expect(useOfflineAccessStore.getState().sessionSuspended).toBe(true);
+
+  await act(async () => jest.advanceTimersByTimeAsync(1));
+  expect(getCurrentUser).toHaveBeenCalledTimes(2);
+  expect(useAuthStore.getState().isAuthenticated).toBe(true);
   await view.unmount();
 });
 

@@ -3,7 +3,13 @@ import { focusManager, onlineManager } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
 
+import {
+  classifyDeviceConnectivity,
+  useDeviceConnectivity,
+} from "@/shared/network/deviceConnectivity";
+
 let subscribers = 0;
+let stopNetwork: (() => void) | undefined;
 
 /** Shares native listeners across mounts, including overlapping root lifetimes. */
 export function subscribeNativeQueryLifecycle() {
@@ -14,21 +20,28 @@ export function subscribeNativeQueryLifecycle() {
   subscribers += 1;
 
   if (subscribers === 1) {
-    onlineManager.setEventListener((setOnline) => {
-      let active = true;
-      const unsubscribe = NetInfo.addEventListener((state) => {
-        if (active) {
-          setOnline(
-            state.isConnected === true && state.isInternetReachable !== false,
-          );
-        }
-      });
+    let active = true;
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (!active) return;
 
-      return () => {
-        active = false;
-        unsubscribe();
-      };
+      const status = classifyDeviceConnectivity(state);
+      useDeviceConnectivity.setState({ status });
+
+      if (status === "offline") {
+        onlineManager.setOnline(false);
+      } else if (
+        status === "online" ||
+        (state.type !== "unknown" && state.isConnected === true)
+      ) {
+        // An attached network can schedule reads while reachability is pending.
+        onlineManager.setOnline(true);
+      }
     });
+    stopNetwork = () => {
+      active = false;
+      unsubscribe();
+      useDeviceConnectivity.setState({ status: "unknown" });
+    };
 
     focusManager.setEventListener((setFocused) => {
       let active = true;
@@ -61,7 +74,8 @@ export function subscribeNativeQueryLifecycle() {
     subscribers -= 1;
 
     if (subscribers === 0) {
-      onlineManager.setEventListener(() => undefined);
+      stopNetwork?.();
+      stopNetwork = undefined;
       focusManager.setEventListener(() => undefined);
       focusManager.setFocused(undefined);
     }
@@ -70,7 +84,25 @@ export function subscribeNativeQueryLifecycle() {
 
 /** Connects the shared query client to native connectivity and app focus. */
 export default function QueryLifecycle() {
-  useEffect(subscribeNativeQueryLifecycle, []);
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      return subscribeNativeQueryLifecycle();
+    }
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    function updateBrowserConnectivity() {
+      const online = window.navigator.onLine;
+      useDeviceConnectivity.setState({
+        status: online ? "online" : "offline",
+      });
+      return online;
+    }
+
+    onlineManager.setOnline(updateBrowserConnectivity());
+    return onlineManager.subscribe(updateBrowserConnectivity);
+  }, []);
 
   return null;
 }

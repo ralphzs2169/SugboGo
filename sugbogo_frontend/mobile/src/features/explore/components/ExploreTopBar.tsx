@@ -15,7 +15,7 @@ type ClusterOption = { id: number; name: string; icon: string };
 
 type Props = {
   offline?: boolean;
-  offlineWithoutCache?: boolean;
+  offlineStatus?: string | null;
   onOpenOfflineStorage?: () => void;
   clusters: ClusterOption[];
   selectedClusterId: number | null;
@@ -34,7 +34,7 @@ type Props = {
  */
 export default function ExploreTopBar({
   offline = false,
-  offlineWithoutCache = false,
+  offlineStatus = "Offline · Previously loaded content",
   onOpenOfflineStorage,
   clusters = [],
   selectedClusterId,
@@ -112,12 +112,12 @@ export default function ExploreTopBar({
         )}
       </View>
 
-      {offline && (
+      {offline && offlineStatus && (
         <AppText
           accessibilityLiveRegion="polite"
           className="mb-2 text-xs text-text-secondary"
         >
-          {offlineWithoutCache ? "Offline" : "Offline · Previously loaded content"}
+          {offlineStatus}
         </AppText>
       )}
 

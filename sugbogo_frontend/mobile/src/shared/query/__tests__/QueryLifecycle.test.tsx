@@ -8,6 +8,8 @@ import {
 import NetInfo, { type NetInfoState } from "@react-native-community/netinfo";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 
+import { useDeviceConnectivity } from "@/shared/network/deviceConnectivity";
+
 import QueryLifecycle, {
   subscribeNativeQueryLifecycle,
 } from "../QueryLifecycle";
@@ -22,8 +24,13 @@ let stopNetwork: jest.Mock;
 let stopApp: jest.Mock;
 const releases: (() => void)[] = [];
 
-function connect(connected: boolean, reachable: boolean | null = connected) {
+function connect(
+  connected: boolean | null,
+  reachable: boolean | null = connected,
+  type = connected === null ? "unknown" : connected ? "wifi" : "none",
+) {
   networkChanged({
+    type,
     isConnected: connected,
     isInternetReachable: reachable,
   } as NetInfoState);
@@ -52,15 +59,28 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-it("maps offline, unreachable, unknown reachability and reconnect events", () => {
+it("tracks device reachability separately from query scheduling", () => {
   releases.push(subscribeNativeQueryLifecycle());
+  connect(false, false, "unknown");
+  expect(useDeviceConnectivity.getState().status).toBe("unknown");
+  expect(onlineManager.isOnline()).toBe(true);
   connect(false);
+  expect(useDeviceConnectivity.getState().status).toBe("offline");
+  expect(onlineManager.isOnline()).toBe(false);
+  connect(null);
+  expect(useDeviceConnectivity.getState().status).toBe("unknown");
+  expect(onlineManager.isOnline()).toBe(false);
+  connect(false, false, "unknown");
+  expect(useDeviceConnectivity.getState().status).toBe("unknown");
   expect(onlineManager.isOnline()).toBe(false);
   connect(true, false);
+  expect(useDeviceConnectivity.getState().status).toBe("offline");
   expect(onlineManager.isOnline()).toBe(false);
   connect(true, null);
+  expect(useDeviceConnectivity.getState().status).toBe("unknown");
   expect(onlineManager.isOnline()).toBe(true);
   connect(true);
+  expect(useDeviceConnectivity.getState().status).toBe("online");
   expect(onlineManager.isOnline()).toBe(true);
 });
 
@@ -105,6 +125,7 @@ it("shares listeners across mounts and cleans up only after the final unmount", 
   // Native callbacks already queued before removal must no longer affect Query.
   onlineManager.setOnline(true);
   connect(false);
+  expect(useDeviceConnectivity.getState().status).toBe("unknown");
   expect(onlineManager.isOnline()).toBe(true);
   appChanged("background");
   expect(focusManager.isFocused()).toBe(true);
@@ -126,6 +147,59 @@ it("preserves browser lifecycle handling on web", () => {
   releases.push(subscribeNativeQueryLifecycle());
   expect(NetInfo.addEventListener).not.toHaveBeenCalled();
   expect(AppState.addEventListener).not.toHaveBeenCalled();
+});
+
+it("starts offline on web before the first browser connectivity event", async () => {
+  jest.replaceProperty(Platform, "OS", "web");
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const browserNavigator = { onLine: false };
+  const browser = Object.assign(new EventTarget(), {
+    navigator: browserNavigator,
+  });
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: browser,
+  });
+
+  try {
+    expect(onlineManager.isOnline()).toBe(true);
+    const view = await render(<QueryLifecycle />);
+    try {
+      expect(useDeviceConnectivity.getState().status).toBe("offline");
+      expect(onlineManager.isOnline()).toBe(false);
+      expect(NetInfo.addEventListener).not.toHaveBeenCalled();
+
+      browserNavigator.onLine = true;
+      browser.dispatchEvent(new Event("online"));
+      expect(useDeviceConnectivity.getState().status).toBe("online");
+      expect(onlineManager.isOnline()).toBe(true);
+
+      browserNavigator.onLine = false;
+      browser.dispatchEvent(new Event("offline"));
+      expect(useDeviceConnectivity.getState().status).toBe("offline");
+      expect(onlineManager.isOnline()).toBe(false);
+    } finally {
+      await view.unmount();
+    }
+  } finally {
+    if (previousWindow) {
+      Object.defineProperty(globalThis, "window", previousWindow);
+    } else {
+      Reflect.deleteProperty(globalThis, "window");
+    }
+    useDeviceConnectivity.setState({ status: "unknown" });
+  }
+});
+
+it("keeps observing native connectivity when the query client unmounts", () => {
+  releases.push(subscribeNativeQueryLifecycle());
+  const client = new QueryClient();
+  client.mount();
+  client.unmount();
+
+  connect(false);
+  expect(useDeviceConnectivity.getState().status).toBe("offline");
+  expect(stopNetwork).not.toHaveBeenCalled();
 });
 
 it("revalidates stale active queries on reconnect and foreground", async () => {

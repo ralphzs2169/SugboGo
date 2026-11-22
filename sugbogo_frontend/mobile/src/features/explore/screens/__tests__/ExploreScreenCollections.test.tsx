@@ -15,6 +15,7 @@ jest.mock("expo-router", () => ({
   },
 }));
 jest.mock("@tanstack/react-query", () => ({
+  ...jest.requireActual("@tanstack/react-query"),
   useQueryClient: () => ({ refetchQueries: jest.fn() }),
 }));
 jest.mock("@/shared/hooks/useTabBarSpacing", () => ({

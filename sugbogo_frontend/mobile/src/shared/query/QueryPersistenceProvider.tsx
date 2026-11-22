@@ -17,8 +17,11 @@ import {
 } from "@tanstack/react-query";
 
 import { useAuthStore } from "@/features/auth/store/auth.store";
+import { markExploreBusinessFeedsStale } from "@/features/explore/persistence/exploreHomepageQueryDefaults";
+import { useOfflineAccessStore } from "@/features/offline-routes/stores/offlineAccess.store";
 import {
   getAuthSessionGeneration,
+  isAuthSessionCurrent,
   subscribeAuthSessionChanges,
 } from "@/shared/api/authSessionGeneration.service";
 
@@ -64,6 +67,16 @@ export default function QueryPersistenceProvider({
       .catch(() => undefined)
       .finally(() => {
         if (cancelled) return;
+        if (
+          session.scope &&
+          isAuthSessionCurrent(session.generation) &&
+          useOfflineAccessStore.getState().reconnectRefreshGeneration ===
+            session.generation
+        ) {
+          // Invalidate after hydration and before observers resume fetching.
+          markExploreBusinessFeedsStale(client);
+          useOfflineAccessStore.setState({ reconnectRefreshGeneration: null });
+        }
         unsubscribe = persistQueryClientSubscribe(options);
         setRestoredSession(session);
       });
