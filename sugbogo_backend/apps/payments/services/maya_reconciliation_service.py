@@ -61,20 +61,45 @@ def reconcile_merchant_plus_payment(user):
         checkout is None
         or checkout.PCHK_PROVIDER != PaymentProvider.MAYA
         or checkout.PCHK_MODE != PaymentMode.TEST
-        or not MayaCheckoutService.is_checkout_id(checkout.PCHK_PROVIDER_SESSION_ID)
     ):
         return
+    recover_identity = not checkout.PCHK_PROVIDER_SESSION_ID
+    if recover_identity:
+        if checkout.PCHK_STATE == PaymentCheckoutSession.State.CREATION_FAILED:
+            return
+        if checkout.PCHK_STATE != PaymentCheckoutSession.State.CREATION_UNKNOWN:
+            raise MayaReconciliationUnavailable()
+    elif not MayaCheckoutService.is_checkout_id(checkout.PCHK_PROVIDER_SESSION_ID):
+        raise MayaReconciliationConflict()
     try:
+        provider_id = checkout.PCHK_PROVIDER_SESSION_ID
+        if recover_identity:
+            reference_evidence = MayaCheckoutService.retrieve_payment_by_reference(
+                mode=payment.PYMT_MODE,
+                operation_reference=checkout.PCHK_OPERATION_REFERENCE,
+            )
+            if reference_evidence is None:
+                # Absence alone must not release an uncertain purchase for another POST.
+                raise MayaReconciliationUnavailable()
+            provider_id = reference_evidence.payment_id
         evidence = MayaCheckoutService.retrieve_payment(
             mode=payment.PYMT_MODE,
-            payment_id=checkout.PCHK_PROVIDER_SESSION_ID,
+            payment_id=provider_id,
         )
+        if evidence.payment_id != provider_id:
+            raise MayaReconciliationConflict()
     except (MayaPaymentUnavailable, MayaConfigurationError):
         raise MayaReconciliationUnavailable() from None
     except MayaPaymentRejected:
         raise MayaReconciliationConflict() from None
     try:
-        _apply_reconciliation(user, payment, checkout, evidence)
+        _apply_reconciliation(
+            user,
+            payment,
+            checkout,
+            evidence,
+            recover_identity=recover_identity,
+        )
     except IntegrityError:
         raise MayaReconciliationConflict() from None
 
@@ -85,6 +110,8 @@ def _apply_reconciliation(
     target_payment,
     target_checkout,
     evidence,
+    *,
+    recover_identity=False,
 ):
     """Recheck ownership and evidence under the same lock order as webhook fulfilment."""
     business = Business.objects.select_for_update().get(pk=target_payment.BUSN_ID_id)
@@ -97,12 +124,35 @@ def _apply_reconciliation(
     ):
         raise PermissionDenied("You can only verify your own Merchant Plus payment.")
     PaymentService.require_merchant(business.USER_ID)
+    if recover_identity:
+        latest = payment.checkout_sessions.order_by("-PCHK_ID").first()
+        if (
+            latest is None
+            or latest.pk != checkout.pk
+            or checkout.PCHK_PROVIDER_SESSION_ID not in (None, "", evidence.payment_id)
+            or checkout.PCHK_STATE not in {
+                PaymentCheckoutSession.State.CREATION_UNKNOWN,
+                PaymentCheckoutSession.State.READY,
+                PaymentCheckoutSession.State.COMPLETED,
+                PaymentCheckoutSession.State.EXPIRED,
+            }
+        ):
+            raise MayaReconciliationConflict()
+        # Set only in memory until the full existing purchase checks below pass.
+        checkout.PCHK_PROVIDER_SESSION_ID = evidence.payment_id
     if (
         not matches_maya_purchase(evidence, payment, checkout, business)
         or evidence.status not in SUPPORTED_EVENTS | PENDING_STATUSES
         or (evidence.status == SUCCESS and evidence.paid_at is None)
     ):
         raise MayaReconciliationConflict()
+    if recover_identity:
+        if checkout.PCHK_STATE == PaymentCheckoutSession.State.CREATION_UNKNOWN:
+            checkout.PCHK_STATE = PaymentCheckoutSession.State.READY
+        checkout.PCHK_LAST_ERROR = ""
+        checkout.save(update_fields=[
+            "PCHK_PROVIDER_SESSION_ID", "PCHK_STATE", "PCHK_LAST_ERROR", "PCHK_UPDATED_AT",
+        ])
     if payment.PYMT_STATUS == Payment.Status.PAID:
         if payment.PYMT_PROVIDER_PAYMENT_ID != evidence.payment_id:
             raise MayaReconciliationConflict()

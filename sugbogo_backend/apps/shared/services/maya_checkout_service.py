@@ -173,6 +173,7 @@ class MayaCheckoutService:
         *,
         authoritative=False,
         diagnostic_reference=None,
+        payment_collection=False,
     ):
         """Read a bounded JSON object while retaining no raw provider error details."""
         body = bytearray()
@@ -197,6 +198,13 @@ class MayaCheckoutService:
                 raise MayaCreationUnknown("provider_response_unusable")
             body.extend(chunk)
         try:
+            if payment_collection:
+                # Reuse strict duplicate-key and exact-money parsing for an API array.
+                envelope = load_maya_json(b'{"payments":' + body + b'}')
+                payments = envelope["payments"]
+                if not isinstance(payments, list):
+                    raise InvalidMayaPayment()
+                return payments
             if authoritative:
                 return load_maya_json(body)
             payload = json.loads(body)
@@ -213,6 +221,47 @@ class MayaCheckoutService:
             raise MayaCreationUnknown("provider_response_unusable")
         diagnose("json_object", payload)
         return payload
+
+    @classmethod
+    def retrieve_payment_by_reference(
+        cls,
+        *,
+        mode,
+        operation_reference,
+    ):
+        """Recover one exact Sandbox transaction identity without creating a checkout."""
+        key = settings.MAYA_SANDBOX_SECRET_KEY
+        if mode != "test" or not is_maya_api_key(key, "sk-"):
+            raise MayaConfigurationError("Payment configuration is unavailable.")
+        if not isinstance(operation_reference, UUID):
+            raise MayaPaymentRejected()
+        try:
+            with requests.get(
+                f"{MAYA_SANDBOX_API_BASE_URL}/payments/v1/payment-rrns/{operation_reference}",
+                auth=HTTPBasicAuth(key, ""),
+                headers={"Accept": "application/json"},
+                timeout=(cls.CONNECT_TIMEOUT_SECONDS, cls.READ_TIMEOUT_SECONDS),
+                verify=True,
+                allow_redirects=False,
+                stream=True,
+            ) as response:
+                if response.status_code in {404, 408, 429} or 500 <= response.status_code < 600:
+                    raise MayaPaymentUnavailable()
+                if response.status_code != 200:
+                    raise MayaPaymentRejected()
+                payments = cls._read_json(response, payment_collection=True)
+            if not payments:
+                return None
+            if len(payments) != 1 or not isinstance(payments[0], dict):
+                raise MayaPaymentRejected()
+            evidence = normalize_maya_payment(payments[0], retrieved=True)
+            if evidence.request_reference != str(operation_reference):
+                raise MayaPaymentRejected()
+            return evidence
+        except requests.RequestException:
+            raise MayaPaymentUnavailable() from None
+        except (MayaCreationUnknown, InvalidMayaPayment, ArithmeticError):
+            raise MayaPaymentRejected() from None
 
     @classmethod
     def retrieve_payment(
