@@ -361,10 +361,14 @@ def _measured_journeys(
         )
 
 
-def _journey_rank(journey: CoordinateJeepneyJourney):
+def coordinate_journey_rank(
+    journey: CoordinateJeepneyJourney,
+    *,
+    ranking_cost_meters: float | None = None,
+):
     """Order complete candidates by penalized access cost, ride meters, and positional identity."""
     return (
-        journey.ranking_cost_meters,
+        journey.ranking_cost_meters if ranking_cost_meters is None else ranking_cost_meters,
         journey.total_ride_distance_meters,
         tuple(
             (leg.variant_id, leg.boarding_position.fraction, leg.alighting_position.fraction)
@@ -444,5 +448,5 @@ class CoordinateJourneyService:
                 route_codes=route_codes,
                 transfer_penalty_meters=limits.transfer_penalty_meters,
             ),
-            key=_journey_rank,
+            key=coordinate_journey_rank,
         )

@@ -1,7 +1,35 @@
+from dataclasses import dataclass
 from math import asin, cos, radians, sin, sqrt
 
 import requests
 from django.conf import settings
+
+
+def valid_latitude_longitude(
+    latitude,
+    longitude,
+):
+    """Check geographic coordinate types and bounds for a Google request or response."""
+    return (
+        type(latitude) in (int, float)
+        and type(longitude) in (int, float)
+        and -90 <= latitude <= 90
+        and -180 <= longitude <= 180
+    )
+
+
+@dataclass(frozen=True)
+class GoogleNearbyLandmark:
+    """Request-scoped Google Places context for a pedestrian access location."""
+
+    place_id: str
+    name: str
+    address: str
+    latitude: float
+    longitude: float
+    distance_meters: float
+    attributions: tuple[tuple[str, str], ...]
+    source: str = "google_places"
 
 
 class GoogleMapsService:
@@ -16,6 +44,27 @@ class GoogleMapsService:
 
     SELECTED_LOCATION_EXCLUSION_RADIUS_METERS = 10.0
     REQUEST_TIMEOUT_SECONDS = 20 # Maximum time to wait for a Google Maps API response.
+
+    TRANSIT_LANDMARK_RADIUS_METERS = 150.0
+    TRANSIT_LANDMARK_TIMEOUT_SECONDS = 5
+    TRANSIT_LANDMARK_PRIMARY_TYPES = (
+        "bus_station",
+        "transit_station",
+        "train_station",
+        "shopping_mall",
+        "supermarket",
+        "university",
+        "school",
+        "hospital",
+        "church",
+        "park",
+        "tourist_attraction",
+        "city_hall",
+        "library",
+        "police",
+        "convenience_store",
+        "gas_station",
+    )
 
     @staticmethod
     def _parse_address_components(components, *, geocoding_api=False):
@@ -217,7 +266,7 @@ class GoogleMapsService:
         return address
 
     @staticmethod
-    def _calculate_distance_meters(
+    def calculate_distance_meters(
         latitude,
         longitude,
         target_latitude,
@@ -237,7 +286,9 @@ class GoogleMapsService:
             * sin(longitude_difference / 2) ** 2
         )
 
-        return 2 * earth_radius_meters * asin(sqrt(a))
+        return 2 * earth_radius_meters * asin(sqrt(min(a, 1.0)))
+
+    _calculate_distance_meters = calculate_distance_meters
 
 
     @staticmethod
@@ -260,46 +311,62 @@ class GoogleMapsService:
         return distance <= max_distance_meters
 
     @staticmethod
-    def search_nearby_landmarks(latitude, longitude):
-        """Returns nearby places that can serve as useful business landmarks."""
-
+    def _request_nearby_places(
+        latitude,
+        longitude,
+        *,
+        radius_meters,
+        field_mask,
+        timeout,
+        included_primary_types=(),
+    ):
+        """Send a popularity-ranked Nearby Search using the caller's field mask."""
+        payload = {
+            "maxResultCount": GoogleMapsService.NEARBY_LANDMARK_CANDIDATE_POOL_SIZE,
+            "locationRestriction": {
+                "circle": {
+                    "center": {
+                        "latitude": latitude,
+                        "longitude": longitude,
+                    },
+                    "radius": radius_meters,
+                },
+            },
+            "rankPreference": "POPULARITY",
+        }
+        request_options = {}
+        if included_primary_types:
+            payload["includedPrimaryTypes"] = list(included_primary_types)
+            request_options["allow_redirects"] = False
         response = requests.post(
             f"{GoogleMapsService.GOOGLE_PLACES_URL}:searchNearby",
-            json={
-                "maxResultCount": (
-                    GoogleMapsService.NEARBY_LANDMARK_CANDIDATE_POOL_SIZE
-                ),
-                "locationRestriction": {
-                    "circle": {
-                        "center": {
-                            "latitude": latitude,
-                            "longitude": longitude,
-                        },
-                        "radius": (
-                            GoogleMapsService.NEARBY_LANDMARK_RADIUS_METERS
-                        ),
-                    }
-                },
-                # Favor recognizable places while keeping every result
-                # inside the configured landmark radius.
-                "rankPreference": "POPULARITY",
-            },
+            json=payload,
             headers={
                 "Content-Type": "application/json",
                 "X-Goog-Api-Key": settings.GOOGLE_MAPS_API_KEY,
-                "X-Goog-FieldMask": (
-                    "places.id,"
-                    "places.displayName,"
-                    "places.formattedAddress,"
-                    "places.location"
-                ),
+                "X-Goog-FieldMask": field_mask,
             },
+            timeout=timeout,
+            **request_options,
+        )
+        response.raise_for_status()
+        if included_primary_types and not 200 <= response.status_code < 300:
+            raise requests.HTTPError("Unexpected Nearby Search response status.", response=response)
+        return response.json()
+
+    @staticmethod
+    def search_nearby_landmarks(
+        latitude,
+        longitude,
+    ):
+        """Return nearby places that may be useful as business landmarks."""
+        data = GoogleMapsService._request_nearby_places(
+            latitude,
+            longitude,
+            radius_meters=GoogleMapsService.NEARBY_LANDMARK_RADIUS_METERS,
+            field_mask="places.id,places.displayName,places.formattedAddress,places.location",
             timeout=GoogleMapsService.REQUEST_TIMEOUT_SECONDS,
         )
-
-        response.raise_for_status()
-
-        data = response.json()
         candidates = []
 
         for place in data.get("places", []):
@@ -349,3 +416,94 @@ class GoogleMapsService:
         return candidates[
             : GoogleMapsService.NEARBY_LANDMARK_MAX_RESULTS
         ]
+
+    @staticmethod
+    def search_transit_landmark(
+        latitude: float,
+        longitude: float,
+    ) -> GoogleNearbyLandmark | None:
+        """Find nearby recognizable context without using it as an access coordinate."""
+        if (
+            not valid_latitude_longitude(latitude, longitude)
+            or not settings.GOOGLE_MAPS_API_KEY
+        ):
+            return None
+
+        data = GoogleMapsService._request_nearby_places(
+            latitude,
+            longitude,
+            radius_meters=GoogleMapsService.TRANSIT_LANDMARK_RADIUS_METERS,
+            field_mask=(
+                "places.id,places.displayName,places.formattedAddress,places.location,"
+                "places.primaryType,places.businessStatus,places.attributions"
+            ),
+            timeout=GoogleMapsService.TRANSIT_LANDMARK_TIMEOUT_SECONDS,
+            included_primary_types=GoogleMapsService.TRANSIT_LANDMARK_PRIMARY_TYPES,
+        )
+        if not isinstance(data, dict) or not isinstance(data.get("places", []), list):
+            return None
+
+        candidates = []
+        for popularity_rank, place in enumerate(data.get("places", [])):
+            if not isinstance(place, dict):
+                continue
+            location = place.get("location")
+            display_name = place.get("displayName")
+            place_id = place.get("id")
+            if (
+                not isinstance(location, dict)
+                or not isinstance(display_name, dict)
+                or not isinstance(place_id, str)
+                or not place_id
+                or place.get("primaryType") not in GoogleMapsService.TRANSIT_LANDMARK_PRIMARY_TYPES
+                or place.get("businessStatus") in ("CLOSED_TEMPORARILY", "CLOSED_PERMANENTLY")
+            ):
+                continue
+
+            name = display_name.get("text")
+            place_latitude = location.get("latitude")
+            place_longitude = location.get("longitude")
+            if (
+                not isinstance(name, str)
+                or not name.strip()
+                or not valid_latitude_longitude(place_latitude, place_longitude)
+            ):
+                continue
+            distance = GoogleMapsService.calculate_distance_meters(
+                latitude,
+                longitude,
+                place_latitude,
+                place_longitude,
+            )
+            if distance > GoogleMapsService.TRANSIT_LANDMARK_RADIUS_METERS:
+                continue
+
+            attributions = place.get("attributions")
+            if not isinstance(attributions, list):
+                attributions = []
+            address = place.get("formattedAddress")
+            landmark = GoogleNearbyLandmark(
+                place_id=place_id,
+                name=name.strip(),
+                address=address if isinstance(address, str) else "",
+                latitude=place_latitude,
+                longitude=place_longitude,
+                distance_meters=distance,
+                attributions=tuple(
+                    (
+                        item["provider"],
+                        item["providerUri"] if isinstance(item.get("providerUri"), str) else "",
+                    )
+                    for item in attributions
+                    if (
+                        isinstance(item, dict)
+                        and isinstance(item.get("provider"), str)
+                        and item["provider"]
+                    )
+                ),
+            )
+            # Use popularity to break ties between similarly close places of useful types.
+            candidates.append((int(distance // 25), popularity_rank, landmark))
+        if not candidates:
+            return None
+        return min(candidates, key=lambda candidate: candidate[:2])[2]
