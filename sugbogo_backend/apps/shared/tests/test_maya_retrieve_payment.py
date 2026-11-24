@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from uuid import UUID
 
 import requests
 from django.test import SimpleTestCase, override_settings
@@ -24,6 +25,53 @@ class MayaRetrievePaymentTests(SimpleTestCase):
         "paymentDetails": {"paymentAt": "2026-11-15T01:00:00Z", "cardType": "visa", "last4": "2222"},
         "buyer": {"email": "fixture@example.com"},
     }
+
+    @patch("apps.shared.services.maya_checkout_service.requests.get")
+    def test_reference_lookup_uses_secret_key_and_exact_reference(self, get):
+        get.return_value = maya_response([self.payload])
+        evidence = MayaCheckoutService.retrieve_payment_by_reference(
+            mode="test",
+            operation_reference=UUID(self.reference),
+        )
+        self.assertEqual(evidence.payment_id, CHECKOUT_ID)
+        self.assertEqual(evidence.amount_centavos, 100)
+        get.assert_called_once()
+        self.assertEqual(
+            get.call_args.args[0],
+            f"https://pg-sandbox.paymaya.com/payments/v1/payment-rrns/{self.reference}",
+        )
+        self.assertEqual(get.call_args.kwargs["auth"].username, "sk-synthetic")
+        self.assertFalse(get.call_args.kwargs["allow_redirects"])
+
+    @patch("apps.shared.services.maya_checkout_service.requests.get")
+    def test_reference_lookup_rejects_ambiguous_or_mismatched_evidence(self, get):
+        for payload in (
+            self.payload,
+            [self.payload, self.payload],
+            [{**self.payload, "requestReferenceNumber": str(UUID(int=1))}],
+        ):
+            with self.subTest(payload_type=type(payload).__name__):
+                get.return_value = maya_response(payload)
+                with self.assertRaises(MayaPaymentRejected):
+                    MayaCheckoutService.retrieve_payment_by_reference(
+                        mode="test",
+                        operation_reference=UUID(self.reference),
+                    )
+        get.return_value = maya_response([])
+        self.assertIsNone(MayaCheckoutService.retrieve_payment_by_reference(
+            mode="test",
+            operation_reference=UUID(self.reference),
+        ))
+
+    @patch("apps.shared.services.maya_checkout_service.requests.get")
+    def test_reference_lookup_503_remains_recoverable(self, get):
+        get.return_value = maya_response(body=b"<html>Unavailable</html>", status_code=503)
+        with self.assertRaises(MayaPaymentUnavailable):
+            MayaCheckoutService.retrieve_payment_by_reference(
+                mode="test",
+                operation_reference=UUID(self.reference),
+            )
+        get.assert_called_once()
 
     @patch("apps.shared.services.maya_checkout_service.requests.get")
     def test_retrieve_uses_secret_key_and_returns_normalized_evidence(self, get):

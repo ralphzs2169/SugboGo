@@ -115,18 +115,150 @@ class MayaReconciliationTests(ConfirmationFixtures, APITestCase):
             self.assertEqual(self.reconcile().status_code, 503)
         self.assert_pending()
 
-    def test_no_identity_and_other_merchant_never_trigger_lookup(self):
-        with patch(RETRIEVE) as retrieve:
+    def test_definitively_failed_creation_returns_stored_status_without_lookup(self):
+        PaymentCheckoutSession.objects.filter(pk=self.checkout.pk).update(
+            PCHK_PROVIDER_SESSION_ID=None,
+            PCHK_STATE=PaymentCheckoutSession.State.CREATION_FAILED,
+            PCHK_LAST_ERROR="provider_validation_rejected",
+        )
+        with (
+            patch(RETRIEVE) as retrieve,
+            patch(f"{RETRIEVE}_by_reference") as reference_lookup,
+        ):
+            response = self.reconcile()
+            stored_status = self.client.get(reverse("merchant-plus-status"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(stored_status.status_code, 200)
+        self.assertEqual(response.data["data"], stored_status.data["data"])
+        self.assertEqual(
+            response.data["data"]["unresolved_checkout_status"],
+            PaymentCheckoutSession.State.CREATION_FAILED,
+        )
+        retrieve.assert_not_called()
+        reference_lookup.assert_not_called()
+        self.assert_pending()
+
+    def test_missing_identity_uses_reference_without_releasing_purchase(self):
+        with patch(RETRIEVE) as retrieve, patch(
+            "apps.shared.services.maya_checkout_service.MayaCheckoutService.retrieve_payment_by_reference",
+            return_value=None,
+        ) as reference_lookup:
             self.client.force_authenticate(self.merchant_b)
             self.assertEqual(self.reconcile().status_code, 200)
+            reference_lookup.assert_not_called()
             self.client.force_authenticate(self.merchant_a)
             PaymentCheckoutSession.objects.filter(pk=self.checkout.pk).update(
                 PCHK_PROVIDER_SESSION_ID=None,
                 PCHK_STATE="creation_unknown",
             )
-            self.assertEqual(self.reconcile().status_code, 200)
+            self.assertEqual(self.reconcile().status_code, 503)
+            reference_lookup.assert_called_once()
             retrieve.assert_not_called()
         self.assert_pending()
+
+    def test_reference_recovery_verifies_by_id_then_marks_paid_once(self):
+        PaymentCheckoutSession.objects.filter(pk=self.checkout.pk).update(
+            PCHK_PROVIDER_SESSION_ID=None,
+            PCHK_CHECKOUT_URL="",
+            PCHK_STATE="creation_unknown",
+        )
+        with patch(
+            "apps.shared.services.maya_checkout_service.MayaCheckoutService.retrieve_payment_by_reference",
+            return_value=self.evidence,
+        ) as reference_lookup, patch(RETRIEVE, return_value=self.evidence) as retrieve:
+            with patch(
+                "apps.payments.tasks.dispatch_merchant_plus_fulfilment",
+            ) as dispatch:
+                with self.captureOnCommitCallbacks(execute=True):
+                    self.assertEqual(self.reconcile().status_code, 200)
+                    self.assertEqual(self.reconcile().status_code, 200)
+                dispatch.assert_called_once_with(self.payment.pk)
+            reference_lookup.assert_called_once_with(
+                mode="test",
+                operation_reference=self.checkout.PCHK_OPERATION_REFERENCE,
+            )
+            retrieve.assert_called_once_with(mode="test", payment_id=self.provider_id)
+        self.checkout.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.assertEqual(self.checkout.PCHK_PROVIDER_SESSION_ID, self.provider_id)
+        self.assertEqual(self.payment.PYMT_STATUS, "paid")
+        self.assertFalse(PaidMerchantPlusEntitlement.objects.exists())
+
+    def test_reference_recovery_does_not_persist_invalid_purchase_evidence(self):
+        PaymentCheckoutSession.objects.filter(pk=self.checkout.pk).update(
+            PCHK_PROVIDER_SESSION_ID=None,
+            PCHK_STATE="creation_unknown",
+        )
+        for fields in (
+            {"amount_centavos": 101},
+            {"currency": "USD"},
+            {"request_reference": str(uuid4())},
+        ):
+            with self.subTest(fields=fields):
+                cache.clear()
+                with patch(
+                    "apps.shared.services.maya_checkout_service.MayaCheckoutService.retrieve_payment_by_reference",
+                    return_value=self.evidence,
+                ), patch(RETRIEVE, return_value=replace(self.evidence, **fields)):
+                    self.assertEqual(self.reconcile().status_code, 409)
+                self.checkout.refresh_from_db()
+                self.assertIsNone(self.checkout.PCHK_PROVIDER_SESSION_ID)
+                self.assert_pending()
+
+    def test_reference_service_unavailable_does_not_silently_claim_checked(self):
+        PaymentCheckoutSession.objects.filter(pk=self.checkout.pk).update(
+            PCHK_PROVIDER_SESSION_ID=None,
+            PCHK_STATE="creation_unknown",
+        )
+        with patch(
+            "apps.shared.services.maya_checkout_service.MayaCheckoutService.retrieve_payment_by_reference",
+            side_effect=MayaPaymentUnavailable(),
+        ) as reference_lookup, patch(RETRIEVE) as retrieve:
+            response = self.reconcile()
+
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(response.data["success"])
+        self.assertEqual(
+            response.data["code"],
+            "PAYMENT_RECONCILIATION_UNAVAILABLE",
+        )
+        reference_lookup.assert_called_once_with(
+            mode="test",
+            operation_reference=self.checkout.PCHK_OPERATION_REFERENCE,
+        )
+        retrieve.assert_not_called()
+        self.assert_pending()
+        self.checkout.refresh_from_db()
+        self.assertEqual(
+            self.checkout.PCHK_STATE,
+            PaymentCheckoutSession.State.CREATION_UNKNOWN,
+        )
+        self.assertIsNone(self.checkout.PCHK_PROVIDER_SESSION_ID)
+
+    def test_recovered_terminal_unpaid_checkout_uses_existing_explicit_retry_rules(self):
+        from apps.payments.services.checkout_service import CheckoutService
+
+        for status in ("PAYMENT_FAILED", "PAYMENT_CANCELLED", "PAYMENT_EXPIRED"):
+            with self.subTest(status=status):
+                cache.clear()
+                PaymentCheckoutSession.objects.filter(pk=self.checkout.pk).update(
+                    PCHK_PROVIDER_SESSION_ID=None,
+                    PCHK_CHECKOUT_URL="",
+                    PCHK_STATE="creation_unknown",
+                    PCHK_LAST_ERROR="provider_response_unusable",
+                    PCHK_PROVIDER_STATUS="",
+                )
+                with patch(
+                    "apps.shared.services.maya_checkout_service.MayaCheckoutService.retrieve_payment_by_reference",
+                    return_value=self.evidence,
+                ), patch(RETRIEVE, return_value=replace(self.evidence, status=status)):
+                    self.assertEqual(self.reconcile().status_code, 200)
+                self.checkout.refresh_from_db()
+                self.payment.refresh_from_db()
+                self.assertTrue(CheckoutService.can_retry(self.payment, self.checkout))
+                self.assert_pending()
 
     def test_authentication_role_and_client_evidence_are_rejected(self):
         with patch(RETRIEVE) as retrieve:
@@ -188,6 +320,41 @@ class MayaReconciliationConcurrencyTests(ConfirmationFixtures, TransactionTestCa
     def setUp(self):
         self.setUpTestData()
         super().setUp()
+
+    def test_simultaneous_reference_recovery_dispatches_only_once(self):
+        if connection.vendor != "postgresql":
+            self.skipTest("PostgreSQL locking required.")
+        PaymentCheckoutSession.objects.filter(pk=self.checkout.pk).update(
+            PCHK_PROVIDER_SESSION_ID=None,
+            PCHK_STATE="creation_unknown",
+        )
+        barrier = Barrier(2)
+        merchant_id = self.merchant_a.pk
+
+        def retrieve(**kwargs):
+            self.assertFalse(connection.in_atomic_block)
+            barrier.wait(timeout=20)
+            return self.evidence
+
+        def reconcile(_):
+            try:
+                reconcile_merchant_plus_payment(User.objects.get(pk=merchant_id))
+            finally:
+                connections.close_all()
+
+        with patch(
+            "apps.shared.services.maya_checkout_service.MayaCheckoutService.retrieve_payment_by_reference",
+            return_value=self.evidence,
+        ), patch(RETRIEVE, side_effect=retrieve):
+            with patch("apps.payments.tasks.dispatch_merchant_plus_fulfilment") as dispatch:
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    list(pool.map(reconcile, range(2)))
+                dispatch.assert_called_once_with(self.payment.pk)
+        self.payment.refresh_from_db()
+        self.checkout.refresh_from_db()
+        self.assertEqual(self.payment.PYMT_STATUS, "paid")
+        self.assertEqual(self.checkout.PCHK_PROVIDER_SESSION_ID, self.provider_id)
+        self.assertFalse(PaidMerchantPlusEntitlement.objects.exists())
 
     def test_simultaneous_reconciliations_dispatch_only_one_financial_transition(self):
         if connection.vendor != "postgresql":

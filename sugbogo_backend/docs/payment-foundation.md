@@ -654,5 +654,35 @@ deployment to retain the fix; this task did not create a commit.
 The provider must resume returning valid Checkout responses before successful
 gateway opening can be accepted. Do not reset uncertain purchases or switch
 hosts/credentials to bypass the failure. Existing reconciliation requires a
-known provider identity; reference-based recovery for unknown creations remains
-a separate gap.
+known provider identity or the reference-recovery path below.
+
+## Recovering unknown Maya creation by request reference
+
+An explicit Merchant Plus reconciliation now uses Maya's documented
+`GET /payments/v1/payment-rrns/{rrn}` with the backend Sandbox secret key when
+the current checkout is `creation_unknown` and has no saved provider ID.
+The RRN is the existing server-generated operation UUID; clients cannot supply
+provider identifiers or payment outcomes.
+
+Only a single exact-reference result is accepted, and its identity is independently
+retrieved through the existing Retrieve Payment by ID operation. Ownership,
+provider, mode, product, exact amount/currency, operation reference, and supported
+financial status are rechecked under the existing lock order before saving the
+recovered identity. Verified success reuses existing paid/fulfilment dispatch.
+Verified failed/cancelled/expired observations reuse the existing explicit retry
+rules. No checkout URL is fabricated and no replacement POST happens during
+reconciliation.
+
+Empty results, HTTP 404, provider 503, and other unavailable lookups do not release
+the purchase or silently claim a successful check. The API returns a recoverable
+verification error; the existing mobile hook already presents that error without
+an APK rebuild. Ambiguous/mismatched evidence is rejected. Two live read-only
+reference lookups for Siyam and Kanta returned HTTP 503 HTML on November 22,
+2026; neither account was reset, marked paid, or granted access.
+
+Railway API deployment `05b1af9c-6650-42d5-a913-166255736ccc` added this recovery
+path. An authenticated view invocation inside the deployed container for each
+affected merchant returned HTTP 503 with `PAYMENT_RECONCILIATION_UNAVAILABLE`;
+both payments remained pending/not started with zero entitlements, and an
+outbound POST guard confirmed no provider checkout POSTs. This verifies the
+backend error path, not a physical-device UI test or successful provider recovery.
