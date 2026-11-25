@@ -20,17 +20,20 @@ from core.responses import success_response
 
 
 class ExperimentalItineraryView(APIView):
-    """Require an active, explicitly enabled Explorer test account."""
+    """Require active Explorers and restrict non-debug access to approved testers."""
 
     permission_classes = (IsAuthenticated, HasRole(User.UserRole.EXPLORER))
     throttle_classes = (UserRateThrottle, ScopedRateThrottle)
 
     def check_permissions(self, request):
-        """Apply the server switch and account allowlist before any search or detail work."""
+        """Apply the feature switch, Explorer permissions and non-debug allowlist."""
         if not settings.EXPERIMENTAL_ITINERARIES_ENABLED:
             raise NotFound()
         super().check_permissions(request)
-        if str(request.user.pk) not in settings.EXPERIMENTAL_ITINERARY_EXPLORER_IDS:
+        if (
+            not settings.DEBUG
+            and str(request.user.pk) not in settings.EXPERIMENTAL_ITINERARY_EXPLORER_IDS
+        ):
             raise PermissionDenied("Experimental itineraries are available to approved test accounts.")
 
     def finalize_response(self, request, response, *args, **kwargs):

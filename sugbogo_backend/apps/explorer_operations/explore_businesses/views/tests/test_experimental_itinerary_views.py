@@ -175,6 +175,62 @@ class ExperimentalItineraryViewTests(TestCase):
             self.assertEqual(self._detail("sample").status_code, status)
         self.provider.assert_not_called()
 
+    @override_settings(DEBUG=True, EXPERIMENTAL_ITINERARY_EXPLORER_IDS=())
+    def test_debug_allows_active_explorer_with_empty_allowlist_on_search_and_detail(self):
+        self.client.force_authenticate(self._user(pk=700))
+        self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
+
+        response = self._search(max_transfers=0)
+        self.assertEqual(response.status_code, 200, response.data)
+        selection = response.data["data"]["options"][0]["selection"]
+        detail = self._detail(selection)
+        self.assertEqual(detail.status_code, 200, detail.data)
+
+    @override_settings(DEBUG=False)
+    def test_non_debug_requires_allowlist_for_search_and_detail(self):
+        self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
+        response = self._search(max_transfers=0)
+        self.assertEqual(response.status_code, 200, response.data)
+        selection = response.data["data"]["options"][0]["selection"]
+        self.assertEqual(self._detail(selection).status_code, 200)
+
+        self.client.force_authenticate(self._user(pk=700))
+        self.provider.reset_mock()
+        for allowlist in ((), ("501",)):
+            with self.subTest(allowlist=allowlist), override_settings(
+                EXPERIMENTAL_ITINERARY_EXPLORER_IDS=allowlist,
+            ):
+                self.assertEqual(self._search().status_code, 403)
+                self.assertEqual(self._detail(selection).status_code, 403)
+        self.provider.assert_not_called()
+
+    def test_debug_exception_preserves_authentication_active_account_and_explorer_role(self):
+        inactive = self._user()
+        inactive.is_active = False
+        for debug in (True, False):
+            with self.subTest(debug=debug), override_settings(DEBUG=debug):
+                for user, expected in (
+                    (None, 401),
+                    (inactive, 403),
+                    (self._user(role=User.UserRole.MERCHANT), 403),
+                    (self._user(role=User.UserRole.ADMIN), 403),
+                ):
+                    with self.subTest(user=user):
+                        self.client.force_authenticate(user)
+                        self.assertEqual(self._search().status_code, expected)
+                        self.assertEqual(self._detail("sample").status_code, expected)
+        self.provider.assert_not_called()
+
+    def test_feature_switch_disables_both_endpoints_with_and_without_debug(self):
+        for debug in (True, False):
+            with self.subTest(debug=debug), override_settings(
+                DEBUG=debug,
+                EXPERIMENTAL_ITINERARIES_ENABLED=False,
+            ):
+                self.assertEqual(self._search().status_code, 404)
+                self.assertEqual(self._detail("sample").status_code, 404)
+        self.provider.assert_not_called()
+
     def test_rejects_bad_inputs_foreign_selections_and_expiration(self):
         for fields in ({"latitude": "NaN"}, {"longitude": 190}, {"max_transfers": 3}):
             response = self._search(**fields)
