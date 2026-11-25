@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react-native";
 import { Redirect } from "expo-router";
+import { Platform } from "react-native";
 
 import JeepneyGuideRoute from "@/app/(explorer)/business/[businessId]/jeepney-guide";
 import { experimentalItinerariesEnabled } from "@/features/explore/constants/experimentalItinerary.constants";
@@ -10,24 +11,29 @@ jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ businessId: "42" }),
 }));
 
-jest.mock("@/features/explore/constants/experimentalItinerary.constants", () => ({
-  experimentalItinerariesEnabled: jest.fn(),
-}));
-
 jest.mock("@/features/explore/screens/JeepneyGuideScreen", () => ({
   __esModule: true,
   default: jest.fn(() => null),
 }));
 
 const originalDevelopmentMode = __DEV__;
+const previousFlag = process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED;
+const previousPlatform = Platform.OS;
+
+beforeEach(() => {
+  Object.defineProperty(Platform, "OS", { value: "android" });
+});
 
 afterEach(() => {
   Object.defineProperty(globalThis, "__DEV__", { value: originalDevelopmentMode });
+  Object.defineProperty(Platform, "OS", { value: previousPlatform });
+  if (previousFlag === undefined) delete process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED;
+  else process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED = previousFlag;
 });
 
-it("redirects the opted-in development guide to the same business's itinerary preview", async () => {
+it("opens the same business's geometric guide in development without a mobile flag", async () => {
   Object.defineProperty(globalThis, "__DEV__", { value: true });
-  jest.mocked(experimentalItinerariesEnabled).mockReturnValue(true);
+  delete process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED;
 
   await render(<JeepneyGuideRoute />);
 
@@ -38,19 +44,15 @@ it("redirects the opted-in development guide to the same business's itinerary pr
   expect(JeepneyGuideScreen).not.toHaveBeenCalled();
 });
 
-it.each([
-  { development: true, experimentEnabled: false },
-  { development: false, experimentEnabled: true },
-  { development: false, experimentEnabled: false },
-])("renders the legacy guide with development=$development and experimentEnabled=$experimentEnabled", async ({
-  development,
-  experimentEnabled,
-}) => {
-  Object.defineProperty(globalThis, "__DEV__", { value: development });
-  jest.mocked(experimentalItinerariesEnabled).mockReturnValue(experimentEnabled);
+it("preserves the legacy release entry and existing experimental release opt-in", async () => {
+  Object.defineProperty(globalThis, "__DEV__", { value: false });
+  process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED = "true";
 
   await render(<JeepneyGuideRoute />);
 
   expect(jest.mocked(JeepneyGuideScreen).mock.calls[0]?.[0]).toEqual({ businessId: 42 });
   expect(Redirect).not.toHaveBeenCalled();
+  expect(experimentalItinerariesEnabled()).toBe(true);
+  delete process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED;
+  expect(experimentalItinerariesEnabled()).toBe(false);
 });

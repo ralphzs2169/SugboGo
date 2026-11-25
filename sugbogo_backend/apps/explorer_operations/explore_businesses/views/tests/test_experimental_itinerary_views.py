@@ -14,7 +14,7 @@ from rest_framework.throttling import ScopedRateThrottle
 
 from apps.explorer_operations.explore_businesses.services import experimental_itinerary_service as service
 from apps.business.models import ServiceableBoundary
-from apps.shared.services.google_maps_service import GoogleNearbyLandmark
+from apps.shared.services.google_maps_service import GoogleMapsService, GoogleNearbyLandmark
 from apps.shared.services.google_routes_service import GoogleWalkingResult, GoogleWalkingRoute, GoogleWalkingStatus
 from apps.transit.models import JeepneyRoute, JeepneyRouteVariant, RouteTransitPoint, TransitPoint
 from apps.transit.services.coordinate_journey_service import CoordinateJourneyService
@@ -352,6 +352,96 @@ class ExperimentalItineraryViewTests(TestCase):
                 {"longitude": point["longitude"], "latitude": point["latitude"]},
             )
         self.assertLess(ride["boarding"]["route_position"]["fraction"], ride["alighting"]["route_position"]["fraction"])
+
+    def test_search_detail_distance_parity_batches_nonzero_access_and_transfer_gaps(self):
+        self.origin = Point(123.901, 10.3105, srid=4326)
+        JeepneyRouteVariant.objects.filter(pk=self.variants[1].pk).update(
+            JRV_GEOMETRY=LineString((123.9203, 10.3104), (123.9203, 10.330), srid=4326),
+        )
+        JeepneyRouteVariant.objects.filter(pk=self.variants[2].pk).update(
+            JRV_GEOMETRY=LineString((123.9207, 10.3304), (123.940, 10.3304), srid=4326),
+        )
+        for point, depth in (
+            ((123.917, 10.311), 0),
+            ((123.9208, 10.328), 1),
+            ((123.938, 10.331), 2),
+        ):
+            with self.subTest(depth=depth):
+                self.destination.return_value = (Point(*point, srid=4326), 100)
+                search = self._search(max_transfers=depth).data["data"]
+                option = search["options"][0]
+                self.assertEqual(option["transfer_count"], depth)
+                payload = signing.loads(option["selection"], salt=service.SELECTION_SALT)
+                with CaptureQueriesContext(connection) as queries:
+                    response = self._detail(option["selection"])
+                self.assertEqual(response.status_code, 200, response.data)
+                detail = response.data["data"]
+                self.assertEqual(detail["rank"], option["rank"])
+                self.assertEqual(
+                    [leg["route_code"] for leg in detail["ride_legs"]],
+                    option["route_sequence"],
+                )
+                self.assertAlmostEqual(
+                    detail["totals"]["straight_line_walking_distance_meters"],
+                    option["straight_line_walking_distance_meters"],
+                    places=6,
+                )
+                self.assertAlmostEqual(
+                    detail["totals"]["ranking_cost_meters"],
+                    option["ranking_cost_meters"],
+                    places=6,
+                )
+                self.assertEqual(
+                    detail["totals"]["ride_distance_meters"],
+                    option["ride_distance_meters"],
+                )
+                self.assertEqual(
+                    detail["totals"]["transfer_penalty_meters"],
+                    depth * 100,
+                )
+                for signed, leg in zip(payload["legs"], detail["ride_legs"], strict=True):
+                    self.assertEqual(leg["variant_id"], signed[0])
+                    self.assertEqual(
+                        leg["boarding"]["route_position"]["fraction"],
+                        signed[1],
+                    )
+                    self.assertEqual(
+                        leg["alighting"]["route_position"]["fraction"],
+                        signed[2],
+                    )
+                    self.assertGreaterEqual(leg["ride_distance_meters"], 25)
+                batches = [
+                    query
+                    for query in queries
+                    if "AS points(start_wkt, end_wkt, position)" in query["sql"]
+                ]
+                self.assertEqual(len(batches), 1)
+                walks = [
+                    detail["access_walk"],
+                    *[
+                        transfer["walk"]
+                        for transfer in detail["transfers"]
+                    ],
+                    detail["egress_walk"],
+                ]
+                spherical_cost = sum(
+                    GoogleMapsService.calculate_distance_meters(
+                        walk["from"]["latitude"],
+                        walk["from"]["longitude"],
+                        walk["to"]["latitude"],
+                        walk["to"]["longitude"],
+                    )
+                    for walk in walks
+                ) + depth * 100
+                self.assertNotAlmostEqual(
+                    spherical_cost,
+                    option["ranking_cost_meters"],
+                    places=4,
+                )
+                print(
+                    f"Distance parity depth={depth}: search={option['ranking_cost_meters']:.9f}, "
+                    f"previous_spherical={spherical_cost:.9f}, detail={detail['totals']['ranking_cost_meters']:.9f}",
+                )
 
     def test_candidate_budget_reports_incomplete_search_instead_of_no_routes(self):
         search = CoordinateJourneyService.search

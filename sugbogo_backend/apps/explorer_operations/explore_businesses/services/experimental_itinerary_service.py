@@ -10,6 +10,7 @@ from itertools import pairwise
 from django.conf import settings
 from django.contrib.gis.geos import LineString, Point
 from django.core import signing
+from django.db import connection
 from rest_framework.exceptions import APIException, NotFound, ValidationError
 
 from apps.shared.services.google_maps_service import GoogleMapsService, valid_latitude_longitude
@@ -301,12 +302,51 @@ def _distance(start: Point, end: Point):
     return GoogleMapsService.calculate_distance_meters(start.y, start.x, end.y, end.x)
 
 
-def _restore_journey(*, payload, variants, origin, destination):
+def _geographic_distances(point_pairs):
+    """Batch selected access gaps using the search pipeline's geography semantics."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+                SELECT ST_Distance(
+                    ST_GeomFromEWKT(start_wkt)::geography,
+                    ST_GeomFromEWKT(end_wkt)::geography
+                )
+                FROM unnest(%s::text[], %s::text[]) WITH ORDINALITY
+                    AS points(start_wkt, end_wkt, position)
+                ORDER BY position
+            """,
+            [
+                [
+                    start.ewkt
+                    for start, _ in point_pairs
+                ],
+                [
+                    end.ewkt
+                    for _, end in point_pairs
+                ],
+            ],
+        )
+        return [
+            distance
+            for (distance,) in cursor.fetchall()
+        ]
+
+
+def _restore_journey(
+    *,
+    payload,
+    variants,
+    origin,
+    destination,
+):
     """Rebuild only the signed rides and transitions using current checked geometry."""
     keys = [tuple(leg) for leg in payload["legs"]]
     limits = CoordinateJourneySearchLimits(max_transfers=payload["max_transfers"])
     measurements = CoordinateRouteMatchingService.measure_rides(
-        route_geometries={variant_id: variant.geometry for variant_id, variant in variants.items()},
+        route_geometries={
+            variant_id: variant.geometry
+            for variant_id, variant in variants.items()
+        },
         rides=keys,
         minimum_ride_distance_meters=limits.minimum_ride_distance_meters,
     )
@@ -324,19 +364,28 @@ def _restore_journey(*, payload, variants, origin, destination):
             ride_geometry=line,
             ride_distance_meters=distance,
         ))
+    ride_pairs = list(pairwise(legs))
+    gaps = _geographic_distances([
+        (origin, legs[0].boarding_position.point),
+        *[
+            (before.alighting_position.point, after.boarding_position.point)
+            for before, after in ride_pairs
+        ],
+        (legs[-1].alighting_position.point, destination),
+    ])
     transfers = [
         RouteConnection(
             from_variant_id=before.variant_id,
             to_variant_id=after.variant_id,
             alighting_position=before.alighting_position,
             boarding_position=after.boarding_position,
-            straight_line_distance_meters=_distance(before.alighting_position.point, after.boarding_position.point),
+            straight_line_distance_meters=distance,
             validation_status=TransferValidationStatus.PROVISIONAL,
         )
-        for before, after in pairwise(legs)
+        for (before, after), distance in zip(ride_pairs, gaps[1:-1], strict=True)
     ]
-    access = _distance(origin, legs[0].boarding_position.point)
-    egress = _distance(legs[-1].alighting_position.point, destination)
+    access = gaps[0]
+    egress = gaps[-1]
     transfer_distance = sum(link.straight_line_distance_meters for link in transfers)
     walking = access + transfer_distance + egress
     penalty = limits.transfer_penalty_meters * len(transfers)

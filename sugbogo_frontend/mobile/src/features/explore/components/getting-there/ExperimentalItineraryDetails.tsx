@@ -5,10 +5,20 @@ import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
 
 import { openGoogleMapsWalkingDirections } from "../../services/googleMapsHandoff.service";
-import type { ItineraryAccess, ItineraryDetail, ItineraryWalk } from "../../types/experimentalItinerary.types";
+import type { ItineraryAccess, ItineraryDetail, ItineraryRide, ItineraryWalk } from "../../types/experimentalItinerary.types";
 import { formatJourneyDistance } from "../../utils/directJourney.utils";
 import ExperimentalItineraryMap, { validItineraryPath } from "./ExperimentalItineraryMap";
 import JourneyStep from "./jeepney-guidance/JourneyStep";
+
+/** Display a direction only when reviewed and free of source-endpoint identifiers. */
+function rideInstruction(ride: ItineraryRide) {
+  const direction = ride.direction.toward.trim();
+  const technical = /source path endpoint|\[endpoint-[^\]]+\]|^endpoint-[\w-]+$/i.test(direction);
+  if (ride.route_alignment_status === "reviewed" && direction && !technical) {
+    return `Ride ${ride.route_code} toward ${direction}`;
+  }
+  return `Ride ${ride.route_code}`;
+}
 
 function AreaConnection({ walk }: { walk: ItineraryWalk }) {
   const [pending, setPending] = useState(false);
@@ -107,7 +117,7 @@ export default function ExperimentalItineraryDetails({ itinerary }: { itinerary:
             <Fragment key={ride.variant_id}>
               <JourneyStep
                 number={index * 2 + 2}
-                title={`${ride.route_code} toward ${ride.direction.toward}`}
+                title={rideInstruction(ride)}
                 detail={validItineraryPath(ride.geometry)
                   ? `Approximately ${formatJourneyDistance(ride.ride_distance_meters)} along the stored route`
                   : "Jeepney geometry unavailable"}
@@ -116,7 +126,6 @@ export default function ExperimentalItineraryDetails({ itinerary }: { itinerary:
                   {ride.route_alignment_status !== "reviewed" && (
                     <AppText className="text-xs text-text-secondary">
                       {ride.route_alignment_status === "disputed" ? "Disputed direction label" : "Unreviewed direction label"}
-                      {ride.direction.toward ? ` · toward ${ride.direction.toward}` : ""}
                     </AppText>
                   )}
                   {ride.route_provenance && (

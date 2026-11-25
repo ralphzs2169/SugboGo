@@ -1,9 +1,10 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { openGoogleMapsWalkingDirections } from "../../services/googleMapsHandoff.service";
 
 import ExperimentalItinerariesRoute from "@/app/(explorer)/business/[businessId]/experimental-itineraries";
+import { useJourneyOriginStore } from "../../stores/journeyOrigin.store";
 
 import {
   getExperimentalItinerary,
@@ -166,12 +167,17 @@ function renderRoute() {
 
 const previousFlag = process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED;
 const previousIosKey = process.env.EXPO_PUBLIC_EXPERIMENTAL_IOS_MAPS_API_KEY;
+const previousDevelopmentMode = __DEV__;
 beforeEach(() => {
+  useJourneyOriginStore.getState().clearOrigin();
+  Object.defineProperty(globalThis, "__DEV__", { value: true });
   mockDeviceLocation = origin;
   process.env.EXPO_PUBLIC_EXPERIMENTAL_IOS_MAPS_API_KEY = "test-map-key";
-  process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED = "true";
+  delete process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED;
 });
 afterEach(() => {
+  useJourneyOriginStore.getState().clearOrigin();
+  Object.defineProperty(globalThis, "__DEV__", { value: previousDevelopmentMode });
   if (previousFlag === undefined) delete process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED;
   else process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED = previousFlag;
   if (previousIosKey === undefined) delete process.env.EXPO_PUBLIC_EXPERIMENTAL_IOS_MAPS_API_KEY;
@@ -179,7 +185,8 @@ afterEach(() => {
   jest.resetAllMocks();
 });
 
-it("keeps the experiment inaccessible without the mobile feature flag", async () => {
+it("keeps release access disabled without explicit opt-in", async () => {
+  Object.defineProperty(globalThis, "__DEV__", { value: false });
   delete process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED;
   const screen = await renderRoute();
   expect(screen.getByText("Experiment disabled")).toBeTruthy();
@@ -201,7 +208,8 @@ it.each([0, 1, 2] as const)("shows %i transfers as geometric guidance with optio
 
   expect(screen.getAllByTestId(/^itinerary-ride-/)).toHaveLength(count + 1);
   expect(screen.queryAllByTestId(/^itinerary-walk-/)).toHaveLength(0);
-  expect(screen.getByText("J1 toward End 1")).toBeTruthy();
+  expect(screen.getByText("Ride J1")).toBeTruthy();
+  expect(screen.queryByText(/toward End 1/)).toBeNull();
   expect(screen.getByText(/Route alignment and recorded direction are unreviewed/)).toBeTruthy();
   expect(screen.getAllByText(/estimated straight-line distance/)).toHaveLength(count + 2);
   expect(screen.getAllByText("Google Maps").length).toBeGreaterThan(0);
@@ -266,7 +274,7 @@ it("keeps stale selection and incomplete search states distinct", async () => {
   jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: false, code: "STALE_ITINERARY", message: "Search again." });
   const screen = await renderRoute();
   await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
-  await screen.findByText(/from an incomplete search/);
+  await screen.findByText(/search ended early/i);
   await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
   await screen.findByText("This preview needs a new search");
   expect(screen.queryByTestId("experimental-itinerary-map")).toBeNull();
@@ -281,4 +289,113 @@ it("keeps results visible after a device GPS update", async () => {
   const screen = await renderRoute();
   await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
   await screen.findByRole("button", { name: /Open J1/ });
+});
+
+it("retains network and work coverage after opening the signed detail without searching again", async () => {
+  const detail = detailFor(2);
+  const result = resultsFor(detail);
+  result.coverage = {
+    ...result.coverage,
+    graph_revision: "internal-fixture-revision",
+    graph_variant_count: 3,
+    variants_outside_graph: [9],
+    incomplete_reason: "candidate_budget",
+  };
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: result });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
+  const screen = await renderRoute();
+  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
+  await screen.findByText(/Some routes are not included/);
+  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
+  await screen.findByTestId("experimental-itinerary-map");
+  expect(screen.getByText(/Some routes are not included.*search ended early/i)).toBeTruthy();
+  expect(screen.queryByText(/internal-fixture-revision/)).toBeNull();
+  expect(searchExperimentalItineraries).toHaveBeenCalledTimes(1);
+  expect(getExperimentalItinerary).toHaveBeenCalledWith(12, "signed-selection");
+});
+
+it("describes uncovered routes without claiming that candidate work was exhausted", async () => {
+  const detail = detailFor(1);
+  const result = resultsFor(detail);
+  result.coverage = {
+    ...result.coverage,
+    graph_variant_count: 3,
+    variants_outside_graph: [9],
+    incomplete_reason: "connection_budget",
+  };
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: result });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
+  const screen = await renderRoute();
+  await fireEvent.press(screen.getByLabelText("1 maximum transfers"));
+  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
+  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
+  await screen.findByTestId("experimental-itinerary-map");
+  expect(screen.getByText(/Some routes are not included/)).toBeTruthy();
+  expect(screen.queryByText(/search ended early/i)).toBeNull();
+});
+
+it("keeps complete direct coverage complete despite unused transfer coverage exclusions", async () => {
+  const detail = detailFor(0);
+  const result = resultsFor(detail);
+  result.coverage = {
+    ...result.coverage,
+    graph_variant_count: 3,
+    variants_outside_graph: [9],
+    alternatives_unchecked: false,
+  };
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: result });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
+  const screen = await renderRoute();
+  await fireEvent.press(screen.getByLabelText("0 maximum transfers"));
+  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
+  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
+  await screen.findByTestId("experimental-itinerary-map");
+  expect(screen.queryByTestId("itinerary-search-coverage")).toBeNull();
+});
+
+it("hides source-endpoint direction identifiers while retaining provisional guidance", async () => {
+  const detail = detailFor(0);
+  detail.ride_legs[0].direction.toward = "Source path endpoint [endpoint-fixture]";
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: resultsFor(detail) });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
+  const screen = await renderRoute();
+  await fireEvent.press(screen.getByLabelText("0 maximum transfers"));
+  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
+  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
+  await screen.findByText("Ride J1");
+  expect(screen.queryByText(/endpoint-fixture/)).toBeNull();
+  expect(screen.getByText(/Suggested areas are approximate/)).toBeTruthy();
+  expect(detail.ride_legs[0].direction.toward).toBe("Source path endpoint [endpoint-fixture]");
+});
+
+it("retains a reviewed readable direction label", async () => {
+  const detail = detailFor(0);
+  detail.ride_legs[0].route_alignment_status = "reviewed";
+  detail.ride_legs[0].direction.toward = "Reviewed destination";
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: resultsFor(detail) });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
+  const screen = await renderRoute();
+  await fireEvent.press(screen.getByLabelText("0 maximum transfers"));
+  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
+  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
+  await screen.findByText("Ride J1 toward Reviewed destination");
+});
+
+it("does not show an old selection when the confirmed origin changes", async () => {
+  const detail = detailFor(0);
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: resultsFor(detail) });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
+  const screen = await renderRoute();
+  await fireEvent.press(screen.getByLabelText("0 maximum transfers"));
+  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
+  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
+  await screen.findByTestId("experimental-itinerary-map");
+  await act(() => useJourneyOriginStore.getState().confirmOrigin(12, {
+    type: "selected",
+    latitude: origin.latitude + 0.01,
+    longitude: origin.longitude,
+    label: "New starting point",
+  }));
+  expect(screen.queryByTestId("experimental-itinerary-map")).toBeNull();
+  expect(searchExperimentalItineraries).toHaveBeenCalledTimes(1);
 });

@@ -59,6 +59,9 @@ export type ItinerarySearchResult = ItineraryContext & {
   validation_stage?: "spatial" | "minimum_ride_distance" | null;
   coverage: {
     incomplete_reason: "candidate_budget" | "connection_budget" | null;
+    graph_revision?: string;
+    graph_variant_count?: number;
+    variants_outside_graph?: number[];
     variants_excluded_by_spatial_validation: number;
     geometric_candidates_considered: number;
     geometric_candidates_truncated: boolean;

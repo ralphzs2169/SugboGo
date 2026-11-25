@@ -17,6 +17,36 @@ import { formatJourneyDistance } from "../utils/directJourney.utils";
 
 const transferLimits: TransferLimit[] = [0, 1, 2];
 
+/** Keep limited network coverage distinct from interrupted candidate evaluation. */
+function ItineraryCoverageNotice({ result }: { result: ItinerarySearchResult }) {
+  const coverage = result.coverage;
+  const partialNetwork = result.max_transfers > 0
+    && (coverage.variants_outside_graph?.length ?? 0) > 0;
+  const messages: string[] = [];
+
+  if (partialNetwork) {
+    messages.push("Some routes are not included in this preview. More options may be available.");
+  }
+  if (coverage.incomplete_reason === "candidate_budget") {
+    messages.push("The search ended early before checking all options.");
+  } else if (coverage.incomplete_reason === "connection_budget" && !partialNetwork) {
+    messages.push("The search could not check every connection. More options may be available.");
+  } else if (coverage.alternatives_unchecked && !partialNetwork && !coverage.incomplete_reason) {
+    messages.push("More route options may be available outside this preview.");
+  }
+
+  if (messages.length === 0) return null;
+  return (
+    <AppText
+      testID="itinerary-search-coverage"
+      accessibilityLiveRegion="polite"
+      className="text-sm text-text-secondary"
+    >
+      {messages.join(" ")}
+    </AppText>
+  );
+}
+
 function isStaleSelection(error: unknown) {
   const code = (error as Partial<ApiError> | null)?.code;
   return code === "STALE_ITINERARY" || code === "EXPIRED_ITINERARY" || code === "NOT_FOUND";
@@ -51,7 +81,10 @@ function emptySearchMessage(result: ItinerarySearchResult) {
 /** Provide a separate, explicitly triggered itinerary preview for approved testers. */
 export default function ExperimentalItineraryScreen({ businessId }: { businessId: number }) {
   const [maxTransfers, setMaxTransfers] = useState<TransferLimit>(2);
-  const [selection, setSelection] = useState<string | null>(null);
+  const [selectedItinerary, setSelectedItinerary] = useState<{
+    selection: string;
+    search: ItinerarySearchResult;
+  } | null>(null);
   const originChoice = useJourneyOriginStore((state) =>
     state.businessId === businessId ? state.confirmedOrigin : null,
   );
@@ -79,10 +112,13 @@ export default function ExperimentalItineraryScreen({ businessId }: { businessId
     result.max_transfers === maxTransfers
     ? result
     : null;
+  const selection = selectedItinerary && selectedItinerary.search === currentResult
+    ? selectedItinerary.selection
+    : null;
 
   function startSearch() {
     if (!origin || search.isPending || detail.isPending) return;
-    setSelection(null);
+    setSelectedItinerary(null);
     detail.reset();
     search.mutate({
       origin: { latitude: origin.latitude, longitude: origin.longitude },
@@ -92,13 +128,17 @@ export default function ExperimentalItineraryScreen({ businessId }: { businessId
   }
 
   function openItinerary(option: ItineraryOption) {
-    if (detail.isPending) return;
-    setSelection(option.selection);
+    if (
+      detail.isPending
+      || !currentResult
+      || !currentResult.options.some((candidate) => candidate.selection === option.selection)
+    ) return;
+    setSelectedItinerary({ selection: option.selection, search: currentResult });
     detail.mutate(option.selection);
   }
 
   function closeItinerary() {
-    setSelection(null);
+    setSelectedItinerary(null);
     detail.reset();
   }
 
@@ -111,6 +151,7 @@ export default function ExperimentalItineraryScreen({ businessId }: { businessId
         {selection ? (
           <>
             <Button title="Back to results" variant="outline" onPress={closeItinerary} />
+            {selectedItinerary && <ItineraryCoverageNotice result={selectedItinerary.search} />}
             {detail.isPending && <AppText accessibilityLiveRegion="polite">Checking selected itinerary…</AppText>}
             {detail.error && (
               <ErrorState
@@ -121,7 +162,9 @@ export default function ExperimentalItineraryScreen({ businessId }: { businessId
                 onPrimaryAction={stale ? startSearch : () => detail.mutate(selection)}
               />
             )}
-            {detail.data && !detail.error && <ExperimentalItineraryDetails itinerary={detail.data} />}
+            {detail.data && !detail.error && detail.variables === selection && (
+              <ExperimentalItineraryDetails itinerary={detail.data} />
+            )}
           </>
         ) : (
           <>
@@ -170,18 +213,7 @@ export default function ExperimentalItineraryScreen({ businessId }: { businessId
                 onPrimaryAction={startSearch}
               />
             )}
-            {currentResult?.coverage.incomplete_reason && (
-              <AppText accessibilityLiveRegion="polite" className="text-sm text-text-secondary">
-                {currentResult.reason === "search_incomplete"
-                  ? "The search ended before it could check every route. Try fewer transfers or a different starting point."
-                  : "These routes are from an incomplete search. More options may be available."}
-              </AppText>
-            )}
-            {currentResult?.coverage.alternatives_unchecked && !currentResult.coverage.incomplete_reason && (
-              <AppText className="text-sm text-text-secondary">
-                More geometric alternatives may be available outside this preview.
-              </AppText>
-            )}
+            {currentResult && <ItineraryCoverageNotice result={currentResult} />}
             {emptyMessage && (
               <AppText accessibilityLiveRegion="polite" className="text-sm text-text-secondary">
                 {emptyMessage}

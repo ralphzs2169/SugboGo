@@ -123,7 +123,7 @@ export default function GettingThereScreen({ businessId }: Props) {
           distanceAccuracy={null}
           previewAsExplorer
         />
-        {experimentalItinerariesEnabled() && (
+        {!__DEV__ && experimentalItinerariesEnabled() && (
           <Button
             className="mt-3"
             title="Experimental jeepney itineraries"

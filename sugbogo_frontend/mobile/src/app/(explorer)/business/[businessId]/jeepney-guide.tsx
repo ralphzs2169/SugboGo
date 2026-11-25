@@ -3,7 +3,7 @@ import { Redirect, useLocalSearchParams } from "expo-router";
 import { experimentalItinerariesEnabled } from "@/features/explore/constants/experimentalItinerary.constants";
 import JeepneyGuideScreen from "@/features/explore/screens/JeepneyGuideScreen";
 
-/** Opens the experimental preview for opted-in development clients. */
+/** Open geometric guidance by default on supported development clients. */
 export default function JeepneyGuideRoute() {
   const { businessId } = useLocalSearchParams<{
     businessId: string;
