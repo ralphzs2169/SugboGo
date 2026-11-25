@@ -7,12 +7,17 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from functools import cache
 from heapq import nsmallest
+from itertools import batched
 
 from django.contrib.gis.geos import LineString, Point
 from django.db import OperationalError, transaction
 from rest_framework.exceptions import ValidationError
 
 from apps.transit.constants import DIRECT_ROUTE_SEARCH_RADIUS_METERS
+from apps.transit.services.coordinate_ride_measurement_service import (
+    RIDE_MEASUREMENT_BATCH_SIZE,
+    measure_journey_rides,
+)
 from apps.transit.services.coordinate_route_matching_service import (
     MINIMUM_COORDINATE_RIDE_DISTANCE_METERS,
     CoordinateRouteMatchingService,
@@ -47,6 +52,7 @@ class CoordinateJourneySearchProgress:
     connection_discovery: RouteConnectionDiscoveryProgress = field(
         default_factory=RouteConnectionDiscoveryProgress,
     )
+    ride_measurement_cancelled: bool = False
 
 
 @dataclass(frozen=True)
@@ -512,19 +518,36 @@ class CoordinateJourneyService:
             return []
 
         measurements = {}
+        rejected_rides = set()
 
         def measure_requests(requests):
-            """Measure each distinct ride once and complete journeys before the next stage."""
-            measurements.update(CoordinateRouteMatchingService.measure_rides(
-                route_geometries=routes,
-                rides={
-                    ride.key
-                    for request in requests
-                    for ride in request.rides
-                    if ride.key not in measurements
-                },
-                minimum_ride_distance_meters=limits.minimum_ride_distance_meters,
-            ))
+            """Reuse completed measurements and recover cancellation at a batch boundary."""
+            pending = dict.fromkeys(
+                ride.key
+                for request in requests
+                for ride in request.rides
+                if ride.key not in measurements and ride.key not in rejected_rides
+            )
+            for batch in batched(pending, RIDE_MEASUREMENT_BATCH_SIZE):
+                try:
+                    with transaction.atomic():
+                        measured = measure_journey_rides(
+                            route_geometries=routes,
+                            rides=batch,
+                            minimum_ride_distance_meters=limits.minimum_ride_distance_meters,
+                        )
+                except OperationalError as error:
+                    if getattr(error.__cause__, "sqlstate", None) != "57014" or not allow_partial:
+                        raise
+                    progress.ride_measurement_cancelled = True
+                    # The v1 contract represents interrupted candidate evaluation
+                    # with its existing candidate-budget reason.
+                    if progress.incomplete_reason is None:
+                        progress.incomplete_reason = "candidate_budget"
+                    break
+                measurements.update(measured)
+                # Only a successful batch proves that an omitted ride was rejected.
+                rejected_rides.update(key for key in batch if key not in measured)
             return list(_measured_journeys(
                 requests=requests,
                 measurements=measurements,
@@ -576,7 +599,11 @@ class CoordinateJourneyService:
                 progress.incomplete_reason = "connection_budget"
 
         outgoing = {}
-        if limits.max_transfers and connections is not None:
+        if (
+            limits.max_transfers
+            and connections is not None
+            and progress.incomplete_reason is None
+        ):
             outgoing = _eligible_connections(
                 candidates=connections,
                 routes=routes,

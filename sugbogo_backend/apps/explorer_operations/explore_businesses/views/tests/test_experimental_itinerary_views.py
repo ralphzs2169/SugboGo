@@ -416,6 +416,28 @@ class ExperimentalItineraryViewTests(TestCase):
         self.assertTrue(result["coverage"]["alternatives_unchecked"])
         self.provider.assert_not_called()
 
+    def test_ride_measurement_timeout_reports_incomplete_candidate_evaluation(self):
+        self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
+
+        def cancel_measurement(**kwargs):
+            with connection.cursor() as cursor:
+                cursor.execute("SET LOCAL statement_timeout = '1ms'")
+                cursor.execute("SELECT pg_sleep(0.05)")
+
+        with patch(
+            "apps.transit.services.coordinate_journey_service.measure_journey_rides",
+            side_effect=cancel_measurement,
+        ):
+            response = self._search()
+
+        self.assertEqual(response.status_code, 200)
+        result = response.data["data"]
+        self.assertEqual(result["options"], [])
+        self.assertEqual(result["reason"], "search_incomplete")
+        self.assertEqual(result["coverage"]["incomplete_reason"], "candidate_budget")
+        self.assertTrue(result["coverage"]["alternatives_unchecked"])
+        self.provider.assert_not_called()
+
     def test_terminal_mismatch_allows_forward_return_as_geometry_preview(self):
         reverse = self._variant("REV", (123.920, 10.310), (123.900, 10.310))
         TransitPoint.objects.filter(pk=reverse.JRV_DESTINATION_ID_id).update(
