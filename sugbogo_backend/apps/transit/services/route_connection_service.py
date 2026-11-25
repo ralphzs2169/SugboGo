@@ -1,7 +1,7 @@
 """Discover provisional connections between directional route centerlines."""
 
 import math
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -24,9 +24,10 @@ MAXIMUM_PROVISIONAL_TRANSFER_DISTANCE_METERS = 120.0
 CONNECTION_AREA_METERS = 75.0
 MAXIMUM_CANDIDATES_PER_AREA = 6
 MAXIMUM_CONNECTION_SEGMENT_PAIRS = 20_000
-# Count cheap grid memberships/scans separately from the unchanged exact-pair cap.
+# Count cheap grid memberships and scans separately from accepted occurrences.
 MAXIMUM_CONNECTION_BROAD_PHASE_WORK = 2_000_000
 EXACT_CHECK_BATCH_SIZE = 2_048
+EXACT_RESULT_CACHE_SIZE = 20_000
 
 
 @dataclass
@@ -43,6 +44,8 @@ class RouteConnectionDiscoveryProgress:
     retained_connection_areas: int = 0
     retained_connections: int = 0
     stop_reason: str | None = None
+    reused_exact_spatial_checks: int = 0
+    reused_connection_positions: int = 0
 
 
 @dataclass(frozen=True)
@@ -156,6 +159,45 @@ def _candidate_segment_pairs(
                 yield other_id, segment_id
 
 
+def _check_segment_pairs(
+    segments,
+    batch,
+    radius_meters,
+):
+    """Check one batch of ordered geometry inputs with the original predicates."""
+    identifiers = sorted({
+        identifier
+        for pair in batch
+        for identifier in pair
+    })
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            WITH segments AS MATERIALIZED (
+                SELECT id, ST_GeomFromEWKT(wkt) AS geometry
+                FROM unnest(%s::bigint[], %s::text[]) AS input(id, wkt)
+            ),
+            checked AS MATERIALIZED (
+                SELECT input.a_id, input.b_id,
+                    ST_Intersects(a.geometry, b.geometry)
+                    OR ST_DWithin(a.geometry::geography, b.geometry::geography, %s) AS eligible
+                FROM unnest(%s::bigint[], %s::bigint[]) AS input(a_id, b_id)
+                JOIN segments a ON a.id = input.a_id
+                JOIN segments b ON b.id = input.b_id
+            )
+            SELECT a_id, b_id FROM checked WHERE eligible
+            """,
+            [
+                identifiers,
+                [segments[identifier].ewkt for identifier in identifiers],
+                radius_meters,
+                [pair[0] for pair in batch],
+                [pair[1] for pair in batch],
+            ],
+        )
+        return set(cursor.fetchall())
+
+
 def _exact_segment_pairs(
     segments,
     candidates,
@@ -163,42 +205,40 @@ def _exact_segment_pairs(
     maximum_segment_pairs,
     progress,
 ):
-    """Verify bounded batches with the original exact planar/geographic predicates."""
+    """Reuse exact checks and charge the budget for every accepted occurrence."""
     accepted = []
+    # Every batch in this call uses the same radius, SRID and spatial predicates.
+    # Keep ordered operands and bound memory independently of the work counters.
+    results = OrderedDict()
     iterator = iter(candidates)
     while batch := list(islice(iterator, EXACT_CHECK_BATCH_SIZE)):
-        identifiers = sorted({
-            identifier
-            for pair in batch
-            for identifier in pair
-        })
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                WITH segments AS MATERIALIZED (
-                    SELECT id, ST_GeomFromEWKT(wkt) AS geometry
-                    FROM unnest(%s::bigint[], %s::text[]) AS input(id, wkt)
-                ),
-                checked AS MATERIALIZED (
-                    SELECT input.a_id, input.b_id, input.ordinality,
-                        ST_Intersects(a.geometry, b.geometry)
-                        OR ST_DWithin(a.geometry::geography, b.geometry::geography, %s) AS eligible
-                    FROM unnest(%s::bigint[], %s::bigint[]) WITH ORDINALITY AS input(a_id, b_id, ordinality)
-                    JOIN segments a ON a.id = input.a_id
-                    JOIN segments b ON b.id = input.b_id
-                )
-                SELECT a_id, b_id FROM checked WHERE eligible ORDER BY ordinality
-                """,
-                [
-                    identifiers,
-                    [segments[identifier].ewkt for identifier in identifiers],
-                    radius_meters,
-                    [pair[0] for pair in batch],
-                    [pair[1] for pair in batch],
-                ],
+        keys = [
+            (segments[first].ewkt, segments[second].ewkt)
+            for first, second in batch
+        ]
+        missing = {}
+        for key, pair in zip(keys, batch, strict=True):
+            if key not in results:
+                missing.setdefault(key, pair)
+        if missing:
+            checked = _check_segment_pairs(
+                segments,
+                tuple(missing.values()),
+                radius_meters,
             )
-            rows = cursor.fetchall()
-        progress.exact_spatial_checks += len(batch)
+            results.update(
+                (key, pair in checked)
+                for key, pair in missing.items()
+            )
+        rows = [
+            pair
+            for key, pair in zip(keys, batch, strict=True)
+            if results[key]
+        ]
+        while len(results) > EXACT_RESULT_CACHE_SIZE:
+            results.popitem(last=False)
+        progress.exact_spatial_checks += len(missing)
+        progress.reused_exact_spatial_checks += len(batch) - len(missing)
         progress.accepted_segment_pairs += len(rows)
         if progress.accepted_segment_pairs > maximum_segment_pairs:
             progress.stop_reason = "segment_pair_budget"
@@ -254,6 +294,7 @@ class RouteConnectionService:
         *,
         route_geometries: Mapping[int, LineString],
         route_codes: Mapping[int, str] | None = None,
+        variant_pair: tuple[int, int] | None = None,
         maximum_transfer_distance_meters: float = MAXIMUM_PROVISIONAL_TRANSFER_DISTANCE_METERS,
         connection_area_meters: float = CONNECTION_AREA_METERS,
         maximum_candidates_per_area: int = MAXIMUM_CANDIDATES_PER_AREA,
@@ -261,7 +302,7 @@ class RouteConnectionService:
         maximum_broad_phase_work: int = MAXIMUM_CONNECTION_BROAD_PHASE_WORK,
         progress: RouteConnectionDiscoveryProgress | None = None,
     ) -> list[RouteConnection]:
-        """Return provisional candidates with bounded sampling and per-area retention."""
+        """Discover provisional links across all supplied routes or one selected variant pair."""
         validate_distance("maximum_transfer_distance_meters", maximum_transfer_distance_meters)
         validate_distance("connection_area_meters", connection_area_meters)
         for field, limit in (
@@ -271,7 +312,24 @@ class RouteConnectionService:
         ):
             if type(limit) is not int or limit < 1:
                 raise ValidationError({field: "Provide a positive integer."})
+        if variant_pair is not None:
+            if (
+                not isinstance(variant_pair, tuple)
+                or len(variant_pair) != 2
+                or variant_pair[0] == variant_pair[1]
+                or any(
+                    type(variant_id) is not int or variant_id not in route_geometries
+                    for variant_id in variant_pair
+                )
+            ):
+                raise ValidationError({"variant_pair": "Provide two distinct known variant IDs."})
+            route_geometries = {
+                variant_id: route_geometries[variant_id]
+                for variant_id in variant_pair
+            }
         routes = valid_route_geometries(route_geometries)
+        if variant_pair is not None and len(routes) != 2:
+            raise ValidationError({"variant_pair": "Both selected variants need usable route geometries."})
         if progress is None:
             progress = RouteConnectionDiscoveryProgress()
         if len(routes) < 2:
@@ -368,56 +426,63 @@ class RouteConnectionService:
                 JOIN route_measures a_route ON a_route.variant_id = pairs.a_id
                 JOIN route_measures b_route ON b_route.variant_id = pairs.b_id
             ),
-            eligible_segment_pairs AS MATERIALIZED (
-                SELECT * FROM segment_pairs
-            ),
             candidate_points AS (
-                SELECT pairs.*, points.a_point, points.b_point
-                FROM eligible_segment_pairs AS pairs
+                SELECT pairs.*, points.a_point, points.b_point, points.sample_count
+                FROM segment_pairs AS pairs
                 CROSS JOIN limits
                 CROSS JOIN LATERAL (
-                    SELECT ST_StartPoint(line) AS a_point, ST_EndPoint(line) AS b_point
-                    FROM (SELECT ST_ShortestLine(pairs.a_segment, pairs.b_segment) AS line) closest
-                    UNION ALL
-                    SELECT
-                        CASE WHEN sampling.on_a THEN sample.point ELSE projected.point END,
-                        CASE WHEN sampling.on_a THEN projected.point ELSE sample.point END
-                    FROM (VALUES
-                        (TRUE, pairs.a_segment, pairs.b_segment, pairs.a_segment_meters),
-                        (FALSE, pairs.b_segment, pairs.a_segment, pairs.b_segment_meters)
-                    ) AS sampling(on_a, segment, other_segment, meters)
-                    CROSS JOIN LATERAL (
+                    SELECT samples.a_point, samples.b_point, COUNT(*) AS sample_count
+                    FROM (
+                        SELECT ST_StartPoint(line) AS a_point, ST_EndPoint(line) AS b_point
+                        FROM (
+                            SELECT ST_ShortestLine(pairs.a_segment, pairs.b_segment) AS line
+                            OFFSET 0
+                        ) AS closest
+                        UNION ALL
                         SELECT
-                            ST_LineLocatePoint(sampling.segment, ST_StartPoint(sampling.other_segment)) AS start,
-                            ST_LineLocatePoint(sampling.segment, ST_EndPoint(sampling.other_segment)) AS finish
-                    ) AS bounds
-                    CROSS JOIN LATERAL (
-                        SELECT LEAST(
-                            64,
-                            GREATEST(
-                                1,
-                                CEIL(
-                                    ABS(bounds.finish - bounds.start)
-                                    * sampling.meters
-                                    / limits.area_meters
+                            CASE WHEN sampling.on_a THEN sample.point ELSE projected.point END,
+                            CASE WHEN sampling.on_a THEN projected.point ELSE sample.point END
+                        FROM (VALUES
+                            (TRUE, pairs.a_segment, pairs.b_segment, pairs.a_segment_meters),
+                            (FALSE, pairs.b_segment, pairs.a_segment, pairs.b_segment_meters)
+                        ) AS sampling(on_a, segment, other_segment, meters)
+                        CROSS JOIN LATERAL (
+                            SELECT
+                                ST_LineLocatePoint(sampling.segment, ST_StartPoint(sampling.other_segment)) AS start,
+                                ST_LineLocatePoint(sampling.segment, ST_EndPoint(sampling.other_segment)) AS finish
+                        ) AS bounds
+                        CROSS JOIN LATERAL (
+                            SELECT LEAST(
+                                64,
+                                GREATEST(
+                                    1,
+                                    CEIL(
+                                        ABS(bounds.finish - bounds.start)
+                                        * sampling.meters
+                                        / limits.area_meters
+                                    )
                                 )
-                            )
-                        )::integer AS steps
-                    ) AS intervals
-                    CROSS JOIN LATERAL generate_series(0, intervals.steps) AS step(index)
-                    CROSS JOIN LATERAL (
-                        SELECT ST_LineInterpolatePoint(
-                            sampling.segment,
-                            CASE
-                                WHEN step.index = 0 THEN bounds.start
-                                WHEN step.index = intervals.steps THEN bounds.finish
-                                ELSE bounds.start + (bounds.finish - bounds.start) * step.index / intervals.steps
-                            END
-                        ) AS point
-                    ) AS sample
-                    CROSS JOIN LATERAL (
-                        SELECT ST_ClosestPoint(sampling.other_segment, sample.point) AS point
-                    ) AS projected
+                            )::integer AS steps
+                        ) AS intervals
+                        CROSS JOIN LATERAL generate_series(0, intervals.steps) AS step(index)
+                        CROSS JOIN LATERAL (
+                            SELECT ST_LineInterpolatePoint(
+                                sampling.segment,
+                                CASE
+                                    WHEN step.index = 0 THEN bounds.start
+                                    WHEN step.index = intervals.steps THEN bounds.finish
+                                    ELSE bounds.start + (bounds.finish - bounds.start) * step.index / intervals.steps
+                                END
+                            ) AS point
+                        ) AS sample
+                        CROSS JOIN LATERAL (
+                            SELECT ST_ClosestPoint(sampling.other_segment, sample.point) AS point
+                        ) AS projected
+                    ) AS samples(a_point, b_point)
+                    -- Keep route occurrences separate so identical coordinates can have different fractions.
+                    GROUP BY samples.a_point, samples.b_point
+                    -- Check geography after grouping, even if PostgreSQL could push the filter down.
+                    OFFSET 0
                 ) AS points
                 WHERE ST_DWithin(points.a_point::geography, points.b_point::geography, limits.radius_meters)
             ),
@@ -434,7 +499,8 @@ class RouteConnectionService:
                         (b_length_before + b_segment_length * ST_LineLocatePoint(b_segment, b_point))
                         / b_length
                     ) AS b_fraction,
-                    ST_Distance(a_point::geography, b_point::geography) AS distance_meters
+                    ST_Distance(a_point::geography, b_point::geography) AS distance_meters,
+                    sample_count
                 FROM candidate_points
             ),
             directed AS (
@@ -452,7 +518,9 @@ class RouteConnectionService:
                 SELECT *, ROW_NUMBER() OVER (
                     PARTITION BY from_id, to_id,
                         ROUND(alighting_fraction::numeric, 12), ROUND(boarding_fraction::numeric, 12)
-                    ORDER BY distance_meters, alighting_fraction, boarding_fraction
+                    -- Break exact measure and distance ties between different point representations.
+                    ORDER BY distance_meters, alighting_fraction, boarding_fraction,
+                        alighting_point, boarding_point
                 ) AS duplicate_rank
                 FROM directed
                 WHERE alighting_fraction > 0.0 AND boarding_fraction < 1.0
@@ -500,13 +568,14 @@ class RouteConnectionService:
                 SELECT * FROM retained WHERE area_rank <= %s
             ),
             statistics AS (
-                SELECT (SELECT COUNT(*) FROM positioned) AS generated,
+                SELECT (SELECT COALESCE(SUM(sample_count), 0)::bigint FROM positioned) AS generated,
+                    (SELECT COUNT(*) FROM positioned) AS calculated,
                     (SELECT COUNT(DISTINCT (from_id, to_id, from_area, to_area)) FROM areas) AS areas
             )
             SELECT
                 from_id, to_id, alighting_fraction, ST_AsEWKT(alighting_point),
                 boarding_fraction, ST_AsEWKT(boarding_point), distance_meters,
-                statistics.generated, statistics.areas
+                statistics.generated, statistics.calculated, statistics.areas
             FROM statistics LEFT JOIN final_connections ON TRUE
             ORDER BY from_id, to_id, alighting_fraction, boarding_fraction, distance_meters
         """
@@ -525,8 +594,10 @@ class RouteConnectionService:
                 ],
             )
             rows = cursor.fetchall()
-            progress.generated_connection_positions = rows[0][-2]
-            progress.retained_connection_areas = rows[0][-1]
+            generated, calculated, areas = rows[0][-3:]
+            progress.generated_connection_positions = generated
+            progress.reused_connection_positions = generated - calculated
+            progress.retained_connection_areas = areas
             results = [
                 RouteConnection(
                     from_variant_id=from_id,
@@ -550,8 +621,7 @@ class RouteConnectionService:
                     boarding_fraction,
                     boarding_wkt,
                     distance,
-                    _,
-                    _,
+                    *_,
                 ) in rows
                 if from_id is not None
             ]

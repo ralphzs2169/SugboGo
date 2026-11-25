@@ -6,6 +6,7 @@ from django.db import OperationalError, connection
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError
 
+from apps.transit.services import route_connection_service
 from apps.transit.services.coordinate_journey_service import (
     CoordinateJourneySearchLimits,
     CoordinateJourneySearchProgress,
@@ -241,6 +242,170 @@ class RouteConnectionDiscoveryTests(TestCase):
             )
 
         self.assertIn("connections", context.exception.detail)
+
+    def test_selected_pair_consolidates_candidates_across_exact_batches(self):
+        offsets = [
+            index * 0.0002
+            for index in range(12)
+        ]
+        routes = {
+            1: _line(*[(x, 0) for x in offsets]),
+            2: _line(*[(x, 0.0003) for x in reversed(offsets)]),
+            3: _line((0, 0.02), (0.003, 0.02)),
+        }
+        progress = RouteConnectionDiscoveryProgress()
+        expected = RouteConnectionService.discover(
+            route_geometries=routes,
+            maximum_candidates_per_area=1,
+        )
+        with patch.object(route_connection_service, "EXACT_CHECK_BATCH_SIZE", 3):
+            result = RouteConnectionService.discover(
+                route_geometries=routes,
+                variant_pair=(2, 1),
+                maximum_candidates_per_area=1,
+                progress=progress,
+            )
+
+        self.assertTrue(expected)
+        self.assertEqual(result, expected)
+        self.assertEqual(progress.route_pair_candidates, 1)
+        self.assertEqual(progress.segment_count, 22)
+        self.assertGreater(progress.exact_spatial_checks, 3)
+        self.assertGreater(progress.reused_connection_positions, 0)
+
+    def test_reused_exact_checks_preserve_distinct_visits_to_the_same_point(self):
+        routes = {
+            1: _line(
+                (-0.002, 0),
+                (0.002, 0),
+                (0.002, 0.003),
+                (-0.002, 0.003),
+                (-0.002, 0),
+                (0.002, 0),
+            ),
+            2: _line((0, -0.002), (0, 0.002)),
+        }
+        progress = RouteConnectionDiscoveryProgress()
+        with patch.object(route_connection_service, "EXACT_CHECK_BATCH_SIZE", 1):
+            links = RouteConnectionService.discover(
+                route_geometries=routes,
+                variant_pair=(1, 2),
+                progress=progress,
+            )
+        crossings = [
+            link
+            for link in links
+            if (
+                link.from_variant_id == 1
+                and link.straight_line_distance_meters == 0
+            )
+        ]
+
+        self.assertGreater(progress.reused_exact_spatial_checks, 0)
+        self.assertEqual(
+            progress.exact_spatial_checks + progress.reused_exact_spatial_checks,
+            progress.broad_phase_segment_candidates,
+        )
+        self.assertEqual(len(crossings), 2)
+        self.assertEqual(crossings[0].alighting_position.point, crossings[1].alighting_position.point)
+        self.assertLess(
+            crossings[0].alighting_position.fraction,
+            crossings[1].alighting_position.fraction,
+        )
+        self.assertEqual(crossings[0].boarding_position, crossings[1].boarding_position)
+
+        journeys = CoordinateJourneyService.search(
+            origin=_point(0.002, 0.002),
+            destination=_point(0, 0.0018),
+            route_geometries=routes,
+            route_codes={1: "A", 2: "B"},
+            connections=links,
+            allow_provisional_transfers=True,
+            limits=CoordinateJourneySearchLimits(
+                max_transfers=1,
+                maximum_access_distance_meters=20,
+                maximum_egress_distance_meters=20,
+            ),
+        )
+        self.assertTrue(journeys)
+        self.assertEqual(journeys[0].transfers, (crossings[1],))
+
+    def test_selected_pair_cannot_complete_when_reused_occurrences_exceed_the_budget(self):
+        routes = {
+            1: _line(
+                (-0.002, 0),
+                (0.002, 0),
+                (0.002, 0.003),
+                (-0.002, 0.003),
+                (-0.002, 0),
+                (0.002, 0),
+            ),
+            2: _line((0, -0.001), (0, 0.001)),
+        }
+        progress = RouteConnectionDiscoveryProgress()
+        with self.assertRaises(RouteConnectionBudgetExceeded) as context:
+            RouteConnectionService.discover(
+                route_geometries=routes,
+                variant_pair=(1, 2),
+                maximum_segment_pairs=1,
+                progress=progress,
+            )
+
+        self.assertEqual(context.exception.reason, "segment_pair_budget")
+        self.assertEqual(progress.stop_reason, "segment_pair_budget")
+        self.assertEqual(progress.accepted_segment_pairs, 2)
+        self.assertGreater(progress.reused_exact_spatial_checks, 0)
+        self.assertEqual(progress.retained_connections, 0)
+
+    def test_selected_pair_requires_two_usable_known_variants(self):
+        routes = {
+            1: _line((0, 0), (0.01, 0)),
+            2: _line((0, 0), (0, 0)),
+        }
+        for pair in ((1, 1), (1, 3), (1, 2)):
+            with self.subTest(pair=pair):
+                with self.assertRaises(ValidationError) as context:
+                    RouteConnectionService.discover(
+                        route_geometries=routes,
+                        variant_pair=pair,
+                    )
+                self.assertIn("variant_pair", context.exception.detail)
+
+    def test_reused_exact_checks_keep_the_geographic_threshold_at_120_meters(self):
+        crossing = _point(0, 0)
+        source = _line((-0.003, 0), (0, 0), (0.003, 0))
+        other_source = _line((-0.004, 0), (-0.003, 0), (0, 0), (0.003, 0))
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                WITH projected AS (
+                    SELECT ST_Project(%s::geography, distance, 0) AS closest,
+                        ST_Project(%s::geography, distance + 100, 0) AS farthest
+                    FROM unnest(%s::float8[]) AS inputs(distance)
+                )
+                SELECT ST_Y(closest::geometry), ST_Y(farthest::geometry),
+                    ST_DWithin(%s::geography, closest, 120)
+                FROM projected
+                """,
+                [crossing.ewkt, crossing.ewkt, [119.99, 120.0, 120.01], crossing.ewkt],
+            )
+            projected = cursor.fetchall()
+
+        for closest, farthest, within in projected:
+            with self.subTest(closest=closest):
+                target = LineString(
+                    (crossing.x, closest),
+                    (crossing.x, farthest),
+                    srid=4326,
+                )
+                progress = RouteConnectionDiscoveryProgress()
+                links = RouteConnectionService.discover(
+                    route_geometries={1: source, 2: other_source, 3: target},
+                    route_codes={1: "A", 2: "A", 3: "B"},
+                    progress=progress,
+                )
+                self.assertEqual(bool(links), within)
+                self.assertGreater(progress.reused_exact_spatial_checks, 0)
 
 
 class CoordinateJourneyServiceTests(TestCase):
