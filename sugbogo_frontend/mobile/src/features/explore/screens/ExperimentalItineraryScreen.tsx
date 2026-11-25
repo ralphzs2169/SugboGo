@@ -6,6 +6,7 @@ import { Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
+import GettingThereEmptyState from "../components/getting-there/GettingThereEmptyState";
 import ErrorState from "@/shared/components/ErrorState";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import useBusinessDetailSource from "../hooks/useBusinessDetailSource";
@@ -21,28 +22,18 @@ import { getBusinessAddressDisplay } from "../utils/businessLocation.utils";
 import { formatJourneyDistance } from "../utils/directJourney.utils";
 import type { ItinerarySearchResult } from "../types/experimentalItinerary.types";
 
-function emptySearchMessage(result: ItinerarySearchResult) {
-  switch (result.reason) {
-    case "no_route_near_origin":
-      return "No jeepney route was found near your starting point.";
-
-    case "no_route_near_destination":
-      return "No jeepney route was found near this destination.";
-
-    case "no_forward_journey":
-      return "Nearby jeepney routes could not connect these locations in the direction of travel with this transfer limit.";
-
-    case "candidate_excluded_by_validation":
-      return result.validation_stage === "minimum_ride_distance"
-        ? "The jeepney rides found were too short to offer as an itinerary."
-        : "Nearby route data did not pass the preview’s route checks.";
-
-    case "no_geometric_journey":
-      return "No route candidate found for this starting point and transfer limit.";
-
-    default:
-      return null;
-  }
+function emptySearchContent(result: ItinerarySearchResult) {
+  const incomplete =
+    result.coverage.alternatives_unchecked ||
+    result.coverage.incomplete_reason ||
+    (result.max_transfers > 0 &&
+      (result.coverage.variants_outside_graph?.length ?? 0) > 0);
+  return {
+    title: "No journey suggestion yet",
+    description: incomplete
+      ? "We couldn't suggest a journey from the routes checked so far. Other routes may still be available or not yet added to SugboGo. Try another starting point or check again."
+      : "We couldn't suggest a journey using the routes currently available in SugboGo. Some jeepney routes may not be added yet. Try another starting point or check again.",
+  };
 }
 
 /** Search once per confirmed origin and keep backend-ranked options compact. */
@@ -227,10 +218,12 @@ export default function ExperimentalItineraryScreen({
           </Pressable>
         ))}
         {result && result.options.length === 0 && (
-          <AppText className="py-4 text-sm text-text-secondary">
-            {emptySearchMessage(result) ??
-              "No journeys found among the checked routes."}
-          </AppText>
+          <GettingThereEmptyState
+            reason={null}
+            content={emptySearchContent(result)}
+            onRetry={runSearch}
+            isLoading={search.isPending}
+          />
         )}
         {result && <ItineraryCoverageNotice result={result} />}
       </ScrollView>

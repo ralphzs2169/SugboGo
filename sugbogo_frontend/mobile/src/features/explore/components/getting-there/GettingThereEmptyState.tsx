@@ -13,6 +13,7 @@ type Props = {
   reason: DirectJourneyNoRouteReason | null;
   onRetry: () => void;
   isLoading?: boolean;
+  content?: { title: string; description: string };
 };
 
 /**
@@ -25,8 +26,9 @@ export default function GettingThereEmptyState({
   reason,
   onRetry,
   isLoading = false,
+  content: contentOverride,
 }: Props) {
-  const content = getNoDirectJourneyContent(reason);
+  const content = contentOverride ?? getNoDirectJourneyContent(reason);
 
   return (
     <View className="items-center px-5 py-7">

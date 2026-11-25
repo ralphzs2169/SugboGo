@@ -565,14 +565,12 @@ it("shows journey skeletons while search and signed map details are pending", as
   expect(options.queryByText("Finding journeys…")).toBeNull();
   options.unmount();
   const detail = detailFor(1);
-  useItinerarySelectionStore
-    .getState()
-    .select({
-      businessId: 12,
-      search: resultsFor(detail),
-      token: "pending-details",
-      destinationName: "Fixture",
-    });
+  useItinerarySelectionStore.getState().select({
+    businessId: 12,
+    search: resultsFor(detail),
+    token: "pending-details",
+    destinationName: "Fixture",
+  });
   jest.mocked(getExperimentalItinerary).mockReturnValue(new Promise(() => {}));
   const map = await renderDetail(true);
   expect(await map.findByTestId("journey-map-loading")).toBeTruthy();
@@ -594,3 +592,35 @@ it("keeps the new Going To header business-only", async () => {
   expect(screen.queryByText(/ride/)).toBeNull();
   expect(screen.getAllByRole("button", { name: "Go back" })).toHaveLength(1);
 });
+
+it.each([false, true])(
+  "shows the existing mascot empty state with coverage-aware copy (incomplete: %s)",
+  async (incomplete) => {
+    const result = resultsFor(detailFor(0));
+    result.options = [];
+    result.reason = "no_route_near_origin";
+    result.coverage.alternatives_unchecked = incomplete;
+    result.coverage.incomplete_reason = incomplete ? "candidate_budget" : null;
+    jest
+      .mocked(searchExperimentalItineraries)
+      .mockResolvedValue({ success: true, message: "", data: result });
+    const screen = await renderRoute();
+    expect(await screen.findByText("No journey suggestion yet")).toBeTruthy();
+    expect(
+      screen.getByText(/not.*added.*SugboGo|not be added yet/),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(
+        "No jeepney route was found near your starting point.",
+      ),
+    ).toBeNull();
+    if (incomplete)
+      expect(screen.getByTestId("itinerary-search-coverage")).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Retry route search" }),
+    );
+    await waitFor(() =>
+      expect(searchExperimentalItineraries).toHaveBeenCalledTimes(2),
+    );
+  },
+);
