@@ -60,7 +60,7 @@ export default function ExploreTopBar({
           <AppText weight="superbold" className="text-2xl text-text-primary">
             Sugbo
             <AppText weight="superbold" className="text-2xl text-brand">
-              Go
+              Gohaha
             </AppText>
           </AppText>
         </View>
