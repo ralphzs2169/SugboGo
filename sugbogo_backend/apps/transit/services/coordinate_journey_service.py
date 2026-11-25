@@ -8,6 +8,7 @@ from dataclasses import dataclass, field, replace
 from functools import cache
 from heapq import nsmallest
 from itertools import batched
+from typing import TYPE_CHECKING
 
 from django.contrib.gis.geos import LineString, Point
 from django.db import OperationalError, transaction
@@ -27,6 +28,14 @@ from apps.transit.services.coordinate_route_matching_service import (
     valid_route_geometries,
     validate_distance,
 )
+from apps.transit.services.directional_transfer_search import (
+    INDEXED_REQUEST_BATCH_SIZE,
+    MAX_CONNECTION_BYTES,
+    MAX_CONNECTION_RECORDS,
+    DirectionalConnectionReadLimit,
+    DirectionalSearchProgress,
+    DirectionalTransferSearch,
+)
 from apps.transit.services.route_connection_service import (
     MAXIMUM_PROVISIONAL_TRANSFER_DISTANCE_METERS,
     RouteConnection,
@@ -35,6 +44,9 @@ from apps.transit.services.route_connection_service import (
     RouteConnectionService,
     TransferValidationStatus,
 )
+
+if TYPE_CHECKING:
+    from apps.transit.services.development_connection_graph_index import DevelopmentConnectionGraphIndex
 
 MAXIMUM_SUPPORTED_TRANSFERS = 2
 
@@ -53,6 +65,7 @@ class CoordinateJourneySearchProgress:
         default_factory=RouteConnectionDiscoveryProgress,
     )
     ride_measurement_cancelled: bool = False
+    directional: DirectionalSearchProgress | None = None
 
 
 @dataclass(frozen=True)
@@ -381,6 +394,75 @@ def _journey_requests(
                 return
 
 
+def _indexed_transfer_requests(
+    *,
+    index,
+    positions,
+    routes,
+    route_codes,
+    limits,
+    allow_provisional_transfers,
+    progress,
+):
+    """Read each relevant pair once and construct requests from forward paths."""
+    stats = progress.directional
+
+    def read_pair(
+        source,
+        target,
+        **bounds,
+    ):
+        """Bound authenticated block reads and apply the existing evidence resolver."""
+        block = index.block(source, target)
+        if (
+            stats.connection_records_read + block.count > MAX_CONNECTION_RECORDS
+            or stats.connection_bytes_read + block.length > MAX_CONNECTION_BYTES
+        ):
+            raise DirectionalConnectionReadLimit
+        stats.connection_blocks_read += 1
+        stats.connection_records_read += block.count
+        stats.connection_bytes_read += block.length
+
+        def candidates():
+            """Count scalar-filtered records as the engine reconstructs them."""
+            for link in index.connections(source, target, **bounds):
+                stats.connections_reconstructed += 1
+                yield link
+
+        outgoing = _eligible_connections(
+            candidates=candidates(),
+            routes=routes,
+            route_codes=route_codes,
+            limits=limits,
+            allow_provisional_transfers=allow_provisional_transfers,
+        )
+        usable = outgoing.get(source, [])
+        stats.eligible_connections += len(usable)
+        return usable
+
+    search = DirectionalTransferSearch(
+        positions=positions,
+        pairs=index.nonempty_pairs(),
+        route_codes=route_codes,
+        max_transfers=limits.max_transfers,
+        progress=progress,
+        read_pair=read_pair,
+    )
+    for origin, links, destination in search.paths(maximum_search_work=limits.maximum_search_work):
+        rides = []
+        boarding = origin.position
+        for link in links:
+            rides.append(_RideRequest(link.from_variant_id, boarding, link.alighting_position))
+            boarding = link.boarding_position
+        rides.append(_RideRequest(destination.variant_id, boarding, destination.position))
+        yield _JourneyRequest(
+            rides=tuple(rides),
+            transfers=links,
+            access_distance_meters=origin.distance_meters,
+            egress_distance_meters=destination.distance_meters,
+        )
+
+
 def _measured_journeys(
     *,
     requests: Iterable[_JourneyRequest],
@@ -467,7 +549,28 @@ def _diverse_journeys(
             alternatives.append(journey)
         else:
             representatives[corridor] = journey
+            if len(representatives) == limit:
+                return list(representatives.values())
     return [*representatives.values(), *alternatives][:limit]
+
+
+def _shortlist(
+    journeys,
+    *,
+    limit,
+    diversify_corridors,
+    separate_direct_journeys,
+):
+    """Apply the existing ranking and per-pool corridor selection."""
+    if separate_direct_journeys:
+        ranked = sorted(journeys, key=coordinate_journey_rank)
+        return [
+            *_diverse_journeys((journey for journey in ranked if not journey.transfers), limit),
+            *_diverse_journeys((journey for journey in ranked if journey.transfers), limit),
+        ]
+    if diversify_corridors:
+        return _diverse_journeys(sorted(journeys, key=coordinate_journey_rank), limit)
+    return nsmallest(limit, journeys, key=coordinate_journey_rank)
 
 
 class CoordinateJourneyService:
@@ -481,6 +584,7 @@ class CoordinateJourneyService:
         route_geometries: Mapping[int, LineString],
         route_codes: Mapping[int, str],
         connections: Iterable[RouteConnection] | None = None,
+        connection_index: "DevelopmentConnectionGraphIndex | None" = None,
         allow_provisional_transfers: bool = False,
         limits: CoordinateJourneySearchLimits = CoordinateJourneySearchLimits(),
         diversify_corridors: bool = False,
@@ -490,12 +594,21 @@ class CoordinateJourneyService:
     ) -> list[CoordinateJeepneyJourney]:
         """Rank up to three rides, requiring pedestrian evidence by default for any transfer."""
         limits.validate()
+        if connection_index is not None and connections is not None:
+            raise ValueError("Supply either an indexed graph or connections.")
         allow_partial = progress is not None
         if progress is None:
             progress = CoordinateJourneySearchProgress()
         routes = valid_route_geometries(route_geometries)
         if any(not route_codes.get(variant_id) for variant_id in routes):
             raise ValidationError({"route_codes": "Provide a route code for each eligible variant."})
+        if connection_index is not None:
+            progress.directional = DirectionalSearchProgress(stage_status={
+                depth: "not_started"
+                for depth in range(limits.max_transfers + 1)
+            })
+            if limits.max_transfers:
+                connection_index.validate_network(route_geometries=routes, route_codes=route_codes)
         positions = CoordinateRouteMatchingService.find_endpoint_positions(
             origin=origin,
             destination=destination,
@@ -515,6 +628,9 @@ class CoordinateJourneyService:
             if not position.is_boarding
         })
         if not progress.nearby_origin_variants or not progress.nearby_destination_variants:
+            if progress.directional is not None:
+                for depth in progress.directional.stage_status:
+                    progress.directional.stage_status[depth] = "complete"
             return []
 
         measurements = {}
@@ -548,12 +664,18 @@ class CoordinateJourneyService:
                 measurements.update(measured)
                 # Only a successful batch proves that an omitted ride was rejected.
                 rejected_rides.update(key for key in batch if key not in measured)
-            return list(_measured_journeys(
+            completed = list(_measured_journeys(
                 requests=requests,
                 measurements=measurements,
                 route_codes=route_codes,
                 transfer_penalty_meters=limits.transfer_penalty_meters,
             ))
+            if progress.directional is not None:
+                progress.directional.measured_ride_keys = len(measurements)
+                progress.directional.rejected_ride_keys = len(rejected_rides)
+                for journey in completed:
+                    progress.directional.validated_journeys[journey.transfer_count] += 1
+            return completed
 
         direct_requests = list(_journey_requests(
             positions=positions,
@@ -563,12 +685,17 @@ class CoordinateJourneyService:
             progress=progress,
         ))
         journeys = measure_requests(direct_requests)
+        if progress.directional is not None:
+            progress.directional.stage_status[0] = (
+                "partial" if progress.incomplete_reason else "complete"
+            )
         if progress.incomplete_reason == "candidate_budget" and not allow_partial:
             raise ValidationError({"search": "The itinerary search exceeded its candidate budget."})
 
         if (
             limits.max_transfers
             and connections is None
+            and connection_index is None
             and allow_provisional_transfers
             and progress.incomplete_reason is None
         ):
@@ -624,25 +751,39 @@ class CoordinateJourneyService:
             if progress.incomplete_reason == "candidate_budget" and not allow_partial:
                 raise ValidationError({"search": "The itinerary search exceeded its candidate budget."})
             journeys.extend(measure_requests(requests))
-        if separate_direct_journeys:
-            ranked = sorted(journeys, key=coordinate_journey_rank)
-            return [
-                *_diverse_journeys(
-                    (journey for journey in ranked if not journey.transfers),
-                    limits.maximum_journeys,
-                ),
-                *_diverse_journeys(
-                    (journey for journey in ranked if journey.transfers),
-                    limits.maximum_journeys,
-                ),
-            ]
-        if diversify_corridors:
-            return _diverse_journeys(
-                sorted(journeys, key=coordinate_journey_rank),
-                limits.maximum_journeys,
+        if (
+            connection_index is not None
+            and limits.max_transfers
+            and progress.incomplete_reason is None
+        ):
+            requests = _indexed_transfer_requests(
+                index=connection_index,
+                positions=positions,
+                routes=routes,
+                route_codes={variant_id: route_codes[variant_id] for variant_id in routes},
+                limits=limits,
+                allow_provisional_transfers=allow_provisional_transfers,
+                progress=progress,
             )
-        return nsmallest(
-            limits.maximum_journeys,
+            for batch in batched(requests, INDEXED_REQUEST_BATCH_SIZE):
+                journeys.extend(measure_requests(batch))
+                # New results can only improve a corridor representative or add
+                # a competitor, so a discarded result cannot reenter the shortlist.
+                journeys = _shortlist(
+                    journeys,
+                    limit=limits.maximum_journeys,
+                    diversify_corridors=diversify_corridors,
+                    separate_direct_journeys=separate_direct_journeys,
+                )
+                if progress.ride_measurement_cancelled:
+                    for depth in {len(request.transfers) for request in batch}:
+                        progress.directional.stage_status[depth] = "partial"
+                    break
+            if progress.incomplete_reason is not None and not allow_partial:
+                raise ValidationError({"search": "The indexed itinerary search was incomplete."})
+        return _shortlist(
             journeys,
-            key=coordinate_journey_rank,
+            limit=limits.maximum_journeys,
+            diversify_corridors=diversify_corridors,
+            separate_direct_journeys=separate_direct_journeys,
         )

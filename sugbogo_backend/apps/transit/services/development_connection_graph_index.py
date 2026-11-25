@@ -157,7 +157,12 @@ class _GraphSource:
             or self.connection_count < 0
         ):
             raise ValueError("Graph has no complete matching revision.")
-        self.pairs = self._eligible_pairs(inventory.get("inventory"), manifest.get("variants"))
+        variants = inventory.get("inventory")
+        self.pairs = self._eligible_pairs(variants, manifest.get("variants"))
+        self.variants = {
+            variant_id: (code, ewkb)
+            for variant_id, code, _, ewkb in variants
+        }
         self.complete_pairs, self.empty_pairs = counts[:2]
         if (
             manifest.get("eligible_pairs") != len(self.pairs)
@@ -373,6 +378,33 @@ class DevelopmentConnectionGraphIndex:
         self._blocks = _validate_entries(self._source, payload.get("pairs"))
         self._source.check_current()
 
+    @property
+    def revision(self):
+        """Identify the inventory and graph revision pinned by this reader."""
+        return self._source.revision
+
+    def nonempty_pairs(self):
+        """Expose directed connectivity using only the validated block metadata."""
+        self._source.check_current()
+        return (
+            pair
+            for pair, block in self._blocks.items()
+            if block.count
+        )
+
+    def validate_network(
+        self,
+        *,
+        route_geometries,
+        route_codes,
+    ):
+        """Require every supplied variant to match its identity in this revision."""
+        self._source.check_current()
+        for variant_id, geometry in route_geometries.items():
+            identity = (route_codes[variant_id], geometry.hexewkb.decode())
+            if self._source.variants.get(variant_id) != identity:
+                raise ValueError(f"Route variant {variant_id} does not match the graph revision.")
+
     @classmethod
     def publish(
         cls,
@@ -452,6 +484,9 @@ class DevelopmentConnectionGraphIndex:
         self,
         from_variant_id: int,
         to_variant_id: int,
+        *,
+        earliest_alighting: float | None = None,
+        latest_boarding: float | None = None,
     ) -> Iterator[RouteConnection]:
         """Yield original connections in graph order, reconstructing one object at a time."""
         raw = self.read_block(from_variant_id, to_variant_id)
@@ -464,6 +499,16 @@ class DevelopmentConnectionGraphIndex:
                 raise ValueError("Duplicate or unordered connection in indexed graph block.")
             previous = order
             source, target, alighting, alighting_point, boarding, boarding_point, distance, status = row
+            # Keep whole runtime evidence groups at either boundary so precedence
+            # can choose the same winner before the caller applies exact fractions.
+            if (
+                earliest_alighting is not None
+                and round(alighting, 12) < round(earliest_alighting, 12)
+            ) or (
+                latest_boarding is not None
+                and round(boarding, 12) > round(latest_boarding, 12)
+            ):
+                continue
             yield RouteConnection(
                 from_variant_id=source,
                 to_variant_id=target,
