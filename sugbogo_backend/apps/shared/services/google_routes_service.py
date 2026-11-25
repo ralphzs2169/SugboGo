@@ -52,6 +52,7 @@ class GoogleWalkingResult:
 
     status: GoogleWalkingStatus
     route: GoogleWalkingRoute | None = None
+    diagnostic_code: str | None = None
 
 
 class GoogleRoutesService:
@@ -163,14 +164,20 @@ class GoogleRoutesService:
             not valid_latitude_longitude(origin_latitude, origin_longitude)
             or not valid_latitude_longitude(destination_latitude, destination_longitude)
         ):
-            return GoogleWalkingResult(GoogleWalkingStatus.INVALID_COORDINATES)
+            return GoogleWalkingResult(
+                GoogleWalkingStatus.INVALID_COORDINATES,
+                diagnostic_code="invalid_request_coordinate",
+            )
         if (
             not math.isfinite(maximum_endpoint_displacement_meters)
             or maximum_endpoint_displacement_meters <= 0
         ):
             raise ValueError("Provide a positive finite walking endpoint tolerance.")
         if not settings.GOOGLE_MAPS_API_KEY:
-            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR)
+            return GoogleWalkingResult(
+                GoogleWalkingStatus.PROVIDER_ERROR,
+                diagnostic_code="missing_api_key",
+            )
 
         try:
             response = requests.post(
@@ -206,32 +213,43 @@ class GoogleRoutesService:
             )
             response.raise_for_status()
             if not 200 <= response.status_code < 300:
-                return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR)
+                return GoogleWalkingResult(
+                    GoogleWalkingStatus.PROVIDER_ERROR,
+                    diagnostic_code="unexpected_http_status",
+                )
             data = response.json()
         except requests.Timeout:
-            return GoogleWalkingResult(GoogleWalkingStatus.TIMEOUT)
+            return GoogleWalkingResult(GoogleWalkingStatus.TIMEOUT, diagnostic_code="request_timeout")
         except requests.HTTPError as error:
-            return GoogleWalkingResult(cls._walking_error_status(error.response))
-        except (requests.RequestException, ValueError):
-            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR)
+            return GoogleWalkingResult(
+                cls._walking_error_status(error.response),
+                diagnostic_code="provider_http_error",
+            )
+        except requests.exceptions.JSONDecodeError:
+            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR, diagnostic_code="invalid_response")
+        except requests.RequestException:
+            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR, diagnostic_code="request_failed")
+        except ValueError:
+            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR, diagnostic_code="invalid_response")
 
         if not isinstance(data, dict):
-            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR)
+            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR, diagnostic_code="invalid_response")
         if "error" in data:
-            return GoogleWalkingResult(cls._walking_error_status(response))
+            return GoogleWalkingResult(cls._walking_error_status(response), diagnostic_code="provider_error_payload")
         routes = data.get("routes", [])
         if not isinstance(routes, list):
-            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR)
+            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR, diagnostic_code="invalid_response")
         if not routes:
             return GoogleWalkingResult(GoogleWalkingStatus.NO_ROUTE)
         if not isinstance(routes[0], dict):
-            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR)
+            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR, diagnostic_code="invalid_response")
 
         route = routes[0]
         origin = (origin_latitude, origin_longitude)
         destination = (destination_latitude, destination_longitude)
         same_location = origin == destination
-        distance = route.get("distanceMeters", 0 if same_location else None)
+        # Google may omit zero-valued distance and duration fields.
+        distance = route.get("distanceMeters", 0)
         polyline = route.get("polyline")
         encoded_polyline = polyline.get("encodedPolyline") if isinstance(polyline, dict) else None
         if (
@@ -242,11 +260,11 @@ class GoogleRoutesService:
                 and (not isinstance(encoded_polyline, str) or not encoded_polyline.strip())
             )
         ):
-            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR)
+            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR, diagnostic_code="invalid_route_geometry")
         try:
-            duration = cls._parse_duration_seconds(route.get("duration"))
+            duration = cls._parse_duration_seconds(route.get("duration", "0s" if distance == 0 else None))
         except ValueError:
-            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR)
+            return GoogleWalkingResult(GoogleWalkingStatus.PROVIDER_ERROR, diagnostic_code="invalid_route_duration")
 
         legs = route.get("legs")
         leg = legs[0] if isinstance(legs, list) and len(legs) == 1 else None
@@ -263,15 +281,22 @@ class GoogleRoutesService:
             end_location=end,
             warnings=tuple(warning for warning in warnings if isinstance(warning, str)),
         )
-        if (
-            start is None
-            or end is None
-            or (start == end and not same_location)
-            or (distance == 0 and (not same_location or start != end))
-            or GoogleMapsService.calculate_distance_meters(*origin, *start) > maximum_endpoint_displacement_meters
+        diagnostic_code = None
+        if start is None or end is None:
+            diagnostic_code = "missing_provider_endpoint"
+        elif (start == end and not same_location) or (distance == 0 and (not same_location or start != end)):
+            diagnostic_code = "collapsed_provider_path"
+        elif (
+            GoogleMapsService.calculate_distance_meters(*origin, *start) > maximum_endpoint_displacement_meters
             or GoogleMapsService.calculate_distance_meters(*destination, *end) > maximum_endpoint_displacement_meters
         ):
-            return GoogleWalkingResult(GoogleWalkingStatus.UNSUITABLE_ENDPOINTS, normalized)
+            diagnostic_code = "displaced_provider_endpoint"
+        if diagnostic_code is not None:
+            return GoogleWalkingResult(
+                GoogleWalkingStatus.UNSUITABLE_ENDPOINTS,
+                normalized,
+                diagnostic_code,
+            )
         return GoogleWalkingResult(GoogleWalkingStatus.AVAILABLE, normalized)
 
     @classmethod

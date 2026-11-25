@@ -55,6 +55,47 @@ def _response(
 
 @override_settings(GOOGLE_MAPS_API_KEY="test-pedestrian-key")
 class PedestrianJourneyServiceTests(TestCase):
+    def test_offset_candidates_can_resolve_blocked_nearest_access_with_bounded_requests(self):
+        origin = _point(0.002, 0.0002)
+        destination = _point(0.008, 0.0002)
+        routes = {1: self.routes[1]}
+        ordinary = CoordinateJourneyService.search(
+            origin=origin,
+            destination=destination,
+            route_geometries=routes,
+            route_codes={1: "A"},
+            limits=CoordinateJourneySearchLimits(max_transfers=0),
+        )
+        self.assertEqual(len(ordinary), 1)
+        first = ordinary[0].ride_legs[0]
+        self.walk_distances[(origin.coords, first.boarding_position.point.coords)] = 1379
+        candidates = CoordinateJourneyService.search(
+            origin=origin,
+            destination=destination,
+            route_geometries=routes,
+            route_codes={1: "A"},
+            include_access_alternatives=True,
+            limits=CoordinateJourneySearchLimits(max_transfers=0),
+        )
+        self.assertGreater(len(candidates), 1)
+        results = PedestrianJourneyService.evaluate_candidates(
+            journeys=candidates,
+            origin=origin,
+            destination=destination,
+            evaluation_limits=PedestrianEvaluationLimits(maximum_candidates=6, maximum_landmark_requests=0),
+        )
+        self.assertFalse(results[0].has_blocking_evidence)
+        self.assertFalse(results[0].passenger_ready)
+        blocked = next(result for result in results if result.has_blocking_evidence)
+        self.assertEqual(blocked.access_walk.status, WalkingEvaluationStatus.DISTANCE_LIMIT)
+        self.assertEqual(blocked.access_walk.route.distance_meters, 1379)
+        self.assertEqual(blocked.access_walk.distance_limit_meters, 800)
+        self.assertLessEqual(len(self.walk_requests), 12)
+        for result in results:
+            leg = result.journey.ride_legs[0]
+            self.assertLess(leg.boarding_position.fraction, leg.alighting_position.fraction)
+            self.assertGreaterEqual(leg.ride_distance_meters, 25)
+
     def setUp(self):
         self.routes = {
             1: _line((0, 0), (0.010, 0)),

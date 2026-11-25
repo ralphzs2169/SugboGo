@@ -4,6 +4,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from time import monotonic
 
 import requests
 from django.contrib.gis.geos import LineString, Point
@@ -20,6 +21,7 @@ from apps.transit.services.coordinate_journey_service import (
     CoordinateJeepneyJourney,
     CoordinateJourneySearchLimits,
     CoordinateJourneyService,
+    coordinate_journey_corridor,
     coordinate_journey_rank,
 )
 from apps.transit.services.coordinate_route_matching_service import validate_distance
@@ -56,6 +58,7 @@ class PedestrianEvaluationLimits:
     maximum_endpoint_displacement_meters: float = GoogleRoutesService.WALK_MAXIMUM_ENDPOINT_DISPLACEMENT_METERS
     maximum_access_or_egress_walk_meters: float = 800.0
     maximum_transfer_walk_meters: float = 350.0
+    provider_request_window_seconds: float | None = None
 
     def validate(self):
         """Keep network work within hard per-evaluation ceilings."""
@@ -73,6 +76,8 @@ class PedestrianEvaluationLimits:
             ("maximum_transfer_walk_meters", self.maximum_transfer_walk_meters),
         ):
             validate_distance(field, distance)
+        if self.provider_request_window_seconds is not None:
+            validate_distance("provider_request_window_seconds", self.provider_request_window_seconds)
 
 
 @dataclass(frozen=True)
@@ -84,6 +89,8 @@ class PedestrianWalkEvidence:
     straight_line_distance_meters: float
     status: GoogleWalkingStatus | WalkingEvaluationStatus
     route: GoogleWalkingRoute | None = None
+    diagnostic_code: str | None = None
+    distance_limit_meters: float | None = None
 
     @property
     def mapped_distance_meters(self) -> int | None:
@@ -171,7 +178,12 @@ class PedestrianJourneyEvaluation:
     @property
     def has_blocking_evidence(self) -> bool:
         """Distinguish an unsuitable itinerary from one with missing provider evidence."""
-        return any(
+        return self.blocking_walk_count > 0
+
+    @property
+    def blocking_walk_count(self) -> int:
+        """Count walking legs that failed validation before comparing their costs."""
+        return sum(
             walk.status in (
                 GoogleWalkingStatus.NO_ROUTE,
                 GoogleWalkingStatus.UNSUITABLE_ENDPOINTS,
@@ -198,6 +210,13 @@ class _EvaluationRequests:
         self.landmarks = {}
         self.routes_quota_exhausted = False
         self.places_quota_exhausted = False
+        self.deadline = None
+        if limits.provider_request_window_seconds is not None:
+            self.deadline = monotonic() + limits.provider_request_window_seconds
+
+    def window_open(self):
+        """Allow cached evidence after the provider scheduling window closes."""
+        return self.deadline is None or monotonic() < self.deadline
 
     def walking(
         self,
@@ -210,7 +229,7 @@ class _EvaluationRequests:
             return self.walks[key]
         if self.routes_quota_exhausted:
             return GoogleWalkingResult(GoogleWalkingStatus.QUOTA_OR_BILLING)
-        if len(self.walks) >= self.limits.maximum_walking_requests:
+        if len(self.walks) >= self.limits.maximum_walking_requests or not self.window_open():
             return None
 
         result = GoogleRoutesService.compute_walking_route(
@@ -232,7 +251,11 @@ class _EvaluationRequests:
         key = point.coords
         if key in self.landmarks:
             return self.landmarks[key]
-        if self.places_quota_exhausted or len(self.landmarks) >= self.limits.maximum_landmark_requests:
+        if (
+            self.places_quota_exhausted
+            or len(self.landmarks) >= self.limits.maximum_landmark_requests
+            or not self.window_open()
+        ):
             return None
         landmark = None
         try:
@@ -298,20 +321,43 @@ def _shortlist(
         key=lambda candidate: candidate[:3],
     ):
         # Rounded cells promote diversity only. Every provider request uses the exact access coordinates.
-        area = (
-            uncheckable,
-            tuple(leg.variant_id for leg in journey.ride_legs),
-            tuple(
-                tuple(round(value, 3) for value in position.point.coords)
-                for transfer in journey.transfers
-                for position in (transfer.alighting_position, transfer.boarding_position)
-            ),
-        )
+        area = (uncheckable, coordinate_journey_corridor(journey))
         priority = (uncheckable, area_counts[area], unverified, rank)
         area_counts[area] += 1
         candidates.append((priority, journey, ride_access, not uncheckable))
     candidates.sort(key=lambda candidate: candidate[0])
-    return candidates[:limits.maximum_candidates]
+    # Direct alternatives need diversity at both access ends, even on one line.
+    selected = []
+    used_endpoints = Counter()
+    while candidates and len(selected) < limits.maximum_candidates:
+        def priority(candidate):
+            base, journey, _, _ = candidate
+            endpoint_keys = tuple(
+                (leg.variant_id, action, round(position.point.x, 4), round(position.point.y, 4))
+                for leg in journey.ride_legs
+                for action, position in (
+                    ("boarding", leg.boarding_position),
+                    ("alighting", leg.alighting_position),
+                )
+            )
+            reuse = sum(used_endpoints[key] for key in endpoint_keys) if not journey.transfers else 0
+            return (base[0], base[2], reuse, base[1], base[3])
+
+        candidate = min(candidates, key=priority)
+        candidates.remove(candidate)
+        selected.append(candidate)
+        for leg in candidate[1].ride_legs:
+            for action, position in (
+                ("boarding", leg.boarding_position),
+                ("alighting", leg.alighting_position),
+            ):
+                used_endpoints[(
+                    leg.variant_id,
+                    action,
+                    round(position.point.x, 4),
+                    round(position.point.y, 4),
+                )] += 1
+    return selected
 
 
 def _evaluate_walk(
@@ -327,10 +373,12 @@ def _evaluate_walk(
     """Evaluate one leg without confusing provider errors with unavailable paths."""
     distance = original_distance_meters
     route = None
+    diagnostic_code = None
     if prohibited:
         status = WalkingEvaluationStatus.PROHIBITED_ACCESS
     elif origin is None or destination is None:
         status = GoogleWalkingStatus.INVALID_COORDINATES
+        diagnostic_code = "invalid_access_coordinate"
     elif not checkable:
         status = WalkingEvaluationStatus.NOT_EVALUATED
     else:
@@ -346,6 +394,7 @@ def _evaluate_walk(
         else:
             route = result.route
             status = result.status
+            diagnostic_code = result.diagnostic_code
             if (
                 status is GoogleWalkingStatus.AVAILABLE
                 and route is not None
@@ -358,6 +407,8 @@ def _evaluate_walk(
         straight_line_distance_meters=distance,
         status=status,
         route=route,
+        diagnostic_code=diagnostic_code,
+        distance_limit_meters=maximum_distance_meters,
     )
 
 
@@ -435,6 +486,7 @@ def _evaluation_rank(result: PedestrianJourneyEvaluation):
     """Prioritize usable evidence and reuse Phase 2 cost, ride, and identity ordering."""
     return (
         result.has_blocking_evidence,
+        result.blocking_walk_count,
         not result.passenger_ready,
         result.mapped_walking_distance_meters is None,
         *coordinate_journey_rank(result.journey, ranking_cost_meters=result.ranking_cost_meters),
@@ -457,7 +509,6 @@ class PedestrianJourneyService:
         evaluation_limits: PedestrianEvaluationLimits = PedestrianEvaluationLimits(),
     ) -> list[PedestrianJourneyEvaluation]:
         """Rank short-listed paths and enrich the best usable candidate with landmarks."""
-        evaluation_limits.validate()
         journeys = CoordinateJourneyService.search(
             origin=origin,
             destination=destination,
@@ -467,7 +518,38 @@ class PedestrianJourneyService:
             allow_provisional_transfers=True,
             limits=search_limits,
         )
+        return PedestrianJourneyService.evaluate_candidates(
+            journeys=journeys,
+            origin=origin,
+            destination=destination,
+            access_evidence=access_evidence,
+            evaluation_limits=evaluation_limits,
+        )
+
+    @staticmethod
+    def evaluate_candidates(
+        *,
+        journeys: Iterable[CoordinateJeepneyJourney],
+        origin: Point,
+        destination: Point,
+        access_evidence: Mapping[AccessLocationKey, AccessLocationEvidence] | None = None,
+        evaluation_limits: PedestrianEvaluationLimits = PedestrianEvaluationLimits(),
+        direct_journeys: Iterable[CoordinateJeepneyJourney] = (),
+    ) -> list[PedestrianJourneyEvaluation]:
+        """Evaluate an existing bounded shortlist without repeating geometric discovery."""
+        evaluation_limits.validate()
         requests_for_search = _EvaluationRequests(evaluation_limits)
+        evidence = access_evidence if access_evidence is not None else {}
+        shortlist = _shortlist(
+            journeys=direct_journeys,
+            evidence=evidence,
+            limits=evaluation_limits,
+        )
+        shortlist.extend(_shortlist(
+            journeys=journeys,
+            evidence=evidence,
+            limits=evaluation_limits,
+        ))
         results = [
             _evaluate_journey(
                 journey=journey,
@@ -478,11 +560,7 @@ class PedestrianJourneyService:
                 requests_for_search=requests_for_search,
                 limits=evaluation_limits,
             )
-            for _, journey, ride_access, checkable in _shortlist(
-                journeys=journeys,
-                evidence=access_evidence if access_evidence is not None else {},
-                limits=evaluation_limits,
-            )
+            for _, journey, ride_access, checkable in shortlist
         ]
         results.sort(key=_evaluation_rank)
         if results and not results[0].has_blocking_evidence:

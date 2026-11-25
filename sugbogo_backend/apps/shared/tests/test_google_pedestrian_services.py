@@ -119,6 +119,10 @@ class GoogleWalkingServiceTests(SimpleTestCase):
 
                     self.assertEqual(result.status, GoogleWalkingStatus.UNSUITABLE_ENDPOINTS)
                     self.assertEqual(result.route.distance_meters, 280)
+                    self.assertEqual(
+                        result.diagnostic_code,
+                        "displaced_provider_endpoint" if displaced else "missing_provider_endpoint",
+                    )
 
     @patch("apps.shared.services.google_routes_service.requests.post")
     def test_collapsing_distinct_requested_points_to_one_snap_is_unsuitable(self, post):
@@ -130,6 +134,40 @@ class GoogleWalkingServiceTests(SimpleTestCase):
         result = self._walk(destination_latitude=10.310, destination_longitude=123.9001)
 
         self.assertEqual(result.status, GoogleWalkingStatus.UNSUITABLE_ENDPOINTS)
+        self.assertEqual(result.diagnostic_code, "collapsed_provider_path")
+
+    @patch("apps.shared.services.google_routes_service.requests.post")
+    def test_default_zero_walk_requires_coincident_requests_and_provider_endpoints(self, post):
+        payload = self._route()
+        route = payload["routes"][0]
+        for field in ("distanceMeters", "duration", "polyline"):
+            del route[field]
+        leg = route["legs"][0]
+        leg["endLocation"] = leg["startLocation"]
+        post.return_value = _response(payload)
+
+        result = self._walk(destination_latitude=10.310, destination_longitude=123.900)
+        self.assertEqual(result.status, GoogleWalkingStatus.AVAILABLE)
+        self.assertEqual(result.route.distance_meters, 0)
+        self.assertEqual(result.route.duration_seconds, 0)
+        self.assertIsNone(result.route.encoded_polyline)
+
+        result = self._walk()
+        self.assertEqual(result.status, GoogleWalkingStatus.UNSUITABLE_ENDPOINTS)
+        self.assertEqual(result.diagnostic_code, "collapsed_provider_path")
+
+    @patch("apps.shared.services.google_routes_service.requests.post")
+    def test_provider_failure_diagnostics_exclude_provider_messages(self, post):
+        post.return_value = _response({"error": {"message": "private provider details"}}, 403)
+        self.assertEqual(self._walk().diagnostic_code, "provider_http_error")
+
+        post.side_effect = requests.ConnectionError("private transport details")
+        self.assertEqual(self._walk().diagnostic_code, "request_failed")
+
+        with override_settings(GOOGLE_MAPS_API_KEY=""):
+            post.reset_mock()
+            self.assertEqual(self._walk().diagnostic_code, "missing_api_key")
+            post.assert_not_called()
 
 
 @override_settings(GOOGLE_MAPS_API_KEY="test-pedestrian-key")
