@@ -82,14 +82,6 @@ class ItineraryEvidenceUnavailable(APIException):
     default_detail = "Experimental review evidence is temporarily unavailable."
 
 
-class ItinerarySpatialValidationUnavailable(APIException):
-    """Fail closed when the local transit network cannot be spatially checked."""
-
-    status_code = 503
-    default_code = "itinerary_spatial_validation_unavailable"
-    default_detail = "Experimental route validation is temporarily unavailable."
-
-
 class RouteAlignmentStatus(StrEnum):
     UNREVIEWED = "unreviewed"
     REVIEWED = "reviewed"
@@ -129,15 +121,10 @@ def _variants(variant_ids=None, *, rejected_geometries=None):
     ))
     if not rows:
         return {}
-    try:
-        boundary = TransitSpatialValidationService.boundary()
-    except ValidationError as error:
-        raise ItinerarySpatialValidationUnavailable() from error
-
     variants = {}
     for variant_id, geometry, code, origin_name, destination_name in rows:
         try:
-            TransitSpatialValidationService.validate_geometry(geometry, boundary)
+            TransitSpatialValidationService.validate_geometry(geometry)
         except ValidationError:
             if rejected_geometries is not None:
                 rejected_geometries[variant_id] = geometry

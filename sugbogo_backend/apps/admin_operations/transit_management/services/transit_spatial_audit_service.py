@@ -11,7 +11,7 @@ class TransitSpatialAuditService:
     """Inspect all managed points and directions without repairing or deleting records."""
 
     @staticmethod
-    def validate_variant(variant, boundary):
+    def validate_variant(variant):
         """Apply the existing authoring checks to a stored directional variant."""
         points = [item.TRPT_ID for item in variant.route_transit_points.all()]
         RouteVariantService._validate_ordered_points(
@@ -22,26 +22,24 @@ class TransitSpatialAuditService:
         TransitSpatialValidationService.validate_variant(
             variant.JRV_GEOMETRY,
             points,
-            boundary,
         )
 
     @staticmethod
     def audit():
         """Return invalid point and direction IDs with the same errors used by admin saves."""
-        boundary = TransitSpatialValidationService.boundary()
         point_issues = []
         variant_issues = []
         point_count = variant_count = 0
         for point in TransitPoint.objects.order_by("TRPT_ID").iterator():
             point_count += 1
             try:
-                TransitSpatialValidationService.validate_point(point.TRPT_POINT, boundary)
+                TransitSpatialValidationService.validate_point(point.TRPT_POINT)
             except ValidationError as exc:
                 point_issues.append({"point_id": point.pk, "errors": exc.detail})
         for variant in RouteVariantService.list_variants():
             variant_count += 1
             try:
-                TransitSpatialAuditService.validate_variant(variant, boundary)
+                TransitSpatialAuditService.validate_variant(variant)
             except ValidationError as exc:
                 variant_issues.append({
                     "variant_id": variant.pk,

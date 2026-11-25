@@ -309,12 +309,13 @@ class ExperimentalItineraryViewTests(TestCase):
         self.assertEqual(ride["geometry"], original["geometry"])
         self.assertEqual(ride["direction"]["toward"], "Updated terminal label")
 
-    def test_out_of_coverage_geometry_is_excluded_and_selection_is_stale(self):
+    def test_self_intersecting_geometry_is_excluded_and_selection_is_stale(self):
         token = self._search().data["data"]["options"][0]["selection"]
         JeepneyRouteVariant.objects.filter(pk=self.variants[1].pk).update(
             JRV_GEOMETRY=LineString(
                 (123.920, 10.310),
-                (124.001, 10.320),
+                (123.925, 10.330),
+                (123.925, 10.310),
                 (123.920, 10.330),
                 srid=4326,
             ),
@@ -326,13 +327,15 @@ class ExperimentalItineraryViewTests(TestCase):
         self.assertEqual(self._detail(token).status_code, 409)
         self.provider.assert_not_called()
 
-    def test_missing_spatial_boundary_fails_closed_before_walking_requests(self):
+    def test_itineraries_are_available_without_an_active_serviceable_boundary(self):
         ServiceableBoundary.objects.update(SBND_IS_ACTIVE=False)
         response = self._search()
 
-        self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.data["code"], "ITINERARY_SPATIAL_VALIDATION_UNAVAILABLE")
-        self.provider.assert_not_called()
+        self.assertEqual(response.status_code, 200, response.data)
+        result = response.data["data"]
+        self.assertTrue(result["options"])
+        self.assertEqual(result["coverage"]["variants_excluded_by_spatial_validation"], 0)
+        self.assertEqual(self._detail(result["options"][0]["selection"]).status_code, 200)
 
     def test_curved_ride_detail_preserves_vertices_between_ordered_positions(self):
         curve = (123.910, 10.312)

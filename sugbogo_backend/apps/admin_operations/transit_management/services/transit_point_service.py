@@ -249,8 +249,7 @@ class TransitPointService:
                 srid=4326,
             )
             if not location.equals_exact(transit_point.TRPT_POINT, 0):
-                boundary = TransitSpatialValidationService.boundary()
-                TransitSpatialValidationService.validate_point(location, boundary)
+                TransitSpatialValidationService.validate_point(location)
                 variants = (
                     JeepneyRouteVariant.objects.filter(
                         Q(JRV_ORIGIN_ID=transit_point)
@@ -276,7 +275,8 @@ class TransitPointService:
                         })
                     try:
                         TransitSpatialValidationService.validate_variant(
-                            variant.JRV_GEOMETRY, points, boundary,
+                            variant.JRV_GEOMETRY,
+                            points,
                             overrides={transit_point.pk: location},
                         )
                     except ValidationError as exc:

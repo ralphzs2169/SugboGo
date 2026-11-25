@@ -120,10 +120,11 @@ class DevelopmentConnectionGraphService:
             with connection.cursor() as cursor:
                 cursor.execute("SET TRANSACTION READ ONLY")
                 cursor.execute("SET LOCAL statement_timeout = '5s'")
-            boundary = TransitSpatialValidationService.boundary()
+                cursor.execute("SELECT PostGIS_Full_Version()")
+                spatial_version = cursor.fetchone()[0]
             for index, (code, key, coordinates) in enumerate(entries, start=1):
                 geometry = TransitSpatialValidationService.build_geometry(coordinates)
-                TransitSpatialValidationService.validate_geometry(geometry, boundary)
+                TransitSpatialValidationService.validate_geometry(geometry)
                 self.routes[index] = geometry
                 self.codes[index] = code
                 self.inventory.append([index, code, key, geometry.hexewkb.decode()])
@@ -135,13 +136,9 @@ class DevelopmentConnectionGraphService:
                 and not self.routes[pair[0]].equals_exact(self.routes[pair[1]])
             )
         ]
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT PostGIS_Full_Version()")
-            spatial_version = cursor.fetchone()[0]
         self.parameters = {
             "format": 1,
             "inventory": self.inventory,
-            "boundary": boundary.hexewkb.decode(),
             "spatial_version": spatial_version,
             "discovery_source": hashlib.sha256(
                 Path(route_connection_service.__file__).read_bytes()

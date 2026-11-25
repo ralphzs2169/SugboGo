@@ -6,7 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from django.contrib.gis.geos import LineString, MultiPolygon, Point, Polygon
+from django.contrib.gis.geos import LineString, Point
 from django.db import connection
 from django.test import SimpleTestCase, override_settings
 
@@ -213,7 +213,6 @@ class DevelopmentConnectionGraphTests(SimpleTestCase):
         other["variants"][0]["point_keys"].reverse()
         payload["routes"].append(other)
         dataset = Path(self.temporary.name) / "seed.json"
-        boundary = MultiPolygon(Polygon.from_bbox((123, 10, 124, 11)), srid=4326)
 
         def load():
             dataset.write_text(json.dumps(payload), encoding="utf-8")
@@ -222,23 +221,18 @@ class DevelopmentConnectionGraphTests(SimpleTestCase):
                 confirmation=str(connection.settings_dict["NAME"]),
             )
 
+        original = load()
+        payload["routes"].reverse()
+        reordered = load()
+        self.assertEqual(original.revision, reordered.revision)
+        self.assertEqual(original.pairs, reordered.pairs)
+        payload["routes"][0]["variants"][0]["geometry"][1]["latitude"] += 0.0001
+        changed = load()
+        self.assertNotEqual(original.revision, changed.revision)
+        self.assertNotEqual(original.directory, changed.directory)
         with patch(
-            "apps.transit.services.development_connection_graph_service."
-            "TransitSpatialValidationService.boundary",
-            return_value=boundary,
+            "apps.transit.services.development_connection_graph_service.PAIR_SECONDS",
+            1,
         ):
-            original = load()
-            payload["routes"].reverse()
-            reordered = load()
-            self.assertEqual(original.revision, reordered.revision)
-            self.assertEqual(original.pairs, reordered.pairs)
-            payload["routes"][0]["variants"][0]["geometry"][1]["latitude"] += 0.0001
-            changed = load()
-            self.assertNotEqual(original.revision, changed.revision)
-            self.assertNotEqual(original.directory, changed.directory)
-            with patch(
-                "apps.transit.services.development_connection_graph_service.PAIR_SECONDS",
-                1,
-            ):
-                self.assertNotEqual(changed.revision, load().revision)
+            self.assertNotEqual(changed.revision, load().revision)
 
