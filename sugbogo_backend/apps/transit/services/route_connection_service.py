@@ -1,5 +1,6 @@
 """Discover provisional connections between directional route centerlines."""
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -21,6 +22,15 @@ MAXIMUM_PROVISIONAL_TRANSFER_DISTANCE_METERS = 120.0
 CONNECTION_AREA_METERS = 75.0
 MAXIMUM_CANDIDATES_PER_AREA = 6
 MAXIMUM_CONNECTION_SEGMENT_PAIRS = 20_000
+
+
+class RouteConnectionBudgetExceeded(ValidationError):
+    """Signal that discovery could not finish within its segment-pair limit."""
+
+    def __init__(self):
+        super().__init__({
+            "connections": "The connection search exceeded its segment-pair budget.",
+        })
 
 
 class TransferValidationStatus(StrEnum):
@@ -50,6 +60,7 @@ class RouteConnectionService:
     def discover(
         *,
         route_geometries: Mapping[int, LineString],
+        route_codes: Mapping[int, str] | None = None,
         maximum_transfer_distance_meters: float = MAXIMUM_PROVISIONAL_TRANSFER_DISTANCE_METERS,
         connection_area_meters: float = CONNECTION_AREA_METERS,
         maximum_candidates_per_area: int = MAXIMUM_CANDIDATES_PER_AREA,
@@ -74,7 +85,7 @@ class RouteConnectionService:
             {ROUTES_CTE},
             {ROUTE_SEGMENTS_CTES},
             limits AS (
-                SELECT %s::float8 AS radius_meters, %s::float8 AS area_meters
+                SELECT %s::float8 AS radius_meters, %s::float8 AS area_meters, %s::jsonb AS route_codes
             ),
             route_pairs AS (
                 SELECT
@@ -88,6 +99,11 @@ class RouteConnectionService:
                 INNER JOIN routes AS b ON a.variant_id < b.variant_id
                 CROSS JOIN limits
                 WHERE NOT ST_OrderingEquals(a.geometry, b.geometry)
+                    AND (
+                        limits.route_codes ->> a.variant_id::text IS NULL
+                        OR limits.route_codes ->> b.variant_id::text IS NULL
+                        OR limits.route_codes ->> a.variant_id::text <> limits.route_codes ->> b.variant_id::text
+                    )
                     AND (
                         ST_Intersects(a.geometry, b.geometry)
                         OR ST_DWithin(a.geometry::geography, b.geometry::geography, limits.radius_meters)
@@ -262,6 +278,7 @@ class RouteConnectionService:
                     *route_query_parameters(routes),
                     maximum_transfer_distance_meters,
                     connection_area_meters,
+                    json.dumps(dict(route_codes)) if route_codes is not None else None,
                     maximum_segment_pairs + 1,
                     maximum_segment_pairs,
                     maximum_candidates_per_area,
@@ -269,7 +286,7 @@ class RouteConnectionService:
             )
             rows = cursor.fetchall()
             if rows and rows[0][0]:
-                raise ValidationError({"connections": "The connection search exceeded its segment-pair budget."})
+                raise RouteConnectionBudgetExceeded()
             return [
                 RouteConnection(
                     from_variant_id=from_id,

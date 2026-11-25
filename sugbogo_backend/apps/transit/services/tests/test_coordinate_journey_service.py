@@ -6,6 +6,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.transit.services.coordinate_journey_service import (
     CoordinateJourneySearchLimits,
+    CoordinateJourneySearchProgress,
     CoordinateJourneyService,
 )
 from apps.transit.services.coordinate_route_matching_service import RoutePosition
@@ -33,6 +34,21 @@ def _line(*coordinates):
 
 
 class RouteConnectionDiscoveryTests(TestCase):
+    def test_same_code_variants_do_not_consume_the_segment_pair_budget(self):
+        routes = {
+            1: _line((0, 0), (0.005, 0), (0.010, 0)),
+            2: _line((0.010, 0), (0.005, 0), (0, 0)),
+        }
+
+        self.assertEqual(
+            RouteConnectionService.discover(
+                route_geometries=routes,
+                route_codes={1: "A", 2: "A"},
+                maximum_segment_pairs=1,
+            ),
+            [],
+        )
+
     def test_separate_crossings_produce_distinct_provisional_connections(self):
         routes = {
             1: _line((0, 0), (0.010, 0)),
@@ -496,3 +512,37 @@ class CoordinateJourneyServiceTests(TestCase):
             self._search(_point(0.017, 0.010), provisional=True, maximum_search_work=1)
 
         self.assertIn("search", context.exception.detail)
+
+    def test_ordered_suffix_prunes_decoys_before_charging_for_viable_corridors(self):
+        approved = self._approved_connections()
+        second = next(
+            link
+            for link in approved
+            if (link.from_variant_id, link.to_variant_id) == (2, 3)
+        )
+        decoys = [
+            replace(
+                second,
+                boarding_position=RoutePosition(
+                    point=self.routes[3].interpolate_normalized(fraction),
+                    fraction=fraction,
+                ),
+            )
+            for fraction in (0.9 + index / 1000 for index in range(50))
+        ]
+        progress = CoordinateJourneySearchProgress()
+        journeys = CoordinateJourneyService.search(
+            origin=self.origin,
+            destination=_point(0.017, 0.010),
+            route_geometries=self.routes,
+            route_codes={variant_id: str(variant_id) for variant_id in self.routes},
+            connections=[*decoys, *approved, second],
+            limits=replace(self.limits, maximum_search_work=3),
+            progress=progress,
+        )
+
+        (journey,) = journeys
+        self._assert_rides(journey, [1, 2, 3])
+        self.assertIsNone(progress.incomplete_reason)
+        self.assertEqual(progress.transfer_options, {0: 1, 1: 1})
+        self.assertEqual(progress.destination_options, {2: 1})

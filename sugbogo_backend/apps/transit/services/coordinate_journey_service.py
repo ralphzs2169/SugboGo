@@ -1,9 +1,11 @@
 """Construct bounded jeepney itineraries from directed centerline positions."""
 
 import math
+from bisect import bisect_right
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import cache
 from heapq import nsmallest
 
 from django.contrib.gis.geos import LineString, Point
@@ -22,11 +24,24 @@ from apps.transit.services.coordinate_route_matching_service import (
 from apps.transit.services.route_connection_service import (
     MAXIMUM_PROVISIONAL_TRANSFER_DISTANCE_METERS,
     RouteConnection,
+    RouteConnectionBudgetExceeded,
     RouteConnectionService,
     TransferValidationStatus,
 )
 
 MAXIMUM_SUPPORTED_TRANSFERS = 2
+
+
+@dataclass
+class CoordinateJourneySearchProgress:
+    """Record viable expansion by depth and whether the search stopped early."""
+
+    incomplete_reason: str | None = None
+    nearby_origin_variants: int = 0
+    nearby_destination_variants: int = 0
+    destination_options: dict[int, int] = field(default_factory=lambda: defaultdict(int))
+    transfer_options: dict[int, int] = field(default_factory=lambda: defaultdict(int))
+    suffix_links_checked: int = 0
 
 
 @dataclass(frozen=True)
@@ -239,13 +254,14 @@ def _journey_requests(
     outgoing: Mapping[int, list[RouteConnection]],
     route_codes: Mapping[int, str],
     limits: CoordinateJourneySearchLimits,
+    progress: CoordinateJourneySearchProgress,
 ) -> Iterator[_JourneyRequest]:
-    """Explore directionally ordered paths and prune variants that cannot reach the destination."""
-    pending = []
+    """Explore only paths with a directionally reachable suffix."""
+    origins = []
     destinations = defaultdict(list)
     for position in positions:
         if position.is_boarding:
-            pending.append(_SearchState(
+            origins.append(_SearchState(
                 variant_id=position.variant_id,
                 boarding=position.position,
                 access_distance_meters=position.distance_meters,
@@ -253,31 +269,58 @@ def _journey_requests(
         else:
             destinations[position.variant_id].append(position)
 
-    # This bound ignores measures and visited routes, so it can only prune dead ends.
-    reachable = [set(destinations)]
-    for _ in range(limits.max_transfers):
-        previous = reachable[-1]
-        reachable.append(previous | {
-            source
-            for source, links in outgoing.items()
-            if any(link.to_variant_id in previous for link in links)
-        })
+    for options in destinations.values():
+        options.sort(key=lambda endpoint: endpoint.position.fraction)
+    destination_fractions = {
+        variant_id: tuple(option.position.fraction for option in options)
+        for variant_id, options in destinations.items()
+    }
 
-    explored = len(pending)
-    while pending:
-        state = pending.pop()
-        remaining = limits.max_transfers - len(state.transfers)
-        if state.variant_id not in reachable[remaining]:
-            continue
+    @cache
+    def suffix_options(variant_id, remaining, visited_codes):
+        # The latest possible alighting fraction bounds every feasible boarding.
+        # The bound ignores minimum distance, which is checked on the sliced rides.
+        if remaining == 0:
+            return destination_fractions.get(variant_id, ()), ()
+        links = []
+        for link in outgoing.get(variant_id, ()):
+            progress.suffix_links_checked += 1
+            target_code = route_codes[link.to_variant_id]
+            if target_code in visited_codes:
+                continue
+            fractions, _ = suffix_options(
+                link.to_variant_id,
+                remaining - 1,
+                visited_codes | {target_code},
+            )
+            if (
+                fractions
+                and link.boarding_position.fraction < fractions[-1]
+            ):
+                links.append(link)
+        links.sort(key=lambda link: link.alighting_position.fraction)
+        return tuple(link.alighting_position.fraction for link in links), links
 
-        destination_options = destinations.get(state.variant_id, ())
-        links = outgoing.get(state.variant_id, ()) if remaining else ()
-        explored += len(destination_options) + len(links)
-        if explored > limits.maximum_search_work:
-            raise ValidationError({"search": "The itinerary search exceeded its candidate budget."})
+    explored = 0
 
-        for destination in destination_options:
-            if state.boarding.fraction < destination.position.fraction:
+    def charge(counter, depth):
+        nonlocal explored
+        if explored >= limits.maximum_search_work:
+            progress.incomplete_reason = "candidate_budget"
+            return False
+        explored += 1
+        counter[depth] += 1
+        return True
+
+    def explore(state, remaining, visited_codes):
+        fractions, links = suffix_options(state.variant_id, remaining, visited_codes)
+        start = bisect_right(fractions, state.boarding.fraction)
+        depth = len(state.transfers)
+        if remaining == 0:
+            for index in range(start, len(fractions)):
+                if not charge(progress.destination_options, depth):
+                    return
+                destination = destinations[state.variant_id][index]
                 ride = _RideRequest(
                     variant_id=state.variant_id,
                     boarding=state.boarding,
@@ -289,31 +332,38 @@ def _journey_requests(
                     access_distance_meters=state.access_distance_meters,
                     egress_distance_meters=destination.distance_meters,
                 )
+            return
 
-        visited_codes = {
-            route_codes[ride.variant_id]
-            for ride in state.rides
-        }
-        visited_codes.add(route_codes[state.variant_id])
-        for link in links:
-            if (
-                link.to_variant_id not in reachable[remaining - 1]
-                or route_codes[link.to_variant_id] in visited_codes
-                or state.boarding.fraction >= link.alighting_position.fraction
-            ):
-                continue
+        for index in range(start, len(links)):
+            if not charge(progress.transfer_options, depth):
+                return
+            link = links[index]
             ride = _RideRequest(
                 variant_id=state.variant_id,
                 boarding=state.boarding,
                 alighting=link.alighting_position,
             )
-            pending.append(_SearchState(
+            next_state = _SearchState(
                 variant_id=link.to_variant_id,
                 boarding=link.boarding_position,
                 access_distance_meters=state.access_distance_meters,
                 rides=(*state.rides, ride),
                 transfers=(*state.transfers, link),
-            ))
+            )
+            yield from explore(
+                next_state,
+                remaining - 1,
+                visited_codes | {route_codes[link.to_variant_id]},
+            )
+            if progress.incomplete_reason == "candidate_budget":
+                return
+
+    # Finish the shallower stages first so an incomplete search can return them.
+    for count in range(limits.max_transfers + 1):
+        for state in origins:
+            yield from explore(state, count, frozenset({route_codes[state.variant_id]}))
+            if progress.incomplete_reason == "candidate_budget":
+                return
 
 
 def _measured_journeys(
@@ -377,6 +427,34 @@ def coordinate_journey_rank(
     )
 
 
+def coordinate_journey_corridor(journey: CoordinateJeepneyJourney):
+    """Group close alternatives along the same sequence before applying an experimental shortlist."""
+    return (
+        tuple(leg.variant_id for leg in journey.ride_legs),
+        tuple(
+            tuple(round(value, 3) for value in position.point.coords)
+            for link in journey.transfers
+            for position in (link.alighting_position, link.boarding_position)
+        ),
+    )
+
+
+def _diverse_journeys(
+    ranked: Iterable[CoordinateJeepneyJourney],
+    limit: int,
+) -> list[CoordinateJeepneyJourney]:
+    """Keep a representative per corridor before filling remaining result slots."""
+    representatives = {}
+    alternatives = []
+    for journey in ranked:
+        corridor = coordinate_journey_corridor(journey)
+        if corridor in representatives:
+            alternatives.append(journey)
+        else:
+            representatives[corridor] = journey
+    return [*representatives.values(), *alternatives][:limit]
+
+
 class CoordinateJourneyService:
     """Search eligible directional routes without treating centerline positions as stops."""
 
@@ -390,9 +468,16 @@ class CoordinateJourneyService:
         connections: Iterable[RouteConnection] | None = None,
         allow_provisional_transfers: bool = False,
         limits: CoordinateJourneySearchLimits = CoordinateJourneySearchLimits(),
+        diversify_corridors: bool = False,
+        separate_direct_journeys: bool = False,
+        include_access_alternatives: bool = False,
+        progress: CoordinateJourneySearchProgress | None = None,
     ) -> list[CoordinateJeepneyJourney]:
         """Rank up to three rides, requiring pedestrian evidence by default for any transfer."""
         limits.validate()
+        allow_partial = progress is not None
+        if progress is None:
+            progress = CoordinateJourneySearchProgress()
         routes = valid_route_geometries(route_geometries)
         if any(not route_codes.get(variant_id) for variant_id in routes):
             raise ValidationError({"route_codes": "Provide a route code for each eligible variant."})
@@ -402,18 +487,32 @@ class CoordinateJourneyService:
             route_geometries=routes,
             maximum_access_distance_meters=limits.maximum_access_distance_meters,
             maximum_egress_distance_meters=limits.maximum_egress_distance_meters,
+            include_access_alternatives=include_access_alternatives,
         )
-        if (
-            not any(position.is_boarding for position in positions)
-            or not any(not position.is_boarding for position in positions)
-        ):
+        progress.nearby_origin_variants = len({
+            position.variant_id
+            for position in positions
+            if position.is_boarding
+        })
+        progress.nearby_destination_variants = len({
+            position.variant_id
+            for position in positions
+            if not position.is_boarding
+        })
+        if not progress.nearby_origin_variants or not progress.nearby_destination_variants:
             return []
 
         if limits.max_transfers and connections is None and allow_provisional_transfers:
-            connections = RouteConnectionService.discover(
-                route_geometries=routes,
-                maximum_transfer_distance_meters=limits.maximum_provisional_transfer_distance_meters,
-            )
+            try:
+                connections = RouteConnectionService.discover(
+                    route_geometries=routes,
+                    route_codes=route_codes,
+                    maximum_transfer_distance_meters=limits.maximum_provisional_transfer_distance_meters,
+                )
+            except RouteConnectionBudgetExceeded:
+                if not allow_partial:
+                    raise
+                progress.incomplete_reason = "connection_budget"
 
         outgoing = {}
         if limits.max_transfers and connections is not None:
@@ -430,7 +529,10 @@ class CoordinateJourneyService:
             outgoing=outgoing,
             route_codes=route_codes,
             limits=limits,
+            progress=progress,
         ))
+        if progress.incomplete_reason == "candidate_budget" and not allow_partial:
+            raise ValidationError({"search": "The itinerary search exceeded its candidate budget."})
         measurements = CoordinateRouteMatchingService.measure_rides(
             route_geometries=routes,
             rides={
@@ -440,13 +542,31 @@ class CoordinateJourneyService:
             },
             minimum_ride_distance_meters=limits.minimum_ride_distance_meters,
         )
+        journeys = _measured_journeys(
+            requests=requests,
+            measurements=measurements,
+            route_codes=route_codes,
+            transfer_penalty_meters=limits.transfer_penalty_meters,
+        )
+        if separate_direct_journeys:
+            ranked = sorted(journeys, key=coordinate_journey_rank)
+            return [
+                *_diverse_journeys(
+                    (journey for journey in ranked if not journey.transfers),
+                    limits.maximum_journeys,
+                ),
+                *_diverse_journeys(
+                    (journey for journey in ranked if journey.transfers),
+                    limits.maximum_journeys,
+                ),
+            ]
+        if diversify_corridors:
+            return _diverse_journeys(
+                sorted(journeys, key=coordinate_journey_rank),
+                limits.maximum_journeys,
+            )
         return nsmallest(
             limits.maximum_journeys,
-            _measured_journeys(
-                requests=requests,
-                measurements=measurements,
-                route_codes=route_codes,
-                transfer_penalty_meters=limits.transfer_penalty_meters,
-            ),
+            journeys,
             key=coordinate_journey_rank,
         )

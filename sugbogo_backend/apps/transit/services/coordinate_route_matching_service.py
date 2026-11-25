@@ -370,6 +370,7 @@ class CoordinateRouteMatchingService:
         route_geometries: Mapping[int, LineString],
         maximum_access_distance_meters: float,
         maximum_egress_distance_meters: float,
+        include_access_alternatives: bool = False,
     ) -> list[RouteEndpointPosition]:
         """Find nearby positions for each endpoint without requiring both on one route."""
         CoordinateRouteMatchingService._validate_endpoints(origin, destination)
@@ -383,9 +384,32 @@ class CoordinateRouteMatchingService:
             {ROUTES_CTE},
             {_ENDPOINTS_CTE},
             {ROUTE_SEGMENTS_CTES},
-            {_ENDPOINT_POSITIONS_CTES}
+            {_ENDPOINT_POSITIONS_CTES},
+            access_candidates AS (
+                SELECT variant_id, is_boarding, fraction, point, distance_meters
+                FROM nearby_positions
+                UNION
+                SELECT p.variant_id, p.is_boarding, shifted.fraction, sampled.point,
+                    ST_Distance(sampled.point::geography, endpoint.point::geography)
+                FROM nearby_positions p
+                JOIN routes r USING (variant_id)
+                JOIN endpoints endpoint ON endpoint.is_boarding = p.is_boarding
+                CROSS JOIN (VALUES (-150.0), (-75.0), (75.0), (150.0)) offsets(meters)
+                CROSS JOIN LATERAL (
+                    SELECT p.fraction + offsets.meters / ST_Length(r.geometry::geography) AS fraction
+                ) shifted
+                CROSS JOIN LATERAL (
+                    SELECT ST_LineInterpolatePoint(r.geometry, GREATEST(0, LEAST(1, shifted.fraction))) AS point
+                ) sampled
+                WHERE %s AND shifted.fraction BETWEEN 0 AND 1
+                    AND ST_Distance(
+                        (SELECT point::geography FROM endpoints WHERE is_boarding),
+                        (SELECT point::geography FROM endpoints WHERE NOT is_boarding)
+                    ) >= %s
+                    AND ST_DWithin(sampled.point::geography, endpoint.point::geography, endpoint.radius_meters)
+            )
             SELECT variant_id, is_boarding, fraction, ST_AsEWKT(point), distance_meters
-            FROM nearby_positions
+            FROM access_candidates
             ORDER BY variant_id, is_boarding, fraction
         """
         with connection.cursor() as cursor:
@@ -397,6 +421,8 @@ class CoordinateRouteMatchingService:
                     maximum_access_distance_meters,
                     destination.ewkt,
                     maximum_egress_distance_meters,
+                    include_access_alternatives,
+                    MINIMUM_COORDINATE_RIDE_DISTANCE_METERS,
                 ],
             )
             return [
