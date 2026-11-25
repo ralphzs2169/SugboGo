@@ -1,5 +1,6 @@
 """Verify indexed search against exhaustive position combinations and legacy search."""
 
+from dataclasses import replace
 from itertools import chain, product
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -23,6 +24,7 @@ from apps.transit.services.coordinate_route_matching_service import (
     RoutePosition,
 )
 from apps.transit.services.development_connection_graph_index import DevelopmentConnectionGraphIndex
+from apps.transit.services.directional_transfer_search import DirectionalSearchProgress, DirectionalTransferSearch
 from apps.transit.services.tests.test_development_connection_graph_index import (
     GraphIndexFixture,
     write_fixture,
@@ -31,6 +33,39 @@ from apps.transit.services.tests.test_development_connection_graph_index import 
 
 class DirectionalTransferSearchTests(GraphIndexFixture, TestCase):
     """Use a small verified artifact with distinct and rounded-collision positions."""
+
+    def test_access_bound_scheduling_reaches_closer_sequence_without_pruning(self):
+        index = self.publish()
+        self.routes[4] = self.routes[1]
+        self.codes[4] = "D"
+        positions = [
+            replace(self.endpoint(1, 0.1, True), distance_meters=400),
+            self.endpoint(4, 0.1, True),
+            self.endpoint(2, 0.9, False),
+        ]
+        link = next(index.connections(1, 2))
+
+        def planned():
+            progress = CoordinateJourneySearchProgress()
+            progress.directional = DirectionalSearchProgress()
+            search = DirectionalTransferSearch(
+                positions=positions,
+                pairs=[(1, 2), (4, 2)],
+                route_codes=self.codes,
+                max_transfers=1,
+                progress=progress,
+                read_pair=lambda source, target, **bounds: [replace(link, from_variant_id=source)],
+            )
+            return search, progress
+
+        bounded, progress = planned()
+        paths = list(bounded.paths(maximum_search_work=2))
+        self.assertEqual([origin.variant_id for origin, _, _ in paths], [4])
+        self.assertEqual(progress.incomplete_reason, "candidate_budget")
+        complete, progress = planned()
+        paths = list(complete.paths(maximum_search_work=20_000))
+        self.assertEqual([origin.variant_id for origin, _, _ in paths], [4, 1])
+        self.assertIsNone(progress.incomplete_reason)
 
     def search(
         self,

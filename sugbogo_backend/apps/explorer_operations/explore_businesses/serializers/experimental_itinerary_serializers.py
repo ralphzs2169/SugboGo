@@ -144,6 +144,12 @@ class ItineraryCoverageSerializer(serializers.Serializer):
         choices=("candidate_budget", "connection_budget"),
         allow_null=True,
     )
+    graph_revision = serializers.CharField(required=False)
+    graph_variant_count = serializers.IntegerField(required=False)
+    variants_outside_graph = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+    )
     nearby_origin_variants = serializers.IntegerField()
     nearby_destination_variants = serializers.IntegerField()
     variants_excluded_by_spatial_validation = serializers.IntegerField()

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from itertools import pairwise
@@ -39,6 +40,12 @@ from apps.transit.services.route_connection_service import (
     TransferValidationStatus,
 )
 from apps.transit.services.transit_spatial_validation_service import TransitSpatialValidationService
+from apps.explorer_operations.explore_businesses.services.experimental_connection_graph_service import (
+    ItineraryGraphUnavailable,
+    experimental_connection_index,
+)
+
+logger = logging.getLogger(__name__)
 
 SELECTION_SALT = "explorer.experimental-itinerary.v1"
 SELECTION_MAX_AGE_SECONDS = 600
@@ -448,16 +455,54 @@ class ExperimentalItineraryService:
             for variant_id, variant in variants.items()
         })
         progress = CoordinateJourneySearchProgress()
-        geometric = CoordinateJourneyService.search(
-            origin=origin,
-            destination=destination,
+        route_codes = {
+            variant_id: variants[variant_id].code
+            for variant_id in geometries
+        }
+        connection_index = experimental_connection_index(
             route_geometries=geometries,
-            route_codes={variant_id: variants[variant_id].code for variant_id in geometries},
-            allow_provisional_transfers=True,
-            limits=replace(limits, maximum_journeys=limits.maximum_journeys + 1),
-            separate_direct_journeys=True,
-            progress=progress,
+            route_codes=route_codes,
         )
+        try:
+            geometric = CoordinateJourneyService.search(
+                origin=origin,
+                destination=destination,
+                route_geometries=geometries,
+                route_codes=route_codes,
+                connection_index=connection_index,
+                allow_provisional_transfers=True,
+                limits=replace(limits, maximum_journeys=limits.maximum_journeys + 1),
+                separate_direct_journeys=True,
+                progress=progress,
+            )
+        except (OSError, ValueError, KeyError) as error:
+            if connection_index is None:
+                raise
+            logger.warning("Local experimental graph read rejected: %s", error)
+            raise ItineraryGraphUnavailable() from error
+        graph_coverage = {}
+        if connection_index is not None:
+            graph_coverage = {
+                "graph_revision": connection_index.index.revision,
+                "graph_variant_count": len(connection_index.graph_to_managed),
+                "variants_outside_graph": list(connection_index.uncovered_variant_ids),
+            }
+            if (
+                max_transfers
+                and connection_index.uncovered_variant_ids
+                and progress.nearby_origin_variants
+                and progress.nearby_destination_variants
+                and progress.incomplete_reason is None
+            ):
+                # The existing enum also covers unavailable connection coverage.
+                # Direct rides still use every eligible managed variant.
+                progress.incomplete_reason = "connection_budget"
+            logger.info(
+                "Experimental indexed search revision=%s outside_graph=%s progress=%s",
+                connection_index.index.revision,
+                connection_index.uncovered_variant_ids,
+                progress,
+            )
         direct_count = sum(
             not journey.transfers
             for journey in geometric
@@ -527,6 +572,7 @@ class ExperimentalItineraryService:
             "reason": reason,
             "validation_stage": validation_stage,
             "coverage": {
+                **graph_coverage,
                 "incomplete_reason": progress.incomplete_reason,
                 "nearby_origin_variants": progress.nearby_origin_variants,
                 "nearby_destination_variants": progress.nearby_destination_variants,

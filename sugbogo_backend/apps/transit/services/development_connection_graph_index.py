@@ -383,6 +383,16 @@ class DevelopmentConnectionGraphIndex:
         """Identify the inventory and graph revision pinned by this reader."""
         return self._source.revision
 
+    @property
+    def graph_sha256(self):
+        """Expose the graph checksum verified by offline index publication."""
+        return self._source.graph_sha256
+
+    def variant_identities(self):
+        """Return the exact directional identities bound to this inventory."""
+        self._source.check_current()
+        return dict(self._source.variants)
+
     def nonempty_pairs(self):
         """Expose directed connectivity using only the validated block metadata."""
         self._source.check_current()

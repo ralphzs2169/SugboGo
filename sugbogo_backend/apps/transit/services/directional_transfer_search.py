@@ -99,6 +99,24 @@ class DirectionalTransferSearch:
                         continue
                     two.append((source, middle, target))
 
+        access_bounds = {
+            variant_id: min(endpoint.distance_meters for endpoint in endpoints)
+            for variant_id, endpoints in self.origins.items()
+        }
+        egress_bounds = {
+            variant_id: min(endpoint.distance_meters for endpoint in endpoints)
+            for variant_id, endpoints in self.destinations.items()
+        }
+
+        def sequence_order(sequence):
+            """Visit promising access bounds first without pruning any valid sequence."""
+            return (
+                access_bounds[sequence[0]] + egress_bounds[sequence[-1]],
+                sequence,
+            )
+
+        one.sort(key=sequence_order)
+        two.sort(key=sequence_order)
         self.sequences = {1: one}
         if max_transfers == 2:
             self.sequences[2] = two
