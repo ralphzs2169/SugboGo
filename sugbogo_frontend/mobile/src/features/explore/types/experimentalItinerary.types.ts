@@ -16,6 +16,7 @@ export type WalkStatus =
   | "not_evaluated";
 
 type ItineraryContext = {
+  guidance_mode?: "geometry";
   business_id: number;
   origin: ItineraryCoordinate;
   destination: ItineraryCoordinate;

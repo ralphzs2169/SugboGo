@@ -159,6 +159,7 @@ class ItineraryContextSerializer(serializers.Serializer):
     """Serialize the business and exact origin and destination used in a calculation."""
 
     business_id = serializers.IntegerField()
+    guidance_mode = serializers.CharField(default="geometry", read_only=True)
     origin = JourneyMapCoordinateSerializer(source="origin_coords", read_only=True)
     destination = JourneyMapCoordinateSerializer(source="destination_coords", read_only=True)
     max_transfers = serializers.IntegerField()

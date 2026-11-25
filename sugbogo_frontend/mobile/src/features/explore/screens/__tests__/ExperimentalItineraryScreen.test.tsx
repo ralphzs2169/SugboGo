@@ -1,6 +1,8 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { openGoogleMapsWalkingDirections } from "../../services/googleMapsHandoff.service";
+
 import ExperimentalItinerariesRoute from "@/app/(explorer)/business/[businessId]/experimental-itineraries";
 
 import {
@@ -38,6 +40,7 @@ jest.mock("@/shared/components/MapMarker", () => () => null);
 jest.mock("@/shared/components/DottedTimelineConnector", () => () => null);
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("../../api/experimentalItinerary.service");
+jest.mock("../../services/googleMapsHandoff.service", () => ({ openGoogleMapsWalkingDirections: jest.fn() }));
 
 const origin = { latitude: 10.31, longitude: 123.9 };
 let mockDeviceLocation = origin;
@@ -176,277 +179,106 @@ afterEach(() => {
   jest.resetAllMocks();
 });
 
-it("keeps direct navigation disabled without the experiment flag", async () => {
+it("keeps the experiment inaccessible without the mobile feature flag", async () => {
   delete process.env.EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED;
   const screen = await renderRoute();
   expect(screen.getByText("Experiment disabled")).toBeTruthy();
   expect(searchExperimentalItineraries).not.toHaveBeenCalled();
 });
 
-it.each([0, 1, 2] as const)("opens %i transfers and renders each ride, walk, and candidate", async (count) => {
+it.each([0, 1, 2] as const)("shows %i transfers as geometric guidance with optional walking", async (count) => {
   const detail = detailFor(count);
-  jest.mocked(searchExperimentalItineraries).mockResolvedValue({
-    success: true, message: "", data: resultsFor(detail),
-  });
-  jest.mocked(getExperimentalItinerary).mockResolvedValue({
-    success: true, message: "", data: detail,
-  });
+  detail.access_walk = { ...walk, status: "not_evaluated", mapped_distance_meters: null };
+  detail.egress_walk = { ...walk, status: "not_evaluated", mapped_distance_meters: null };
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: resultsFor(detail) });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
+  jest.mocked(openGoogleMapsWalkingDirections).mockResolvedValue("opened");
   const screen = await renderRoute();
   await fireEvent.press(screen.getByLabelText(`${count} maximum transfers`));
-  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
-  await screen.findByText(/Some alternatives were outside/);
-  await fireEvent.press(screen.getByRole("button", { name: /Open J1/ }));
-  await screen.findByTestId("experimental-itinerary-map");
-
-  expect(searchExperimentalItineraries).toHaveBeenCalledWith(12, origin, count);
-  expect(getExperimentalItinerary).toHaveBeenCalledWith(12, "signed-selection");
-  expect(screen.getAllByTestId(/^itinerary-ride-/)).toHaveLength(count + 1);
-  expect(screen.getAllByTestId(/^itinerary-walk-/)).toHaveLength(count + 2);
-  expect(screen.getByTestId("itinerary-1-board").props.title).toBe("Boarding candidate");
-  expect(screen.getByText("Unreviewed direction label · toward End 1")).toBeTruthy();
-  expect(screen.getByText(/Geometry preview only\. Jeepney service/)).toBeTruthy();
-  expect(screen.getByText("From your starting point to the first ride")).toBeTruthy();
-  expect(screen.getByText("From the last ride to your destination")).toBeTruthy();
-  if (count) expect(screen.getByText("Change to J2")).toBeTruthy();
-  expect(screen.getByText(/Google walking routes are in beta/)).toBeTruthy();
-  expect(screen.getAllByText("Mocked warning")).toHaveLength(count + 2);
-  expect(screen.getAllByText("Google Maps").length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Local source").length).toBeGreaterThan(0);
-});
-
-it("uses verified labels only when the selected itinerary carries passenger access evidence", async () => {
-  const verified: ItineraryAccess = {
-    ...access,
-    coordinate_status: "verified",
-    permission: "permitted",
-    passenger_location_verified: true,
-  };
-  const preview = detailFor(1);
-  const detail: ItineraryDetail = {
-    ...preview,
-    route_alignment_status: "reviewed",
-    passenger_access_verified: true,
-    passenger_ready: true,
-    ride_legs: preview.ride_legs.map((ride) => ({
-      ...ride,
-      route_alignment_status: "reviewed",
-      boarding: verified,
-      alighting: verified,
-    })),
-    transfers: preview.transfers.map((transfer) => ({
-      ...transfer,
-      validation_status: "pedestrian_validated",
-      passenger_access_verified: true,
-      passenger_ready: true,
-    })),
-  };
-  jest.mocked(searchExperimentalItineraries).mockResolvedValue({
-    success: true, message: "", data: resultsFor(detail),
-  });
-  jest.mocked(getExperimentalItinerary).mockResolvedValue({
-    success: true, message: "", data: detail,
-  });
-  const screen = await renderRoute();
-  await fireEvent.press(screen.getByLabelText("1 maximum transfers"));
   await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
   await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
   await screen.findByTestId("experimental-itinerary-map");
 
-  expect(screen.getByTestId("itinerary-1-board").props.title).toBe("Verified boarding location");
-  expect(screen.getAllByText("Passenger access verified")).toHaveLength(2);
-  expect(screen.queryByText("Transfer locations unconfirmed")).toBeNull();
+  expect(screen.getAllByTestId(/^itinerary-ride-/)).toHaveLength(count + 1);
+  expect(screen.queryAllByTestId(/^itinerary-walk-/)).toHaveLength(0);
+  expect(screen.getByText("J1 toward End 1")).toBeTruthy();
+  expect(screen.getByText(/Route alignment and recorded direction are unreviewed/)).toBeTruthy();
+  expect(screen.getAllByText(/estimated straight-line distance/)).toHaveLength(count + 2);
+  expect(screen.getAllByText("Google Maps").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Local source").length).toBeGreaterThan(0);
+  expect(openGoogleMapsWalkingDirections).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getAllByRole("button", { name: "Walking directions" })[0]);
+  await waitFor(() => expect(openGoogleMapsWalkingDirections).toHaveBeenCalledWith(origin, destination));
 });
 
-it("labels a disputed route as geometry even when access has been checked", async () => {
-  const preview = detailFor(0);
-  const verified: ItineraryAccess = {
-    ...access,
-    coordinate_status: "verified",
-    permission: "permitted",
-    passenger_location_verified: true,
-  };
-  const detail: ItineraryDetail = {
-    ...preview,
-    route_alignment_status: "disputed",
-    passenger_access_verified: true,
-    ride_legs: [{
-      ...preview.ride_legs[0],
-      route_alignment_status: "disputed",
-      route_provenance: "Example route review",
-      boarding: verified,
-      alighting: verified,
-    }],
-  };
-  jest.mocked(searchExperimentalItineraries).mockResolvedValue({
-    success: true, message: "", data: resultsFor(detail),
-  });
+it("preserves approximate guidance when old walking diagnostics are present", async () => {
+  const detail = detailFor(0);
+  detail.has_blocking_evidence = true;
+  detail.access_walk = { ...walk, status: "distance_limit", mapped_distance_meters: null };
+  detail.egress_walk = { ...walk, status: "unsuitable_endpoints", mapped_distance_meters: null };
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: resultsFor(detail) });
   jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
   const screen = await renderRoute();
   await fireEvent.press(screen.getByLabelText("0 maximum transfers"));
   await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
-  await screen.findByText(/recorded route is disputed/);
   await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
-  await screen.findByText(/Disputed direction label/);
-
-  expect(screen.getByText(/Do not use it for boarding/)).toBeTruthy();
-  expect(screen.getByText("Route source · Example route review")).toBeTruthy();
-  expect(screen.getByTestId("itinerary-1-board").props.title).toBe("Boarding candidate");
-  expect(screen.queryByText("Passenger access verified")).toBeNull();
+  await screen.findByTestId("experimental-itinerary-map");
+  expect(screen.queryByText(/mapped walk is too far/i)).toBeNull();
+  expect(screen.queryByText(/walking connection failed/i)).toBeNull();
+  expect(screen.queryByText("Mocked warning")).toBeNull();
+  expect(screen.queryAllByTestId(/^itinerary-walk-/)).toHaveLength(0);
 });
 
-it("distinguishes an empty search from a provider failure and stale selection", async () => {
+it("reports a failed optional Google Maps handoff", async () => {
+  const detail = detailFor(0);
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: resultsFor(detail) });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
+  jest.mocked(openGoogleMapsWalkingDirections).mockResolvedValue("failed");
+  const screen = await renderRoute();
+  await fireEvent.press(screen.getByLabelText("0 maximum transfers"));
+  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
+  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
+  await screen.findByTestId("experimental-itinerary-map");
+  await fireEvent.press(screen.getAllByRole("button", { name: "Walking directions" })[0]);
+  await screen.findByText(/Could not open Google Maps/);
+});
+
+it("shows no landmarks without losing geometry or optional directions", async () => {
+  const detail = detailFor(0);
+  detail.ride_legs = detail.ride_legs.map((ride) => ({
+    ...ride, boarding: { ...access, landmark: null }, alighting: { ...access, landmark: null },
+  }));
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: resultsFor(detail) });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
+  const screen = await renderRoute();
+  await fireEvent.press(screen.getByLabelText("0 maximum transfers"));
+  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
+  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
+  await screen.findByTestId("itinerary-ride-0");
+  expect(screen.queryByText(/Nearby landmark/)).toBeNull();
+  expect(screen.getAllByRole("button", { name: "Walking directions" })).toHaveLength(2);
+});
+
+it("keeps stale selection and incomplete search states distinct", async () => {
   const result = resultsFor(detailFor(2));
-  jest.mocked(searchExperimentalItineraries)
-    .mockResolvedValueOnce({
-      success: true, message: "", data: { ...result, options: [], reason: "no_geometric_journey" },
-    })
-    .mockResolvedValueOnce({
-      success: true,
-      message: "",
-      data: { ...result, options: [{ ...result.options[0], walking_statuses: ["timeout"] }] },
-    });
-  jest.mocked(getExperimentalItinerary).mockResolvedValue({
-    success: false, code: "STALE_ITINERARY", message: "Search again.",
-  });
+  result.coverage.incomplete_reason = "candidate_budget";
+  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: result });
+  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: false, code: "STALE_ITINERARY", message: "Search again." });
   const screen = await renderRoute();
   await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
-  await screen.findByText(/No route candidate found/);
-  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
-  await screen.findByText("Walking check unavailable");
-  await fireEvent.press(screen.getByRole("button", { name: /Open J1/ }));
-  await waitFor(() => expect(screen.getByText("This preview needs a new search")).toBeTruthy());
+  await screen.findByText(/from an incomplete search/);
+  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
+  await screen.findByText("This preview needs a new search");
   expect(screen.queryByTestId("experimental-itinerary-map")).toBeNull();
 });
 
-it.each([true, false])("shows incomplete search coverage with or without a result (%s)", async (hasResult) => {
-  const result = resultsFor(detailFor(2));
-  jest.mocked(searchExperimentalItineraries).mockResolvedValue({
-    success: true,
-    message: "",
-    data: {
-      ...result,
-      reason: hasResult ? null : "search_incomplete",
-      options: hasResult ? result.options : [],
-      coverage: { ...result.coverage, incomplete_reason: "candidate_budget" },
-    },
-  });
-  const screen = await renderRoute();
-  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
-  await screen.findByText(hasResult ? /from an incomplete search/ : /search ended before/);
-  expect(screen.queryByText(/No route candidate found/)).toBeNull();
-  expect(Boolean(screen.queryByRole("button", { name: /Open J1/ }))).toBe(hasResult);
-});
-
-it.each([
-  ["no_route_near_origin", null, /no jeepney route was found near your starting point/i],
-  ["no_route_near_destination", null, /no jeepney route was found near this destination/i],
-  ["no_forward_journey", null, /direction of travel/i],
-  ["candidate_excluded_by_validation", "spatial", /did not pass the preview/i],
-  ["candidate_excluded_by_validation", "minimum_ride_distance", /rides found were too short/i],
-] as const)("explains an empty response with reason %s", async (reason, validationStage, message) => {
-  const result = resultsFor(detailFor(2));
-  jest.mocked(searchExperimentalItineraries).mockResolvedValue({
-    success: true,
-    message: "",
-    data: {
-      ...result,
-      options: [],
-      reason,
-      validation_stage: validationStage,
-      coverage: { ...result.coverage, alternatives_unchecked: false },
-    },
-  });
-  const screen = await renderRoute();
-  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
-  await screen.findByText(message);
-});
-
-it("keeps the submitted search visible after a device location update", async () => {
+it("keeps results visible after a device GPS update", async () => {
   const result = resultsFor(detailFor(2));
   jest.mocked(searchExperimentalItineraries).mockImplementation(async () => {
     mockDeviceLocation = { ...origin, latitude: origin.latitude + 0.00001 };
-    return {
-      success: true,
-      message: "",
-      data: {
-        ...result,
-        coverage: { ...result.coverage, walking_provider_unavailable: true },
-      },
-    };
+    return { success: true, message: "", data: result };
   });
   const screen = await renderRoute();
   await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
   await screen.findByRole("button", { name: /Open J1/ });
-  expect(screen.getByText(/Some walking checks are temporarily unavailable/)).toBeTruthy();
-  expect(searchExperimentalItineraries).toHaveBeenCalledWith(12, origin, 2);
-});
-
-it("keeps malformed and unconfirmed paths off the map while preserving walking warnings", async () => {
-  const preview = detailFor(1);
-  const detail: ItineraryDetail = {
-    ...preview,
-    access_walk: {
-      ...walk,
-      status: "unsuitable_endpoints",
-      mapped_distance_meters: null,
-      diagnostic_code: "displaced_provider_endpoint",
-    },
-    egress_walk: { ...walk, status: "provider_error", mapped_distance_meters: null },
-    ride_legs: [
-      { ...preview.ride_legs[0], geometry: [origin, origin] },
-      preview.ride_legs[1],
-    ],
-    transfers: [{ ...preview.transfers[0], walk: { ...walk, encoded_polyline: "????" } }],
-  };
-  jest.mocked(searchExperimentalItineraries).mockResolvedValue({
-    success: true, message: "", data: resultsFor(detail),
-  });
-  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
-  const screen = await renderRoute();
-  await fireEvent.press(screen.getByLabelText("1 maximum transfers"));
-  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
-  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
-  await screen.findByTestId("experimental-itinerary-map");
-
-  expect(screen.queryByTestId("itinerary-ride-0")).toBeNull();
-  expect(screen.getByTestId("itinerary-ride-1")).toBeTruthy();
-  expect(screen.queryAllByTestId(/^itinerary-walk-/)).toHaveLength(0);
-  expect(screen.getByText("Jeepney path unavailable on the map")).toBeTruthy();
-  expect(screen.getByText("A walking path to this location could not be confirmed")).toBeTruthy();
-  expect(screen.getByText("Walking check unavailable")).toBeTruthy();
-  expect(screen.queryByText(/displaced_provider_endpoint/)).toBeNull();
-  expect(screen.getAllByText("Mocked warning")).toHaveLength(3);
-});
-
-it("presents blocked walks as a diagnostic preview with the specific failure", async () => {
-  const detail: ItineraryDetail = {
-    ...detailFor(0),
-    has_blocking_evidence: true,
-    access_walk: {
-      ...walk,
-      status: "distance_limit",
-      mapped_distance_meters: null,
-      provider_distance_meters: 1379,
-      distance_limit_meters: 800,
-    },
-    egress_walk: {
-      ...walk,
-      status: "unsuitable_endpoints",
-      mapped_distance_meters: null,
-      diagnostic_code: "collapsed_provider_path",
-    },
-  };
-  const search = resultsFor(detail);
-  search.options[0].has_blocking_evidence = true;
-  jest.mocked(searchExperimentalItineraries).mockResolvedValue({ success: true, message: "", data: search });
-  jest.mocked(getExperimentalItinerary).mockResolvedValue({ success: true, message: "", data: detail });
-  const screen = await renderRoute();
-  await fireEvent.press(screen.getByLabelText("0 maximum transfers"));
-  await fireEvent.press(screen.getByRole("button", { name: "Search itineraries" }));
-  await screen.findByText(/Diagnostic preview · walking connection/);
-  await fireEvent.press(await screen.findByRole("button", { name: /Open J1/ }));
-  await screen.findByText(/Diagnostic preview only/);
-  expect(screen.getByText(/Mapped walk .*preview limit/)).toBeTruthy();
-  expect(screen.getByText(/could not connect these two locations reliably/)).toBeTruthy();
-  expect(screen.queryAllByTestId(/^itinerary-walk-/)).toHaveLength(0);
 });

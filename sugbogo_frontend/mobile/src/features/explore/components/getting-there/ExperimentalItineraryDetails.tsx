@@ -1,60 +1,49 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { Linking, View } from "react-native";
 
 import AppText from "@/shared/components/AppText";
+import Button from "@/shared/components/Button";
 
-import type { ItineraryAccess, ItineraryDetail, ItineraryWalk, WalkStatus } from "../../types/experimentalItinerary.types";
+import { openGoogleMapsWalkingDirections } from "../../services/googleMapsHandoff.service";
+import type { ItineraryAccess, ItineraryDetail, ItineraryWalk } from "../../types/experimentalItinerary.types";
 import { formatJourneyDistance } from "../../utils/directJourney.utils";
-import { formatRoadRouteDuration } from "../../utils/roadRoute.utils";
-import ExperimentalItineraryMap, { mappedWalkingPath, validItineraryPath } from "./ExperimentalItineraryMap";
+import ExperimentalItineraryMap, { validItineraryPath } from "./ExperimentalItineraryMap";
 import JourneyStep from "./jeepney-guidance/JourneyStep";
 
-const googleWalkingWarning = "Google walking routes are in beta and may omit sidewalks or pedestrian paths.";
+function AreaConnection({ walk }: { walk: ItineraryWalk }) {
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const available = walk.from !== null && walk.to !== null && walk.status !== "prohibited_access";
 
-export function providerUnavailable(status: WalkStatus) {
-  return ["timeout", "quota_or_billing", "provider_error"].includes(status);
-}
+  async function openDirections() {
+    if (!walk.from || !walk.to || pending) return;
+    setPending(true);
+    setFailed(false);
+    const result = await openGoogleMapsWalkingDirections(walk.from, walk.to);
+    setFailed(result !== "opened");
+    setPending(false);
+  }
 
-function walkDescription(walk: ItineraryWalk) {
-  if (walk.status === "available" && walk.mapped_distance_meters !== null) {
-    if (walk.mapped_distance_meters === 0) return "Same mapped location";
-    const distance = formatJourneyDistance(walk.mapped_distance_meters);
-    const duration = walk.duration_seconds === null || walk.duration_seconds === 0 ? "" : ` · ${formatRoadRouteDuration(walk.duration_seconds)}`;
-    const missingMap = mappedWalkingPath(walk).length === 0 ? " · path unavailable on the map" : "";
-    return `${distance} walking${duration}${missingMap}`;
-  }
-  if (walk.status === "prohibited_access") return "Passenger access is prohibited here";
-  if (walk.status === "no_route") return "No mapped walking path found";
-  if (walk.status === "distance_limit") {
-    if (walk.provider_distance_meters != null && walk.distance_limit_meters != null) {
-      return `Mapped walk ${formatJourneyDistance(walk.provider_distance_meters)} · preview limit ${formatJourneyDistance(walk.distance_limit_meters)}`;
-    }
-    return "The mapped walk is too far for this itinerary";
-  }
-  if (walk.status === "unsuitable_endpoints" && walk.diagnostic_code === "collapsed_provider_path") {
-    return "The walking service could not connect these two locations reliably";
-  }
-  if (walk.status === "unsuitable_endpoints" || walk.status === "invalid_coordinates") {
-    return "A walking path to this location could not be confirmed";
-  }
-  if (providerUnavailable(walk.status)) return "Walking check unavailable";
-  return "Walking path still needs checking";
+  return (
+    <View className="mt-2 gap-2">
+      <AppText className="text-xs text-text-secondary">
+        {formatJourneyDistance(walk.straight_line_distance_meters)} estimated straight-line distance
+      </AppText>
+      <AppText className="text-xs text-text-secondary">
+        {walk.status === "prohibited_access"
+          ? "Passenger access is prohibited here."
+          : "Pedestrian access is unverified."}
+      </AppText>
+      {available && (
+        <Button title="Walking directions" variant="outline" loading={pending} disabled={pending} onPress={openDirections} />
+      )}
+      {failed && <AppText accessibilityLiveRegion="polite">Could not open Google Maps. Try again.</AppText>}
+    </View>
+  );
 }
 
 function GoogleAttribution() {
   return <AppText numberOfLines={1} style={{ fontSize: 12, fontWeight: "400", color: "#5E5E5E" }}>Google Maps</AppText>;
-}
-
-function WalkingEvidence({ walk }: { walk: ItineraryWalk }) {
-  if (!walk.source) return null;
-  return (
-    <View className="mt-2 gap-1 rounded-lg bg-surface-secondary px-3 py-2">
-      {Array.from(new Set(walk.warnings)).map((warning) => (
-        <AppText key={warning} className="text-xs text-text-secondary">{warning}</AppText>
-      ))}
-      <GoogleAttribution />
-    </View>
-  );
 }
 
 function AccessEvidence({ label, access }: { label: string; access: ItineraryAccess }) {
@@ -69,7 +58,7 @@ function AccessEvidence({ label, access }: { label: string; access: ItineraryAcc
       <AppText className="text-xs text-text-secondary">{label} {status}</AppText>
       {landmark && (
         <View className="gap-1 rounded-lg bg-surface-secondary px-3 py-2">
-          <AppText className="text-xs text-text-secondary">Nearby landmark · {landmark.name}</AppText>
+          <AppText className="text-xs text-text-secondary">Nearby landmark Â· {landmark.name}</AppText>
           <GoogleAttribution />
           {landmark.attributions.map(({ name, url }) => (
             <AppText
@@ -87,14 +76,9 @@ function AccessEvidence({ label, access }: { label: string; access: ItineraryAcc
   );
 }
 
-/** Show ordered review evidence, distinct ride and walk geometry, and provider attribution. */
+/** Shows geometric jeepney guidance and optional external walking directions. */
 export default function ExperimentalItineraryDetails({ itinerary }: { itinerary: ItineraryDetail }) {
   const alignmentReviewed = itinerary.route_alignment_status === "reviewed";
-  const hasGoogleWalk = [
-    itinerary.access_walk,
-    ...itinerary.transfers.map((transfer) => transfer.walk),
-    itinerary.egress_walk,
-  ].some((walk) => walk.source === "google_routes");
 
   return (
     <View className="gap-4">
@@ -103,40 +87,33 @@ export default function ExperimentalItineraryDetails({ itinerary }: { itinerary:
           {itinerary.ride_legs.map((leg) => leg.route_code).join(" → ")}
         </AppText>
         <AppText className="text-sm text-text-secondary">
-          {itinerary.has_blocking_evidence
-            ? "Diagnostic preview only. A walking connection failed validation. Do not follow this itinerary."
-            : !alignmentReviewed
-            ? "Geometry preview only. Jeepney service and direction along this path are unconfirmed. Do not use it for boarding."
-            : itinerary.passenger_ready
-            ? "Passenger access verified"
-            : "Experimental preview. Use only confirmed boarding and alighting locations when you travel."}
+          {alignmentReviewed
+            ? "Suggested areas are approximate. Check pedestrian access and permitted loading locations before travelling."
+            : "Geometry preview only. Route alignment and recorded direction are unreviewed. Suggested areas are approximate."}
         </AppText>
       </View>
       <ExperimentalItineraryMap itinerary={itinerary} />
-      {hasGoogleWalk && (
-        <AppText className="text-xs text-text-secondary">{googleWalkingWarning}</AppText>
-      )}
       <AppText className="text-xs text-text-secondary">
-        Orange shows jeepney routes. Dashed blue shows mapped walks. Unconfirmed markers show possible locations.
+        Orange shows stored jeepney geometry. Markers show suggested areas. Pedestrian connectivity and legal boarding permission require independent checks.
       </AppText>
+      {/* Access, ordered rides, transfers and destination */}
       <View>
-        <JourneyStep number={1} title="From your starting point to the first ride" detail={walkDescription(itinerary.access_walk)} icon="walk">
-          <WalkingEvidence walk={itinerary.access_walk} />
+        <JourneyStep number={1} title="Starting point to suggested boarding area" icon="walk">
+          <AreaConnection walk={itinerary.access_walk} />
         </JourneyStep>
         {itinerary.ride_legs.map((ride, index) => {
           const transfer = itinerary.transfers[index];
-          const routeReviewed = ride.route_alignment_status === "reviewed";
           return (
             <Fragment key={ride.variant_id}>
               <JourneyStep
                 number={index * 2 + 2}
-                title={routeReviewed ? `${ride.route_code} toward ${ride.direction.toward}` : ride.route_code}
+                title={`${ride.route_code} toward ${ride.direction.toward}`}
                 detail={validItineraryPath(ride.geometry)
-                  ? `${formatJourneyDistance(ride.ride_distance_meters)} ride`
-                  : "Jeepney path unavailable on the map"}
+                  ? `Approximately ${formatJourneyDistance(ride.ride_distance_meters)} along the stored route`
+                  : "Jeepney geometry unavailable"}
               >
                 <View className="mt-2 gap-2">
-                  {!routeReviewed && (
+                  {ride.route_alignment_status !== "reviewed" && (
                     <AppText className="text-xs text-text-secondary">
                       {ride.route_alignment_status === "disputed" ? "Disputed direction label" : "Unreviewed direction label"}
                       {ride.direction.toward ? ` · toward ${ride.direction.toward}` : ""}
@@ -145,40 +122,20 @@ export default function ExperimentalItineraryDetails({ itinerary }: { itinerary:
                   {ride.route_provenance && (
                     <AppText className="text-xs text-text-secondary">Route source · {ride.route_provenance}</AppText>
                   )}
-                  <AccessEvidence label="Boarding" access={ride.boarding} />
-                  <AccessEvidence label="Alighting" access={ride.alighting} />
+                  <AccessEvidence label="Suggested boarding area" access={ride.boarding} />
+                  <AccessEvidence label="Suggested alighting area" access={ride.alighting} />
                 </View>
               </JourneyStep>
               {transfer && (
-                <JourneyStep
-                  number={index * 2 + 3}
-                  title={`Change to ${itinerary.ride_legs[index + 1].route_code}`}
-                  detail={walkDescription(transfer.walk)}
-                  icon="walk"
-                >
-                  <AppText className="mt-1 text-xs text-text-secondary">
-                    {alignmentReviewed && transfer.passenger_ready
-                      ? "Passenger access verified"
-                      : transfer.passenger_access_verified
-                        ? "Walking access checked · jeepney route still under review"
-                      : transfer.validation_status === "pedestrian_validated"
-                        ? "Mapped walk · transfer locations unconfirmed"
-                        : "Transfer locations unconfirmed"}
-                  </AppText>
-                  <WalkingEvidence walk={transfer.walk} />
+                <JourneyStep number={index * 2 + 3} title={`Transfer to ${itinerary.ride_legs[index + 1].route_code}`} icon="walk">
+                  <AreaConnection walk={transfer.walk} />
                 </JourneyStep>
               )}
             </Fragment>
           );
         })}
-        <JourneyStep
-          number={itinerary.ride_legs.length * 2 + 1}
-          title="From the last ride to your destination"
-          detail={walkDescription(itinerary.egress_walk)}
-          icon="walk"
-          isLast
-        >
-          <WalkingEvidence walk={itinerary.egress_walk} />
+        <JourneyStep number={itinerary.ride_legs.length * 2 + 1} title="Suggested alighting area to destination" icon="walk" isLast>
+          <AreaConnection walk={itinerary.egress_walk} />
         </JourneyStep>
       </View>
     </View>

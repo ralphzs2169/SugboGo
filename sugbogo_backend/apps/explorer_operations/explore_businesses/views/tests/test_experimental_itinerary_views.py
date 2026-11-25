@@ -1,4 +1,5 @@
 import json
+import requests
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -55,7 +56,7 @@ class ExperimentalItineraryViewTests(TestCase):
             "apps.shared.services.google_routes_service.GoogleRoutesService.compute_walking_route",
             side_effect=self._mapped_walk,
         ))
-        self.enterContext(patch(
+        self.places = self.enterContext(patch(
             "apps.shared.services.google_maps_service.GoogleMapsService.search_transit_landmark",
             return_value=GoogleNearbyLandmark(
                 place_id="fixture-place",
@@ -157,8 +158,10 @@ class ExperimentalItineraryViewTests(TestCase):
                 self.assertEqual(leg["boarding"]["coordinate_status"], "provisional")
                 self.assertLess(leg["boarding"]["route_position"]["fraction"], leg["alighting"]["route_position"]["fraction"])
                 self.assertGreaterEqual(len(leg["geometry"]), 2)
-            self.assertEqual(detail["access_walk"]["mapped_distance_meters"], 100)
-            self.assertIn("Mocked Google walking warning", detail["access_walk"]["warnings"])
+            self.assertIsNone(detail["access_walk"]["mapped_distance_meters"])
+            self.assertEqual(detail["access_walk"]["status"], "not_evaluated")
+            self.assertEqual(detail["guidance_mode"], "geometry")
+            self.provider.assert_not_called()
             self.assertEqual(detail["ride_legs"][0]["boarding"]["landmark"]["attributions"][0]["name"], "Fixture provider")
 
     def test_flag_authentication_role_and_allowlist_gate_both_endpoints(self):
@@ -460,40 +463,92 @@ class ExperimentalItineraryViewTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         search = response.data["data"]
         self.assertIsNone(search["reason"])
-        self.assertTrue(search["coverage"]["walking_provider_unavailable"])
+        self.assertFalse(search["coverage"]["walking_provider_unavailable"])
         candidate = search["options"][0]
         detail = self._detail(candidate["selection"]).data["data"]
         self.assertFalse(candidate["passenger_ready"])
         self.assertFalse(candidate["has_blocking_evidence"])
         self.assertEqual(detail["transfers"][0]["validation_status"], "provisional")
-        self.assertEqual(detail["access_walk"]["status"], "timeout")
-        self.assertEqual(detail["access_walk"]["diagnostic_code"], "request_timeout")
+        self.assertEqual(detail["access_walk"]["status"], "not_evaluated")
+        self.assertIsNone(detail["access_walk"]["diagnostic_code"])
+        self.provider.assert_not_called()
         self.assertIsNone(detail["access_walk"]["mapped_distance_meters"])
 
-    def test_farther_walkable_alternative_is_evaluated_and_incomplete_coverage_is_reported(self):
+    def test_geometry_ranking_is_deterministic_and_independent_of_google_walking(self):
         for index in range(4):
             latitude = 10.310 + 0.0003 * (index + 1)
             self._variant(f"ALT{index}", (123.900, latitude), (123.920, latitude))
         self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
+        self.provider.side_effect = AssertionError("Geometric guidance must not request walking routes.")
+        first = self._search(max_transfers=0).data["data"]
+        second = self._search(max_transfers=0).data["data"]
+        self.assertEqual(first["options"][0]["route_sequence"], ["A"])
+        self.assertEqual(
+            [option["route_sequence"] for option in first["options"]],
+            [option["route_sequence"] for option in second["options"]],
+        )
+        self.assertEqual(
+            len({tuple(option["route_sequence"]) for option in first["options"]}),
+            len(first["options"]),
+        )
+        self.assertTrue(first["coverage"]["alternatives_unchecked"])
+        self.provider.assert_not_called()
+        self.places.assert_not_called()
 
-        def walking(**kwargs):
-            if (
-                kwargs["origin_latitude"] == self.origin.y
-                and kwargs["origin_longitude"] == self.origin.x
-                and abs(kwargs["destination_latitude"] - 10.3103) > 1e-8
-            ):
-                return GoogleWalkingResult(GoogleWalkingStatus.NO_ROUTE)
-            return self._mapped_walk(**kwargs)
+    def test_geometric_preview_retains_distinct_transfer_areas(self):
+        result = self._search().data["data"]
+        details = [
+            self._detail(option["selection"]).data["data"]
+            for option in result["options"]
+        ]
+        for index, first in enumerate(details):
+            for second in details[index + 1:]:
+                if [ride["variant_id"] for ride in first["ride_legs"]] != [
+                    ride["variant_id"] for ride in second["ride_legs"]
+                ]:
+                    continue
+                gaps = [
+                    service._distance(
+                        Point(
+                            before[action]["route_position"]["longitude"],
+                            before[action]["route_position"]["latitude"],
+                            srid=4326,
+                        ),
+                        Point(
+                            after[action]["route_position"]["longitude"],
+                            after[action]["route_position"]["latitude"],
+                            srid=4326,
+                        ),
+                    )
+                    for before, after in zip(first["ride_legs"], second["ride_legs"], strict=True)
+                    for action in ("boarding", "alighting")
+                ]
+                self.assertGreater(max(gaps), service.CONNECTION_AREA_METERS)
+        self.provider.assert_not_called()
 
-        self.provider.side_effect = walking
-        response = self._search(max_transfers=0)
-        self.assertEqual(response.status_code, 200, response.data)
-        result = response.data["data"]
-        self.assertEqual(result["options"][0]["route_sequence"], ["ALT0"])
-        self.assertEqual(result["options"][-1]["walking_statuses"][0], "no_route")
-        self.assertEqual(result["coverage"]["candidates_evaluated"], 6)
-        self.assertTrue(result["coverage"]["alternatives_unchecked"])
-        self.assertLessEqual(self.provider.call_count, 12)
+    def test_places_absence_or_failure_preserves_geometry_and_coordinates(self):
+        option = self._search().data["data"]["options"][0]
+        for unavailable in (None, requests.Timeout("fixture timeout")):
+            self.places.reset_mock()
+            self.places.side_effect = unavailable
+            self.places.return_value = None
+            response = self._detail(option["selection"])
+            self.assertEqual(response.status_code, 200, response.data)
+            detail = response.data["data"]
+            self.assertFalse(detail["passenger_ready"])
+            for ride in detail["ride_legs"]:
+                self.assertIsNone(ride["boarding"]["landmark"])
+                self.assertIsNone(ride["alighting"]["landmark"])
+                self.assertEqual(
+                    ride["geometry"][0]["latitude"],
+                    ride["boarding"]["route_position"]["latitude"],
+                )
+                self.assertEqual(
+                    ride["geometry"][-1]["longitude"],
+                    ride["alighting"]["route_position"]["longitude"],
+                )
+            self.assertLessEqual(self.places.call_count, 6)
+        self.provider.assert_not_called()
 
     def test_passenger_ready_requires_independent_evidence_and_changes_invalidate_selection(self):
         sample = self._search().data["data"]["options"][0]
@@ -518,8 +573,8 @@ class ExperimentalItineraryViewTests(TestCase):
             self.assertEqual(self._detail(sample["selection"]).status_code, 409)
             option = self._search().data["data"]["options"][0]
             detail = self._detail(option["selection"]).data["data"]
-            self.assertTrue(option["passenger_access_verified"])
-            self.assertTrue(detail["transfers"][0]["passenger_access_verified"])
+            self.assertFalse(option["passenger_access_verified"])
+            self.assertFalse(detail["transfers"][0]["passenger_access_verified"])
             self.assertFalse(option["passenger_ready"])
             self.assertFalse(detail["passenger_ready"])
             self.assertFalse(detail["transfers"][0]["passenger_ready"])
@@ -536,8 +591,9 @@ class ExperimentalItineraryViewTests(TestCase):
                 self.assertEqual(self._detail(option["selection"]).status_code, 409)
                 reviewed = self._search().data["data"]["options"][0]
                 detail = self._detail(reviewed["selection"]).data["data"]
-                self.assertTrue(reviewed["passenger_ready"])
-                self.assertTrue(detail["passenger_ready"])
-                self.assertTrue(detail["transfers"][0]["passenger_ready"])
+                self.assertFalse(reviewed["passenger_ready"])
+                self.assertEqual(reviewed["route_alignment_status"], "reviewed")
+                self.assertFalse(detail["passenger_ready"])
+                self.assertFalse(detail["transfers"][0]["passenger_ready"])
                 self.assertEqual(detail["ride_legs"][0]["route_provenance"], "Synthetic field review")
             self.assertEqual(self._detail(reviewed["selection"]).status_code, 409)

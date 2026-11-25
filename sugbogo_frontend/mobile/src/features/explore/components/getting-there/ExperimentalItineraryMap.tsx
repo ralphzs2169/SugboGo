@@ -1,11 +1,10 @@
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 
 import { theme } from "@/constants/theme";
 import MapMarker from "@/shared/components/MapMarker";
 
-import type { ItineraryAccess, ItineraryCoordinate, ItineraryDetail, ItineraryWalk } from "../../types/experimentalItinerary.types";
-import { decodeGooglePolyline } from "../../utils/roadRoute.utils";
+import type { ItineraryAccess, ItineraryCoordinate, ItineraryDetail } from "../../types/experimentalItinerary.types";
 
 function validCoordinate({ latitude, longitude }: ItineraryCoordinate) {
   return Number.isFinite(latitude) && Math.abs(latitude) <= 90
@@ -21,29 +20,13 @@ export function validItineraryPath(coordinates: ItineraryCoordinate[]) {
     );
 }
 
-export function mappedWalkingPath(walk: ItineraryWalk) {
-  const encoded = walk.encoded_polyline;
-  if (walk.status !== "available" || !encoded || !/^[?-~]+$/.test(encoded)) return [];
-  try {
-    const coordinates = decodeGooglePolyline(encoded);
-    return validItineraryPath(coordinates) ? coordinates : [];
-  } catch {
-    return [];
-  }
-}
-
 function markerCoordinate(access: ItineraryAccess) {
   return access.access_coordinate ?? access.route_position;
 }
 
-/** Draw the jeepney network and mapped walking segments without offering stop navigation. */
+/** Draw stored jeepney geometry and approximate boarding and alighting areas. */
 export default function ExperimentalItineraryMap({ itinerary }: { itinerary: ItineraryDetail }) {
   const map = useRef<MapView>(null);
-  const walks = useMemo(
-    () => [itinerary.access_walk, ...itinerary.transfers.map((transfer) => transfer.walk), itinerary.egress_walk]
-      .map(mappedWalkingPath),
-    [itinerary],
-  );
   const rides = itinerary.ride_legs
     .map((ride, index) => ({ ride, index }))
     .filter(({ ride }) => validItineraryPath(ride.geometry));
@@ -68,7 +51,6 @@ export default function ExperimentalItineraryMap({ itinerary }: { itinerary: Iti
           itinerary.origin,
           itinerary.destination,
           ...rides.flatMap(({ ride }) => ride.geometry),
-          ...walks.flat(),
           ...markers.map(({ access }) => markerCoordinate(access)),
         ],
         { edgePadding: { top: 34, bottom: 34, left: 34, right: 34 }, animated: false },
@@ -82,17 +64,6 @@ export default function ExperimentalItineraryMap({ itinerary }: { itinerary: Iti
           strokeWidth={5}
           strokeColor={theme.extends.colors.brand}
           zIndex={1}
-        />
-      ))}
-      {walks.map((coordinates, index) => coordinates.length >= 2 && (
-        <Polyline
-          key={index}
-          testID={`itinerary-walk-${index}`}
-          coordinates={coordinates}
-          strokeWidth={4}
-          strokeColor={theme.extends.colors.text.info}
-          lineDashPattern={[5, 4]}
-          zIndex={2}
         />
       ))}
       <Marker coordinate={itinerary.origin} title="Starting point">

@@ -33,7 +33,11 @@ from apps.transit.services.pedestrian_journey_service import (
     PedestrianJourneyService,
     WalkingEvaluationStatus,
 )
-from apps.transit.services.route_connection_service import RouteConnection, TransferValidationStatus
+from apps.transit.services.route_connection_service import (
+    CONNECTION_AREA_METERS,
+    RouteConnection,
+    TransferValidationStatus,
+)
 from apps.transit.services.transit_spatial_validation_service import TransitSpatialValidationService
 
 SELECTION_SALT = "explorer.experimental-itinerary.v1"
@@ -197,6 +201,30 @@ def _readiness(result, variants):
         "passenger_access_verified": access_verified,
         "passenger_ready": alignment is RouteAlignmentStatus.REVIEWED and access_verified,
     }
+
+
+def _geometry_representatives(journeys):
+    """Keep separate route sequences and spatially distinct transfer areas."""
+    representatives = []
+    for journey in journeys:
+        sequence = tuple(leg.variant_id for leg in journey.ride_legs)
+        duplicate = False
+        for retained in representatives:
+            if sequence != tuple(leg.variant_id for leg in retained.ride_legs):
+                continue
+            if all(
+                _distance(first.point, second.point) <= CONNECTION_AREA_METERS
+                for link, other in zip(journey.transfers, retained.transfers, strict=True)
+                for first, second in (
+                    (link.alighting_position, other.alighting_position),
+                    (link.boarding_position, other.boarding_position),
+                )
+            ):
+                duplicate = True
+                break
+        if not duplicate:
+            representatives.append(journey)
+    return representatives
 
 
 def _access_evidence(variants):
@@ -428,9 +456,16 @@ class ExperimentalItineraryService:
             allow_provisional_transfers=True,
             limits=replace(limits, maximum_journeys=limits.maximum_journeys + 1),
             separate_direct_journeys=True,
-            include_access_alternatives=True,
             progress=progress,
         )
+        direct_count = sum(
+            not journey.transfers
+            for journey in geometric
+        )
+        transfer_count = len(geometric) - direct_count
+        geometric_truncated = max(direct_count, transfer_count) > limits.maximum_journeys
+        # Retain the best geometric representative of each route sequence/area.
+        geometric = _geometry_representatives(geometric)
         direct = [journey for journey in geometric if not journey.transfers]
         transfers = [journey for journey in geometric if journey.transfers]
         direct_pool = direct[:limits.maximum_journeys]
@@ -441,10 +476,10 @@ class ExperimentalItineraryService:
             origin=origin,
             destination=destination,
             access_evidence=evidence,
+            evaluate_walking=False,
             evaluation_limits=replace(
                 EVALUATION_LIMITS,
                 maximum_landmark_requests=0,
-                maximum_candidates=6 if max_transfers == 0 else EVALUATION_LIMITS.maximum_candidates,
             ),
         )
         options = []
@@ -497,13 +532,11 @@ class ExperimentalItineraryService:
                 "nearby_destination_variants": progress.nearby_destination_variants,
                 "variants_excluded_by_spatial_validation": len(rejected_geometries),
                 "geometric_candidates_considered": len(direct_pool) + len(transfer_pool),
-                "geometric_candidates_truncated": (
-                    len(direct) > limits.maximum_journeys
-                    or len(transfers) > limits.maximum_journeys
-                ),
+                "geometric_candidates_truncated": geometric_truncated,
                 "candidates_evaluated": len(evaluated),
                 "alternatives_unchecked": (
                     progress.incomplete_reason is not None
+                    or geometric_truncated
                     or len(geometric) > len(evaluated)
                 ),
                 "walking_checks_deferred": any(
@@ -544,6 +577,7 @@ class ExperimentalItineraryService:
             destination=destination,
             access_evidence=evidence,
             evaluation_limits=EVALUATION_LIMITS,
+            evaluate_walking=False,
         )
         _current_selection(payload)
         return {

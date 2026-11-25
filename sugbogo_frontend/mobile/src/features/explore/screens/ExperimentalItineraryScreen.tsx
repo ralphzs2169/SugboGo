@@ -9,7 +9,7 @@ import ErrorState from "@/shared/components/ErrorState";
 import useUserLocation from "@/shared/hooks/useUserLocation";
 import type { ApiError } from "@/shared/types/apiResponse.types";
 
-import ExperimentalItineraryDetails, { providerUnavailable } from "../components/getting-there/ExperimentalItineraryDetails";
+import ExperimentalItineraryDetails from "../components/getting-there/ExperimentalItineraryDetails";
 import useExperimentalItinerary from "../hooks/useExperimentalItinerary";
 import { useJourneyOriginStore } from "../stores/journeyOrigin.store";
 import type { ItineraryOption, ItinerarySearchResult, TransferLimit } from "../types/experimentalItinerary.types";
@@ -25,7 +25,6 @@ function isStaleSelection(error: unknown) {
 function optionStatus(option: ItineraryOption) {
   if (option.route_alignment_status === "reviewed" && option.passenger_ready) return "Passenger access verified";
   if (option.has_blocking_evidence) return "Part of this route needs review";
-  if (option.walking_statuses.some(providerUnavailable)) return "Walking check unavailable";
   if (option.passenger_access_verified) return "Passenger access checked";
   return "Boarding locations unconfirmed";
 }
@@ -180,17 +179,7 @@ export default function ExperimentalItineraryScreen({ businessId }: { businessId
             )}
             {currentResult?.coverage.alternatives_unchecked && !currentResult.coverage.incomplete_reason && (
               <AppText className="text-sm text-text-secondary">
-                Some alternatives were outside this walking check. The preview may miss a walkable option.
-              </AppText>
-            )}
-            {currentResult?.coverage.walking_checks_deferred && (
-              <AppText className="text-sm text-text-secondary">
-                Some walking paths still need checking.
-              </AppText>
-            )}
-            {currentResult?.coverage.walking_provider_unavailable && (
-              <AppText accessibilityLiveRegion="polite" className="text-sm text-text-secondary">
-                Some walking checks are temporarily unavailable. You can still preview the routes.
+                More geometric alternatives may be available outside this preview.
               </AppText>
             )}
             {emptyMessage && (
@@ -209,12 +198,15 @@ export default function ExperimentalItineraryScreen({ businessId }: { businessId
               >
                 {option.has_blocking_evidence && (
                   <AppText weight="semibold" className="text-sm text-text-secondary">
-                    Diagnostic preview · walking connection needs review
+                    Suggested access needs review
                   </AppText>
                 )}
                 <AppText weight="bold" className="text-base text-text-primary">{option.route_sequence.join(" → ")}</AppText>
                 <AppText className="text-sm text-text-secondary">
-                  {option.transfer_count} {option.transfer_count === 1 ? "transfer" : "transfers"} · {formatJourneyDistance(option.ride_distance_meters)} ride
+                  {option.transfer_count} {option.transfer_count === 1 ? "transfer" : "transfers"} · approximately {formatJourneyDistance(option.ride_distance_meters)} along the route
+                </AppText>
+                <AppText className="text-xs text-text-secondary">
+                  {formatJourneyDistance(option.straight_line_walking_distance_meters)} estimated straight-line access, transfers and arrival
                 </AppText>
                 {option.route_alignment_status !== "reviewed" && (
                   <AppText className="text-xs text-text-secondary">

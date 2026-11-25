@@ -144,6 +144,7 @@ class PedestrianJourneyEvaluation:
     access_walk: PedestrianWalkEvidence
     transfers: tuple[PedestrianTransferEvaluation, ...]
     egress_walk: PedestrianWalkEvidence
+    walking_evaluated: bool = True
 
     @property
     def walks(self) -> tuple[PedestrianWalkEvidence, ...]:
@@ -197,6 +198,8 @@ class PedestrianJourneyEvaluation:
     @property
     def ranking_cost_meters(self) -> float:
         """Combine evaluated access distances with the existing transfer penalty."""
+        if not self.walking_evaluated:
+            return self.journey.ranking_cost_meters
         return sum(walk.ranking_distance_meters for walk in self.walks) + self.journey.transfer_penalty_meters
 
 
@@ -535,6 +538,7 @@ class PedestrianJourneyService:
         access_evidence: Mapping[AccessLocationKey, AccessLocationEvidence] | None = None,
         evaluation_limits: PedestrianEvaluationLimits = PedestrianEvaluationLimits(),
         direct_journeys: Iterable[CoordinateJeepneyJourney] = (),
+        evaluate_walking: bool = True,
     ) -> list[PedestrianJourneyEvaluation]:
         """Evaluate an existing bounded shortlist without repeating geometric discovery."""
         evaluation_limits.validate()
@@ -556,24 +560,29 @@ class PedestrianJourneyService:
                 ride_access=ride_access,
                 origin=origin,
                 destination=destination,
-                checkable=checkable,
+                checkable=checkable and evaluate_walking,
                 requests_for_search=requests_for_search,
                 limits=evaluation_limits,
             )
             for _, journey, ride_access, checkable in shortlist
         ]
-        results.sort(key=_evaluation_rank)
-        if results and not results[0].has_blocking_evidence:
-            best = results[0]
-            results[0] = replace(
-                best,
+        if evaluate_walking:
+            results.sort(key=_evaluation_rank)
+        else:
+            results.sort(key=lambda result: coordinate_journey_rank(result.journey))
+        for index, result in enumerate(results):
+            if evaluate_walking and (index > 0 or result.has_blocking_evidence):
+                continue
+            results[index] = replace(
+                result,
+                walking_evaluated=evaluate_walking,
                 ride_access=tuple(
                     replace(
                         ride,
                         boarding_landmark=requests_for_search.landmark(ride.boarding),
                         alighting_landmark=requests_for_search.landmark(ride.alighting),
                     )
-                    for ride in best.ride_access
+                    for ride in result.ride_access
                 ),
             )
         return results
