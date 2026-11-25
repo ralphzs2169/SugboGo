@@ -1,0 +1,487 @@
+import json
+from dataclasses import replace
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from django.contrib.gis.geos import LineString, MultiPolygon, Point, Polygon
+from django.core import signing
+from django.db import connection
+from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
+from rest_framework.test import APIClient
+from rest_framework.throttling import ScopedRateThrottle
+
+from apps.explorer_operations.explore_businesses.services import experimental_itinerary_service as service
+from apps.business.models import ServiceableBoundary
+from apps.shared.services.google_maps_service import GoogleNearbyLandmark
+from apps.shared.services.google_routes_service import GoogleWalkingResult, GoogleWalkingRoute, GoogleWalkingStatus
+from apps.transit.models import JeepneyRoute, JeepneyRouteVariant, RouteTransitPoint, TransitPoint
+from apps.transit.services.coordinate_journey_service import CoordinateJourneyService
+from apps.transit.services.direct_journey_service import DirectJourneyService
+from apps.transit.services.pedestrian_access_service import AccessUse
+from apps.transit.services.route_connection_service import RouteConnectionBudgetExceeded, RouteConnectionService
+from apps.users.models import User
+
+
+@override_settings(
+    EXPERIMENTAL_ITINERARIES_ENABLED=True,
+    EXPERIMENTAL_ITINERARY_EXPLORER_IDS=("501", "502", "503"),
+    EXPERIMENTAL_ITINERARY_ACCESS_EVIDENCE="[]",
+    EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE="[]",
+)
+class ExperimentalItineraryViewTests(TestCase):
+    def setUp(self):
+        self.enterContext(patch.object(ScopedRateThrottle, "THROTTLE_RATES", {
+            "experimental_itinerary_search": "100/min",
+            "experimental_itinerary_detail": "100/min",
+        }))
+        self.client = APIClient()
+        self.client.force_authenticate(self._user())
+        self.base = "/api/explorer/explore/businesses/21/itineraries/v1/"
+        self.origin = Point(123.901, 10.310, srid=4326)
+        ServiceableBoundary.objects.create(
+            SBND_NAME="Cebu City",
+            SBND_PSGC_CODE="072217000",
+            SBND_BOUNDARY=MultiPolygon(Polygon.from_bbox((123, 10, 124, 11)), srid=4326),
+        )
+        self.variants = [
+            self._variant("A", (123.900, 10.310), (123.920, 10.310)),
+            self._variant("B", (123.920, 10.310), (123.920, 10.330)),
+            self._variant("C", (123.920, 10.330), (123.940, 10.330)),
+        ]
+        self.destination = self.enterContext(patch.object(DirectJourneyService, "_get_destination_context"))
+        self.destination.return_value = (Point(123.938, 10.330, srid=4326), 100)
+        self.provider = self.enterContext(patch(
+            "apps.shared.services.google_routes_service.GoogleRoutesService.compute_walking_route",
+            side_effect=self._mapped_walk,
+        ))
+        self.enterContext(patch(
+            "apps.shared.services.google_maps_service.GoogleMapsService.search_transit_landmark",
+            return_value=GoogleNearbyLandmark(
+                place_id="fixture-place",
+                name="Synthetic landmark",
+                address="Fixture street",
+                latitude=10.310,
+                longitude=123.901,
+                distance_meters=10,
+                attributions=(("Fixture provider", "https://example.com/provider"),),
+            ),
+        ))
+        self.enterContext(patch("requests.Session.request", side_effect=AssertionError("Network requests are forbidden.")))
+        self.enterContext(patch.object(
+            service,
+            "EVALUATION_LIMITS",
+            replace(service.EVALUATION_LIMITS, provider_request_window_seconds=None),
+        ))
+
+    def _user(self, pk=501, role=User.UserRole.EXPLORER):
+        return SimpleNamespace(pk=pk, is_active=True, is_authenticated=True, USER_ROLE=role)
+
+    def _variant(
+        self,
+        code,
+        start,
+        end,
+        *,
+        with_memberships=True,
+    ):
+        route = JeepneyRoute.objects.create(JRT_CODE=code)
+        origin = TransitPoint.objects.create(TRPT_NAME=f"{code} start", TRPT_POINT=Point(*start, srid=4326))
+        destination = TransitPoint.objects.create(TRPT_NAME=f"{code} end", TRPT_POINT=Point(*end, srid=4326))
+        variant = JeepneyRouteVariant.objects.create(
+            JRT_ID=route,
+            JRV_ORIGIN_ID=origin,
+            JRV_DESTINATION_ID=destination,
+            JRV_GEOMETRY=LineString(start, end, srid=4326),
+        )
+        if with_memberships:
+            RouteTransitPoint.objects.bulk_create([
+                RouteTransitPoint(JRV_ID=variant, TRPT_ID=origin, RVTP_SEQUENCE=1),
+                RouteTransitPoint(JRV_ID=variant, TRPT_ID=destination, RVTP_SEQUENCE=2),
+            ])
+        return variant
+
+    def _mapped_walk(self, **kwargs):
+        origin = (kwargs["origin_latitude"], kwargs["origin_longitude"])
+        destination = (kwargs["destination_latitude"], kwargs["destination_longitude"])
+        return GoogleWalkingResult(
+            GoogleWalkingStatus.AVAILABLE,
+            GoogleWalkingRoute(
+                distance_meters=100,
+                duration_seconds=80,
+                encoded_polyline="provider-polyline",
+                start_location=origin,
+                end_location=destination,
+                warnings=("Mocked Google walking warning",),
+            ),
+        )
+
+    def _search(self, **overrides):
+        return self.client.post(
+            self.base + "search/",
+            {"latitude": self.origin.y, "longitude": self.origin.x, "max_transfers": 2, **overrides},
+            format="json",
+        )
+
+    def _detail(self, selection):
+        return self.client.post(self.base + "detail/", {"selection": selection}, format="json")
+
+    def test_direct_one_and_two_transfer_contracts_use_directional_geometry(self):
+        for latitude, longitude, codes in (
+            (10.310, 123.917, ["A"]),
+            (10.328, 123.920, ["A", "B"]),
+            (10.330, 123.938, ["A", "B", "C"]),
+        ):
+            self.destination.return_value = (Point(longitude, latitude, srid=4326), 100)
+            count = len(codes) - 1
+            response = self._search(max_transfers=count)
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertIn("no-store", response.headers["Cache-Control"])
+            search = response.data["data"]
+            option = search["options"][0]
+            self.assertEqual(option["route_sequence"], codes)
+            self.assertEqual(option["transfer_count"], count)
+            self.assertFalse(option["passenger_ready"])
+            selection = signing.loads(option["selection"], salt=service.SELECTION_SALT)
+            self.assertNotIn("provider-polyline", repr(selection))
+            response = self._detail(option["selection"])
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertIn("no-store", response.headers["Cache-Control"])
+            detail = response.data["data"]
+            self.assertEqual(detail["origin"], search["origin"])
+            self.assertEqual(detail["destination"], search["destination"])
+            self.assertEqual([leg["route_code"] for leg in detail["ride_legs"]], codes)
+            self.assertEqual(len(detail["transfers"]), count)
+            for leg in detail["ride_legs"]:
+                self.assertEqual(leg["direction"]["toward"], f'{leg["route_code"]} end')
+                self.assertEqual(leg["boarding"]["coordinate_status"], "provisional")
+                self.assertLess(leg["boarding"]["route_position"]["fraction"], leg["alighting"]["route_position"]["fraction"])
+                self.assertGreaterEqual(len(leg["geometry"]), 2)
+            self.assertEqual(detail["access_walk"]["mapped_distance_meters"], 100)
+            self.assertIn("Mocked Google walking warning", detail["access_walk"]["warnings"])
+            self.assertEqual(detail["ride_legs"][0]["boarding"]["landmark"]["attributions"][0]["name"], "Fixture provider")
+
+    def test_flag_authentication_role_and_allowlist_gate_both_endpoints(self):
+        with override_settings(EXPERIMENTAL_ITINERARIES_ENABLED=False):
+            self.assertEqual(self._search().status_code, 404)
+            self.assertEqual(self._detail("sample").status_code, 404)
+        for user, status in (
+            (None, 401),
+            (self._user(role=User.UserRole.MERCHANT), 403),
+            (self._user(pk=700), 403),
+        ):
+            self.client.force_authenticate(user)
+            self.assertEqual(self._search().status_code, status)
+            self.assertEqual(self._detail("sample").status_code, status)
+        self.provider.assert_not_called()
+
+    def test_rejects_bad_inputs_foreign_selections_and_expiration(self):
+        for fields in ({"latitude": "NaN"}, {"longitude": 190}, {"max_transfers": 3}):
+            response = self._search(**fields)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.data["code"], "VALIDATION_ERROR")
+        self.assertEqual(self._detail("bad-token").status_code, 404)
+        token = self._search().data["data"]["options"][0]["selection"]
+        self.client.force_authenticate(self._user(pk=502))
+        self.assertEqual(self._detail(token).status_code, 404)
+        self.client.force_authenticate(self._user())
+        with patch.object(service, "SELECTION_MAX_AGE_SECONDS", -1):
+            self.assertEqual(self._detail(token).status_code, 410)
+        response = self.client.post(self.base.replace("/21/", "/22/") + "detail/", {"selection": token})
+        self.assertEqual(response.status_code, 404)
+
+    def test_bulk_geometry_change_and_destination_move_make_selection_stale(self):
+        token = self._search().data["data"]["options"][0]["selection"]
+        with patch.object(self.destination, "return_value", (Point(123.939, 10.330, srid=4326), 100)):
+            self.assertEqual(self._detail(token).status_code, 409)
+        JeepneyRouteVariant.objects.filter(pk=self.variants[1].pk).update(JRV_GEOMETRY=LineString(
+            (123.920, 10.310),
+            (123.921, 10.320),
+            (123.920, 10.330),
+            srid=4326,
+        ))
+        self.provider.reset_mock()
+        response = self._detail(token)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data["code"], "STALE_ITINERARY")
+        self.provider.assert_not_called()
+
+    def test_forward_route_with_no_memberships_is_eligible_on_search_and_detail(self):
+        variant = self._variant(
+            "GEO",
+            (123.950, 10.350),
+            (123.970, 10.350),
+            with_memberships=False,
+        )
+        self.origin = Point(123.952, 10.350, srid=4326)
+        self.destination.return_value = (Point(123.967, 10.350, srid=4326), 100)
+        self.assertFalse(variant.route_transit_points.exists())
+
+        with CaptureQueriesContext(connection) as queries:
+            option = self._search(max_transfers=0).data["data"]["options"][0]
+            detail = self._detail(option["selection"]).data["data"]
+
+        self.assertFalse(any("ROUTE_TRANSIT_POINT" in query["sql"] for query in queries))
+        self.assertEqual(option["route_sequence"], ["GEO"])
+        self.assertEqual(option["route_alignment_status"], "unreviewed")
+        self.assertFalse(option["passenger_ready"])
+        self.assertGreater(detail["ride_legs"][0]["ride_distance_meters"], 25)
+        self.assertLess(
+            detail["ride_legs"][0]["boarding"]["route_position"]["fraction"],
+            detail["ride_legs"][0]["alighting"]["route_position"]["fraction"],
+        )
+
+    def test_legacy_stop_edits_leave_geometry_and_existing_selection_eligible(self):
+        option = self._search().data["data"]["options"][0]
+        original = self._detail(option["selection"]).data["data"]["ride_legs"][1]
+        variant = self.variants[1]
+        RouteTransitPoint.objects.filter(JRV_ID=variant).delete()
+        TransitPoint.objects.filter(pk=variant.JRV_DESTINATION_ID_id).update(
+            TRPT_NAME="Updated terminal label",
+            TRPT_POINT=Point(123.940, 10.340, srid=4326),
+        )
+        variant.save(update_fields=["JRV_UPDATED_AT"])
+
+        response = self._detail(option["selection"])
+        self.assertEqual(response.status_code, 200, response.data)
+        ride = response.data["data"]["ride_legs"][1]
+        self.assertEqual(ride["geometry_revision"], original["geometry_revision"])
+        self.assertEqual(ride["geometry"], original["geometry"])
+        self.assertEqual(ride["direction"]["toward"], "Updated terminal label")
+
+    def test_out_of_coverage_geometry_is_excluded_and_selection_is_stale(self):
+        token = self._search().data["data"]["options"][0]["selection"]
+        JeepneyRouteVariant.objects.filter(pk=self.variants[1].pk).update(
+            JRV_GEOMETRY=LineString(
+                (123.920, 10.310),
+                (124.001, 10.320),
+                (123.920, 10.330),
+                srid=4326,
+            ),
+        )
+        self.provider.reset_mock()
+        result = self._search().data["data"]
+        self.assertEqual(result["options"], [])
+        self.assertEqual(result["coverage"]["variants_excluded_by_spatial_validation"], 1)
+        self.assertEqual(self._detail(token).status_code, 409)
+        self.provider.assert_not_called()
+
+    def test_missing_spatial_boundary_fails_closed_before_walking_requests(self):
+        ServiceableBoundary.objects.update(SBND_IS_ACTIVE=False)
+        response = self._search()
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.data["code"], "ITINERARY_SPATIAL_VALIDATION_UNAVAILABLE")
+        self.provider.assert_not_called()
+
+    def test_curved_ride_detail_preserves_vertices_between_ordered_positions(self):
+        curve = (123.910, 10.312)
+        JeepneyRouteVariant.objects.filter(pk=self.variants[0].pk).update(
+            JRV_GEOMETRY=LineString((123.900, 10.310), curve, (123.920, 10.310), srid=4326),
+        )
+        self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
+        option = self._search(max_transfers=0).data["data"]["options"][0]
+        ride = self._detail(option["selection"]).data["data"]["ride_legs"][0]
+
+        self.assertEqual(len(ride["geometry"]), 3)
+        self.assertEqual(ride["geometry"][1], {"longitude": curve[0], "latitude": curve[1]})
+        for index, endpoint in ((0, "boarding"), (-1, "alighting")):
+            point = ride[endpoint]["route_position"]
+            self.assertEqual(
+                ride["geometry"][index],
+                {"longitude": point["longitude"], "latitude": point["latitude"]},
+            )
+        self.assertLess(ride["boarding"]["route_position"]["fraction"], ride["alighting"]["route_position"]["fraction"])
+
+    def test_candidate_budget_reports_incomplete_search_instead_of_no_routes(self):
+        search = CoordinateJourneyService.search
+
+        def limited_search(**kwargs):
+            kwargs["limits"] = replace(kwargs["limits"], maximum_search_work=1)
+            return search(**kwargs)
+
+        with patch.object(CoordinateJourneyService, "search", side_effect=limited_search):
+            result = self._search().data["data"]
+        self.assertEqual(result["options"], [])
+        self.assertEqual(result["reason"], "search_incomplete")
+        self.assertEqual(result["coverage"]["incomplete_reason"], "candidate_budget")
+        self.assertTrue(result["coverage"]["alternatives_unchecked"])
+        self.provider.assert_not_called()
+
+    def test_connection_budget_keeps_completed_direct_candidates(self):
+        self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
+        with patch.object(RouteConnectionService, "discover", side_effect=RouteConnectionBudgetExceeded):
+            result = self._search().data["data"]
+        self.assertEqual(result["options"][0]["route_sequence"], ["A"])
+        self.assertIsNone(result["reason"])
+        self.assertEqual(result["coverage"]["incomplete_reason"], "connection_budget")
+
+    def test_terminal_mismatch_allows_forward_return_as_geometry_preview(self):
+        reverse = self._variant("REV", (123.920, 10.310), (123.900, 10.310))
+        TransitPoint.objects.filter(pk=reverse.JRV_DESTINATION_ID_id).update(
+            TRPT_POINT=Point(123.896, 10.316, srid=4326),
+        )
+        self.origin = Point(123.917, 10.310, srid=4326)
+        self.destination.return_value = (Point(123.901, 10.310, srid=4326), 100)
+
+        for cap in range(3):
+            with self.subTest(cap=cap):
+                response = self._search(max_transfers=cap)
+                self.assertEqual(response.status_code, 200, response.data)
+                result = response.data["data"]
+                option = result["options"][0]
+                self.assertEqual(option["route_sequence"], ["REV"])
+                self.assertEqual(option["route_alignment_status"], "unreviewed")
+                self.assertFalse(option["passenger_ready"])
+                self.assertIsNone(result["reason"])
+                self.assertEqual(result["coverage"]["variants_excluded_by_spatial_validation"], 0)
+                self.assertIsNone(result["coverage"]["incomplete_reason"])
+
+    def test_empty_reason_distinguishes_endpoints_direction_and_minimum_ride(self):
+        for origin, destination, reason, validation_stage in (
+            ((123.970, 10.350), (123.917, 10.310), "no_route_near_origin", None),
+            ((123.901, 10.310), (123.970, 10.350), "no_route_near_destination", None),
+            ((123.917, 10.310), (123.901, 10.310), "no_forward_journey", None),
+            ((123.901, 10.310), (123.90105, 10.310), "candidate_excluded_by_validation", "minimum_ride_distance"),
+        ):
+            with self.subTest(reason=reason, validation_stage=validation_stage):
+                self.destination.return_value = (Point(*destination, srid=4326), 100)
+                result = self._search(
+                    latitude=origin[1],
+                    longitude=origin[0],
+                    max_transfers=0,
+                ).data["data"]
+                self.assertEqual(result["reason"], reason)
+                self.assertEqual(result["validation_stage"], validation_stage)
+        self.provider.assert_not_called()
+
+    def test_direct_options_survive_cheaper_transfers_and_partial_expansion(self):
+        self.origin = Point(123.951, 10.350, srid=4326)
+        self.destination.return_value = (Point(123.969, 10.350, srid=4326), 100)
+        self._variant("DIR", (123.950, 10.354), (123.970, 10.354))
+        self._variant("X", (123.950, 10.350), (123.960, 10.350))
+        self._variant("Y", (123.960, 10.350), (123.970, 10.350))
+        search = CoordinateJourneyService.search
+
+        def limited_search(**kwargs):
+            kwargs["limits"] = replace(kwargs["limits"], maximum_journeys=1)
+            return search(**kwargs)
+
+        with (
+            patch.object(CoordinateJourneyService, "search", side_effect=limited_search),
+            patch.object(service, "EVALUATION_LIMITS", replace(service.EVALUATION_LIMITS, maximum_candidates=1)),
+        ):
+            for cap in range(3):
+                with self.subTest(cap=cap):
+                    result = self._search(max_transfers=cap).data["data"]
+                    routes = [option["route_sequence"] for option in result["options"]]
+                    self.assertIn(["DIR"], routes)
+                    if cap:
+                        self.assertIn(["X", "Y"], routes)
+                    self.assertLessEqual(self.provider.call_count, service.EVALUATION_LIMITS.maximum_walking_requests)
+                    self.provider.reset_mock()
+
+        def partial_search(**kwargs):
+            kwargs["limits"] = replace(kwargs["limits"], maximum_search_work=1)
+            return search(**kwargs)
+
+        with patch.object(CoordinateJourneyService, "search", side_effect=partial_search):
+            result = self._search(max_transfers=2).data["data"]
+        self.assertEqual(result["coverage"]["incomplete_reason"], "candidate_budget")
+        self.assertEqual([option["route_sequence"] for option in result["options"]], [["DIR"]])
+
+    def test_provider_failure_is_distinct_from_empty_and_provisional_results(self):
+        empty = self._search(max_transfers=0).data["data"]
+        self.assertEqual(empty["reason"], "no_forward_journey")
+        self.assertEqual(empty["options"], [])
+        self.provider.assert_not_called()
+        self.provider.side_effect = None
+        self.provider.return_value = GoogleWalkingResult(
+            GoogleWalkingStatus.TIMEOUT,
+            diagnostic_code="request_timeout",
+        )
+        response = self._search()
+        self.assertEqual(response.status_code, 200, response.data)
+        search = response.data["data"]
+        self.assertIsNone(search["reason"])
+        self.assertTrue(search["coverage"]["walking_provider_unavailable"])
+        candidate = search["options"][0]
+        detail = self._detail(candidate["selection"]).data["data"]
+        self.assertFalse(candidate["passenger_ready"])
+        self.assertFalse(candidate["has_blocking_evidence"])
+        self.assertEqual(detail["transfers"][0]["validation_status"], "provisional")
+        self.assertEqual(detail["access_walk"]["status"], "timeout")
+        self.assertEqual(detail["access_walk"]["diagnostic_code"], "request_timeout")
+        self.assertIsNone(detail["access_walk"]["mapped_distance_meters"])
+
+    def test_farther_walkable_alternative_is_evaluated_and_incomplete_coverage_is_reported(self):
+        for index in range(4):
+            latitude = 10.310 + 0.0003 * (index + 1)
+            self._variant(f"ALT{index}", (123.900, latitude), (123.920, latitude))
+        self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
+
+        def walking(**kwargs):
+            if (
+                kwargs["origin_latitude"] == self.origin.y
+                and kwargs["origin_longitude"] == self.origin.x
+                and abs(kwargs["destination_latitude"] - 10.3103) > 1e-8
+            ):
+                return GoogleWalkingResult(GoogleWalkingStatus.NO_ROUTE)
+            return self._mapped_walk(**kwargs)
+
+        self.provider.side_effect = walking
+        response = self._search(max_transfers=0)
+        self.assertEqual(response.status_code, 200, response.data)
+        result = response.data["data"]
+        self.assertEqual(result["options"][0]["route_sequence"], ["ALT0"])
+        self.assertEqual(result["options"][-1]["walking_statuses"][0], "no_route")
+        self.assertEqual(result["coverage"]["candidates_evaluated"], 6)
+        self.assertTrue(result["coverage"]["alternatives_unchecked"])
+        self.assertLessEqual(self.provider.call_count, 12)
+
+    def test_passenger_ready_requires_independent_evidence_and_changes_invalidate_selection(self):
+        sample = self._search().data["data"]["options"][0]
+        payload = signing.loads(sample["selection"], salt=service.SELECTION_SALT)
+        evidence = []
+        revisions = dict(payload["variants"])
+        variants = {variant.pk: variant for variant in self.variants}
+        for variant_id, boarding, alighting in payload["legs"]:
+            for fraction, use in ((boarding, AccessUse.BOARDING), (alighting, AccessUse.ALIGHTING)):
+                position = variants[variant_id].JRV_GEOMETRY.interpolate_normalized(fraction)
+                evidence.append({
+                    "variant_id": variant_id,
+                    "geometry_revision": revisions[variant_id],
+                    "fraction": fraction,
+                    "use": use,
+                    "latitude": position.y + 0.00002,
+                    "longitude": position.x,
+                    "coordinate_verified": True,
+                    "permission": "permitted",
+                })
+        with override_settings(EXPERIMENTAL_ITINERARY_ACCESS_EVIDENCE=json.dumps(evidence)):
+            self.assertEqual(self._detail(sample["selection"]).status_code, 409)
+            option = self._search().data["data"]["options"][0]
+            detail = self._detail(option["selection"]).data["data"]
+            self.assertTrue(option["passenger_access_verified"])
+            self.assertTrue(detail["transfers"][0]["passenger_access_verified"])
+            self.assertFalse(option["passenger_ready"])
+            self.assertFalse(detail["passenger_ready"])
+            self.assertFalse(detail["transfers"][0]["passenger_ready"])
+            reviews = [
+                {
+                    "variant_id": variant_id,
+                    "geometry_revision": revision,
+                    "alignment_status": "reviewed",
+                    "provenance": "Synthetic field review",
+                }
+                for variant_id, revision in revisions.items()
+            ]
+            with override_settings(EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE=json.dumps(reviews)):
+                self.assertEqual(self._detail(option["selection"]).status_code, 409)
+                reviewed = self._search().data["data"]["options"][0]
+                detail = self._detail(reviewed["selection"]).data["data"]
+                self.assertTrue(reviewed["passenger_ready"])
+                self.assertTrue(detail["passenger_ready"])
+                self.assertTrue(detail["transfers"][0]["passenger_ready"])
+                self.assertEqual(detail["ride_legs"][0]["route_provenance"], "Synthetic field review")
+            self.assertEqual(self._detail(reviewed["selection"]).status_code, 409)
