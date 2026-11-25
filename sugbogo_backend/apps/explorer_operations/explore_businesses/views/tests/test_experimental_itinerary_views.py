@@ -375,6 +375,47 @@ class ExperimentalItineraryViewTests(TestCase):
         self.assertIsNone(result["reason"])
         self.assertEqual(result["coverage"]["incomplete_reason"], "connection_budget")
 
+    def test_sql_timeout_keeps_direct_selection_and_existing_incomplete_contract(self):
+        self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
+
+        def cancel_discovery(**kwargs):
+            with connection.cursor() as cursor:
+                cursor.execute("SET LOCAL statement_timeout = '1ms'")
+                cursor.execute("SELECT pg_sleep(0.05)")
+
+        with patch.object(RouteConnectionService, "discover", side_effect=cancel_discovery):
+            response = self._search()
+        self.assertEqual(response.status_code, 200)
+        result = response.data["data"]
+        self.assertEqual(result["options"][0]["route_sequence"], ["A"])
+        self.assertIsNone(result["reason"])
+        self.assertEqual(result["coverage"]["incomplete_reason"], "connection_budget")
+        self.assertTrue(result["coverage"]["alternatives_unchecked"])
+        detail = self.client.post(
+            self.base + "detail/",
+            {"selection": result["options"][0]["selection"]},
+            format="json",
+        )
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.data["data"]["transfer_count"], 0)
+        self.provider.assert_not_called()
+
+    def test_sql_timeout_without_direct_candidates_reports_incomplete_search(self):
+        def cancel_discovery(**kwargs):
+            with connection.cursor() as cursor:
+                cursor.execute("SET LOCAL statement_timeout = '1ms'")
+                cursor.execute("SELECT pg_sleep(0.05)")
+
+        with patch.object(RouteConnectionService, "discover", side_effect=cancel_discovery):
+            response = self._search()
+        self.assertEqual(response.status_code, 200)
+        result = response.data["data"]
+        self.assertEqual(result["options"], [])
+        self.assertEqual(result["reason"], "search_incomplete")
+        self.assertEqual(result["coverage"]["incomplete_reason"], "connection_budget")
+        self.assertTrue(result["coverage"]["alternatives_unchecked"])
+        self.provider.assert_not_called()
+
     def test_terminal_mismatch_allows_forward_return_as_geometry_preview(self):
         reverse = self._variant("REV", (123.920, 10.310), (123.900, 10.310))
         TransitPoint.objects.filter(pk=reverse.JRV_DESTINATION_ID_id).update(

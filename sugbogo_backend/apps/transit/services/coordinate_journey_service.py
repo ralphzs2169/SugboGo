@@ -4,11 +4,12 @@ import math
 from bisect import bisect_right
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import cache
 from heapq import nsmallest
 
 from django.contrib.gis.geos import LineString, Point
+from django.db import OperationalError, transaction
 from rest_framework.exceptions import ValidationError
 
 from apps.transit.constants import DIRECT_ROUTE_SEARCH_RADIUS_METERS
@@ -25,6 +26,7 @@ from apps.transit.services.route_connection_service import (
     MAXIMUM_PROVISIONAL_TRANSFER_DISTANCE_METERS,
     RouteConnection,
     RouteConnectionBudgetExceeded,
+    RouteConnectionDiscoveryProgress,
     RouteConnectionService,
     TransferValidationStatus,
 )
@@ -42,6 +44,9 @@ class CoordinateJourneySearchProgress:
     destination_options: dict[int, int] = field(default_factory=lambda: defaultdict(int))
     transfer_options: dict[int, int] = field(default_factory=lambda: defaultdict(int))
     suffix_links_checked: int = 0
+    connection_discovery: RouteConnectionDiscoveryProgress = field(
+        default_factory=RouteConnectionDiscoveryProgress,
+    )
 
 
 @dataclass(frozen=True)
@@ -255,6 +260,7 @@ def _journey_requests(
     route_codes: Mapping[int, str],
     limits: CoordinateJourneySearchLimits,
     progress: CoordinateJourneySearchProgress,
+    minimum_transfers: int = 0,
 ) -> Iterator[_JourneyRequest]:
     """Explore only paths with a directionally reachable suffix."""
     origins = []
@@ -301,7 +307,10 @@ def _journey_requests(
         links.sort(key=lambda link: link.alighting_position.fraction)
         return tuple(link.alighting_position.fraction for link in links), links
 
-    explored = 0
+    explored = (
+        sum(progress.destination_options.values())
+        + sum(progress.transfer_options.values())
+    )
 
     def charge(counter, depth):
         nonlocal explored
@@ -359,7 +368,7 @@ def _journey_requests(
                 return
 
     # Finish the shallower stages first so an incomplete search can return them.
-    for count in range(limits.max_transfers + 1):
+    for count in range(minimum_transfers, limits.max_transfers + 1):
         for state in origins:
             yield from explore(state, count, frozenset({route_codes[state.variant_id]}))
             if progress.incomplete_reason == "candidate_budget":
@@ -502,16 +511,68 @@ class CoordinateJourneyService:
         if not progress.nearby_origin_variants or not progress.nearby_destination_variants:
             return []
 
-        if limits.max_transfers and connections is None and allow_provisional_transfers:
+        measurements = {}
+
+        def measure_requests(requests):
+            """Measure each distinct ride once and complete journeys before the next stage."""
+            measurements.update(CoordinateRouteMatchingService.measure_rides(
+                route_geometries=routes,
+                rides={
+                    ride.key
+                    for request in requests
+                    for ride in request.rides
+                    if ride.key not in measurements
+                },
+                minimum_ride_distance_meters=limits.minimum_ride_distance_meters,
+            ))
+            return list(_measured_journeys(
+                requests=requests,
+                measurements=measurements,
+                route_codes=route_codes,
+                transfer_penalty_meters=limits.transfer_penalty_meters,
+            ))
+
+        direct_requests = list(_journey_requests(
+            positions=positions,
+            outgoing={},
+            route_codes=route_codes,
+            limits=replace(limits, max_transfers=0),
+            progress=progress,
+        ))
+        journeys = measure_requests(direct_requests)
+        if progress.incomplete_reason == "candidate_budget" and not allow_partial:
+            raise ValidationError({"search": "The itinerary search exceeded its candidate budget."})
+
+        if (
+            limits.max_transfers
+            and connections is None
+            and allow_provisional_transfers
+            and progress.incomplete_reason is None
+        ):
             try:
-                connections = RouteConnectionService.discover(
-                    route_geometries=routes,
-                    route_codes=route_codes,
-                    maximum_transfer_distance_meters=limits.maximum_provisional_transfer_distance_meters,
-                )
-            except RouteConnectionBudgetExceeded:
+                # Recover a cancelled SQL statement inside its own savepoint so
+                # a caller's surrounding transaction remains usable.
+                with transaction.atomic():
+                    connections = RouteConnectionService.discover(
+                        route_geometries=routes,
+                        route_codes=route_codes,
+                        maximum_transfer_distance_meters=limits.maximum_provisional_transfer_distance_meters,
+                        progress=progress.connection_discovery,
+                    )
+            except RouteConnectionBudgetExceeded as error:
+                if progress.connection_discovery.stop_reason is None:
+                    progress.connection_discovery.stop_reason = error.reason
                 if not allow_partial:
                     raise
+                progress.incomplete_reason = "connection_budget"
+            except OperationalError as error:
+                if getattr(error.__cause__, "sqlstate", None) != "57014":
+                    raise
+                progress.connection_discovery.stop_reason = "sql_cancelled"
+                if not allow_partial:
+                    raise
+                # Preserve the v1 incomplete-coverage enum. Internal telemetry
+                # distinguishes SQL cancellation from pair/grid budget limits.
                 progress.incomplete_reason = "connection_budget"
 
         outgoing = {}
@@ -524,30 +585,18 @@ class CoordinateJourneyService:
                 allow_provisional_transfers=allow_provisional_transfers,
             )
 
-        requests = list(_journey_requests(
-            positions=positions,
-            outgoing=outgoing,
-            route_codes=route_codes,
-            limits=limits,
-            progress=progress,
-        ))
-        if progress.incomplete_reason == "candidate_budget" and not allow_partial:
-            raise ValidationError({"search": "The itinerary search exceeded its candidate budget."})
-        measurements = CoordinateRouteMatchingService.measure_rides(
-            route_geometries=routes,
-            rides={
-                ride.key
-                for request in requests
-                for ride in request.rides
-            },
-            minimum_ride_distance_meters=limits.minimum_ride_distance_meters,
-        )
-        journeys = _measured_journeys(
-            requests=requests,
-            measurements=measurements,
-            route_codes=route_codes,
-            transfer_penalty_meters=limits.transfer_penalty_meters,
-        )
+        if outgoing and progress.incomplete_reason is None:
+            requests = list(_journey_requests(
+                positions=positions,
+                outgoing=outgoing,
+                route_codes=route_codes,
+                limits=limits,
+                progress=progress,
+                minimum_transfers=1,
+            ))
+            if progress.incomplete_reason == "candidate_budget" and not allow_partial:
+                raise ValidationError({"search": "The itinerary search exceeded its candidate budget."})
+            journeys.extend(measure_requests(requests))
         if separate_direct_journeys:
             ranked = sorted(journeys, key=coordinate_journey_rank)
             return [

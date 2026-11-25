@@ -1,6 +1,8 @@
 from dataclasses import replace
+from unittest.mock import patch
 
 from django.contrib.gis.geos import LineString, Point
+from django.db import OperationalError, connection
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError
 
@@ -12,6 +14,8 @@ from apps.transit.services.coordinate_journey_service import (
 from apps.transit.services.coordinate_route_matching_service import RoutePosition
 from apps.transit.services.route_connection_service import (
     RouteConnectionService,
+    RouteConnectionBudgetExceeded,
+    RouteConnectionDiscoveryProgress,
     TransferValidationStatus,
 )
 
@@ -34,6 +38,109 @@ def _line(*coordinates):
 
 
 class RouteConnectionDiscoveryTests(TestCase):
+    def test_spatial_grid_matches_exhaustive_segment_discovery(self):
+        networks = [
+            {
+                1: _line((0, 0), (0.010, 0)),
+                2: _line((0.003, -0.002), (0.003, 0.002), (0.007, 0.002), (0.007, -0.002)),
+            },
+            {
+                1: _line((0, 0), (0.004, 0), (0.010, 0)),
+                2: _line((0, 0.0003), (0.004, 0.0003), (0.010, 0.0003)),
+                3: _line((0.002, 0), (0.006, 0), (0.008, 0)),
+            },
+            {
+                1: _line((0, 0), (0.008, 0), (0.008, 0.004), (0, 0.004), (0, 0)),
+                2: _line((0.002, -0.002), (0.002, 0.006)),
+                3: _line((0.006, 0.006), (0.006, -0.002)),
+            },
+            {
+                1: _line((0, 0), (0, 0), (0.004, 0), (0.004, 0), (0.008, 0)),
+                2: _line((0.003, -0.002), (0.003, 0.002)),
+                3: _line((0, 0), (0, 0), (0.004, 0), (0.004, 0), (0.008, 0)),
+            },
+            {
+                1: LineString((10, 70), (10.01, 70), srid=4326),
+                2: LineString((10, 70.0005), (10.01, 70.0005), srid=4326),
+            },
+        ]
+
+        def exhaustive(
+            segments,
+            eligible_route_pairs,
+            radius_meters,
+            maximum_work,
+            progress,
+        ):
+            for first, a in enumerate(segments):
+                for second in range(first + 1, len(segments)):
+                    b = segments[second]
+                    if (a.variant_id, b.variant_id) in eligible_route_pairs:
+                        yield first, second
+
+        for routes in networks:
+            with self.subTest(routes=tuple(routes)):
+                actual = RouteConnectionService.discover(route_geometries=routes)
+                with patch(
+                    "apps.transit.services.route_connection_service._candidate_segment_pairs",
+                    side_effect=exhaustive,
+                ):
+                    expected = RouteConnectionService.discover(route_geometries=routes)
+                self.assertEqual(actual, expected)
+                self.assertEqual(
+                    actual,
+                    RouteConnectionService.discover(route_geometries=dict(reversed(list(routes.items())))),
+                )
+
+    def test_distant_segments_are_pruned_before_exact_checks(self):
+        progress = RouteConnectionDiscoveryProgress()
+        routes = {
+            index: _line((index * 0.02, 0), (index * 0.02 + 0.001, 0))
+            for index in range(1, 15)
+        }
+        self.assertEqual(
+            RouteConnectionService.discover(route_geometries=routes, progress=progress),
+            [],
+        )
+        self.assertEqual(progress.route_pair_candidates, 91)
+        self.assertEqual(progress.broad_phase_segment_candidates, 0)
+        self.assertEqual(progress.exact_spatial_checks, 0)
+
+    def test_broad_phase_budget_fails_explicitly_before_sql(self):
+        progress = RouteConnectionDiscoveryProgress()
+        with self.assertNumQueries(0):
+            with self.assertRaises(RouteConnectionBudgetExceeded):
+                RouteConnectionService.discover(
+                    route_geometries={
+                        1: _line((0, 0), (0.010, 0)),
+                        2: _line((0.005, -0.001), (0.005, 0.001)),
+                    },
+                    maximum_broad_phase_work=1,
+                    progress=progress,
+                )
+        self.assertEqual(progress.stop_reason, "broad_phase_budget")
+
+    def test_polar_and_wrapped_bounds_stop_explicitly_instead_of_losing_connections(self):
+        for first, second in (
+            (
+                LineString((179.999, 0), (179.999, 0.001), srid=4326),
+                LineString((-179.999, 0), (-179.999, 0.001), srid=4326),
+            ),
+            (
+                LineString((0, 89.9999), (1, 89.9999), srid=4326),
+                LineString((2, 89.9999), (3, 89.9999), srid=4326),
+            ),
+        ):
+            progress = RouteConnectionDiscoveryProgress()
+            with self.assertRaises(RouteConnectionBudgetExceeded):
+                RouteConnectionService.discover(
+                    route_geometries={1: first, 2: second},
+                    maximum_transfer_distance_meters=300,
+                    maximum_broad_phase_work=100,
+                    progress=progress,
+                )
+            self.assertEqual(progress.stop_reason, "broad_phase_budget")
+
     def test_same_code_variants_do_not_consume_the_segment_pair_budget(self):
         routes = {
             1: _line((0, 0), (0.005, 0), (0.010, 0)),
@@ -212,12 +319,116 @@ class CoordinateJourneyServiceTests(TestCase):
 
     def test_direct_journey_returns_an_ordered_centerline_ride(self):
         (journey,) = self._search(_point(0.008, 0), max_transfers=0)
-
         self._assert_rides(journey, [1])
         self.assertEqual(journey.ride_legs[0].jeepney_route_code, "1")
         self.assertAlmostEqual(journey.ride_legs[0].boarding_position.fraction, 0.1)
         self.assertAlmostEqual(journey.ride_legs[0].alighting_position.fraction, 0.8)
         self.assertAlmostEqual(journey.ranking_cost_meters, 0)
+
+    def test_direct_result_is_identical_at_every_transfer_limit(self):
+        expected = self._search(_point(0.008, 0), max_transfers=0)
+        for maximum in (0, 1, 2):
+            journeys = self._search(
+                _point(0.008, 0),
+                max_transfers=maximum,
+                provisional=True,
+            )
+            self.assertEqual(
+                [journey for journey in journeys if not journey.transfers],
+                expected,
+            )
+
+    def test_actual_sql_timeout_preserves_measured_direct_results_and_transaction(self):
+        for maximum in (1, 2):
+            progress = CoordinateJourneySearchProgress()
+
+            def cancelled_discovery(**kwargs):
+                self.assertEqual(progress.destination_options, {0: 1})
+                with connection.cursor() as cursor:
+                    cursor.execute("SET LOCAL statement_timeout = '1ms'")
+                    cursor.execute("SELECT pg_sleep(0.05)")
+
+            with patch.object(
+                RouteConnectionService,
+                "discover",
+                side_effect=cancelled_discovery,
+            ):
+                journeys = CoordinateJourneyService.search(
+                    origin=self.origin,
+                    destination=_point(0.008, 0),
+                    route_geometries=self.routes,
+                    route_codes={identifier: str(identifier) for identifier in self.routes},
+                    allow_provisional_transfers=True,
+                    limits=replace(self.limits, max_transfers=maximum),
+                    progress=progress,
+                )
+            self.assertEqual(len(journeys), 1)
+            self._assert_rides(journeys[0], [1])
+            self.assertEqual(progress.incomplete_reason, "connection_budget")
+            self.assertEqual(progress.connection_discovery.stop_reason, "sql_cancelled")
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 42")
+                self.assertEqual(cursor.fetchone(), (42,))
+
+    def test_pair_and_broad_phase_failures_preserve_direct_results(self):
+        for reason in ("segment_pair_budget", "broad_phase_budget"):
+            progress = CoordinateJourneySearchProgress()
+
+            def exhausted_discovery(**kwargs):
+                kwargs["progress"].stop_reason = reason
+                raise RouteConnectionBudgetExceeded()
+
+            with patch.object(
+                RouteConnectionService,
+                "discover",
+                side_effect=exhausted_discovery,
+            ):
+                journeys = CoordinateJourneyService.search(
+                    origin=self.origin,
+                    destination=_point(0.008, 0),
+                    route_geometries=self.routes,
+                    route_codes={identifier: str(identifier) for identifier in self.routes},
+                    allow_provisional_transfers=True,
+                    limits=self.limits,
+                    progress=progress,
+                )
+            self.assertEqual(len(journeys), 1)
+            self._assert_rides(journeys[0], [1])
+            self.assertEqual(progress.incomplete_reason, "connection_budget")
+            self.assertEqual(progress.connection_discovery.stop_reason, reason)
+
+    def test_unrelated_database_failure_is_not_suppressed(self):
+        with patch.object(
+            RouteConnectionService,
+            "discover",
+            side_effect=OperationalError("Synthetic connection failure"),
+        ):
+            with self.assertRaises(OperationalError):
+                CoordinateJourneyService.search(
+                    origin=self.origin,
+                    destination=_point(0.008, 0),
+                    route_geometries=self.routes,
+                    route_codes={identifier: str(identifier) for identifier in self.routes},
+                    allow_provisional_transfers=True,
+                    progress=CoordinateJourneySearchProgress(),
+                )
+
+    def test_direct_and_transfer_stages_share_the_same_work_budget(self):
+        progress = CoordinateJourneySearchProgress()
+        journeys = CoordinateJourneyService.search(
+            origin=self.origin,
+            destination=_point(0.0098, 0.0004),
+            route_geometries=self.routes,
+            route_codes={identifier: str(identifier) for identifier in self.routes},
+            allow_provisional_transfers=True,
+            limits=replace(self.limits, maximum_search_work=1),
+            progress=progress,
+        )
+        self.assertEqual(len(journeys), 1)
+        self._assert_rides(journeys[0], [1])
+        self.assertEqual(progress.destination_options, {0: 1})
+        self.assertEqual(progress.transfer_options, {})
+        self.assertEqual(progress.incomplete_reason, "candidate_budget")
 
     def test_approved_one_and_two_transfer_journeys_use_every_ordered_ride(self):
         approved = self._approved_connections()
