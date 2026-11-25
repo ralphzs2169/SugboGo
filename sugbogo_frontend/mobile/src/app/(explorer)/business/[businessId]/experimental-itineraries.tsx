@@ -1,4 +1,4 @@
-import { Redirect, Stack, useLocalSearchParams } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 
 import { experimentalItinerariesEnabled } from "@/features/explore/constants/experimentalItinerary.constants";
 import ExperimentalItineraryScreen from "@/features/explore/screens/ExperimentalItineraryScreen";
@@ -9,13 +9,15 @@ export default function ExperimentalItinerariesRoute() {
   const id = Number(businessId);
   if (!Number.isSafeInteger(id) || id < 1) return <Redirect href="/" />;
   if (!experimentalItinerariesEnabled()) {
-    return <Redirect href={{ pathname: "/(explorer)/business/[businessId]/getting-there", params: { businessId: id } }} />;
+    return (
+      <Redirect
+        href={{
+          pathname: "/(explorer)/business/[businessId]/getting-there",
+          params: { businessId: id },
+        }}
+      />
+    );
   }
 
-  return (
-    <>
-      <Stack.Screen options={{ title: "Jeepney itinerary preview" }} />
-      <ExperimentalItineraryScreen businessId={id} />
-    </>
-  );
+  return <ExperimentalItineraryScreen businessId={id} />;
 }
