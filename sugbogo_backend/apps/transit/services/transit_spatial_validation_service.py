@@ -94,22 +94,25 @@ class TransitSpatialValidationService:
         return [current[point.pk] for point in points]
 
     @staticmethod
-    def validate_variant(geometry, points, boundary=None, overrides=None):
-        """Check containment, endpoint distances and increasing stop projections in meters."""
+    def _validate_line(geometry):
+        """Require a usable two-dimensional WGS84 LineString."""
         if (
-            geometry is None or geometry.geom_type != "LineString" or geometry.empty
+            not isinstance(geometry, LineString) or geometry.empty
             or geometry.srid != 4326
-            or any(not math.isfinite(value) for pair in geometry.coords for value in pair)
+            or any(
+                len(pair) != 2 or any(not math.isfinite(value) for value in pair)
+                for pair in geometry.coords
+            )
             or any(not -180 <= lon <= 180 or not -90 <= lat <= 90 for lon, lat in geometry.coords)
             or geometry.length <= 0 or not geometry.valid or not geometry.simple
         ):
             raise ValidationError({
                 "geometry": "Draw a nonzero path without self-intersections or repeated loops.",
             })
-        points = list(points)
-        if len(points) < 2 or len({point.pk for point in points}) != len(points):
-            raise ValidationError({"transit_point_ids": "Choose at least two distinct stops in travel order."})
-        boundary = boundary if boundary is not None else TransitSpatialValidationService.boundary()
+
+    @staticmethod
+    def _validate_coverage(geometry, boundary):
+        """Require the whole line to stay inside the transit program boundary."""
         if not boundary.covers(geometry):
             raise ValidationError({
                 "geometry": (
@@ -117,6 +120,23 @@ class TransitSpatialValidationService:
                     "Cross-city routes are outside the current scope."
                 ),
             })
+
+    @staticmethod
+    def validate_geometry(geometry, boundary=None):
+        """Check stored geometry independently of terminal or route membership records."""
+        TransitSpatialValidationService._validate_line(geometry)
+        boundary = boundary if boundary is not None else TransitSpatialValidationService.boundary()
+        TransitSpatialValidationService._validate_coverage(geometry, boundary)
+
+    @staticmethod
+    def validate_variant(geometry, points, boundary=None, overrides=None):
+        """Check containment, endpoint distances and increasing stop projections in meters."""
+        TransitSpatialValidationService._validate_line(geometry)
+        points = list(points)
+        if len(points) < 2 or len({point.pk for point in points}) != len(points):
+            raise ValidationError({"transit_point_ids": "Choose at least two distinct stops in travel order."})
+        boundary = boundary if boundary is not None else TransitSpatialValidationService.boundary()
+        TransitSpatialValidationService._validate_coverage(geometry, boundary)
         overrides = overrides or {}
         locations = [overrides.get(point.pk, point.TRPT_POINT) for point in points]
         for point, location in zip(points, locations):
