@@ -18,6 +18,10 @@ from apps.explorer_operations.explore_businesses.views.direct_journey_views impo
 from apps.explorer_operations.explore_businesses.views.discovery_feed_views import (
     DiscoveryFeedView,
 )
+from apps.explorer_operations.explore_businesses.views.experimental_itinerary_views import (
+    ExperimentalItineraryDetailView,
+    ExperimentalItinerarySearchView,
+)
 from apps.explorer_operations.explore_businesses.views.explore_collection_views import (
     ExploreCollectionView,
 )
@@ -136,6 +140,16 @@ urlpatterns = [
         "businesses/<int:business_id>/direct-journeys/",
         DirectJourneySearchView.as_view(),
         name="business-direct-journeys",
+    ),
+    path(
+        "businesses/<int:business_id>/itineraries/v1/search/",
+        ExperimentalItinerarySearchView.as_view(),
+        name="experimental-itinerary-v1-search",
+    ),
+    path(
+        "businesses/<int:business_id>/itineraries/v1/detail/",
+        ExperimentalItineraryDetailView.as_view(),
+        name="experimental-itinerary-v1-detail",
     ),
     path(
         "businesses/<int:business_id>/road-route/",

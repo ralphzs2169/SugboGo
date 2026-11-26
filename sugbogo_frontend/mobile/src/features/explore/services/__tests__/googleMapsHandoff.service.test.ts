@@ -3,6 +3,7 @@ import * as Linking from "expo-linking";
 import {
   buildGoogleMapsDirectionsUrl,
   openGoogleMapsDirections,
+  openGoogleMapsWalkingDirections,
 } from "../googleMapsHandoff.service";
 
 jest.mock("expo-linking", () => ({
@@ -30,6 +31,26 @@ describe("Google Maps road-route handoff", () => {
         "&dir_action=navigate",
     );
     expect(url).not.toContain("origin=");
+  });
+
+  it("opens walking directions with the supplied origin and destination", async () => {
+    jest.mocked(Linking.canOpenURL).mockResolvedValue(true);
+    jest.mocked(Linking.openURL).mockResolvedValue(true);
+    await expect(openGoogleMapsWalkingDirections(
+      { latitude: 10.31, longitude: 123.9 },
+      destination,
+    )).resolves.toBe("opened");
+    expect(Linking.openURL).toHaveBeenCalledWith(
+      "https://www.google.com/maps/dir/?api=1&origin=10.31,123.9&destination=10.789,123.987&travelmode=walking",
+    );
+  });
+
+  it("rejects invalid walking endpoints before opening an external app", async () => {
+    await expect(openGoogleMapsWalkingDirections(
+      { latitude: NaN, longitude: 123.9 },
+      destination,
+    )).resolves.toBe("unavailable");
+    expect(Linking.canOpenURL).not.toHaveBeenCalled();
   });
 
   it("opens the supported Google Maps directions URL", async () => {

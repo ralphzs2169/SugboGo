@@ -197,6 +197,16 @@ if SECURE_HSTS_SECONDS < 0:
 EXPERIMENTAL_BUSINESS_RATINGS_ENABLED = (
     os.environ.get("EXPERIMENTAL_BUSINESS_RATINGS_ENABLED", "False") == "True"
 )
+EXPERIMENTAL_ITINERARIES_ENABLED = _environment_bool("EXPERIMENTAL_ITINERARIES_ENABLED", False)
+EXPERIMENTAL_ITINERARY_EXPLORER_IDS = tuple(_environment_list("EXPERIMENTAL_ITINERARY_EXPLORER_IDS"))
+EXPERIMENTAL_ITINERARY_ACCESS_EVIDENCE = os.environ.get("EXPERIMENTAL_ITINERARY_ACCESS_EVIDENCE", "[]")
+EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE = os.environ.get("EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE", "[]")
+EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED = _environment_bool(
+    "EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED",
+    False,
+)
+EXPERIMENTAL_ITINERARY_GRAPH_REVISION = os.environ.get("EXPERIMENTAL_ITINERARY_GRAPH_REVISION", "")
+EXPERIMENTAL_ITINERARY_GRAPH_SHA256 = os.environ.get("EXPERIMENTAL_ITINERARY_GRAPH_SHA256", "")
 BUSINESS_RATING_AUTO_UPDATES_ENABLED = (
     os.environ.get("BUSINESS_RATING_AUTO_UPDATES_ENABLED", "True") == "True"
 )
@@ -487,6 +497,8 @@ REST_FRAMEWORK = {
         "place_details": "5/min",
         "reverse_geocode": "5/min",
         "nearby_landmarks": "3/min",
+        "experimental_itinerary_search": "3/min",
+        "experimental_itinerary_detail": "6/min",
 
         # Merhcant Operations
         "business_cover_photo_update": "3/day",

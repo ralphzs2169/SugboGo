@@ -213,30 +213,24 @@ class TransitSeedServiceTests(TestCase):
         with self.assertNumQueries(0), self.assertRaises(PermissionDenied):
             TransitSeedService.seed(self.payload, confirmation="wrong")
 
-    def test_missing_duplicate_inactive_or_wrong_boundary_is_refused(self):
-        self.boundary.SBND_IS_ACTIVE = False
-        self.boundary.save()
-        with self.assertRaises(ValidationError):
-            self.seed()
-        self.boundary.SBND_IS_ACTIVE = True
-        self.boundary.SBND_PSGC_CODE = "wrong"
-        self.boundary.save()
-        with self.assertRaises(ValidationError):
-            self.seed()
-        self.boundary.SBND_PSGC_CODE = "072217000"
-        self.boundary.save()
-        self.boundary.pk = None
-        self.boundary.save()
-        with self.assertRaises(ValidationError):
-            self.seed()
+    def test_preview_does_not_require_a_serviceable_boundary(self):
+        self.boundary.delete()
 
-    def test_cross_boundary_geometry_is_not_clipped(self):
-        self.payload["routes"][0]["variants"][0]["geometry"].insert(
-            1, {"latitude": 10.33, "longitude": 123.90},
-        )
-        with self.assertRaisesMessage(ValidationError, "stay within Cebu City"):
-            self.seed()
-        self.assertEqual(TransitPoint.objects.count(), 0)
+        result = self.seed()
+
+        self.assertFalse(result["boundary_checked"])
+        self.assertEqual(result["planned_records"], {"create": 8, "reuse": 0})
+
+    def test_preview_accepts_cross_city_geometry_and_stops(self):
+        self.payload["points"][-1]["longitude"] = 123.93
+        variant = self.payload["routes"][0]["variants"][0]
+        variant["geometry"][-1]["longitude"] = 123.93
+
+        result = self.seed()
+
+        self.assertFalse(result["boundary_checked"])
+        self.assertEqual(result["planned_records"], {"create": 8, "reuse": 0})
+        self.assertEqual(JeepneyRouteVariant.objects.count(), 0)
 
     def test_far_points_and_wrong_geometry_direction_are_rejected(self):
         self.payload["points"][1]["latitude"] = 10.311

@@ -40,12 +40,10 @@ class TransitSeedService:
         return name
 
     @staticmethod
-    def _boundary():
-        """Require one existing active Cebu City polygon instead of inventing a bounding box."""
-        return TransitSpatialValidationService.boundary()
-
-    @staticmethod
-    def _validate_geometry(variant, point_data, boundary):
+    def _validate_geometry(
+        variant,
+        point_data,
+    ):
         """Apply the same path and stop checks used by administrator route authoring."""
         geometry = TransitSpatialValidationService.build_geometry(variant["geometry"])
         points = [
@@ -53,7 +51,7 @@ class TransitSeedService:
             for index, key in enumerate(variant["point_keys"], start=1)
         ]
         try:
-            TransitSpatialValidationService.validate_variant(geometry, points, boundary)
+            TransitSpatialValidationService.validate_variant(geometry, points)
         except ValidationError as exc:
             raise ValidationError({variant["key"]: exc.detail}) from exc
         return geometry
@@ -61,7 +59,6 @@ class TransitSeedService:
     @staticmethod
     def _plan(data):
         """Read existing rows and reject all collisions without any inserts or updates."""
-        boundary = TransitSeedService._boundary()
         points = {}
         point_geometries = {}
         existing_by_name = {}
@@ -94,7 +91,10 @@ class TransitSeedService:
             route = matches[0] if matches else None
             routes[route_data["code"]] = route
             for item in route_data["variants"]:
-                geometry = TransitSeedService._validate_geometry(item, point_geometries, boundary)
+                geometry = TransitSeedService._validate_geometry(
+                    item,
+                    point_geometries,
+                )
                 paths = paths_by_code.setdefault(route_data["code"], [])
                 if any(previous.equals_exact(geometry, 0) for previous in paths):
                     raise ValidationError(f"{item['key']}: duplicate path for the same route code.")
@@ -160,7 +160,7 @@ class TransitSeedService:
             "database": database, "dataset_id": data["dataset_id"],
             "dataset_sha256": hashlib.sha256(canonical.encode()).hexdigest(),
             "applied": applied, "planned_records": counts, "directions": directions,
-            "boundary_checked": bool(data["routes"]),
+            "boundary_checked": False,
             "reviewed_direction_count": sum(
                 entry["review_status"] == "reviewed" for entry in directions
             ),

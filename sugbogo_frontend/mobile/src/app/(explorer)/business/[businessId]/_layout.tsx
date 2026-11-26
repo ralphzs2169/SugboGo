@@ -53,6 +53,15 @@ export default function BusinessLayout() {
         />
 
         <Stack.Screen
+          name="experimental-itineraries"
+          options={{ headerShown: false }}
+        />
+
+        <Stack.Screen name="journey-map" options={{ headerShown: false }} />
+
+        <Stack.Screen name="journey-details" options={{ headerShown: false }} />
+
+        <Stack.Screen
           name="jeepney-starting-point"
           options={{
             headerShown: false,

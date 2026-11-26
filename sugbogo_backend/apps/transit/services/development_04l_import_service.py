@@ -45,7 +45,6 @@ class Development04LImportService:
         data,
     ):
         """Reject ambiguous physical matches and preserve existing direction records."""
-        boundary = TransitSeedService._boundary()
         routes = list(
             JeepneyRoute.objects.filter(JRT_CODE__iexact="04L")[:2],
         )
@@ -111,7 +110,6 @@ class Development04LImportService:
             geometry = TransitSeedService._validate_geometry(
                 item,
                 geometries,
-                boundary,
             )
             if any(path.equals_exact(geometry, 0) for path in paths):
                 raise ValidationError(f"{item['key']}: duplicate 04L path.")

@@ -62,7 +62,7 @@ class JeepneyRouteVariantListView(APIView):
 
 
 class JeepneyRouteVariantDetailView(APIView):
-    """Handle administrator variant retrieval and coherent updates."""
+    """Handle administrator variant retrieval, coherent updates, and deletion."""
 
     permission_classes = ADMIN_PERMISSIONS
 
@@ -73,10 +73,21 @@ class JeepneyRouteVariantDetailView(APIView):
             variant_id,
         )
 
+        data = JeepneyRouteVariantSerializer(variant).data
+        data["deletion"] = RouteVariantService.get_deletion_details(variant)
         return success_response(
-            data=JeepneyRouteVariantSerializer(variant).data,
+            data=data,
             message="Jeepney route variant retrieved successfully.",
         )
+
+    def delete(
+        self,
+        request,
+        variant_id,
+    ):
+        """Delete a direction with the existing administrator permissions."""
+        RouteVariantService.delete_variant(variant_id)
+        return success_response(message="Jeepney route direction deleted successfully.")
 
     def put(self, request, variant_id):
         """Fully replace a route variant definition."""

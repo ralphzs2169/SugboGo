@@ -6,6 +6,30 @@ const GOOGLE_MAPS_DIRECTIONS_URL = "https://www.google.com/maps/dir/?api=1";
 
 export type GoogleMapsHandoffResult = "opened" | "unavailable" | "failed";
 
+/** Opens optional walking directions for the selected approximate locations. */
+export async function openGoogleMapsWalkingDirections(
+  origin: RoadRouteCoordinate,
+  destination: RoadRouteCoordinate,
+): Promise<GoogleMapsHandoffResult> {
+  if (![origin, destination].every(({ latitude, longitude }) =>
+    Number.isFinite(latitude) && Math.abs(latitude) <= 90
+    && Number.isFinite(longitude) && Math.abs(longitude) <= 180,
+  )) {
+    return "unavailable";
+  }
+  const url = `${GOOGLE_MAPS_DIRECTIONS_URL}`
+    + `&origin=${origin.latitude},${origin.longitude}`
+    + `&destination=${destination.latitude},${destination.longitude}`
+    + "&travelmode=walking";
+  try {
+    if (!await Linking.canOpenURL(url)) return "unavailable";
+    await Linking.openURL(url);
+    return "opened";
+  } catch {
+    return "failed";
+  }
+}
+
 /** Builds an origin-free Google Maps driving URL for one destination. */
 export function buildGoogleMapsDirectionsUrl(
   destination: RoadRouteCoordinate,

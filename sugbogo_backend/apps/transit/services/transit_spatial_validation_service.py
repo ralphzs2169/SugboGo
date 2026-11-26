@@ -1,4 +1,4 @@
-"""Validate managed transit paths and stops against the active Cebu City boundary."""
+"""Validate the geometry and stop alignment of managed transit paths."""
 
 import math
 
@@ -6,7 +6,6 @@ from django.contrib.gis.geos import LineString
 from django.db import connection
 from rest_framework.exceptions import ValidationError
 
-from apps.business.models import ServiceableBoundary
 from apps.transit.models import TransitPoint
 
 
@@ -24,32 +23,11 @@ class TransitSpatialValidationService:
             cursor.execute("SELECT pg_advisory_xact_lock(%s)", [SPATIAL_WRITE_LOCK])
 
     @staticmethod
-    def boundary():
-        """Require one valid active Cebu City boundary without creating or guessing one."""
-        rows = list(
-            ServiceableBoundary.objects.filter(
-                SBND_NAME__iexact="Cebu City",
-                SBND_PSGC_CODE="072217000",
-                SBND_IS_ACTIVE=True,
-            )[:2],
-        )
-        if len(rows) != 1:
-            raise ValidationError({
-                "non_field_errors": (
-                    "Configure exactly one active Cebu City boundary (PSGC 072217000) "
-                    "before editing locations or paths."
-                ),
-            })
-        geometry = rows[0].SBND_BOUNDARY
-        if geometry is None or geometry.empty or geometry.srid != 4326 or not geometry.valid:
-            raise ValidationError({
-                "non_field_errors": "The active Cebu City boundary must be valid, nonempty WGS84 geometry.",
-            })
-        return geometry
-
-    @staticmethod
-    def validate_point(point, boundary=None, field="latitude"):
-        """Require a finite WGS84 roadside location covered by the Cebu City boundary."""
+    def validate_point(
+        point,
+        field="latitude",
+    ):
+        """Require a valid WGS84 stop location with finite coordinates in range."""
         if (
             point is None or point.geom_type != "Point" or point.empty
             or point.srid != 4326
@@ -58,9 +36,6 @@ class TransitSpatialValidationService:
             or not point.valid
         ):
             raise ValidationError({field: "Choose a valid latitude and longitude for this stop."})
-        boundary = boundary if boundary is not None else TransitSpatialValidationService.boundary()
-        if not boundary.covers(point):
-            raise ValidationError({field: "Choose a stop within the Cebu City boundary."})
 
     @staticmethod
     def build_geometry(coordinates):
@@ -94,39 +69,44 @@ class TransitSpatialValidationService:
         return [current[point.pk] for point in points]
 
     @staticmethod
-    def validate_variant(geometry, points, boundary=None, overrides=None):
-        """Check containment, endpoint distances and increasing stop projections in meters."""
+    def validate_geometry(geometry):
+        """Require a usable two-dimensional WGS84 LineString."""
         if (
-            geometry is None or geometry.geom_type != "LineString" or geometry.empty
+            not isinstance(geometry, LineString) or geometry.empty
             or geometry.srid != 4326
-            or any(not math.isfinite(value) for pair in geometry.coords for value in pair)
+            or any(
+                len(pair) != 2 or any(not math.isfinite(value) for value in pair)
+                for pair in geometry.coords
+            )
             or any(not -180 <= lon <= 180 or not -90 <= lat <= 90 for lon, lat in geometry.coords)
             or geometry.length <= 0 or not geometry.valid or not geometry.simple
         ):
             raise ValidationError({
                 "geometry": "Draw a nonzero path without self-intersections or repeated loops.",
             })
+
+    @staticmethod
+    def validate_variant(
+        geometry,
+        points,
+        overrides=None,
+    ):
+        """Check path geometry, stop and endpoint distances, and travel order."""
+        TransitSpatialValidationService.validate_geometry(geometry)
         points = list(points)
         if len(points) < 2 or len({point.pk for point in points}) != len(points):
             raise ValidationError({"transit_point_ids": "Choose at least two distinct stops in travel order."})
-        boundary = boundary if boundary is not None else TransitSpatialValidationService.boundary()
-        if not boundary.covers(geometry):
-            raise ValidationError({
-                "geometry": (
-                    "The whole route path must stay within Cebu City. "
-                    "Cross-city routes are outside the current scope."
-                ),
-            })
         overrides = overrides or {}
         locations = [overrides.get(point.pk, point.TRPT_POINT) for point in points]
         for point, location in zip(points, locations):
             try:
-                TransitSpatialValidationService.validate_point(location, boundary, "transit_point_ids")
+                TransitSpatialValidationService.validate_point(
+                    location,
+                    field="transit_point_ids",
+                )
             except ValidationError as exc:
                 raise ValidationError({
-                    "transit_point_ids": (
-                        f"Stop {point.pk} ({point.TRPT_NAME}) must have a valid location within Cebu City."
-                    ),
+                    "transit_point_ids": f"Stop {point.pk} ({point.TRPT_NAME}) must have a valid location.",
                 }) from exc
         with connection.cursor() as cursor:
             cursor.execute(

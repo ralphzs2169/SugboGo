@@ -61,6 +61,8 @@ function RouteContextInspector({
   onStartEditRoute,
   onStartCreateVariant,
   onStartEditVariant,
+  onStartDeleteRoute,
+  onStartDeleteVariant,
   onToggleDrawing,
   onStartCreateTransitPoint,
   onSaveRouteTransitPoint,
@@ -165,6 +167,8 @@ function RouteContextInspector({
       onEditRoute={onStartEditRoute}
       onAddVariant={onStartCreateVariant}
       onEditVariant={onStartEditVariant}
+      onDeleteRoute={onStartDeleteRoute}
+      onDeleteVariant={onStartDeleteVariant}
     />
   );
 }

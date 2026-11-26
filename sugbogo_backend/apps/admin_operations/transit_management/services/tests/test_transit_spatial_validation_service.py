@@ -4,7 +4,7 @@ import io
 import json
 from copy import deepcopy
 
-from django.contrib.gis.geos import GEOSGeometry, MultiPolygon, Point, Polygon
+from django.contrib.gis.geos import GEOSGeometry, Point
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import connection
@@ -82,7 +82,6 @@ class TransitSpatialValidationTests(TransitBoundaryTestMixin, TestCase):
                 {"longitude": 123.89, "latitude": 10.32},
                 *self.coordinates(self.c),
             ],
-            [*self.coordinates(self.a), {"longitude": 124.1, "latitude": 10.31}, *self.coordinates(self.c)],
         ]
         before = self.snapshot()
         for geometry in bad_paths:
@@ -97,20 +96,37 @@ class TransitSpatialValidationTests(TransitBoundaryTestMixin, TestCase):
                 ))
                 self.assertEqual(self.snapshot(), before)
 
-    def test_two_inside_endpoints_do_not_allow_crossing_a_boundary_hole(self):
-        boundary = ServiceableBoundary.objects.get()
-        outer = ((123, 10), (124, 10), (124, 11), (123, 11), (123, 10))
-        hole = ((123.899, 10.309), (123.901, 10.309), (123.901, 10.311), (123.899, 10.311), (123.899, 10.309))
-        boundary.SBND_BOUNDARY = MultiPolygon(Polygon(outer, hole), srid=4326)
-        boundary.save()
-        with self.assertRaises(ValidationError) as raised:
-            RouteVariantService.update_variant(self.variant.pk, {
-                "geometry": self.coordinates(self.a, self.c),
-                "ordered_transit_points": [self.a, self.c],
-            })
-        self.assertIn("geometry", raised.exception.detail)
+    def test_cross_city_route_and_outside_stop_can_be_saved_and_audited(self):
+        outside = TransitPointService.create_transit_point({
+            "name": "Outside stop",
+            "longitude": 124.001,
+            "latitude": 10.31,
+        })
+        boundary = ServiceableBoundary.objects.get().SBND_BOUNDARY
+        self.assertTrue(boundary.covers(self.a.TRPT_POINT))
+        self.assertFalse(boundary.covers(outside.TRPT_POINT))
 
-    def test_stops_inside_city_but_off_path_are_refused(self):
+        variant = RouteVariantService.create_variant({
+            "JRT_ID": self.route,
+            "JRV_ORIGIN_ID": self.a,
+            "JRV_DESTINATION_ID": outside,
+            "ordered_transit_points": [self.a, outside],
+            "geometry": self.coordinates(self.a, outside),
+        })
+        moved = TransitPointService.update_transit_point(
+            outside.pk,
+            {
+                "longitude": 124.0011,
+                "latitude": 10.31,
+            },
+        )
+
+        variant.refresh_from_db()
+        self.assertEqual(variant.JRV_GEOMETRY[-1], outside.TRPT_POINT.coords)
+        self.assertEqual(moved.TRPT_POINT.x, 124.0011)
+        self.assertTrue(TransitSpatialAuditService.audit()["valid"])
+
+    def test_stops_off_path_are_refused(self):
         self.b.TRPT_POINT = Point(123.9, 10.311, srid=4326)
         self.b.save()
         with self.assertRaises(ValidationError) as raised:
@@ -180,14 +196,6 @@ class TransitSpatialValidationTests(TransitBoundaryTestMixin, TestCase):
         self.assertIn("non_field_errors", raised.exception.detail)
         self.assertEqual(JeepneyRouteVariant.objects.count(), 1)
 
-    def test_empty_active_boundary_does_not_allow_authoring(self):
-        ServiceableBoundary.objects.update(SBND_BOUNDARY=MultiPolygon(srid=4326))
-        with self.assertRaises(ValidationError) as raised:
-            TransitPointService.create_transit_point({
-                "name": "New", "longitude": 123.9, "latitude": 10.31,
-            })
-        self.assertIn("non_field_errors", raised.exception.detail)
-
     def test_shared_stop_move_checks_every_affected_direction_and_rolls_back_name(self):
         north = self.point("North", 123.9, 10.32)
         RouteVariantService.create_variant({
@@ -218,35 +226,20 @@ class TransitSpatialValidationTests(TransitBoundaryTestMixin, TestCase):
         self.assertEqual(moved.TRPT_POINT.y, 10.3101)
         self.assertTrue(TransitSpatialAuditService.audit()["valid"])
 
-    def test_outside_and_nonfinite_new_stop_locations_are_refused(self):
-        for longitude, latitude in [(124.1, 10.31), (123.9, float("nan")), (181, 10.31)]:
+    def test_nonfinite_and_out_of_range_stop_locations_are_refused(self):
+        for longitude, latitude in [(123.9, float("nan")), (181, 10.31)]:
             with self.subTest(longitude=longitude, latitude=latitude), self.assertRaises(ValidationError):
                 TransitPointService.create_transit_point({
                     "name": "Invalid", "longitude": longitude, "latitude": latitude,
                 })
         self.assertEqual(TransitPoint.objects.count(), 3)
 
-    def test_point_on_city_boundary_is_accepted(self):
-        point = TransitPointService.create_transit_point({"name": "Edge", "longitude": 123, "latitude": 10.3})
-        self.assertEqual(point.TRPT_POINT.x, 123)
+    def test_route_update_does_not_require_a_serviceable_boundary(self):
+        ServiceableBoundary.objects.all().delete()
+        before = self.variant.JRV_GEOMETRY
+        updated = RouteVariantService.update_variant(self.variant.pk, {})
 
-    def test_missing_inactive_ambiguous_or_wrong_city_boundary_prevents_authoring(self):
-        boundary = ServiceableBoundary.objects.get()
-        for state in ["missing", "inactive", "wrong_code", "duplicate"]:
-            with self.subTest(state=state):
-                ServiceableBoundary.objects.all().delete()
-                if state != "missing":
-                    ServiceableBoundary.objects.create(
-                        SBND_NAME="Cebu City", SBND_PSGC_CODE="wrong" if state == "wrong_code" else "072217000",
-                        SBND_IS_ACTIVE=state != "inactive", SBND_BOUNDARY=boundary.SBND_BOUNDARY,
-                    )
-                    if state == "duplicate":
-                        ServiceableBoundary.objects.create(
-                            SBND_NAME="Cebu City", SBND_PSGC_CODE="072217000", SBND_BOUNDARY=boundary.SBND_BOUNDARY,
-                        )
-                with self.assertRaises(ValidationError) as raised:
-                    RouteVariantService.update_variant(self.variant.pk, {})
-                self.assertIn("non_field_errors", raised.exception.detail)
+        self.assertEqual(updated.JRV_GEOMETRY, before)
 
     def test_name_only_edit_and_unchanged_coordinates_do_not_require_boundary(self):
         ServiceableBoundary.objects.all().delete()
@@ -303,9 +296,11 @@ class TransitSpatialValidationTests(TransitBoundaryTestMixin, TestCase):
             call_command("audit_transit_spatial_integrity", fail_on_errors=True, stdout=io.StringIO())
 
     def test_audit_handles_missing_boundary_and_inconsistent_legacy_memberships(self):
-        self.variant.route_transit_points.all().delete()
-        report = TransitSpatialAuditService.audit()
-        self.assertEqual(len(report["invalid_variants"]), 1)
         ServiceableBoundary.objects.all().delete()
-        with self.assertRaises(CommandError):
-            call_command("audit_transit_spatial_integrity", stdout=io.StringIO())
+        self.variant.route_transit_points.all().delete()
+        output = io.StringIO()
+        call_command("audit_transit_spatial_integrity", stdout=output)
+
+        report = json.loads(output.getvalue())
+        self.assertEqual(len(report["invalid_variants"]), 1)
+        self.assertEqual(report["invalid_variants"][0]["variant_id"], self.variant.pk)
