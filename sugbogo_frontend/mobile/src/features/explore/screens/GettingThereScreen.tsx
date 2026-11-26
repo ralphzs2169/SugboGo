@@ -8,13 +8,11 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "@/constants/theme";
 import AppText from "@/shared/components/AppText";
-import Button from "@/shared/components/Button";
 import ErrorState from "@/shared/components/ErrorState";
 import { shadows } from "@/shared/styles/shadows";
 import BusinessLocationMap from "../components/business-profile/BusinessLocationMap";
 import RoadRouteContextCard from "../components/getting-there/road-route/RoadRouteContextCard";
 import RoadRouteMapSkeleton from "../components/getting-there/road-route/RoadRouteMapSkeleton";
-import { experimentalItinerariesEnabled } from "../constants/experimentalItinerary.constants";
 import useBusinessDetailSource from "../hooks/useBusinessDetailSource";
 import { getBusinessAddressDisplay } from "../utils/businessLocation.utils";
 import { LiveBusinessVisitActions } from "./LiveBusinessProfile";
@@ -123,17 +121,6 @@ export default function GettingThereScreen({ businessId }: Props) {
           distanceAccuracy={null}
           previewAsExplorer
         />
-        {!__DEV__ && experimentalItinerariesEnabled() && (
-          <Button
-            className="mt-3"
-            title="Experimental jeepney itineraries"
-            variant="outline"
-            onPress={() => router.push({
-              pathname: "/(explorer)/business/[businessId]/experimental-itineraries",
-              params: { businessId },
-            })}
-          />
-        )}
       </View>
     </SafeAreaView>
   );

@@ -27,7 +27,6 @@ from apps.users.models import User
 @override_settings(
     EXPERIMENTAL_ITINERARIES_ENABLED=True,
     EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED=False,
-    EXPERIMENTAL_ITINERARY_EXPLORER_IDS=("501", "502", "503"),
     EXPERIMENTAL_ITINERARY_ACCESS_EVIDENCE="[]",
     EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE="[]",
 )
@@ -165,22 +164,8 @@ class ExperimentalItineraryViewTests(TestCase):
             self.provider.assert_not_called()
             self.assertEqual(detail["ride_legs"][0]["boarding"]["landmark"]["attributions"][0]["name"], "Fixture provider")
 
-    def test_flag_authentication_role_and_allowlist_gate_both_endpoints(self):
-        with override_settings(EXPERIMENTAL_ITINERARIES_ENABLED=False):
-            self.assertEqual(self._search().status_code, 404)
-            self.assertEqual(self._detail("sample").status_code, 404)
-        for user, status in (
-            (None, 401),
-            (self._user(role=User.UserRole.MERCHANT), 403),
-            (self._user(pk=700), 403),
-        ):
-            self.client.force_authenticate(user)
-            self.assertEqual(self._search().status_code, status)
-            self.assertEqual(self._detail("sample").status_code, status)
-        self.provider.assert_not_called()
-
-    @override_settings(DEBUG=True, EXPERIMENTAL_ITINERARY_EXPLORER_IDS=())
-    def test_debug_allows_active_explorer_with_empty_allowlist_on_search_and_detail(self):
+    @override_settings(DEBUG=False)
+    def test_non_debug_allows_active_explorer_on_search_and_detail(self):
         self.client.force_authenticate(self._user(pk=700))
         self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
 
@@ -190,25 +175,7 @@ class ExperimentalItineraryViewTests(TestCase):
         detail = self._detail(selection)
         self.assertEqual(detail.status_code, 200, detail.data)
 
-    @override_settings(DEBUG=False)
-    def test_non_debug_requires_allowlist_for_search_and_detail(self):
-        self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
-        response = self._search(max_transfers=0)
-        self.assertEqual(response.status_code, 200, response.data)
-        selection = response.data["data"]["options"][0]["selection"]
-        self.assertEqual(self._detail(selection).status_code, 200)
-
-        self.client.force_authenticate(self._user(pk=700))
-        self.provider.reset_mock()
-        for allowlist in ((), ("501",)):
-            with self.subTest(allowlist=allowlist), override_settings(
-                EXPERIMENTAL_ITINERARY_EXPLORER_IDS=allowlist,
-            ):
-                self.assertEqual(self._search().status_code, 403)
-                self.assertEqual(self._detail(selection).status_code, 403)
-        self.provider.assert_not_called()
-
-    def test_debug_exception_preserves_authentication_active_account_and_explorer_role(self):
+    def test_both_endpoints_require_an_authenticated_active_explorer(self):
         inactive = self._user()
         inactive.is_active = False
         for debug in (True, False):
