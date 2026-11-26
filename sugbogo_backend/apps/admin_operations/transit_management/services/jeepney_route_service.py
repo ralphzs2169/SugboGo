@@ -1,11 +1,14 @@
 from django.db import transaction
 from django.db.models import Count, Prefetch
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.transit.models import (
     JeepneyRoute,
     JeepneyRouteVariant,
     RouteTransitPoint,
+)
+from apps.transit.services.transit_spatial_validation_service import (
+    TransitSpatialValidationService,
 )
 
 
@@ -118,6 +121,36 @@ class JeepneyRouteService:
         return JeepneyRoute.objects.create(
             JRT_CODE=validated_data["code"],
         )
+
+    @staticmethod
+    def get_deletion_details(variant_count):
+        """Describe whether a route can be deleted without cascading to directions."""
+        reason = None
+        if variant_count:
+            reason = "Delete all directions from this route before deleting the route."
+        return {
+            "can_delete": reason is None,
+            "reason": reason,
+            "variant_count": variant_count,
+        }
+
+    @staticmethod
+    @transaction.atomic
+    def delete_route(route_id):
+        """Delete an empty route after locking out concurrent direction writes."""
+        TransitSpatialValidationService.lock_network()
+        try:
+            route = JeepneyRoute.objects.select_for_update().get(pk=route_id)
+        except JeepneyRoute.DoesNotExist:
+            raise NotFound("The jeepney route could not be found.")
+
+        deletion = JeepneyRouteService.get_deletion_details(route.variants.count())
+        if not deletion["can_delete"]:
+            error = ValidationError({"non_field_errors": [deletion["reason"]]})
+            error.detail["deletion"] = deletion
+            raise error
+
+        route.delete()
 
     @staticmethod
     @transaction.atomic

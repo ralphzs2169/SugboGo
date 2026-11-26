@@ -22,6 +22,7 @@ import useTransitTableState from "../../hooks/useTransitTableState";
 import useUnsavedChangesGuard from "../../hooks/useUnsavedChangesGuard";
 import EditorConfirmationModal from "../route-variant-editor/EditorConfirmationModal";
 import RouteBrowser from "../routes/RouteBrowser";
+import TransitRouteDeleteModal from "../routes/TransitRouteDeleteModal";
 import TransitPointList from "../transit-point-workspace/TransitPointList";
 import TransitPointDeleteModal from "../transit-point-workspace/TransitPointDeleteModal";
 import TransitNetworkContextActions from "./TransitNetworkContextActions";
@@ -76,6 +77,7 @@ export default function TransitNetworkWorkspace() {
   const client = useQueryClient();
   const [pointSelection, setPointSelection] = useState(null);
   const [deletingPointId, setDeletingPointId] = useState(null);
+  const [deletingRouteRecord, setDeletingRouteRecord] = useState(null);
   const [editingPoint, setEditingPoint] = useState(null);
   function setSelectedPoint(record) {
     setPointSelection(record ? { id: record.id, fallback: record } : null);
@@ -185,7 +187,7 @@ export default function TransitNetworkWorkspace() {
   const isOverlayOpen =
     isLocalDiscardOpen ||
     navigationGuard.isLeaveConfirmationOpen ||
-    Boolean(deletingPointId);
+    Boolean(deletingPointId || deletingRouteRecord);
 
   useTransitWorkspaceKeyboardShortcuts({
     isRouteGeometryMode: isVariantMode && !isRoutePointCreationMode,
@@ -250,7 +252,7 @@ export default function TransitNetworkWorkspace() {
   }, []);
 
   function requestWorkspaceAction(action) {
-    if (deletingPointId) return;
+    if (deletingPointId || deletingRouteRecord) return;
     if (isDirty) {
       pendingActionRef.current = action;
       setIsLocalDiscardOpen(true);
@@ -354,6 +356,35 @@ export default function TransitNetworkWorkspace() {
     pointEditor.beginEdit(selectedPoint);
     setIsInspectorCollapsed(false);
     setMode(TRANSIT_MODES.EDIT_POINT);
+  }
+
+  function startDeleteRouteRecord(kind) {
+    const record = kind === "route" ? selectedRoute : selectedVariant;
+    if (
+      isEditing ||
+      context !== TRANSIT_CONTEXTS.ROUTES ||
+      routeDetailQuery.error ||
+      !record?.id
+    ) {
+      return;
+    }
+    requestWorkspaceAction(() => setDeletingRouteRecord({ kind, id: record.id }));
+  }
+
+  function handleRouteRecordDeleted(kind) {
+    setDeletingRouteRecord(null);
+    setSelectedVariantId(null);
+    setSelectedVariantFallback(null);
+    setFocusTarget(null);
+
+    if (kind === "route") {
+      setSelectedRouteId(null);
+      setSelectedRouteFallback(null);
+      setExpandedRouteId(null);
+      if (pagination.pageIndex > 0 && routesQuery.items.length === 1) {
+        setPagination({ ...pagination, pageIndex: pagination.pageIndex - 1 });
+      }
+    }
   }
 
   function startDeletePoint() {
@@ -811,6 +842,8 @@ export default function TransitNetworkWorkspace() {
             onStartEditRoute: startEditRoute,
             onStartCreateVariant: startCreateVariant,
             onStartEditVariant: startEditVariant,
+            onStartDeleteRoute: () => startDeleteRouteRecord("route"),
+            onStartDeleteVariant: () => startDeleteRouteRecord("direction"),
             onToggleDrawing: toggleRouteDrawing,
             onStartCreateTransitPoint: startRouteTransitPointCreation,
             onSaveRouteTransitPoint: saveRouteTransitPoint,
@@ -864,6 +897,16 @@ export default function TransitNetworkWorkspace() {
         onCancel={navigationGuard.stayOnPage}
         onConfirm={navigationGuard.discardAndLeave}
       />
+
+      {/* Route and direction deletion confirmation */}
+      {deletingRouteRecord && (
+        <TransitRouteDeleteModal
+          key={deletingRouteRecord.kind + ":" + deletingRouteRecord.id}
+          target={deletingRouteRecord}
+          onClose={() => setDeletingRouteRecord(null)}
+          onDeleted={handleRouteRecordDeleted}
+        />
+      )}
 
       {/* Transit point deletion confirmation */}
       {deletingPointId && (

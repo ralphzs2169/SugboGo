@@ -4,6 +4,8 @@ import {
   createRouteVariant,
   createJeepneyRoute,
   createTransitPoint,
+  deleteJeepneyRoute,
+  deleteRouteVariant,
   deleteTransitPoint,
   updateJeepneyRoute,
   updateRouteVariant,
@@ -57,6 +59,35 @@ export default function useTransitMutations() {
     ]);
   }
 
+  function refreshAfterRouteDeletion(deletedKey) {
+    queryClient.removeQueries({ queryKey: deletedKey, exact: true });
+    const keep = ({ queryKey }) =>
+      !deletedKey.every((part, index) => queryKey[index] === part);
+    void Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: transitQueryKeys.routes(),
+        predicate: keep,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: transitQueryKeys.variants(),
+        predicate: keep,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: transitQueryKeys.transitPointDetails(),
+      }),
+    ]);
+  }
+
+  const deleteRouteMutation = useMutation({
+    mutationFn: deleteJeepneyRoute,
+    onSuccess: (_, routeId) =>
+      refreshAfterRouteDeletion(transitQueryKeys.routeDetail(routeId)),
+  });
+  const deleteVariantMutation = useMutation({
+    mutationFn: deleteRouteVariant,
+    onSuccess: (_, variantId) =>
+      refreshAfterRouteDeletion(transitQueryKeys.variantDetail(variantId)),
+  });
   const createRouteMutation = useMutation({
     mutationFn: createJeepneyRoute,
     onSuccess: () => invalidateRouteQueries(),
@@ -139,6 +170,8 @@ export default function useTransitMutations() {
     updateVariant: updateVariantMutation.mutateAsync,
     createPoint: createPointMutation.mutateAsync,
     updatePoint: updatePointMutation.mutateAsync,
+    deleteRoute: deleteRouteMutation.mutateAsync,
+    deleteVariant: deleteVariantMutation.mutateAsync,
     deletePoint: deletePointMutation.mutateAsync,
     isCreatingRoute: createRouteMutation.isPending,
     isUpdatingRoute: updateRouteMutation.isPending,

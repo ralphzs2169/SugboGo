@@ -72,13 +72,16 @@ export function useJeepneyRoutes(params = {}, options = {}) {
 
 export function useJeepneyRoute(routeId, options = {}) {
   const query = useQuery({
+    ...options,
     queryKey: transitQueryKeys.routeDetail(routeId),
-    queryFn: () => fetchJeepneyRoute(routeId),
+    queryFn: ({ signal }) => fetchJeepneyRoute(routeId, { signal }),
     enabled: options.enabled !== false && Boolean(routeId),
   });
 
   return {
     route: query.data ?? null,
+    isFetchedAfterMount: query.isFetchedAfterMount,
+    isFetching: query.isFetching,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
@@ -95,13 +98,16 @@ export function useRouteVariants(params = {}, options = {}) {
 
 export function useRouteVariant(variantId, options = {}) {
   const query = useQuery({
+    ...options,
     queryKey: transitQueryKeys.variantDetail(variantId),
-    queryFn: () => fetchRouteVariant(variantId),
+    queryFn: ({ signal }) => fetchRouteVariant(variantId, { signal }),
     enabled: options.enabled !== false && Boolean(variantId),
   });
 
   return {
     variant: query.data ?? null,
+    isFetchedAfterMount: query.isFetchedAfterMount,
+    isFetching: query.isFetching,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

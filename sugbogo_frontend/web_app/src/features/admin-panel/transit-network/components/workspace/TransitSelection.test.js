@@ -630,6 +630,116 @@ async function openDelete() {
   await until(() => dialog() && !dialog().textContent.includes("Checking current"));
 }
 
+// Exercise the real workspace and deletion dialogs with a mutable API inventory.
+function mockRouteDeletionInventory() {
+  let routeExists = true;
+  const get = globalThis.__selectionGet;
+  globalThis.__selectionGet = async (url, options) => {
+    const directions = variants.filter((variant) => variant.route_id === 1);
+    const route = {
+      id: 1,
+      code: "R1",
+      variants: directions,
+      variant_count: directions.length,
+      deletion: {
+        can_delete: directions.length === 0,
+        variant_count: directions.length,
+        reason: directions.length
+          ? "Delete all directions from this route before deleting the route."
+          : null,
+      },
+    };
+    if (url.endsWith("routes/")) return response(page(routeExists ? [route] : []));
+    if (url.endsWith("routes/1/") && routeExists) return response(route);
+    if (url.endsWith("route-variants/1/") && directions.length) {
+      return response({
+        ...directions[0],
+        deletion: { can_delete: true, reason: null, membership_count: 2 },
+      });
+    }
+    return get(url, options);
+  };
+  deleteOperation = async () => {
+    if (deletes.at(-1).endsWith("route-variants/1/")) {
+      variants = variants.filter((variant) => variant.id !== 1);
+    }
+    if (deletes.at(-1).endsWith("routes/1/")) {
+      routeExists = false;
+    }
+  };
+}
+
+test("route deletion confirmation blocks a route with saved directions", async () => {
+  mockRouteDeletionInventory();
+  await open("routes");
+  await click(button("Delete Route"));
+  await until(() => dialog()?.textContent.includes("Saved directions remaining: 1"));
+
+  assert.match(dialog().textContent, /Delete all directions/);
+  assert.equal(dialogButton("Delete Route").disabled, true);
+  await click(dialogButton("Delete Route"));
+  assert.deepEqual(deletes, []);
+});
+
+test("direction deletion confirmation shows the graph rejection from a fresh server check", async () => {
+  mockRouteDeletionInventory();
+  const graphRejection = "This direction is required by the enabled transfer graph.";
+  deleteOperation = async () => {
+    throw {
+      response: {
+        status: 400,
+        data: {
+          message: graphRejection,
+          errors: {
+            deletion: { can_delete: false, reason: graphRejection, membership_count: 2 },
+          },
+        },
+      },
+    };
+  };
+  await open("routes");
+  await act(async () => globalThis.__selectionMap.onVariantSelect(variants[0]));
+  await until(() => button("Delete Direction"));
+  await click(button("Delete Direction"));
+  await until(() => dialog() && !dialogButton("Delete Direction").disabled);
+
+  await click(dialogButton("Delete Direction"));
+  await until(() => dialog()?.textContent.includes(graphRejection));
+  assert.equal(dialogButton("Delete Direction").disabled, true);
+  assert.match(inspector().textContent, /Edit Direction/);
+  assert.deepEqual(deletes, ["/admin/transit/route-variants/1/"]);
+});
+
+test("direction and route deletion clear selections and refresh the affected map and lists", async () => {
+  mockRouteDeletionInventory();
+  client.setQueryData(keys.variantReferences(), variants);
+  await open("routes");
+  await act(async () => globalThis.__selectionMap.onVariantSelect(variants[0]));
+  await until(() => button("Delete Direction"));
+  await click(button("Delete Direction"));
+  await until(() => dialog() && !dialogButton("Delete Direction").disabled);
+
+  assert.equal(globalThis.__selectionMap.selectedVariantId, 1);
+  assert.match(dialog().textContent, /2 ordered stop assignments/);
+  assert.match(dialog().textContent, /transit points stay/);
+  await click(dialogButton("Delete Direction"));
+  await until(() => !dialog() && button("Add First Direction"));
+  assert.equal(client.getQueryData(keys.variantDetail(1)), undefined);
+  assert.equal(client.getQueryState(keys.variantReferences()).isInvalidated, true);
+  assert.equal(globalThis.__selectionMap.selectedVariantId, undefined);
+  assert.deepEqual(globalThis.__selectionMap.routeVariants, []);
+
+  await click(button("Delete Route"));
+  await until(() => dialog() && !dialogButton("Delete Route").disabled);
+  await click(dialogButton("Delete Route"));
+  await until(() => !dialog() && inspector().textContent.includes("Select a route"));
+  assert.equal(client.getQueryData(keys.routeDetail(1)), undefined);
+  assert.deepEqual(deletes, [
+    "/admin/transit/route-variants/1/",
+    "/admin/transit/routes/1/",
+  ]);
+});
+
 test("unused point deletion cancels safely and fetches fresh persisted eligibility on every open", async () => {
   await open();
   assert.equal(button("Delete Point").disabled, false);

@@ -1,4 +1,4 @@
-import { Edit3, Map, Plus, Route } from "lucide-react";
+import { Edit3, Map, Plus, Route, Trash2 } from "lucide-react";
 
 import Button from "@/shared/components/Button";
 
@@ -13,6 +13,8 @@ export default function RouteInspector({
   onEditRoute,
   onAddVariant,
   onEditVariant,
+  onDeleteRoute,
+  onDeleteVariant,
 }) {
   if (isLoading) {
     return <div className="h-64 animate-pulse rounded-xl bg-skeleton" />;
@@ -91,6 +93,9 @@ export default function RouteInspector({
             The stop sequence is unavailable for this direction.
           </p>
         )}
+        <Button className="mt-4" variant="danger-outline" icon={Trash2} onClick={onDeleteVariant}>
+          Delete Direction
+        </Button>
       </section>
     );
   }
@@ -133,6 +138,9 @@ export default function RouteInspector({
           first direction.
         </p>
       )}
+      <Button className="mt-4" variant="danger-outline" icon={Trash2} onClick={onDeleteRoute}>
+        Delete Route
+      </Button>
     </section>
   );
 }

@@ -13,8 +13,8 @@ export async function fetchJeepneyRoutes(params = {}) {
   return unwrapData(response);
 }
 
-export async function fetchJeepneyRoute(routeId) {
-  const response = await apiClient.get(`${BASE_URL}routes/${routeId}/`);
+export async function fetchJeepneyRoute(routeId, { signal } = {}) {
+  const response = await apiClient.get(`${BASE_URL}routes/${routeId}/`, { signal });
 
   return unwrapData(response);
 }
@@ -43,9 +43,15 @@ export async function fetchRouteVariants(params = {}, { signal } = {}) {
   return unwrapData(response);
 }
 
-export async function fetchRouteVariant(variantId) {
+export async function deleteJeepneyRoute(routeId) {
+  const response = await apiClient.delete(`${BASE_URL}routes/${routeId}/`);
+  return unwrapData(response);
+}
+
+export async function fetchRouteVariant(variantId, { signal } = {}) {
   const response = await apiClient.get(
     `${BASE_URL}route-variants/${variantId}/`,
+    { signal },
   );
 
   return unwrapData(response);
@@ -63,6 +69,11 @@ export async function updateRouteVariant(variantId, data) {
     data,
   );
 
+  return unwrapData(response);
+}
+
+export async function deleteRouteVariant(variantId) {
+  const response = await apiClient.delete(`${BASE_URL}route-variants/${variantId}/`);
   return unwrapData(response);
 }
 

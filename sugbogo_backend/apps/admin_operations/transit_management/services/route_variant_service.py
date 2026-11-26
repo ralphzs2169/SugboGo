@@ -3,8 +3,12 @@ from django.db.models import Prefetch
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.transit.models import (
+    JeepneyRoute,
     JeepneyRouteVariant,
     RouteTransitPoint,
+)
+from apps.transit.services.configured_development_connection_graph import (
+    configured_development_connection_graph,
 )
 from apps.transit.services.transit_spatial_validation_service import TransitSpatialValidationService
 
@@ -79,6 +83,70 @@ class RouteVariantService:
             )
 
     @staticmethod
+    def _graph_deletion_blocker(variant):
+        """Protect the last exact managed match for a configured graph direction."""
+        try:
+            graph = configured_development_connection_graph()
+            if graph is None:
+                return None
+            graph_identities = graph.variant_identities().values()
+        except (OSError, ValueError, KeyError, TypeError):
+            return (
+                "The enabled transfer graph could not be verified. "
+                "Restore the configured graph or disable indexed mode before deleting this direction."
+            )
+
+        geometry = variant.JRV_GEOMETRY.hexewkb.decode()
+        if (variant.JRT_ID.JRT_CODE, geometry) not in graph_identities:
+            return None
+
+        other_geometries = (
+            JeepneyRouteVariant.objects.filter(JRT_ID_id=variant.JRT_ID_id)
+            .exclude(pk=variant.pk)
+            .values_list("JRV_GEOMETRY", flat=True)
+        )
+        if any(other.hexewkb.decode() == geometry for other in other_geometries):
+            return None
+
+        return (
+            "This direction is required by the enabled transfer graph. "
+            "Use a compatible graph revision or disable indexed mode before deleting it."
+        )
+
+    @staticmethod
+    def get_deletion_details(variant):
+        """Describe the memberships affected and any graph compatibility blocker."""
+        reason = RouteVariantService._graph_deletion_blocker(variant)
+        return {
+            "can_delete": reason is None,
+            "reason": reason,
+            "membership_count": variant.route_transit_points.count(),
+        }
+
+    @staticmethod
+    @transaction.atomic
+    def delete_variant(variant_id):
+        """Delete a direction and its memberships while preserving transit points."""
+        TransitSpatialValidationService.lock_network()
+        try:
+            variant = (
+                JeepneyRouteVariant.objects
+                .select_related("JRT_ID")
+                .select_for_update()
+                .get(pk=variant_id)
+            )
+        except JeepneyRouteVariant.DoesNotExist:
+            raise NotFound("The jeepney route variant could not be found.")
+
+        deletion = RouteVariantService.get_deletion_details(variant)
+        if not deletion["can_delete"]:
+            error = ValidationError({"non_field_errors": [deletion["reason"]]})
+            error.detail["deletion"] = deletion
+            raise error
+
+        variant.delete()
+
+    @staticmethod
     def _build_geometry(
         coordinates,
     ):
@@ -136,8 +204,18 @@ class RouteVariantService:
             )
 
     @staticmethod
-    def _validate_direction(route, origin, destination, variant_id=None):
-        """Recheck direction uniqueness inside the spatial write lock."""
+    def _validate_direction(
+        route,
+        origin,
+        destination,
+        variant_id=None,
+    ):
+        """Recheck the parent route and direction uniqueness inside the write lock."""
+        if not JeepneyRoute.objects.filter(pk=route.pk).exists():
+            raise ValidationError({
+                "route_id": "The selected route no longer exists. Reload the route list.",
+            })
+
         queryset = JeepneyRouteVariant.objects.filter(
             JRT_ID=route, JRV_ORIGIN_ID=origin, JRV_DESTINATION_ID=destination,
         )

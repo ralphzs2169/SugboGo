@@ -67,7 +67,7 @@ class JeepneyRouteListView(APIView):
 
 
 class JeepneyRouteDetailView(APIView):
-    """Handle administrator route retrieval and updates."""
+    """Handle administrator route retrieval, updates, and empty-route deletion."""
 
     permission_classes = ADMIN_PERMISSIONS
 
@@ -78,10 +78,21 @@ class JeepneyRouteDetailView(APIView):
             route_id,
         )
 
+        data = JeepneyRouteDetailSerializer(route).data
+        data["deletion"] = JeepneyRouteService.get_deletion_details(route.variant_count)
         return success_response(
-            data=JeepneyRouteDetailSerializer(route).data,
+            data=data,
             message="Jeepney route retrieved successfully.",
         )
+
+    def delete(
+        self,
+        request,
+        route_id,
+    ):
+        """Delete an empty route with the existing administrator permissions."""
+        JeepneyRouteService.delete_route(route_id)
+        return success_response(message="Jeepney route deleted successfully.")
 
     def put(self, request, route_id):
         """Fully update a jeepney route."""
