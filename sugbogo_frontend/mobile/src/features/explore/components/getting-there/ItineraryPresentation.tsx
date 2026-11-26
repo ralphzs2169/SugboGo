@@ -19,8 +19,19 @@ export function RouteBadge({
   return (
     <View
       style={{ backgroundColor: RIDE_COLORS[index] }}
-      className={compact ? "rounded-md px-2 py-1" : "rounded-xl px-3 py-2"}
+      className={
+        compact
+          ? "flex-row items-center gap-1 rounded-md px-2 py-1"
+          : "flex-row items-center gap-1 rounded-xl px-3 py-2"
+      }
     >
+      <MaterialCommunityIcons
+        name="bus"
+        size={compact ? 12 : 14}
+        color="#FFFFFF"
+        accessibilityElementsHidden
+        importantForAccessibility="no"
+      />
       <AppText
         weight="extrabold"
         className={compact ? "text-xs text-white" : "text-sm text-white"}

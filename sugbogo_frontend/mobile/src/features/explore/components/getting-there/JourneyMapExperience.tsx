@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import AppText from "@/shared/components/AppText";
 import Button from "@/shared/components/Button";
+import InfoBanner from "@/shared/components/InfoBanner";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import ExperimentalItineraryMap, {
@@ -270,10 +271,14 @@ export default function JourneyMapExperience({
                     : null
                 }
               />
-              <AppText className="mt-2 border-t border-border-primary pt-3 text-xs leading-5 text-text-secondary">
-                Boarding and alighting areas are approximate. Confirm safe
-                passenger access. Actual walking routes may differ.
-              </AppText>
+              <View className="mt-2">
+                <InfoBanner title="Before you ride">
+                  <AppText className="text-sm leading-5 text-text-secondary">
+                    Boarding and alighting areas are approximate. Confirm safe
+                    passenger access. Actual walking routes may differ.
+                  </AppText>
+                </InfoBanner>
+              </View>
             </View>
           )}
         </BottomSheetScrollView>

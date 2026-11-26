@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, View } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
@@ -395,9 +396,16 @@ export default function ExperimentalItineraryMap({
               onPress={() => onSelectStep?.({ kind: "ride", index })}
             >
               <View
-                className="rounded-full px-2 py-1"
+                className="flex-row items-center gap-1 rounded-full px-2 py-1"
                 style={{ backgroundColor: RIDE_COLORS[index] }}
               >
+                <MaterialCommunityIcons
+                  name="bus"
+                  size={12}
+                  color="#FFFFFF"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
                 <AppText weight="bold" className="text-xs text-white">
                   {ride.route_code}
                 </AppText>
