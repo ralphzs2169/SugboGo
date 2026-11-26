@@ -1,4 +1,4 @@
-"""Gate revision-pinned graph access to explicitly enabled local development."""
+"""Gate revision-pinned graph access to explicitly enabled itinerary searches."""
 
 import logging
 
@@ -17,7 +17,7 @@ class ItineraryGraphUnavailable(APIException):
 
     status_code = 503
     default_code = "itinerary_graph_unavailable"
-    default_detail = "The local experimental graph is unavailable or incompatible."
+    default_detail = "The experimental transfer graph is unavailable or incompatible."
 
 
 def experimental_connection_index(
@@ -25,7 +25,7 @@ def experimental_connection_index(
     route_geometries,
     route_codes,
 ):
-    """Validate the local database, graph pin and current managed inventory."""
+    """Validate the configured graph pin and current managed inventory."""
     try:
         index = configured_development_connection_graph()
         if index is None:
@@ -36,5 +36,5 @@ def experimental_connection_index(
             route_codes=route_codes,
         )
     except (OSError, ValueError, KeyError, TypeError) as error:
-        logger.warning("Local experimental graph rejected: %s", error)
+        logger.warning("Experimental transfer graph rejected: %s", error)
         raise ItineraryGraphUnavailable() from error

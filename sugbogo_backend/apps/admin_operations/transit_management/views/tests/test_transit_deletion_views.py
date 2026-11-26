@@ -1,5 +1,7 @@
 """Exercise route and direction deletion through the administrator API."""
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -10,10 +12,15 @@ from rest_framework.test import APITestCase
 from apps.admin_operations.transit_management.services import route_variant_service
 from apps.admin_operations.transit_management.views.tests import TransitManagementViewTestMixin
 from apps.transit.models import JeepneyRoute, JeepneyRouteVariant, RouteTransitPoint, TransitPoint
+from apps.transit.services.development_connection_graph_index import DevelopmentConnectionGraphIndex
+from apps.transit.services.tests.test_development_connection_graph_index import write_fixture
 from apps.users.models import User
 
 
-@override_settings(EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED=False)
+@override_settings(
+    EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED=False,
+    EXPERIMENTAL_ITINERARY_PRODUCTION_GRAPH_ENABLED=False,
+)
 class TransitDeletionViewTests(TransitManagementViewTestMixin, APITestCase):
     """Verify deletion effects, eligibility rechecks, and authorization."""
 
@@ -91,6 +98,31 @@ class TransitDeletionViewTests(TransitManagementViewTestMixin, APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("could not be verified", response.data["message"])
+        self.assertTrue(JeepneyRouteVariant.objects.filter(pk=self.variant_14d.pk).exists())
+
+    @override_settings(
+        DEBUG=False,
+        EXPERIMENTAL_ITINERARY_PRODUCTION_GRAPH_ENABLED=True,
+    )
+    def test_direction_deletion_uses_the_production_graph_pin(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory, _ = write_fixture(
+                root,
+                {1: self.variant_14d.JRV_GEOMETRY},
+                {1: self.route_14d.JRT_CODE},
+                [],
+            )
+            summary = DevelopmentConnectionGraphIndex.publish(directory)
+            with override_settings(
+                RAILWAY_VOLUME_MOUNT_PATH=str(root),
+                EXPERIMENTAL_ITINERARY_GRAPH_REVISION=directory.name,
+                EXPERIMENTAL_ITINERARY_GRAPH_SHA256=summary["graph_sha256"],
+            ):
+                response = self.client.delete(self.variant_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("required by the enabled transfer graph", response.data["message"])
         self.assertTrue(JeepneyRouteVariant.objects.filter(pk=self.variant_14d.pk).exists())
 
     def test_route_and_direction_deletion_require_an_active_administrator(self):
