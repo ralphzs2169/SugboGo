@@ -20,9 +20,15 @@ from core.responses import success_response
 
 
 class ExperimentalItineraryView(APIView):
-    """Require authenticated, active Explorers when itinerary access is enabled."""
+    """Apply the Explorer API permission policy when itinerary access is enabled."""
 
-    permission_classes = (IsAuthenticated, HasRole(User.UserRole.EXPLORER))
+    permission_classes = (
+        IsAuthenticated,
+        HasRole(
+            User.UserRole.EXPLORER,
+            User.UserRole.MERCHANT,
+        ),
+    )
     throttle_classes = (UserRateThrottle, ScopedRateThrottle)
 
     def check_permissions(self, request):
