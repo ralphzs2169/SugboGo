@@ -58,6 +58,20 @@ Overall `passenger_ready` still requires reviewed alignment for every ride plus 
 
 The tester screen uses a Google-native map displaying stored jeepney geometry, origin, destination and suggested areas. It labels straight-line distances as estimates and keeps route-review and access warnings. Places references retain their Google and third-party attribution. Optional Walking directions actions open Google Maps with the two selected coordinates and walking mode. The app does not draw walking polylines or show provider walking-validation errors in its default guide. Production release still needs field verification, device and coverage checks, review of the applicable Google Maps terms, and an explicit allowlist or release decision. Any Phase 5 offline snapshot needs its own retention rules for Google content.
 
+## Railway production graph opt-in
+
+Attach one persistent volume to the single-replica `sugbogo-api` service, for example at `/var/lib/sugbogo/transfer-graphs`. Railway supplies `RAILWAY_VOLUME_MOUNT_PATH` at runtime. Place `graph.jsonl`, `graph.pair-index`, `inventory.json`, and `complete.json` in a directory named for the pinned revision on that volume. Upload into a staging directory using authenticated Railway volume commands or SFTP, compare all four files with the verified local copies, and rename the staging directory into place. The API process needs read access to those files.
+
+```dotenv
+DEBUG=False
+EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED=false
+EXPERIMENTAL_ITINERARY_PRODUCTION_GRAPH_ENABLED=true
+EXPERIMENTAL_ITINERARY_GRAPH_REVISION=fc08d20e1ac317311693c6e4c5d8fc480d34f6266159ce8fd037ed7c65d23207
+EXPERIMENTAL_ITINERARY_GRAPH_SHA256=59f1d17ccf5b422a6063c44a9c3bd113bd59970d90608beaec4fb411875f5e7a
+```
+
+The production graph flag defaults to false and uses the existing PostGIS connection. Enable it after confirming the staged artifact maps uniquely to all 74 production directions by route code and ordered EWKB. Search keeps the same index and block integrity checks and returns `503 ITINERARY_GRAPH_UNAVAILABLE` if an enabled graph cannot be used. Admin direction deletion uses the same configured graph. To revert to live discovery, turn the production graph flag off. For Explorer preview access, set `EXPERIMENTAL_ITINERARIES_ENABLED=true` and configure the comma-separated `EXPERIMENTAL_ITINERARY_EXPLORER_IDS` allowlist.
+
 ## Local indexed graph opt-in
 
 The experimental search service can pass the existing Milestone 3.3 evaluator a managed-ID adapter for a verified development graph. Configure the following in the backend's ignored local `.env`, then restart the backend:

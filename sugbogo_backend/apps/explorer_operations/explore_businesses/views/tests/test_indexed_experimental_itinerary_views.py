@@ -12,9 +12,9 @@ from django.db import connection
 from django.test import LiveServerTestCase, TestCase, override_settings
 from rest_framework_simplejwt.tokens import AccessToken
 
-from apps.explorer_operations.explore_businesses.services import experimental_connection_graph_service as graph_service
 from apps.explorer_operations.explore_businesses.views.tests import test_experimental_itinerary_views as existing
 from apps.transit.models import JeepneyRouteVariant, TransitPoint
+from apps.transit.services import configured_development_connection_graph as graph_loader
 from apps.transit.services.coordinate_journey_service import CoordinateJourneyService
 from apps.transit.services.development_connection_graph_index import INDEX_NAME, DevelopmentConnectionGraphIndex
 from apps.transit.services.route_connection_service import RouteConnectionService
@@ -27,6 +27,7 @@ from apps.users.models import User
     EXPERIMENTAL_ITINERARIES_ENABLED=True,
     EXPERIMENTAL_ITINERARY_EXPLORER_IDS=("501", "502", "503"),
     EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED=True,
+    EXPERIMENTAL_ITINERARY_PRODUCTION_GRAPH_ENABLED=False,
     EXPERIMENTAL_ITINERARY_ACCESS_EVIDENCE="[]",
     EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE="[]",
 )
@@ -76,8 +77,8 @@ class IndexedExperimentalItineraryViewTests(TestCase):
             EXPERIMENTAL_ITINERARY_GRAPH_REVISION=self.index.revision,
             EXPERIMENTAL_ITINERARY_GRAPH_SHA256=self.index.graph_sha256,
         ))
-        graph_service._reader.cache_clear()
-        self.addCleanup(graph_service._reader.cache_clear)
+        graph_loader._reader.cache_clear()
+        self.addCleanup(graph_loader._reader.cache_clear)
         self.discovery = self.enterContext(patch.object(
             RouteConnectionService,
             "discover",
@@ -162,6 +163,47 @@ class IndexedExperimentalItineraryViewTests(TestCase):
         self.assertEqual(response.status_code, 503)
         self.discovery.assert_not_called()
 
+    @override_settings(
+        DEBUG=False,
+        EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED=False,
+        EXPERIMENTAL_ITINERARY_PRODUCTION_GRAPH_ENABLED=True,
+    )
+    def test_production_volume_loads_the_pinned_index_with_debug_disabled(self):
+        with (
+            override_settings(RAILWAY_VOLUME_MOUNT_PATH=str(self.directory.parent)),
+            patch.dict(connection.settings_dict, HOST="postgres.railway.internal"),
+        ):
+            response = self._search()
+
+        self.assertEqual(response.status_code, 200, response.data)
+        coverage = response.data["data"]["coverage"]
+        self.assertEqual(coverage["graph_revision"], self.index.revision)
+        self.assertEqual(coverage["graph_variant_count"], len(self.variants))
+        self.assertEqual(coverage["variants_outside_graph"], [])
+        self.discovery.assert_not_called()
+
+    @override_settings(
+        DEBUG=False,
+        EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED=False,
+        EXPERIMENTAL_ITINERARY_PRODUCTION_GRAPH_ENABLED=True,
+    )
+    def test_production_graph_rejects_invalid_mounts_pins_and_modes(self):
+        cases = (
+            {"RAILWAY_VOLUME_MOUNT_PATH": ""},
+            {"RAILWAY_VOLUME_MOUNT_PATH": "relative-graph-path"},
+            {"RAILWAY_VOLUME_MOUNT_PATH": str(self.directory / "missing")},
+            {"EXPERIMENTAL_ITINERARY_GRAPH_SHA256": "0" * 64},
+            {"EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED": True},
+            {"DEBUG": True},
+        )
+        with override_settings(RAILWAY_VOLUME_MOUNT_PATH=str(self.directory.parent)):
+            for configuration in cases:
+                with self.subTest(configuration=configuration), override_settings(**configuration):
+                    response = self._search()
+                self.assertEqual(response.status_code, 503, response.data)
+                self.assertEqual(response.data["code"], "ITINERARY_GRAPH_UNAVAILABLE")
+        self.discovery.assert_not_called()
+
     def test_budget_interruption_retains_direct_and_marks_partial_coverage(self):
         self.destination.return_value = (Point(123.920, 10.312, srid=4326), 100)
         original = CoordinateJourneyService.search
@@ -226,7 +268,7 @@ class IndexedExperimentalItineraryViewTests(TestCase):
             original = path.read_bytes()
             try:
                 path.write_bytes(b"corrupt")
-                graph_service._reader.cache_clear()
+                graph_loader._reader.cache_clear()
                 self.assertEqual(self._search().status_code, 503)
             finally:
                 path.write_bytes(original)
