@@ -1,6 +1,6 @@
 # Experimental jeepney itineraries v1
 
-Set `EXPERIMENTAL_ITINERARIES_ENABLED=true` on the backend to enable both endpoints for authenticated, active Explorers, including with `DEBUG=False`. The backend flag defaults to disabled.
+Set `EXPERIMENTAL_ITINERARIES_ENABLED=true` on the backend to enable both endpoints for authenticated, active Explorers and Merchants, including with `DEBUG=False`. The backend flag defaults to disabled.
 
 Set `EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED=true` in the mobile release environment to open geometry-first guidance from the regular Jeepney Guide entry. When the flag is off or unset in a release build, the entry opens the legacy guide. Supported development clients default to geometry-first guidance when the flag is unset and use the legacy guide when it is explicitly `false`. Android uses the existing `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` setup. For iOS, set `EXPO_PUBLIC_EXPERIMENTAL_IOS_MAPS_API_KEY` in the native build environment with the itinerary flag enabled. An iOS binary without the native Google Maps configuration needs a new build to use geometry-first guidance.
 
@@ -52,7 +52,7 @@ Detail enriches boarding and alighting areas for each selected ride, including b
 
 ## Passenger evidence and mobile display
 
-The optional `EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE` setting is a JSON array of records with `variant_id`, `geometry_revision`, `alignment_status` (`unreviewed`, `reviewed`, or `disputed`), and optional display-safe `provenance`. Setting `reviewed` requires a provenance reference and independent review of the current stored service alignment and direction. Missing or stale review records leave the geometry `unreviewed`. Authenticated, active Explorers can inspect a disputed or unreviewed line when the feature is enabled. Its recorded terminal labels do not establish actual service.
+The optional `EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE` setting is a JSON array of records with `variant_id`, `geometry_revision`, `alignment_status` (`unreviewed`, `reviewed`, or `disputed`), and optional display-safe `provenance`. Setting `reviewed` requires a provenance reference and independent review of the current stored service alignment and direction. Missing or stale review records leave the geometry `unreviewed`. Authenticated, active Explorers and Merchants can inspect a disputed or unreviewed line when the feature is enabled. Its recorded terminal labels do not establish actual service.
 
 The optional deployment setting `EXPERIMENTAL_ITINERARY_ACCESS_EVIDENCE` is a JSON array of trusted review records with `variant_id`, `geometry_revision`, `fraction`, `use` (`boarding` or `alighting`), `coordinate_verified`, `permission` (`unknown`, `permitted`, or `prohibited`), and access `latitude` and `longitude` when supplied. Evidence applies only to its exact position and revision. Empty evidence leaves locations provisional. Use verified curb or platform coordinates and independent operational permission, including for the starting and final ride. Provider snaps and nearby landmarks are display evidence.
 

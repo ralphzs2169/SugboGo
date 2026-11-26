@@ -165,25 +165,28 @@ class ExperimentalItineraryViewTests(TestCase):
             self.assertEqual(detail["ride_legs"][0]["boarding"]["landmark"]["attributions"][0]["name"], "Fixture provider")
 
     @override_settings(DEBUG=False)
-    def test_non_debug_allows_active_explorer_on_search_and_detail(self):
-        self.client.force_authenticate(self._user(pk=700))
+    def test_non_debug_allows_active_explorers_and_merchants_on_both_endpoints(self):
         self.destination.return_value = (Point(123.917, 10.310, srid=4326), 100)
+        for role in (User.UserRole.EXPLORER, User.UserRole.MERCHANT):
+            with self.subTest(role=role):
+                self.client.force_authenticate(self._user(pk=700, role=role))
+                response = self._search(max_transfers=0)
+                self.assertEqual(response.status_code, 200, response.data)
+                selection = response.data["data"]["options"][0]["selection"]
+                detail = self._detail(selection)
+                self.assertEqual(detail.status_code, 200, detail.data)
 
-        response = self._search(max_transfers=0)
-        self.assertEqual(response.status_code, 200, response.data)
-        selection = response.data["data"]["options"][0]["selection"]
-        detail = self._detail(selection)
-        self.assertEqual(detail.status_code, 200, detail.data)
-
-    def test_both_endpoints_require_an_authenticated_active_explorer(self):
-        inactive = self._user()
-        inactive.is_active = False
+    def test_both_endpoints_require_an_authenticated_active_explorer_or_merchant(self):
+        inactive_explorer = self._user()
+        inactive_explorer.is_active = False
+        inactive_merchant = self._user(role=User.UserRole.MERCHANT)
+        inactive_merchant.is_active = False
         for debug in (True, False):
             with self.subTest(debug=debug), override_settings(DEBUG=debug):
                 for user, expected in (
                     (None, 401),
-                    (inactive, 403),
-                    (self._user(role=User.UserRole.MERCHANT), 403),
+                    (inactive_explorer, 403),
+                    (inactive_merchant, 403),
                     (self._user(role=User.UserRole.ADMIN), 403),
                 ):
                     with self.subTest(user=user):
