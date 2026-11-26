@@ -2,7 +2,7 @@
 
 from django.conf import settings
 from django.utils.cache import add_never_cache_headers
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
@@ -20,21 +20,16 @@ from core.responses import success_response
 
 
 class ExperimentalItineraryView(APIView):
-    """Require active Explorers and restrict non-debug access to approved testers."""
+    """Require authenticated, active Explorers when itinerary access is enabled."""
 
     permission_classes = (IsAuthenticated, HasRole(User.UserRole.EXPLORER))
     throttle_classes = (UserRateThrottle, ScopedRateThrottle)
 
     def check_permissions(self, request):
-        """Apply the feature switch, Explorer permissions and non-debug allowlist."""
+        """Apply the feature switch before checking Explorer permissions."""
         if not settings.EXPERIMENTAL_ITINERARIES_ENABLED:
             raise NotFound()
         super().check_permissions(request)
-        if (
-            not settings.DEBUG
-            and str(request.user.pk) not in settings.EXPERIMENTAL_ITINERARY_EXPLORER_IDS
-        ):
-            raise PermissionDenied("Experimental itineraries are available to approved test accounts.")
 
     def finalize_response(self, request, response, *args, **kwargs):
         """Prevent intermediaries and clients from persisting selection or provider responses."""

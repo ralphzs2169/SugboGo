@@ -1,6 +1,8 @@
 # Experimental jeepney itineraries v1
 
-Enable the backend with `EXPERIMENTAL_ITINERARIES_ENABLED=true`. Both endpoints require an authenticated, active Explorer. With Django `DEBUG=True`, every such Explorer can use the preview. With `DEBUG=False`, the account must also appear in the comma-separated `EXPERIMENTAL_ITINERARY_EXPLORER_IDS` allowlist. This exception follows Django's DEBUG setting. On supported mobile development clients, the existing Jeepney Guide entry opens geometry-first guidance without requiring `EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED`; no duplicate preview button is shown. Release builds retain the legacy Jeepney Guide entry and the existing explicit experimental opt-in. The backend feature switch still defaults to disabled. Android uses the app's existing Google Maps setup. iOS still requires the native Google Maps key and build configuration; its existing release provisioning gate is unchanged.
+Set `EXPERIMENTAL_ITINERARIES_ENABLED=true` on the backend to enable both endpoints for authenticated, active Explorers, including with `DEBUG=False`. The backend flag defaults to disabled.
+
+Set `EXPO_PUBLIC_EXPERIMENTAL_ITINERARIES_ENABLED=true` in the mobile release environment to open geometry-first guidance from the regular Jeepney Guide entry. When the flag is off or unset in a release build, the entry opens the legacy guide. Supported development clients default to geometry-first guidance when the flag is unset and use the legacy guide when it is explicitly `false`. Android uses the existing `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` setup. For iOS, set `EXPO_PUBLIC_EXPERIMENTAL_IOS_MAPS_API_KEY` in the native build environment with the itinerary flag enabled. An iOS binary without the native Google Maps configuration needs a new build to use geometry-first guidance.
 
 ## Contract
 
@@ -50,13 +52,13 @@ Detail enriches boarding and alighting areas for each selected ride, including b
 
 ## Passenger evidence and mobile display
 
-The optional `EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE` setting is a JSON array of records with `variant_id`, `geometry_revision`, `alignment_status` (`unreviewed`, `reviewed`, or `disputed`), and optional display-safe `provenance`. Setting `reviewed` requires a provenance reference and independent review of the current stored service alignment and direction. Missing or stale review records leave the geometry `unreviewed`. A disputed or unreviewed line can be inspected through the feature gate and Explorer permissions described above, including the non-debug allowlist. Its recorded terminal labels do not establish actual service.
+The optional `EXPERIMENTAL_ITINERARY_ROUTE_EVIDENCE` setting is a JSON array of records with `variant_id`, `geometry_revision`, `alignment_status` (`unreviewed`, `reviewed`, or `disputed`), and optional display-safe `provenance`. Setting `reviewed` requires a provenance reference and independent review of the current stored service alignment and direction. Missing or stale review records leave the geometry `unreviewed`. Authenticated, active Explorers can inspect a disputed or unreviewed line when the feature is enabled. Its recorded terminal labels do not establish actual service.
 
 The optional deployment setting `EXPERIMENTAL_ITINERARY_ACCESS_EVIDENCE` is a JSON array of trusted review records with `variant_id`, `geometry_revision`, `fraction`, `use` (`boarding` or `alighting`), `coordinate_verified`, `permission` (`unknown`, `permitted`, or `prohibited`), and access `latitude` and `longitude` when supplied. Evidence applies only to its exact position and revision. Empty evidence leaves locations provisional. Use verified curb or platform coordinates and independent operational permission, including for the starting and final ride. Provider snaps and nearby landmarks are display evidence.
 
 Overall `passenger_ready` still requires reviewed alignment for every ride plus `passenger_access_verified`, which requires pedestrian connectivity and verified, permitted access. Default geometric guidance leaves pedestrian connectivity unchecked and therefore does not grant passenger readiness. Transfers apply the same rule to their two connected routes and endpoints. Route reviews and access records are checked when reopening a selection. The revision is now derived from the ordered geometry and route code. Old search selections and review records issued against the previous revision hash need a fresh search and review against the new revision.
 
-The tester screen uses a Google-native map displaying stored jeepney geometry, origin, destination and suggested areas. It labels straight-line distances as estimates and keeps route-review and access warnings. Places references retain their Google and third-party attribution. Optional Walking directions actions open Google Maps with the two selected coordinates and walking mode. The app does not draw walking polylines or show provider walking-validation errors in its default guide. Production release still needs field verification, device and coverage checks, review of the applicable Google Maps terms, and an explicit allowlist or release decision. Any Phase 5 offline snapshot needs its own retention rules for Google content.
+The geometry-first guide uses a Google-native map displaying stored jeepney geometry, origin, destination and suggested areas. It labels straight-line distances as estimates and keeps route-review and access warnings. Places references retain their Google and third-party attribution. Optional Walking directions actions open Google Maps with the two selected coordinates and walking mode. The app does not draw walking polylines or show provider walking-validation errors in its default guide. Production release still needs field verification, device and coverage checks, and review of the applicable Google Maps terms. Any Phase 5 offline snapshot needs its own retention rules for Google content.
 
 ## Railway production graph opt-in
 
@@ -64,13 +66,14 @@ Attach one persistent volume to the single-replica `sugbogo-api` service, for ex
 
 ```dotenv
 DEBUG=False
+EXPERIMENTAL_ITINERARIES_ENABLED=true
 EXPERIMENTAL_ITINERARY_DEVELOPMENT_GRAPH_ENABLED=false
 EXPERIMENTAL_ITINERARY_PRODUCTION_GRAPH_ENABLED=true
 EXPERIMENTAL_ITINERARY_GRAPH_REVISION=fc08d20e1ac317311693c6e4c5d8fc480d34f6266159ce8fd037ed7c65d23207
 EXPERIMENTAL_ITINERARY_GRAPH_SHA256=59f1d17ccf5b422a6063c44a9c3bd113bd59970d90608beaec4fb411875f5e7a
 ```
 
-The production graph flag defaults to false and uses the existing PostGIS connection. Enable it after confirming the staged artifact maps uniquely to all 74 production directions by route code and ordered EWKB. Search keeps the same index and block integrity checks and returns `503 ITINERARY_GRAPH_UNAVAILABLE` if an enabled graph cannot be used. Admin direction deletion uses the same configured graph. To revert to live discovery, turn the production graph flag off. For Explorer preview access, set `EXPERIMENTAL_ITINERARIES_ENABLED=true` and configure the comma-separated `EXPERIMENTAL_ITINERARY_EXPLORER_IDS` allowlist.
+The production graph flag defaults to false and uses the existing PostGIS connection. Enable it after confirming the staged artifact maps uniquely to all 74 production directions by route code and ordered EWKB. Search keeps the same index and block integrity checks and returns `503 ITINERARY_GRAPH_UNAVAILABLE` if an enabled graph cannot be used. Admin direction deletion uses the same configured graph. To revert to live discovery, turn the production graph flag off.
 
 ## Local indexed graph opt-in
 
